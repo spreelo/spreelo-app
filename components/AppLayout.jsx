@@ -59,23 +59,26 @@ export default function AppLayout({ active, children }) {
           </div>
         </div>
 
-        <nav className="nav">
-          <a className={active === "dashboard" ? "active" : ""} href="/">
-            Dashboard
-          </a>
-          <a className={active === "create" ? "active" : ""} href="/create">
-            Create post
-          </a>
-          <a className={active === "calendar" ? "active" : ""} href="/calendar">
-            Calendar
-          </a>
-          <a className={active === "brand" ? "active" : ""} href="/brand">
-            Brand profile
-          </a>
-          <a className={active === "settings" ? "active" : ""} href="/settings">
-            Settings
-          </a>
-        </nav>
+       <nav className="nav">
+  <a className={active === "dashboard" ? "active" : ""} href="/">
+    Dashboard
+  </a>
+  <a className={active === "create" ? "active" : ""} href="/create">
+    Create post
+  </a>
+  <a className={active === "automation" ? "active" : ""} href="/automation">
+    Automation
+  </a>
+  <a className={active === "calendar" ? "active" : ""} href="/calendar">
+    Calendar
+  </a>
+  <a className={active === "brand" ? "active" : ""} href="/brand">
+    Brand profile
+  </a>
+  <a className={active === "settings" ? "active" : ""} href="/settings">
+    Settings
+  </a>
+</nav>
 
         <div className="sidebar-footer">
           <p>{user?.email}</p>
