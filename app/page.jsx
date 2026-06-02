@@ -10,13 +10,13 @@ export default function Home() {
           </div>
         </div>
 
-        <nav className="nav">
-          <a className="active" href="#">Dashboard</a>
-          <a href="#">Create post</a>
-          <a href="#">Calendar</a>
-          <a href="#">Brand profile</a>
-          <a href="#">Settings</a>
-        </nav>
+<nav className="nav">
+  <a className="active" href="/">Dashboard</a>
+  <a href="/create">Create post</a>
+  <a href="/calendar">Calendar</a>
+  <a href="/brand">Brand profile</a>
+  <a href="/settings">Settings</a>
+</nav>
       </aside>
 
       <section className="content">
@@ -25,7 +25,7 @@ export default function Home() {
             <p className="eyebrow">Welcome back</p>
             <h2>Your social media workspace</h2>
           </div>
-          <button className="primary-button">Create new post</button>
+         <a className="primary-button" href="/create">Create new post</a>
         </header>
 
         <section className="hero-card">
