@@ -437,3 +437,33 @@ select.input {
   max-height: 230px;
   overflow: hidden;
 }
+.post-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.danger-button {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #991b1b;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.danger-button:hover {
+  background: #ffe4e6;
+}
+
+@media (max-width: 700px) {
+  .post-item-header {
+    flex-direction: column;
+  }
+
+  .post-actions {
+    align-items: flex-start;
+  }
+}
