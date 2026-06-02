@@ -402,3 +402,38 @@ select.input {
     width: 100%;
   }
 }
+.posts-list {
+  display: grid;
+  gap: 18px;
+}
+
+.post-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 20px;
+  background: #ffffff;
+}
+
+.post-item-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.post-item-header h4 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.post-item-header p,
+.post-item-header span {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.post-preview.compact {
+  max-height: 230px;
+  overflow: hidden;
+}
