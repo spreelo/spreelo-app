@@ -28,6 +28,8 @@ function createSlot(weekday = "Monday") {
     prompt: "",
     generateImage: false,
     imagePrompt: "",
+    includeEmojis: true,
+    includeHashtags: true,
   };
 }
 
@@ -35,10 +37,7 @@ export default function AutomationPage() {
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
 
-  const [slots, setSlots] = useState([
-    createSlot("Monday"),
-    createSlot("Wednesday"),
-  ]);
+  const [slots, setSlots] = useState([createSlot("Monday")]);
 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -220,6 +219,8 @@ export default function AutomationPage() {
       cta_type: ctaType,
       generate_image: slot.generateImage,
       image_prompt: slot.imagePrompt,
+      include_emojis: slot.includeEmojis,
+      include_hashtags: slot.includeHashtags,
       credit_cost: slot.generateImage ? 3 : 1,
       schedule_type: scheduleType,
       run_date: scheduleType === "once" ? runDate : null,
@@ -448,6 +449,36 @@ export default function AutomationPage() {
                         }
                       />
                       Generate AI image for this post
+                    </label>
+
+                    <label className="image-check">
+                      <input
+                        type="checkbox"
+                        checked={slot.includeEmojis}
+                        onChange={(event) =>
+                          updateSlot(
+                            slot.id,
+                            "includeEmojis",
+                            event.target.checked
+                          )
+                        }
+                      />
+                      Include emojis
+                    </label>
+
+                    <label className="image-check">
+                      <input
+                        type="checkbox"
+                        checked={slot.includeHashtags}
+                        onChange={(event) =>
+                          updateSlot(
+                            slot.id,
+                            "includeHashtags",
+                            event.target.checked
+                          )
+                        }
+                      />
+                      Include hashtags
                     </label>
 
                     <span className="credit-chip">
@@ -690,6 +721,12 @@ export default function AutomationPage() {
                   <div className="idea-box">
                     <strong>{rule.name}</strong>
                     <p>{rule.prompt}</p>
+
+                    <p>
+                      <strong>Options:</strong>{" "}
+                      {rule.include_emojis ? "Emojis" : "No emojis"} ·{" "}
+                      {rule.include_hashtags ? "Hashtags" : "No hashtags"}
+                    </p>
 
                     {rule.generate_image && rule.image_prompt && (
                       <p>
