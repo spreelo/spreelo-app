@@ -13,38 +13,58 @@ export default function CreatePost() {
   const [generatedPost, setGeneratedPost] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
-  function generateDraft() {
+  async function generateDraft() {
     setMessage("");
+    setGeneratedPost("");
 
     if (!idea.trim()) {
-      setGeneratedPost("Write a short idea first, then Vifsy can generate a post.");
+      setMessage("Write a short idea first, then Vifsy can generate a post.");
       return;
     }
 
-    const isSwedish = language === "Swedish";
+    setGenerating(true);
 
-    const intro = isSwedish
-      ? `✨ Nytt inlägg för ${platform}`
-      : `✨ New ${platform} post`;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    const toneLine = isSwedish
-      ? `Ton: ${tone.toLowerCase()} · Typ: ${postType.toLowerCase()}`
-      : `Tone: ${tone.toLowerCase()} · Type: ${postType.toLowerCase()}`;
+    if (!session) {
+      window.location.href = "/login";
+      return;
+    }
 
-    const body = isSwedish
-      ? `Vi vill lyfta detta på ett tydligt och engagerande sätt:\n\n${idea}\n\nDet här är ett perfekt tillfälle att påminna våra följare, skapa intresse och få fler att agera.`
-      : `We want to highlight this in a clear and engaging way:\n\n${idea}\n\nThis is a great opportunity to remind our audience, create interest and encourage people to take action.`;
+    try {
+      const response = await fetch("/api/generate-post", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          idea,
+          platform,
+          tone,
+          language,
+          postType,
+        }),
+      });
 
-    const callToAction = isSwedish
-      ? "👉 Kontakta oss eller besök oss för att veta mer."
-      : "👉 Contact us or visit us to learn more.";
+      const data = await response.json();
 
-    const hashtags = isSwedish
-      ? "#företag #socialamedier #erbjudande"
-      : "#business #socialmedia #marketing";
+      if (!response.ok) {
+        setMessage(data.error || "Could not generate post.");
+        setGenerating(false);
+        return;
+      }
 
-    setGeneratedPost(`${intro}\n${toneLine}\n\n${body}\n\n${callToAction}\n\n${hashtags}`);
+      setGeneratedPost(data.content || "");
+    } catch (error) {
+      setMessage(error.message || "Something went wrong.");
+    }
+
+    setGenerating(false);
   }
 
   async function saveDraft() {
@@ -101,8 +121,8 @@ export default function CreatePost() {
           <p className="eyebrow">AI assistant</p>
           <h3>Build a post draft</h3>
           <p>
-            Choose platform, tone, language and post type. Vifsy will create a
-            draft that you can save to your workspace.
+            Choose platform, tone, language and post type. Vifsy will use your
+            brand profile to create a real AI-generated draft.
           </p>
         </div>
 
@@ -169,8 +189,12 @@ export default function CreatePost() {
             placeholder="Example: We want to promote our new lunch menu this week..."
           />
 
-          <button className="primary-button full" onClick={generateDraft}>
-            Generate draft
+          <button
+            className="primary-button full"
+            onClick={generateDraft}
+            disabled={generating}
+          >
+            {generating ? "Generating..." : "Generate AI draft"}
           </button>
 
           {message && <p className="login-message">{message}</p>}
