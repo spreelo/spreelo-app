@@ -509,3 +509,8 @@ select.input {
   line-height: 1.6;
   resize: vertical;
 }
+.small-button {
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
