@@ -132,15 +132,20 @@ export default function Home() {
                     </p>
                   </div>
 
-                  <div className="post-actions">
-                    <span>{new Date(post.created_at).toLocaleDateString()}</span>
-                    <button
-                      className="danger-button"
-                      onClick={() => deletePost(post.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
+                 <div className="post-actions">
+  <span>{new Date(post.created_at).toLocaleDateString()}</span>
+
+  <a className="secondary-button small-button" href={`/posts/${post.id}`}>
+    Open / Edit
+  </a>
+
+  <button
+    className="danger-button"
+    onClick={() => deletePost(post.id)}
+  >
+    Delete
+  </button>
+</div>
                 </div>
 
                 <div className="post-preview compact">
