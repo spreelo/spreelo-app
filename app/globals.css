@@ -514,3 +514,21 @@ select.input {
   border-radius: 10px;
   font-size: 14px;
 }
+.toggle-row {
+  display: flex;
+  gap: 16px;
+  margin: 0 0 16px;
+}
+
+.toggle-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.toggle-row input {
+  width: 16px;
+  height: 16px;
+}
