@@ -385,3 +385,20 @@ select.input {
 .sidebar-footer button:hover {
   background: rgba(255, 255, 255, 0.16);
 }
+.button-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 700px) {
+  .button-row {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .button-row .primary-button,
+  .button-row .secondary-button {
+    width: 100%;
+  }
+}
