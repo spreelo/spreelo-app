@@ -104,7 +104,15 @@ export default function AutomationPage() {
 
       setRules(sortedRules);
     }
+const { data: balanceData, error: balanceError } = await supabase
+  .from("user_credit_balances")
+  .select("credits_remaining, monthly_credit_limit, plan_name")
+  .eq("user_id", user.id)
+  .single();
 
+if (!balanceError && balanceData) {
+  setCreditBalance(balanceData);
+}
     setLoading(false);
   }
 
