@@ -5,6 +5,10 @@ import AppLayout from "../../components/AppLayout";
 
 export default function CreatePost() {
   const [idea, setIdea] = useState("");
+  const [platform, setPlatform] = useState("Instagram");
+  const [tone, setTone] = useState("Friendly");
+  const [language, setLanguage] = useState("English");
+  const [postType, setPostType] = useState("Offer");
   const [generatedPost, setGeneratedPost] = useState("");
 
   function generateDraft() {
@@ -13,9 +17,29 @@ export default function CreatePost() {
       return;
     }
 
-    setGeneratedPost(
-      `🚀 New update from our business!\n\n${idea}\n\nWe are excited to share this with our customers and community. Stay tuned for more updates, offers and useful content.\n\n#business #socialmedia #update`
-    );
+    const isSwedish = language === "Swedish";
+
+    const intro = isSwedish
+      ? `✨ Nytt inlägg för ${platform}`
+      : `✨ New ${platform} post`;
+
+    const toneLine = isSwedish
+      ? `Ton: ${tone.toLowerCase()} · Typ: ${postType.toLowerCase()}`
+      : `Tone: ${tone.toLowerCase()} · Type: ${postType.toLowerCase()}`;
+
+    const body = isSwedish
+      ? `Vi vill lyfta detta på ett tydligt och engagerande sätt:\n\n${idea}\n\nDet här är ett perfekt tillfälle att påminna våra följare, skapa intresse och få fler att agera.`
+      : `We want to highlight this in a clear and engaging way:\n\n${idea}\n\nThis is a great opportunity to remind our audience, create interest and encourage people to take action.`;
+
+    const callToAction = isSwedish
+      ? "👉 Kontakta oss eller besök oss för att veta mer."
+      : "👉 Contact us or visit us to learn more.";
+
+    const hashtags = isSwedish
+      ? "#företag #socialamedier #erbjudande"
+      : "#business #socialmedia #marketing";
+
+    setGeneratedPost(`${intro}\n${toneLine}\n\n${body}\n\n${callToAction}\n\n${hashtags}`);
   }
 
   return (
@@ -30,14 +54,69 @@ export default function CreatePost() {
       <section className="hero-card">
         <div>
           <p className="eyebrow">AI assistant</p>
-          <h3>Tell Vifsy what you want to post</h3>
+          <h3>Build a post draft</h3>
           <p>
-            Start by describing your offer, news, product or idea. Vifsy will
-            create a simple draft you can later improve, save or schedule.
+            Choose platform, tone, language and post type. Vifsy will create a
+            simple draft that can later be improved with real AI.
           </p>
         </div>
 
         <div className="prompt-box">
+          <div className="form-grid">
+            <div>
+              <label>Platform</label>
+              <select
+                className="input"
+                value={platform}
+                onChange={(event) => setPlatform(event.target.value)}
+              >
+                <option>Instagram</option>
+                <option>Facebook</option>
+                <option>LinkedIn</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Tone</label>
+              <select
+                className="input"
+                value={tone}
+                onChange={(event) => setTone(event.target.value)}
+              >
+                <option>Friendly</option>
+                <option>Professional</option>
+                <option>Sales-focused</option>
+                <option>Premium</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Language</label>
+              <select
+                className="input"
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+              >
+                <option>English</option>
+                <option>Swedish</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Post type</label>
+              <select
+                className="input"
+                value={postType}
+                onChange={(event) => setPostType(event.target.value)}
+              >
+                <option>Offer</option>
+                <option>News</option>
+                <option>Educational</option>
+                <option>Reminder</option>
+              </select>
+            </div>
+          </div>
+
           <label>Post idea</label>
           <textarea
             value={idea}
