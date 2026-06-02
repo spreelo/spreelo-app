@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import AppLayout from "../../../components/AppLayout";
 import { supabase } from "../../../lib/supabaseClient";
 
-export default function EditPostPage({ params }) {
+export default function EditPostPage() {
+  const params = useParams();
+  const postId = params.id;
+
   const [post, setPost] = useState(null);
   const [content, setContent] = useState("");
   const [message, setMessage] = useState("");
@@ -25,7 +29,7 @@ export default function EditPostPage({ params }) {
       const { data, error } = await supabase
         .from("posts")
         .select("id, platform, tone, language, post_type, idea, content, status, created_at")
-        .eq("id", params.id)
+        .eq("id", postId)
         .eq("user_id", user.id)
         .single();
 
@@ -41,8 +45,10 @@ export default function EditPostPage({ params }) {
       setLoading(false);
     }
 
-    loadPost();
-  }, [params.id]);
+    if (postId) {
+      loadPost();
+    }
+  }, [postId]);
 
   async function savePost() {
     setSaving(true);
@@ -54,7 +60,7 @@ export default function EditPostPage({ params }) {
         content,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", params.id);
+      .eq("id", postId);
 
     if (error) {
       setMessage(error.message);
@@ -121,7 +127,9 @@ export default function EditPostPage({ params }) {
             <p className="eyebrow">
               {post.platform} · {post.post_type}
             </p>
-            <h3>{post.tone} · {post.language}</h3>
+            <h3>
+              {post.tone} · {post.language}
+            </h3>
           </div>
           <span className="status-pill">{post.status}</span>
         </div>
