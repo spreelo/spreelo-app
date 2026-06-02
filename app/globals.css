@@ -700,3 +700,61 @@ select.input {
     max-width: none;
   }
 }
+.slot-list {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.slot-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  padding: 22px;
+  background: #f9fafb;
+}
+
+.slot-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.slot-header h4 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.slot-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 16px;
+}
+
+.slot-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.slot-options input {
+  width: 16px;
+  height: 16px;
+}
+
+.compact-field {
+  max-width: 280px;
+}
+
+@media (max-width: 700px) {
+  .slot-header,
+  .slot-options {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
