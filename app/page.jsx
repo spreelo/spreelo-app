@@ -7,33 +7,61 @@ import { supabase } from "../lib/supabaseClient";
 export default function Home() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function loadPosts() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("posts")
-        .select("id, platform, tone, language, post_type, idea, content, status, created_at")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        setPosts(data);
-      }
-
-      setLoading(false);
-    }
-
     loadPosts();
   }, []);
+
+  async function loadPosts() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("posts")
+      .select("id, platform, tone, language, post_type, idea, content, status, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessage(error.message);
+    }
+
+    if (!error && data) {
+      setPosts(data);
+    }
+
+    setLoading(false);
+  }
+
+  async function deletePost(postId) {
+    const confirmDelete = window.confirm("Delete this draft?");
+    if (!confirmDelete) return;
+
+    setMessage("");
+
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId);
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setPosts((currentPosts) =>
+      currentPosts.filter((post) => post.id !== postId)
+    );
+
+    setMessage("Draft deleted.");
+  }
 
   return (
     <AppLayout active="dashboard">
@@ -54,7 +82,9 @@ export default function Home() {
         </div>
         <div className="stat-card">
           <span>Scheduled posts</span>
-          <strong>{posts.filter((post) => post.status === "scheduled").length}</strong>
+          <strong>
+            {posts.filter((post) => post.status === "scheduled").length}
+          </strong>
         </div>
         <div className="stat-card">
           <span>Connected channels</span>
@@ -72,6 +102,8 @@ export default function Home() {
             New draft
           </a>
         </div>
+
+        {message && <p className="login-message">{message}</p>}
 
         {loading ? (
           <div className="empty-card">
@@ -92,12 +124,23 @@ export default function Home() {
               <article className="post-item" key={post.id}>
                 <div className="post-item-header">
                   <div>
-                    <h4>{post.platform} · {post.post_type}</h4>
-                    <p>{post.tone} · {post.language} · {post.status}</p>
+                    <h4>
+                      {post.platform} · {post.post_type}
+                    </h4>
+                    <p>
+                      {post.tone} · {post.language} · {post.status}
+                    </p>
                   </div>
-                  <span>
-                    {new Date(post.created_at).toLocaleDateString()}
-                  </span>
+
+                  <div className="post-actions">
+                    <span>{new Date(post.created_at).toLocaleDateString()}</span>
+                    <button
+                      className="danger-button"
+                      onClick={() => deletePost(post.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
 
                 <div className="post-preview compact">
