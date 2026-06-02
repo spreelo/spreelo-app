@@ -16,10 +16,10 @@ const weekdays = [
 
 const dayOrder = weekdays;
 
-function createSlot() {
+function createSlot(id, weekday = "Monday") {
   return {
-    id: crypto.randomUUID(),
-    weekday: "Monday",
+    id,
+    weekday,
     publishTime: "08:35",
     prompt: "",
     generateImage: false,
@@ -31,8 +31,8 @@ export default function AutomationPage() {
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
   const [slots, setSlots] = useState([
-    createSlot(),
-    { ...createSlot(), id: crypto.randomUUID(), weekday: "Wednesday" },
+    createSlot("slot-1", "Monday"),
+    createSlot("slot-2", "Wednesday"),
   ]);
 
   const [message, setMessage] = useState("");
@@ -86,6 +86,8 @@ export default function AutomationPage() {
     !creditBalance || plannedCredits <= creditBalance.credits_remaining;
 
   async function loadRules() {
+    setLoading(true);
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -128,6 +130,10 @@ export default function AutomationPage() {
     setLoading(false);
   }
 
+  function makeSlotId() {
+    return `slot-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
   function updateSlot(slotId, field, value) {
     setSlots((currentSlots) =>
       currentSlots.map((slot) =>
@@ -137,7 +143,10 @@ export default function AutomationPage() {
   }
 
   function addSlot() {
-    setSlots((currentSlots) => [...currentSlots, createSlot()]);
+    setSlots((currentSlots) => [
+      ...currentSlots,
+      createSlot(makeSlotId(), "Monday"),
+    ]);
   }
 
   function duplicateSlot(slotId) {
@@ -148,7 +157,7 @@ export default function AutomationPage() {
       ...currentSlots,
       {
         ...slotToCopy,
-        id: crypto.randomUUID(),
+        id: makeSlotId(),
       },
     ]);
   }
@@ -227,7 +236,7 @@ export default function AutomationPage() {
         `${rows.length} planned post${rows.length === 1 ? "" : "s"} saved.`
       );
       setPlanName("");
-      setSlots([createSlot()]);
+      setSlots([createSlot(makeSlotId(), "Monday")]);
       await loadRules();
     }
 
@@ -302,7 +311,7 @@ export default function AutomationPage() {
               posts.
             </p>
           </div>
-          <button className="play-button">▶</button>
+          <button type="button" className="play-button">▶</button>
         </section>
 
         <section className="setup-card">
@@ -317,12 +326,14 @@ export default function AutomationPage() {
               <label>Plan type</label>
               <div className="plan-toggle">
                 <button
+                  type="button"
                   className={scheduleType === "weekly" ? "active" : ""}
                   onClick={() => setScheduleType("weekly")}
                 >
                   Repeats every week
                 </button>
                 <button
+                  type="button"
                   className={scheduleType === "once" ? "active" : ""}
                   onClick={() => setScheduleType("once")}
                 >
@@ -431,12 +442,14 @@ export default function AutomationPage() {
 
                     <div className="row-actions">
                       <button
+                        type="button"
                         className="tiny-button"
                         onClick={() => duplicateSlot(slot.id)}
                       >
                         Duplicate
                       </button>
                       <button
+                        type="button"
                         className="tiny-button danger"
                         onClick={() => removeSlot(slot.id)}
                       >
@@ -460,7 +473,7 @@ export default function AutomationPage() {
             ))}
           </div>
 
-          <button className="add-plan-button" onClick={addSlot}>
+          <button type="button" className="add-plan-button" onClick={addSlot}>
             + Add another planned post
           </button>
         </section>
@@ -576,6 +589,7 @@ export default function AutomationPage() {
             )}
 
             <button
+              type="button"
               className="save-plan-button"
               onClick={savePlan}
               disabled={saving || !hasEnoughCredits}
@@ -630,6 +644,7 @@ export default function AutomationPage() {
                     <div className="post-actions">
                       <span>{rule.credit_cost} credits/run</span>
                       <button
+                        type="button"
                         className="danger-button"
                         onClick={() => deleteRule(rule.id)}
                       >
