@@ -39,7 +39,18 @@ export async function POST(request) {
       );
     }
 
-    const { idea, platform, tone, language, postType } = await request.json();
+    const {
+      idea,
+      platform,
+      tone,
+      language,
+      postType,
+      websiteUrl,
+      length,
+      includeEmojis,
+      includeHashtags,
+      ctaType,
+    } = await request.json();
 
     if (!idea || !idea.trim()) {
       return Response.json(
@@ -59,10 +70,22 @@ export async function POST(request) {
     const targetAudience =
       brandProfile?.target_audience || "the target audience";
 
+    const emojiRule = includeEmojis
+      ? "Use emojis where they make the post more engaging, but do not overdo it."
+      : "Do not use emojis.";
+
+    const hashtagRule = includeHashtags
+      ? "Add a few relevant hashtags at the end."
+      : "Do not include hashtags.";
+
+    const websiteRule = websiteUrl
+      ? `Include this website link naturally in the call to action: ${websiteUrl}`
+      : "Do not invent a website link.";
+
     const response = await openai.responses.create({
       model: "gpt-5.5",
       instructions:
-        "You are Vifsy, an expert social media content assistant for small businesses. Write practical, ready-to-publish social media posts. Do not mention that you are AI. Keep the result clean and useful.",
+        "You are Vifsy, an expert social media content assistant for small businesses. Write practical, ready-to-publish social media posts. Do not mention that you are AI. Do not explain your work. Only return the finished post text.",
       input: `
 Create one social media post.
 
@@ -74,6 +97,11 @@ Platform: ${platform}
 Tone: ${tone}
 Language: ${language}
 Post type: ${postType}
+Length: ${length}
+CTA type: ${ctaType}
+
+Website:
+${websiteUrl || "No website provided"}
 
 Post idea:
 ${idea}
@@ -81,9 +109,15 @@ ${idea}
 Rules:
 - Write in the selected language.
 - Make it suitable for the selected platform.
-- Include a clear call to action.
-- Include a few relevant hashtags if suitable.
-- Do not explain the post. Only return the finished post text.
+- Match the selected tone.
+- Match the selected length.
+- Use a clear call to action based on the CTA type.
+- ${websiteRule}
+- ${emojiRule}
+- ${hashtagRule}
+- Make the post feel natural, not generic.
+- Do not use quotation marks around the final post.
+- Only return the finished post text.
       `,
     });
 
