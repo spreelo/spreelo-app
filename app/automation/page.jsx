@@ -30,7 +30,11 @@ function createSlot() {
 export default function AutomationPage() {
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
-  const [slots, setSlots] = useState([createSlot(), { ...createSlot(), id: crypto.randomUUID(), weekday: "Wednesday" }]);
+  const [slots, setSlots] = useState([
+    createSlot(),
+    { ...createSlot(), id: crypto.randomUUID(), weekday: "Wednesday" },
+  ]);
+
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,7 +55,10 @@ export default function AutomationPage() {
   }, []);
 
   const plannedCredits = useMemo(() => {
-    return slots.reduce((total, slot) => total + (slot.generateImage ? 3 : 1), 0);
+    return slots.reduce(
+      (total, slot) => total + (slot.generateImage ? 3 : 1),
+      0
+    );
   }, [slots]);
 
   const textOnlyCount = useMemo(() => {
@@ -74,6 +81,9 @@ export default function AutomationPage() {
     scheduleType === "weekly"
       ? (existingWeeklyCredits + plannedCredits) * 4
       : existingWeeklyCredits * 4 + plannedCredits;
+
+  const hasEnoughCredits =
+    !creditBalance || plannedCredits <= creditBalance.credits_remaining;
 
   async function loadRules() {
     const {
@@ -104,15 +114,17 @@ export default function AutomationPage() {
 
       setRules(sortedRules);
     }
-const { data: balanceData, error: balanceError } = await supabase
-  .from("user_credit_balances")
-  .select("credits_remaining, monthly_credit_limit, plan_name")
-  .eq("user_id", user.id)
-  .single();
 
-if (!balanceError && balanceData) {
-  setCreditBalance(balanceData);
-}
+    const { data: balanceData, error: balanceError } = await supabase
+      .from("user_credit_balances")
+      .select("credits_remaining, monthly_credit_limit, plan_name")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!balanceError && balanceData) {
+      setCreditBalance(balanceData);
+    }
+
     setLoading(false);
   }
 
@@ -167,6 +179,13 @@ if (!balanceError && balanceData) {
       return;
     }
 
+    if (creditBalance && plannedCredits > creditBalance.credits_remaining) {
+      setMessage(
+        `This plan needs ${plannedCredits} credits, but you only have ${creditBalance.credits_remaining} credits remaining.`
+      );
+      return;
+    }
+
     setSaving(true);
 
     const {
@@ -204,7 +223,9 @@ if (!balanceError && balanceData) {
     if (error) {
       setMessage(error.message);
     } else {
-      setMessage(`${rows.length} planned post${rows.length === 1 ? "" : "s"} saved.`);
+      setMessage(
+        `${rows.length} planned post${rows.length === 1 ? "" : "s"} saved.`
+      );
       setPlanName("");
       setSlots([createSlot()]);
       await loadRules();
@@ -246,10 +267,13 @@ if (!balanceError && balanceData) {
         <section className="automation-stats">
           <div className="automation-stat-card">
             <div>
-              <span>Planned posts</span>
-              <strong>{slots.length}</strong>
+              <span>Credits remaining</span>
+              <strong>{creditBalance?.credits_remaining ?? "—"}</strong>
+              {creditBalance?.plan_name && (
+                <small>{creditBalance.plan_name} plan</small>
+              )}
             </div>
-            <div className="stat-icon">📅</div>
+            <div className="stat-icon">💳</div>
           </div>
 
           <div className="automation-stat-card">
@@ -273,7 +297,10 @@ if (!balanceError && balanceData) {
           <div className="help-icon">💡</div>
           <div>
             <h3>New to automation?</h3>
-            <p>Watch our 2-minute video guide to learn how to schedule recurring posts.</p>
+            <p>
+              Watch our 2-minute video guide to learn how to schedule recurring
+              posts.
+            </p>
           </div>
           <button className="play-button">▶</button>
         </section>
@@ -388,7 +415,11 @@ if (!balanceError && balanceData) {
                         type="checkbox"
                         checked={slot.generateImage}
                         onChange={(event) =>
-                          updateSlot(slot.id, "generateImage", event.target.checked)
+                          updateSlot(
+                            slot.id,
+                            "generateImage",
+                            event.target.checked
+                          )
                         }
                       />
                       Generate AI image for this post
@@ -444,7 +475,10 @@ if (!balanceError && balanceData) {
           <div className="settings-panel">
             <div className="setting-tile">
               <span>Platform</span>
-              <select value={platform} onChange={(event) => setPlatform(event.target.value)}>
+              <select
+                value={platform}
+                onChange={(event) => setPlatform(event.target.value)}
+              >
                 <option>Instagram</option>
                 <option>Facebook</option>
                 <option>LinkedIn</option>
@@ -453,7 +487,10 @@ if (!balanceError && balanceData) {
 
             <div className="setting-tile">
               <span>Tone</span>
-              <select value={tone} onChange={(event) => setTone(event.target.value)}>
+              <select
+                value={tone}
+                onChange={(event) => setTone(event.target.value)}
+              >
                 <option>Friendly</option>
                 <option>Professional</option>
                 <option>Sales-focused</option>
@@ -463,7 +500,10 @@ if (!balanceError && balanceData) {
 
             <div className="setting-tile">
               <span>Language</span>
-              <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+              <select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+              >
                 <option>English</option>
                 <option>Swedish</option>
               </select>
@@ -471,7 +511,10 @@ if (!balanceError && balanceData) {
 
             <div className="setting-tile">
               <span>Post type</span>
-              <select value={postType} onChange={(event) => setPostType(event.target.value)}>
+              <select
+                value={postType}
+                onChange={(event) => setPostType(event.target.value)}
+              >
                 <option>Offer</option>
                 <option>News</option>
                 <option>Educational</option>
@@ -481,7 +524,10 @@ if (!balanceError && balanceData) {
 
             <div className="setting-tile">
               <span>Length</span>
-              <select value={length} onChange={(event) => setLength(event.target.value)}>
+              <select
+                value={length}
+                onChange={(event) => setLength(event.target.value)}
+              >
                 <option>Short</option>
                 <option>Medium</option>
                 <option>Long</option>
@@ -490,7 +536,10 @@ if (!balanceError && balanceData) {
 
             <div className="setting-tile">
               <span>CTA type</span>
-              <select value={ctaType} onChange={(event) => setCtaType(event.target.value)}>
+              <select
+                value={ctaType}
+                onChange={(event) => setCtaType(event.target.value)}
+              >
                 <option>Learn more</option>
                 <option>Visit website</option>
                 <option>Contact us</option>
@@ -519,7 +568,18 @@ if (!balanceError && balanceData) {
               <strong>{plannedCredits}</strong>
             </div>
 
-            <button className="save-plan-button" onClick={savePlan} disabled={saving}>
+            {creditBalance && !hasEnoughCredits && (
+              <div className="credit-warning">
+                This plan needs {plannedCredits} credits, but you only have{" "}
+                {creditBalance.credits_remaining} credits remaining.
+              </div>
+            )}
+
+            <button
+              className="save-plan-button"
+              onClick={savePlan}
+              disabled={saving || !hasEnoughCredits}
+            >
               {saving ? "Saving..." : "💾 Save content plan"}
             </button>
           </div>
@@ -543,7 +603,10 @@ if (!balanceError && balanceData) {
               <div className="folder-icon">📁</div>
               <div>
                 <h4>No automation rules yet</h4>
-                <p>Add your first content plan above. Each planned post will be saved as its own automation rule.</p>
+                <p>
+                  Add your first content plan above. Each planned post will be
+                  saved as its own automation rule.
+                </p>
               </div>
             </div>
           ) : (
@@ -578,6 +641,11 @@ if (!balanceError && balanceData) {
                   <div className="idea-box">
                     <strong>{rule.name}</strong>
                     <p>{rule.prompt}</p>
+                    {rule.generate_image && rule.image_prompt && (
+                      <p>
+                        <strong>Image:</strong> {rule.image_prompt}
+                      </p>
+                    )}
                   </div>
                 </article>
               ))}
