@@ -83,10 +83,7 @@ export default function AutomationPage() {
     }, 0);
   }, [rules]);
 
-  const monthlyEstimate =
-    scheduleType === "weekly"
-      ? (existingWeeklyCredits + plannedCredits) * 4
-      : existingWeeklyCredits * 4 + plannedCredits;
+const monthlyEstimate =
 
   const hasEnoughCredits =
     !creditBalance || plannedCredits <= creditBalance.credits_remaining;
