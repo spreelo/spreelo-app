@@ -10,6 +10,12 @@ export default function CreatePost() {
   const [tone, setTone] = useState("Friendly");
   const [language, setLanguage] = useState("English");
   const [postType, setPostType] = useState("Offer");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [length, setLength] = useState("Medium");
+  const [ctaType, setCtaType] = useState("Learn more");
+  const [includeEmojis, setIncludeEmojis] = useState(true);
+  const [includeHashtags, setIncludeHashtags] = useState(true);
+
   const [generatedPost, setGeneratedPost] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -48,6 +54,11 @@ export default function CreatePost() {
           tone,
           language,
           postType,
+          websiteUrl,
+          length,
+          includeEmojis,
+          includeHashtags,
+          ctaType,
         }),
       });
 
@@ -95,6 +106,11 @@ export default function CreatePost() {
       idea,
       content: generatedPost,
       status: "draft",
+      website_url: websiteUrl,
+      length,
+      include_emojis: includeEmojis,
+      include_hashtags: includeHashtags,
+      cta_type: ctaType,
       updated_at: new Date().toISOString(),
     });
 
@@ -119,10 +135,10 @@ export default function CreatePost() {
       <section className="hero-card">
         <div>
           <p className="eyebrow">AI assistant</p>
-          <h3>Build a post draft</h3>
+          <h3>Build a better post draft</h3>
           <p>
-            Choose platform, tone, language and post type. Vifsy will use your
-            brand profile to create a real AI-generated draft.
+            Choose platform, tone, language, length and call to action. Vifsy
+            uses your brand profile to create a more useful AI-generated draft.
           </p>
         </div>
 
@@ -180,7 +196,43 @@ export default function CreatePost() {
                 <option>Reminder</option>
               </select>
             </div>
+
+            <div>
+              <label>Length</label>
+              <select
+                className="input"
+                value={length}
+                onChange={(event) => setLength(event.target.value)}
+              >
+                <option>Short</option>
+                <option>Medium</option>
+                <option>Long</option>
+              </select>
+            </div>
+
+            <div>
+              <label>CTA type</label>
+              <select
+                className="input"
+                value={ctaType}
+                onChange={(event) => setCtaType(event.target.value)}
+              >
+                <option>Learn more</option>
+                <option>Visit website</option>
+                <option>Contact us</option>
+                <option>Book now</option>
+                <option>Shop now</option>
+              </select>
+            </div>
           </div>
+
+          <label>Website URL</label>
+          <input
+            className="input"
+            value={websiteUrl}
+            onChange={(event) => setWebsiteUrl(event.target.value)}
+            placeholder="Example: https://www.yourwebsite.com"
+          />
 
           <label>Post idea</label>
           <textarea
@@ -188,6 +240,26 @@ export default function CreatePost() {
             onChange={(event) => setIdea(event.target.value)}
             placeholder="Example: We want to promote our new lunch menu this week..."
           />
+
+          <div className="toggle-row">
+            <label>
+              <input
+                type="checkbox"
+                checked={includeEmojis}
+                onChange={(event) => setIncludeEmojis(event.target.checked)}
+              />
+              Include emojis
+            </label>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={includeHashtags}
+                onChange={(event) => setIncludeHashtags(event.target.checked)}
+              />
+              Include hashtags
+            </label>
+          </div>
 
           <button
             className="primary-button full"
