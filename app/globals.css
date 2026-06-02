@@ -358,3 +358,30 @@ select.input {
   background: #f9fafb;
   color: #111827;
 }
+.sidebar-footer {
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-top: 18px;
+}
+
+.sidebar-footer p {
+  margin: 0 0 12px;
+  color: #9ca3af;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.sidebar-footer button {
+  width: 100%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 11px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sidebar-footer button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
