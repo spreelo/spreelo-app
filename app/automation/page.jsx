@@ -305,7 +305,7 @@ const monthlyEstimate =
 
           <div className="automation-stat-card">
             <div>
-              <span>Estimated monthly use</span>
+              <span>Estimated monthly cost</span>
               <strong>{monthlyEstimate}</strong>
             </div>
             <div className="stat-icon">▮</div>
