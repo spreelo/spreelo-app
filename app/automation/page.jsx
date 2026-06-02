@@ -54,6 +54,7 @@ export default function AutomationPage() {
   const [postType, setPostType] = useState("Offer");
   const [length, setLength] = useState("Medium");
   const [ctaType, setCtaType] = useState("Learn more");
+  const [approvalRequired, setApprovalRequired] = useState(true);
 
   useEffect(() => {
     loadRules();
@@ -222,6 +223,7 @@ export default function AutomationPage() {
       credit_cost: slot.generateImage ? 3 : 1,
       schedule_type: scheduleType,
       run_date: scheduleType === "once" ? runDate : null,
+      approval_required: approvalRequired,
       is_active: true,
       updated_at: new Date().toISOString(),
     }));
@@ -577,6 +579,19 @@ export default function AutomationPage() {
               </select>
             </div>
 
+            <div className="setting-tile">
+              <span>Publishing mode</span>
+              <select
+                value={approvalRequired ? "review" : "auto"}
+                onChange={(event) =>
+                  setApprovalRequired(event.target.value === "review")
+                }
+              >
+                <option value="review">Review before publishing</option>
+                <option value="auto">Publish automatically</option>
+              </select>
+            </div>
+
             <div className="setting-tile summary">
               <span>Total planned posts</span>
               <strong>{slots.length}</strong>
@@ -653,7 +668,10 @@ export default function AutomationPage() {
                       </h4>
                       <p>
                         {rule.platform} · {rule.post_type} ·{" "}
-                        {rule.generate_image ? "Text + image" : "Text only"}
+                        {rule.generate_image ? "Text + image" : "Text only"} ·{" "}
+                        {rule.approval_required
+                          ? "Review first"
+                          : "Auto publish"}
                       </p>
                     </div>
 
