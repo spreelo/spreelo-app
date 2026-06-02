@@ -16,10 +16,10 @@ const weekdays = [
 
 const dayOrder = weekdays;
 
-function createSlot(id, weekday = "Monday") {
+function createSlot() {
   return {
-    id,
-    weekday,
+    id: crypto.randomUUID(),
+    weekday: "Monday",
     publishTime: "08:35",
     prompt: "",
     generateImage: false,
@@ -29,12 +29,7 @@ function createSlot(id, weekday = "Monday") {
 
 export default function AutomationPage() {
   const [rules, setRules] = useState([]);
-  const [creditBalance, setCreditBalance] = useState(null);
-  const [slots, setSlots] = useState([
-    createSlot("slot-1", "Monday"),
-    createSlot("slot-2", "Wednesday"),
-  ]);
-
+  const [slots, setSlots] = useState([createSlot(), { ...createSlot(), id: crypto.randomUUID(), weekday: "Wednesday" }]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,10 +50,7 @@ export default function AutomationPage() {
   }, []);
 
   const plannedCredits = useMemo(() => {
-    return slots.reduce(
-      (total, slot) => total + (slot.generateImage ? 3 : 1),
-      0
-    );
+    return slots.reduce((total, slot) => total + (slot.generateImage ? 3 : 1), 0);
   }, [slots]);
 
   const textOnlyCount = useMemo(() => {
@@ -82,12 +74,7 @@ export default function AutomationPage() {
       ? (existingWeeklyCredits + plannedCredits) * 4
       : existingWeeklyCredits * 4 + plannedCredits;
 
-  const hasEnoughCredits =
-    !creditBalance || plannedCredits <= creditBalance.credits_remaining;
-
   async function loadRules() {
-    setLoading(true);
-
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -117,21 +104,7 @@ export default function AutomationPage() {
       setRules(sortedRules);
     }
 
-    const { data: balanceData, error: balanceError } = await supabase
-      .from("user_credit_balances")
-      .select("credits_remaining, monthly_credit_limit, plan_name")
-      .eq("user_id", user.id)
-      .single();
-
-    if (!balanceError && balanceData) {
-      setCreditBalance(balanceData);
-    }
-
     setLoading(false);
-  }
-
-  function makeSlotId() {
-    return `slot-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
   function updateSlot(slotId, field, value) {
@@ -143,10 +116,7 @@ export default function AutomationPage() {
   }
 
   function addSlot() {
-    setSlots((currentSlots) => [
-      ...currentSlots,
-      createSlot(makeSlotId(), "Monday"),
-    ]);
+    setSlots((currentSlots) => [...currentSlots, createSlot()]);
   }
 
   function duplicateSlot(slotId) {
@@ -157,7 +127,7 @@ export default function AutomationPage() {
       ...currentSlots,
       {
         ...slotToCopy,
-        id: makeSlotId(),
+        id: crypto.randomUUID(),
       },
     ]);
   }
@@ -185,13 +155,6 @@ export default function AutomationPage() {
 
     if (invalidSlot) {
       setMessage("Every planned post needs its own prompt.");
-      return;
-    }
-
-    if (creditBalance && plannedCredits > creditBalance.credits_remaining) {
-      setMessage(
-        `This plan needs ${plannedCredits} credits, but you only have ${creditBalance.credits_remaining} credits remaining.`
-      );
       return;
     }
 
@@ -232,11 +195,9 @@ export default function AutomationPage() {
     if (error) {
       setMessage(error.message);
     } else {
-      setMessage(
-        `${rows.length} planned post${rows.length === 1 ? "" : "s"} saved.`
-      );
+      setMessage(`${rows.length} planned post${rows.length === 1 ? "" : "s"} saved.`);
       setPlanName("");
-      setSlots([createSlot(makeSlotId(), "Monday")]);
+      setSlots([createSlot()]);
       await loadRules();
     }
 
@@ -276,13 +237,10 @@ export default function AutomationPage() {
         <section className="automation-stats">
           <div className="automation-stat-card">
             <div>
-              <span>Credits remaining</span>
-              <strong>{creditBalance?.credits_remaining ?? "—"}</strong>
-              {creditBalance?.plan_name && (
-                <small>{creditBalance.plan_name} plan</small>
-              )}
+              <span>Planned posts</span>
+              <strong>{slots.length}</strong>
             </div>
-            <div className="stat-icon">💳</div>
+            <div className="stat-icon">📅</div>
           </div>
 
           <div className="automation-stat-card">
@@ -306,12 +264,9 @@ export default function AutomationPage() {
           <div className="help-icon">💡</div>
           <div>
             <h3>New to automation?</h3>
-            <p>
-              Watch our 2-minute video guide to learn how to schedule recurring
-              posts.
-            </p>
+            <p>Watch our 2-minute video guide to learn how to schedule recurring posts.</p>
           </div>
-          <button type="button" className="play-button">▶</button>
+          <button className="play-button">▶</button>
         </section>
 
         <section className="setup-card">
@@ -326,14 +281,12 @@ export default function AutomationPage() {
               <label>Plan type</label>
               <div className="plan-toggle">
                 <button
-                  type="button"
                   className={scheduleType === "weekly" ? "active" : ""}
                   onClick={() => setScheduleType("weekly")}
                 >
                   Repeats every week
                 </button>
                 <button
-                  type="button"
                   className={scheduleType === "once" ? "active" : ""}
                   onClick={() => setScheduleType("once")}
                 >
@@ -426,11 +379,7 @@ export default function AutomationPage() {
                         type="checkbox"
                         checked={slot.generateImage}
                         onChange={(event) =>
-                          updateSlot(
-                            slot.id,
-                            "generateImage",
-                            event.target.checked
-                          )
+                          updateSlot(slot.id, "generateImage", event.target.checked)
                         }
                       />
                       Generate AI image for this post
@@ -442,14 +391,12 @@ export default function AutomationPage() {
 
                     <div className="row-actions">
                       <button
-                        type="button"
                         className="tiny-button"
                         onClick={() => duplicateSlot(slot.id)}
                       >
                         Duplicate
                       </button>
                       <button
-                        type="button"
                         className="tiny-button danger"
                         onClick={() => removeSlot(slot.id)}
                       >
@@ -473,7 +420,7 @@ export default function AutomationPage() {
             ))}
           </div>
 
-          <button type="button" className="add-plan-button" onClick={addSlot}>
+          <button className="add-plan-button" onClick={addSlot}>
             + Add another planned post
           </button>
         </section>
@@ -488,10 +435,7 @@ export default function AutomationPage() {
           <div className="settings-panel">
             <div className="setting-tile">
               <span>Platform</span>
-              <select
-                value={platform}
-                onChange={(event) => setPlatform(event.target.value)}
-              >
+              <select value={platform} onChange={(event) => setPlatform(event.target.value)}>
                 <option>Instagram</option>
                 <option>Facebook</option>
                 <option>LinkedIn</option>
@@ -500,10 +444,7 @@ export default function AutomationPage() {
 
             <div className="setting-tile">
               <span>Tone</span>
-              <select
-                value={tone}
-                onChange={(event) => setTone(event.target.value)}
-              >
+              <select value={tone} onChange={(event) => setTone(event.target.value)}>
                 <option>Friendly</option>
                 <option>Professional</option>
                 <option>Sales-focused</option>
@@ -513,10 +454,7 @@ export default function AutomationPage() {
 
             <div className="setting-tile">
               <span>Language</span>
-              <select
-                value={language}
-                onChange={(event) => setLanguage(event.target.value)}
-              >
+              <select value={language} onChange={(event) => setLanguage(event.target.value)}>
                 <option>English</option>
                 <option>Swedish</option>
               </select>
@@ -524,10 +462,7 @@ export default function AutomationPage() {
 
             <div className="setting-tile">
               <span>Post type</span>
-              <select
-                value={postType}
-                onChange={(event) => setPostType(event.target.value)}
-              >
+              <select value={postType} onChange={(event) => setPostType(event.target.value)}>
                 <option>Offer</option>
                 <option>News</option>
                 <option>Educational</option>
@@ -537,10 +472,7 @@ export default function AutomationPage() {
 
             <div className="setting-tile">
               <span>Length</span>
-              <select
-                value={length}
-                onChange={(event) => setLength(event.target.value)}
-              >
+              <select value={length} onChange={(event) => setLength(event.target.value)}>
                 <option>Short</option>
                 <option>Medium</option>
                 <option>Long</option>
@@ -549,10 +481,7 @@ export default function AutomationPage() {
 
             <div className="setting-tile">
               <span>CTA type</span>
-              <select
-                value={ctaType}
-                onChange={(event) => setCtaType(event.target.value)}
-              >
+              <select value={ctaType} onChange={(event) => setCtaType(event.target.value)}>
                 <option>Learn more</option>
                 <option>Visit website</option>
                 <option>Contact us</option>
@@ -581,19 +510,7 @@ export default function AutomationPage() {
               <strong>{plannedCredits}</strong>
             </div>
 
-            {creditBalance && !hasEnoughCredits && (
-              <div className="credit-warning">
-                This plan needs {plannedCredits} credits, but you only have{" "}
-                {creditBalance.credits_remaining} credits remaining.
-              </div>
-            )}
-
-            <button
-              type="button"
-              className="save-plan-button"
-              onClick={savePlan}
-              disabled={saving || !hasEnoughCredits}
-            >
+            <button className="save-plan-button" onClick={savePlan} disabled={saving}>
               {saving ? "Saving..." : "💾 Save content plan"}
             </button>
           </div>
@@ -617,10 +534,7 @@ export default function AutomationPage() {
               <div className="folder-icon">📁</div>
               <div>
                 <h4>No automation rules yet</h4>
-                <p>
-                  Add your first content plan above. Each planned post will be
-                  saved as its own automation rule.
-                </p>
+                <p>Add your first content plan above. Each planned post will be saved as its own automation rule.</p>
               </div>
             </div>
           ) : (
@@ -644,7 +558,6 @@ export default function AutomationPage() {
                     <div className="post-actions">
                       <span>{rule.credit_cost} credits/run</span>
                       <button
-                        type="button"
                         className="danger-button"
                         onClick={() => deleteRule(rule.id)}
                       >
@@ -656,11 +569,6 @@ export default function AutomationPage() {
                   <div className="idea-box">
                     <strong>{rule.name}</strong>
                     <p>{rule.prompt}</p>
-                    {rule.generate_image && rule.image_prompt && (
-                      <p>
-                        <strong>Image:</strong> {rule.image_prompt}
-                      </p>
-                    )}
                   </div>
                 </article>
               ))}
