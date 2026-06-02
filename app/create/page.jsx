@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AppLayout from "../../components/AppLayout";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function CreatePost() {
   const [idea, setIdea] = useState("");
@@ -10,8 +11,12 @@ export default function CreatePost() {
   const [language, setLanguage] = useState("English");
   const [postType, setPostType] = useState("Offer");
   const [generatedPost, setGeneratedPost] = useState("");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
 
   function generateDraft() {
+    setMessage("");
+
     if (!idea.trim()) {
       setGeneratedPost("Write a short idea first, then Vifsy can generate a post.");
       return;
@@ -42,6 +47,46 @@ export default function CreatePost() {
     setGeneratedPost(`${intro}\n${toneLine}\n\n${body}\n\n${callToAction}\n\n${hashtags}`);
   }
 
+  async function saveDraft() {
+    setMessage("");
+
+    if (!generatedPost.trim()) {
+      setMessage("Generate a post before saving.");
+      return;
+    }
+
+    setSaving(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const { error } = await supabase.from("posts").insert({
+      user_id: user.id,
+      platform,
+      tone,
+      language,
+      post_type: postType,
+      idea,
+      content: generatedPost,
+      status: "draft",
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      setMessage(error.message);
+    } else {
+      setMessage("Draft saved.");
+    }
+
+    setSaving(false);
+  }
+
   return (
     <AppLayout active="create">
       <header className="topbar">
@@ -57,7 +102,7 @@ export default function CreatePost() {
           <h3>Build a post draft</h3>
           <p>
             Choose platform, tone, language and post type. Vifsy will create a
-            simple draft that can later be improved with real AI.
+            draft that you can save to your workspace.
           </p>
         </div>
 
@@ -127,6 +172,8 @@ export default function CreatePost() {
           <button className="primary-button full" onClick={generateDraft}>
             Generate draft
           </button>
+
+          {message && <p className="login-message">{message}</p>}
         </div>
       </section>
 
@@ -137,12 +184,23 @@ export default function CreatePost() {
               <p className="eyebrow">Generated draft</p>
               <h3>Your post</h3>
             </div>
-            <button
-              className="secondary-button"
-              onClick={() => navigator.clipboard.writeText(generatedPost)}
-            >
-              Copy text
-            </button>
+
+            <div className="button-row">
+              <button
+                className="secondary-button"
+                onClick={() => navigator.clipboard.writeText(generatedPost)}
+              >
+                Copy text
+              </button>
+
+              <button
+                className="primary-button"
+                onClick={saveDraft}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : "Save draft"}
+              </button>
+            </div>
           </div>
 
           <div className="post-preview">
