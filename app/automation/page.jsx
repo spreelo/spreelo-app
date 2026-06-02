@@ -28,7 +28,7 @@ function createSlot() {
 }
 
 export default function AutomationPage() {
-  const [rules, setRules] = useState([]);
+  const [creditBalance, setCreditBalance] = useState(null);
   const [slots, setSlots] = useState([createSlot(), { ...createSlot(), id: crypto.randomUUID(), weekday: "Wednesday" }]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
