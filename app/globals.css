@@ -544,3 +544,159 @@ select.input {
 .credit-note strong {
   color: #111827;
 }
+.planner-card {
+  background: white;
+  border-radius: 26px;
+  padding: 30px;
+  box-shadow: 0 20px 60px rgba(17, 24, 39, 0.08);
+  margin-bottom: 24px;
+}
+
+.planner-intro {
+  margin-bottom: 24px;
+}
+
+.planner-intro h3 {
+  margin: 0 0 12px;
+  font-size: 30px;
+  letter-spacing: -0.04em;
+}
+
+.planner-intro p {
+  margin: 0;
+  color: #5b6472;
+  line-height: 1.6;
+  max-width: 720px;
+}
+
+.planner-section {
+  margin-top: 24px;
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.choice {
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #111827;
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.choice.active {
+  background: #111827;
+  border-color: #111827;
+  color: white;
+}
+
+.day-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.day {
+  width: 58px;
+  height: 48px;
+  border: 1px solid #d1d5db;
+  background: white;
+  border-radius: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.day.active {
+  background: #111827;
+  color: white;
+  border-color: #111827;
+}
+
+.time-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.time-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.time-row .input {
+  margin-bottom: 0;
+  max-width: 180px;
+}
+
+.day-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+.day-time-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 18px;
+  background: #f9fafb;
+}
+
+.day-time-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.muted-text {
+  margin: 0;
+  color: #6b7280;
+}
+
+.credit-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.credit-summary div {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.credit-summary span {
+  display: block;
+  color: #6b7280;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.credit-summary strong {
+  font-size: 24px;
+}
+
+@media (max-width: 900px) {
+  .day-time-grid,
+  .credit-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .time-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .time-row .input {
+    max-width: none;
+  }
+}
