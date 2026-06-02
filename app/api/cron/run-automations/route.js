@@ -1,34 +1,142 @@
 import { createClient } from "@supabase/supabase-js";
+import OpenAI from "openai";
+import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
-function getCurrentWeekday() {
+function getStockholmDateYYYYMMDD(date = new Date()) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Europe/Stockholm",
+  }).format(date);
+}
+
+function getCurrentWeekday(date = new Date()) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     timeZone: "Europe/Stockholm",
-  }).format(new Date());
+  }).format(date);
 }
 
-function getCurrentTimeHHMM() {
+function getCurrentTimeHHMM(date = new Date()) {
   return new Intl.DateTimeFormat("sv-SE", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
     timeZone: "Europe/Stockholm",
-  }).format(new Date());
+  }).format(date);
+}
+
+function normalizeTime(value) {
+  return String(value || "").slice(0, 5);
+}
+
+function hasAlreadyRunToday(rule, today) {
+  if (!rule.last_run_at) return false;
+
+  const lastRunDate = getStockholmDateYYYYMMDD(new Date(rule.last_run_at));
+
+  return lastRunDate === today;
+}
+
+function isRuleDue(rule, today, currentWeekday, currentTime) {
+  const publishTime = normalizeTime(rule.publish_time);
+
+  if (!rule.is_active) return false;
+  if (!publishTime) return false;
+
+  if (rule.schedule_type === "once") {
+    if (!rule.run_date) return false;
+
+    if (rule.run_date < today) return true;
+
+    return rule.run_date === today && publishTime <= currentTime;
+  }
+
+  if (rule.schedule_type === "weekly") {
+    if (!rule.weekday) return false;
+
+    return (
+      String(rule.weekday).toLowerCase() ===
+        String(currentWeekday).toLowerCase() && publishTime <= currentTime
+    );
+  }
+
+  return false;
+}
+
+function buildAutomationPrompt(rule) {
+  return `
+Create a ready-to-publish social media post.
+
+Platform: ${rule.platform || "Instagram"}
+Language: ${rule.language || "English"}
+Tone: ${rule.tone || "Professional"}
+Post type: ${rule.post_type || "General post"}
+Length: ${rule.length || "Medium"}
+CTA type: ${rule.cta_type || "Soft CTA"}
+Website URL: ${rule.website_url || "Not provided"}
+
+Include emojis: ${rule.include_emojis ? "Yes" : "No"}
+Include hashtags: ${rule.include_hashtags ? "Yes" : "No"}
+
+User instruction:
+${rule.prompt || ""}
+
+Important:
+- Return only the final post text.
+- Do not explain anything.
+- Make it suitable for the selected platform.
+- If emojis are disabled, do not use emojis.
+- If hashtags are enabled, include relevant hashtags at the end.
+- If hashtags are disabled, do not include hashtags.
+`.trim();
+}
+
+async function setRuleError(supabase, ruleId, message) {
+  await supabase
+    .from("automation_rules")
+    .update({
+      last_error: message,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", ruleId);
+}
+
+async function generateAutomationPost(openai, rule) {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are an expert social media copywriter. You write clear, useful and ready-to-publish social media posts.",
+      },
+      {
+        role: "user",
+        content: buildAutomationPrompt(rule),
+      },
+    ],
+    temperature: 0.8,
+  });
+
+  return completion.choices?.[0]?.message?.content?.trim() || "";
 }
 
 export async function GET() {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const openaiApiKey = process.env.OPENAI_API_KEY;
 
-    if (!supabaseUrl || !serviceRoleKey) {
+    if (!supabaseUrl || !serviceRoleKey || !openaiApiKey) {
       return Response.json(
         {
           ok: false,
           error:
-            "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.",
+            "Missing NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY or OPENAI_API_KEY.",
         },
         { status: 500 }
       );
@@ -36,10 +144,16 @@ export async function GET() {
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    const openai = new OpenAI({
+      apiKey: openaiApiKey,
+    });
+
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const currentWeekday = getCurrentWeekday();
-    const currentTime = getCurrentTimeHHMM();
+    const nowIso = now.toISOString();
+
+    const today = getStockholmDateYYYYMMDD(now);
+    const currentWeekday = getCurrentWeekday(now);
+    const currentTime = getCurrentTimeHHMM(now);
 
     const { data: rules, error: rulesError } = await supabase
       .from("automation_rules")
@@ -56,76 +170,278 @@ export async function GET() {
       );
     }
 
-    const dueRules = (rules || []).filter((rule) => {
-      const publishTime = String(rule.publish_time || "").slice(0, 5);
-
-      if (!publishTime) return false;
-
-      if (rule.schedule_type === "once") {
-        return rule.run_date === today && publishTime <= currentTime;
-      }
-
-      return rule.weekday === currentWeekday && publishTime <= currentTime;
-    });
-
     const results = [];
 
-    for (const rule of dueRules) {
-      const { data: balance, error: balanceError } = await supabase
-        .from("user_credit_balances")
-        .select("credits_remaining, monthly_credit_limit, plan_name")
-        .eq("user_id", rule.user_id)
-        .single();
+    for (const rule of rules || []) {
+      const publishTime = normalizeTime(rule.publish_time);
 
-      if (balanceError || !balance) {
-        results.push({
-          rule_id: rule.id,
-          status: "skipped",
-          reason: "No credit balance found",
-        });
-
-        continue;
-      }
-
-      const creditCost = rule.credit_cost || 1;
-
-      if (balance.credits_remaining < creditCost) {
-        results.push({
-          rule_id: rule.id,
-          status: "skipped",
-          reason: "Not enough credits",
-          credits_remaining: balance.credits_remaining,
-          credit_cost: creditCost,
-        });
-
-        continue;
-      }
-
-      results.push({
+      const baseResult = {
         rule_id: rule.id,
-        status: "ready",
         name: rule.name,
         user_id: rule.user_id,
         schedule_type: rule.schedule_type,
         weekday: rule.weekday,
         run_date: rule.run_date,
         publish_time: publishTime,
-        credit_cost: creditCost,
-        credits_remaining: balance.credits_remaining,
-      });
+      };
+
+      try {
+        const due = isRuleDue(rule, today, currentWeekday, currentTime);
+
+        if (!due) {
+          results.push({
+            ...baseResult,
+            status: "skipped",
+            reason: "Rule is not due",
+          });
+
+          continue;
+        }
+
+        if (hasAlreadyRunToday(rule, today)) {
+          results.push({
+            ...baseResult,
+            status: "skipped",
+            reason: "Rule has already run today",
+          });
+
+          continue;
+        }
+
+        if (rule.generate_image) {
+          const message = "Image automation is not enabled yet";
+
+          await setRuleError(supabase, rule.id, message);
+
+          results.push({
+            ...baseResult,
+            status: "skipped",
+            reason: message,
+          });
+
+          continue;
+        }
+
+        const creditCost = Number(rule.credit_cost || 1);
+
+        const { data: balance, error: balanceError } = await supabase
+          .from("user_credit_balances")
+          .select("credits_remaining, monthly_credit_limit, plan_name")
+          .eq("user_id", rule.user_id)
+          .single();
+
+        if (balanceError || !balance) {
+          const message = "No credit balance found";
+
+          await setRuleError(supabase, rule.id, message);
+
+          results.push({
+            ...baseResult,
+            status: "skipped",
+            reason: message,
+          });
+
+          continue;
+        }
+
+        const creditsRemaining = Number(balance.credits_remaining || 0);
+
+        if (creditsRemaining < creditCost) {
+          const message = "Not enough credits";
+
+          await setRuleError(supabase, rule.id, message);
+
+          results.push({
+            ...baseResult,
+            status: "skipped",
+            reason: message,
+            credits_remaining: creditsRemaining,
+            credit_cost: creditCost,
+          });
+
+          continue;
+        }
+
+        const generatedContent = await generateAutomationPost(openai, rule);
+
+        if (!generatedContent) {
+          const message = "OpenAI returned empty content";
+
+          await setRuleError(supabase, rule.id, message);
+
+          results.push({
+            ...baseResult,
+            status: "error",
+            reason: message,
+          });
+
+          continue;
+        }
+
+        const approvalRequired = Boolean(rule.approval_required);
+        const approvalToken = crypto.randomBytes(32).toString("hex");
+
+        const postStatus = approvalRequired ? "pending_approval" : "draft";
+
+        const { data: post, error: postError } = await supabase
+          .from("posts")
+          .insert({
+            user_id: rule.user_id,
+
+            content: generatedContent,
+            platform: rule.platform || null,
+            tone: rule.tone || null,
+            language: rule.language || null,
+            post_type: rule.post_type || null,
+            website_url: rule.website_url || null,
+            length: rule.length || null,
+            include_emojis: Boolean(rule.include_emojis),
+            include_hashtags: Boolean(rule.include_hashtags),
+            cta_type: rule.cta_type || null,
+
+            source: "automation",
+            source_label: "Generated by automation",
+            automation_rule_id: rule.id,
+
+            status: postStatus,
+            approval_required: approvalRequired,
+            approval_token: approvalToken,
+            scheduled_for: nowIso,
+          })
+          .select()
+          .single();
+
+        if (postError || !post) {
+          const message = postError?.message || "Could not save post";
+
+          await setRuleError(supabase, rule.id, message);
+
+          results.push({
+            ...baseResult,
+            status: "error",
+            reason: message,
+          });
+
+          continue;
+        }
+
+        const newCreditsRemaining = creditsRemaining - creditCost;
+
+        const { error: creditUpdateError } = await supabase
+          .from("user_credit_balances")
+          .update({
+            credits_remaining: newCreditsRemaining,
+            updated_at: nowIso,
+          })
+          .eq("user_id", rule.user_id);
+
+        if (creditUpdateError) {
+          const message =
+            creditUpdateError.message || "Could not update credit balance";
+
+          await setRuleError(supabase, rule.id, message);
+
+          results.push({
+            ...baseResult,
+            status: "error",
+            reason: message,
+            post_id: post.id,
+          });
+
+          continue;
+        }
+
+        const { error: transactionError } = await supabase
+          .from("credit_transactions")
+          .insert({
+            user_id: rule.user_id,
+            amount: -creditCost,
+            reason: "Automation post generated",
+            reference_type: "post",
+            reference_id: post.id,
+          });
+
+        if (transactionError) {
+          const message =
+            transactionError.message || "Could not create credit transaction";
+
+          await setRuleError(supabase, rule.id, message);
+
+          results.push({
+            ...baseResult,
+            status: "error",
+            reason: message,
+            post_id: post.id,
+          });
+
+          continue;
+        }
+
+        const ruleUpdatePayload = {
+          last_run_at: nowIso,
+          last_error: null,
+          updated_at: nowIso,
+        };
+
+        if (rule.schedule_type === "once") {
+          ruleUpdatePayload.is_active = false;
+        }
+
+        const { error: ruleUpdateError } = await supabase
+          .from("automation_rules")
+          .update(ruleUpdatePayload)
+          .eq("id", rule.id);
+
+        if (ruleUpdateError) {
+          results.push({
+            ...baseResult,
+            status: "warning",
+            reason:
+              "Post was generated and credits were used, but the automation rule could not be updated",
+            details: ruleUpdateError.message,
+            post_id: post.id,
+            credits_used: creditCost,
+            credits_remaining: newCreditsRemaining,
+          });
+
+          continue;
+        }
+
+        results.push({
+          ...baseResult,
+          status: "generated",
+          reason: approvalRequired
+            ? "Post generated and saved as pending approval"
+            : "Post generated and saved as draft",
+          post_id: post.id,
+          post_status: postStatus,
+          approval_required: approvalRequired,
+          credits_used: creditCost,
+          credits_remaining: newCreditsRemaining,
+        });
+      } catch (error) {
+        const message = error.message || "Unknown automation error";
+
+        await setRuleError(supabase, rule.id, message);
+
+        results.push({
+          ...baseResult,
+          status: "error",
+          reason: message,
+        });
+      }
     }
 
     return Response.json({
       ok: true,
-      mode: "dry_run",
+      mode: "live_text_only",
       message:
-        "Cron route works. No posts were generated and no credits were used.",
-      checked_at: now.toISOString(),
+        "Cron route checked active automation rules. Text-only due rules can now generate posts and use credits.",
+      checked_at: nowIso,
       today,
       currentWeekday,
       currentTime,
       total_rules: rules?.length || 0,
-      due_rules: dueRules.length,
       results,
     });
   } catch (error) {
