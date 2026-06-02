@@ -83,7 +83,10 @@ export default function AutomationPage() {
     }, 0);
   }, [rules]);
 
-const monthlyEstimate =
+  const monthlyEstimate =
+    scheduleType === "weekly"
+      ? (existingWeeklyCredits + plannedCredits) * 4
+      : existingWeeklyCredits * 4 + plannedCredits;
 
   const hasEnoughCredits =
     !creditBalance || plannedCredits <= creditBalance.credits_remaining;
@@ -305,7 +308,7 @@ const monthlyEstimate =
 
           <div className="automation-stat-card">
             <div>
-              <span>Estimated monthly cost</span>
+              <span>Estimated monthly use</span>
               <strong>{monthlyEstimate}</strong>
             </div>
             <div className="stat-icon">▮</div>
