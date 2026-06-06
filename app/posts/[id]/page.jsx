@@ -28,7 +28,9 @@ export default function EditPostPage() {
 
       const { data, error } = await supabase
         .from("posts")
-        .select("id, platform, tone, language, post_type, idea, content, status, created_at")
+        .select(
+          "id, platform, tone, language, post_type, idea, content, status, created_at"
+        )
         .eq("id", postId)
         .eq("user_id", user.id)
         .single();
@@ -76,7 +78,7 @@ export default function EditPostPage() {
       <AppLayout active="dashboard">
         <section className="empty-card">
           <h3>Loading post...</h3>
-          <p>Please wait while Vifsy loads your draft.</p>
+          <p>Please wait while Spreelo loads your draft.</p>
         </section>
       </AppLayout>
     );
@@ -115,7 +117,11 @@ export default function EditPostPage() {
           >
             Copy text
           </button>
-          <button className="primary-button" onClick={savePost} disabled={saving}>
+          <button
+            className="primary-button"
+            onClick={savePost}
+            disabled={saving}
+          >
             {saving ? "Saving..." : "Save changes"}
           </button>
         </div>
@@ -137,7 +143,9 @@ export default function EditPostPage() {
         <div className="edit-post-grid">
           <div>
             <label className="field-label">Original idea</label>
-            <div className="idea-box">{post.idea || "No original idea saved."}</div>
+            <div className="idea-box">
+              {post.idea || "No original idea saved."}
+            </div>
           </div>
 
           <div>
