@@ -374,6 +374,13 @@ async function getRulesToProcess({
   return Array.from(uniqueRules.values()).slice(0, BATCH_SIZE);
 }
 
+function isAuthorizedCronRequest(request, cronSecret) {
+  const authorizationHeader = request.headers.get("authorization");
+  const expectedAuthorizationHeader = `Bearer ${cronSecret}`;
+
+  return authorizationHeader === expectedAuthorizationHeader;
+}
+
 export async function GET(request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -392,10 +399,7 @@ export async function GET(request) {
       );
     }
 
-    const url = new URL(request.url);
-    const providedSecret = url.searchParams.get("secret");
-
-    if (!providedSecret || providedSecret !== cronSecret) {
+    if (!isAuthorizedCronRequest(request, cronSecret)) {
       return Response.json(
         {
           ok: false,
@@ -606,7 +610,7 @@ export async function GET(request) {
 
     return Response.json({
       ok: true,
-      mode: "live_text_only_protected_batched",
+      mode: "live_text_only_protected_batched_header_auth",
       checked_at: nowIso,
       batch_size: BATCH_SIZE,
       fetched_rules: rules?.length || 0,
