@@ -1,2 +1,2 @@
-# vifsy-app
-AI social media assistant for Vifsy
+# Spreelo App
+AI social media planner for creating, saving and automating social media content.
