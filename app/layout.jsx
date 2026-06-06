@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Vifsy App",
+  title: "Spreelo App",
   description: "AI social media assistant for small businesses",
 };
 
