@@ -4,7 +4,7 @@ import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
-const STOCKHOLM_TIME_ZONE = "Europe/Stockholm";
+const DEFAULT_TIME_ZONE = "Europe/Stockholm";
 const BATCH_SIZE = 25;
 
 const WEEKDAYS = [
@@ -17,32 +17,40 @@ const WEEKDAYS = [
   "Saturday",
 ];
 
-function getStockholmDateYYYYMMDD(date = new Date()) {
+function getRuleTimeZone(rule) {
+  return rule?.timezone || DEFAULT_TIME_ZONE;
+}
+
+function normalizeTime(value) {
+  return String(value || "").slice(0, 5);
+}
+
+function getDateYYYYMMDDInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
   return new Intl.DateTimeFormat("sv-SE", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    timeZone: STOCKHOLM_TIME_ZONE,
+    timeZone,
   }).format(date);
 }
 
-function getCurrentWeekday(date = new Date()) {
+function getWeekdayInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
-    timeZone: STOCKHOLM_TIME_ZONE,
+    timeZone,
   }).format(date);
 }
 
-function getCurrentTimeHHMM(date = new Date()) {
+function getTimeHHMMInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
   return new Intl.DateTimeFormat("sv-SE", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: STOCKHOLM_TIME_ZONE,
+    timeZone,
   }).format(date);
 }
 
-function getStockholmDateParts(date = new Date()) {
+function getDatePartsInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
   const parts = new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "2-digit",
@@ -51,7 +59,7 @@ function getStockholmDateParts(date = new Date()) {
     minute: "2-digit",
     second: "2-digit",
     hourCycle: "h23",
-    timeZone: STOCKHOLM_TIME_ZONE,
+    timeZone,
   }).formatToParts(date);
 
   const values = {};
@@ -104,23 +112,21 @@ function getTimeZoneOffsetMs(date, timeZone) {
   return asUtc - date.getTime();
 }
 
-function stockholmLocalToUtcDate({
+function zonedLocalToUtcDate({
   year,
   month,
   day,
   hour = 0,
   minute = 0,
   second = 0,
+  timeZone = DEFAULT_TIME_ZONE,
 }) {
   const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second);
 
-  let offset = getTimeZoneOffsetMs(new Date(utcGuess), STOCKHOLM_TIME_ZONE);
+  let offset = getTimeZoneOffsetMs(new Date(utcGuess), timeZone);
   let utcTime = utcGuess - offset;
 
-  const correctedOffset = getTimeZoneOffsetMs(
-    new Date(utcTime),
-    STOCKHOLM_TIME_ZONE
-  );
+  const correctedOffset = getTimeZoneOffsetMs(new Date(utcTime), timeZone);
 
   if (correctedOffset !== offset) {
     utcTime = utcGuess - correctedOffset;
@@ -129,23 +135,31 @@ function stockholmLocalToUtcDate({
   return new Date(utcTime);
 }
 
-function normalizeTime(value) {
-  return String(value || "").slice(0, 5);
-}
-
-function hasAlreadyRunToday(rule, today) {
+function hasAlreadyRunToday(rule, now = new Date()) {
   if (!rule.last_run_at) return false;
 
-  const lastRunDate = getStockholmDateYYYYMMDD(new Date(rule.last_run_at));
+  const timeZone = getRuleTimeZone(rule);
+
+  const lastRunDate = getDateYYYYMMDDInTimeZone(
+    new Date(rule.last_run_at),
+    timeZone
+  );
+
+  const today = getDateYYYYMMDDInTimeZone(now, timeZone);
 
   return lastRunDate === today;
 }
 
-function isRuleDueByOldSchedule(rule, today, currentWeekday, currentTime) {
+function isRuleDueByOldSchedule(rule, now = new Date()) {
   const publishTime = normalizeTime(rule.publish_time);
+  const timeZone = getRuleTimeZone(rule);
 
   if (!rule.is_active) return false;
   if (!publishTime) return false;
+
+  const today = getDateYYYYMMDDInTimeZone(now, timeZone);
+  const currentWeekday = getWeekdayInTimeZone(now, timeZone);
+  const currentTime = getTimeHHMMInTimeZone(now, timeZone);
 
   if (rule.schedule_type === "once") {
     if (!rule.run_date) return false;
@@ -169,6 +183,7 @@ function isRuleDueByOldSchedule(rule, today, currentWeekday, currentTime) {
 
 function getNextWeeklyRunAtIso(rule, now = new Date()) {
   const publishTime = normalizeTime(rule.publish_time);
+  const timeZone = getRuleTimeZone(rule);
 
   if (!rule.weekday || !publishTime) {
     return null;
@@ -198,7 +213,7 @@ function getNextWeeklyRunAtIso(rule, now = new Date()) {
     return null;
   }
 
-  const currentWeekday = getCurrentWeekday(now);
+  const currentWeekday = getWeekdayInTimeZone(now, timeZone);
 
   const currentWeekdayIndex = WEEKDAYS.findIndex(
     (weekday) =>
@@ -216,15 +231,16 @@ function getNextWeeklyRunAtIso(rule, now = new Date()) {
     daysUntilNextRun = 7;
   }
 
-  const stockholmParts = getStockholmDateParts(now);
+  const localParts = getDatePartsInTimeZone(now, timeZone);
 
-  const nextRunUtcDate = stockholmLocalToUtcDate({
-    year: stockholmParts.year,
-    month: stockholmParts.month,
-    day: stockholmParts.day + daysUntilNextRun,
+  const nextRunUtcDate = zonedLocalToUtcDate({
+    year: localParts.year,
+    month: localParts.month,
+    day: localParts.day + daysUntilNextRun,
     hour,
     minute,
     second: 0,
+    timeZone,
   });
 
   return nextRunUtcDate.toISOString();
@@ -322,13 +338,7 @@ async function generateAutomationPost(openai, rule) {
   return completion.choices?.[0]?.message?.content?.trim() || "";
 }
 
-async function getRulesToProcess({
-  supabase,
-  nowIso,
-  today,
-  currentWeekday,
-  currentTime,
-}) {
+async function getRulesToProcess({ supabase, nowIso, now }) {
   const { data: dueRules, error: dueRulesError } = await supabase
     .from("automation_rules")
     .select("*")
@@ -362,7 +372,7 @@ async function getRulesToProcess({
   }
 
   const oldRulesThatAreDue = (fallbackRules || []).filter((rule) =>
-    isRuleDueByOldSchedule(rule, today, currentWeekday, currentTime)
+    isRuleDueByOldSchedule(rule, now)
   );
 
   const uniqueRules = new Map();
@@ -418,16 +428,10 @@ export async function GET(request) {
     const now = new Date();
     const nowIso = now.toISOString();
 
-    const today = getStockholmDateYYYYMMDD(now);
-    const currentWeekday = getCurrentWeekday(now);
-    const currentTime = getCurrentTimeHHMM(now);
-
     const rules = await getRulesToProcess({
       supabase,
       nowIso,
-      today,
-      currentWeekday,
-      currentTime,
+      now,
     });
 
     const summary = createEmptySummary();
@@ -436,7 +440,7 @@ export async function GET(request) {
       summary.processed += 1;
 
       try {
-        if (hasAlreadyRunToday(rule, today)) {
+        if (hasAlreadyRunToday(rule, now)) {
           summary.skipped += 1;
           continue;
         }
@@ -610,7 +614,7 @@ export async function GET(request) {
 
     return Response.json({
       ok: true,
-      mode: "live_text_only_protected_batched_header_auth",
+      mode: "live_text_only_protected_batched_header_auth_timezone",
       checked_at: nowIso,
       batch_size: BATCH_SIZE,
       fetched_rules: rules?.length || 0,
