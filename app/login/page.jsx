@@ -13,10 +13,15 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
 
+    const redirectTo =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : "https://app.spreelo.com";
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: "https://app.vifsy.com",
+        emailRedirectTo: redirectTo,
       },
     });
 
@@ -33,9 +38,9 @@ export default function LoginPage() {
     <main className="login-page">
       <section className="login-card">
         <div className="brand login-brand">
-          <div className="brand-mark">V</div>
+          <div className="brand-mark">S</div>
           <div>
-            <h1>Vifsy</h1>
+            <h1>Spreelo</h1>
             <p>AI social media planner</p>
           </div>
         </div>
@@ -44,7 +49,7 @@ export default function LoginPage() {
           <p className="eyebrow">Login</p>
           <h2>Sign in to your workspace</h2>
           <p>
-            Enter your email and Vifsy will send you a secure login link.
+            Enter your email and Spreelo will send you a secure login link.
           </p>
         </div>
 
