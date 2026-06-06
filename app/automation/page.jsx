@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 
-const STOCKHOLM_TIME_ZONE = "Europe/Stockholm";
+const DEFAULT_TIME_ZONE = "Europe/Stockholm";
 
 const weekdays = [
   "Monday",
@@ -17,6 +17,28 @@ const weekdays = [
 ];
 
 const dayOrder = weekdays;
+
+const commonTimeZones = [
+  "Europe/Stockholm",
+  "Europe/Copenhagen",
+  "Europe/Oslo",
+  "Europe/Helsinki",
+  "Europe/London",
+  "Europe/Berlin",
+  "Europe/Paris",
+  "Europe/Madrid",
+  "Europe/Rome",
+  "Europe/Amsterdam",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "Asia/Bangkok",
+  "Asia/Dubai",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+];
 
 function makeSlotId() {
   return `slot-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -39,7 +61,17 @@ function normalizeTime(value) {
   return String(value || "").slice(0, 5);
 }
 
-function getStockholmDateParts(date = new Date()) {
+function getBrowserTimeZone() {
+  try {
+    return (
+      Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIME_ZONE
+    );
+  } catch {
+    return DEFAULT_TIME_ZONE;
+  }
+}
+
+function getDatePartsInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
   const parts = new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "2-digit",
@@ -48,7 +80,7 @@ function getStockholmDateParts(date = new Date()) {
     minute: "2-digit",
     second: "2-digit",
     hourCycle: "h23",
-    timeZone: STOCKHOLM_TIME_ZONE,
+    timeZone,
   }).formatToParts(date);
 
   const values = {};
@@ -69,19 +101,19 @@ function getStockholmDateParts(date = new Date()) {
   };
 }
 
-function getCurrentWeekday(date = new Date()) {
+function getWeekdayInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
-    timeZone: STOCKHOLM_TIME_ZONE,
+    timeZone,
   }).format(date);
 }
 
-function getCurrentTimeHHMM(date = new Date()) {
+function getTimeHHMMInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
   return new Intl.DateTimeFormat("sv-SE", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: STOCKHOLM_TIME_ZONE,
+    timeZone,
   }).format(date);
 }
 
@@ -117,23 +149,21 @@ function getTimeZoneOffsetMs(date, timeZone) {
   return asUtc - date.getTime();
 }
 
-function stockholmLocalToUtcDate({
+function zonedLocalToUtcDate({
   year,
   month,
   day,
   hour = 0,
   minute = 0,
   second = 0,
+  timeZone = DEFAULT_TIME_ZONE,
 }) {
   const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second);
 
-  let offset = getTimeZoneOffsetMs(new Date(utcGuess), STOCKHOLM_TIME_ZONE);
+  let offset = getTimeZoneOffsetMs(new Date(utcGuess), timeZone);
   let utcTime = utcGuess - offset;
 
-  const correctedOffset = getTimeZoneOffsetMs(
-    new Date(utcTime),
-    STOCKHOLM_TIME_ZONE
-  );
+  const correctedOffset = getTimeZoneOffsetMs(new Date(utcTime), timeZone);
 
   if (correctedOffset !== offset) {
     utcTime = utcGuess - correctedOffset;
@@ -142,7 +172,12 @@ function stockholmLocalToUtcDate({
   return new Date(utcTime);
 }
 
-function getNextWeeklyRunAtIso(weekday, publishTime, now = new Date()) {
+function getNextWeeklyRunAtIso(
+  weekday,
+  publishTime,
+  timeZone = DEFAULT_TIME_ZONE,
+  now = new Date()
+) {
   const normalizedPublishTime = normalizeTime(publishTime);
 
   if (!weekday || !normalizedPublishTime) {
@@ -173,7 +208,7 @@ function getNextWeeklyRunAtIso(weekday, publishTime, now = new Date()) {
     return null;
   }
 
-  const currentWeekday = getCurrentWeekday(now);
+  const currentWeekday = getWeekdayInTimeZone(now, timeZone);
 
   const currentWeekdayIndex = dayOrder.findIndex(
     (day) => day.toLowerCase() === String(currentWeekday).toLowerCase()
@@ -183,7 +218,7 @@ function getNextWeeklyRunAtIso(weekday, publishTime, now = new Date()) {
     return null;
   }
 
-  const currentTime = getCurrentTimeHHMM(now);
+  const currentTime = getTimeHHMMInTimeZone(now, timeZone);
 
   let daysUntilNextRun =
     (targetWeekdayIndex - currentWeekdayIndex + 7) % 7;
@@ -192,21 +227,26 @@ function getNextWeeklyRunAtIso(weekday, publishTime, now = new Date()) {
     daysUntilNextRun = 7;
   }
 
-  const stockholmParts = getStockholmDateParts(now);
+  const localParts = getDatePartsInTimeZone(now, timeZone);
 
-  const nextRunUtcDate = stockholmLocalToUtcDate({
-    year: stockholmParts.year,
-    month: stockholmParts.month,
-    day: stockholmParts.day + daysUntilNextRun,
+  const nextRunUtcDate = zonedLocalToUtcDate({
+    year: localParts.year,
+    month: localParts.month,
+    day: localParts.day + daysUntilNextRun,
     hour,
     minute,
     second: 0,
+    timeZone,
   });
 
   return nextRunUtcDate.toISOString();
 }
 
-function getOneTimeRunAtIso(runDate, publishTime) {
+function getOneTimeRunAtIso(
+  runDate,
+  publishTime,
+  timeZone = DEFAULT_TIME_ZONE
+) {
   const normalizedPublishTime = normalizeTime(publishTime);
 
   if (!runDate || !normalizedPublishTime) {
@@ -232,37 +272,44 @@ function getOneTimeRunAtIso(runDate, publishTime) {
     return null;
   }
 
-  const runUtcDate = stockholmLocalToUtcDate({
+  const runUtcDate = zonedLocalToUtcDate({
     year,
     month,
     day,
     hour,
     minute,
     second: 0,
+    timeZone,
   });
 
   return runUtcDate.toISOString();
 }
 
-function getInitialNextRunAtIso({ scheduleType, weekday, publishTime, runDate }) {
+function getInitialNextRunAtIso({
+  scheduleType,
+  weekday,
+  publishTime,
+  runDate,
+  timeZone,
+}) {
   if (scheduleType === "once") {
-    return getOneTimeRunAtIso(runDate, publishTime);
+    return getOneTimeRunAtIso(runDate, publishTime, timeZone);
   }
 
   if (scheduleType === "weekly") {
-    return getNextWeeklyRunAtIso(weekday, publishTime);
+    return getNextWeeklyRunAtIso(weekday, publishTime, timeZone);
   }
 
   return null;
 }
 
-function formatDateTime(value) {
+function formatDateTime(value, timeZone = DEFAULT_TIME_ZONE) {
   if (!value) return "Not set";
 
   return new Intl.DateTimeFormat("sv-SE", {
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: STOCKHOLM_TIME_ZONE,
+    timeZone,
   }).format(new Date(value));
 }
 
@@ -287,10 +334,18 @@ export default function AutomationPage() {
   const [length, setLength] = useState("Medium");
   const [ctaType, setCtaType] = useState("Learn more");
   const [approvalRequired, setApprovalRequired] = useState(true);
+  const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
 
   useEffect(() => {
+    setTimeZone(getBrowserTimeZone());
     loadRules();
   }, []);
+
+  const timeZoneOptions = useMemo(() => {
+    const options = new Set([timeZone, DEFAULT_TIME_ZONE, ...commonTimeZones]);
+
+    return Array.from(options).filter(Boolean);
+  }, [timeZone]);
 
   const plannedCredits = useMemo(() => {
     return slots.reduce(
@@ -445,6 +500,8 @@ export default function AutomationPage() {
       return;
     }
 
+    const selectedTimeZone = timeZone || DEFAULT_TIME_ZONE;
+
     const rows = slots.map((slot) => ({
       user_id: user.id,
       name: planName || `${slot.weekday} ${slot.publishTime}`,
@@ -464,11 +521,13 @@ export default function AutomationPage() {
       credit_cost: slot.generateImage ? 3 : 1,
       schedule_type: scheduleType,
       run_date: scheduleType === "once" ? runDate : null,
+      timezone: selectedTimeZone,
       next_run_at: getInitialNextRunAtIso({
         scheduleType,
         weekday: slot.weekday,
         publishTime: slot.publishTime,
         runDate,
+        timeZone: selectedTimeZone,
       }),
       approval_required: approvalRequired,
       is_active: true,
@@ -865,6 +924,20 @@ export default function AutomationPage() {
               </select>
             </div>
 
+            <div className="setting-tile">
+              <span>Timezone</span>
+              <select
+                value={timeZone}
+                onChange={(event) => setTimeZone(event.target.value)}
+              >
+                {timeZoneOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="setting-tile summary">
               <span>Total planned posts</span>
               <strong>{slots.length}</strong>
@@ -929,71 +1002,82 @@ export default function AutomationPage() {
             </div>
           ) : (
             <div className="posts-list">
-              {rules.map((rule) => (
-                <article className="post-item" key={rule.id}>
-                  <div className="post-item-header">
-                    <div>
-                      <h4>
-                        {rule.schedule_type === "once"
-                          ? rule.run_date
-                          : rule.weekday}{" "}
-                        · {rule.publish_time?.slice(0, 5)}
-                      </h4>
-                      <p>
-                        {rule.platform} · {rule.post_type} ·{" "}
-                        {rule.generate_image ? "Text + image" : "Text only"} ·{" "}
-                        {rule.approval_required
-                          ? "Review first"
-                          : "Auto publish"}
-                      </p>
+              {rules.map((rule) => {
+                const ruleTimeZone = rule.timezone || DEFAULT_TIME_ZONE;
+
+                return (
+                  <article className="post-item" key={rule.id}>
+                    <div className="post-item-header">
+                      <div>
+                        <h4>
+                          {rule.schedule_type === "once"
+                            ? rule.run_date
+                            : rule.weekday}{" "}
+                          · {rule.publish_time?.slice(0, 5)}
+                        </h4>
+                        <p>
+                          {rule.platform} · {rule.post_type} ·{" "}
+                          {rule.generate_image
+                            ? "Text + image"
+                            : "Text only"}{" "}
+                          ·{" "}
+                          {rule.approval_required
+                            ? "Review first"
+                            : "Auto publish"}
+                        </p>
+                      </div>
+
+                      <div className="post-actions">
+                        <span>{rule.credit_cost} credits/run</span>
+                        <button
+                          type="button"
+                          className="danger-button"
+                          onClick={() => deleteRule(rule.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="post-actions">
-                      <span>{rule.credit_cost} credits/run</span>
-                      <button
-                        type="button"
-                        className="danger-button"
-                        onClick={() => deleteRule(rule.id)}
-                      >
-                        Delete
-                      </button>
+                    <div className="idea-box">
+                      <strong>{rule.name}</strong>
+                      <p>{rule.prompt}</p>
+
+                      <p>
+                        <strong>Next run:</strong>{" "}
+                        {formatDateTime(rule.next_run_at, ruleTimeZone)}
+                      </p>
+
+                      <p>
+                        <strong>Timezone:</strong> {ruleTimeZone}
+                      </p>
+
+                      <p>
+                        <strong>Status:</strong>{" "}
+                        {rule.is_active ? "Active" : "Inactive"}
+                      </p>
+
+                      <p>
+                        <strong>Options:</strong>{" "}
+                        {rule.include_emojis ? "Emojis" : "No emojis"} ·{" "}
+                        {rule.include_hashtags ? "Hashtags" : "No hashtags"}
+                      </p>
+
+                      {rule.generate_image && rule.image_prompt && (
+                        <p>
+                          <strong>Image:</strong> {rule.image_prompt}
+                        </p>
+                      )}
+
+                      {rule.last_error && (
+                        <p>
+                          <strong>Last error:</strong> {rule.last_error}
+                        </p>
+                      )}
                     </div>
-                  </div>
-
-                  <div className="idea-box">
-                    <strong>{rule.name}</strong>
-                    <p>{rule.prompt}</p>
-
-                    <p>
-                      <strong>Next run:</strong>{" "}
-                      {formatDateTime(rule.next_run_at)}
-                    </p>
-
-                    <p>
-                      <strong>Status:</strong>{" "}
-                      {rule.is_active ? "Active" : "Inactive"}
-                    </p>
-
-                    <p>
-                      <strong>Options:</strong>{" "}
-                      {rule.include_emojis ? "Emojis" : "No emojis"} ·{" "}
-                      {rule.include_hashtags ? "Hashtags" : "No hashtags"}
-                    </p>
-
-                    {rule.generate_image && rule.image_prompt && (
-                      <p>
-                        <strong>Image:</strong> {rule.image_prompt}
-                      </p>
-                    )}
-
-                    {rule.last_error && (
-                      <p>
-                        <strong>Last error:</strong> {rule.last_error}
-                      </p>
-                    )}
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
