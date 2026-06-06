@@ -26,7 +26,7 @@ export default function CreatePost() {
     setGeneratedPost("");
 
     if (!idea.trim()) {
-      setMessage("Write a short idea first, then Vifsy can generate a post.");
+      setMessage("Write a short idea first, then Spreelo can generate a post.");
       return;
     }
 
@@ -137,7 +137,7 @@ export default function CreatePost() {
           <p className="eyebrow">AI assistant</p>
           <h3>Build a better post draft</h3>
           <p>
-            Choose platform, tone, language, length and call to action. Vifsy
+            Choose platform, tone, language, length and call to action. Spreelo
             uses your brand profile to create a more useful AI-generated draft.
           </p>
         </div>
