@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 
+const STOCKHOLM_TIME_ZONE = "Europe/Stockholm";
+
 const weekdays = [
   "Monday",
   "Tuesday",
@@ -31,6 +33,237 @@ function createSlot(weekday = "Monday") {
     includeEmojis: true,
     includeHashtags: true,
   };
+}
+
+function normalizeTime(value) {
+  return String(value || "").slice(0, 5);
+}
+
+function getStockholmDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    timeZone: STOCKHOLM_TIME_ZONE,
+  }).formatToParts(date);
+
+  const values = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      values[part.type] = part.value;
+    }
+  }
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    second: Number(values.second),
+  };
+}
+
+function getCurrentWeekday(date = new Date()) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    timeZone: STOCKHOLM_TIME_ZONE,
+  }).format(date);
+}
+
+function getCurrentTimeHHMM(date = new Date()) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: STOCKHOLM_TIME_ZONE,
+  }).format(date);
+}
+
+function getTimeZoneOffsetMs(date, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    timeZone,
+  }).formatToParts(date);
+
+  const values = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      values[part.type] = part.value;
+    }
+  }
+
+  const asUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second)
+  );
+
+  return asUtc - date.getTime();
+}
+
+function stockholmLocalToUtcDate({
+  year,
+  month,
+  day,
+  hour = 0,
+  minute = 0,
+  second = 0,
+}) {
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second);
+
+  let offset = getTimeZoneOffsetMs(new Date(utcGuess), STOCKHOLM_TIME_ZONE);
+  let utcTime = utcGuess - offset;
+
+  const correctedOffset = getTimeZoneOffsetMs(
+    new Date(utcTime),
+    STOCKHOLM_TIME_ZONE
+  );
+
+  if (correctedOffset !== offset) {
+    utcTime = utcGuess - correctedOffset;
+  }
+
+  return new Date(utcTime);
+}
+
+function getNextWeeklyRunAtIso(weekday, publishTime, now = new Date()) {
+  const normalizedPublishTime = normalizeTime(publishTime);
+
+  if (!weekday || !normalizedPublishTime) {
+    return null;
+  }
+
+  const [hourValue, minuteValue] = normalizedPublishTime.split(":");
+
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  const targetWeekdayIndex = dayOrder.findIndex(
+    (day) => day.toLowerCase() === String(weekday).toLowerCase()
+  );
+
+  if (targetWeekdayIndex === -1) {
+    return null;
+  }
+
+  const currentWeekday = getCurrentWeekday(now);
+
+  const currentWeekdayIndex = dayOrder.findIndex(
+    (day) => day.toLowerCase() === String(currentWeekday).toLowerCase()
+  );
+
+  if (currentWeekdayIndex === -1) {
+    return null;
+  }
+
+  const currentTime = getCurrentTimeHHMM(now);
+
+  let daysUntilNextRun =
+    (targetWeekdayIndex - currentWeekdayIndex + 7) % 7;
+
+  if (daysUntilNextRun === 0 && normalizedPublishTime <= currentTime) {
+    daysUntilNextRun = 7;
+  }
+
+  const stockholmParts = getStockholmDateParts(now);
+
+  const nextRunUtcDate = stockholmLocalToUtcDate({
+    year: stockholmParts.year,
+    month: stockholmParts.month,
+    day: stockholmParts.day + daysUntilNextRun,
+    hour,
+    minute,
+    second: 0,
+  });
+
+  return nextRunUtcDate.toISOString();
+}
+
+function getOneTimeRunAtIso(runDate, publishTime) {
+  const normalizedPublishTime = normalizeTime(publishTime);
+
+  if (!runDate || !normalizedPublishTime) {
+    return null;
+  }
+
+  const [yearValue, monthValue, dayValue] = runDate.split("-");
+  const [hourValue, minuteValue] = normalizedPublishTime.split(":");
+
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day) ||
+    Number.isNaN(hour) ||
+    Number.isNaN(minute)
+  ) {
+    return null;
+  }
+
+  const runUtcDate = stockholmLocalToUtcDate({
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    second: 0,
+  });
+
+  return runUtcDate.toISOString();
+}
+
+function getInitialNextRunAtIso({ scheduleType, weekday, publishTime, runDate }) {
+  if (scheduleType === "once") {
+    return getOneTimeRunAtIso(runDate, publishTime);
+  }
+
+  if (scheduleType === "weekly") {
+    return getNextWeeklyRunAtIso(weekday, publishTime);
+  }
+
+  return null;
+}
+
+function formatDateTime(value) {
+  if (!value) return "Not set";
+
+  return new Intl.DateTimeFormat("sv-SE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: STOCKHOLM_TIME_ZONE,
+  }).format(new Date(value));
 }
 
 export default function AutomationPage() {
@@ -112,6 +345,13 @@ export default function AutomationPage() {
       setMessage(error.message);
     } else {
       const sortedRules = (data || []).sort((a, b) => {
+        if (a.next_run_at && b.next_run_at) {
+          return new Date(a.next_run_at) - new Date(b.next_run_at);
+        }
+
+        if (a.next_run_at && !b.next_run_at) return -1;
+        if (!a.next_run_at && b.next_run_at) return 1;
+
         const dayDiff =
           dayOrder.indexOf(a.weekday) - dayOrder.indexOf(b.weekday);
 
@@ -224,6 +464,12 @@ export default function AutomationPage() {
       credit_cost: slot.generateImage ? 3 : 1,
       schedule_type: scheduleType,
       run_date: scheduleType === "once" ? runDate : null,
+      next_run_at: getInitialNextRunAtIso({
+        scheduleType,
+        weekday: slot.weekday,
+        publishTime: slot.publishTime,
+        runDate,
+      }),
       approval_required: approvalRequired,
       is_active: true,
       updated_at: new Date().toISOString(),
@@ -719,6 +965,16 @@ export default function AutomationPage() {
                     <p>{rule.prompt}</p>
 
                     <p>
+                      <strong>Next run:</strong>{" "}
+                      {formatDateTime(rule.next_run_at)}
+                    </p>
+
+                    <p>
+                      <strong>Status:</strong>{" "}
+                      {rule.is_active ? "Active" : "Inactive"}
+                    </p>
+
+                    <p>
                       <strong>Options:</strong>{" "}
                       {rule.include_emojis ? "Emojis" : "No emojis"} ·{" "}
                       {rule.include_hashtags ? "Hashtags" : "No hashtags"}
@@ -727,6 +983,12 @@ export default function AutomationPage() {
                     {rule.generate_image && rule.image_prompt && (
                       <p>
                         <strong>Image:</strong> {rule.image_prompt}
+                      </p>
+                    )}
+
+                    {rule.last_error && (
+                      <p>
+                        <strong>Last error:</strong> {rule.last_error}
                       </p>
                     )}
                   </div>
