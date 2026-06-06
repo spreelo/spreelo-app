@@ -25,7 +25,9 @@ export default function Home() {
 
     const { data, error } = await supabase
       .from("posts")
-      .select("id, platform, tone, language, post_type, idea, content, status, created_at")
+      .select(
+        "id, platform, tone, language, post_type, idea, content, status, created_at"
+      )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -46,10 +48,7 @@ export default function Home() {
 
     setMessage("");
 
-    const { error } = await supabase
-      .from("posts")
-      .delete()
-      .eq("id", postId);
+    const { error } = await supabase.from("posts").delete().eq("id", postId);
 
     if (error) {
       setMessage(error.message);
@@ -108,7 +107,7 @@ export default function Home() {
         {loading ? (
           <div className="empty-card">
             <h3>Loading posts...</h3>
-            <p>Please wait while Vifsy loads your saved drafts.</p>
+            <p>Please wait while Spreelo loads your saved drafts.</p>
           </div>
         ) : posts.length === 0 ? (
           <div className="empty-card">
@@ -132,20 +131,23 @@ export default function Home() {
                     </p>
                   </div>
 
-                 <div className="post-actions">
-  <span>{new Date(post.created_at).toLocaleDateString()}</span>
+                  <div className="post-actions">
+                    <span>{new Date(post.created_at).toLocaleDateString()}</span>
 
-  <a className="secondary-button small-button" href={`/posts/${post.id}`}>
-    Open / Edit
-  </a>
+                    <a
+                      className="secondary-button small-button"
+                      href={`/posts/${post.id}`}
+                    >
+                      Open / Edit
+                    </a>
 
-  <button
-    className="danger-button"
-    onClick={() => deletePost(post.id)}
-  >
-    Delete
-  </button>
-</div>
+                    <button
+                      className="danger-button"
+                      onClick={() => deletePost(post.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
 
                 <div className="post-preview compact">
