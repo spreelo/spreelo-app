@@ -6,7 +6,7 @@ export default function Settings() {
       <header className="topbar">
         <div>
           <p className="eyebrow">Settings</p>
-          <h2>Manage your Vifsy workspace</h2>
+          <h2>Manage your Spreelo workspace</h2>
         </div>
       </header>
 
