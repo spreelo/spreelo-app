@@ -81,7 +81,7 @@ export default function BrandProfile() {
       <AppLayout active="brand">
         <section className="empty-card">
           <h3>Loading brand profile...</h3>
-          <p>Please wait while Vifsy loads your business information.</p>
+          <p>Please wait while Spreelo loads your business information.</p>
         </section>
       </AppLayout>
     );
@@ -92,9 +92,13 @@ export default function BrandProfile() {
       <header className="topbar">
         <div>
           <p className="eyebrow">Brand profile</p>
-          <h2>Teach Vifsy about your business</h2>
+          <h2>Teach Spreelo about your business</h2>
         </div>
-        <button className="primary-button" onClick={saveProfile} disabled={saving}>
+        <button
+          className="primary-button"
+          onClick={saveProfile}
+          disabled={saving}
+        >
           {saving ? "Saving..." : "Save profile"}
         </button>
       </header>
@@ -104,8 +108,8 @@ export default function BrandProfile() {
           <p className="eyebrow">Business context</p>
           <h3>Your brand voice matters</h3>
           <p>
-            Vifsy will use this information to create posts that sound like your
-            business, match your audience and fit your offers.
+            Spreelo will use this information to create posts that sound like
+            your business, match your audience and fit your offers.
           </p>
         </div>
 
@@ -113,7 +117,7 @@ export default function BrandProfile() {
           <label>Business name</label>
           <input
             className="input"
-            placeholder="Example: Vifsy"
+            placeholder="Example: Spreelo"
             value={businessName}
             onChange={(event) => setBusinessName(event.target.value)}
           />
@@ -133,7 +137,11 @@ export default function BrandProfile() {
             onChange={(event) => setTargetAudience(event.target.value)}
           />
 
-          <button className="primary-button full" onClick={saveProfile} disabled={saving}>
+          <button
+            className="primary-button full"
+            onClick={saveProfile}
+            disabled={saving}
+          >
             {saving ? "Saving..." : "Save brand profile"}
           </button>
 
