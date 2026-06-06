@@ -518,11 +518,7 @@ export default function AutomationPage() {
             ))}
           </div>
 
-          <button
-            type="button"
-            className="add-plan-button"
-            onClick={addSlot}
-          >
+          <button type="button" className="add-plan-button" onClick={addSlot}>
             + Add another planned post
           </button>
         </section>
@@ -672,7 +668,7 @@ export default function AutomationPage() {
           {loading ? (
             <div className="automation-empty">
               <h4>Loading automation rules...</h4>
-              <p>Please wait while Vifsy loads your plans.</p>
+              <p>Please wait while Spreelo loads your plans.</p>
             </div>
           ) : rules.length === 0 ? (
             <div className="automation-empty">
