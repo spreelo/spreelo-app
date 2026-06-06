@@ -4,19 +4,31 @@ import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
+const STOCKHOLM_TIME_ZONE = "Europe/Stockholm";
+
+const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
 function getStockholmDateYYYYMMDD(date = new Date()) {
   return new Intl.DateTimeFormat("sv-SE", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    timeZone: "Europe/Stockholm",
+    timeZone: STOCKHOLM_TIME_ZONE,
   }).format(date);
 }
 
 function getCurrentWeekday(date = new Date()) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
-    timeZone: "Europe/Stockholm",
+    timeZone: STOCKHOLM_TIME_ZONE,
   }).format(date);
 }
 
@@ -25,8 +37,99 @@ function getCurrentTimeHHMM(date = new Date()) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: "Europe/Stockholm",
+    timeZone: STOCKHOLM_TIME_ZONE,
   }).format(date);
+}
+
+function getStockholmDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    timeZone: STOCKHOLM_TIME_ZONE,
+  }).formatToParts(date);
+
+  const values = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      values[part.type] = part.value;
+    }
+  }
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    second: Number(values.second),
+  };
+}
+
+function getTimeZoneOffsetMs(date, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    timeZone,
+  }).formatToParts(date);
+
+  const values = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      values[part.type] = part.value;
+    }
+  }
+
+  const asUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second)
+  );
+
+  return asUtc - date.getTime();
+}
+
+function stockholmLocalToUtcDate({
+  year,
+  month,
+  day,
+  hour = 0,
+  minute = 0,
+  second = 0,
+}) {
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second);
+
+  let offset = getTimeZoneOffsetMs(
+    new Date(utcGuess),
+    STOCKHOLM_TIME_ZONE
+  );
+
+  let utcTime = utcGuess - offset;
+
+  const correctedOffset = getTimeZoneOffsetMs(
+    new Date(utcTime),
+    STOCKHOLM_TIME_ZONE
+  );
+
+  if (correctedOffset !== offset) {
+    utcTime = utcGuess - correctedOffset;
+  }
+
+  return new Date(utcTime);
 }
 
 function normalizeTime(value) {
@@ -65,6 +168,89 @@ function isRuleDue(rule, today, currentWeekday, currentTime) {
   }
 
   return false;
+}
+
+function getNextWeeklyRunAtIso(rule, now = new Date()) {
+  const publishTime = normalizeTime(rule.publish_time);
+
+  if (!rule.weekday || !publishTime) {
+    return null;
+  }
+
+  const [hourValue, minuteValue] = publishTime.split(":");
+
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  const targetWeekdayIndex = WEEKDAYS.findIndex(
+    (weekday) =>
+      weekday.toLowerCase() === String(rule.weekday).toLowerCase()
+  );
+
+  if (targetWeekdayIndex === -1) {
+    return null;
+  }
+
+  const currentWeekday = getCurrentWeekday(now);
+
+  const currentWeekdayIndex = WEEKDAYS.findIndex(
+    (weekday) =>
+      weekday.toLowerCase() === String(currentWeekday).toLowerCase()
+  );
+
+  if (currentWeekdayIndex === -1) {
+    return null;
+  }
+
+  let daysUntilNextRun =
+    (targetWeekdayIndex - currentWeekdayIndex + 7) % 7;
+
+  if (daysUntilNextRun === 0) {
+    daysUntilNextRun = 7;
+  }
+
+  const stockholmParts = getStockholmDateParts(now);
+
+  const nextRunUtcDate = stockholmLocalToUtcDate({
+    year: stockholmParts.year,
+    month: stockholmParts.month,
+    day: stockholmParts.day + daysUntilNextRun,
+    hour,
+    minute,
+    second: 0,
+  });
+
+  return nextRunUtcDate.toISOString();
+}
+
+function getRuleUpdatePayloadAfterSuccess(rule, nowIso, now) {
+  const payload = {
+    last_run_at: nowIso,
+    last_error: null,
+    updated_at: nowIso,
+  };
+
+  if (rule.schedule_type === "once") {
+    payload.is_active = false;
+    payload.next_run_at = null;
+  }
+
+  if (rule.schedule_type === "weekly") {
+    payload.next_run_at = getNextWeeklyRunAtIso(rule, now);
+  }
+
+  return payload;
 }
 
 function buildAutomationPrompt(rule) {
@@ -377,15 +563,11 @@ export async function GET() {
           continue;
         }
 
-        const ruleUpdatePayload = {
-          last_run_at: nowIso,
-          last_error: null,
-          updated_at: nowIso,
-        };
-
-        if (rule.schedule_type === "once") {
-          ruleUpdatePayload.is_active = false;
-        }
+        const ruleUpdatePayload = getRuleUpdatePayloadAfterSuccess(
+          rule,
+          nowIso,
+          now
+        );
 
         const { error: ruleUpdateError } = await supabase
           .from("automation_rules")
@@ -416,6 +598,7 @@ export async function GET() {
           post_id: post.id,
           post_status: postStatus,
           approval_required: approvalRequired,
+          next_run_at: ruleUpdatePayload.next_run_at || null,
           credits_used: creditCost,
           credits_remaining: newCreditsRemaining,
         });
