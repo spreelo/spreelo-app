@@ -5,6 +5,7 @@ import crypto from "crypto";
 export const dynamic = "force-dynamic";
 
 const STOCKHOLM_TIME_ZONE = "Europe/Stockholm";
+const BATCH_SIZE = 25;
 
 const WEEKDAYS = [
   "Sunday",
@@ -113,11 +114,7 @@ function stockholmLocalToUtcDate({
 }) {
   const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second);
 
-  let offset = getTimeZoneOffsetMs(
-    new Date(utcGuess),
-    STOCKHOLM_TIME_ZONE
-  );
-
+  let offset = getTimeZoneOffsetMs(new Date(utcGuess), STOCKHOLM_TIME_ZONE);
   let utcTime = utcGuess - offset;
 
   const correctedOffset = getTimeZoneOffsetMs(
@@ -144,7 +141,7 @@ function hasAlreadyRunToday(rule, today) {
   return lastRunDate === today;
 }
 
-function isRuleDue(rule, today, currentWeekday, currentTime) {
+function isRuleDueByOldSchedule(rule, today, currentWeekday, currentTime) {
   const publishTime = normalizeTime(rule.publish_time);
 
   if (!rule.is_active) return false;
@@ -194,8 +191,7 @@ function getNextWeeklyRunAtIso(rule, now = new Date()) {
   }
 
   const targetWeekdayIndex = WEEKDAYS.findIndex(
-    (weekday) =>
-      weekday.toLowerCase() === String(rule.weekday).toLowerCase()
+    (weekday) => weekday.toLowerCase() === String(rule.weekday).toLowerCase()
   );
 
   if (targetWeekdayIndex === -1) {
@@ -281,6 +277,21 @@ Important:
 `.trim();
 }
 
+function createEmptySummary() {
+  return {
+    processed: 0,
+    generated: 0,
+    skipped: 0,
+    errors: 0,
+    warnings: 0,
+    pending_approval: 0,
+    draft: 0,
+    image_not_enabled: 0,
+    not_enough_credits: 0,
+    no_credit_balance: 0,
+  };
+}
+
 async function setRuleError(supabase, ruleId, message) {
   await supabase
     .from("automation_rules")
@@ -311,20 +322,86 @@ async function generateAutomationPost(openai, rule) {
   return completion.choices?.[0]?.message?.content?.trim() || "";
 }
 
-export async function GET() {
+async function getRulesToProcess({
+  supabase,
+  nowIso,
+  today,
+  currentWeekday,
+  currentTime,
+}) {
+  const { data: dueRules, error: dueRulesError } = await supabase
+    .from("automation_rules")
+    .select("*")
+    .eq("is_active", true)
+    .not("next_run_at", "is", null)
+    .lte("next_run_at", nowIso)
+    .order("next_run_at", { ascending: true })
+    .limit(BATCH_SIZE);
+
+  if (dueRulesError) {
+    throw new Error(dueRulesError.message);
+  }
+
+  const rules = dueRules || [];
+
+  if (rules.length >= BATCH_SIZE) {
+    return rules;
+  }
+
+  const remainingLimit = BATCH_SIZE - rules.length;
+
+  const { data: fallbackRules, error: fallbackRulesError } = await supabase
+    .from("automation_rules")
+    .select("*")
+    .eq("is_active", true)
+    .is("next_run_at", null)
+    .limit(remainingLimit);
+
+  if (fallbackRulesError) {
+    throw new Error(fallbackRulesError.message);
+  }
+
+  const oldRulesThatAreDue = (fallbackRules || []).filter((rule) =>
+    isRuleDueByOldSchedule(rule, today, currentWeekday, currentTime)
+  );
+
+  const uniqueRules = new Map();
+
+  for (const rule of [...rules, ...oldRulesThatAreDue]) {
+    uniqueRules.set(rule.id, rule);
+  }
+
+  return Array.from(uniqueRules.values()).slice(0, BATCH_SIZE);
+}
+
+export async function GET(request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const openaiApiKey = process.env.OPENAI_API_KEY;
+    const cronSecret = process.env.CRON_SECRET;
 
-    if (!supabaseUrl || !serviceRoleKey || !openaiApiKey) {
+    if (!supabaseUrl || !serviceRoleKey || !openaiApiKey || !cronSecret) {
       return Response.json(
         {
           ok: false,
           error:
-            "Missing NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY or OPENAI_API_KEY.",
+            "Missing NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY or CRON_SECRET.",
         },
         { status: 500 }
+      );
+    }
+
+    const url = new URL(request.url);
+    const providedSecret = url.searchParams.get("secret");
+
+    if (!providedSecret || providedSecret !== cronSecret) {
+      return Response.json(
+        {
+          ok: false,
+          error: "Unauthorized",
+        },
+        { status: 401 }
       );
     }
 
@@ -341,56 +418,22 @@ export async function GET() {
     const currentWeekday = getCurrentWeekday(now);
     const currentTime = getCurrentTimeHHMM(now);
 
-    const { data: rules, error: rulesError } = await supabase
-      .from("automation_rules")
-      .select("*")
-      .eq("is_active", true);
+    const rules = await getRulesToProcess({
+      supabase,
+      nowIso,
+      today,
+      currentWeekday,
+      currentTime,
+    });
 
-    if (rulesError) {
-      return Response.json(
-        {
-          ok: false,
-          error: rulesError.message,
-        },
-        { status: 500 }
-      );
-    }
-
-    const results = [];
+    const summary = createEmptySummary();
 
     for (const rule of rules || []) {
-      const publishTime = normalizeTime(rule.publish_time);
-
-      const baseResult = {
-        rule_id: rule.id,
-        name: rule.name,
-        user_id: rule.user_id,
-        schedule_type: rule.schedule_type,
-        weekday: rule.weekday,
-        run_date: rule.run_date,
-        publish_time: publishTime,
-      };
+      summary.processed += 1;
 
       try {
-        const due = isRuleDue(rule, today, currentWeekday, currentTime);
-
-        if (!due) {
-          results.push({
-            ...baseResult,
-            status: "skipped",
-            reason: "Rule is not due",
-          });
-
-          continue;
-        }
-
         if (hasAlreadyRunToday(rule, today)) {
-          results.push({
-            ...baseResult,
-            status: "skipped",
-            reason: "Rule has already run today",
-          });
-
+          summary.skipped += 1;
           continue;
         }
 
@@ -399,12 +442,8 @@ export async function GET() {
 
           await setRuleError(supabase, rule.id, message);
 
-          results.push({
-            ...baseResult,
-            status: "skipped",
-            reason: message,
-          });
-
+          summary.skipped += 1;
+          summary.image_not_enabled += 1;
           continue;
         }
 
@@ -421,12 +460,8 @@ export async function GET() {
 
           await setRuleError(supabase, rule.id, message);
 
-          results.push({
-            ...baseResult,
-            status: "skipped",
-            reason: message,
-          });
-
+          summary.skipped += 1;
+          summary.no_credit_balance += 1;
           continue;
         }
 
@@ -437,14 +472,8 @@ export async function GET() {
 
           await setRuleError(supabase, rule.id, message);
 
-          results.push({
-            ...baseResult,
-            status: "skipped",
-            reason: message,
-            credits_remaining: creditsRemaining,
-            credit_cost: creditCost,
-          });
-
+          summary.skipped += 1;
+          summary.not_enough_credits += 1;
           continue;
         }
 
@@ -455,12 +484,7 @@ export async function GET() {
 
           await setRuleError(supabase, rule.id, message);
 
-          results.push({
-            ...baseResult,
-            status: "error",
-            reason: message,
-          });
-
+          summary.errors += 1;
           continue;
         }
 
@@ -494,7 +518,7 @@ export async function GET() {
             approval_token: approvalToken,
             scheduled_for: nowIso,
           })
-          .select()
+          .select("id")
           .single();
 
         if (postError || !post) {
@@ -502,12 +526,7 @@ export async function GET() {
 
           await setRuleError(supabase, rule.id, message);
 
-          results.push({
-            ...baseResult,
-            status: "error",
-            reason: message,
-          });
-
+          summary.errors += 1;
           continue;
         }
 
@@ -527,13 +546,7 @@ export async function GET() {
 
           await setRuleError(supabase, rule.id, message);
 
-          results.push({
-            ...baseResult,
-            status: "error",
-            reason: message,
-            post_id: post.id,
-          });
-
+          summary.errors += 1;
           continue;
         }
 
@@ -553,13 +566,7 @@ export async function GET() {
 
           await setRuleError(supabase, rule.id, message);
 
-          results.push({
-            ...baseResult,
-            status: "error",
-            reason: message,
-            post_id: post.id,
-          });
-
+          summary.errors += 1;
           continue;
         }
 
@@ -575,57 +582,35 @@ export async function GET() {
           .eq("id", rule.id);
 
         if (ruleUpdateError) {
-          results.push({
-            ...baseResult,
-            status: "warning",
-            reason:
-              "Post was generated and credits were used, but the automation rule could not be updated",
-            details: ruleUpdateError.message,
-            post_id: post.id,
-            credits_used: creditCost,
-            credits_remaining: newCreditsRemaining,
-          });
-
+          summary.warnings += 1;
           continue;
         }
 
-        results.push({
-          ...baseResult,
-          status: "generated",
-          reason: approvalRequired
-            ? "Post generated and saved as pending approval"
-            : "Post generated and saved as draft",
-          post_id: post.id,
-          post_status: postStatus,
-          approval_required: approvalRequired,
-          next_run_at: ruleUpdatePayload.next_run_at || null,
-          credits_used: creditCost,
-          credits_remaining: newCreditsRemaining,
-        });
+        summary.generated += 1;
+
+        if (postStatus === "pending_approval") {
+          summary.pending_approval += 1;
+        }
+
+        if (postStatus === "draft") {
+          summary.draft += 1;
+        }
       } catch (error) {
         const message = error.message || "Unknown automation error";
 
         await setRuleError(supabase, rule.id, message);
 
-        results.push({
-          ...baseResult,
-          status: "error",
-          reason: message,
-        });
+        summary.errors += 1;
       }
     }
 
     return Response.json({
       ok: true,
-      mode: "live_text_only",
-      message:
-        "Cron route checked active automation rules. Text-only due rules can now generate posts and use credits.",
+      mode: "live_text_only_protected_batched",
       checked_at: nowIso,
-      today,
-      currentWeekday,
-      currentTime,
-      total_rules: rules?.length || 0,
-      results,
+      batch_size: BATCH_SIZE,
+      fetched_rules: rules?.length || 0,
+      summary,
     });
   } catch (error) {
     return Response.json(
