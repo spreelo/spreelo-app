@@ -85,7 +85,7 @@ export async function POST(request) {
     const response = await openai.responses.create({
       model: "gpt-5.5",
       instructions:
-        "You are Vifsy, an expert social media content assistant for small businesses. Write practical, ready-to-publish social media posts. Do not mention that you are AI. Do not explain your work. Only return the finished post text.",
+        "You are Spreelo, an expert social media content assistant for small businesses. Write practical, ready-to-publish social media posts. Do not mention that you are AI. Do not explain your work. Only return the finished post text.",
       input: `
 Create one social media post.
 
