@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_TIME_ZONE = "Europe/Stockholm";
 const BATCH_SIZE = 25;
+const APP_URL = "https://app.spreelo.com";
+const RESEND_FROM_EMAIL = "Spreelo <noreply@spreelo.com>";
 
 const WEEKDAYS = [
   "Sunday",
@@ -25,7 +27,23 @@ function normalizeTime(value) {
   return String(value || "").slice(0, 5);
 }
 
-function getDateYYYYMMDDInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatPostContentForHtml(content) {
+  return escapeHtml(content).replace(/\n/g, "<br />");
+}
+
+function getDateYYYYMMDDInTimeZone(
+  date = new Date(),
+  timeZone = DEFAULT_TIME_ZONE
+) {
   return new Intl.DateTimeFormat("sv-SE", {
     year: "numeric",
     month: "2-digit",
@@ -50,7 +68,10 @@ function getTimeHHMMInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) 
   }).format(date);
 }
 
-function getDatePartsInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
+function getDatePartsInTimeZone(
+  date = new Date(),
+  timeZone = DEFAULT_TIME_ZONE
+) {
   const parts = new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "2-digit",
@@ -305,7 +326,97 @@ function createEmptySummary() {
     image_not_enabled: 0,
     not_enough_credits: 0,
     no_credit_balance: 0,
+    emails_sent: 0,
+    emails_failed: 0,
   };
+}
+
+function buildApprovalEmailHtml({ rule, postContent, approveUrl }) {
+  const platform = escapeHtml(rule.platform || "Social media");
+  const postType = escapeHtml(rule.post_type || "Post");
+
+  return `
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f5f3ee;font-family:Arial,sans-serif;color:#111827;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f3ee;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#ffffff;border-radius:18px;border:1px solid #e5e7eb;overflow:hidden;">
+            <tr>
+              <td style="padding:28px 28px 18px;">
+                <p style="margin:0 0 8px;color:#6b7280;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">
+                  Spreelo approval
+                </p>
+
+                <h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;color:#111827;">
+                  Your post is ready to review
+                </h1>
+
+                <p style="margin:0;color:#4b5563;font-size:15px;line-height:1.6;">
+                  Spreelo has generated a new ${platform} ${postType.toLowerCase()} for you.
+                  Review the content below and approve it if it looks good.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:0 28px 20px;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;">
+                  <tr>
+                    <td style="padding:18px 20px;">
+                      <p style="margin:0 0 10px;color:#6b7280;font-size:13px;font-weight:700;">
+                        Generated post
+                      </p>
+
+                      <div style="font-size:15px;line-height:1.7;color:#111827;">
+                        ${formatPostContentForHtml(postContent)}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td align="center" style="padding:4px 28px 28px;">
+                <a href="${approveUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:999px;">
+                  Approve post
+                </a>
+
+                <p style="margin:18px 0 0;color:#6b7280;font-size:13px;line-height:1.5;">
+                  This button approves the post in Spreelo. Publishing to social media will be connected in the next step.
+                </p>
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin:18px 0 0;color:#9ca3af;font-size:12px;">
+            You received this email because you have an active Spreelo automation.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+`.trim();
+}
+
+function buildApprovalEmailText({ rule, postContent, approveUrl }) {
+  return `
+Your Spreelo post is ready to review.
+
+Platform: ${rule.platform || "Social media"}
+Post type: ${rule.post_type || "Post"}
+
+Generated post:
+${postContent}
+
+Approve post:
+${approveUrl}
+
+This button approves the post in Spreelo. Publishing to social media will be connected in the next step.
+`.trim();
 }
 
 async function setRuleError(supabase, ruleId, message) {
@@ -336,6 +447,50 @@ async function generateAutomationPost(openai, rule) {
   });
 
   return completion.choices?.[0]?.message?.content?.trim() || "";
+}
+
+async function getUserEmail(supabase, userId) {
+  const { data, error } = await supabase.auth.admin.getUserById(userId);
+
+  if (error || !data?.user?.email) {
+    return null;
+  }
+
+  return data.user.email;
+}
+
+async function sendApprovalEmail({ resendApiKey, to, rule, postContent, approvalToken }) {
+  const approveUrl = `${APP_URL}/api/approve-post?token=${approvalToken}`;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: RESEND_FROM_EMAIL,
+      to,
+      subject: "Your Spreelo post is ready to approve",
+      html: buildApprovalEmailHtml({
+        rule,
+        postContent,
+        approveUrl,
+      }),
+      text: buildApprovalEmailText({
+        rule,
+        postContent,
+        approveUrl,
+      }),
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Resend email request failed");
+  }
+
+  return response.json();
 }
 
 async function getRulesToProcess({ supabase, nowIso, now }) {
@@ -397,6 +552,7 @@ export async function GET(request) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const openaiApiKey = process.env.OPENAI_API_KEY;
     const cronSecret = process.env.CRON_SECRET;
+    const resendApiKey = process.env.RESEND_API_KEY;
 
     if (!supabaseUrl || !serviceRoleKey || !openaiApiKey || !cronSecret) {
       return Response.json(
@@ -538,6 +694,35 @@ export async function GET(request) {
           continue;
         }
 
+        if (postStatus === "pending_approval") {
+          if (!resendApiKey) {
+            summary.warnings += 1;
+            summary.emails_failed += 1;
+          } else {
+            try {
+              const userEmail = await getUserEmail(supabase, rule.user_id);
+
+              if (!userEmail) {
+                summary.warnings += 1;
+                summary.emails_failed += 1;
+              } else {
+                await sendApprovalEmail({
+                  resendApiKey,
+                  to: userEmail,
+                  rule,
+                  postContent: generatedContent,
+                  approvalToken,
+                });
+
+                summary.emails_sent += 1;
+              }
+            } catch {
+              summary.warnings += 1;
+              summary.emails_failed += 1;
+            }
+          }
+        }
+
         const newCreditsRemaining = creditsRemaining - creditCost;
 
         const { error: creditUpdateError } = await supabase
@@ -614,7 +799,7 @@ export async function GET(request) {
 
     return Response.json({
       ok: true,
-      mode: "live_text_only_protected_batched_header_auth_timezone",
+      mode: "live_text_only_protected_batched_header_auth_timezone_email",
       checked_at: nowIso,
       batch_size: BATCH_SIZE,
       fetched_rules: rules?.length || 0,
