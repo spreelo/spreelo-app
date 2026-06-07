@@ -875,7 +875,6 @@ export default function AutomationPage() {
               >
                 <option value="Auto">Auto-detect from prompt</option>
                 <option value="English">English</option>
-                <option value="Swedish">Swedish</option>
               </select>
             </div>
 
