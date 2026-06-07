@@ -614,7 +614,12 @@ async function publishApprovedFacebookPosts({
       }
 
       summary.facebook_published += 1;
-    } catch {
+    } catch (error) {
+      console.error("Facebook publish failed", {
+        postId: post.id,
+        message: error.message,
+      });
+
       summary.facebook_publish_failed += 1;
     }
   }
