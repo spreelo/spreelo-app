@@ -200,9 +200,9 @@ export default function Home() {
                           </span>
                         )}
 
-                        {post.approval_required && (
-                          <span className="status-pill">Approval required</span>
-                        )}
+{post.status === "pending_approval" && post.approval_required && (
+  <span className="status-pill">Approval required</span>
+)}
                       </div>
                     </div>
 
