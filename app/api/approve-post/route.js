@@ -55,21 +55,49 @@ function createHtmlPage({ title, message, status = "success" }) {
       }
 
       p {
-        margin: 0 0 24px;
+        margin: 0 0 18px;
         color: #4b5563;
         line-height: 1.6;
       }
 
-      a {
+      .small-text {
+        margin-top: 16px;
+        margin-bottom: 0;
+        color: #6b7280;
+        font-size: 13px;
+      }
+
+      .button-row {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 22px;
+      }
+
+      a,
+      button {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         padding: 12px 18px;
         border-radius: 999px;
-        background: #111827;
-        color: #ffffff;
         text-decoration: none;
         font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      a {
+        background: #111827;
+        color: #ffffff;
+        border: 1px solid #111827;
+      }
+
+      button {
+        background: #ffffff;
+        color: #111827;
+        border: 1px solid #d1d5db;
       }
     </style>
   </head>
@@ -78,7 +106,25 @@ function createHtmlPage({ title, message, status = "success" }) {
       <div class="badge">${isSuccess ? "✓" : "!"}</div>
       <h1>${title}</h1>
       <p>${message}</p>
-      <a href="https://app.spreelo.com">Open Spreelo</a>
+
+      ${
+        isSuccess
+          ? `
+            <div class="button-row">
+              <button type="button" onclick="window.close()">Close page</button>
+              <a href="https://app.spreelo.com">Open Spreelo</a>
+            </div>
+
+            <p class="small-text">
+              You can safely close this page and continue with your next email.
+            </p>
+          `
+          : `
+            <div class="button-row">
+              <a href="https://app.spreelo.com">Open Spreelo</a>
+            </div>
+          `
+      }
     </main>
   </body>
 </html>
@@ -149,7 +195,8 @@ export async function GET(request) {
       return new Response(
         createHtmlPage({
           title: "Post already approved",
-          message: "This post has already been approved in Spreelo.",
+          message:
+            "This post has already been approved in Spreelo. You can safely close this page.",
           status: "success",
         }),
         {
