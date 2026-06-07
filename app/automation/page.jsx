@@ -876,6 +876,11 @@ export default function AutomationPage() {
                 <option value="Auto">Auto-detect from prompt</option>
                 <option value="English">English</option>
               </select>
+              <small style={{ color: "#6b7280", lineHeight: "1.5" }}>
+                Auto-detect means Spreelo writes in the same language as your
+                prompt. Choose English if you want the post in English
+                regardless of your prompt language.
+              </small>
             </div>
 
             <div className="setting-tile">
