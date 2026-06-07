@@ -535,28 +535,38 @@ async function sendApprovalEmail({
 }
 
 async function publishTextPostToFacebook({ pageId, pageAccessToken, message }) {
-  const response = await fetch(`https://graph.facebook.com/v19.0/${pageId}/feed`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      message,
-      access_token: pageAccessToken,
-    }),
-  });
+  const response = await fetch(
+    `https://graph.facebook.com/v19.0/${pageId}/feed`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message,
+        access_token: pageAccessToken,
+      }),
+    }
+  );
 
   const result = await response.json();
 
   if (!response.ok) {
     const facebookMessage =
       result?.error?.message || "Facebook publishing failed";
-    throw new Error(facebookMessage);
+
+    const facebookType = result?.error?.type || "unknown";
+    const facebookCode = result?.error?.code || "unknown";
+    const facebookSubcode = result?.error?.error_subcode || "none";
+    const facebookTrace = result?.error?.fbtrace_id || "none";
+
+    throw new Error(
+      `${facebookMessage} | type: ${facebookType} | code: ${facebookCode} | subcode: ${facebookSubcode} | trace: ${facebookTrace}`
+    );
   }
 
   return result;
 }
-
 async function publishApprovedFacebookPosts({
   supabase,
   pageId,
