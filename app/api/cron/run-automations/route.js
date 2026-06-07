@@ -359,6 +359,10 @@ function createEmptySummary() {
     no_credit_balance: 0,
     emails_sent: 0,
     emails_failed: 0,
+    facebook_publish_checked: 0,
+    facebook_published: 0,
+    facebook_publish_failed: 0,
+    facebook_publish_skipped_no_config: 0,
   };
 }
 
@@ -530,6 +534,92 @@ async function sendApprovalEmail({
   return response.json();
 }
 
+async function publishTextPostToFacebook({ pageId, pageAccessToken, message }) {
+  const response = await fetch(`https://graph.facebook.com/v19.0/${pageId}/feed`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message,
+      access_token: pageAccessToken,
+    }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    const facebookMessage =
+      result?.error?.message || "Facebook publishing failed";
+    throw new Error(facebookMessage);
+  }
+
+  return result;
+}
+
+async function publishApprovedFacebookPosts({
+  supabase,
+  pageId,
+  pageAccessToken,
+  nowIso,
+  summary,
+}) {
+  if (!pageId || !pageAccessToken) {
+    summary.facebook_publish_skipped_no_config += 1;
+    return;
+  }
+
+  const { data: posts, error } = await supabase
+    .from("posts")
+    .select("id, content, platform, status, published_at")
+    .eq("status", "approved")
+    .eq("platform", "Facebook")
+    .is("published_at", null)
+    .order("approved_at", { ascending: true })
+    .limit(BATCH_SIZE);
+
+  if (error) {
+    summary.facebook_publish_failed += 1;
+    return;
+  }
+
+  const approvedPosts = posts || [];
+  summary.facebook_publish_checked += approvedPosts.length;
+
+  for (const post of approvedPosts) {
+    try {
+      if (!post.content) {
+        summary.facebook_publish_failed += 1;
+        continue;
+      }
+
+      await publishTextPostToFacebook({
+        pageId,
+        pageAccessToken,
+        message: post.content,
+      });
+
+      const { error: updateError } = await supabase
+        .from("posts")
+        .update({
+          status: "published",
+          published_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq("id", post.id);
+
+      if (updateError) {
+        summary.facebook_publish_failed += 1;
+        continue;
+      }
+
+      summary.facebook_published += 1;
+    } catch {
+      summary.facebook_publish_failed += 1;
+    }
+  }
+}
+
 async function getRulesToProcess({ supabase, nowIso, now }) {
   const { data: dueRules, error: dueRulesError } = await supabase
     .from("automation_rules")
@@ -590,6 +680,8 @@ export async function GET(request) {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     const cronSecret = process.env.CRON_SECRET;
     const resendApiKey = process.env.RESEND_API_KEY;
+    const facebookPageId = process.env.FACEBOOK_PAGE_ID;
+    const facebookPageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 
     if (!supabaseUrl || !serviceRoleKey || !openaiApiKey || !cronSecret) {
       return Response.json(
@@ -621,13 +713,21 @@ export async function GET(request) {
     const now = new Date();
     const nowIso = now.toISOString();
 
+    const summary = createEmptySummary();
+
+    await publishApprovedFacebookPosts({
+      supabase,
+      pageId: facebookPageId,
+      pageAccessToken: facebookPageAccessToken,
+      nowIso,
+      summary,
+    });
+
     const rules = await getRulesToProcess({
       supabase,
       nowIso,
       now,
     });
-
-    const summary = createEmptySummary();
 
     for (const rule of rules || []) {
       summary.processed += 1;
@@ -836,7 +936,7 @@ export async function GET(request) {
 
     return Response.json({
       ok: true,
-      mode: "live_text_only_protected_batched_header_auth_timezone_email_language_auto",
+      mode: "live_text_only_protected_batched_header_auth_timezone_email_language_auto_facebook_publish",
       checked_at: nowIso,
       batch_size: BATCH_SIZE,
       fetched_rules: rules?.length || 0,
