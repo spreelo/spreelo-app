@@ -286,12 +286,43 @@ function getRuleUpdatePayloadAfterSuccess(rule, nowIso, now) {
   return payload;
 }
 
+function getLanguageInstruction(language) {
+  if (!language || language === "Auto") {
+    return `
+Language: Auto-detect from the user's instruction.
+
+Important language rule:
+- Write the final post in the same language as the user's instruction.
+- If the user's instruction is in Swedish, write the post in Swedish.
+- If the user's instruction is in English, write the post in English.
+- If the user's instruction is in Danish, Norwegian, German, Spanish, French or any other language, write the post in that same language.
+- Do not translate to English unless the user specifically asks for English.
+`.trim();
+  }
+
+  if (language === "English") {
+    return `
+Language: English.
+
+Important language rule:
+- Write the final post in English, even if the user's instruction is written in another language.
+`.trim();
+  }
+
+  return `
+Language: ${language}.
+
+Important language rule:
+- Write the final post in ${language}.
+`.trim();
+}
+
 function buildAutomationPrompt(rule) {
   return `
 Create a ready-to-publish social media post.
 
 Platform: ${rule.platform || "Instagram"}
-Language: ${rule.language || "English"}
+${getLanguageInstruction(rule.language)}
 Tone: ${rule.tone || "Professional"}
 Post type: ${rule.post_type || "General post"}
 Length: ${rule.length || "Medium"}
@@ -459,7 +490,13 @@ async function getUserEmail(supabase, userId) {
   return data.user.email;
 }
 
-async function sendApprovalEmail({ resendApiKey, to, rule, postContent, approvalToken }) {
+async function sendApprovalEmail({
+  resendApiKey,
+  to,
+  rule,
+  postContent,
+  approvalToken,
+}) {
   const approveUrl = `${APP_URL}/api/approve-post?token=${approvalToken}`;
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -799,7 +836,7 @@ export async function GET(request) {
 
     return Response.json({
       ok: true,
-      mode: "live_text_only_protected_batched_header_auth_timezone_email",
+      mode: "live_text_only_protected_batched_header_auth_timezone_email_language_auto",
       checked_at: nowIso,
       batch_size: BATCH_SIZE,
       fetched_rules: rules?.length || 0,
