@@ -313,6 +313,11 @@ function formatDateTime(value, timeZone = DEFAULT_TIME_ZONE) {
   }).format(new Date(value));
 }
 
+function formatLanguage(value) {
+  if (!value || value === "Auto") return "Auto-detect from prompt";
+  return value;
+}
+
 export default function AutomationPage() {
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
@@ -329,7 +334,7 @@ export default function AutomationPage() {
   const [planName, setPlanName] = useState("");
   const [platform, setPlatform] = useState("Instagram");
   const [tone, setTone] = useState("Friendly");
-  const [language, setLanguage] = useState("English");
+  const [language, setLanguage] = useState("Auto");
   const [postType, setPostType] = useState("Offer");
   const [length, setLength] = useState("Medium");
   const [ctaType, setCtaType] = useState("Learn more");
@@ -545,6 +550,7 @@ export default function AutomationPage() {
 
       setPlanName("");
       setSlots([createSlot()]);
+      setLanguage("Auto");
       await loadRules();
     }
 
@@ -867,8 +873,9 @@ export default function AutomationPage() {
                 value={language}
                 onChange={(event) => setLanguage(event.target.value)}
               >
-                <option>English</option>
-                <option>Swedish</option>
+                <option value="Auto">Auto-detect from prompt</option>
+                <option value="English">English</option>
+                <option value="Swedish">Swedish</option>
               </select>
             </div>
 
@@ -1050,6 +1057,11 @@ export default function AutomationPage() {
 
                       <p>
                         <strong>Timezone:</strong> {ruleTimeZone}
+                      </p>
+
+                      <p>
+                        <strong>Language:</strong>{" "}
+                        {formatLanguage(rule.language)}
                       </p>
 
                       <p>
