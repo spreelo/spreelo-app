@@ -203,7 +203,7 @@ export async function GET(request) {
       createHtmlPage({
         title: "Post approved",
         message:
-          "Your post has been approved successfully. Publishing to social media will be connected in the next step.",
+          "Your post has been approved successfully. You can now close this page or open Spreelo to review your posts.",
         status: "success",
       }),
       {
