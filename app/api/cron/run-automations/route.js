@@ -420,7 +420,7 @@ function buildApprovalEmailHtml({ rule, postContent, approveUrl }) {
                 </a>
 
                 <p style="margin:18px 0 0;color:#6b7280;font-size:13px;line-height:1.5;">
-                  This button approves the post in Spreelo. Publishing to social media will be connected in the next step.
+                  This button approves the post in Spreelo. After approval, Spreelo will publish this post automatically within a few minutes.
                 </p>
               </td>
             </tr>
@@ -450,7 +450,7 @@ ${postContent}
 Approve post:
 ${approveUrl}
 
-This button approves the post in Spreelo. Publishing to social media will be connected in the next step.
+This button approves the post in Spreelo. After approval, Spreelo will publish this post automatically within a few minutes.
 `.trim();
 }
 
