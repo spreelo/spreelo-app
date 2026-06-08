@@ -250,7 +250,7 @@ export async function GET(request) {
       createHtmlPage({
         title: "Post approved",
         message:
-          "Your post has been approved successfully. You can now close this page or open Spreelo to review your posts.",
+          "Your post has been approved successfully. Spreelo will publish it automatically within a few minutes.",
         status: "success",
       }),
       {
