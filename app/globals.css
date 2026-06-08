@@ -1214,3 +1214,17 @@ select.input {
     grid-column: span 1;
   }
 }
+.post-image-preview {
+  margin: 16px 0;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.post-image-preview img {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+}
