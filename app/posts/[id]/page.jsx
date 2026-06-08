@@ -374,14 +374,7 @@ export default function EditPostPage() {
             />
           </div>
 
-          {post.image_prompt && (
-            <div>
-              <label className="field-label">Image prompt</label>
-              <div className="idea-box image-prompt-box">
-                {post.image_prompt}
-              </div>
-            </div>
-          )}
+
         </div>
 
         {message && <p className="login-message">{message}</p>}
