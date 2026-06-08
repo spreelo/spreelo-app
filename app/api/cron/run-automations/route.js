@@ -345,6 +345,31 @@ Important:
 `.trim();
 }
 
+function buildImagePrompt(rule, postContent) {
+  return `
+Create a high-quality square social media image for a business post.
+
+Platform: ${rule.platform || "Facebook"}
+Tone: ${rule.tone || "Professional"}
+Post type: ${rule.post_type || "General post"}
+Language context: ${rule.language || "Auto"}
+User instruction: ${rule.prompt || ""}
+Post text:
+${postContent}
+
+Extra visual direction:
+${rule.image_prompt || "Create a clean, modern and eye-catching marketing image that matches the post."}
+
+Important image rules:
+- Create a professional social media image.
+- Make it visually attractive and suitable for marketing.
+- No watermarks.
+- Avoid too much embedded text in the image.
+- Keep the composition clean and easy to understand.
+- Make it suitable for Facebook and Instagram feeds.
+`.trim();
+}
+
 function createEmptySummary() {
   return {
     processed: 0,
@@ -354,7 +379,8 @@ function createEmptySummary() {
     warnings: 0,
     pending_approval: 0,
     draft: 0,
-    image_not_enabled: 0,
+    image_generated: 0,
+    image_generation_failed: 0,
     not_enough_credits: 0,
     no_credit_balance: 0,
     emails_sent: 0,
@@ -366,9 +392,15 @@ function createEmptySummary() {
   };
 }
 
-function buildApprovalEmailHtml({ rule, postContent, approveUrl }) {
+function buildApprovalEmailHtml({
+  rule,
+  postContent,
+  approveUrl,
+  imageUrl,
+}) {
   const platform = escapeHtml(rule.platform || "Social media");
   const postType = escapeHtml(rule.post_type || "Post");
+  const safeImageUrl = imageUrl ? escapeHtml(imageUrl) : "";
 
   return `
 <!doctype html>
@@ -395,6 +427,22 @@ function buildApprovalEmailHtml({ rule, postContent, approveUrl }) {
               </td>
             </tr>
 
+            ${
+              safeImageUrl
+                ? `
+            <tr>
+              <td style="padding:0 28px 20px;">
+                <img
+                  src="${safeImageUrl}"
+                  alt="Generated post image"
+                  style="display:block;width:100%;max-width:584px;border-radius:14px;border:1px solid #e5e7eb;"
+                />
+              </td>
+            </tr>
+            `
+                : ""
+            }
+
             <tr>
               <td style="padding:0 28px 20px;">
                 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;">
@@ -420,7 +468,7 @@ function buildApprovalEmailHtml({ rule, postContent, approveUrl }) {
                 </a>
 
                 <p style="margin:18px 0 0;color:#6b7280;font-size:13px;line-height:1.5;">
-                  This button approves the post in Spreelo. After approval, Spreelo will publish this post automatically within a few minutes.
+                  After approval, Spreelo will publish this post automatically within a few minutes.
                 </p>
               </td>
             </tr>
@@ -437,20 +485,25 @@ function buildApprovalEmailHtml({ rule, postContent, approveUrl }) {
 `.trim();
 }
 
-function buildApprovalEmailText({ rule, postContent, approveUrl }) {
+function buildApprovalEmailText({
+  rule,
+  postContent,
+  approveUrl,
+  imageUrl,
+}) {
   return `
 Your Spreelo post is ready to review.
 
 Platform: ${rule.platform || "Social media"}
 Post type: ${rule.post_type || "Post"}
 
-Generated post:
+${imageUrl ? `Image: ${imageUrl}\n` : ""}Generated post:
 ${postContent}
 
 Approve post:
 ${approveUrl}
 
-This button approves the post in Spreelo. After approval, Spreelo will publish this post automatically within a few minutes.
+After approval, Spreelo will publish this post automatically within a few minutes.
 `.trim();
 }
 
@@ -484,6 +537,57 @@ async function generateAutomationPost(openai, rule) {
   return completion.choices?.[0]?.message?.content?.trim() || "";
 }
 
+async function generateAutomationImage(openai, rule, postContent) {
+  const prompt = buildImagePrompt(rule, postContent);
+
+  const response = await openai.images.generate({
+    model: "gpt-image-1",
+    prompt,
+    size: "1024x1024",
+  });
+
+  const imageBase64 = response?.data?.[0]?.b64_json;
+
+  if (!imageBase64) {
+    throw new Error("OpenAI image generation returned empty image data");
+  }
+
+  return {
+    imageBase64,
+    imagePrompt: prompt,
+  };
+}
+
+async function uploadGeneratedImageToStorage({
+  supabase,
+  imageBase64,
+  userId,
+  postId,
+}) {
+  const filePath = `${userId}/${postId}.png`;
+  const fileBuffer = Buffer.from(imageBase64, "base64");
+
+  const { error: uploadError } = await supabase.storage
+    .from("post-images")
+    .upload(filePath, fileBuffer, {
+      contentType: "image/png",
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message || "Could not upload image");
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from("post-images")
+    .getPublicUrl(filePath);
+
+  return {
+    imageUrl: publicUrlData?.publicUrl || null,
+    imageStoragePath: filePath,
+  };
+}
+
 async function getUserEmail(supabase, userId) {
   const { data, error } = await supabase.auth.admin.getUserById(userId);
 
@@ -500,6 +604,7 @@ async function sendApprovalEmail({
   rule,
   postContent,
   approvalToken,
+  imageUrl,
 }) {
   const approveUrl = `${APP_URL}/api/approve-post?token=${approvalToken}`;
 
@@ -517,11 +622,13 @@ async function sendApprovalEmail({
         rule,
         postContent,
         approveUrl,
+        imageUrl,
       }),
       text: buildApprovalEmailText({
         rule,
         postContent,
         approveUrl,
+        imageUrl,
       }),
     }),
   });
@@ -567,6 +674,47 @@ async function publishTextPostToFacebook({ pageId, pageAccessToken, message }) {
 
   return result;
 }
+
+async function publishImagePostToFacebook({
+  pageId,
+  pageAccessToken,
+  imageUrl,
+  caption,
+}) {
+  const response = await fetch(
+    `https://graph.facebook.com/v19.0/${pageId}/photos`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: imageUrl,
+        caption,
+        access_token: pageAccessToken,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    const facebookMessage =
+      result?.error?.message || "Facebook image publishing failed";
+
+    const facebookType = result?.error?.type || "unknown";
+    const facebookCode = result?.error?.code || "unknown";
+    const facebookSubcode = result?.error?.error_subcode || "none";
+    const facebookTrace = result?.error?.fbtrace_id || "none";
+
+    throw new Error(
+      `${facebookMessage} | type: ${facebookType} | code: ${facebookCode} | subcode: ${facebookSubcode} | trace: ${facebookTrace}`
+    );
+  }
+
+  return result;
+}
+
 async function publishApprovedFacebookPosts({
   supabase,
   pageId,
@@ -581,7 +729,7 @@ async function publishApprovedFacebookPosts({
 
   const { data: posts, error } = await supabase
     .from("posts")
-    .select("id, content, platform, status, published_at")
+    .select("id, content, platform, status, published_at, approved_at, image_url")
     .eq("status", "approved")
     .eq("platform", "Facebook")
     .is("published_at", null)
@@ -603,11 +751,20 @@ async function publishApprovedFacebookPosts({
         continue;
       }
 
-      await publishTextPostToFacebook({
-        pageId,
-        pageAccessToken,
-        message: post.content,
-      });
+      if (post.image_url) {
+        await publishImagePostToFacebook({
+          pageId,
+          pageAccessToken,
+          imageUrl: post.image_url,
+          caption: post.content,
+        });
+      } else {
+        await publishTextPostToFacebook({
+          pageId,
+          pageAccessToken,
+          message: post.content,
+        });
+      }
 
       const { error: updateError } = await supabase
         .from("posts")
@@ -753,16 +910,6 @@ export async function GET(request) {
           continue;
         }
 
-        if (rule.generate_image) {
-          const message = "Image automation is not enabled yet";
-
-          await setRuleError(supabase, rule.id, message);
-
-          summary.skipped += 1;
-          summary.image_not_enabled += 1;
-          continue;
-        }
-
         const creditCost = Number(rule.credit_cost || 1);
 
         const { data: balance, error: balanceError } = await supabase
@@ -806,8 +953,8 @@ export async function GET(request) {
 
         const approvalRequired = Boolean(rule.approval_required);
         const approvalToken = crypto.randomBytes(32).toString("hex");
-
         const postStatus = approvalRequired ? "pending_approval" : "draft";
+        const wantsImage = Boolean(rule.generate_image);
 
         const { data: post, error: postError } = await supabase
           .from("posts")
@@ -833,6 +980,9 @@ export async function GET(request) {
             approval_required: approvalRequired,
             approval_token: approvalToken,
             scheduled_for: nowIso,
+
+            image_status: wantsImage ? "generating" : "none",
+            image_prompt: wantsImage ? rule.image_prompt || null : null,
           })
           .select("id")
           .single();
@@ -844,6 +994,68 @@ export async function GET(request) {
 
           summary.errors += 1;
           continue;
+        }
+
+        let imageUrl = null;
+        let imageStoragePath = null;
+        let finalImagePrompt = wantsImage ? rule.image_prompt || null : null;
+
+        if (wantsImage) {
+          try {
+            const { imageBase64, imagePrompt } = await generateAutomationImage(
+              openai,
+              rule,
+              generatedContent
+            );
+
+            const uploadedImage = await uploadGeneratedImageToStorage({
+              supabase,
+              imageBase64,
+              userId: rule.user_id,
+              postId: post.id,
+            });
+
+            imageUrl = uploadedImage.imageUrl;
+            imageStoragePath = uploadedImage.imageStoragePath;
+            finalImagePrompt = imagePrompt;
+
+            const { error: imageUpdateError } = await supabase
+              .from("posts")
+              .update({
+                image_url: imageUrl,
+                image_storage_path: imageStoragePath,
+                image_status: "ready",
+                image_prompt: finalImagePrompt,
+                updated_at: nowIso,
+              })
+              .eq("id", post.id);
+
+            if (imageUpdateError) {
+              throw new Error(
+                imageUpdateError.message || "Could not update post with image"
+              );
+            }
+
+            summary.image_generated += 1;
+          } catch (imageError) {
+            console.error("Image generation failed", {
+              ruleId: rule.id,
+              postId: post.id,
+              message: imageError.message,
+            });
+
+            await supabase
+              .from("posts")
+              .update({
+                image_status: "failed",
+                image_prompt: finalImagePrompt,
+                updated_at: nowIso,
+              })
+              .eq("id", post.id);
+
+            summary.image_generation_failed += 1;
+            summary.warnings += 1;
+          }
         }
 
         if (postStatus === "pending_approval") {
@@ -864,6 +1076,7 @@ export async function GET(request) {
                   rule,
                   postContent: generatedContent,
                   approvalToken,
+                  imageUrl,
                 });
 
                 summary.emails_sent += 1;
@@ -900,7 +1113,9 @@ export async function GET(request) {
           .insert({
             user_id: rule.user_id,
             amount: -creditCost,
-            reason: "Automation post generated",
+            reason: wantsImage
+              ? "Automation post with image generated"
+              : "Automation post generated",
             reference_type: "post",
             reference_id: post.id,
           });
@@ -951,7 +1166,7 @@ export async function GET(request) {
 
     return Response.json({
       ok: true,
-      mode: "live_text_only_protected_batched_header_auth_timezone_email_language_auto_facebook_publish",
+      mode: "live_text_and_image_protected_batched_header_auth_timezone_email_language_auto_facebook_publish",
       checked_at: nowIso,
       batch_size: BATCH_SIZE,
       fetched_rules: rules?.length || 0,
