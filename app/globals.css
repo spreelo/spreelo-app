@@ -1229,3 +1229,40 @@ select.input {
   height: 220px;
   object-fit: cover;
 }
+.edit-post-image-block {
+  margin: 18px 0 24px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #f9fafb;
+}
+
+.edit-post-image-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.edit-post-image-header p {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.edit-post-image-block img {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  max-height: 640px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+.image-prompt-box {
+  white-space: pre-wrap;
+  font-size: 13px;
+  color: #4b5563;
+}
