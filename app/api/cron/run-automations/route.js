@@ -8,6 +8,11 @@ const DEFAULT_TIME_ZONE = "Europe/Stockholm";
 const BATCH_SIZE = 25;
 const APP_URL = "https://app.spreelo.com";
 const RESEND_FROM_EMAIL = "Spreelo <noreply@spreelo.com>";
+const WEBSITE_FETCH_TIMEOUT_MS = 12000;
+const WEBSITE_MAX_PAGES = 8;
+const WEBSITE_MAX_TEXT_CHARS_PER_PAGE = 6500;
+const WEBSITE_MAX_TOTAL_TEXT_CHARS = 22000;
+const WEBSITE_MAX_IMAGE_CANDIDATES = 40;
 
 const WEEKDAYS = [
   "Sunday",
@@ -331,13 +336,36 @@ Important:
 
   return `
 Business name: ${brandProfile.business_name || "Not provided"}
+Website URL: ${brandProfile.website_url || "Not provided"}
 Industry / business type: ${brandProfile.industry || "Not provided"}
 Target audience: ${brandProfile.target_audience || "Not provided"}
 `.trim();
 }
 
+function formatWebsiteItemForPrompt(websiteItem) {
+  if (!websiteItem) {
+    return "No specific website item was selected.";
+  }
+
+  return `
+Selected website item:
+Title: ${websiteItem.title || "Not provided"}
+Type: ${websiteItem.type || "Not provided"}
+URL: ${websiteItem.url || "Not provided"}
+Description: ${websiteItem.description || "Not provided"}
+Image URL: ${websiteItem.image_url || "Not provided"}
+
+Important website item rules:
+- Base this post on the selected website item above.
+- Use only details that are present in the selected item information.
+- Do not invent prices, discounts, guarantees, availability, dates, addresses, square meters, specifications or claims.
+- If information is missing, write around the value and benefit instead of inventing facts.
+`.trim();
+}
+
 function buildAutomationPrompt(rule) {
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
+  const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
 
   return `
 Create a ready-to-publish social media post.
@@ -345,13 +373,26 @@ Create a ready-to-publish social media post.
 Brand profile:
 ${brandProfileText}
 
+${
+  rule.uses_website_content
+    ? `
+Website content mode:
+This automation rule is supposed to promote one concrete product, service, listing, offer or other sellable item from the business website.
+
+${websiteItemText}
+`.trim()
+    : ""
+}
+
 Platform: ${rule.platform || "Instagram"}
 ${getLanguageInstruction(rule.language)}
 Tone: ${rule.tone || "Professional"}
 Post type: ${rule.post_type || "General post"}
 Length: ${rule.length || "Medium"}
 CTA type: ${rule.cta_type || "Soft CTA"}
-Website URL: ${rule.website_url || "Not provided"}
+Website URL: ${
+    rule.brand_profile?.website_url || rule.website_url || "Not provided"
+  }
 
 Include emojis: ${rule.include_emojis ? "Yes" : "No"}
 Include hashtags: ${rule.include_hashtags ? "Yes" : "No"}
@@ -365,6 +406,7 @@ Critical brand relevance rules:
 - Do not write generic advice that could apply to any random company.
 - Do not write about shopping, product care, cars, restaurants, salons, real estate or other unrelated industries unless the Brand profile says that is the business.
 - Use the User instruction as the content angle or post type, but always adapt it to the Brand profile.
+- If this is Website content mode, focus on the selected website item.
 - If the User instruction says "common mistakes", write common mistakes related to this specific business, industry and audience.
 - If the User instruction says "tips", write tips related to this specific business, industry and audience.
 - If the User instruction says "FAQ", answer a question that would make sense for this specific business, industry and audience.
@@ -448,12 +490,22 @@ function buildImagePrompt(rule, postContent) {
 
   const visualConcept = pickVisualConcept(rule, postContent);
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
+  const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
 
   return `
 Create one high-quality square social media image for a business post.
 
 Brand profile:
 ${brandProfileText}
+
+${
+  rule.uses_website_content
+    ? `
+Website content mode:
+${websiteItemText}
+`.trim()
+    : ""
+}
 
 This image must be adapted to the specific business, industry, post topic and audience.
 Do not create a generic stock-photo image unless that clearly fits the business.
@@ -463,7 +515,7 @@ Platform: ${rule.platform || "Facebook"}
 Tone: ${rule.tone || "Professional"}
 Post type: ${rule.post_type || "General post"}
 Language context: ${rule.language || "Auto"}
-Website URL: ${rule.website_url || "Not provided"}
+Website URL: ${rule.brand_profile?.website_url || "Not provided"}
 
 Selected visual concept:
 ${visualConcept.name}
@@ -490,7 +542,7 @@ Use the selected visual concept above to create variation.
 No custom visual direction was provided.
 
 Create a professional marketing image that fits the business and post naturally.
-Infer the visual style from the brand profile, user instruction, post text, platform, tone, post type and selected visual concept.
+Infer the visual style from the brand profile, selected website item, user instruction, post text, platform, tone, post type and selected visual concept.
 `.trim()
 }
 
@@ -535,6 +587,13 @@ function createEmptySummary() {
     facebook_publish_skipped_no_config: 0,
     brand_profile_found: 0,
     brand_profile_missing: 0,
+    website_content_rules: 0,
+    website_content_success: 0,
+    website_content_failed: 0,
+    website_items_found: 0,
+    website_items_reused_cycle: 0,
+    website_image_used: 0,
+    website_image_missing_ai_fallback: 0,
   };
 }
 
@@ -666,7 +725,7 @@ async function setRuleError(supabase, ruleId, message) {
 async function getBrandProfileForUser(supabase, userId) {
   const { data, error } = await supabase
     .from("brand_profiles")
-    .select("business_name, industry, target_audience")
+    .select("business_name, website_url, industry, target_audience")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -680,6 +739,766 @@ async function getBrandProfileForUser(supabase, userId) {
   }
 
   return data || null;
+}
+
+function normalizeWebsiteUrl(value) {
+  const trimmedValue = String(value || "").trim();
+
+  if (!trimmedValue) {
+    return "";
+  }
+
+  if (
+    trimmedValue.startsWith("http://") ||
+    trimmedValue.startsWith("https://")
+  ) {
+    return trimmedValue;
+  }
+
+  return `https://${trimmedValue}`;
+}
+
+function resolveUrl(value, baseUrl) {
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+function isHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isSameOrigin(urlA, urlB) {
+  try {
+    return new URL(urlA).origin === new URL(urlB).origin;
+  } catch {
+    return false;
+  }
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || "").trim();
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, maxLength)}...`;
+}
+
+function decodeHtmlEntities(value) {
+  return String(value || "")
+    .replaceAll("&amp;", "&")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#039;", "'")
+    .replaceAll("&apos;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&nbsp;", " ");
+}
+
+function stripHtmlToText(html) {
+  return decodeHtmlEntities(
+    String(html || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+      .replace(/<header[\s\S]*?<\/header>/gi, " ")
+      .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
+      .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
+function getMetaContent(html, propertyNames) {
+  for (const name of propertyNames) {
+    const propertyRegex = new RegExp(
+      `<meta[^>]+(?:property|name)=["']${name}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+      "i"
+    );
+
+    const propertyMatch = String(html || "").match(propertyRegex);
+
+    if (propertyMatch?.[1]) {
+      return decodeHtmlEntities(propertyMatch[1]);
+    }
+
+    const reversedRegex = new RegExp(
+      `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${name}["'][^>]*>`,
+      "i"
+    );
+
+    const reversedMatch = String(html || "").match(reversedRegex);
+
+    if (reversedMatch?.[1]) {
+      return decodeHtmlEntities(reversedMatch[1]);
+    }
+  }
+
+  return "";
+}
+
+function extractPageTitle(html) {
+  const ogTitle = getMetaContent(html, ["og:title", "twitter:title"]);
+
+  if (ogTitle) {
+    return ogTitle;
+  }
+
+  const titleMatch = String(html || "").match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+
+  if (titleMatch?.[1]) {
+    return decodeHtmlEntities(titleMatch[1].replace(/\s+/g, " ").trim());
+  }
+
+  return "";
+}
+
+function extractImageCandidates(html, pageUrl) {
+  const candidates = [];
+  const seen = new Set();
+
+  const addCandidate = ({ url, alt = "", source = "image", score = 0 }) => {
+    const resolvedUrl = resolveUrl(url, pageUrl);
+
+    if (!resolvedUrl || !isHttpUrl(resolvedUrl)) {
+      return;
+    }
+
+    if (seen.has(resolvedUrl)) {
+      return;
+    }
+
+    const lowerUrl = resolvedUrl.toLowerCase();
+    const lowerAlt = String(alt || "").toLowerCase();
+
+    if (
+      lowerUrl.includes("logo") ||
+      lowerUrl.includes("favicon") ||
+      lowerUrl.includes("icon") ||
+      lowerUrl.includes("sprite") ||
+      lowerUrl.endsWith(".svg")
+    ) {
+      score -= 30;
+    }
+
+    if (
+      lowerUrl.includes("product") ||
+      lowerUrl.includes("service") ||
+      lowerUrl.includes("listing") ||
+      lowerUrl.includes("property") ||
+      lowerUrl.includes("bostad") ||
+      lowerUrl.includes("objekt") ||
+      lowerUrl.includes("offer") ||
+      lowerUrl.includes("shop") ||
+      lowerAlt.includes("product") ||
+      lowerAlt.includes("service") ||
+      lowerAlt.includes("bostad") ||
+      lowerAlt.includes("property")
+    ) {
+      score += 20;
+    }
+
+    if (
+      lowerUrl.includes("banner") ||
+      lowerUrl.includes("hero") ||
+      lowerUrl.includes("background") ||
+      lowerUrl.includes("header")
+    ) {
+      score -= 12;
+    }
+
+    seen.add(resolvedUrl);
+    candidates.push({
+      url: resolvedUrl,
+      alt: decodeHtmlEntities(alt),
+      source,
+      score,
+      page_url: pageUrl,
+    });
+  };
+
+  const ogImage = getMetaContent(html, ["og:image", "twitter:image"]);
+
+  if (ogImage) {
+    addCandidate({
+      url: ogImage,
+      alt: "Open graph image",
+      source: "og:image",
+      score: 5,
+    });
+  }
+
+  const imageRegex = /<img\b[^>]*>/gi;
+  const srcRegex = /\bsrc=["']([^"']+)["']/i;
+  const dataSrcRegex = /\bdata-src=["']([^"']+)["']/i;
+  const srcsetRegex = /\bsrcset=["']([^"']+)["']/i;
+  const altRegex = /\balt=["']([^"']*)["']/i;
+
+  const matches = String(html || "").match(imageRegex) || [];
+
+  for (const tag of matches) {
+    const srcMatch = tag.match(srcRegex) || tag.match(dataSrcRegex);
+    const srcsetMatch = tag.match(srcsetRegex);
+    const altMatch = tag.match(altRegex);
+
+    let imageUrl = srcMatch?.[1] || "";
+
+    if (!imageUrl && srcsetMatch?.[1]) {
+      imageUrl = srcsetMatch[1].split(",")[0]?.trim().split(" ")[0] || "";
+    }
+
+    addCandidate({
+      url: imageUrl,
+      alt: altMatch?.[1] || "",
+      source: "img",
+      score: 0,
+    });
+  }
+
+  return candidates
+    .sort((a, b) => b.score - a.score)
+    .slice(0, WEBSITE_MAX_IMAGE_CANDIDATES);
+}
+
+function extractLinks(html, pageUrl) {
+  const links = [];
+  const seen = new Set();
+  const linkRegex = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+  let match;
+
+  while ((match = linkRegex.exec(String(html || ""))) !== null) {
+    const href = match[1];
+    const rawText = match[2] || "";
+    const text = stripHtmlToText(rawText);
+    const resolvedUrl = resolveUrl(href, pageUrl);
+
+    if (!resolvedUrl || !isHttpUrl(resolvedUrl)) {
+      continue;
+    }
+
+    if (!isSameOrigin(resolvedUrl, pageUrl)) {
+      continue;
+    }
+
+    const cleanUrl = resolvedUrl.split("#")[0];
+
+    if (seen.has(cleanUrl)) {
+      continue;
+    }
+
+    seen.add(cleanUrl);
+
+    const lower = `${cleanUrl} ${text}`.toLowerCase();
+
+    let score = 0;
+
+    const positiveKeywords = [
+      "product",
+      "products",
+      "service",
+      "services",
+      "shop",
+      "store",
+      "offer",
+      "offers",
+      "listing",
+      "listings",
+      "property",
+      "properties",
+      "bostad",
+      "bostader",
+      "bostäder",
+      "objekt",
+      "tjanst",
+      "tjänst",
+      "tjanster",
+      "tjänster",
+      "behandling",
+      "behandlingar",
+      "menu",
+      "meny",
+      "course",
+      "courses",
+      "package",
+      "packages",
+      "pris",
+      "price",
+    ];
+
+    const negativeKeywords = [
+      "privacy",
+      "cookie",
+      "terms",
+      "login",
+      "sign-in",
+      "cart",
+      "checkout",
+      "kontakt",
+      "contact",
+      "about",
+      "om-oss",
+      "policy",
+      "blog",
+      "news",
+      "nyheter",
+    ];
+
+    for (const keyword of positiveKeywords) {
+      if (lower.includes(keyword)) {
+        score += 8;
+      }
+    }
+
+    for (const keyword of negativeKeywords) {
+      if (lower.includes(keyword)) {
+        score -= 8;
+      }
+    }
+
+    if (score > -10) {
+      links.push({
+        url: cleanUrl,
+        text,
+        score,
+      });
+    }
+  }
+
+  return links.sort((a, b) => b.score - a.score);
+}
+
+async function fetchHtml(url) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; SpreeloBot/1.0; +https://app.spreelo.com)",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Website returned ${response.status}`);
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+
+    if (!contentType.toLowerCase().includes("text/html")) {
+      throw new Error("Website did not return HTML");
+    }
+
+    return await response.text();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchWebsitePages(websiteUrl) {
+  const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+
+  if (!normalizedWebsiteUrl) {
+    throw new Error("Brand profile has no website URL");
+  }
+
+  const homeHtml = await fetchHtml(normalizedWebsiteUrl);
+  const homeTitle = extractPageTitle(homeHtml);
+  const homeText = truncateText(
+    stripHtmlToText(homeHtml),
+    WEBSITE_MAX_TEXT_CHARS_PER_PAGE
+  );
+  const homeImages = extractImageCandidates(homeHtml, normalizedWebsiteUrl);
+  const links = extractLinks(homeHtml, normalizedWebsiteUrl);
+
+  const pages = [
+    {
+      url: normalizedWebsiteUrl,
+      title: homeTitle,
+      text: homeText,
+      images: homeImages,
+    },
+  ];
+
+  const candidateLinks = links
+    .filter((link) => link.score > 0)
+    .slice(0, WEBSITE_MAX_PAGES - 1);
+
+  for (const link of candidateLinks) {
+    try {
+      const html = await fetchHtml(link.url);
+
+      pages.push({
+        url: link.url,
+        title: extractPageTitle(html) || link.text,
+        text: truncateText(stripHtmlToText(html), WEBSITE_MAX_TEXT_CHARS_PER_PAGE),
+        images: extractImageCandidates(html, link.url),
+      });
+    } catch (error) {
+      console.error("Could not fetch website subpage", {
+        url: link.url,
+        message: error.message,
+      });
+    }
+  }
+
+  return pages;
+}
+
+function buildWebsiteAnalysisInput({ brandProfile, pages }) {
+  const pageBlocks = [];
+  let totalChars = 0;
+
+  for (const page of pages) {
+    const imageLines = (page.images || [])
+      .slice(0, 10)
+      .map(
+        (image, index) =>
+          `${index + 1}. url: ${image.url} | alt: ${image.alt || ""} | source: ${
+            image.source || ""
+          }`
+      )
+      .join("\n");
+
+    const block = `
+Page URL: ${page.url}
+Page title: ${page.title || "Not provided"}
+
+Page text:
+${page.text || ""}
+
+Image candidates on this page:
+${imageLines || "No images found"}
+`.trim();
+
+    if (totalChars + block.length > WEBSITE_MAX_TOTAL_TEXT_CHARS) {
+      break;
+    }
+
+    pageBlocks.push(block);
+    totalChars += block.length;
+  }
+
+  return `
+Brand profile:
+${formatBrandProfileForPrompt(brandProfile)}
+
+Website pages:
+${pageBlocks.join("\n\n---\n\n")}
+`.trim();
+}
+
+function safeJsonParse(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    const match = String(value || "").match(/\{[\s\S]*\}/);
+
+    if (!match) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function createItemKey(item) {
+  const base = [
+    item?.url || "",
+    item?.title || "",
+    item?.description || "",
+  ]
+    .join("|")
+    .toLowerCase()
+    .trim();
+
+  return crypto.createHash("sha256").update(base).digest("hex");
+}
+
+function normalizeWebsiteItem(item, websiteUrl) {
+  const title = String(item?.title || "").trim();
+  const description = String(item?.description || "").trim();
+  const type = String(item?.type || "website_item").trim();
+  const url = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
+  const imageUrl = item?.image_url ? resolveUrl(item.image_url, websiteUrl) : null;
+
+  if (!title || !description) {
+    return null;
+  }
+
+  return {
+    title,
+    description: truncateText(description, 900),
+    type,
+    url: url || websiteUrl,
+    image_url: imageUrl && isHttpUrl(imageUrl) ? imageUrl : null,
+  };
+}
+
+async function extractWebsiteItems(openai, brandProfile, pages) {
+  const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
+  const analysisInput = buildWebsiteAnalysisInput({ brandProfile, pages });
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          "You extract concrete website items for social media promotion. Return strict JSON only.",
+      },
+      {
+        role: "user",
+        content: `
+Analyze the website content below.
+
+Find concrete items that could become individual social media posts.
+
+An item can be:
+- product
+- service
+- property/listing
+- treatment
+- offer
+- course
+- menu item
+- package
+- event
+- other specific sellable item
+
+Rules:
+- Do not invent items.
+- Only use information that appears in the website content.
+- Prefer specific product/service/listing pages over generic homepage claims.
+- Do not use privacy policy, cookie policy, blog posts or generic about pages as items.
+- Avoid generic company descriptions unless the website only offers one clear service.
+- For image_url, choose an image that seems directly connected to the item.
+- Avoid logos, icons, banners, hero images and decorative images when possible.
+- If no relevant image is found for an item, use null.
+- Return 3 to 15 items if possible.
+
+Return JSON in this exact shape:
+{
+  "items": [
+    {
+      "title": "Item title",
+      "type": "product | service | listing | property | treatment | offer | course | menu_item | package | event | other",
+      "url": "Full URL if known",
+      "description": "Specific factual description based only on the website",
+      "image_url": "Full image URL if clearly relevant, otherwise null"
+    }
+  ]
+}
+
+Website content:
+${analysisInput}
+`.trim(),
+      },
+    ],
+    temperature: 0.2,
+  });
+
+  const content = completion.choices?.[0]?.message?.content || "";
+  const parsed = safeJsonParse(content);
+
+  const rawItems = Array.isArray(parsed?.items) ? parsed.items : [];
+
+  return rawItems
+    .map((item) => normalizeWebsiteItem(item, websiteUrl))
+    .filter(Boolean)
+    .map((item) => ({
+      ...item,
+      item_key: createItemKey(item),
+    }));
+}
+
+async function getCurrentWebsiteCycle({
+  supabase,
+  userId,
+  sourceUrl,
+  contentType,
+}) {
+  const { data, error } = await supabase
+    .from("website_content_history")
+    .select("cycle_number")
+    .eq("user_id", userId)
+    .eq("source_url", sourceUrl)
+    .eq("content_type", contentType)
+    .order("cycle_number", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message || "Could not load website content history");
+  }
+
+  return Number(data?.[0]?.cycle_number || 1);
+}
+
+async function getUsedWebsiteItemKeys({
+  supabase,
+  userId,
+  sourceUrl,
+  contentType,
+  cycleNumber,
+}) {
+  const { data, error } = await supabase
+    .from("website_content_history")
+    .select("item_key")
+    .eq("user_id", userId)
+    .eq("source_url", sourceUrl)
+    .eq("content_type", contentType)
+    .eq("cycle_number", cycleNumber);
+
+  if (error) {
+    throw new Error(error.message || "Could not load used website items");
+  }
+
+  return new Set((data || []).map((row) => row.item_key));
+}
+
+async function chooseUnusedWebsiteItem({
+  supabase,
+  userId,
+  sourceUrl,
+  contentType,
+  items,
+}) {
+  const currentCycle = await getCurrentWebsiteCycle({
+    supabase,
+    userId,
+    sourceUrl,
+    contentType,
+  });
+
+  const usedKeys = await getUsedWebsiteItemKeys({
+    supabase,
+    userId,
+    sourceUrl,
+    contentType,
+    cycleNumber: currentCycle,
+  });
+
+  const unusedItems = items.filter((item) => !usedKeys.has(item.item_key));
+
+  if (unusedItems.length > 0) {
+    return {
+      item: unusedItems[0],
+      cycleNumber: currentCycle,
+      startedNewCycle: false,
+    };
+  }
+
+  return {
+    item: items[0],
+    cycleNumber: currentCycle + 1,
+    startedNewCycle: true,
+  };
+}
+
+async function prepareWebsiteContentForRule({
+  supabase,
+  openai,
+  rule,
+  brandProfile,
+  summary,
+}) {
+  if (!rule.uses_website_content) {
+    return {
+      websiteItem: null,
+      websiteSourceUrl: null,
+      websiteCycleNumber: null,
+    };
+  }
+
+  summary.website_content_rules += 1;
+
+  const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
+
+  if (!websiteUrl) {
+    throw new Error("This automation requires a website URL in Brand profile");
+  }
+
+  const pages = await fetchWebsitePages(websiteUrl);
+  const items = await extractWebsiteItems(openai, brandProfile, pages);
+
+  summary.website_items_found += items.length;
+
+  if (!items.length) {
+    throw new Error("No usable products, services, listings or offers found on website");
+  }
+
+  const selected = await chooseUnusedWebsiteItem({
+    supabase,
+    userId: rule.user_id,
+    sourceUrl: websiteUrl,
+    contentType: rule.content_type_id || "website_item",
+    items,
+  });
+
+  if (selected.startedNewCycle) {
+    summary.website_items_reused_cycle += 1;
+  }
+
+  summary.website_content_success += 1;
+
+  return {
+    websiteItem: selected.item,
+    websiteSourceUrl: websiteUrl,
+    websiteCycleNumber: selected.cycleNumber,
+  };
+}
+
+async function saveWebsiteContentHistory({
+  supabase,
+  rule,
+  postId,
+  sourceUrl,
+  websiteItem,
+  cycleNumber,
+}) {
+  if (!rule.uses_website_content || !websiteItem || !sourceUrl) {
+    return;
+  }
+
+  const { error } = await supabase.from("website_content_history").insert({
+    user_id: rule.user_id,
+    automation_rule_id: rule.id,
+    post_id: postId,
+    source_url: sourceUrl,
+    source_type: "website",
+    content_type: rule.content_type_id || "website_item",
+    item_key: websiteItem.item_key,
+    item_url: websiteItem.url || null,
+    item_title: websiteItem.title || null,
+    item_description: websiteItem.description || null,
+    item_image_url: websiteItem.image_url || null,
+    cycle_number: cycleNumber || 1,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Could not save website content history");
+  }
 }
 
 async function generateAutomationPost(openai, rule) {
@@ -1116,9 +1935,34 @@ export async function GET(request) {
           summary.brand_profile_missing += 1;
         }
 
+        let websiteItem = null;
+        let websiteSourceUrl = null;
+        let websiteCycleNumber = null;
+
+        if (rule.uses_website_content) {
+          try {
+            const preparedWebsiteContent = await prepareWebsiteContentForRule({
+              supabase,
+              openai,
+              rule,
+              brandProfile,
+              summary,
+            });
+
+            websiteItem = preparedWebsiteContent.websiteItem;
+            websiteSourceUrl = preparedWebsiteContent.websiteSourceUrl;
+            websiteCycleNumber = preparedWebsiteContent.websiteCycleNumber;
+          } catch (websiteError) {
+            summary.website_content_failed += 1;
+
+            throw websiteError;
+          }
+        }
+
         const ruleWithBrandProfile = {
           ...rule,
           brand_profile: brandProfile,
+          website_item: websiteItem,
         };
 
         const generatedContent = await generateAutomationPost(
@@ -1150,14 +1994,17 @@ export async function GET(request) {
             tone: rule.tone || null,
             language: rule.language || null,
             post_type: rule.post_type || null,
-            website_url: rule.website_url || null,
+            website_url:
+              brandProfile?.website_url || rule.website_url || websiteSourceUrl || null,
             length: rule.length || null,
             include_emojis: Boolean(rule.include_emojis),
             include_hashtags: Boolean(rule.include_hashtags),
             cta_type: rule.cta_type || null,
 
             source: "automation",
-            source_label: "Generated by automation",
+            source_label: rule.uses_website_content
+              ? "Generated from website"
+              : "Generated by automation",
             automation_rule_id: rule.id,
 
             status: postStatus,
@@ -1184,7 +2031,35 @@ export async function GET(request) {
         let imageStoragePath = null;
         let finalImagePrompt = wantsImage ? rule.image_prompt || null : null;
 
-        if (wantsImage) {
+        if (wantsImage && websiteItem?.image_url) {
+          imageUrl = websiteItem.image_url;
+          finalImagePrompt =
+            "Website image selected because it appears connected to the selected website item.";
+
+          const { error: websiteImageUpdateError } = await supabase
+            .from("posts")
+            .update({
+              image_url: imageUrl,
+              image_storage_path: null,
+              image_status: "ready",
+              image_prompt: finalImagePrompt,
+              updated_at: nowIso,
+            })
+            .eq("id", post.id);
+
+          if (websiteImageUpdateError) {
+            throw new Error(
+              websiteImageUpdateError.message ||
+                "Could not update post with website image"
+            );
+          }
+
+          summary.website_image_used += 1;
+        } else if (wantsImage) {
+          if (rule.uses_website_content) {
+            summary.website_image_missing_ai_fallback += 1;
+          }
+
           try {
             const { imageBase64, imagePrompt } = await generateAutomationImage(
               openai,
@@ -1238,6 +2113,27 @@ export async function GET(request) {
               .eq("id", post.id);
 
             summary.image_generation_failed += 1;
+            summary.warnings += 1;
+          }
+        }
+
+        if (rule.uses_website_content && websiteItem) {
+          try {
+            await saveWebsiteContentHistory({
+              supabase,
+              rule,
+              postId: post.id,
+              sourceUrl: websiteSourceUrl,
+              websiteItem,
+              cycleNumber: websiteCycleNumber,
+            });
+          } catch (historyError) {
+            console.error("Could not save website content history", {
+              ruleId: rule.id,
+              postId: post.id,
+              message: historyError.message,
+            });
+
             summary.warnings += 1;
           }
         }
@@ -1297,7 +2193,9 @@ export async function GET(request) {
           .insert({
             user_id: rule.user_id,
             amount: -creditCost,
-            reason: wantsImage
+            reason: rule.uses_website_content
+              ? "Automation website post generated"
+              : wantsImage
               ? "Automation post with image generated"
               : "Automation post generated",
             reference_type: "post",
@@ -1350,7 +2248,7 @@ export async function GET(request) {
 
     return Response.json({
       ok: true,
-      mode: "live_text_and_image_protected_batched_header_auth_timezone_email_language_auto_facebook_publish_brand_profile",
+      mode: "live_text_image_facebook_brand_profile_website_content_history",
       checked_at: nowIso,
       batch_size: BATCH_SIZE,
       fetched_rules: rules?.length || 0,
