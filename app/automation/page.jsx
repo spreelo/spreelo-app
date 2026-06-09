@@ -40,21 +40,170 @@ const commonTimeZones = [
   "Australia/Sydney",
 ];
 
+const contentTypes = [
+  {
+    id: "tips",
+    label: "Tips & advice",
+    description: "Teach the audience something useful.",
+    prompt:
+      "Create a useful social media post that teaches the audience one practical tip related to this business. Make it specific, helpful and easy to understand. Avoid sounding like an advertisement.",
+    imagePrompt:
+      "Create a professional image that visually supports a helpful tip. Make it relevant to the business, clear, polished and not generic.",
+  },
+  {
+    id: "mistakes",
+    label: "Common mistakes",
+    description: "Show expertise and help customers avoid problems.",
+    prompt:
+      "Create a social media post about common mistakes customers often make related to this business, product or service. Explain them in a helpful and non-judgmental way, and position the business as knowledgeable and trustworthy.",
+    imagePrompt:
+      "Create a professional image that suggests common mistakes or things to avoid in a tasteful, helpful and non-negative way.",
+  },
+  {
+    id: "faq",
+    label: "FAQ / Questions",
+    description: "Answer a common customer question.",
+    prompt:
+      "Create a social media post that answers a common customer question related to this business. Make the answer clear, trustworthy and useful. The post should reduce uncertainty and make it easier for the customer to take the next step.",
+    imagePrompt:
+      "Create a professional image that supports a question-and-answer or guidance theme, without adding readable text.",
+  },
+  {
+    id: "behind_scenes",
+    label: "Behind the scenes",
+    description: "Build trust by showing the process.",
+    prompt:
+      "Create a behind-the-scenes social media post for this business. Show what happens in the process, preparation, workday or service delivery. Make it feel authentic, trustworthy and interesting.",
+    imagePrompt:
+      "Create an authentic behind-the-scenes style image connected to the business or service. Make it natural, professional and trustworthy.",
+  },
+  {
+    id: "checklist",
+    label: "Checklist",
+    description: "Create a save-worthy post.",
+    prompt:
+      "Create a practical checklist-style social media post related to this business. Make it easy to save, useful and specific. Keep the structure clear and helpful.",
+    imagePrompt:
+      "Create a professional image that visually supports a checklist or preparation theme, without adding readable text.",
+  },
+  {
+    id: "service_focus",
+    label: "Service in focus",
+    description: "Explain one service without hard selling.",
+    prompt:
+      "Create a social media post that explains one service or offer from this business in a clear and helpful way. Focus on the value for the customer, not hard selling.",
+    imagePrompt:
+      "Create a professional image that visualizes the service or customer benefit in a believable and polished way.",
+  },
+  {
+    id: "case_example",
+    label: "Customer case / example",
+    description: "Use examples to build trust.",
+    prompt:
+      "Create a social media post based on a realistic customer case or example for this business. Do not invent sensitive personal details. Make it feel credible, useful and trust-building.",
+    imagePrompt:
+      "Create a professional image that supports a customer example or real-life scenario, without showing private or sensitive details.",
+  },
+  {
+    id: "myth_fact",
+    label: "Myth vs fact",
+    description: "Correct misunderstandings.",
+    prompt:
+      "Create a myth-vs-fact style social media post related to this business or industry. Correct a common misunderstanding and explain the truth in a simple, trustworthy way.",
+    imagePrompt:
+      "Create a professional image that suggests clarity, understanding or comparison, without adding readable text.",
+  },
+  {
+    id: "local",
+    label: "Local connection",
+    description: "Make the post feel locally relevant.",
+    prompt:
+      "Create a social media post with a local angle for this business. Make it feel relevant to the local community, season, area or everyday customer situation. Keep it natural and not forced.",
+    imagePrompt:
+      "Create a professional image with a local or community feeling that fits the business, without using specific landmarks unless clearly provided.",
+  },
+  {
+    id: "seasonal",
+    label: "Seasonal post",
+    description: "Connect content to current timing.",
+    prompt:
+      "Create a seasonal or timely social media post for this business. Connect the message to the current season, common customer needs or relevant timing in a natural way.",
+    imagePrompt:
+      "Create a professional seasonal image that fits the business and timing, avoiding clichés and readable text.",
+  },
+  {
+    id: "comparison",
+    label: "Comparison",
+    description: "Explain differences clearly.",
+    prompt:
+      "Create a social media post that compares two options, approaches or choices related to this business. Help the customer understand the difference and make a better decision.",
+    imagePrompt:
+      "Create a professional image that suggests comparison or decision-making in a clean and tasteful way, without split-screen text.",
+  },
+  {
+    id: "mini_guide",
+    label: "Mini-guide",
+    description: "Give deeper value in one post.",
+    prompt:
+      "Create a mini-guide social media post related to this business. Teach the audience something useful in a structured way with clear steps or sections.",
+    imagePrompt:
+      "Create a professional image that supports a guide or learning theme, clean and easy to understand without readable text.",
+  },
+];
+
+const recommendedContentTypeIds = [
+  "tips",
+  "mistakes",
+  "behind_scenes",
+  "faq",
+  "checklist",
+];
+
 function makeSlotId() {
   return `slot-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function createSlot(weekday = "Monday") {
+function getContentTypeById(typeId) {
+  return contentTypes.find((type) => type.id === typeId) || null;
+}
+
+function createSlot(weekday = "Monday", overrides = {}) {
   return {
     id: makeSlotId(),
     weekday,
-    publishTime: "08:35",
-    prompt: "",
-    generateImage: false,
-    imagePrompt: "",
-    includeEmojis: true,
-    includeHashtags: true,
+    publishTime: overrides.publishTime || "08:35",
+    prompt: overrides.prompt || "",
+    generateImage: Boolean(overrides.generateImage),
+    imagePrompt: overrides.imagePrompt || "",
+    includeEmojis:
+      typeof overrides.includeEmojis === "boolean"
+        ? overrides.includeEmojis
+        : true,
+    includeHashtags:
+      typeof overrides.includeHashtags === "boolean"
+        ? overrides.includeHashtags
+        : true,
+    contentTypeId: overrides.contentTypeId || null,
+    contentTypeLabel: overrides.contentTypeLabel || null,
   };
+}
+
+function createSlotFromContentType(type, index = 0) {
+  const weekday = weekdays[index % weekdays.length];
+
+  return createSlot(weekday, {
+    prompt: type.prompt,
+    imagePrompt: type.imagePrompt,
+    contentTypeId: type.id,
+    contentTypeLabel: type.label,
+  });
+}
+
+function createRecommendedSlots() {
+  return recommendedContentTypeIds
+    .map(getContentTypeById)
+    .filter(Boolean)
+    .map((type, index) => createSlotFromContentType(type, index));
 }
 
 function normalizeTime(value) {
@@ -322,7 +471,11 @@ export default function AutomationPage() {
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
 
-  const [slots, setSlots] = useState([createSlot("Monday")]);
+  const [slots, setSlots] = useState(() => createRecommendedSlots());
+  const [planCreationMode, setPlanCreationMode] = useState("auto");
+  const [selectedContentTypeIds, setSelectedContentTypeIds] = useState(
+    recommendedContentTypeIds
+  );
 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -472,6 +625,61 @@ export default function AutomationPage() {
     );
   }
 
+  function changePlanCreationMode(mode) {
+    setMessage("");
+    setPlanCreationMode(mode);
+
+    if (mode === "auto") {
+      setSelectedContentTypeIds(recommendedContentTypeIds);
+      setSlots(createRecommendedSlots());
+      return;
+    }
+
+    if (mode === "select") {
+      const initialTypeIds = selectedContentTypeIds.length
+        ? selectedContentTypeIds
+        : recommendedContentTypeIds;
+
+      setSelectedContentTypeIds(initialTypeIds);
+      setSlots(
+        initialTypeIds
+          .map(getContentTypeById)
+          .filter(Boolean)
+          .map((type, index) => createSlotFromContentType(type, index))
+      );
+      return;
+    }
+
+    setSelectedContentTypeIds([]);
+    setSlots([createSlot("Monday")]);
+  }
+
+  function toggleContentType(typeId) {
+    setMessage("");
+
+    setSelectedContentTypeIds((currentTypeIds) => {
+      const nextTypeIds = currentTypeIds.includes(typeId)
+        ? currentTypeIds.filter((id) => id !== typeId)
+        : [...currentTypeIds, typeId];
+
+      const nextSlots = nextTypeIds
+        .map(getContentTypeById)
+        .filter(Boolean)
+        .map((type, index) => createSlotFromContentType(type, index));
+
+      setSlots(nextSlots.length ? nextSlots : [createSlot("Monday")]);
+
+      return nextTypeIds;
+    });
+  }
+
+  function applyRecommendedPlan() {
+    setMessage("");
+    setPlanCreationMode("auto");
+    setSelectedContentTypeIds(recommendedContentTypeIds);
+    setSlots(createRecommendedSlots());
+  }
+
   async function savePlan() {
     setMessage("");
 
@@ -483,7 +691,9 @@ export default function AutomationPage() {
     const invalidSlot = slots.find((slot) => !slot.prompt.trim());
 
     if (invalidSlot) {
-      setMessage("Every planned post needs its own prompt.");
+      setMessage(
+        "Every planned post needs its own prompt. Choose a content type or write a manual prompt."
+      );
       return;
     }
 
@@ -509,7 +719,10 @@ export default function AutomationPage() {
 
     const rows = slots.map((slot) => ({
       user_id: user.id,
-      name: planName || `${slot.weekday} ${slot.publishTime}`,
+      name:
+        planName ||
+        slot.contentTypeLabel ||
+        `${slot.weekday} ${slot.publishTime}`,
       weekday: slot.weekday,
       publish_time: slot.publishTime,
       prompt: slot.prompt,
@@ -549,8 +762,18 @@ export default function AutomationPage() {
       );
 
       setPlanName("");
-      setSlots([createSlot()]);
       setLanguage("Auto");
+
+      if (planCreationMode === "auto") {
+        setSelectedContentTypeIds(recommendedContentTypeIds);
+        setSlots(createRecommendedSlots());
+      } else if (planCreationMode === "select") {
+        setSelectedContentTypeIds([]);
+        setSlots([createSlot("Monday")]);
+      } else {
+        setSlots([createSlot("Monday")]);
+      }
+
       await loadRules();
     }
 
@@ -643,6 +866,132 @@ export default function AutomationPage() {
         <section className="setup-card">
           <div className="setup-title">
             <p>Step 1</p>
+            <h3>Choose how you want to create this plan</h3>
+            <span>
+              Start simple with an automatic weekly plan, choose content types
+              yourself, or write your own manual prompts.
+            </span>
+          </div>
+
+          <div className="creation-mode-grid">
+            <button
+              type="button"
+              className={`creation-mode-card ${
+                planCreationMode === "auto" ? "active" : ""
+              }`}
+              onClick={() => changePlanCreationMode("auto")}
+            >
+              <span>Recommended</span>
+              <strong>Auto-plan</strong>
+              <p>
+                Spreelo creates a balanced weekly mix for you. Best for most
+                customers.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              className={`creation-mode-card ${
+                planCreationMode === "select" ? "active" : ""
+              }`}
+              onClick={() => changePlanCreationMode("select")}
+            >
+              <span>Flexible</span>
+              <strong>Choose content types</strong>
+              <p>
+                Pick the types of posts you want. Spreelo writes the prompts in
+                the background.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              className={`creation-mode-card ${
+                planCreationMode === "manual" ? "active" : ""
+              }`}
+              onClick={() => changePlanCreationMode("manual")}
+            >
+              <span>Advanced</span>
+              <strong>Manual prompt</strong>
+              <p>
+                Write your own prompt for every planned post and control the
+                details yourself.
+              </p>
+            </button>
+          </div>
+
+          {planCreationMode === "auto" && (
+            <div className="mode-info-box">
+              <div>
+                <strong>Recommended weekly plan</strong>
+                <p>
+                  Spreelo will start with 5 posts per week: tips, common
+                  mistakes, behind the scenes, FAQ and checklist. You can still
+                  edit every row below before saving.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={applyRecommendedPlan}
+              >
+                Reset to recommended
+              </button>
+            </div>
+          )}
+
+          {planCreationMode === "select" && (
+            <div className="content-type-section">
+              <div className="content-type-header">
+                <div>
+                  <strong>Select content types</strong>
+                  <p>
+                    Choose one or more post types. Each selected type becomes a
+                    planned post with a ready-made prompt.
+                  </p>
+                </div>
+                <span>{selectedContentTypeIds.length} selected</span>
+              </div>
+
+              <div className="content-type-grid">
+                {contentTypes.map((type) => {
+                  const isSelected = selectedContentTypeIds.includes(type.id);
+
+                  return (
+                    <button
+                      type="button"
+                      key={type.id}
+                      className={`content-type-card ${
+                        isSelected ? "active" : ""
+                      }`}
+                      onClick={() => toggleContentType(type.id)}
+                    >
+                      <strong>{type.label}</strong>
+                      <p>{type.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {planCreationMode === "manual" && (
+            <div className="mode-info-box">
+              <div>
+                <strong>Manual prompt mode</strong>
+                <p>
+                  Write exactly what each post should be about in the planned
+                  post rows below. This is best for advanced users or very
+                  specific campaigns.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="setup-card">
+          <div className="setup-title">
+            <p>Step 2</p>
             <h3>Choose how this plan should run</h3>
             <span>Define the foundation of your automated schedule.</span>
           </div>
@@ -694,7 +1043,7 @@ export default function AutomationPage() {
 
         <section className="setup-card">
           <div className="setup-title">
-            <p>Step 2</p>
+            <p>Step 3</p>
             <h3>Add planned posts</h3>
             <span>Visually map out your weekly content.</span>
           </div>
@@ -710,6 +1059,9 @@ export default function AutomationPage() {
                       <p>Planned post {index + 1}</p>
                       <h4>
                         {slot.weekday} · {slot.publishTime}
+                        {slot.contentTypeLabel
+                          ? ` · ${slot.contentTypeLabel}`
+                          : ""}
                       </h4>
                     </div>
                   </div>
@@ -742,7 +1094,11 @@ export default function AutomationPage() {
                       onChange={(event) =>
                         updateSlot(slot.id, "prompt", event.target.value)
                       }
-                      placeholder="Example: Create a post about this"
+                      placeholder={
+                        planCreationMode === "manual"
+                          ? "Example: Create a post about our new service"
+                          : "Prompt is created from the selected content type and can be edited"
+                      }
                     />
                   </div>
 
@@ -836,7 +1192,7 @@ export default function AutomationPage() {
 
         <section className="settings-card">
           <div className="setup-title">
-            <p>Step 3</p>
+            <p>Step 4</p>
             <h3>Default post settings</h3>
             <span>These settings apply to all rows in this plan.</span>
           </div>
