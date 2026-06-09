@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabaseClient";
 
 export default function BrandProfile() {
   const [businessName, setBusinessName] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
   const [industry, setIndustry] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
   const [message, setMessage] = useState("");
@@ -28,7 +29,7 @@ export default function BrandProfile() {
 
       const { data, error } = await supabase
         .from("brand_profiles")
-        .select("business_name, industry, target_audience")
+        .select("business_name, website_url, industry, target_audience")
         .eq("user_id", user.id)
         .single();
 
@@ -38,6 +39,7 @@ export default function BrandProfile() {
 
       if (data) {
         setBusinessName(data.business_name || "");
+        setWebsiteUrl(data.website_url || "");
         setIndustry(data.industry || "");
         setTargetAudience(data.target_audience || "");
       }
@@ -48,18 +50,38 @@ export default function BrandProfile() {
     loadProfile();
   }, []);
 
+  function normalizeWebsiteUrl(value) {
+    const trimmedValue = String(value || "").trim();
+
+    if (!trimmedValue) {
+      return "";
+    }
+
+    if (
+      trimmedValue.startsWith("http://") ||
+      trimmedValue.startsWith("https://")
+    ) {
+      return trimmedValue;
+    }
+
+    return `https://${trimmedValue}`;
+  }
+
   async function saveProfile() {
     if (!user) return;
 
     setSaving(true);
     setMessage("");
 
+    const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+
     const { error } = await supabase.from("brand_profiles").upsert(
       {
         user_id: user.id,
-        business_name: businessName,
-        industry,
-        target_audience: targetAudience,
+        business_name: businessName.trim(),
+        website_url: normalizedWebsiteUrl,
+        industry: industry.trim(),
+        target_audience: targetAudience.trim(),
         updated_at: new Date().toISOString(),
       },
       {
@@ -70,6 +92,7 @@ export default function BrandProfile() {
     if (error) {
       setMessage(error.message);
     } else {
+      setWebsiteUrl(normalizedWebsiteUrl);
       setMessage("Brand profile saved.");
     }
 
@@ -111,6 +134,14 @@ export default function BrandProfile() {
             Spreelo will use this information to create posts that sound like
             your business, match your audience and fit your offers.
           </p>
+
+          <div className="mini-info-card">
+            <strong>Website URL is important</strong>
+            <p>
+              Spreelo can use your website later to find products, services,
+              listings and offers for automated posts.
+            </p>
+          </div>
         </div>
 
         <div className="prompt-box">
@@ -120,6 +151,14 @@ export default function BrandProfile() {
             placeholder="Example: Spreelo"
             value={businessName}
             onChange={(event) => setBusinessName(event.target.value)}
+          />
+
+          <label>Website URL</label>
+          <input
+            className="input"
+            placeholder="Example: https://www.yourbusiness.com"
+            value={websiteUrl}
+            onChange={(event) => setWebsiteUrl(event.target.value)}
           />
 
           <label>Industry</label>
