@@ -44,6 +44,7 @@ const contentTypes = [
   {
     id: "tips",
     label: "Tips & advice",
+    shortLabel: "Tips",
     description: "Teach the audience something useful.",
     prompt:
       "Create a useful social media post that teaches the audience one practical tip related to this business. Make it specific, helpful and easy to understand. Avoid sounding like an advertisement.",
@@ -53,6 +54,7 @@ const contentTypes = [
   {
     id: "mistakes",
     label: "Common mistakes",
+    shortLabel: "Mistakes",
     description: "Show expertise and help customers avoid problems.",
     prompt:
       "Create a social media post about common mistakes customers often make related to this business, product or service. Explain them in a helpful and non-judgmental way, and position the business as knowledgeable and trustworthy.",
@@ -62,6 +64,7 @@ const contentTypes = [
   {
     id: "faq",
     label: "FAQ / Questions",
+    shortLabel: "FAQ",
     description: "Answer a common customer question.",
     prompt:
       "Create a social media post that answers a common customer question related to this business. Make the answer clear, trustworthy and useful. The post should reduce uncertainty and make it easier for the customer to take the next step.",
@@ -71,6 +74,7 @@ const contentTypes = [
   {
     id: "behind_scenes",
     label: "Behind the scenes",
+    shortLabel: "Behind scenes",
     description: "Build trust by showing the process.",
     prompt:
       "Create a behind-the-scenes social media post for this business. Show what happens in the process, preparation, workday or service delivery. Make it feel authentic, trustworthy and interesting.",
@@ -80,6 +84,7 @@ const contentTypes = [
   {
     id: "checklist",
     label: "Checklist",
+    shortLabel: "Checklist",
     description: "Create a save-worthy post.",
     prompt:
       "Create a practical checklist-style social media post related to this business. Make it easy to save, useful and specific. Keep the structure clear and helpful.",
@@ -89,6 +94,7 @@ const contentTypes = [
   {
     id: "service_focus",
     label: "Service in focus",
+    shortLabel: "Service",
     description: "Explain one service without hard selling.",
     prompt:
       "Create a social media post that explains one service or offer from this business in a clear and helpful way. Focus on the value for the customer, not hard selling.",
@@ -98,6 +104,7 @@ const contentTypes = [
   {
     id: "case_example",
     label: "Customer case / example",
+    shortLabel: "Case",
     description: "Use examples to build trust.",
     prompt:
       "Create a social media post based on a realistic customer case or example for this business. Do not invent sensitive personal details. Make it feel credible, useful and trust-building.",
@@ -107,6 +114,7 @@ const contentTypes = [
   {
     id: "myth_fact",
     label: "Myth vs fact",
+    shortLabel: "Myth vs fact",
     description: "Correct misunderstandings.",
     prompt:
       "Create a myth-vs-fact style social media post related to this business or industry. Correct a common misunderstanding and explain the truth in a simple, trustworthy way.",
@@ -116,6 +124,7 @@ const contentTypes = [
   {
     id: "local",
     label: "Local connection",
+    shortLabel: "Local",
     description: "Make the post feel locally relevant.",
     prompt:
       "Create a social media post with a local angle for this business. Make it feel relevant to the local community, season, area or everyday customer situation. Keep it natural and not forced.",
@@ -125,6 +134,7 @@ const contentTypes = [
   {
     id: "seasonal",
     label: "Seasonal post",
+    shortLabel: "Seasonal",
     description: "Connect content to current timing.",
     prompt:
       "Create a seasonal or timely social media post for this business. Connect the message to the current season, common customer needs or relevant timing in a natural way.",
@@ -134,6 +144,7 @@ const contentTypes = [
   {
     id: "comparison",
     label: "Comparison",
+    shortLabel: "Comparison",
     description: "Explain differences clearly.",
     prompt:
       "Create a social media post that compares two options, approaches or choices related to this business. Help the customer understand the difference and make a better decision.",
@@ -143,6 +154,7 @@ const contentTypes = [
   {
     id: "mini_guide",
     label: "Mini-guide",
+    shortLabel: "Mini-guide",
     description: "Give deeper value in one post.",
     prompt:
       "Create a mini-guide social media post related to this business. Teach the audience something useful in a structured way with clear steps or sections.",
@@ -467,6 +479,12 @@ function formatLanguage(value) {
   return value;
 }
 
+function formatPlanMode(value) {
+  if (value === "auto") return "Auto-plan";
+  if (value === "select") return "Choose content types";
+  return "Manual prompt";
+}
+
 export default function AutomationPage() {
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
@@ -493,6 +511,7 @@ export default function AutomationPage() {
   const [ctaType, setCtaType] = useState("Learn more");
   const [approvalRequired, setApprovalRequired] = useState(true);
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
+  const [showSavedRules, setShowSavedRules] = useState(false);
 
   useEffect(() => {
     setTimeZone(getBrowserTimeZone());
@@ -536,6 +555,8 @@ export default function AutomationPage() {
 
   const hasEnoughCredits =
     !creditBalance || plannedCredits <= creditBalance.credits_remaining;
+
+  const savedRulesPreview = rules.slice(0, 3);
 
   async function loadRules() {
     setLoading(true);
@@ -811,591 +832,639 @@ export default function AutomationPage() {
 
   return (
     <AppLayout active="automation">
-      <div className="automation-page">
-        <header className="automation-heading">
+      <div className="automation-page planner-wizard-page">
+        <header className="wizard-header">
           <div>
-            <h2>Build your weekly content plan</h2>
-          </div>
-
-          <span className="guide-pill">Step-by-step setup guide</span>
-        </header>
-
-        <section className="automation-stats">
-          <div className="automation-stat-card">
-            <div>
-              <span>Credits remaining</span>
-              <strong>{creditBalance?.credits_remaining ?? "—"}</strong>
-              {creditBalance?.plan_name && (
-                <small>{creditBalance.plan_name} plan</small>
-              )}
-            </div>
-            <div className="stat-icon">💳</div>
-          </div>
-
-          <div className="automation-stat-card">
-            <div>
-              <span>New plan credits</span>
-              <strong>{plannedCredits}</strong>
-            </div>
-            <div className="stat-icon">★</div>
-          </div>
-
-          <div className="automation-stat-card">
-            <div>
-              <span>Estimated monthly use</span>
-              <strong>{monthlyEstimate}</strong>
-            </div>
-            <div className="stat-icon">▮</div>
-          </div>
-        </section>
-
-        <section className="automation-help">
-          <div className="help-icon">💡</div>
-          <div>
-            <h3>New to automation?</h3>
-            <p>
-              Watch our 2-minute video guide to learn how to schedule recurring
-              posts.
-            </p>
-          </div>
-          <button type="button" className="play-button">
-            ▶
-          </button>
-        </section>
-
-        <section className="setup-card">
-          <div className="setup-title">
-            <p>Step 1</p>
-            <h3>Choose how you want to create this plan</h3>
+            <p className="wizard-eyebrow">Automation plan</p>
+            <h2>Create content plan</h2>
             <span>
-              Start simple with an automatic weekly plan, choose content types
-              yourself, or write your own manual prompts.
+              Build a plan that creates social posts for you automatically.
             </span>
           </div>
 
-          <div className="creation-mode-grid">
-            <button
-              type="button"
-              className={`creation-mode-card ${
-                planCreationMode === "auto" ? "active" : ""
-              }`}
-              onClick={() => changePlanCreationMode("auto")}
-            >
-              <span>Recommended</span>
-              <strong>Auto-plan</strong>
-              <p>
-                Spreelo creates a balanced weekly mix for you. Best for most
-                customers.
-              </p>
-            </button>
+          <button type="button" className="wizard-cancel-button">
+            ✕ Cancel
+          </button>
+        </header>
 
-            <button
-              type="button"
-              className={`creation-mode-card ${
-                planCreationMode === "select" ? "active" : ""
-              }`}
-              onClick={() => changePlanCreationMode("select")}
-            >
-              <span>Flexible</span>
-              <strong>Choose content types</strong>
-              <p>
-                Pick the types of posts you want. Spreelo writes the prompts in
-                the background.
-              </p>
-            </button>
-
-            <button
-              type="button"
-              className={`creation-mode-card ${
-                planCreationMode === "manual" ? "active" : ""
-              }`}
-              onClick={() => changePlanCreationMode("manual")}
-            >
-              <span>Advanced</span>
-              <strong>Manual prompt</strong>
-              <p>
-                Write your own prompt for every planned post and control the
-                details yourself.
-              </p>
-            </button>
+        <section className="wizard-steps">
+          <div className="wizard-step completed">
+            <span>1</span>
+            <strong>Basics</strong>
           </div>
+          <div className="wizard-line" />
+          <div className="wizard-step active">
+            <span>2</span>
+            <strong>Choose method</strong>
+          </div>
+          <div className="wizard-line" />
+          <div className="wizard-step">
+            <span>3</span>
+            <strong>Posts & schedule</strong>
+          </div>
+          <div className="wizard-line" />
+          <div className="wizard-step">
+            <span>4</span>
+            <strong>Review & save</strong>
+          </div>
+        </section>
 
-          {planCreationMode === "auto" && (
-            <div className="mode-info-box">
-              <div>
-                <strong>Recommended weekly plan</strong>
-                <p>
-                  Spreelo will start with 5 posts per week: tips, common
-                  mistakes, behind the scenes, FAQ and checklist. You can still
-                  edit every row below before saving.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={applyRecommendedPlan}
-              >
-                Reset to recommended
-              </button>
-            </div>
-          )}
-
-          {planCreationMode === "select" && (
-            <div className="content-type-section">
-              <div className="content-type-header">
+        <div className="wizard-layout">
+          <main className="wizard-main">
+            <section className="wizard-card">
+              <div className="wizard-card-title">
                 <div>
-                  <strong>Select content types</strong>
+                  <h3>Choose how you want to create the plan</h3>
                   <p>
-                    Choose one or more post types. Each selected type becomes a
-                    planned post with a ready-made prompt.
+                    Three simple ways to get started. You can still change the
+                    details before saving.
                   </p>
                 </div>
-                <span>{selectedContentTypeIds.length} selected</span>
               </div>
 
-              <div className="content-type-grid">
-                {contentTypes.map((type) => {
-                  const isSelected = selectedContentTypeIds.includes(type.id);
-
-                  return (
-                    <button
-                      type="button"
-                      key={type.id}
-                      className={`content-type-card ${
-                        isSelected ? "active" : ""
-                      }`}
-                      onClick={() => toggleContentType(type.id)}
-                    >
-                      <strong>{type.label}</strong>
-                      <p>{type.description}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {planCreationMode === "manual" && (
-            <div className="mode-info-box">
-              <div>
-                <strong>Manual prompt mode</strong>
-                <p>
-                  Write exactly what each post should be about in the planned
-                  post rows below. This is best for advanced users or very
-                  specific campaigns.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="setup-card">
-          <div className="setup-title">
-            <p>Step 2</p>
-            <h3>Choose how this plan should run</h3>
-            <span>Define the foundation of your automated schedule.</span>
-          </div>
-
-          <div className="setup-row">
-            <div>
-              <label>Plan type</label>
-              <div className="plan-toggle">
+              <div className="wizard-method-grid">
                 <button
                   type="button"
-                  className={scheduleType === "weekly" ? "active" : ""}
-                  onClick={() => setScheduleType("weekly")}
+                  className={`wizard-method-card ${
+                    planCreationMode === "auto" ? "active" : ""
+                  }`}
+                  onClick={() => changePlanCreationMode("auto")}
                 >
-                  Repeats every week
+                  <div className="method-check">
+                    {planCreationMode === "auto" ? "✓" : ""}
+                  </div>
+                  <div className="method-illustration">🪄</div>
+                  <span>Recommended</span>
+                  <h4>1. Auto-plan</h4>
+                  <p>
+                    Spreelo creates a smart weekly plan automatically for your
+                    business.
+                  </p>
+                  <div className="method-best">
+                    <strong>Best for you if...</strong>
+                    <small>
+                      you want a quick and simple way to get started.
+                    </small>
+                  </div>
                 </button>
+
                 <button
                   type="button"
-                  className={scheduleType === "once" ? "active" : ""}
-                  onClick={() => setScheduleType("once")}
+                  className={`wizard-method-card ${
+                    planCreationMode === "select" ? "active" : ""
+                  }`}
+                  onClick={() => changePlanCreationMode("select")}
                 >
-                  One-time plan
+                  <div className="method-check">
+                    {planCreationMode === "select" ? "✓" : ""}
+                  </div>
+                  <div className="method-illustration">🎛️</div>
+                  <span>Flexible</span>
+                  <h4>2. Choose content types</h4>
+                  <p>
+                    Pick the types of posts you want, and Spreelo builds the
+                    plan around your choices.
+                  </p>
+                  <div className="method-best blue">
+                    <strong>Best for you if...</strong>
+                    <small>
+                      you want more control without writing everything yourself.
+                    </small>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className={`wizard-method-card ${
+                    planCreationMode === "manual" ? "active" : ""
+                  }`}
+                  onClick={() => changePlanCreationMode("manual")}
+                >
+                  <div className="method-check">
+                    {planCreationMode === "manual" ? "✓" : ""}
+                  </div>
+                  <div className="method-illustration">📝</div>
+                  <span>Advanced</span>
+                  <h4>3. Manual prompt</h4>
+                  <p>
+                    Write exactly what every post should be about and control
+                    the details yourself.
+                  </p>
+                  <div className="method-best green">
+                    <strong>Best for you if...</strong>
+                    <small>
+                      you have very specific wishes or campaign ideas.
+                    </small>
+                  </div>
                 </button>
               </div>
-            </div>
 
-            {scheduleType === "once" && (
-              <div>
-                <label>Run date</label>
-                <input
-                  className="input"
-                  type="date"
-                  value={runDate}
-                  onChange={(event) => setRunDate(event.target.value)}
-                />
-              </div>
-            )}
-
-            <div className="wide-field">
-              <label>Plan name</label>
-              <input
-                className="input"
-                value={planName}
-                onChange={(event) => setPlanName(event.target.value)}
-                placeholder="Example: Weekly social media plan"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="setup-card">
-          <div className="setup-title">
-            <p>Step 3</p>
-            <h3>Add planned posts</h3>
-            <span>Visually map out your weekly content.</span>
-          </div>
-
-          <div className="planned-list">
-            {slots.map((slot, index) => (
-              <article className="planned-row" key={slot.id}>
-                <div className="planned-number">{index + 1}</div>
-
-                <div className="planned-content">
-                  <div className="planned-top">
+              {planCreationMode === "select" && (
+                <div className="wizard-content-types">
+                  <div className="wizard-subtitle-row">
                     <div>
-                      <p>Planned post {index + 1}</p>
-                      <h4>
-                        {slot.weekday} · {slot.publishTime}
-                        {slot.contentTypeLabel
-                          ? ` · ${slot.contentTypeLabel}`
-                          : ""}
-                      </h4>
+                      <h4>Select content types</h4>
+                      <p>
+                        Each selected type becomes a planned post with a
+                        ready-made prompt.
+                      </p>
                     </div>
+                    <span>{selectedContentTypeIds.length} selected</span>
                   </div>
 
-                  <div className="planned-fields">
-                    <select
-                      className="input"
-                      value={slot.weekday}
-                      onChange={(event) =>
-                        updateSlot(slot.id, "weekday", event.target.value)
-                      }
-                    >
-                      {weekdays.map((day) => (
-                        <option key={day}>{day}</option>
-                      ))}
-                    </select>
+                  <div className="wizard-content-type-grid">
+                    {contentTypes.map((type) => {
+                      const isSelected = selectedContentTypeIds.includes(
+                        type.id
+                      );
 
-                    <input
-                      className="input time-input"
-                      type="time"
-                      value={slot.publishTime}
-                      onChange={(event) =>
-                        updateSlot(slot.id, "publishTime", event.target.value)
-                      }
-                    />
-
-                    <input
-                      className="input prompt-input"
-                      value={slot.prompt}
-                      onChange={(event) =>
-                        updateSlot(slot.id, "prompt", event.target.value)
-                      }
-                      placeholder={
-                        planCreationMode === "manual"
-                          ? "Example: Create a post about our new service"
-                          : "Prompt is created from the selected content type and can be edited"
-                      }
-                    />
+                      return (
+                        <button
+                          type="button"
+                          key={type.id}
+                          className={`wizard-content-type ${
+                            isSelected ? "active" : ""
+                          }`}
+                          onClick={() => toggleContentType(type.id)}
+                        >
+                          <strong>{type.label}</strong>
+                          <p>{type.description}</p>
+                        </button>
+                      );
+                    })}
                   </div>
-
-                  <div className="planned-bottom">
-                    <label className="image-check">
-                      <input
-                        type="checkbox"
-                        checked={slot.generateImage}
-                        onChange={(event) =>
-                          updateSlot(
-                            slot.id,
-                            "generateImage",
-                            event.target.checked
-                          )
-                        }
-                      />
-                      Generate AI image for this post
-                    </label>
-
-                    <label className="image-check">
-                      <input
-                        type="checkbox"
-                        checked={slot.includeEmojis}
-                        onChange={(event) =>
-                          updateSlot(
-                            slot.id,
-                            "includeEmojis",
-                            event.target.checked
-                          )
-                        }
-                      />
-                      Include emojis
-                    </label>
-
-                    <label className="image-check">
-                      <input
-                        type="checkbox"
-                        checked={slot.includeHashtags}
-                        onChange={(event) =>
-                          updateSlot(
-                            slot.id,
-                            "includeHashtags",
-                            event.target.checked
-                          )
-                        }
-                      />
-                      Include hashtags
-                    </label>
-
-                    <span className="credit-chip">
-                      {slot.generateImage ? "3 Credits" : "1 Credit"}
-                    </span>
-
-                    <div className="row-actions">
-                      <button
-                        type="button"
-                        className="tiny-button"
-                        onClick={() => duplicateSlot(slot.id)}
-                      >
-                        Duplicate
-                      </button>
-                      <button
-                        type="button"
-                        className="tiny-button danger"
-                        onClick={() => removeSlot(slot.id)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-
-                  {slot.generateImage && (
-                    <textarea
-                      className="image-prompt-box"
-                      value={slot.imagePrompt}
-                      onChange={(event) =>
-                        updateSlot(slot.id, "imagePrompt", event.target.value)
-                      }
-                      placeholder="Visual direction for the image, for example: bright modern photo style, clean background, warm light."
-                    />
-                  )}
                 </div>
-              </article>
-            ))}
-          </div>
+              )}
 
-          <button type="button" className="add-plan-button" onClick={addSlot}>
-            + Add another planned post
-          </button>
-        </section>
-
-        <section className="settings-card">
-          <div className="setup-title">
-            <p>Step 4</p>
-            <h3>Default post settings</h3>
-            <span>These settings apply to all rows in this plan.</span>
-          </div>
-
-          <div className="settings-panel">
-            <div className="setting-tile">
-              <span>Platform</span>
-              <select
-                value={platform}
-                onChange={(event) => setPlatform(event.target.value)}
-              >
-                <option>Instagram</option>
-                <option>Facebook</option>
-                <option>LinkedIn</option>
-              </select>
-            </div>
-
-            <div className="setting-tile">
-              <span>Tone</span>
-              <select
-                value={tone}
-                onChange={(event) => setTone(event.target.value)}
-              >
-                <option>Friendly</option>
-                <option>Professional</option>
-                <option>Sales-focused</option>
-                <option>Premium</option>
-              </select>
-            </div>
-
-            <div className="setting-tile">
-              <span>Language</span>
-              <select
-                value={language}
-                onChange={(event) => setLanguage(event.target.value)}
-              >
-                <option value="Auto">Auto-detect from prompt</option>
-                <option value="English">English</option>
-              </select>
-              <small style={{ color: "#6b7280", lineHeight: "1.5" }}>
-                Auto-detect means Spreelo writes in the same language as your
-                prompt. Choose English if you want the post in English
-                regardless of your prompt language.
-              </small>
-            </div>
-
-            <div className="setting-tile">
-              <span>Post type</span>
-              <select
-                value={postType}
-                onChange={(event) => setPostType(event.target.value)}
-              >
-                <option>Offer</option>
-                <option>News</option>
-                <option>Educational</option>
-                <option>Reminder</option>
-              </select>
-            </div>
-
-            <div className="setting-tile">
-              <span>Length</span>
-              <select
-                value={length}
-                onChange={(event) => setLength(event.target.value)}
-              >
-                <option>Short</option>
-                <option>Medium</option>
-                <option>Long</option>
-              </select>
-            </div>
-
-            <div className="setting-tile">
-              <span>CTA type</span>
-              <select
-                value={ctaType}
-                onChange={(event) => setCtaType(event.target.value)}
-              >
-                <option>Learn more</option>
-                <option>Visit website</option>
-                <option>Contact us</option>
-                <option>Book now</option>
-                <option>Shop now</option>
-              </select>
-            </div>
-
-            <div className="setting-tile">
-              <span>Publishing mode</span>
-              <select
-                value={approvalRequired ? "review" : "auto"}
-                onChange={(event) =>
-                  setApprovalRequired(event.target.value === "review")
-                }
-              >
-                <option value="review">Review before publishing</option>
-                <option value="auto">Publish automatically</option>
-              </select>
-            </div>
-
-            <div className="setting-tile">
-              <span>Timezone</span>
-              <select
-                value={timeZone}
-                onChange={(event) => setTimeZone(event.target.value)}
-              >
-                {timeZoneOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="setting-tile summary">
-              <span>Total planned posts</span>
-              <strong>{slots.length}</strong>
-            </div>
-
-            <div className="setting-tile summary">
-              <span>Text only</span>
-              <strong>{textOnlyCount}</strong>
-            </div>
-
-            <div className="setting-tile summary">
-              <span>Text + image</span>
-              <strong>{imageCount}</strong>
-            </div>
-
-            <div className="setting-tile summary">
-              <span>Credits</span>
-              <strong>{plannedCredits}</strong>
-            </div>
-
-            {creditBalance && !hasEnoughCredits && (
-              <div className="credit-warning">
-                This plan needs {plannedCredits} credits, but you only have{" "}
-                {creditBalance.credits_remaining} credits remaining.
-              </div>
-            )}
-
-            <button
-              type="button"
-              className="save-plan-button"
-              onClick={savePlan}
-              disabled={saving || !hasEnoughCredits}
-            >
-              {saving ? "Saving..." : "💾 Save content plan"}
-            </button>
-          </div>
-
-          {message && <p className="login-message">{message}</p>}
-        </section>
-
-        <section className="saved-card">
-          <div className="setup-title">
-            <p>Saved plans</p>
-            <h3>Automation rules</h3>
-          </div>
-
-          {loading ? (
-            <div className="automation-empty">
-              <h4>Loading automation rules...</h4>
-              <p>Please wait while Spreelo loads your plans.</p>
-            </div>
-          ) : rules.length === 0 ? (
-            <div className="automation-empty">
-              <div className="folder-icon">📁</div>
-              <div>
-                <h4>No automation rules yet</h4>
-                <p>
-                  Add your first content plan above. Each planned post will be
-                  saved as its own automation rule.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="posts-list">
-              {rules.map((rule) => {
-                const ruleTimeZone = rule.timezone || DEFAULT_TIME_ZONE;
-
-                return (
-                  <article className="post-item" key={rule.id}>
-                    <div className="post-item-header">
+              {planCreationMode === "auto" && (
+                <div className="wizard-info-grid">
+                  <div className="wizard-info-box">
+                    <h4>Unsure what to choose?</h4>
+                    <div className="info-list">
                       <div>
-                        <h4>
-                          {rule.schedule_type === "once"
-                            ? rule.run_date
-                            : rule.weekday}{" "}
-                          · {rule.publish_time?.slice(0, 5)}
-                        </h4>
+                        <span>🪄</span>
                         <p>
-                          {rule.platform} · {rule.post_type} ·{" "}
-                          {rule.generate_image
-                            ? "Text + image"
-                            : "Text only"}{" "}
-                          ·{" "}
-                          {rule.approval_required
-                            ? "Review first"
-                            : "Auto publish"}
+                          <strong>Auto-plan = fastest and easiest</strong>
+                          Perfect when you want a complete plan in seconds.
                         </p>
                       </div>
+                      <div>
+                        <span>🎯</span>
+                        <p>
+                          <strong>Choose types = more control</strong>
+                          Pick the content format, and Spreelo handles the rest.
+                        </p>
+                      </div>
+                      <div>
+                        <span>👤</span>
+                        <p>
+                          <strong>Manual prompt = most control</strong>
+                          Write exactly what you want, and Spreelo follows it.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
-                      <div className="post-actions">
-                        <span>{rule.credit_cost} credits/run</span>
+                  <div className="wizard-next-box">
+                    <h4>How you continue</h4>
+                    <div className="next-step active">
+                      <span>1</span>
+                      <p>
+                        <strong>Choose method</strong>
+                        You are here.
+                      </p>
+                    </div>
+                    <div className="next-step">
+                      <span>2</span>
+                      <p>
+                        <strong>Posts & schedule</strong>
+                        Adjust the generated rows and times.
+                      </p>
+                    </div>
+                    <div className="next-step">
+                      <span>3</span>
+                      <p>
+                        <strong>Review & save</strong>
+                        Activate the plan when it looks good.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {planCreationMode === "manual" && (
+                <div className="wizard-info-box single">
+                  <h4>Manual prompt mode</h4>
+                  <p>
+                    This mode is best when you already know exactly what each
+                    post should be about. Start with one row below and add more
+                    if needed.
+                  </p>
+                </div>
+              )}
+            </section>
+
+            <section className="wizard-card compact">
+              <div className="wizard-card-title">
+                <div>
+                  <h3>Plan basics</h3>
+                  <p>Choose whether this is a recurring or one-time plan.</p>
+                </div>
+              </div>
+
+              <div className="wizard-form-row">
+                <div>
+                  <label>Plan type</label>
+                  <div className="plan-toggle">
+                    <button
+                      type="button"
+                      className={scheduleType === "weekly" ? "active" : ""}
+                      onClick={() => setScheduleType("weekly")}
+                    >
+                      Repeats every week
+                    </button>
+                    <button
+                      type="button"
+                      className={scheduleType === "once" ? "active" : ""}
+                      onClick={() => setScheduleType("once")}
+                    >
+                      One-time plan
+                    </button>
+                  </div>
+                </div>
+
+                {scheduleType === "once" && (
+                  <div>
+                    <label>Run date</label>
+                    <input
+                      className="input"
+                      type="date"
+                      value={runDate}
+                      onChange={(event) => setRunDate(event.target.value)}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label>Plan name</label>
+                  <input
+                    className="input"
+                    value={planName}
+                    onChange={(event) => setPlanName(event.target.value)}
+                    placeholder="Example: Weekly social media plan"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="wizard-card">
+              <div className="wizard-card-title">
+                <div>
+                  <h3>Posts & schedule</h3>
+                  <p>
+                    Adjust days, times and post instructions before saving.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="add-plan-button"
+                  onClick={addSlot}
+                >
+                  + Add post
+                </button>
+              </div>
+
+              <div className="planned-list cleaner">
+                {slots.map((slot, index) => (
+                  <article className="planned-row wizard-planned-row" key={slot.id}>
+                    <div className="planned-number">{index + 1}</div>
+
+                    <div className="planned-content">
+                      <div className="planned-top">
+                        <div>
+                          <p>Planned post {index + 1}</p>
+                          <h4>
+                            {slot.weekday} · {slot.publishTime}
+                            {slot.contentTypeLabel
+                              ? ` · ${slot.contentTypeLabel}`
+                              : ""}
+                          </h4>
+                        </div>
+
+                        <div className="row-actions">
+                          <button
+                            type="button"
+                            className="tiny-button"
+                            onClick={() => duplicateSlot(slot.id)}
+                          >
+                            Duplicate
+                          </button>
+                          <button
+                            type="button"
+                            className="tiny-button danger"
+                            onClick={() => removeSlot(slot.id)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="planned-fields wizard-planned-fields">
+                        <select
+                          className="input"
+                          value={slot.weekday}
+                          onChange={(event) =>
+                            updateSlot(slot.id, "weekday", event.target.value)
+                          }
+                        >
+                          {weekdays.map((day) => (
+                            <option key={day}>{day}</option>
+                          ))}
+                        </select>
+
+                        <input
+                          className="input time-input"
+                          type="time"
+                          value={slot.publishTime}
+                          onChange={(event) =>
+                            updateSlot(
+                              slot.id,
+                              "publishTime",
+                              event.target.value
+                            )
+                          }
+                        />
+
+                        <input
+                          className="input prompt-input"
+                          value={slot.prompt}
+                          onChange={(event) =>
+                            updateSlot(slot.id, "prompt", event.target.value)
+                          }
+                          placeholder={
+                            planCreationMode === "manual"
+                              ? "Example: Create a post about our new service"
+                              : "Prompt is created from the selected content type and can be edited"
+                          }
+                        />
+                      </div>
+
+                      <div className="planned-bottom cleaner">
+                        <label className="image-check">
+                          <input
+                            type="checkbox"
+                            checked={slot.generateImage}
+                            onChange={(event) =>
+                              updateSlot(
+                                slot.id,
+                                "generateImage",
+                                event.target.checked
+                              )
+                            }
+                          />
+                          AI image
+                        </label>
+
+                        <label className="image-check">
+                          <input
+                            type="checkbox"
+                            checked={slot.includeEmojis}
+                            onChange={(event) =>
+                              updateSlot(
+                                slot.id,
+                                "includeEmojis",
+                                event.target.checked
+                              )
+                            }
+                          />
+                          Emojis
+                        </label>
+
+                        <label className="image-check">
+                          <input
+                            type="checkbox"
+                            checked={slot.includeHashtags}
+                            onChange={(event) =>
+                              updateSlot(
+                                slot.id,
+                                "includeHashtags",
+                                event.target.checked
+                              )
+                            }
+                          />
+                          Hashtags
+                        </label>
+
+                        <span className="credit-chip">
+                          {slot.generateImage ? "3 credits" : "1 credit"}
+                        </span>
+                      </div>
+
+                      {slot.generateImage && (
+                        <textarea
+                          className="image-prompt-box"
+                          value={slot.imagePrompt}
+                          onChange={(event) =>
+                            updateSlot(
+                              slot.id,
+                              "imagePrompt",
+                              event.target.value
+                            )
+                          }
+                          placeholder="Optional visual direction for the image."
+                        />
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section className="settings-card wizard-settings-card">
+              <div className="setup-title">
+                <p>Step 4</p>
+                <h3>Default post settings</h3>
+                <span>These settings apply to all rows in this plan.</span>
+              </div>
+
+              <div className="settings-panel">
+                <div className="setting-tile">
+                  <span>Platform</span>
+                  <select
+                    value={platform}
+                    onChange={(event) => setPlatform(event.target.value)}
+                  >
+                    <option>Instagram</option>
+                    <option>Facebook</option>
+                    <option>LinkedIn</option>
+                  </select>
+                </div>
+
+                <div className="setting-tile">
+                  <span>Tone</span>
+                  <select
+                    value={tone}
+                    onChange={(event) => setTone(event.target.value)}
+                  >
+                    <option>Friendly</option>
+                    <option>Professional</option>
+                    <option>Sales-focused</option>
+                    <option>Premium</option>
+                  </select>
+                </div>
+
+                <div className="setting-tile">
+                  <span>Language</span>
+                  <select
+                    value={language}
+                    onChange={(event) => setLanguage(event.target.value)}
+                  >
+                    <option value="Auto">Auto-detect from prompt</option>
+                    <option value="English">English</option>
+                  </select>
+                </div>
+
+                <div className="setting-tile">
+                  <span>Post type</span>
+                  <select
+                    value={postType}
+                    onChange={(event) => setPostType(event.target.value)}
+                  >
+                    <option>Offer</option>
+                    <option>News</option>
+                    <option>Educational</option>
+                    <option>Reminder</option>
+                  </select>
+                </div>
+
+                <div className="setting-tile">
+                  <span>Length</span>
+                  <select
+                    value={length}
+                    onChange={(event) => setLength(event.target.value)}
+                  >
+                    <option>Short</option>
+                    <option>Medium</option>
+                    <option>Long</option>
+                  </select>
+                </div>
+
+                <div className="setting-tile">
+                  <span>CTA type</span>
+                  <select
+                    value={ctaType}
+                    onChange={(event) => setCtaType(event.target.value)}
+                  >
+                    <option>Learn more</option>
+                    <option>Visit website</option>
+                    <option>Contact us</option>
+                    <option>Book now</option>
+                    <option>Shop now</option>
+                  </select>
+                </div>
+
+                <div className="setting-tile">
+                  <span>Publishing mode</span>
+                  <select
+                    value={approvalRequired ? "review" : "auto"}
+                    onChange={(event) =>
+                      setApprovalRequired(event.target.value === "review")
+                    }
+                  >
+                    <option value="review">Review before publishing</option>
+                    <option value="auto">Publish automatically</option>
+                  </select>
+                </div>
+
+                <div className="setting-tile">
+                  <span>Timezone</span>
+                  <select
+                    value={timeZone}
+                    onChange={(event) => setTimeZone(event.target.value)}
+                  >
+                    {timeZoneOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  className="save-plan-button"
+                  onClick={savePlan}
+                  disabled={saving || !hasEnoughCredits}
+                >
+                  {saving ? "Saving..." : "Save content plan"}
+                </button>
+              </div>
+
+              {message && <p className="login-message">{message}</p>}
+            </section>
+
+            <section className="saved-card saved-card-compact">
+              <div className="saved-header">
+                <div>
+                  <p>Saved plans</p>
+                  <h3>Automation rules</h3>
+                </div>
+
+                <button
+                  type="button"
+                  className="secondary-button small-button"
+                  onClick={() => setShowSavedRules((current) => !current)}
+                >
+                  {showSavedRules ? "Hide" : "Show all"}
+                </button>
+              </div>
+
+              {loading ? (
+                <div className="automation-empty">
+                  <h4>Loading automation rules...</h4>
+                  <p>Please wait while Spreelo loads your plans.</p>
+                </div>
+              ) : rules.length === 0 ? (
+                <div className="automation-empty">
+                  <div className="folder-icon">📁</div>
+                  <div>
+                    <h4>No automation rules yet</h4>
+                    <p>
+                      Add your first content plan above. Each planned post will
+                      be saved as its own automation rule.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="saved-rule-list">
+                  {(showSavedRules ? rules : savedRulesPreview).map((rule) => {
+                    const ruleTimeZone = rule.timezone || DEFAULT_TIME_ZONE;
+
+                    return (
+                      <article className="saved-rule-card" key={rule.id}>
+                        <div>
+                          <h4>
+                            {rule.schedule_type === "once"
+                              ? rule.run_date
+                              : rule.weekday}{" "}
+                            · {rule.publish_time?.slice(0, 5)}
+                          </h4>
+                          <p>
+                            {rule.platform} · {rule.post_type} ·{" "}
+                            {rule.generate_image
+                              ? "Text + image"
+                              : "Text only"}{" "}
+                            ·{" "}
+                            {rule.approval_required
+                              ? "Review first"
+                              : "Auto publish"}
+                          </p>
+                          <small>
+                            Next run:{" "}
+                            {formatDateTime(rule.next_run_at, ruleTimeZone)}
+                          </small>
+                        </div>
+
                         <button
                           type="button"
                           className="danger-button"
@@ -1403,56 +1472,99 @@ export default function AutomationPage() {
                         >
                           Delete
                         </button>
-                      </div>
-                    </div>
+                      </article>
+                    );
+                  })}
 
-                    <div className="idea-box">
-                      <strong>{rule.name}</strong>
-                      <p>{rule.prompt}</p>
+                  {!showSavedRules && rules.length > 3 && (
+                    <button
+                      type="button"
+                      className="show-more-rules"
+                      onClick={() => setShowSavedRules(true)}
+                    >
+                      Show {rules.length - 3} more saved rules
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+          </main>
 
-                      <p>
-                        <strong>Next run:</strong>{" "}
-                        {formatDateTime(rule.next_run_at, ruleTimeZone)}
-                      </p>
+          <aside className="wizard-sidebar">
+            <section className="wizard-summary-card">
+              <h3>Plan summary</h3>
 
-                      <p>
-                        <strong>Timezone:</strong> {ruleTimeZone}
-                      </p>
+              <div className="summary-list">
+                <div>
+                  <span>Method</span>
+                  <strong>{formatPlanMode(planCreationMode)}</strong>
+                </div>
+                <div>
+                  <span>Repeats</span>
+                  <strong>
+                    {scheduleType === "weekly" ? "Every week" : "One time"}
+                  </strong>
+                </div>
+                <div>
+                  <span>Posts</span>
+                  <strong>{slots.length}</strong>
+                </div>
+                <div>
+                  <span>Text only</span>
+                  <strong>{textOnlyCount}</strong>
+                </div>
+                <div>
+                  <span>Text + image</span>
+                  <strong>{imageCount}</strong>
+                </div>
+                <div>
+                  <span>Language</span>
+                  <strong>{formatLanguage(language)}</strong>
+                </div>
+                <div>
+                  <span>Credits</span>
+                  <strong>{plannedCredits}</strong>
+                </div>
+                <div>
+                  <span>Monthly estimate</span>
+                  <strong>{monthlyEstimate}</strong>
+                </div>
+              </div>
 
-                      <p>
-                        <strong>Language:</strong>{" "}
-                        {formatLanguage(rule.language)}
-                      </p>
+              {creditBalance && !hasEnoughCredits && (
+                <div className="credit-warning sidebar-warning">
+                  This plan needs {plannedCredits} credits, but you only have{" "}
+                  {creditBalance.credits_remaining} credits remaining.
+                </div>
+              )}
+            </section>
 
-                      <p>
-                        <strong>Status:</strong>{" "}
-                        {rule.is_active ? "Active" : "Inactive"}
-                      </p>
+            <section className="wizard-preview-card">
+              <h3>Preview</h3>
+              <p>Examples of content in this plan</p>
 
-                      <p>
-                        <strong>Options:</strong>{" "}
-                        {rule.include_emojis ? "Emojis" : "No emojis"} ·{" "}
-                        {rule.include_hashtags ? "Hashtags" : "No hashtags"}
-                      </p>
+              <div className="preview-thumbs">
+                {slots.slice(0, 3).map((slot) => (
+                  <div className="preview-thumb" key={slot.id}>
+                    <div className="preview-image-placeholder">✦</div>
+                    <span>
+                      {slot.contentTypeLabel ||
+                        slot.prompt.slice(0, 18) ||
+                        "Manual"}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-                      {rule.generate_image && rule.image_prompt && (
-                        <p>
-                          <strong>Image:</strong> {rule.image_prompt}
-                        </p>
-                      )}
-
-                      {rule.last_error && (
-                        <p>
-                          <strong>Last error:</strong> {rule.last_error}
-                        </p>
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
+              <div className="summary-note">
+                <strong>You can change everything later</strong>
+                <p>
+                  All settings can be adjusted before the plan is activated.
+                </p>
+              </div>
+            </section>
+          </aside>
+        </div>
       </div>
     </AppLayout>
   );
