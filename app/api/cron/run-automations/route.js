@@ -1223,15 +1223,35 @@ function safeJsonParse(value) {
   }
 }
 
-function createItemKey(item) {
-  const base = [
-    item?.url || "",
-    item?.title || "",
-    item?.description || "",
-  ]
-    .join("|")
+function normalizeItemKeyPart(value) {
+  return String(value || "")
     .toLowerCase()
-    .trim();
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/$/, "")
+    .replace(/\?.*$/, "")
+    .replace(/#.*$/, "")
+    .replace(/\s+/g, " ");
+}
+
+function createItemKey(item) {
+  const normalizedUrl = normalizeItemKeyPart(item?.url);
+  const normalizedTitle = normalizeItemKeyPart(item?.title);
+  const normalizedType = normalizeItemKeyPart(item?.type);
+  const normalizedDescription = normalizeItemKeyPart(item?.description);
+
+  let base = "";
+
+  if (normalizedUrl) {
+    base = `url:${normalizedUrl}`;
+  } else if (normalizedTitle && normalizedType) {
+    base = `title-type:${normalizedTitle}|${normalizedType}`;
+  } else if (normalizedTitle) {
+    base = `title:${normalizedTitle}`;
+  } else {
+    base = `fallback:${normalizedDescription}`;
+  }
 
   return crypto.createHash("sha256").update(base).digest("hex");
 }
