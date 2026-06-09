@@ -547,6 +547,9 @@ export default function AutomationPage() {
   const [approvalRequired, setApprovalRequired] = useState(true);
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
   const [showSavedRules, setShowSavedRules] = useState(false);
+  const [expandedInstructionSlotIds, setExpandedInstructionSlotIds] = useState(
+  []
+);
 
   useEffect(() => {
     setTimeZone(getBrowserTimeZone());
