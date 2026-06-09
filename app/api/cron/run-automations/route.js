@@ -346,27 +346,60 @@ Important:
 }
 
 function buildImagePrompt(rule, postContent) {
+  const hasCustomImagePrompt = Boolean(
+    rule.image_prompt && String(rule.image_prompt).trim()
+  );
+
   return `
-Create a high-quality square social media image for a business post.
+Create one high-quality square social media image for a business post.
+
+This image must be adapted to the specific business, industry, post topic and audience.
+Do not create a generic stock-photo image unless that clearly fits the business.
 
 Platform: ${rule.platform || "Facebook"}
 Tone: ${rule.tone || "Professional"}
 Post type: ${rule.post_type || "General post"}
 Language context: ${rule.language || "Auto"}
-User instruction: ${rule.prompt || ""}
-Post text:
+Website URL: ${rule.website_url || "Not provided"}
+
+User's post instruction:
+${rule.prompt || "Not provided"}
+
+Final post text this image should support:
 ${postContent}
 
-Extra visual direction:
-${rule.image_prompt || "Create a clean, modern and eye-catching marketing image that matches the post."}
+${
+  hasCustomImagePrompt
+    ? `
+Customer's visual direction:
+${rule.image_prompt}
 
-Important image rules:
-- Create a professional social media image.
-- Make it visually attractive and suitable for marketing.
-- No watermarks.
-- Avoid too much embedded text in the image.
-- Keep the composition clean and easy to understand.
-- Make it suitable for Facebook and Instagram feeds.
+Follow this visual direction closely unless it conflicts with the safety or quality rules below.
+`.trim()
+    : `
+No custom visual direction was provided.
+
+Create a professional marketing image that fits the business and post naturally.
+Infer the visual style from the user instruction, post text, platform, tone and post type.
+`.trim()
+}
+
+Image quality rules:
+- The image must feel relevant to the specific business and post, not random.
+- Use a clear visual subject or scene that supports the message.
+- Make it visually attractive, polished and suitable for social media.
+- Avoid cluttered compositions.
+- Avoid fake-looking generic stock photo style when possible.
+- Avoid exaggerated, misleading or unrealistic visuals.
+- Do not include logos unless explicitly requested.
+- Do not include readable text in the image unless explicitly requested.
+- Do not include watermarks.
+- Do not add UI elements, buttons, mockups or app screens unless explicitly requested.
+- Do not use cartoon style unless explicitly requested.
+- Make the image suitable for both Facebook and Instagram feed use.
+- Keep the image clean, premium and easy to understand at a glance.
+
+Output only the image.
 `.trim();
 }
 
