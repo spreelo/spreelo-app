@@ -317,9 +317,33 @@ Important language rule:
 `.trim();
 }
 
+function formatBrandProfileForPrompt(brandProfile) {
+  if (!brandProfile) {
+    return `
+No brand profile was found for this user.
+
+Important:
+- Do not invent a random business.
+- Use only the user instruction and automation settings.
+- If the user instruction is too generic, keep the post broadly useful but avoid pretending to know a specific industry.
+`.trim();
+  }
+
+  return `
+Business name: ${brandProfile.business_name || "Not provided"}
+Industry / business type: ${brandProfile.industry || "Not provided"}
+Target audience: ${brandProfile.target_audience || "Not provided"}
+`.trim();
+}
+
 function buildAutomationPrompt(rule) {
+  const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
+
   return `
 Create a ready-to-publish social media post.
+
+Brand profile:
+${brandProfileText}
 
 Platform: ${rule.platform || "Instagram"}
 ${getLanguageInstruction(rule.language)}
@@ -335,7 +359,19 @@ Include hashtags: ${rule.include_hashtags ? "Yes" : "No"}
 User instruction:
 ${rule.prompt || ""}
 
-Important:
+Critical brand relevance rules:
+- The post must clearly fit the Brand profile.
+- Do not invent another type of business.
+- Do not write generic advice that could apply to any random company.
+- Do not write about shopping, product care, cars, restaurants, salons, real estate or other unrelated industries unless the Brand profile says that is the business.
+- Use the User instruction as the content angle or post type, but always adapt it to the Brand profile.
+- If the User instruction says "common mistakes", write common mistakes related to this specific business, industry and audience.
+- If the User instruction says "tips", write tips related to this specific business, industry and audience.
+- If the User instruction says "FAQ", answer a question that would make sense for this specific business, industry and audience.
+- If the User instruction says "behind the scenes", describe something that would realistically happen in this specific business.
+- Keep the content useful, specific and trustworthy.
+
+Output rules:
 - Return only the final post text.
 - Do not explain anything.
 - Make it suitable for the selected platform.
@@ -411,12 +447,17 @@ function buildImagePrompt(rule, postContent) {
   );
 
   const visualConcept = pickVisualConcept(rule, postContent);
+  const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
 
   return `
 Create one high-quality square social media image for a business post.
 
+Brand profile:
+${brandProfileText}
+
 This image must be adapted to the specific business, industry, post topic and audience.
 Do not create a generic stock-photo image unless that clearly fits the business.
+Do not invent a different type of company than the one described in the Brand profile.
 
 Platform: ${rule.platform || "Facebook"}
 Tone: ${rule.tone || "Professional"}
@@ -449,7 +490,7 @@ Use the selected visual concept above to create variation.
 No custom visual direction was provided.
 
 Create a professional marketing image that fits the business and post naturally.
-Infer the visual style from the user instruction, post text, platform, tone, post type and selected visual concept.
+Infer the visual style from the brand profile, user instruction, post text, platform, tone, post type and selected visual concept.
 `.trim()
 }
 
@@ -492,6 +533,8 @@ function createEmptySummary() {
     facebook_published: 0,
     facebook_publish_failed: 0,
     facebook_publish_skipped_no_config: 0,
+    brand_profile_found: 0,
+    brand_profile_missing: 0,
   };
 }
 
@@ -620,6 +663,25 @@ async function setRuleError(supabase, ruleId, message) {
     .eq("id", ruleId);
 }
 
+async function getBrandProfileForUser(supabase, userId) {
+  const { data, error } = await supabase
+    .from("brand_profiles")
+    .select("business_name, industry, target_audience")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not load brand profile", {
+      userId,
+      message: error.message,
+    });
+
+    return null;
+  }
+
+  return data || null;
+}
+
 async function generateAutomationPost(openai, rule) {
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini",
@@ -627,14 +689,14 @@ async function generateAutomationPost(openai, rule) {
       {
         role: "system",
         content:
-          "You are an expert social media copywriter. You write clear, useful and ready-to-publish social media posts.",
+          "You are an expert social media copywriter. You write clear, useful and ready-to-publish social media posts. You must always follow the provided brand profile and never invent a different industry.",
       },
       {
         role: "user",
         content: buildAutomationPrompt(rule),
       },
     ],
-    temperature: 0.8,
+    temperature: 0.75,
   });
 
   return completion.choices?.[0]?.message?.content?.trim() || "";
@@ -1043,7 +1105,26 @@ export async function GET(request) {
           continue;
         }
 
-        const generatedContent = await generateAutomationPost(openai, rule);
+        const brandProfile = await getBrandProfileForUser(
+          supabase,
+          rule.user_id
+        );
+
+        if (brandProfile) {
+          summary.brand_profile_found += 1;
+        } else {
+          summary.brand_profile_missing += 1;
+        }
+
+        const ruleWithBrandProfile = {
+          ...rule,
+          brand_profile: brandProfile,
+        };
+
+        const generatedContent = await generateAutomationPost(
+          openai,
+          ruleWithBrandProfile
+        );
 
         if (!generatedContent) {
           const message = "OpenAI returned empty content";
@@ -1107,7 +1188,7 @@ export async function GET(request) {
           try {
             const { imageBase64, imagePrompt } = await generateAutomationImage(
               openai,
-              rule,
+              ruleWithBrandProfile,
               generatedContent
             );
 
@@ -1269,7 +1350,7 @@ export async function GET(request) {
 
     return Response.json({
       ok: true,
-      mode: "live_text_and_image_protected_batched_header_auth_timezone_email_language_auto_facebook_publish",
+      mode: "live_text_and_image_protected_batched_header_auth_timezone_email_language_auto_facebook_publish_brand_profile",
       checked_at: nowIso,
       batch_size: BATCH_SIZE,
       fetched_rules: rules?.length || 0,
