@@ -2291,3 +2291,24 @@ select.input {
     width: 100%;
   }
 }
+.mini-info-card {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.mini-info-card strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #111827;
+  font-size: 14px;
+}
+
+.mini-info-card p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.55;
+}
