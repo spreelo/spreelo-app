@@ -206,6 +206,7 @@ function createSlotFromContentType(type, index = 0) {
   return createSlot(weekday, {
     prompt: type.prompt,
     imagePrompt: type.imagePrompt,
+    generateImage: true,
     contentTypeId: type.id,
     contentTypeLabel: type.label,
   });
