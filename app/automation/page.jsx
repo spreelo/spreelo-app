@@ -548,8 +548,8 @@ export default function AutomationPage() {
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
   const [showSavedRules, setShowSavedRules] = useState(false);
   const [expandedInstructionSlotIds, setExpandedInstructionSlotIds] = useState(
-  []
-);
+    []
+  );
 
   useEffect(() => {
     setTimeZone(getBrowserTimeZone());
@@ -657,12 +657,12 @@ export default function AutomationPage() {
   }
 
   function toggleSlotInstructions(slotId) {
-  setExpandedInstructionSlotIds((currentIds) =>
-    currentIds.includes(slotId)
-      ? currentIds.filter((id) => id !== slotId)
-      : [...currentIds, slotId]
-  );
-}
+    setExpandedInstructionSlotIds((currentIds) =>
+      currentIds.includes(slotId)
+        ? currentIds.filter((id) => id !== slotId)
+        : [...currentIds, slotId]
+    );
+  }
 
   function addSlot() {
     setSlots((currentSlots) => [...currentSlots, createSlot()]);
@@ -1182,187 +1182,232 @@ export default function AutomationPage() {
               </div>
 
               <div className="planned-list cleaner">
+                {slots.map((slot, index) => {
+                  const instructionsAreExpanded =
+                    expandedInstructionSlotIds.includes(slot.id);
+                  const displayLabel = getSlotDisplayLabel(slot);
+                  const displayDescription = getSlotDisplayDescription(slot);
 
+                  return (
+                    <article
+                      className="planned-row wizard-planned-row"
+                      key={slot.id}
+                    >
+                      <div className="planned-number">{index + 1}</div>
+
+                      <div className="planned-content">
+                        <div className="planned-top">
+                          <div>
+                            <p>Planned post {index + 1}</p>
+                            <h4>
+                              {slot.weekday} · {slot.publishTime}
+                              {slot.contentTypeLabel
+                                ? ` · ${slot.contentTypeLabel}`
+                                : ""}
+                            </h4>
+                          </div>
+
+                          <div className="row-actions">
+                            <button
+                              type="button"
+                              className="tiny-button"
+                              onClick={() => duplicateSlot(slot.id)}
+                            >
+                              Duplicate
+                            </button>
+                            <button
+                              type="button"
+                              className="tiny-button danger"
+                              onClick={() => removeSlot(slot.id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="planned-fields wizard-planned-fields">
+                          <select
+                            className="input"
+                            value={slot.weekday}
+                            onChange={(event) =>
+                              updateSlot(
+                                slot.id,
+                                "weekday",
+                                event.target.value
+                              )
+                            }
+                          >
+                            {weekdays.map((day) => (
+                              <option key={day}>{day}</option>
+                            ))}
+                          </select>
+
+                          <input
+                            className="input time-input"
+                            type="time"
+                            value={slot.publishTime}
+                            onChange={(event) =>
+                              updateSlot(
+                                slot.id,
+                                "publishTime",
+                                event.target.value
+                              )
+                            }
+                          />
+                        </div>
+
+                        {planCreationMode === "manual" ? (
+                          <div className="instruction-editor always-open">
+                            <label>Post instructions</label>
+                            <textarea
+                              className="input prompt-textarea"
+                              value={slot.prompt}
+                              onChange={(event) =>
+                                updateSlot(
+                                  slot.id,
+                                  "prompt",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Example: Create a post about our new service"
+                            />
+                          </div>
+                        ) : (
+                          <div className="instruction-summary-card">
+                            <div className="instruction-summary-main">
+                              <span className="instruction-pill">
+                                {slot.generateImage
+                                  ? "Text + AI image"
+                                  : "Text only"}
+                              </span>
+                              <div>
+                                <strong>{displayLabel}</strong>
+                                <p>{displayDescription}</p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              className="edit-instructions-button"
+                              onClick={() => toggleSlotInstructions(slot.id)}
+                            >
+                              {instructionsAreExpanded
+                                ? "Hide instructions"
+                                : "Edit instructions"}
+                            </button>
+                          </div>
+                        )}
+
+                        {planCreationMode !== "manual" &&
+                          instructionsAreExpanded && (
+                            <div className="instruction-editor">
+                              <label>Post instructions</label>
+                              <textarea
+                                className="input prompt-textarea"
+                                value={slot.prompt}
+                                onChange={(event) =>
+                                  updateSlot(
+                                    slot.id,
+                                    "prompt",
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="Edit the instructions for this post"
+                              />
+
+                              {slot.generateImage && (
+                                <>
+                                  <label>Image direction</label>
+                                  <textarea
+                                    className="input prompt-textarea"
+                                    value={slot.imagePrompt}
+                                    onChange={(event) =>
+                                      updateSlot(
+                                        slot.id,
+                                        "imagePrompt",
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder="Optional visual direction for the image."
+                                  />
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                        <div className="planned-bottom cleaner">
+                          <label className="image-check">
+                            <input
+                              type="checkbox"
+                              checked={slot.generateImage}
+                              onChange={(event) =>
+                                updateSlot(
+                                  slot.id,
+                                  "generateImage",
+                                  event.target.checked
+                                )
+                              }
+                            />
+                            AI image
+                          </label>
+
+                          <label className="image-check">
+                            <input
+                              type="checkbox"
+                              checked={slot.includeEmojis}
+                              onChange={(event) =>
+                                updateSlot(
+                                  slot.id,
+                                  "includeEmojis",
+                                  event.target.checked
+                                )
+                              }
+                            />
+                            Emojis
+                          </label>
+
+                          <label className="image-check">
+                            <input
+                              type="checkbox"
+                              checked={slot.includeHashtags}
+                              onChange={(event) =>
+                                updateSlot(
+                                  slot.id,
+                                  "includeHashtags",
+                                  event.target.checked
+                                )
+                              }
+                            />
+                            Hashtags
+                          </label>
+
+                          <span className="credit-chip">
+                            {slot.generateImage ? "3 credits" : "1 credit"}
+                          </span>
+                        </div>
+
+                        {planCreationMode === "manual" &&
+                          slot.generateImage && (
+                            <textarea
+                              className="image-prompt-box"
+                              value={slot.imagePrompt}
+                              onChange={(event) =>
+                                updateSlot(
+                                  slot.id,
+                                  "imagePrompt",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Optional visual direction for the image."
+                            />
+                          )}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </section>
-{slots.map((slot, index) => {
-  const instructionsAreExpanded =
-    expandedInstructionSlotIds.includes(slot.id);
-  const displayLabel = getSlotDisplayLabel(slot);
-  const displayDescription = getSlotDisplayDescription(slot);
 
-  return (
-    <article className="planned-row wizard-planned-row" key={slot.id}>
-      <div className="planned-number">{index + 1}</div>
-
-      <div className="planned-content">
-        <div className="planned-top">
-          <div>
-            <p>Planned post {index + 1}</p>
-            <h4>
-              {slot.weekday} · {slot.publishTime}
-              {slot.contentTypeLabel ? ` · ${slot.contentTypeLabel}` : ""}
-            </h4>
-          </div>
-
-          <div className="row-actions">
-            <button
-              type="button"
-              className="tiny-button"
-              onClick={() => duplicateSlot(slot.id)}
-            >
-              Duplicate
-            </button>
-            <button
-              type="button"
-              className="tiny-button danger"
-              onClick={() => removeSlot(slot.id)}
-            >
-              Remove
-            </button>
-          </div>
-        </div>
-
-        <div className="planned-fields wizard-planned-fields">
-          <select
-            className="input"
-            value={slot.weekday}
-            onChange={(event) =>
-              updateSlot(slot.id, "weekday", event.target.value)
-            }
-          >
-            {weekdays.map((day) => (
-              <option key={day}>{day}</option>
-            ))}
-          </select>
-
-          <input
-            className="input time-input"
-            type="time"
-            value={slot.publishTime}
-            onChange={(event) =>
-              updateSlot(slot.id, "publishTime", event.target.value)
-            }
-          />
-        </div>
-
-        {planCreationMode === "manual" ? (
-          <div className="instruction-editor always-open">
-            <label>Post instructions</label>
-            <textarea
-              className="input prompt-textarea"
-              value={slot.prompt}
-              onChange={(event) =>
-                updateSlot(slot.id, "prompt", event.target.value)
-              }
-              placeholder="Example: Create a post about our new service"
-            />
-          </div>
-        ) : (
-          <div className="instruction-summary-card">
-            <div className="instruction-summary-main">
-              <span className="instruction-pill">
-                {slot.generateImage ? "Text + AI image" : "Text only"}
-              </span>
-              <div>
-                <strong>{displayLabel}</strong>
-                <p>{displayDescription}</p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="edit-instructions-button"
-              onClick={() => toggleSlotInstructions(slot.id)}
-            >
-              {instructionsAreExpanded
-                ? "Hide instructions"
-                : "Edit instructions"}
-            </button>
-          </div>
-        )}
-
-        {planCreationMode !== "manual" && instructionsAreExpanded && (
-          <div className="instruction-editor">
-            <label>Post instructions</label>
-            <textarea
-              className="input prompt-textarea"
-              value={slot.prompt}
-              onChange={(event) =>
-                updateSlot(slot.id, "prompt", event.target.value)
-              }
-              placeholder="Edit the instructions for this post"
-            />
-
-            {slot.generateImage && (
-              <>
-                <label>Image direction</label>
-                <textarea
-                  className="input prompt-textarea"
-                  value={slot.imagePrompt}
-                  onChange={(event) =>
-                    updateSlot(slot.id, "imagePrompt", event.target.value)
-                  }
-                  placeholder="Optional visual direction for the image."
-                />
-              </>
-            )}
-          </div>
-        )}
-
-        <div className="planned-bottom cleaner">
-          <label className="image-check">
-            <input
-              type="checkbox"
-              checked={slot.generateImage}
-              onChange={(event) =>
-                updateSlot(slot.id, "generateImage", event.target.checked)
-              }
-            />
-            AI image
-          </label>
-
-          <label className="image-check">
-            <input
-              type="checkbox"
-              checked={slot.includeEmojis}
-              onChange={(event) =>
-                updateSlot(slot.id, "includeEmojis", event.target.checked)
-              }
-            />
-            Emojis
-          </label>
-
-          <label className="image-check">
-            <input
-              type="checkbox"
-              checked={slot.includeHashtags}
-              onChange={(event) =>
-                updateSlot(slot.id, "includeHashtags", event.target.checked)
-              }
-            />
-            Hashtags
-          </label>
-
-          <span className="credit-chip">
-            {slot.generateImage ? "3 credits" : "1 credit"}
-          </span>
-        </div>
-
-        {planCreationMode === "manual" && slot.generateImage && (
-          <textarea
-            className="image-prompt-box"
-            value={slot.imagePrompt}
-            onChange={(event) =>
-              updateSlot(slot.id, "imagePrompt", event.target.value)
-            }
-            placeholder="Optional visual direction for the image."
-          />
-        )}
-      </div>
-    </article>
-  );
-})}
             <section className="settings-card wizard-settings-card">
               <div className="setup-title">
                 <p>Step 4</p>
