@@ -2190,3 +2190,104 @@ select.input {
     grid-template-columns: 1fr;
   }
 }
+/* ===== Cleaner post instructions in automation wizard ===== */
+
+.instruction-summary-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.instruction-summary-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.instruction-summary-main strong {
+  display: block;
+  color: #111827;
+  font-size: 14px;
+  margin-bottom: 3px;
+}
+
+.instruction-summary-main p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.instruction-pill {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.edit-instructions-button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  color: #111827;
+  border-radius: 999px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.edit-instructions-button:hover {
+  background: #f8fafc;
+}
+
+.instruction-editor {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.instruction-editor.always-open {
+  margin-top: 14px;
+}
+
+.instruction-editor label {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.prompt-textarea {
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .instruction-summary-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .instruction-summary-main {
+    flex-direction: column;
+  }
+
+  .edit-instructions-button {
+    width: 100%;
+  }
+}
