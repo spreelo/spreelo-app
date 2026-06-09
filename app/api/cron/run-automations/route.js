@@ -345,10 +345,72 @@ Important:
 `.trim();
 }
 
+function pickVisualConcept(rule, postContent) {
+  const concepts = [
+    {
+      name: "Environment / setting",
+      instruction:
+        "Show a relevant environment or setting connected to the business, service or topic. Make it feel natural, professional and brand-appropriate.",
+    },
+    {
+      name: "Detail / close-up",
+      instruction:
+        "Show a close-up detail that represents the business, service, product or topic. Focus on atmosphere, texture, quality and visual clarity.",
+    },
+    {
+      name: "Human situation",
+      instruction:
+        "Show a realistic human situation connected to the post topic. The scene should feel natural, respectful and not overly staged. Avoid showing faces clearly unless it fits naturally.",
+    },
+    {
+      name: "Service in focus",
+      instruction:
+        "Visualize the service or value being provided, without making unrealistic claims. Show the benefit or context in a professional and believable way.",
+    },
+    {
+      name: "Before / after feeling",
+      instruction:
+        "Create a visual sense of improvement, change, clarity or progress. Do not use split-screen before/after unless explicitly requested.",
+    },
+    {
+      name: "Local / seasonal context",
+      instruction:
+        "Use a local, seasonal or time-specific feeling if it fits the post. Make it relevant without adding text or obvious clichés.",
+    },
+    {
+      name: "Symbolic / conceptual",
+      instruction:
+        "Create a symbolic or conceptual image that supports the message in a tasteful, premium and easy-to-understand way.",
+    },
+    {
+      name: "Behind the scenes",
+      instruction:
+        "Show a behind-the-scenes style image connected to the business or process. It should feel authentic, calm and trustworthy.",
+    },
+  ];
+
+  const seed = `${rule.id || ""}-${rule.last_run_at || ""}-${
+    rule.next_run_at || ""
+  }-${postContent || ""}`;
+
+  let hash = 0;
+
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash << 5) - hash + seed.charCodeAt(index);
+    hash |= 0;
+  }
+
+  const selectedIndex = Math.abs(hash) % concepts.length;
+
+  return concepts[selectedIndex];
+}
+
 function buildImagePrompt(rule, postContent) {
   const hasCustomImagePrompt = Boolean(
     rule.image_prompt && String(rule.image_prompt).trim()
   );
+
+  const visualConcept = pickVisualConcept(rule, postContent);
 
   return `
 Create one high-quality square social media image for a business post.
@@ -362,6 +424,12 @@ Post type: ${rule.post_type || "General post"}
 Language context: ${rule.language || "Auto"}
 Website URL: ${rule.website_url || "Not provided"}
 
+Selected visual concept:
+${visualConcept.name}
+
+Visual concept instruction:
+${visualConcept.instruction}
+
 User's post instruction:
 ${rule.prompt || "Not provided"}
 
@@ -374,13 +442,14 @@ ${
 Customer's visual direction:
 ${rule.image_prompt}
 
-Follow this visual direction closely unless it conflicts with the safety or quality rules below.
+Follow this visual direction closely, but do not repeat the exact same scene every time.
+Use the selected visual concept above to create variation.
 `.trim()
     : `
 No custom visual direction was provided.
 
 Create a professional marketing image that fits the business and post naturally.
-Infer the visual style from the user instruction, post text, platform, tone and post type.
+Infer the visual style from the user instruction, post text, platform, tone, post type and selected visual concept.
 `.trim()
 }
 
@@ -388,6 +457,7 @@ Image quality rules:
 - The image must feel relevant to the specific business and post, not random.
 - Use a clear visual subject or scene that supports the message.
 - Make it visually attractive, polished and suitable for social media.
+- Avoid repeating the same composition every time.
 - Avoid cluttered compositions.
 - Avoid fake-looking generic stock photo style when possible.
 - Avoid exaggerated, misleading or unrealistic visuals.
