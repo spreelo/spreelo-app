@@ -5,6 +5,7 @@ import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 
 const DEFAULT_TIME_ZONE = "Europe/Stockholm";
+const AUTO_PLAN_IMAGE_COUNT = 2;
 
 const weekdays = [
   "Monday",
@@ -200,23 +201,33 @@ function createSlot(weekday = "Monday", overrides = {}) {
   };
 }
 
-function createSlotFromContentType(type, index = 0) {
+function createSlotFromContentType(type, index = 0, options = {}) {
   const weekday = weekdays[index % weekdays.length];
+  const shouldGenerateImage =
+    typeof options.generateImage === "boolean" ? options.generateImage : true;
 
   return createSlot(weekday, {
     prompt: type.prompt,
     imagePrompt: type.imagePrompt,
-    generateImage: true,
+    generateImage: shouldGenerateImage,
     contentTypeId: type.id,
     contentTypeLabel: type.label,
   });
+}
+
+function shouldAutoPlanGenerateImage(index) {
+  return index < AUTO_PLAN_IMAGE_COUNT;
 }
 
 function createRecommendedSlots() {
   return recommendedContentTypeIds
     .map(getContentTypeById)
     .filter(Boolean)
-    .map((type, index) => createSlotFromContentType(type, index));
+    .map((type, index) =>
+      createSlotFromContentType(type, index, {
+        generateImage: shouldAutoPlanGenerateImage(index),
+      })
+    );
 }
 
 function normalizeTime(value) {
@@ -898,8 +909,8 @@ export default function AutomationPage() {
                   <span>Recommended</span>
                   <h4>1. Auto-plan</h4>
                   <p>
-                    Spreelo creates a smart weekly plan automatically for your
-                    business.
+                    Spreelo creates 5 weekly posts automatically: 2 with AI
+                    images and 3 text-only.
                   </p>
                   <div className="method-best">
                     <strong>Best for you if...</strong>
@@ -1006,7 +1017,8 @@ export default function AutomationPage() {
                         <span>🪄</span>
                         <p>
                           <strong>Auto-plan = fastest and easiest</strong>
-                          Perfect when you want a complete plan in seconds.
+                          A balanced weekly plan with 2 image posts and 3
+                          text-only posts.
                         </p>
                       </div>
                       <div>
