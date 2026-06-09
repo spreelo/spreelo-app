@@ -43,6 +43,18 @@ const commonTimeZones = [
 
 const contentTypes = [
   {
+    id: "website_item",
+    label: "Sell something from my website",
+    shortLabel: "Website item",
+    description:
+      "Pick a product, service, listing or offer from your website and turn it into a post.",
+    prompt:
+      "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website. Create a social media post that promotes that specific item in a helpful, trustworthy and sales-focused way. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
+    imagePrompt:
+      "Use a relevant image connected to the selected website item if one can be found. Avoid logos, banners, hero images, decorative icons and unrelated images. If no clearly relevant product, service, listing or offer image can be found, create a professional AI image based on the selected item instead.",
+    usesWebsiteContent: true,
+  },
+  {
     id: "tips",
     label: "Tips & advice",
     shortLabel: "Tips",
@@ -51,6 +63,7 @@ const contentTypes = [
       "Create a useful social media post that teaches the audience one practical tip related to this business. Make it specific, helpful and easy to understand. Avoid sounding like an advertisement.",
     imagePrompt:
       "Create a professional image that visually supports a helpful tip. Make it relevant to the business, clear, polished and not generic.",
+    usesWebsiteContent: false,
   },
   {
     id: "mistakes",
@@ -61,6 +74,7 @@ const contentTypes = [
       "Create a social media post about common mistakes customers often make related to this business, product or service. Explain them in a helpful and non-judgmental way, and position the business as knowledgeable and trustworthy.",
     imagePrompt:
       "Create a professional image that suggests common mistakes or things to avoid in a tasteful, helpful and non-negative way.",
+    usesWebsiteContent: false,
   },
   {
     id: "faq",
@@ -71,6 +85,7 @@ const contentTypes = [
       "Create a social media post that answers a common customer question related to this business. Make the answer clear, trustworthy and useful. The post should reduce uncertainty and make it easier for the customer to take the next step.",
     imagePrompt:
       "Create a professional image that supports a question-and-answer or guidance theme, without adding readable text.",
+    usesWebsiteContent: false,
   },
   {
     id: "behind_scenes",
@@ -81,6 +96,7 @@ const contentTypes = [
       "Create a behind-the-scenes social media post for this business. Show what happens in the process, preparation, workday or service delivery. Make it feel authentic, trustworthy and interesting.",
     imagePrompt:
       "Create an authentic behind-the-scenes style image connected to the business or service. Make it natural, professional and trustworthy.",
+    usesWebsiteContent: false,
   },
   {
     id: "checklist",
@@ -91,6 +107,7 @@ const contentTypes = [
       "Create a practical checklist-style social media post related to this business. Make it easy to save, useful and specific. Keep the structure clear and helpful.",
     imagePrompt:
       "Create a professional image that visually supports a checklist or preparation theme, without adding readable text.",
+    usesWebsiteContent: false,
   },
   {
     id: "service_focus",
@@ -101,6 +118,7 @@ const contentTypes = [
       "Create a social media post that explains one service or offer from this business in a clear and helpful way. Focus on the value for the customer, not hard selling.",
     imagePrompt:
       "Create a professional image that visualizes the service or customer benefit in a believable and polished way.",
+    usesWebsiteContent: false,
   },
   {
     id: "case_example",
@@ -111,6 +129,7 @@ const contentTypes = [
       "Create a social media post based on a realistic customer case or example for this business. Do not invent sensitive personal details. Make it feel credible, useful and trust-building.",
     imagePrompt:
       "Create a professional image that supports a customer example or real-life scenario, without showing private or sensitive details.",
+    usesWebsiteContent: false,
   },
   {
     id: "myth_fact",
@@ -121,6 +140,7 @@ const contentTypes = [
       "Create a myth-vs-fact style social media post related to this business or industry. Correct a common misunderstanding and explain the truth in a simple, trustworthy way.",
     imagePrompt:
       "Create a professional image that suggests clarity, understanding or comparison, without adding readable text.",
+    usesWebsiteContent: false,
   },
   {
     id: "local",
@@ -131,6 +151,7 @@ const contentTypes = [
       "Create a social media post with a local angle for this business. Make it feel relevant to the local community, season, area or everyday customer situation. Keep it natural and not forced.",
     imagePrompt:
       "Create a professional image with a local or community feeling that fits the business, without using specific landmarks unless clearly provided.",
+    usesWebsiteContent: false,
   },
   {
     id: "seasonal",
@@ -141,6 +162,7 @@ const contentTypes = [
       "Create a seasonal or timely social media post for this business. Connect the message to the current season, common customer needs or relevant timing in a natural way.",
     imagePrompt:
       "Create a professional seasonal image that fits the business and timing, avoiding clichés and readable text.",
+    usesWebsiteContent: false,
   },
   {
     id: "comparison",
@@ -151,6 +173,7 @@ const contentTypes = [
       "Create a social media post that compares two options, approaches or choices related to this business. Help the customer understand the difference and make a better decision.",
     imagePrompt:
       "Create a professional image that suggests comparison or decision-making in a clean and tasteful way, without split-screen text.",
+    usesWebsiteContent: false,
   },
   {
     id: "mini_guide",
@@ -161,15 +184,16 @@ const contentTypes = [
       "Create a mini-guide social media post related to this business. Teach the audience something useful in a structured way with clear steps or sections.",
     imagePrompt:
       "Create a professional image that supports a guide or learning theme, clean and easy to understand without readable text.",
+    usesWebsiteContent: false,
   },
 ];
 
 const recommendedContentTypeIds = [
+  "website_item",
   "tips",
   "mistakes",
   "behind_scenes",
   "faq",
-  "checklist",
 ];
 
 function makeSlotId() {
@@ -198,6 +222,7 @@ function createSlot(weekday = "Monday", overrides = {}) {
         : true,
     contentTypeId: overrides.contentTypeId || null,
     contentTypeLabel: overrides.contentTypeLabel || null,
+    usesWebsiteContent: Boolean(overrides.usesWebsiteContent),
   };
 }
 
@@ -212,6 +237,7 @@ function createSlotFromContentType(type, index = 0, options = {}) {
     generateImage: shouldGenerateImage,
     contentTypeId: type.id,
     contentTypeLabel: type.label,
+    usesWebsiteContent: Boolean(type.usesWebsiteContent),
   });
 }
 
@@ -520,6 +546,22 @@ function getSlotDisplayDescription(slot) {
   return "Write your own instructions for this post.";
 }
 
+function getSlotImageLabel(slot) {
+  if (slot.usesWebsiteContent) {
+    return "Website image / AI fallback";
+  }
+
+  return "AI image";
+}
+
+function getSlotCreditLabel(slot) {
+  if (slot.generateImage) {
+    return "3 credits";
+  }
+
+  return "1 credit";
+}
+
 export default function AutomationPage() {
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
@@ -575,6 +617,10 @@ export default function AutomationPage() {
 
   const imageCount = useMemo(() => {
     return slots.filter((slot) => slot.generateImage).length;
+  }, [slots]);
+
+  const websiteContentCount = useMemo(() => {
+    return slots.filter((slot) => slot.usesWebsiteContent).length;
   }, [slots]);
 
   const existingWeeklyCredits = useMemo(() => {
@@ -816,6 +862,9 @@ export default function AutomationPage() {
       }),
       approval_required: approvalRequired,
       is_active: true,
+      content_type_id: slot.contentTypeId,
+      content_type_label: slot.contentTypeLabel,
+      uses_website_content: Boolean(slot.usesWebsiteContent),
       updated_at: new Date().toISOString(),
     }));
 
@@ -943,8 +992,9 @@ export default function AutomationPage() {
                   <span>Recommended</span>
                   <h4>1. Auto-plan</h4>
                   <p>
-                    Spreelo creates 5 weekly posts automatically: 2 with AI
-                    images and 3 text-only.
+                    Spreelo creates 5 weekly posts automatically, including one
+                    website-based post and a balanced mix of trust-building
+                    content.
                   </p>
                   <div className="method-best">
                     <strong>Best for you if...</strong>
@@ -1051,15 +1101,16 @@ export default function AutomationPage() {
                         <span>🪄</span>
                         <p>
                           <strong>Auto-plan = fastest and easiest</strong>
-                          A balanced weekly plan with 2 image posts and 3
-                          text-only posts.
+                          A balanced weekly plan with website-based content,
+                          image posts and text-only posts.
                         </p>
                       </div>
                       <div>
-                        <span>🎯</span>
+                        <span>🛒</span>
                         <p>
-                          <strong>Choose types = more control</strong>
-                          Pick the content format, and Spreelo handles the rest.
+                          <strong>Website content = more concrete</strong>
+                          Spreelo can use the website in your brand profile to
+                          find a product, service, listing or offer.
                         </p>
                       </div>
                       <div>
@@ -1187,6 +1238,7 @@ export default function AutomationPage() {
                     expandedInstructionSlotIds.includes(slot.id);
                   const displayLabel = getSlotDisplayLabel(slot);
                   const displayDescription = getSlotDisplayDescription(slot);
+                  const imageLabel = getSlotImageLabel(slot);
 
                   return (
                     <article
@@ -1277,7 +1329,7 @@ export default function AutomationPage() {
                             <div className="instruction-summary-main">
                               <span className="instruction-pill">
                                 {slot.generateImage
-                                  ? "Text + AI image"
+                                  ? imageLabel
                                   : "Text only"}
                               </span>
                               <div>
@@ -1348,7 +1400,9 @@ export default function AutomationPage() {
                                 )
                               }
                             />
-                            AI image
+                            {slot.usesWebsiteContent
+                              ? "Use website image / AI fallback"
+                              : "AI image"}
                           </label>
 
                           <label className="image-check">
@@ -1382,7 +1436,7 @@ export default function AutomationPage() {
                           </label>
 
                           <span className="credit-chip">
-                            {slot.generateImage ? "3 credits" : "1 credit"}
+                            {getSlotCreditLabel(slot)}
                           </span>
                         </div>
 
@@ -1578,8 +1632,11 @@ export default function AutomationPage() {
                             · {rule.publish_time?.slice(0, 5)}
                           </h4>
                           <p>
-                            {rule.platform} · {rule.post_type} ·{" "}
-                            {rule.generate_image
+                            {rule.platform} ·{" "}
+                            {rule.content_type_label || rule.post_type} ·{" "}
+                            {rule.uses_website_content
+                              ? "Website content"
+                              : rule.generate_image
                               ? "Text + image"
                               : "Text only"}{" "}
                             ·{" "}
@@ -1636,6 +1693,10 @@ export default function AutomationPage() {
                 <div>
                   <span>Posts</span>
                   <strong>{slots.length}</strong>
+                </div>
+                <div>
+                  <span>Website posts</span>
+                  <strong>{websiteContentCount}</strong>
                 </div>
                 <div>
                   <span>Text only</span>
