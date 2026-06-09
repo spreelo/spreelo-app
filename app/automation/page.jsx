@@ -497,6 +497,29 @@ function formatPlanMode(value) {
   return "Manual prompt";
 }
 
+function getSlotDisplayLabel(slot) {
+  if (slot.contentTypeLabel) return slot.contentTypeLabel;
+
+  const contentType = getContentTypeById(slot.contentTypeId);
+  if (contentType?.label) return contentType.label;
+
+  return "Custom post";
+}
+
+function getSlotDisplayDescription(slot) {
+  const contentType = getContentTypeById(slot.contentTypeId);
+
+  if (contentType?.description) {
+    return contentType.description;
+  }
+
+  if (slot.prompt?.trim()) {
+    return slot.prompt.trim().slice(0, 120);
+  }
+
+  return "Write your own instructions for this post.";
+}
+
 export default function AutomationPage() {
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
