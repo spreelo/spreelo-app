@@ -656,6 +656,14 @@ export default function AutomationPage() {
     );
   }
 
+  function toggleSlotInstructions(slotId) {
+  setExpandedInstructionSlotIds((currentIds) =>
+    currentIds.includes(slotId)
+      ? currentIds.filter((id) => id !== slotId)
+      : [...currentIds, slotId]
+  );
+}
+
   function addSlot() {
     setSlots((currentSlots) => [...currentSlots, createSlot()]);
   }
