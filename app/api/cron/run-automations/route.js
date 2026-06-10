@@ -1471,7 +1471,7 @@ async function chooseUnusedWebsiteItem({
     contentType,
   });
 
-  const usedKeys = await getUsedWebsiteItemKeys({
+  const usedItems = await getUsedWebsiteItems({
     supabase,
     userId,
     sourceUrl,
@@ -1479,7 +1479,9 @@ async function chooseUnusedWebsiteItem({
     cycleNumber: currentCycle,
   });
 
-  const unusedItems = items.filter((item) => !usedKeys.has(item.item_key));
+  const unusedItems = items.filter(
+    (item) => !hasWebsiteItemAlreadyBeenUsed(item, usedItems, sourceUrl)
+  );
 
   if (unusedItems.length > 0) {
     return {
@@ -1495,7 +1497,6 @@ async function chooseUnusedWebsiteItem({
     startedNewCycle: true,
   };
 }
-
 async function prepareWebsiteContentForRule({
   supabase,
   openai,
