@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 const WEBSITE_MAX_TEXT_CHARS = 18000;
 const MAX_ANALYSES_PER_24_HOURS = 5;
-const MIN_MINUTES_BETWEEN_ANALYSES = 2;
+const MIN_MINUTES_BETWEEN_ANALYSES = 3;
 
 function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
