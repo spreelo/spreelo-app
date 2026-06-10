@@ -593,6 +593,12 @@ export default function AutomationPage() {
     []
   );
 
+  const [selectedRuleIds, setSelectedRuleIds] = useState([]);
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
+  const [confirmingSingleDeleteId, setConfirmingSingleDeleteId] =
+    useState(null);
+  const [deletingRules, setDeletingRules] = useState(false);
+
   useEffect(() => {
     setTimeZone(getBrowserTimeZone());
     loadRules();
@@ -641,6 +647,14 @@ export default function AutomationPage() {
     !creditBalance || plannedCredits <= creditBalance.credits_remaining;
 
   const savedRulesPreview = rules.slice(0, 3);
+  const visibleRules = showSavedRules ? rules : savedRulesPreview;
+  const visibleRuleIds = visibleRules.map((rule) => rule.id);
+  const selectedVisibleRuleIds = selectedRuleIds.filter((ruleId) =>
+    visibleRuleIds.includes(ruleId)
+  );
+  const allVisibleRulesSelected =
+    visibleRuleIds.length > 0 &&
+    visibleRuleIds.every((ruleId) => selectedRuleIds.includes(ruleId));
 
   async function loadRules() {
     setLoading(true);
@@ -679,6 +693,11 @@ export default function AutomationPage() {
       });
 
       setRules(sortedRules);
+      setSelectedRuleIds((currentIds) =>
+        currentIds.filter((ruleId) =>
+          sortedRules.some((rule) => rule.id === ruleId)
+        )
+      );
     }
 
     const { data: balanceData, error: balanceError } = await supabase
@@ -793,6 +812,105 @@ export default function AutomationPage() {
     setSlots(createRecommendedSlots());
   }
 
+  function toggleRuleSelection(ruleId) {
+    setConfirmingBulkDelete(false);
+    setConfirmingSingleDeleteId(null);
+
+    setSelectedRuleIds((currentIds) =>
+      currentIds.includes(ruleId)
+        ? currentIds.filter((id) => id !== ruleId)
+        : [...currentIds, ruleId]
+    );
+  }
+
+  function toggleSelectVisibleRules() {
+    setConfirmingBulkDelete(false);
+    setConfirmingSingleDeleteId(null);
+
+    if (allVisibleRulesSelected) {
+      setSelectedRuleIds((currentIds) =>
+        currentIds.filter((ruleId) => !visibleRuleIds.includes(ruleId))
+      );
+      return;
+    }
+
+    setSelectedRuleIds((currentIds) =>
+      Array.from(new Set([...currentIds, ...visibleRuleIds]))
+    );
+  }
+
+  function clearSelectedRules() {
+    setSelectedRuleIds([]);
+    setConfirmingBulkDelete(false);
+    setConfirmingSingleDeleteId(null);
+  }
+
+  async function deleteRulesByIds(ruleIds) {
+    if (!ruleIds.length) return;
+
+    setDeletingRules(true);
+    setMessage("");
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const { error } = await supabase
+      .from("automation_rules")
+      .delete()
+      .eq("user_id", user.id)
+      .in("id", ruleIds);
+
+    if (error) {
+      setMessage(error.message);
+      setDeletingRules(false);
+      return;
+    }
+
+    setRules((currentRules) =>
+      currentRules.filter((rule) => !ruleIds.includes(rule.id))
+    );
+    setSelectedRuleIds((currentIds) =>
+      currentIds.filter((ruleId) => !ruleIds.includes(ruleId))
+    );
+    setConfirmingBulkDelete(false);
+    setConfirmingSingleDeleteId(null);
+    setMessage(
+      `${ruleIds.length} automation rule${
+        ruleIds.length === 1 ? "" : "s"
+      } deleted.`
+    );
+
+    setDeletingRules(false);
+  }
+
+  async function deleteSelectedRules() {
+    if (!selectedRuleIds.length) return;
+
+    if (!confirmingBulkDelete) {
+      setConfirmingBulkDelete(true);
+      setConfirmingSingleDeleteId(null);
+      return;
+    }
+
+    await deleteRulesByIds(selectedRuleIds);
+  }
+
+  async function deleteSingleRule(ruleId) {
+    if (confirmingSingleDeleteId !== ruleId) {
+      setConfirmingSingleDeleteId(ruleId);
+      setConfirmingBulkDelete(false);
+      return;
+    }
+
+    await deleteRulesByIds([ruleId]);
+  }
+
   async function savePlan() {
     setMessage("");
 
@@ -894,35 +1012,6 @@ export default function AutomationPage() {
     }
 
     setSaving(false);
-  }
-
-  async function deleteRule(ruleId) {
-    const confirmDelete = window.confirm("Delete this planned post?");
-    if (!confirmDelete) return;
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
-
-    const { error } = await supabase
-      .from("automation_rules")
-      .delete()
-      .eq("id", ruleId)
-      .eq("user_id", user.id);
-
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    setRules((currentRules) =>
-      currentRules.filter((rule) => rule.id !== ruleId)
-    );
   }
 
   return (
@@ -1592,13 +1681,15 @@ export default function AutomationPage() {
                   <h3>Automation rules</h3>
                 </div>
 
-                <button
-                  type="button"
-                  className="secondary-button small-button"
-                  onClick={() => setShowSavedRules((current) => !current)}
-                >
-                  {showSavedRules ? "Hide" : "Show all"}
-                </button>
+                <div className="row-actions">
+                  <button
+                    type="button"
+                    className="secondary-button small-button"
+                    onClick={() => setShowSavedRules((current) => !current)}
+                  >
+                    {showSavedRules ? "Hide" : "Show all"}
+                  </button>
+                </div>
               </div>
 
               {loading ? (
@@ -1618,59 +1709,128 @@ export default function AutomationPage() {
                   </div>
                 </div>
               ) : (
-                <div className="saved-rule-list">
-                  {(showSavedRules ? rules : savedRulesPreview).map((rule) => {
-                    const ruleTimeZone = rule.timezone || DEFAULT_TIME_ZONE;
+                <>
+                  <div className="saved-bulk-actions">
+                    <label className="image-check">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleRulesSelected}
+                        onChange={toggleSelectVisibleRules}
+                      />
+                      Select visible
+                    </label>
 
-                    return (
-                      <article className="saved-rule-card" key={rule.id}>
-                        <div>
-                          <h4>
-                            {rule.schedule_type === "once"
-                              ? rule.run_date
-                              : rule.weekday}{" "}
-                            · {rule.publish_time?.slice(0, 5)}
-                          </h4>
-                          <p>
-                            {rule.platform} ·{" "}
-                            {rule.content_type_label || rule.post_type} ·{" "}
-                            {rule.uses_website_content
-                              ? "Website content"
-                              : rule.generate_image
-                              ? "Text + image"
-                              : "Text only"}{" "}
-                            ·{" "}
-                            {rule.approval_required
-                              ? "Review first"
-                              : "Auto publish"}
-                          </p>
-                          <small>
-                            Next run:{" "}
-                            {formatDateTime(rule.next_run_at, ruleTimeZone)}
-                          </small>
-                        </div>
+                    <span>
+                      {selectedRuleIds.length} selected
+                      {!showSavedRules && rules.length > 3
+                        ? ` · showing ${visibleRules.length} of ${rules.length}`
+                        : ""}
+                    </span>
+
+                    {selectedRuleIds.length > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          className="tiny-button"
+                          onClick={clearSelectedRules}
+                          disabled={deletingRules}
+                        >
+                          Clear
+                        </button>
 
                         <button
                           type="button"
                           className="danger-button"
-                          onClick={() => deleteRule(rule.id)}
+                          onClick={deleteSelectedRules}
+                          disabled={deletingRules}
                         >
-                          Delete
+                          {deletingRules
+                            ? "Deleting..."
+                            : confirmingBulkDelete
+                            ? `Confirm delete ${selectedRuleIds.length}`
+                            : `Delete selected (${selectedRuleIds.length})`}
                         </button>
-                      </article>
-                    );
-                  })}
+                      </>
+                    )}
 
-                  {!showSavedRules && rules.length > 3 && (
-                    <button
-                      type="button"
-                      className="show-more-rules"
-                      onClick={() => setShowSavedRules(true)}
-                    >
-                      Show {rules.length - 3} more saved rules
-                    </button>
-                  )}
-                </div>
+                    {confirmingBulkDelete && (
+                      <span className="delete-confirm-note">
+                        Click confirm to permanently delete selected rules.
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="saved-rule-list">
+                    {visibleRules.map((rule) => {
+                      const ruleTimeZone = rule.timezone || DEFAULT_TIME_ZONE;
+                      const isSelected = selectedRuleIds.includes(rule.id);
+                      const isConfirmingDelete =
+                        confirmingSingleDeleteId === rule.id;
+
+                      return (
+                        <article
+                          className={`saved-rule-card ${
+                            isSelected ? "selected" : ""
+                          }`}
+                          key={rule.id}
+                        >
+                          <label className="image-check">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleRuleSelection(rule.id)}
+                            />
+                          </label>
+
+                          <div>
+                            <h4>
+                              {rule.schedule_type === "once"
+                                ? rule.run_date
+                                : rule.weekday}{" "}
+                              · {rule.publish_time?.slice(0, 5)}
+                            </h4>
+                            <p>
+                              {rule.platform} ·{" "}
+                              {rule.content_type_label || rule.post_type} ·{" "}
+                              {rule.uses_website_content
+                                ? "Website content"
+                                : rule.generate_image
+                                ? "Text + image"
+                                : "Text only"}{" "}
+                              ·{" "}
+                              {rule.approval_required
+                                ? "Review first"
+                                : "Auto publish"}
+                            </p>
+                            <small>
+                              Next run:{" "}
+                              {formatDateTime(rule.next_run_at, ruleTimeZone)}
+                            </small>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => deleteSingleRule(rule.id)}
+                            disabled={deletingRules}
+                          >
+                            {isConfirmingDelete ? "Confirm" : "Delete"}
+                          </button>
+                        </article>
+                      );
+                    })}
+
+                    {!showSavedRules && rules.length > 3 && (
+                      <button
+                        type="button"
+                        className="show-more-rules"
+                        onClick={() => setShowSavedRules(true)}
+                      >
+                        Show {rules.length - 3} more saved rules
+                      </button>
+                    )}
+                  </div>
+                </>
               )}
             </section>
           </main>
