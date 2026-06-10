@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -14,6 +14,18 @@ export default function BrandProfile() {
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [user, setUser] = useState(null);
+  const [profileHasBeenLoaded, setProfileHasBeenLoaded] = useState(false);
+
+  const hasCompleteProfile = useMemo(() => {
+    return Boolean(
+      businessName.trim() &&
+        websiteUrl.trim() &&
+        industry.trim() &&
+        targetAudience.trim()
+    );
+  }, [businessName, websiteUrl, industry, targetAudience]);
+
+  const shouldShowProfileFields = profileHasBeenLoaded || hasCompleteProfile;
 
   useEffect(() => {
     async function loadProfile() {
@@ -43,6 +55,15 @@ export default function BrandProfile() {
         setWebsiteUrl(data.website_url || "");
         setIndustry(data.industry || "");
         setTargetAudience(data.target_audience || "");
+
+        if (
+          data.business_name ||
+          data.industry ||
+          data.target_audience ||
+          data.website_url
+        ) {
+          setProfileHasBeenLoaded(true);
+        }
       }
 
       setLoading(false);
@@ -68,7 +89,7 @@ export default function BrandProfile() {
     return `https://${trimmedValue}`;
   }
 
-  async function analyzeWebsite() {
+  async function analyzeAndSaveWebsite() {
     setMessage("");
 
     const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
@@ -107,21 +128,15 @@ export default function BrandProfile() {
         throw new Error(result?.error || "Could not analyze website.");
       }
 
-      setWebsiteUrl(result.website_url || normalizedWebsiteUrl);
+      const profile = result.profile || {};
 
-      if (result.profile?.business_name) {
-        setBusinessName(result.profile.business_name);
-      }
+      setWebsiteUrl(profile.website_url || result.website_url || normalizedWebsiteUrl);
+      setBusinessName(profile.business_name || "");
+      setIndustry(profile.industry || "");
+      setTargetAudience(profile.target_audience || "");
+      setProfileHasBeenLoaded(true);
 
-      if (result.profile?.industry) {
-        setIndustry(result.profile.industry);
-      }
-
-      if (result.profile?.target_audience) {
-        setTargetAudience(result.profile.target_audience);
-      }
-
-      setMessage("Website analyzed. Review the profile and save it.");
+      setMessage("Website analyzed and brand profile saved.");
     } catch (error) {
       setMessage(error.message || "Could not analyze website.");
     }
@@ -155,6 +170,7 @@ export default function BrandProfile() {
       setMessage(error.message);
     } else {
       setWebsiteUrl(normalizedWebsiteUrl);
+      setProfileHasBeenLoaded(true);
       setMessage("Brand profile saved.");
     }
 
@@ -179,81 +195,117 @@ export default function BrandProfile() {
           <p className="eyebrow">Brand profile</p>
           <h2>Teach Spreelo about your business</h2>
         </div>
-        <button
-          className="primary-button"
-          onClick={saveProfile}
-          disabled={saving || analyzing}
-        >
-          {saving ? "Saving..." : "Save profile"}
-        </button>
+
+        {shouldShowProfileFields && (
+          <button
+            className="primary-button"
+            onClick={saveProfile}
+            disabled={saving || analyzing}
+          >
+            {saving ? "Saving..." : "Save profile"}
+          </button>
+        )}
       </header>
 
       <section className="hero-card">
         <div>
           <p className="eyebrow">Business context</p>
-          <h3>Your brand voice matters</h3>
+          <h3>
+            {shouldShowProfileFields
+              ? "Review your brand profile"
+              : "Start with your website"}
+          </h3>
+
           <p>
-            Spreelo will use this information to create posts that sound like
-            your business, match your audience and fit your offers.
+            {shouldShowProfileFields
+              ? "Spreelo uses this profile to create posts that match your business, audience and offers."
+              : "Add your website and Spreelo will analyze it, create your brand profile and save it automatically."}
           </p>
 
           <div className="mini-info-card">
-            <strong>Start with your website</strong>
+            <strong>
+              {shouldShowProfileFields
+                ? "You can edit everything"
+                : "One click setup"}
+            </strong>
             <p>
-              Add your website URL and let Spreelo analyze it. You can still
-              edit the result before saving.
+              {shouldShowProfileFields
+                ? "Change the fields if needed, then save your updated brand profile."
+                : "Spreelo will detect what the business does and describe the audience in the same language as the website."}
             </p>
           </div>
         </div>
 
         <div className="prompt-box">
-          <label>Business name</label>
-          <input
-            className="input"
-            placeholder="Example: Spreelo"
-            value={businessName}
-            onChange={(event) => setBusinessName(event.target.value)}
-          />
-
           <label>Website URL</label>
           <input
             className="input"
             placeholder="Example: https://www.yourbusiness.com"
             value={websiteUrl}
             onChange={(event) => setWebsiteUrl(event.target.value)}
-          />
-
-          <button
-            className="secondary-button full"
-            type="button"
-            onClick={analyzeWebsite}
             disabled={analyzing || saving}
-          >
-            {analyzing ? "Analyzing website..." : "Analyze website"}
-          </button>
-
-          <label>Industry</label>
-          <input
-            className="input"
-            placeholder="Example: Restaurant, salon, ecommerce..."
-            value={industry}
-            onChange={(event) => setIndustry(event.target.value)}
           />
 
-          <label>Target audience</label>
-          <textarea
-            placeholder="Example: Local customers, small business owners, parents..."
-            value={targetAudience}
-            onChange={(event) => setTargetAudience(event.target.value)}
-          />
+          {!shouldShowProfileFields && (
+            <button
+              className="primary-button full"
+              type="button"
+              onClick={analyzeAndSaveWebsite}
+              disabled={analyzing || saving}
+            >
+              {analyzing
+                ? "Analyzing and saving..."
+                : "Analyze and save brand profile"}
+            </button>
+          )}
 
-          <button
-            className="primary-button full"
-            onClick={saveProfile}
-            disabled={saving || analyzing}
-          >
-            {saving ? "Saving..." : "Save brand profile"}
-          </button>
+          {shouldShowProfileFields && (
+            <>
+              <label>Business name</label>
+              <input
+                className="input"
+                placeholder="Example: Spreelo"
+                value={businessName}
+                onChange={(event) => setBusinessName(event.target.value)}
+                disabled={analyzing || saving}
+              />
+
+              <label>Industry</label>
+              <textarea
+                className="input prompt-textarea"
+                placeholder="Example: Online pet store selling food, toys and accessories..."
+                value={industry}
+                onChange={(event) => setIndustry(event.target.value)}
+                disabled={analyzing || saving}
+              />
+
+              <label>Target audience</label>
+              <textarea
+                className="input prompt-textarea"
+                placeholder="Example: Pet owners who want quality products and convenient online shopping..."
+                value={targetAudience}
+                onChange={(event) => setTargetAudience(event.target.value)}
+                disabled={analyzing || saving}
+              />
+
+              <button
+                className="primary-button full"
+                onClick={saveProfile}
+                disabled={saving || analyzing}
+              >
+                {saving ? "Saving..." : "Save brand profile"}
+              </button>
+
+              <button
+                className="secondary-button full"
+                type="button"
+                onClick={analyzeAndSaveWebsite}
+                disabled={analyzing || saving}
+              >
+                {analyzing ? "Re-analyzing..." : "Re-analyze website"}
+              </button>
+            </>
+          )}
 
           {message && <p className="login-message">{message}</p>}
         </div>
