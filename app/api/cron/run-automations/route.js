@@ -1375,7 +1375,30 @@ async function getCurrentWebsiteCycle({
   return Number(data?.[0]?.cycle_number || 1);
 }
 
-async function getUsedWebsiteItemKeys({
+function normalizeComparableValue(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\?.*$/, "")
+    .replace(/#.*$/, "")
+    .replace(/\/$/, "")
+    .replace(/\s+/g, " ");
+}
+
+function isWeakItemUrl(itemUrl, sourceUrl) {
+  const normalizedItemUrl = normalizeComparableValue(itemUrl);
+  const normalizedSourceUrl = normalizeComparableValue(sourceUrl);
+
+  if (!normalizedItemUrl) {
+    return true;
+  }
+
+  return normalizedItemUrl === normalizedSourceUrl;
+}
+
+async function getUsedWebsiteItems({
   supabase,
   userId,
   sourceUrl,
@@ -1384,7 +1407,7 @@ async function getUsedWebsiteItemKeys({
 }) {
   const { data, error } = await supabase
     .from("website_content_history")
-    .select("item_key")
+    .select("item_key, item_url, item_title, item_image_url")
     .eq("user_id", userId)
     .eq("source_url", sourceUrl)
     .eq("content_type", contentType)
@@ -1394,7 +1417,44 @@ async function getUsedWebsiteItemKeys({
     throw new Error(error.message || "Could not load used website items");
   }
 
-  return new Set((data || []).map((row) => row.item_key));
+  return data || [];
+}
+
+function hasWebsiteItemAlreadyBeenUsed(item, usedItems, sourceUrl) {
+  const itemKey = normalizeComparableValue(item?.item_key);
+  const itemUrl = normalizeComparableValue(item?.url);
+  const itemTitle = normalizeComparableValue(item?.title);
+  const itemImageUrl = normalizeComparableValue(item?.image_url);
+
+  return usedItems.some((usedItem) => {
+    const usedKey = normalizeComparableValue(usedItem.item_key);
+    const usedUrl = normalizeComparableValue(usedItem.item_url);
+    const usedTitle = normalizeComparableValue(usedItem.item_title);
+    const usedImageUrl = normalizeComparableValue(usedItem.item_image_url);
+
+    if (itemKey && usedKey && itemKey === usedKey) {
+      return true;
+    }
+
+    if (
+      itemUrl &&
+      usedUrl &&
+      itemUrl === usedUrl &&
+      !isWeakItemUrl(itemUrl, sourceUrl)
+    ) {
+      return true;
+    }
+
+    if (itemTitle && usedTitle && itemTitle === usedTitle) {
+      return true;
+    }
+
+    if (itemImageUrl && usedImageUrl && itemImageUrl === usedImageUrl) {
+      return true;
+    }
+
+    return false;
+  });
 }
 
 async function chooseUnusedWebsiteItem({
