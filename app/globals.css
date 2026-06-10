@@ -2338,3 +2338,73 @@ select.input {
   border-color: rgba(99, 102, 241, 0.45);
   background: rgba(99, 102, 241, 0.04);
 }
+.saved-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0 12px;
+  padding: 12px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.95);
+}
+
+.saved-bulk-actions .image-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.saved-bulk-actions span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.saved-bulk-actions .tiny-button,
+.saved-bulk-actions .danger-button {
+  margin-left: 0;
+}
+
+.delete-confirm-note {
+  color: #b91c1c !important;
+  font-weight: 700;
+}
+
+.saved-rule-card {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.saved-rule-card > .image-check {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.saved-rule-card > .image-check input {
+  margin: 0;
+}
+
+.saved-rule-card.selected {
+  border-color: rgba(99, 102, 241, 0.45);
+  background: rgba(99, 102, 241, 0.04);
+}
+
+@media (max-width: 720px) {
+  .saved-rule-card {
+    grid-template-columns: 22px 1fr;
+  }
+
+  .saved-rule-card .danger-button {
+    grid-column: 2;
+    justify-self: flex-start;
+  }
+}
