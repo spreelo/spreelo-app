@@ -5,6 +5,8 @@ export const dynamic = "force-dynamic";
 
 const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 const WEBSITE_MAX_TEXT_CHARS = 18000;
+const MAX_ANALYSES_PER_24_HOURS = 5;
+const MIN_MINUTES_BETWEEN_ANALYSES = 2;
 
 function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
@@ -179,6 +181,87 @@ async function fetchWebsiteHtml(websiteUrl) {
   }
 }
 
+async function checkRateLimit({ supabase, userId }) {
+  const now = new Date();
+
+  const lastAllowedTime = new Date(
+    now.getTime() - MIN_MINUTES_BETWEEN_ANALYSES * 60 * 1000
+  ).toISOString();
+
+  const last24Hours = new Date(
+    now.getTime() - 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { data: recentRuns, error: recentError } = await supabase
+    .from("brand_analysis_runs")
+    .select("id, created_at")
+    .eq("user_id", userId)
+    .gte("created_at", last24Hours)
+    .order("created_at", { ascending: false });
+
+  if (recentError) {
+    throw new Error(recentError.message || "Could not check analyze limit");
+  }
+
+  const runs = recentRuns || [];
+
+  if (runs.length >= MAX_ANALYSES_PER_24_HOURS) {
+    throw new Error(
+      `Analyze limit reached. You can analyze your website ${MAX_ANALYSES_PER_24_HOURS} times per 24 hours.`
+    );
+  }
+
+  const latestRun = runs[0];
+
+  if (latestRun?.created_at && latestRun.created_at > lastAllowedTime) {
+    throw new Error(
+      `Please wait ${MIN_MINUTES_BETWEEN_ANALYSES} minutes before analyzing again.`
+    );
+  }
+}
+
+async function logAnalysisRun({ supabase, userId, websiteUrl }) {
+  const { error } = await supabase.from("brand_analysis_runs").insert({
+    user_id: userId,
+    website_url: websiteUrl,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Could not log analysis run");
+  }
+}
+
+async function saveBrandProfile({
+  supabase,
+  userId,
+  websiteUrl,
+  profile,
+}) {
+  const { data, error } = await supabase
+    .from("brand_profiles")
+    .upsert(
+      {
+        user_id: userId,
+        business_name: profile.business_name,
+        website_url: websiteUrl,
+        industry: profile.industry,
+        target_audience: profile.target_audience,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "user_id",
+      }
+    )
+    .select("business_name, website_url, industry, target_audience")
+    .single();
+
+  if (error) {
+    throw new Error(error.message || "Could not save brand profile");
+  }
+
+  return data;
+}
+
 async function analyzeWebsiteWithOpenAI({ openai, websiteUrl, html }) {
   const title = extractPageTitle(html);
   const description = extractMetaDescription(html);
@@ -212,13 +295,21 @@ ${visibleText}
 Return JSON only in this exact shape:
 {
   "business_name": "Business name",
-  "industry": "Short but clear description of what the business does",
-  "target_audience": "Clear description of the likely customers/audience"
+  "industry": "Short but clear description of what the business does, written in the same language as the website",
+  "target_audience": "Clear description of the likely customers/audience, written in the same language as the website",
+  "detected_language": "Detected main website language"
 }
 
 Rules:
 - Use only information supported by the website content.
 - Do not make up products, locations, services or claims.
+- Detect the main language of the website.
+- Write business_name as the official business name, not translated.
+- Write industry in the same language as the website.
+- Write target_audience in the same language as the website.
+- If the website is Swedish, write industry and target_audience in Swedish.
+- If the website is English, write industry and target_audience in English.
+- If the website mixes languages, use the language that dominates the homepage text.
 - If the business name is unclear, infer the most likely name from the title/domain.
 - Industry should be useful for generating social media posts.
 - Target audience should be practical and specific, not vague.
@@ -240,6 +331,7 @@ Rules:
     business_name: String(parsed.business_name || "").trim(),
     industry: String(parsed.industry || "").trim(),
     target_audience: String(parsed.target_audience || "").trim(),
+    detected_language: String(parsed.detected_language || "").trim(),
   };
 }
 
@@ -308,6 +400,11 @@ export async function POST(request) {
       );
     }
 
+    await checkRateLimit({
+      supabase,
+      userId: user.id,
+    });
+
     const openai = new OpenAI({
       apiKey: openaiApiKey,
     });
@@ -320,10 +417,25 @@ export async function POST(request) {
       html: website.html,
     });
 
+    const savedProfile = await saveBrandProfile({
+      supabase,
+      userId: user.id,
+      websiteUrl: website.url,
+      profile,
+    });
+
+    await logAnalysisRun({
+      supabase,
+      userId: user.id,
+      websiteUrl: website.url,
+    });
+
     return Response.json({
       ok: true,
       website_url: website.url,
-      profile,
+      profile: savedProfile,
+      detected_language: profile.detected_language || null,
+      message: "Website analyzed and brand profile saved.",
     });
   } catch (error) {
     return Response.json(
