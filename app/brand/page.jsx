@@ -12,6 +12,7 @@ export default function BrandProfile() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -67,6 +68,67 @@ export default function BrandProfile() {
     return `https://${trimmedValue}`;
   }
 
+  async function analyzeWebsite() {
+    setMessage("");
+
+    const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+
+    if (!normalizedWebsiteUrl) {
+      setMessage("Add a website URL first.");
+      return;
+    }
+
+    setAnalyzing(true);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const response = await fetch("/api/analyze-brand", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          websiteUrl: normalizedWebsiteUrl,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || "Could not analyze website.");
+      }
+
+      setWebsiteUrl(result.website_url || normalizedWebsiteUrl);
+
+      if (result.profile?.business_name) {
+        setBusinessName(result.profile.business_name);
+      }
+
+      if (result.profile?.industry) {
+        setIndustry(result.profile.industry);
+      }
+
+      if (result.profile?.target_audience) {
+        setTargetAudience(result.profile.target_audience);
+      }
+
+      setMessage("Website analyzed. Review the profile and save it.");
+    } catch (error) {
+      setMessage(error.message || "Could not analyze website.");
+    }
+
+    setAnalyzing(false);
+  }
+
   async function saveProfile() {
     if (!user) return;
 
@@ -120,7 +182,7 @@ export default function BrandProfile() {
         <button
           className="primary-button"
           onClick={saveProfile}
-          disabled={saving}
+          disabled={saving || analyzing}
         >
           {saving ? "Saving..." : "Save profile"}
         </button>
@@ -136,10 +198,10 @@ export default function BrandProfile() {
           </p>
 
           <div className="mini-info-card">
-            <strong>Website URL is important</strong>
+            <strong>Start with your website</strong>
             <p>
-              Spreelo can use your website later to find products, services,
-              listings and offers for automated posts.
+              Add your website URL and let Spreelo analyze it. You can still
+              edit the result before saving.
             </p>
           </div>
         </div>
@@ -161,6 +223,15 @@ export default function BrandProfile() {
             onChange={(event) => setWebsiteUrl(event.target.value)}
           />
 
+          <button
+            className="secondary-button full"
+            type="button"
+            onClick={analyzeWebsite}
+            disabled={analyzing || saving}
+          >
+            {analyzing ? "Analyzing website..." : "Analyze website"}
+          </button>
+
           <label>Industry</label>
           <input
             className="input"
@@ -179,7 +250,7 @@ export default function BrandProfile() {
           <button
             className="primary-button full"
             onClick={saveProfile}
-            disabled={saving}
+            disabled={saving || analyzing}
           >
             {saving ? "Saving..." : "Save brand profile"}
           </button>
