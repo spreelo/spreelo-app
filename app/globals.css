@@ -2312,3 +2312,29 @@ select.input {
   font-size: 14px;
   line-height: 1.55;
 }
+.saved-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.saved-bulk-actions span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.delete-confirm-note {
+  color: #b91c1c !important;
+  font-weight: 700;
+}
+
+.saved-rule-card.selected {
+  border-color: rgba(99, 102, 241, 0.45);
+  background: rgba(99, 102, 241, 0.04);
+}
