@@ -19,6 +19,37 @@ const weekdays = [
 
 const dayOrder = weekdays;
 
+const recommendedWeeklySchedule = [
+  {
+    weekday: "Monday",
+    publishTime: "09:00",
+  },
+  {
+    weekday: "Tuesday",
+    publishTime: "11:30",
+  },
+  {
+    weekday: "Wednesday",
+    publishTime: "15:00",
+  },
+  {
+    weekday: "Thursday",
+    publishTime: "18:00",
+  },
+  {
+    weekday: "Friday",
+    publishTime: "10:00",
+  },
+];
+
+const recommendedTimesByWeekday = recommendedWeeklySchedule.reduce(
+  (result, item) => ({
+    ...result,
+    [item.weekday]: item.publishTime,
+  }),
+  {}
+);
+
 const commonTimeZones = [
   "Europe/Stockholm",
   "Europe/Copenhagen",
@@ -236,11 +267,7 @@ function addDaysToDateString(dateString, daysToAdd) {
   const month = Number(monthValue);
   const day = Number(dayValue);
 
-  if (
-    Number.isNaN(year) ||
-    Number.isNaN(month) ||
-    Number.isNaN(day)
-  ) {
+  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
     return "";
   }
 
@@ -249,193 +276,6 @@ function addDaysToDateString(dateString, daysToAdd) {
   return `${date.getUTCFullYear()}-${padNumber(
     date.getUTCMonth() + 1
   )}-${padNumber(date.getUTCDate())}`;
-}
-
-function getWeekdayFromDateString(
-  dateString,
-  timeZone = DEFAULT_TIME_ZONE
-) {
-  if (!dateString) {
-    return "Monday";
-  }
-
-  const [yearValue, monthValue, dayValue] = String(dateString).split("-");
-  const year = Number(yearValue);
-  const month = Number(monthValue);
-  const day = Number(dayValue);
-
-  if (
-    Number.isNaN(year) ||
-    Number.isNaN(month) ||
-    Number.isNaN(day)
-  ) {
-    return "Monday";
-  }
-
-  const date = zonedLocalToUtcDate({
-    year,
-    month,
-    day,
-    hour: 12,
-    minute: 0,
-    second: 0,
-    timeZone,
-  });
-
-  return getWeekdayInTimeZone(date, timeZone);
-}
-
-function formatStartDateLabel(
-  dateString,
-  timeZone = DEFAULT_TIME_ZONE
-) {
-  if (!dateString) {
-    return "No start date";
-  }
-
-  const [yearValue, monthValue, dayValue] = String(dateString).split("-");
-  const year = Number(yearValue);
-  const month = Number(monthValue);
-  const day = Number(dayValue);
-
-  if (
-    Number.isNaN(year) ||
-    Number.isNaN(month) ||
-    Number.isNaN(day)
-  ) {
-    return "No start date";
-  }
-
-  const date = zonedLocalToUtcDate({
-    year,
-    month,
-    day,
-    hour: 12,
-    minute: 0,
-    second: 0,
-    timeZone,
-  });
-
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone,
-  }).format(date);
-}
-
-function createSlot(overrides = {}) {
-  const startDate =
-    overrides.startDate ||
-    getDateInputValueInTimeZone(new Date(), DEFAULT_TIME_ZONE);
-  const publishTime = overrides.publishTime || "08:35";
-  const weekday =
-    overrides.weekday || getWeekdayFromDateString(startDate, DEFAULT_TIME_ZONE);
-
-  return {
-    id: makeSlotId(),
-    weekday,
-    startDate,
-    publishTime,
-    prompt: overrides.prompt || "",
-    generateImage: Boolean(overrides.generateImage),
-    imagePrompt: overrides.imagePrompt || "",
-    includeEmojis:
-      typeof overrides.includeEmojis === "boolean"
-        ? overrides.includeEmojis
-        : true,
-    includeHashtags:
-      typeof overrides.includeHashtags === "boolean"
-        ? overrides.includeHashtags
-        : true,
-    contentTypeId: overrides.contentTypeId || null,
-    contentTypeLabel: overrides.contentTypeLabel || null,
-    usesWebsiteContent: Boolean(overrides.usesWebsiteContent),
-  };
-}
-
-function createSlotFromContentType(type, index = 0, options = {}) {
-  const startDate =
-    options.startDate ||
-    getDateInputValueInTimeZone(new Date(), DEFAULT_TIME_ZONE);
-  const publishTime = options.publishTime || "08:35";
-  const weekday = getWeekdayFromDateString(startDate, DEFAULT_TIME_ZONE);
-  const shouldGenerateImage =
-    typeof options.generateImage === "boolean" ? options.generateImage : true;
-
-  return createSlot({
-    weekday,
-    startDate,
-    publishTime,
-    prompt: type.prompt,
-    imagePrompt: type.imagePrompt,
-    generateImage: shouldGenerateImage,
-    contentTypeId: type.id,
-    contentTypeLabel: type.label,
-    usesWebsiteContent: Boolean(type.usesWebsiteContent),
-  });
-}
-
-function shouldAutoPlanGenerateImage(index) {
-  return index < AUTO_PLAN_IMAGE_COUNT;
-}
-
-function createRecommendedSlots(options = {}) {
-  return recommendedContentTypeIds
-    .map(getContentTypeById)
-    .filter(Boolean)
-    .map((type, index) =>
-      createSlotFromContentType(type, index, {
-        startDate: options.startDate,
-        publishTime: options.publishTime,
-        generateImage: shouldAutoPlanGenerateImage(index),
-      })
-    );
-}
-
-function normalizeTime(value) {
-  return String(value || "").slice(0, 5);
-}
-
-function getBrowserTimeZone() {
-  try {
-    return (
-      Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIME_ZONE
-    );
-  } catch {
-    return DEFAULT_TIME_ZONE;
-  }
-}
-
-function getDatePartsInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-    timeZone,
-  }).formatToParts(date);
-
-  const values = {};
-
-  for (const part of parts) {
-    if (part.type !== "literal") {
-      values[part.type] = part.value;
-    }
-  }
-
-  return {
-    year: Number(values.year),
-    month: Number(values.month),
-    day: Number(values.day),
-    hour: Number(values.hour),
-    minute: Number(values.minute),
-    second: Number(values.second),
-  };
 }
 
 function getWeekdayInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
@@ -498,6 +338,268 @@ function zonedLocalToUtcDate({
   }
 
   return new Date(utcTime);
+}
+
+function getWeekdayFromDateString(dateString, timeZone = DEFAULT_TIME_ZONE) {
+  if (!dateString) {
+    return "Monday";
+  }
+
+  const [yearValue, monthValue, dayValue] = String(dateString).split("-");
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+
+  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
+    return "Monday";
+  }
+
+  const date = zonedLocalToUtcDate({
+    year,
+    month,
+    day,
+    hour: 12,
+    minute: 0,
+    second: 0,
+    timeZone,
+  });
+
+  return getWeekdayInTimeZone(date, timeZone);
+}
+
+function formatStartDateLabel(dateString, timeZone = DEFAULT_TIME_ZONE) {
+  if (!dateString) {
+    return "No start date";
+  }
+
+  const [yearValue, monthValue, dayValue] = String(dateString).split("-");
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+
+  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
+    return "No start date";
+  }
+
+  const date = zonedLocalToUtcDate({
+    year,
+    month,
+    day,
+    hour: 12,
+    minute: 0,
+    second: 0,
+    timeZone,
+  });
+
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone,
+  }).format(date);
+}
+
+function getRecommendedTimeForWeekday(weekday) {
+  return recommendedTimesByWeekday[weekday] || "09:00";
+}
+
+function getRecommendedTimeForDate(dateString, timeZone = DEFAULT_TIME_ZONE) {
+  const weekday = getWeekdayFromDateString(dateString, timeZone);
+
+  return getRecommendedTimeForWeekday(weekday);
+}
+
+function buildSmartSlotSchedule({
+  startDate,
+  count,
+  timeZone = DEFAULT_TIME_ZONE,
+}) {
+  const startWeekday = getWeekdayFromDateString(startDate, timeZone);
+  const startWeekdayIndex = dayOrder.indexOf(startWeekday);
+
+  if (!startDate || startWeekdayIndex === -1 || count <= 0) {
+    return [];
+  }
+
+  const result = [];
+  let weekOffset = 0;
+
+  while (result.length < count && weekOffset < 20) {
+    const candidates = recommendedWeeklySchedule
+      .map((item) => {
+        const targetWeekdayIndex = dayOrder.indexOf(item.weekday);
+
+        const daysUntilTarget =
+          ((targetWeekdayIndex - startWeekdayIndex + 7) % 7) + weekOffset * 7;
+
+        const itemStartDate = addDaysToDateString(startDate, daysUntilTarget);
+
+        return {
+          startDate: itemStartDate,
+          weekday: item.weekday,
+          publishTime: item.publishTime,
+        };
+      })
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+    for (const candidate of candidates) {
+      if (result.length >= count) {
+        break;
+      }
+
+      result.push(candidate);
+    }
+
+    weekOffset += 1;
+  }
+
+  return result;
+}
+
+function applySmartScheduleToSlots(
+  currentSlots,
+  startDate,
+  timeZone = DEFAULT_TIME_ZONE
+) {
+  const smartSchedule = buildSmartSlotSchedule({
+    startDate,
+    count: currentSlots.length,
+    timeZone,
+  });
+
+  return currentSlots.map((slot, index) => {
+    const schedule = smartSchedule[index];
+
+    if (!schedule) {
+      return slot;
+    }
+
+    return {
+      ...slot,
+      startDate: schedule.startDate,
+      weekday: schedule.weekday,
+      publishTime: schedule.publishTime,
+    };
+  });
+}
+
+function createSlot(overrides = {}) {
+  const timeZone = overrides.timeZone || DEFAULT_TIME_ZONE;
+  const startDate =
+    overrides.startDate || getDateInputValueInTimeZone(new Date(), timeZone);
+
+  const weekday =
+    overrides.weekday || getWeekdayFromDateString(startDate, timeZone);
+
+  const publishTime =
+    overrides.publishTime || getRecommendedTimeForWeekday(weekday);
+
+  return {
+    id: makeSlotId(),
+    weekday,
+    startDate,
+    publishTime,
+    prompt: overrides.prompt || "",
+    generateImage: Boolean(overrides.generateImage),
+    imagePrompt: overrides.imagePrompt || "",
+    includeEmojis:
+      typeof overrides.includeEmojis === "boolean"
+        ? overrides.includeEmojis
+        : true,
+    includeHashtags:
+      typeof overrides.includeHashtags === "boolean"
+        ? overrides.includeHashtags
+        : true,
+    contentTypeId: overrides.contentTypeId || null,
+    contentTypeLabel: overrides.contentTypeLabel || null,
+    usesWebsiteContent: Boolean(overrides.usesWebsiteContent),
+  };
+}
+
+function createSlotFromContentType(type, index = 0, options = {}) {
+  const timeZone = options.timeZone || DEFAULT_TIME_ZONE;
+  const startDate =
+    options.startDate || getDateInputValueInTimeZone(new Date(), timeZone);
+
+  const smartSchedule = buildSmartSlotSchedule({
+    startDate,
+    count: index + 1,
+    timeZone,
+  });
+
+  const schedule = smartSchedule[index] || {
+    startDate,
+    weekday: getWeekdayFromDateString(startDate, timeZone),
+    publishTime: getRecommendedTimeForDate(startDate, timeZone),
+  };
+
+  const shouldGenerateImage =
+    typeof options.generateImage === "boolean" ? options.generateImage : true;
+
+  return createSlot({
+    weekday: schedule.weekday,
+    startDate: schedule.startDate,
+    publishTime: schedule.publishTime,
+    prompt: type.prompt,
+    imagePrompt: type.imagePrompt,
+    generateImage: shouldGenerateImage,
+    contentTypeId: type.id,
+    contentTypeLabel: type.label,
+    usesWebsiteContent: Boolean(type.usesWebsiteContent),
+    timeZone,
+  });
+}
+
+function shouldAutoPlanGenerateImage(index) {
+  return index < AUTO_PLAN_IMAGE_COUNT;
+}
+
+function createRecommendedSlots(options = {}) {
+  const timeZone = options.timeZone || DEFAULT_TIME_ZONE;
+  const startDate =
+    options.startDate || getDateInputValueInTimeZone(new Date(), timeZone);
+
+  const types = recommendedContentTypeIds.map(getContentTypeById).filter(Boolean);
+
+  const smartSchedule = buildSmartSlotSchedule({
+    startDate,
+    count: types.length,
+    timeZone,
+  });
+
+  return types.map((type, index) => {
+    const schedule = smartSchedule[index] || {
+      startDate,
+      weekday: getWeekdayFromDateString(startDate, timeZone),
+      publishTime: getRecommendedTimeForDate(startDate, timeZone),
+    };
+
+    return createSlot({
+      weekday: schedule.weekday,
+      startDate: schedule.startDate,
+      publishTime: schedule.publishTime,
+      prompt: type.prompt,
+      imagePrompt: type.imagePrompt,
+      generateImage: shouldAutoPlanGenerateImage(index),
+      contentTypeId: type.id,
+      contentTypeLabel: type.label,
+      usesWebsiteContent: Boolean(type.usesWebsiteContent),
+      timeZone,
+    });
+  });
+}
+
+function normalizeTime(value) {
+  return String(value || "").slice(0, 5);
+}
+
+function getBrowserTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIME_ZONE;
+  } catch {
+    return DEFAULT_TIME_ZONE;
+  }
 }
 
 function getOneTimeRunAtIso(
@@ -671,15 +773,22 @@ export default function AutomationPage() {
     DEFAULT_TIME_ZONE
   );
 
+  const initialRecommendedTime = getRecommendedTimeForDate(
+    initialStartDate,
+    DEFAULT_TIME_ZONE
+  );
+
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
 
   const [planStartDate, setPlanStartDate] = useState(initialStartDate);
-  const [defaultPublishTime, setDefaultPublishTime] = useState("08:35");
+  const [defaultPublishTime, setDefaultPublishTime] = useState(
+    initialRecommendedTime
+  );
   const [slots, setSlots] = useState(() =>
     createRecommendedSlots({
       startDate: initialStartDate,
-      publishTime: "08:35",
+      timeZone: DEFAULT_TIME_ZONE,
     })
   );
   const [planCreationMode, setPlanCreationMode] = useState("auto");
@@ -719,15 +828,16 @@ export default function AutomationPage() {
       new Date(),
       browserTimeZone
     );
+    const browserRecommendedTime = getRecommendedTimeForDate(
+      browserStartDate,
+      browserTimeZone
+    );
 
     setTimeZone(browserTimeZone);
     setPlanStartDate(browserStartDate);
+    setDefaultPublishTime(browserRecommendedTime);
     setSlots((currentSlots) =>
-      currentSlots.map((slot) => ({
-        ...slot,
-        startDate: browserStartDate,
-        weekday: getWeekdayFromDateString(browserStartDate, browserTimeZone),
-      }))
+      applySmartScheduleToSlots(currentSlots, browserStartDate, browserTimeZone)
     );
 
     loadRules();
@@ -850,10 +960,13 @@ export default function AutomationPage() {
         }
 
         if (field === "startDate") {
+          const nextWeekday = getWeekdayFromDateString(value, timeZone);
+
           return {
             ...slot,
             startDate: value,
-            weekday: getWeekdayFromDateString(value, timeZone),
+            weekday: nextWeekday,
+            publishTime: getRecommendedTimeForWeekday(nextWeekday),
           };
         }
 
@@ -863,23 +976,27 @@ export default function AutomationPage() {
   }
 
   function updatePlanStartDate(value) {
+    const recommendedTime = getRecommendedTimeForDate(value, timeZone);
+
     setPlanStartDate(value);
+    setDefaultPublishTime(recommendedTime);
     setSlots((currentSlots) =>
-      currentSlots.map((slot) => ({
-        ...slot,
-        startDate: value,
-        weekday: getWeekdayFromDateString(value, timeZone),
-      }))
+      applySmartScheduleToSlots(currentSlots, value, timeZone)
     );
   }
 
   function updateDefaultPublishTime(value) {
     setDefaultPublishTime(value);
+
     setSlots((currentSlots) =>
-      currentSlots.map((slot) => ({
-        ...slot,
-        publishTime: value,
-      }))
+      currentSlots.map((slot, index) =>
+        index === 0
+          ? {
+              ...slot,
+              publishTime: value,
+            }
+          : slot
+      )
     );
   }
 
@@ -892,14 +1009,29 @@ export default function AutomationPage() {
   }
 
   function addSlot() {
-    setSlots((currentSlots) => [
-      ...currentSlots,
-      createSlot({
+    setSlots((currentSlots) => {
+      const smartSchedule = buildSmartSlotSchedule({
         startDate: planStartDate,
-        publishTime: defaultPublishTime,
+        count: currentSlots.length + 1,
+        timeZone,
+      });
+
+      const schedule = smartSchedule[currentSlots.length] || {
+        startDate: planStartDate,
         weekday: getWeekdayFromDateString(planStartDate, timeZone),
-      }),
-    ]);
+        publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
+      };
+
+      return [
+        ...currentSlots,
+        createSlot({
+          startDate: schedule.startDate,
+          publishTime: schedule.publishTime,
+          weekday: schedule.weekday,
+          timeZone,
+        }),
+      ];
+    });
   }
 
   function duplicateSlot(slotId) {
@@ -935,7 +1067,7 @@ export default function AutomationPage() {
       setSlots(
         createRecommendedSlots({
           startDate: planStartDate,
-          publishTime: defaultPublishTime,
+          timeZone,
         })
       );
       return;
@@ -954,7 +1086,7 @@ export default function AutomationPage() {
           .map((type, index) =>
             createSlotFromContentType(type, index, {
               startDate: planStartDate,
-              publishTime: defaultPublishTime,
+              timeZone,
             })
           )
       );
@@ -965,8 +1097,9 @@ export default function AutomationPage() {
     setSlots([
       createSlot({
         startDate: planStartDate,
-        publishTime: defaultPublishTime,
         weekday: getWeekdayFromDateString(planStartDate, timeZone),
+        publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
+        timeZone,
       }),
     ]);
   }
@@ -985,7 +1118,7 @@ export default function AutomationPage() {
         .map((type, index) =>
           createSlotFromContentType(type, index, {
             startDate: planStartDate,
-            publishTime: defaultPublishTime,
+            timeZone,
           })
         );
 
@@ -995,8 +1128,9 @@ export default function AutomationPage() {
           : [
               createSlot({
                 startDate: planStartDate,
-                publishTime: defaultPublishTime,
                 weekday: getWeekdayFromDateString(planStartDate, timeZone),
+                publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
+                timeZone,
               }),
             ]
       );
@@ -1012,7 +1146,7 @@ export default function AutomationPage() {
     setSlots(
       createRecommendedSlots({
         startDate: planStartDate,
-        publishTime: defaultPublishTime,
+        timeZone,
       })
     );
   }
@@ -1223,7 +1357,7 @@ export default function AutomationPage() {
         setSlots(
           createRecommendedSlots({
             startDate: planStartDate,
-            publishTime: defaultPublishTime,
+            timeZone,
           })
         );
       } else if (planCreationMode === "select") {
@@ -1231,16 +1365,18 @@ export default function AutomationPage() {
         setSlots([
           createSlot({
             startDate: planStartDate,
-            publishTime: defaultPublishTime,
             weekday: getWeekdayFromDateString(planStartDate, timeZone),
+            publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
+            timeZone,
           }),
         ]);
       } else {
         setSlots([
           createSlot({
             startDate: planStartDate,
-            publishTime: defaultPublishTime,
             weekday: getWeekdayFromDateString(planStartDate, timeZone),
+            publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
+            timeZone,
           }),
         ]);
       }
@@ -1553,7 +1689,7 @@ export default function AutomationPage() {
                 </div>
 
                 <div>
-                  <label>Default time</label>
+                  <label>Time</label>
                   <input
                     className="input time-input"
                     type="time"
@@ -2133,7 +2269,7 @@ export default function AutomationPage() {
                   </strong>
                 </div>
                 <div>
-                  <span>Default time</span>
+                  <span>Time</span>
                   <strong>{defaultPublishTime}</strong>
                 </div>
                 <div>
