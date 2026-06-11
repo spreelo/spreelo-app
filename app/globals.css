@@ -2416,3 +2416,395 @@ select.input {
     justify-self: flex-start;
   }
 }
+/* ===== Spreelo planner compact design override ===== */
+
+.planner-wizard-page {
+  max-width: 1500px;
+}
+
+.planner-wizard-page .wizard-card {
+  box-shadow: none;
+}
+
+.planner-wizard-page .wizard-card:has(.planned-list) {
+  background: #ffffff;
+  border-radius: 30px;
+  padding: 30px;
+  overflow: hidden;
+}
+
+.planner-wizard-page .wizard-card:has(.planned-list) .wizard-card-title {
+  margin-bottom: 18px;
+}
+
+.planner-wizard-page .wizard-card:has(.planned-list) .wizard-card-title h3 {
+  font-size: 30px;
+}
+
+.planner-wizard-page .wizard-card:has(.planned-list) .wizard-card-title p {
+  font-size: 14px;
+}
+
+/* Top schedule toolbar */
+
+.planner-wizard-page .wizard-card:has(.planned-list) > .wizard-form-row {
+  display: grid;
+  grid-template-columns: 170px 150px 150px 1fr;
+  gap: 18px;
+  align-items: end;
+  padding: 18px;
+  margin: 0 0 18px;
+  border-radius: 22px;
+  background: linear-gradient(90deg, #fff8f1, #fffaf4);
+  border: 1px solid rgba(251, 146, 60, 0.12);
+}
+
+.planner-wizard-page .wizard-card:has(.planned-list) > .wizard-form-row label {
+  font-size: 12px;
+  margin-bottom: 7px;
+  color: #374151;
+}
+
+.planner-wizard-page .wizard-card:has(.planned-list) > .wizard-form-row .input {
+  height: 46px;
+  margin: 0;
+  border-radius: 12px;
+  background: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.planner-wizard-page
+  .wizard-card:has(.planned-list)
+  > .wizard-form-row
+  .time-input {
+  max-width: 150px;
+}
+
+/* Info box under toolbar */
+
+.planner-wizard-page .wizard-card:has(.planned-list) > .mini-info-card {
+  margin: 0 0 18px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.planner-wizard-page .wizard-card:has(.planned-list) > .mini-info-card strong {
+  font-size: 13px;
+}
+
+.planner-wizard-page .wizard-card:has(.planned-list) > .mini-info-card p {
+  font-size: 13px;
+}
+
+/* Planned list compact */
+
+.planner-wizard-page .planned-list.cleaner {
+  gap: 12px;
+  margin-top: 0;
+}
+
+.planner-wizard-page .wizard-planned-row {
+  grid-template-columns: 42px 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.planner-wizard-page .planned-row:not(:last-child)::before {
+  left: 20px;
+  top: 44px;
+  bottom: -14px;
+  border-left: 1px dashed rgba(148, 163, 184, 0.45);
+}
+
+.planner-wizard-page .planned-number {
+  width: 34px;
+  height: 34px;
+  margin-top: 18px;
+  background: #ff6238;
+  font-size: 15px;
+  box-shadow: 0 10px 22px rgba(255, 98, 56, 0.22);
+}
+
+.planner-wizard-page .wizard-planned-row:nth-child(2) .planned-number {
+  background: #17b889;
+  box-shadow: 0 10px 22px rgba(23, 184, 137, 0.2);
+}
+
+.planner-wizard-page .wizard-planned-row:nth-child(3) .planned-number {
+  background: #8b5cf6;
+  box-shadow: 0 10px 22px rgba(139, 92, 246, 0.2);
+}
+
+.planner-wizard-page .wizard-planned-row:nth-child(4) .planned-number {
+  background: #2563eb;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.2);
+}
+
+.planner-wizard-page .wizard-planned-row:nth-child(5) .planned-number {
+  background: #f59e0b;
+  box-shadow: 0 10px 22px rgba(245, 158, 11, 0.2);
+}
+
+/* Card colors like planner mockup */
+
+.planner-wizard-page .wizard-planned-row .planned-content {
+  padding: 16px 18px;
+  border-radius: 18px;
+  box-shadow: none;
+  border: 1px solid rgba(251, 146, 60, 0.2);
+  background: linear-gradient(90deg, #fff7ed, #fffafa);
+}
+
+.planner-wizard-page .wizard-planned-row:nth-child(2) .planned-content {
+  border-color: rgba(16, 185, 129, 0.2);
+  background: linear-gradient(90deg, #ecfdf5, #f8fffb);
+}
+
+.planner-wizard-page .wizard-planned-row:nth-child(3) .planned-content {
+  border-color: rgba(139, 92, 246, 0.22);
+  background: linear-gradient(90deg, #f5f3ff, #fbfaff);
+}
+
+.planner-wizard-page .wizard-planned-row:nth-child(4) .planned-content {
+  border-color: rgba(37, 99, 235, 0.18);
+  background: linear-gradient(90deg, #eff6ff, #f8fbff);
+}
+
+.planner-wizard-page .wizard-planned-row:nth-child(5) .planned-content {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: linear-gradient(90deg, #fffbeb, #fffdfa);
+}
+
+/* Top of each post card */
+
+.planner-wizard-page .wizard-planned-row .planned-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.planner-wizard-page .planned-top p {
+  margin-bottom: 3px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #4f46e5;
+}
+
+.planner-wizard-page .planned-top h4 {
+  font-size: 17px;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.planner-wizard-page .planned-top small {
+  display: block;
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* Make action buttons more discreet */
+
+.planner-wizard-page .row-actions {
+  gap: 8px;
+}
+
+.planner-wizard-page .row-actions .tiny-button {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #ffffff;
+}
+
+.planner-wizard-page .row-actions .tiny-button.danger {
+  background: #fff7f7;
+}
+
+/* Per-post date/time controls */
+
+.planner-wizard-page .wizard-planned-fields {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  margin: 10px 0 8px;
+}
+
+.planner-wizard-page .wizard-planned-fields > div {
+  max-width: 145px;
+}
+
+.planner-wizard-page .wizard-planned-fields label {
+  font-size: 11px;
+  margin-bottom: 5px;
+  color: #475569;
+}
+
+.planner-wizard-page .wizard-planned-fields .input {
+  height: 38px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  background: #ffffff;
+}
+
+.planner-wizard-page .wizard-planned-fields .time-input {
+  width: 105px;
+}
+
+/* Instruction summary as a compact horizontal row */
+
+.planner-wizard-page .instruction-summary-card {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.planner-wizard-page .instruction-summary-main {
+  align-items: center;
+}
+
+.planner-wizard-page .instruction-summary-main strong {
+  font-size: 13px;
+}
+
+.planner-wizard-page .instruction-summary-main p {
+  font-size: 12px;
+}
+
+.planner-wizard-page .instruction-pill {
+  font-size: 11px;
+  padding: 6px 9px;
+}
+
+.planner-wizard-page .edit-instructions-button {
+  padding: 7px 11px;
+  font-size: 12px;
+}
+
+/* Bottom option chips */
+
+.planner-wizard-page .planned-bottom.cleaner {
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.planner-wizard-page .planned-bottom .image-check {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.planner-wizard-page .planned-bottom .image-check input {
+  width: 14px;
+  height: 14px;
+}
+
+.planner-wizard-page .credit-chip {
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(255, 98, 56, 0.1);
+  color: #ef4b24;
+  font-size: 12px;
+}
+
+.planner-wizard-page
+  .wizard-planned-row:nth-child(2)
+  .credit-chip {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.planner-wizard-page
+  .wizard-planned-row:nth-child(3)
+  .credit-chip {
+  background: rgba(139, 92, 246, 0.1);
+  color: #7c3aed;
+}
+
+.planner-wizard-page
+  .wizard-planned-row:nth-child(4)
+  .credit-chip {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.planner-wizard-page
+  .wizard-planned-row:nth-child(5)
+  .credit-chip {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+/* Sidebar closer to mockup */
+
+.planner-wizard-page .wizard-summary-card,
+.planner-wizard-page .wizard-preview-card {
+  box-shadow: none;
+  border-radius: 24px;
+}
+
+.planner-wizard-page .wizard-summary-card h3,
+.planner-wizard-page .wizard-preview-card h3 {
+  font-size: 24px;
+}
+
+.planner-wizard-page .summary-list div {
+  padding: 12px 0;
+}
+
+.planner-wizard-page .summary-list span {
+  font-size: 13px;
+}
+
+.planner-wizard-page .summary-list strong {
+  font-size: 13px;
+}
+
+/* Better native input sizing */
+
+.planner-wizard-page input[type="date"],
+.planner-wizard-page input[type="time"] {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* Responsive */
+
+@media (max-width: 1000px) {
+  .planner-wizard-page .wizard-card:has(.planned-list) > .wizard-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .planner-wizard-page .wizard-planned-row .planned-top {
+    grid-template-columns: 1fr;
+  }
+
+  .planner-wizard-page .wizard-planned-fields {
+    flex-wrap: wrap;
+  }
+
+  .planner-wizard-page .wizard-planned-fields > div {
+    max-width: none;
+    width: 100%;
+  }
+
+  .planner-wizard-page .wizard-planned-fields .time-input {
+    width: 100%;
+  }
+}
