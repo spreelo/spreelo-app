@@ -204,11 +204,140 @@ function getContentTypeById(typeId) {
   return contentTypes.find((type) => type.id === typeId) || null;
 }
 
-function createSlot(weekday = "Monday", overrides = {}) {
+function padNumber(value) {
+  return String(value).padStart(2, "0");
+}
+
+function getDateInputValueInTimeZone(
+  date = new Date(),
+  timeZone = DEFAULT_TIME_ZONE
+) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone,
+  }).formatToParts(date);
+
+  const values = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      values[part.type] = part.value;
+    }
+  }
+
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addDaysToDateString(dateString, daysToAdd) {
+  const [yearValue, monthValue, dayValue] = String(dateString || "").split("-");
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day)
+  ) {
+    return "";
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day + daysToAdd));
+
+  return `${date.getUTCFullYear()}-${padNumber(
+    date.getUTCMonth() + 1
+  )}-${padNumber(date.getUTCDate())}`;
+}
+
+function getWeekdayFromDateString(
+  dateString,
+  timeZone = DEFAULT_TIME_ZONE
+) {
+  if (!dateString) {
+    return "Monday";
+  }
+
+  const [yearValue, monthValue, dayValue] = String(dateString).split("-");
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day)
+  ) {
+    return "Monday";
+  }
+
+  const date = zonedLocalToUtcDate({
+    year,
+    month,
+    day,
+    hour: 12,
+    minute: 0,
+    second: 0,
+    timeZone,
+  });
+
+  return getWeekdayInTimeZone(date, timeZone);
+}
+
+function formatStartDateLabel(
+  dateString,
+  timeZone = DEFAULT_TIME_ZONE
+) {
+  if (!dateString) {
+    return "No start date";
+  }
+
+  const [yearValue, monthValue, dayValue] = String(dateString).split("-");
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day)
+  ) {
+    return "No start date";
+  }
+
+  const date = zonedLocalToUtcDate({
+    year,
+    month,
+    day,
+    hour: 12,
+    minute: 0,
+    second: 0,
+    timeZone,
+  });
+
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone,
+  }).format(date);
+}
+
+function createSlot(overrides = {}) {
+  const startDate =
+    overrides.startDate ||
+    getDateInputValueInTimeZone(new Date(), DEFAULT_TIME_ZONE);
+  const publishTime = overrides.publishTime || "08:35";
+  const weekday =
+    overrides.weekday || getWeekdayFromDateString(startDate, DEFAULT_TIME_ZONE);
+
   return {
     id: makeSlotId(),
     weekday,
-    publishTime: overrides.publishTime || "08:35",
+    startDate,
+    publishTime,
     prompt: overrides.prompt || "",
     generateImage: Boolean(overrides.generateImage),
     imagePrompt: overrides.imagePrompt || "",
@@ -227,11 +356,18 @@ function createSlot(weekday = "Monday", overrides = {}) {
 }
 
 function createSlotFromContentType(type, index = 0, options = {}) {
-  const weekday = weekdays[index % weekdays.length];
+  const startDate =
+    options.startDate ||
+    getDateInputValueInTimeZone(new Date(), DEFAULT_TIME_ZONE);
+  const publishTime = options.publishTime || "08:35";
+  const weekday = getWeekdayFromDateString(startDate, DEFAULT_TIME_ZONE);
   const shouldGenerateImage =
     typeof options.generateImage === "boolean" ? options.generateImage : true;
 
-  return createSlot(weekday, {
+  return createSlot({
+    weekday,
+    startDate,
+    publishTime,
     prompt: type.prompt,
     imagePrompt: type.imagePrompt,
     generateImage: shouldGenerateImage,
@@ -245,12 +381,14 @@ function shouldAutoPlanGenerateImage(index) {
   return index < AUTO_PLAN_IMAGE_COUNT;
 }
 
-function createRecommendedSlots() {
+function createRecommendedSlots(options = {}) {
   return recommendedContentTypeIds
     .map(getContentTypeById)
     .filter(Boolean)
     .map((type, index) =>
       createSlotFromContentType(type, index, {
+        startDate: options.startDate,
+        publishTime: options.publishTime,
         generateImage: shouldAutoPlanGenerateImage(index),
       })
     );
@@ -303,15 +441,6 @@ function getDatePartsInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE)
 function getWeekdayInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
-    timeZone,
-  }).format(date);
-}
-
-function getTimeHHMMInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
-  return new Intl.DateTimeFormat("sv-SE", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
     timeZone,
   }).format(date);
 }
@@ -371,76 +500,6 @@ function zonedLocalToUtcDate({
   return new Date(utcTime);
 }
 
-function getNextWeeklyRunAtIso(
-  weekday,
-  publishTime,
-  timeZone = DEFAULT_TIME_ZONE,
-  now = new Date()
-) {
-  const normalizedPublishTime = normalizeTime(publishTime);
-
-  if (!weekday || !normalizedPublishTime) {
-    return null;
-  }
-
-  const [hourValue, minuteValue] = normalizedPublishTime.split(":");
-
-  const hour = Number(hourValue);
-  const minute = Number(minuteValue);
-
-  if (
-    Number.isNaN(hour) ||
-    Number.isNaN(minute) ||
-    hour < 0 ||
-    hour > 23 ||
-    minute < 0 ||
-    minute > 59
-  ) {
-    return null;
-  }
-
-  const targetWeekdayIndex = dayOrder.findIndex(
-    (day) => day.toLowerCase() === String(weekday).toLowerCase()
-  );
-
-  if (targetWeekdayIndex === -1) {
-    return null;
-  }
-
-  const currentWeekday = getWeekdayInTimeZone(now, timeZone);
-
-  const currentWeekdayIndex = dayOrder.findIndex(
-    (day) => day.toLowerCase() === String(currentWeekday).toLowerCase()
-  );
-
-  if (currentWeekdayIndex === -1) {
-    return null;
-  }
-
-  const currentTime = getTimeHHMMInTimeZone(now, timeZone);
-
-  let daysUntilNextRun =
-    (targetWeekdayIndex - currentWeekdayIndex + 7) % 7;
-
-  if (daysUntilNextRun === 0 && normalizedPublishTime <= currentTime) {
-    daysUntilNextRun = 7;
-  }
-
-  const localParts = getDatePartsInTimeZone(now, timeZone);
-
-  const nextRunUtcDate = zonedLocalToUtcDate({
-    year: localParts.year,
-    month: localParts.month,
-    day: localParts.day + daysUntilNextRun,
-    hour,
-    minute,
-    second: 0,
-    timeZone,
-  });
-
-  return nextRunUtcDate.toISOString();
-}
-
 function getOneTimeRunAtIso(
   runDate,
   publishTime,
@@ -484,19 +543,51 @@ function getOneTimeRunAtIso(
   return runUtcDate.toISOString();
 }
 
+function getInitialWeeklyRunAtIsoFromStartDate(
+  startDate,
+  publishTime,
+  timeZone = DEFAULT_TIME_ZONE,
+  now = new Date()
+) {
+  let candidateDate = startDate;
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const candidateIso = getOneTimeRunAtIso(
+      candidateDate,
+      publishTime,
+      timeZone
+    );
+
+    if (!candidateIso) {
+      return null;
+    }
+
+    if (new Date(candidateIso) > now) {
+      return candidateIso;
+    }
+
+    candidateDate = addDaysToDateString(candidateDate, 7);
+  }
+
+  return null;
+}
+
 function getInitialNextRunAtIso({
   scheduleType,
-  weekday,
   publishTime,
-  runDate,
+  startDate,
   timeZone,
 }) {
   if (scheduleType === "once") {
-    return getOneTimeRunAtIso(runDate, publishTime, timeZone);
+    return getOneTimeRunAtIso(startDate, publishTime, timeZone);
   }
 
   if (scheduleType === "weekly") {
-    return getNextWeeklyRunAtIso(weekday, publishTime, timeZone);
+    return getInitialWeeklyRunAtIsoFromStartDate(
+      startDate,
+      publishTime,
+      timeZone
+    );
   }
 
   return null;
@@ -562,11 +653,35 @@ function getSlotCreditLabel(slot) {
   return "1 credit";
 }
 
+function getSlotScheduleSummary(slot, scheduleType, timeZone) {
+  const startLabel = formatStartDateLabel(slot.startDate, timeZone);
+  const weekday = getWeekdayFromDateString(slot.startDate, timeZone);
+  const time = normalizeTime(slot.publishTime);
+
+  if (scheduleType === "once") {
+    return `Runs once on ${startLabel} at ${time}`;
+  }
+
+  return `Starts ${startLabel} · Repeats every ${weekday} at ${time}`;
+}
+
 export default function AutomationPage() {
+  const initialStartDate = getDateInputValueInTimeZone(
+    new Date(),
+    DEFAULT_TIME_ZONE
+  );
+
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
 
-  const [slots, setSlots] = useState(() => createRecommendedSlots());
+  const [planStartDate, setPlanStartDate] = useState(initialStartDate);
+  const [defaultPublishTime, setDefaultPublishTime] = useState("08:35");
+  const [slots, setSlots] = useState(() =>
+    createRecommendedSlots({
+      startDate: initialStartDate,
+      publishTime: "08:35",
+    })
+  );
   const [planCreationMode, setPlanCreationMode] = useState("auto");
   const [selectedContentTypeIds, setSelectedContentTypeIds] = useState(
     recommendedContentTypeIds
@@ -577,7 +692,6 @@ export default function AutomationPage() {
   const [saving, setSaving] = useState(false);
 
   const [scheduleType, setScheduleType] = useState("weekly");
-  const [runDate, setRunDate] = useState("");
 
   const [planName, setPlanName] = useState("");
   const [platform, setPlatform] = useState("Instagram");
@@ -600,7 +714,22 @@ export default function AutomationPage() {
   const [deletingRules, setDeletingRules] = useState(false);
 
   useEffect(() => {
-    setTimeZone(getBrowserTimeZone());
+    const browserTimeZone = getBrowserTimeZone();
+    const browserStartDate = getDateInputValueInTimeZone(
+      new Date(),
+      browserTimeZone
+    );
+
+    setTimeZone(browserTimeZone);
+    setPlanStartDate(browserStartDate);
+    setSlots((currentSlots) =>
+      currentSlots.map((slot) => ({
+        ...slot,
+        startDate: browserStartDate,
+        weekday: getWeekdayFromDateString(browserStartDate, browserTimeZone),
+      }))
+    );
+
     loadRules();
   }, []);
 
@@ -715,9 +844,42 @@ export default function AutomationPage() {
 
   function updateSlot(slotId, field, value) {
     setSlots((currentSlots) =>
-      currentSlots.map((slot) =>
-        slot.id === slotId ? { ...slot, [field]: value } : slot
-      )
+      currentSlots.map((slot) => {
+        if (slot.id !== slotId) {
+          return slot;
+        }
+
+        if (field === "startDate") {
+          return {
+            ...slot,
+            startDate: value,
+            weekday: getWeekdayFromDateString(value, timeZone),
+          };
+        }
+
+        return { ...slot, [field]: value };
+      })
+    );
+  }
+
+  function updatePlanStartDate(value) {
+    setPlanStartDate(value);
+    setSlots((currentSlots) =>
+      currentSlots.map((slot) => ({
+        ...slot,
+        startDate: value,
+        weekday: getWeekdayFromDateString(value, timeZone),
+      }))
+    );
+  }
+
+  function updateDefaultPublishTime(value) {
+    setDefaultPublishTime(value);
+    setSlots((currentSlots) =>
+      currentSlots.map((slot) => ({
+        ...slot,
+        publishTime: value,
+      }))
     );
   }
 
@@ -730,7 +892,14 @@ export default function AutomationPage() {
   }
 
   function addSlot() {
-    setSlots((currentSlots) => [...currentSlots, createSlot()]);
+    setSlots((currentSlots) => [
+      ...currentSlots,
+      createSlot({
+        startDate: planStartDate,
+        publishTime: defaultPublishTime,
+        weekday: getWeekdayFromDateString(planStartDate, timeZone),
+      }),
+    ]);
   }
 
   function duplicateSlot(slotId) {
@@ -763,7 +932,12 @@ export default function AutomationPage() {
 
     if (mode === "auto") {
       setSelectedContentTypeIds(recommendedContentTypeIds);
-      setSlots(createRecommendedSlots());
+      setSlots(
+        createRecommendedSlots({
+          startDate: planStartDate,
+          publishTime: defaultPublishTime,
+        })
+      );
       return;
     }
 
@@ -777,13 +951,24 @@ export default function AutomationPage() {
         initialTypeIds
           .map(getContentTypeById)
           .filter(Boolean)
-          .map((type, index) => createSlotFromContentType(type, index))
+          .map((type, index) =>
+            createSlotFromContentType(type, index, {
+              startDate: planStartDate,
+              publishTime: defaultPublishTime,
+            })
+          )
       );
       return;
     }
 
     setSelectedContentTypeIds([]);
-    setSlots([createSlot("Monday")]);
+    setSlots([
+      createSlot({
+        startDate: planStartDate,
+        publishTime: defaultPublishTime,
+        weekday: getWeekdayFromDateString(planStartDate, timeZone),
+      }),
+    ]);
   }
 
   function toggleContentType(typeId) {
@@ -797,9 +982,24 @@ export default function AutomationPage() {
       const nextSlots = nextTypeIds
         .map(getContentTypeById)
         .filter(Boolean)
-        .map((type, index) => createSlotFromContentType(type, index));
+        .map((type, index) =>
+          createSlotFromContentType(type, index, {
+            startDate: planStartDate,
+            publishTime: defaultPublishTime,
+          })
+        );
 
-      setSlots(nextSlots.length ? nextSlots : [createSlot("Monday")]);
+      setSlots(
+        nextSlots.length
+          ? nextSlots
+          : [
+              createSlot({
+                startDate: planStartDate,
+                publishTime: defaultPublishTime,
+                weekday: getWeekdayFromDateString(planStartDate, timeZone),
+              }),
+            ]
+      );
 
       return nextTypeIds;
     });
@@ -809,7 +1009,12 @@ export default function AutomationPage() {
     setMessage("");
     setPlanCreationMode("auto");
     setSelectedContentTypeIds(recommendedContentTypeIds);
-    setSlots(createRecommendedSlots());
+    setSlots(
+      createRecommendedSlots({
+        startDate: planStartDate,
+        publishTime: defaultPublishTime,
+      })
+    );
   }
 
   function toggleRuleSelection(ruleId) {
@@ -914,8 +1119,17 @@ export default function AutomationPage() {
   async function savePlan() {
     setMessage("");
 
-    if (scheduleType === "once" && !runDate) {
-      setMessage("Choose a date for the one-time plan.");
+    const invalidDateSlot = slots.find((slot) => !slot.startDate);
+
+    if (invalidDateSlot) {
+      setMessage("Every planned post needs a start date.");
+      return;
+    }
+
+    const invalidTimeSlot = slots.find((slot) => !slot.publishTime);
+
+    if (invalidTimeSlot) {
+      setMessage("Every planned post needs a publishing time.");
       return;
     }
 
@@ -948,43 +1162,49 @@ export default function AutomationPage() {
 
     const selectedTimeZone = timeZone || DEFAULT_TIME_ZONE;
 
-    const rows = slots.map((slot) => ({
-      user_id: user.id,
-      name:
-        planName ||
-        slot.contentTypeLabel ||
-        `${slot.weekday} ${slot.publishTime}`,
-      weekday: slot.weekday,
-      publish_time: slot.publishTime,
-      prompt: slot.prompt,
-      platform,
-      tone,
-      language,
-      post_type: postType,
-      length,
-      cta_type: ctaType,
-      generate_image: slot.generateImage,
-      image_prompt: slot.imagePrompt,
-      include_emojis: slot.includeEmojis,
-      include_hashtags: slot.includeHashtags,
-      credit_cost: slot.generateImage ? 3 : 1,
-      schedule_type: scheduleType,
-      run_date: scheduleType === "once" ? runDate : null,
-      timezone: selectedTimeZone,
-      next_run_at: getInitialNextRunAtIso({
-        scheduleType,
-        weekday: slot.weekday,
-        publishTime: slot.publishTime,
-        runDate,
-        timeZone: selectedTimeZone,
-      }),
-      approval_required: approvalRequired,
-      is_active: true,
-      content_type_id: slot.contentTypeId,
-      content_type_label: slot.contentTypeLabel,
-      uses_website_content: Boolean(slot.usesWebsiteContent),
-      updated_at: new Date().toISOString(),
-    }));
+    const rows = slots.map((slot) => {
+      const slotWeekday = getWeekdayFromDateString(
+        slot.startDate,
+        selectedTimeZone
+      );
+
+      return {
+        user_id: user.id,
+        name:
+          planName ||
+          slot.contentTypeLabel ||
+          `${slotWeekday} ${slot.publishTime}`,
+        weekday: slotWeekday,
+        publish_time: slot.publishTime,
+        prompt: slot.prompt,
+        platform,
+        tone,
+        language,
+        post_type: postType,
+        length,
+        cta_type: ctaType,
+        generate_image: slot.generateImage,
+        image_prompt: slot.imagePrompt,
+        include_emojis: slot.includeEmojis,
+        include_hashtags: slot.includeHashtags,
+        credit_cost: slot.generateImage ? 3 : 1,
+        schedule_type: scheduleType,
+        run_date: slot.startDate,
+        timezone: selectedTimeZone,
+        next_run_at: getInitialNextRunAtIso({
+          scheduleType,
+          publishTime: slot.publishTime,
+          startDate: slot.startDate,
+          timeZone: selectedTimeZone,
+        }),
+        approval_required: approvalRequired,
+        is_active: true,
+        content_type_id: slot.contentTypeId,
+        content_type_label: slot.contentTypeLabel,
+        uses_website_content: Boolean(slot.usesWebsiteContent),
+        updated_at: new Date().toISOString(),
+      };
+    });
 
     const { error } = await supabase.from("automation_rules").insert(rows);
 
@@ -1000,12 +1220,29 @@ export default function AutomationPage() {
 
       if (planCreationMode === "auto") {
         setSelectedContentTypeIds(recommendedContentTypeIds);
-        setSlots(createRecommendedSlots());
+        setSlots(
+          createRecommendedSlots({
+            startDate: planStartDate,
+            publishTime: defaultPublishTime,
+          })
+        );
       } else if (planCreationMode === "select") {
         setSelectedContentTypeIds([]);
-        setSlots([createSlot("Monday")]);
+        setSlots([
+          createSlot({
+            startDate: planStartDate,
+            publishTime: defaultPublishTime,
+            weekday: getWeekdayFromDateString(planStartDate, timeZone),
+          }),
+        ]);
       } else {
-        setSlots([createSlot("Monday")]);
+        setSlots([
+          createSlot({
+            startDate: planStartDate,
+            publishTime: defaultPublishTime,
+            weekday: getWeekdayFromDateString(planStartDate, timeZone),
+          }),
+        ]);
       }
 
       await loadRules();
@@ -1225,7 +1462,7 @@ export default function AutomationPage() {
                       <span>2</span>
                       <p>
                         <strong>Posts & schedule</strong>
-                        Adjust the generated rows and times.
+                        Choose start date, repeat and publishing time.
                       </p>
                     </div>
                     <div className="next-step">
@@ -1255,43 +1492,11 @@ export default function AutomationPage() {
               <div className="wizard-card-title">
                 <div>
                   <h3>Plan basics</h3>
-                  <p>Choose whether this is a recurring or one-time plan.</p>
+                  <p>Name the plan and choose default post settings later.</p>
                 </div>
               </div>
 
               <div className="wizard-form-row">
-                <div>
-                  <label>Plan type</label>
-                  <div className="plan-toggle">
-                    <button
-                      type="button"
-                      className={scheduleType === "weekly" ? "active" : ""}
-                      onClick={() => setScheduleType("weekly")}
-                    >
-                      Repeats every week
-                    </button>
-                    <button
-                      type="button"
-                      className={scheduleType === "once" ? "active" : ""}
-                      onClick={() => setScheduleType("once")}
-                    >
-                      One-time plan
-                    </button>
-                  </div>
-                </div>
-
-                {scheduleType === "once" && (
-                  <div>
-                    <label>Run date</label>
-                    <input
-                      className="input"
-                      type="date"
-                      value={runDate}
-                      onChange={(event) => setRunDate(event.target.value)}
-                    />
-                  </div>
-                )}
-
                 <div>
                   <label>Plan name</label>
                   <input
@@ -1309,7 +1514,8 @@ export default function AutomationPage() {
                 <div>
                   <h3>Posts & schedule</h3>
                   <p>
-                    Adjust days, times and post instructions before saving.
+                    Choose when the plan starts and adjust individual posts if
+                    needed.
                   </p>
                 </div>
                 <button
@@ -1319,6 +1525,66 @@ export default function AutomationPage() {
                 >
                   + Add post
                 </button>
+              </div>
+
+              <div className="wizard-form-row">
+                <div>
+                  <label>Start date</label>
+                  <input
+                    className="input"
+                    type="date"
+                    value={planStartDate}
+                    onChange={(event) =>
+                      updatePlanStartDate(event.target.value)
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label>Repeat</label>
+                  <select
+                    className="input"
+                    value={scheduleType}
+                    onChange={(event) => setScheduleType(event.target.value)}
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="once">One time</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label>Default time</label>
+                  <input
+                    className="input time-input"
+                    type="time"
+                    value={defaultPublishTime}
+                    onChange={(event) =>
+                      updateDefaultPublishTime(event.target.value)
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="mini-info-card">
+                <strong>
+                  {scheduleType === "weekly"
+                    ? `Repeats every ${getWeekdayFromDateString(
+                        planStartDate,
+                        timeZone
+                      )}`
+                    : "Runs once"}
+                </strong>
+                <p>
+                  {scheduleType === "weekly"
+                    ? `The plan starts on ${formatStartDateLabel(
+                        planStartDate,
+                        timeZone
+                      )} and then continues weekly.`
+                    : `The plan runs once on ${formatStartDateLabel(
+                        planStartDate,
+                        timeZone
+                      )}.`}
+                </p>
               </div>
 
               <div className="planned-list cleaner">
@@ -1341,11 +1607,15 @@ export default function AutomationPage() {
                           <div>
                             <p>Planned post {index + 1}</p>
                             <h4>
-                              {slot.weekday} · {slot.publishTime}
-                              {slot.contentTypeLabel
-                                ? ` · ${slot.contentTypeLabel}`
-                                : ""}
+                              {displayLabel} · {normalizeTime(slot.publishTime)}
                             </h4>
+                            <small>
+                              {getSlotScheduleSummary(
+                                slot,
+                                scheduleType,
+                                timeZone
+                              )}
+                            </small>
                           </div>
 
                           <div className="row-actions">
@@ -1367,34 +1637,37 @@ export default function AutomationPage() {
                         </div>
 
                         <div className="planned-fields wizard-planned-fields">
-                          <select
-                            className="input"
-                            value={slot.weekday}
-                            onChange={(event) =>
-                              updateSlot(
-                                slot.id,
-                                "weekday",
-                                event.target.value
-                              )
-                            }
-                          >
-                            {weekdays.map((day) => (
-                              <option key={day}>{day}</option>
-                            ))}
-                          </select>
+                          <div>
+                            <label>Start date</label>
+                            <input
+                              className="input"
+                              type="date"
+                              value={slot.startDate}
+                              onChange={(event) =>
+                                updateSlot(
+                                  slot.id,
+                                  "startDate",
+                                  event.target.value
+                                )
+                              }
+                            />
+                          </div>
 
-                          <input
-                            className="input time-input"
-                            type="time"
-                            value={slot.publishTime}
-                            onChange={(event) =>
-                              updateSlot(
-                                slot.id,
-                                "publishTime",
-                                event.target.value
-                              )
-                            }
-                          />
+                          <div>
+                            <label>Time</label>
+                            <input
+                              className="input time-input"
+                              type="time"
+                              value={slot.publishTime}
+                              onChange={(event) =>
+                                updateSlot(
+                                  slot.id,
+                                  "publishTime",
+                                  event.target.value
+                                )
+                              }
+                            />
+                          </div>
                         </div>
 
                         {planCreationMode === "manual" ? (
@@ -1845,10 +2118,23 @@ export default function AutomationPage() {
                   <strong>{formatPlanMode(planCreationMode)}</strong>
                 </div>
                 <div>
+                  <span>Starts</span>
+                  <strong>{formatStartDateLabel(planStartDate, timeZone)}</strong>
+                </div>
+                <div>
                   <span>Repeats</span>
                   <strong>
-                    {scheduleType === "weekly" ? "Every week" : "One time"}
+                    {scheduleType === "weekly"
+                      ? `Every ${getWeekdayFromDateString(
+                          planStartDate,
+                          timeZone
+                        )}`
+                      : "One time"}
                   </strong>
+                </div>
+                <div>
+                  <span>Default time</span>
+                  <strong>{defaultPublishTime}</strong>
                 </div>
                 <div>
                   <span>Posts</span>
