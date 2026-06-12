@@ -1419,20 +1419,16 @@ export default function AutomationPage() {
     monthlyCreditLimit > 0
       ? Math.min(100, Math.round((creditsRemaining / monthlyCreditLimit) * 100))
       : 0;
-  const creditRenewDate = formatRenewDate(
-    creditBalance?.current_period_end,
+const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
+  const subscriptionDateLabel = getSubscriptionDateLabel(creditBalance);
+  const subscriptionDateValue = getSubscriptionDateValue(
+    creditBalance,
     timeZone
   );
-  const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
-const subscriptionDateLabel = getSubscriptionDateLabel(creditBalance);
-const subscriptionDateValue = getSubscriptionDateValue(
-  creditBalance,
-  timeZone
-);
-const subscriptionNextStepText = getSubscriptionNextStepText(creditBalance);
-const subscriptionStatusLabel = getSubscriptionStatusLabel(
-  creditBalance?.subscription_status
-);
+  const subscriptionNextStepText = getSubscriptionNextStepText(creditBalance);
+  const subscriptionStatusLabel = getSubscriptionStatusLabel(
+    creditBalance?.subscription_status
+  );
 
   const savedRulesPreview = rules.slice(0, 3);
   const visibleRules = showSavedRules ? rules : savedRulesPreview;
