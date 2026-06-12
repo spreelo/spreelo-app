@@ -2839,11 +2839,14 @@ function changeAutoPlanGoal(goalId) {
             </section>
           </main>
 
-          <aside className="wizard-sidebar">
-            <section className="wizard-summary-card">
-              <h3>Plan summary</h3>
+                   <aside className="planner-sidebar">
+            <section className="planner-summary-card">
+              <div className="planner-sidebar-title">
+                <span>▤</span>
+                <h3>Plan summary</h3>
+              </div>
 
-              <div className="summary-list">
+              <div className="planner-summary-list">
                 <div>
                   <span>Method</span>
                   <strong>{formatPlanMode(planCreationMode)}</strong>
@@ -2857,119 +2860,81 @@ function changeAutoPlanGoal(goalId) {
                 )}
 
                 <div>
-                  <span>Current step</span>
-                  <strong>{getWizardStepOneLabel(planCreationMode)}</strong>
+                  <span>Posts per week</span>
+                  <strong>
+                    {scheduleType === "weekly"
+                      ? `${slots.length} posts`
+                      : "One time"}
+                  </strong>
                 </div>
 
                 <div>
-                  <span>Starts</span>
-                  <strong>{formatStartDateLabel(planStartDate, timeZone)}</strong>
-                </div>
-                <div>
-                  <span>Repeats</span>
+                  <span>Start</span>
                   <strong>
-                    {scheduleType === "weekly" ? "Weekly" : "One time"}
+                    {formatStartDateLabel(planStartDate, timeZone)},{" "}
+                    {defaultPublishTime}
                   </strong>
                 </div>
+
                 <div>
-                  <span>First time</span>
-                  <strong>{defaultPublishTime}</strong>
+                  <span>Time period</span>
+                  <strong>{scheduleType === "weekly" ? "Weekly" : "Once"}</strong>
                 </div>
+
                 <div>
-                  <span>Posts</span>
+                  <span>Total posts</span>
                   <strong>{slots.length}</strong>
                 </div>
-                <div>
-                  <span>Website posts</span>
-                  <strong>{websiteContentCount}</strong>
-                </div>
-                <div>
-                  <span>Text only</span>
-                  <strong>{textOnlyCount}</strong>
-                </div>
-                <div>
-                  <span>Text + image</span>
-                  <strong>{imageCount}</strong>
-                </div>
-                <div>
-                  <span>Language</span>
-                  <strong>{formatLanguage(language)}</strong>
-                </div>
+
                 <div>
                   <span>Credits</span>
                   <strong>{plannedCredits}</strong>
                 </div>
-                <div>
-                  <span>Monthly estimate</span>
-                  <strong>{monthlyEstimate}</strong>
-                </div>
               </div>
 
               {creditBalance && !hasEnoughCredits && (
-                <div className="credit-warning sidebar-warning">
+                <div className="planner-sidebar-warning">
                   This plan needs {plannedCredits} credits, but you only have{" "}
                   {creditBalance.credits_remaining} credits remaining.
                 </div>
               )}
             </section>
 
-            <section className="wizard-credit-card">
-              <div className="credit-card-header">
-                <div>
-                  <p>Subscription credits</p>
-                  <h3>Credits</h3>
-                </div>
-                <span>{subscriptionPlanLabel}</span>
+            <section className="planner-credits-card">
+              <div className="planner-sidebar-title">
+                <span>ⓘ</span>
+                <h3>Credits</h3>
               </div>
 
               {creditBalance ? (
                 <>
-                  <div className="credit-big-number">
+                  <div className="planner-credit-number">
                     <strong>{creditsRemaining}</strong>
-                    <span>of {monthlyCreditLimit || "—"} credits left</span>
+                    <span>/ {monthlyCreditLimit || "—"} credits left</span>
                   </div>
 
-                  <div className="credit-progress">
+                  <div className="planner-credit-progress">
                     <div style={{ width: `${creditUsagePercent}%` }} />
                   </div>
 
-                  <div className="summary-list credit-summary-list">
-                    <div>
-                      <span>This plan uses</span>
-                      <strong>{plannedCredits}</strong>
-                    </div>
+                  <p className="planner-credit-reset">
+                    {subscriptionDateLabel}: {subscriptionDateValue}
+                  </p>
 
-                    <div>
-                      <span>After saving</span>
-                      <strong>{creditsAfterSaving}</strong>
-                    </div>
-
-                 <div>
-  <span>{subscriptionDateLabel}</span>
-  <strong>{subscriptionDateValue}</strong>
-</div>
-
-<div>
-  <span>
-    {creditBalance.subscription_status === "trialing"
-      ? "After trial"
-      : "Subscription"}
-  </span>
-  <strong>{subscriptionNextStepText}</strong>
-</div>
-
-<div>
-  <span>Status</span>
-  <strong>{subscriptionStatusLabel}</strong>
-</div>
+                  <div className="planner-credit-included">
+                    ✓ Credits included in {subscriptionPlanLabel}
                   </div>
 
-                  {!hasEnoughCredits && (
-                    <div className="credit-warning sidebar-warning">
-                      This plan needs {plannedCredits} credits, but you only have{" "}
-                      {creditsRemaining} credits remaining.
-                    </div>
-                  )}
+                  <div className="planner-credit-wave" />
+
+                  <div className="planner-credit-footer">
+                    <strong>{subscriptionStatusLabel}</strong>
+                    <span>{subscriptionNextStepText}</span>
+                  </div>
+
+                  <button type="button" className="planner-upgrade-button">
+                    Upgrade plan
+                  </button>
                 </>
               ) : (
                 <div className="summary-note">
