@@ -2050,8 +2050,14 @@ select.input {
   line-height: 1.45;
 }
 
+/* ===== Spreelo automation redesign - saved plans compact ===== */
+
 .saved-card-compact {
-  padding: 22px;
+  padding: 18px;
+  border-radius: 22px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.035);
 }
 
 .saved-header {
@@ -2059,265 +2065,40 @@ select.input {
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .saved-header p {
-  margin: 0 0 6px;
-  color: #4338ca;
+  margin: 0 0 5px;
+  color: #5b21b6;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  font-size: 12px;
-  font-weight: 900;
+  font-size: 11px;
+  font-weight: 950;
 }
 
 .saved-header h3 {
   margin: 0;
-  font-size: 24px;
   color: #111827;
+  font-size: 22px;
+  letter-spacing: -0.04em;
 }
 
-.saved-rule-list {
-  display: grid;
-  gap: 12px;
-}
-
-.saved-rule-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  padding: 14px;
+.saved-header .secondary-button {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 11px;
   background: #ffffff;
-}
-
-.saved-rule-card h4 {
-  margin: 0 0 5px;
-  font-size: 16px;
-  color: #111827;
-}
-
-.saved-rule-card p {
-  margin: 0 0 6px;
-  color: #6b7280;
-  font-size: 13px;
-}
-
-.saved-rule-card small {
-  color: #6b7280;
-}
-
-.show-more-rules {
-  border: 1px dashed #c7d2fe;
-  background: #f5f3ff;
-  color: #4338ca;
-  border-radius: 14px;
-  padding: 13px;
+  font-size: 12px;
   font-weight: 900;
-  cursor: pointer;
 }
 
-@media (max-width: 1200px) {
-  .wizard-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .wizard-sidebar {
-    position: static;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 1000px) {
-  .wizard-method-grid,
-  .wizard-content-type-grid,
-  .wizard-info-grid,
-  .wizard-settings-card .settings-panel,
-  .wizard-form-row,
-  .wizard-planned-fields {
-    grid-template-columns: 1fr;
-  }
-
-  .wizard-settings-card .save-plan-button {
-    grid-column: span 1;
-  }
-
-  .wizard-sidebar {
-    grid-template-columns: 1fr;
-  }
-
-  .wizard-steps {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .wizard-line {
-    display: none;
-  }
-
-  .wizard-step {
-    white-space: normal;
-  }
-}
-
-@media (max-width: 700px) {
-  .wizard-header,
-  .wizard-card-title,
-  .wizard-subtitle-row,
-  .saved-header,
-  .saved-rule-card,
-  .wizard-planned-row .planned-top {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .wizard-header h2 {
-    font-size: 30px;
-  }
-
-  .wizard-card {
-    padding: 20px;
-    border-radius: 22px;
-  }
-
-  .wizard-method-card {
-    min-height: auto;
-  }
-
-  .preview-thumbs {
-    grid-template-columns: 1fr;
-  }
-}
-/* ===== Cleaner post instructions in automation wizard ===== */
-
-.instruction-summary-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 14px;
-  padding: 14px 16px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 16px;
-  background: rgba(248, 250, 252, 0.85);
-}
-
-.instruction-summary-main {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  min-width: 0;
-}
-
-.instruction-summary-main strong {
-  display: block;
-  color: #111827;
-  font-size: 14px;
-  margin-bottom: 3px;
-}
-
-.instruction-summary-main p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.instruction-pill {
-  flex: 0 0 auto;
-  padding: 6px 9px;
-  border-radius: 999px;
-  background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  color: #475569;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.edit-instructions-button {
-  flex: 0 0 auto;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: #fff;
-  color: #111827;
-  border-radius: 999px;
-  padding: 9px 12px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.edit-instructions-button:hover {
-  background: #f8fafc;
-}
-
-.instruction-editor {
-  margin-top: 14px;
-  display: grid;
-  gap: 8px;
-}
-
-.instruction-editor.always-open {
-  margin-top: 14px;
-}
-
-.instruction-editor label {
-  color: #475569;
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.prompt-textarea {
-  min-height: 92px;
-  resize: vertical;
-  line-height: 1.45;
-}
-
-@media (max-width: 760px) {
-  .instruction-summary-card {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .instruction-summary-main {
-    flex-direction: column;
-  }
-
-  .edit-instructions-button {
-    width: 100%;
-  }
-}
-.mini-info-card {
-  margin-top: 22px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.62);
-}
-
-.mini-info-card strong {
-  display: block;
-  margin-bottom: 6px;
-  color: #111827;
-  font-size: 14px;
-}
-
-.mini-info-card p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 14px;
-  line-height: 1.55;
-}
 .saved-bulk-actions {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin: 14px 0 14px;
+  margin: 0 0 12px;
   padding: 10px 12px;
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 14px;
@@ -2325,88 +2106,142 @@ select.input {
 }
 
 .saved-bulk-actions .image-check {
-  display: inline-flex;
+  display: inline-flex !important;
   align-items: center;
   gap: 8px;
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
+  margin: 0 !important;
   color: #334155;
+  font-size: 12px;
+  font-weight: 850;
   white-space: nowrap;
+}
+
+.saved-bulk-actions .image-check input {
+  width: 14px;
+  height: 14px;
 }
 
 .saved-bulk-actions span {
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .saved-bulk-actions .tiny-button,
 .saved-bulk-actions .danger-button {
-  margin-left: 0;
-  height: 34px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 11px;
   border-radius: 10px;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .delete-confirm-note {
   color: #b91c1c !important;
   font-size: 12px !important;
-  font-weight: 700;
+  font-weight: 800;
+}
+
+.saved-rule-list {
+  display: grid;
+  gap: 10px;
 }
 
 .saved-rule-card {
   display: grid;
-  grid-template-columns: 22px 1fr auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
-  padding: 16px 14px;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 16px;
+  gap: 12px;
+  padding: 13px 13px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 15px;
   background: #ffffff;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.saved-rule-card:hover {
+  border-color: rgba(124, 58, 237, 0.14);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.03);
+}
+
+.saved-rule-card.selected {
+  border-color: rgba(109, 93, 252, 0.24);
+  background: #fbfaff;
+  box-shadow: none;
 }
 
 .saved-rule-card > .image-check {
-  margin: 0;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
+  margin: 0 !important;
 }
 
 .saved-rule-card > .image-check input {
   margin: 0;
-  width: 15px;
-  height: 15px;
-}
-
-.saved-rule-card.selected {
-  border-color: rgba(99, 102, 241, 0.2);
-  background: rgba(99, 102, 241, 0.025);
-  box-shadow: none;
-}
-
-.saved-rule-card.selected h4 {
-  color: #111827;
-}
-
-.saved-rule-card .danger-button {
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 10px;
+  width: 14px;
+  height: 14px;
 }
 
 .saved-rule-card h4 {
   margin: 0 0 4px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 950;
 }
 
 .saved-rule-card p {
-  margin: 0 0 5px;
+  margin: 0 0 4px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .saved-rule-card small {
   color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.saved-rule-card .danger-button {
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 10px;
+  background: #fff7f7;
+  border-color: #fecaca;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.saved-rule-card .danger-button:hover {
+  background: #ffe4e6;
+}
+
+.show-more-rules {
+  border: 1px dashed rgba(124, 58, 237, 0.28);
+  background: #fbfaff;
+  color: #5b21b6;
+  border-radius: 14px;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.show-more-rules:hover {
+  background: #f7f4ff;
 }
 
 @media (max-width: 720px) {
+  .saved-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .saved-rule-card {
     grid-template-columns: 22px 1fr;
   }
