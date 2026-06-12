@@ -2917,19 +2917,25 @@ function changeAutoPlanGoal(goalId) {
                     <div style={{ width: `${creditUsagePercent}%` }} />
                   </div>
 
-                  <p className="planner-credit-reset">
+                            <p className="planner-credit-reset">
                     {subscriptionDateLabel}: {subscriptionDateValue}
                   </p>
 
                   <div className="planner-credit-included">
-                    ✓ Credits included in {subscriptionPlanLabel}
+                    <span className="planner-credit-included-icon">✓</span>
+                    <span>
+                      Credits included in{" "}
+                      {creditBalance.subscription_status === "trialing"
+                        ? "Starter trial"
+                        : subscriptionPlanLabel}
+                    </span>
                   </div>
 
                   <div className="planner-credit-wave" />
 
-                  <div className="planner-credit-footer">
-                    <strong>{subscriptionStatusLabel}</strong>
-                    <span>{subscriptionNextStepText}</span>
+                  <div className="planner-credit-help">
+                    <strong>Need more credits?</strong>
+                    <p>Upgrade your plan for more posts and features.</p>
                   </div>
 
                   <button type="button" className="planner-upgrade-button">
