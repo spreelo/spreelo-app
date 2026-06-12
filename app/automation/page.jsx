@@ -1784,27 +1784,27 @@ export default function AutomationPage() {
           </button>
         </header>
 
-        <section className="wizard-steps">
-          <div className="wizard-step completed">
-            <span>1</span>
-            <strong>Basics</strong>
-          </div>
-          <div className="wizard-line" />
-          <div className="wizard-step active">
-            <span>2</span>
-            <strong>Choose method</strong>
-          </div>
-          <div className="wizard-line" />
-          <div className="wizard-step">
-            <span>3</span>
-            <strong>Posts & schedule</strong>
-          </div>
-          <div className="wizard-line" />
-          <div className="wizard-step">
-            <span>4</span>
-            <strong>Review & save</strong>
-          </div>
-        </section>
+   <section className="wizard-steps">
+  <div className="wizard-step active">
+    <span>1</span>
+    <strong>Choose strategy</strong>
+  </div>
+  <div className="wizard-line" />
+  <div className="wizard-step">
+    <span>2</span>
+    <strong>Posts & schedule</strong>
+  </div>
+  <div className="wizard-line" />
+  <div className="wizard-step">
+    <span>3</span>
+    <strong>Settings</strong>
+  </div>
+  <div className="wizard-line" />
+  <div className="wizard-step">
+    <span>4</span>
+    <strong>Review & save</strong>
+  </div>
+</section>
 
         <div className="wizard-layout">
           <main className="wizard-main">
