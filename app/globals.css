@@ -4788,3 +4788,100 @@ select.input {
     grid-template-columns: 1fr;
   }
 }
+/* ===== Spreelo automation redesign - premium plan summary ===== */
+
+.planner-summary-card {
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
+}
+
+.planner-summary-title {
+  align-items: flex-start;
+}
+
+.planner-summary-title > span {
+  background: #f3f0ff;
+  color: #5b21b6;
+}
+
+.planner-summary-title h3 {
+  margin: 0 0 4px;
+}
+
+.planner-summary-title p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.planner-summary-list.premium {
+  display: grid;
+  gap: 0;
+  padding: 2px 0 4px;
+}
+
+.planner-summary-list.premium div {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.78);
+}
+
+.planner-summary-list.premium div:last-child {
+  border-bottom: 0;
+}
+
+.planner-summary-list.premium span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.planner-summary-list.premium strong {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1.35;
+}
+
+.planner-summary-status {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  align-items: start;
+  margin-top: 14px;
+  padding: 13px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f7f4ff 0%, #fdfcff 100%);
+  border: 1px solid rgba(124, 58, 237, 0.14);
+}
+
+.planner-summary-status > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(109, 40, 217, 0.1);
+  color: #6d28d9;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.planner-summary-status strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.planner-summary-status p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 650;
+}
