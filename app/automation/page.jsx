@@ -2911,10 +2911,11 @@ const subscriptionStatusLabel = getSubscriptionStatusLabel(
                       <strong>{creditsAfterSaving}</strong>
                     </div>
 
-                    <div>
-                      <span>Renews</span>
-                   <span>{subscriptionDateLabel}</span>
-<strong>{subscriptionDateValue}</strong>
+                 <div>
+  <span>{subscriptionDateLabel}</span>
+  <strong>{subscriptionDateValue}</strong>
+</div>
+
 <div>
   <span>
     {creditBalance.subscription_status === "trialing"
@@ -2923,12 +2924,11 @@ const subscriptionStatusLabel = getSubscriptionStatusLabel(
   </span>
   <strong>{subscriptionNextStepText}</strong>
 </div>
-                    </div>
 
-                    <div>
-                      <span>Status</span>
-                      <strong>{subscriptionStatusLabel}</strong>
-                    </div>
+<div>
+  <span>Status</span>
+  <strong>{subscriptionStatusLabel}</strong>
+</div>
                   </div>
 
                   {!hasEnoughCredits && (
