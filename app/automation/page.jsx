@@ -40,6 +40,14 @@ const recommendedWeeklySchedule = [
     weekday: "Friday",
     publishTime: "09:00",
   },
+  {
+    weekday: "Saturday",
+    publishTime: "10:00",
+  },
+  {
+    weekday: "Sunday",
+    publishTime: "10:00",
+  },
 ];
 
 const recommendedTimesByWeekday = recommendedWeeklySchedule.reduce(
