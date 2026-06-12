@@ -4531,3 +4531,198 @@ select.input {
     grid-template-columns: 1fr;
   }
 }
+/* ===== Spreelo automation redesign - right sidebar ===== */
+
+.planner-sidebar {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 16px;
+  align-self: start;
+}
+
+.planner-summary-card,
+.planner-credits-card {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 22px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.035);
+}
+
+.planner-sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 18px;
+}
+
+.planner-sidebar-title span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.planner-sidebar-title h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 19px;
+  letter-spacing: -0.035em;
+}
+
+.planner-summary-list {
+  display: grid;
+  gap: 0;
+}
+
+.planner-summary-list div {
+  display: grid;
+  gap: 5px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.planner-summary-list div:last-child {
+  border-bottom: 0;
+}
+
+.planner-summary-list span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.planner-summary-list strong {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1.35;
+}
+
+.planner-sidebar-warning {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.planner-credit-number {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.planner-credit-number strong {
+  color: #111827;
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: -0.065em;
+}
+
+.planner-credit-number span {
+  color: #475467;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.planner-credit-progress {
+  height: 9px;
+  border-radius: 999px;
+  background: #eef2ff;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.planner-credit-progress div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6d28d9, #4f46e5);
+}
+
+.planner-credit-reset {
+  margin: 0 0 14px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.planner-credit-included {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  border-radius: 13px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 950;
+  margin-bottom: 16px;
+}
+
+.planner-credit-wave {
+  height: 54px;
+  border-radius: 18px;
+  margin: 0 -4px 16px;
+  background:
+    radial-gradient(circle at 22% 100%, rgba(124, 58, 237, 0.13), transparent 42%),
+    radial-gradient(circle at 72% 90%, rgba(79, 70, 229, 0.14), transparent 44%),
+    linear-gradient(180deg, #ffffff 0%, #f5f3ff 100%);
+}
+
+.planner-credit-footer {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.planner-credit-footer strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.planner-credit-footer span {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.planner-upgrade-button {
+  width: 100%;
+  height: 46px;
+  border: 1px solid rgba(109, 93, 252, 0.35);
+  border-radius: 13px;
+  background: #ffffff;
+  color: #5b21b6;
+  font-size: 13px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.planner-upgrade-button:hover {
+  background: #f7f4ff;
+}
+
+@media (max-width: 1200px) {
+  .planner-sidebar {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .planner-sidebar {
+    grid-template-columns: 1fr;
+  }
+}
