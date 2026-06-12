@@ -935,6 +935,29 @@ function formatPlanMode(value) {
   return "Manual prompt";
 }
 
+function getWizardStepOneLabel(value) {
+  if (value === "auto") return "Choose goal";
+  if (value === "select") return "Choose content types";
+  if (value === "manual") return "Write prompt";
+  return "Choose strategy";
+}
+
+function getWizardStepOneDescription(value) {
+  if (value === "auto") {
+    return "Choose a goal and let Spreelo build the strategy.";
+  }
+
+  if (value === "select") {
+    return "Choose the content types you want in the plan.";
+  }
+
+  if (value === "manual") {
+    return "Write your own instructions for the planned post.";
+  }
+
+  return "Choose how Spreelo should build the plan.";
+}
+
 function getSlotDisplayLabel(slot) {
   if (slot.contentTypeLabel) return slot.contentTypeLabel;
 
@@ -1784,27 +1807,27 @@ export default function AutomationPage() {
           </button>
         </header>
 
-   <section className="wizard-steps">
-  <div className="wizard-step active">
-    <span>1</span>
-    <strong>Choose strategy</strong>
-  </div>
-  <div className="wizard-line" />
-  <div className="wizard-step">
-    <span>2</span>
-    <strong>Posts & schedule</strong>
-  </div>
-  <div className="wizard-line" />
-  <div className="wizard-step">
-    <span>3</span>
-    <strong>Settings</strong>
-  </div>
-  <div className="wizard-line" />
-  <div className="wizard-step">
-    <span>4</span>
-    <strong>Save plan</strong>
-  </div>
-</section>
+        <section className="wizard-steps">
+          <div className="wizard-step active">
+            <span>1</span>
+            <strong>{getWizardStepOneLabel(planCreationMode)}</strong>
+          </div>
+          <div className="wizard-line" />
+          <div className="wizard-step">
+            <span>2</span>
+            <strong>Posts & schedule</strong>
+          </div>
+          <div className="wizard-line" />
+          <div className="wizard-step">
+            <span>3</span>
+            <strong>Settings</strong>
+          </div>
+          <div className="wizard-line" />
+          <div className="wizard-step">
+            <span>4</span>
+            <strong>Save plan</strong>
+          </div>
+        </section>
 
         <div className="wizard-layout">
           <main className="wizard-main">
@@ -1832,7 +1855,7 @@ export default function AutomationPage() {
                   </div>
                   <div className="method-illustration">🪄</div>
                   <span>Recommended</span>
-                  <h4>1. Auto-plan</h4>
+                  <h4>Auto-plan</h4>
                   <p>
                     Choose a goal and let Spreelo build a weekly strategy with
                     the right mix of post types.
@@ -1857,7 +1880,7 @@ export default function AutomationPage() {
                   </div>
                   <div className="method-illustration">🎛️</div>
                   <span>Flexible</span>
-                  <h4>2. Choose content types</h4>
+                  <h4>Choose content types</h4>
                   <p>
                     Pick the types of posts you want, and Spreelo builds the
                     plan around your choices.
@@ -1882,7 +1905,7 @@ export default function AutomationPage() {
                   </div>
                   <div className="method-illustration">📝</div>
                   <span>Advanced</span>
-                  <h4>3. Manual prompt</h4>
+                  <h4>Manual prompt</h4>
                   <p>
                     Write exactly what every post should be about and control
                     the details yourself.
@@ -1936,7 +1959,7 @@ export default function AutomationPage() {
                 <div className="wizard-content-types">
                   <div className="wizard-subtitle-row">
                     <div>
-                      <h4>Select content types</h4>
+                      <h4>Choose content types</h4>
                       <p>
                         Each selected type becomes a planned post with a
                         ready-made prompt.
@@ -2020,45 +2043,35 @@ export default function AutomationPage() {
                     <div className="next-step">
                       <span>3</span>
                       <p>
-                        <strong>Review & save</strong>
-                        Activate the plan when it looks good.
+                        <strong>Settings & save</strong>
+                        Choose defaults and save the plan.
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {planCreationMode === "manual" && (
+              {planCreationMode === "select" && (
                 <div className="wizard-info-box single">
-                  <h4>Manual prompt mode</h4>
+                  <h4>How Choose content types works</h4>
                   <p>
-                    This mode is best when you already know exactly what each
-                    post should be about. Start with one row below and add more
-                    if needed.
+                    Select the types of posts you want in the plan. Spreelo
+                    fills the plan with ready-made instructions, but you can
+                    still edit each post before saving.
                   </p>
                 </div>
               )}
-            </section>
 
-            <section className="wizard-card compact">
-              <div className="wizard-card-title">
-                <div>
-                  <h3>Plan basics</h3>
-                  <p>Name the plan and choose default post settings later.</p>
+              {planCreationMode === "manual" && (
+                <div className="wizard-info-box single">
+                  <h4>Write prompt</h4>
+                  <p>
+                    This mode is best when you already know exactly what each
+                    post should be about. Write your own instructions in the
+                    planned post below.
+                  </p>
                 </div>
-              </div>
-
-              <div className="wizard-form-row">
-                <div>
-                  <label>Plan name</label>
-                  <input
-                    className="input"
-                    value={planName}
-                    onChange={(event) => setPlanName(event.target.value)}
-                    placeholder="Example: Weekly social media plan"
-                  />
-                </div>
-              </div>
+              )}
             </section>
 
             <section className="wizard-card">
@@ -2363,12 +2376,25 @@ export default function AutomationPage() {
 
             <section className="settings-card wizard-settings-card">
               <div className="setup-title">
-                <p>Step 4</p>
-                <h3>Default post settings</h3>
-                <span>These settings apply to all rows in this plan.</span>
+                <p>Step 3</p>
+                <h3>Settings</h3>
+                <span>
+                  Name the plan and choose default settings for all rows in this
+                  plan.
+                </span>
               </div>
 
               <div className="settings-panel">
+                <div className="setting-tile setting-tile-wide">
+                  <span>Plan name</span>
+                  <input
+                    className="input"
+                    value={planName}
+                    onChange={(event) => setPlanName(event.target.value)}
+                    placeholder="Example: Weekly social media plan"
+                  />
+                </div>
+
                 <div className="setting-tile">
                   <span>Platform</span>
                   <select
@@ -2469,6 +2495,14 @@ export default function AutomationPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div className="save-step-panel">
+                  <p>Step 4</p>
+                  <h4>Save plan</h4>
+                  <span>
+                    When you save, each planned post becomes an automation rule.
+                  </span>
                 </div>
 
                 <button
@@ -2663,12 +2697,19 @@ export default function AutomationPage() {
                 )}
 
                 <div>
+                  <span>Current step</span>
+                  <strong>{getWizardStepOneLabel(planCreationMode)}</strong>
+                </div>
+
+                <div>
                   <span>Starts</span>
                   <strong>{formatStartDateLabel(planStartDate, timeZone)}</strong>
                 </div>
                 <div>
                   <span>Repeats</span>
-                  <strong>{scheduleType === "weekly" ? "Weekly" : "One time"}</strong>
+                  <strong>
+                    {scheduleType === "weekly" ? "Weekly" : "One time"}
+                  </strong>
                 </div>
                 <div>
                   <span>First time</span>
@@ -2714,7 +2755,7 @@ export default function AutomationPage() {
 
             <section className="wizard-preview-card">
               <h3>Preview</h3>
-              <p>Examples of content in this plan</p>
+              <p>{getWizardStepOneDescription(planCreationMode)}</p>
 
               <div className="preview-thumbs">
                 {slots.slice(0, 3).map((slot) => (
