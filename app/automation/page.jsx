@@ -3033,7 +3033,51 @@ function changeAutoPlanGoal(goalId) {
               )}
             </section>
           </aside>
-        </div>
+            </div>
+
+        {showAddPostModal && (
+          <div
+            className="add-post-modal-backdrop"
+            onClick={() => setShowAddPostModal(false)}
+          >
+            <div
+              className="add-post-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="add-post-modal-header">
+                <div>
+                  <p>Add planned post</p>
+                  <h3>Choose content type</h3>
+                  <span>
+                    Select what this new post should be about before it is added
+                    to the plan.
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAddPostModal(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="add-post-modal-grid">
+                {contentTypes.map((type) => (
+                  <button
+                    type="button"
+                    key={type.id}
+                    className="add-post-type-card"
+                    onClick={() => addSlotFromContentType(type.id)}
+                  >
+                    <strong>{type.label}</strong>
+                    <p>{type.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
