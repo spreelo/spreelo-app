@@ -2708,13 +2708,19 @@ function changeAutoPlanGoal(goalId) {
                 placeholder="e.g., Weekly awareness plan"
               />
 
-              <button
+                         <button
                 type="button"
-                className="planner-save-button"
-                onClick={savePlan}
-                disabled={saving || !hasEnoughCredits}
+                className={`planner-save-button ${
+                  savedPlanSummary ? "saved" : ""
+                }`}
+                onClick={savedPlanSummary ? startAnotherPlan : savePlan}
+                disabled={saving || (!hasEnoughCredits && !savedPlanSummary)}
               >
-                {saving ? "Saving..." : "▣ Save content plan"}
+                {saving
+                  ? "Saving..."
+                  : savedPlanSummary
+                  ? "Create another plan"
+                  : "▣ Save content plan"}
               </button>
 
                           {message && <p className="planner-save-message">{message}</p>}
