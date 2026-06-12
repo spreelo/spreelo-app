@@ -929,6 +929,25 @@ function formatLanguage(value) {
   return value;
 }
 
+function formatSubscriptionPlan(value) {
+  if (!value) return "Starter";
+
+  return String(value)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatRenewDate(value, timeZone = DEFAULT_TIME_ZONE) {
+  if (!value) return "Not set yet";
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone,
+  }).format(new Date(value));
+}
+
 function formatPlanMode(value) {
   if (value === "auto") return "Auto-plan";
   if (value === "select") return "Choose content types";
@@ -1283,6 +1302,23 @@ export default function AutomationPage() {
   const hasEnoughCredits =
     !creditBalance || plannedCredits <= creditBalance.credits_remaining;
 
+  const creditsRemaining = creditBalance?.credits_remaining ?? 0;
+  const monthlyCreditLimit = creditBalance?.monthly_credit_limit ?? 0;
+  const creditsAfterSaving = creditBalance
+    ? Math.max(creditsRemaining - plannedCredits, 0)
+    : 0;
+  const creditUsagePercent =
+    monthlyCreditLimit > 0
+      ? Math.min(100, Math.round((creditsRemaining / monthlyCreditLimit) * 100))
+      : 0;
+  const creditRenewDate = formatRenewDate(
+    creditBalance?.current_period_end,
+    timeZone
+  );
+  const subscriptionPlanLabel = formatSubscriptionPlan(
+    creditBalance?.subscription_plan || creditBalance?.plan_name
+  );
+
   const savedRulesPreview = rules.slice(0, 3);
   const visibleRules = showSavedRules ? rules : savedRulesPreview;
   const visibleRuleIds = visibleRules.map((rule) => rule.id);
@@ -1336,7 +1372,9 @@ export default function AutomationPage() {
 
     const { data: balanceData, error: balanceError } = await supabase
       .from("user_credit_balances")
-      .select("credits_remaining, monthly_credit_limit, plan_name")
+      .select(
+        "credits_remaining, monthly_credit_limit, plan_name, subscription_status, subscription_plan, current_period_start, current_period_end, credits_renewed_at"
+      )
       .eq("user_id", user.id)
       .single();
 
@@ -2753,29 +2791,68 @@ export default function AutomationPage() {
               )}
             </section>
 
-            <section className="wizard-preview-card">
-              <h3>Preview</h3>
-              <p>{getWizardStepOneDescription(planCreationMode)}</p>
+            <section className="wizard-credit-card">
+              <div className="credit-card-header">
+                <div>
+                  <p>Subscription credits</p>
+                  <h3>Credits</h3>
+                </div>
+                <span>{subscriptionPlanLabel}</span>
+              </div>
 
-              <div className="preview-thumbs">
-                {slots.slice(0, 3).map((slot) => (
-                  <div className="preview-thumb" key={slot.id}>
-                    <div className="preview-image-placeholder">✦</div>
-                    <span>
-                      {slot.contentTypeLabel ||
-                        slot.prompt.slice(0, 18) ||
-                        "Manual"}
-                    </span>
+              {creditBalance ? (
+                <>
+                  <div className="credit-big-number">
+                    <strong>{creditsRemaining}</strong>
+                    <span>of {monthlyCreditLimit || "—"} credits left</span>
                   </div>
-                ))}
-              </div>
 
-              <div className="summary-note">
-                <strong>You can change everything later</strong>
-                <p>
-                  All settings can be adjusted before the plan is activated.
-                </p>
-              </div>
+                  <div className="credit-progress">
+                    <div style={{ width: `${creditUsagePercent}%` }} />
+                  </div>
+
+                  <div className="summary-list credit-summary-list">
+                    <div>
+                      <span>This plan uses</span>
+                      <strong>{plannedCredits}</strong>
+                    </div>
+
+                    <div>
+                      <span>After saving</span>
+                      <strong>{creditsAfterSaving}</strong>
+                    </div>
+
+                    <div>
+                      <span>Renews</span>
+                      <strong>{creditRenewDate}</strong>
+                    </div>
+
+                    <div>
+                      <span>Status</span>
+                      <strong>
+                        {formatSubscriptionPlan(
+                          creditBalance.subscription_status
+                        )}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {!hasEnoughCredits && (
+                    <div className="credit-warning sidebar-warning">
+                      This plan needs {plannedCredits} credits, but you only have{" "}
+                      {creditsRemaining} credits remaining.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="summary-note">
+                  <strong>No credit balance found</strong>
+                  <p>
+                    Credits will appear here when the account has an active
+                    balance.
+                  </p>
+                </div>
+              )}
             </section>
           </aside>
         </div>
