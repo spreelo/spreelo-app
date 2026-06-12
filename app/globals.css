@@ -3469,3 +3469,175 @@ select.input {
     flex-direction: column;
   }
 }
+/* ===== Spreelo premium sidebar ===== */
+
+.spreelo-shell {
+  background:
+    radial-gradient(circle at top left, rgba(124, 58, 237, 0.08), transparent 34%),
+    #fbfaf8;
+}
+
+.spreelo-sidebar {
+  width: 260px;
+  min-height: 100vh;
+  padding: 30px 18px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(124, 58, 237, 0.34), transparent 28%),
+    linear-gradient(180deg, #110c2d 0%, #0b1024 52%, #070b18 100%);
+  color: #ffffff;
+  gap: 34px;
+  position: sticky;
+  top: 0;
+}
+
+.spreelo-brand {
+  padding: 0 4px;
+}
+
+.spreelo-brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  box-shadow: 0 16px 30px rgba(99, 102, 241, 0.34);
+}
+
+.spreelo-brand h1 {
+  font-size: 27px;
+  letter-spacing: -0.05em;
+}
+
+.spreelo-brand p {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.spreelo-nav {
+  gap: 8px;
+}
+
+.spreelo-nav a {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 48px;
+  padding: 0 13px;
+  border-radius: 13px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.spreelo-nav a:hover {
+  background: rgba(255, 255, 255, 0.075);
+  color: #ffffff;
+}
+
+.spreelo-nav a.active {
+  background: linear-gradient(135deg, #5b21b6, #4f46e5);
+  color: #ffffff;
+  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.3);
+}
+
+.nav-icon {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+  opacity: 0.96;
+}
+
+.spreelo-sidebar-footer {
+  border-top: 0;
+  padding-top: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.sidebar-plan-card {
+  display: grid;
+  grid-template-columns: 34px 1fr 16px;
+  gap: 10px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-plan-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  font-size: 15px;
+}
+
+.sidebar-plan-card strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.sidebar-plan-card span {
+  display: block;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.sidebar-plan-arrow {
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 22px !important;
+}
+
+.sidebar-user-email {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  word-break: break-all;
+  padding: 0 4px;
+}
+
+.spreelo-sidebar-footer button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 46px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.spreelo-sidebar-footer button:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.spreelo-content {
+  padding: 34px 34px 44px;
+  background:
+    radial-gradient(circle at 88% 6%, rgba(124, 58, 237, 0.08), transparent 30%),
+    #fbfaf8;
+}
+
+@media (max-width: 900px) {
+  .spreelo-sidebar {
+    width: 100%;
+    min-height: auto;
+    position: static;
+  }
+
+  .spreelo-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .spreelo-sidebar-footer {
+    margin-top: 0;
+  }
+}
