@@ -257,10 +257,10 @@ export default function Home() {
         {message && <p className="login-message">{message}</p>}
 
         <section className="dashboard-stat-grid">
-          <div className="dashboard-stat-card">
-            <span>Scheduled posts</span>
+                 <div className="dashboard-stat-card">
+            <span>Planned posts</span>
             <strong>{activeRules.length + scheduledPosts.length}</strong>
-            <p>Active rules and scheduled content.</p>
+            <p>Upcoming automation rules and scheduled content.</p>
           </div>
 
           <div className="dashboard-stat-card">
