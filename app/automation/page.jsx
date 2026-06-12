@@ -1947,12 +1947,13 @@ function changeAutoPlanGoal(goalId) {
         const strategy = getAutoPlanStrategy(autoPlanGoal);
 
         setSelectedContentTypeIds(strategy.contentTypeIds);
-        setSlots(
+    setSlots(
           createRecommendedSlots({
             startDate: planStartDate,
             timeZone,
             autoPlanGoal,
             firstPublishTime: defaultPublishTime,
+            postCount: autoPlanPostCount,
           })
         );
       } else {
