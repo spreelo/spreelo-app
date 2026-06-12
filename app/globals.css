@@ -5280,6 +5280,10 @@ select.input {
 }
 
 .dashboard-review-item p {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   margin: 0 0 6px;
   color: #475467;
   font-size: 13px;
