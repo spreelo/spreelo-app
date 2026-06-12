@@ -1119,6 +1119,48 @@ function getSlotCreditLabel(slot) {
   return "1 credit";
 }
 
+function getContentTypeIcon(typeId) {
+  const icons = {
+    website_item: "🛒",
+    tips: "💡",
+    mistakes: "!",
+    faq: "?",
+    behind_scenes: "🎥",
+    checklist: "✓",
+    service_focus: "✦",
+    case_example: "👥",
+    myth_fact: "↔",
+    local: "⌖",
+    seasonal: "☀",
+    comparison: "⇄",
+    mini_guide: "▤",
+    manual_prompt: "✎",
+  };
+
+  return icons[typeId] || "✦";
+}
+
+function getPlanIncludedContentTypes({
+  planCreationMode,
+  autoPlanGoal,
+  selectedContentTypeIds,
+}) {
+  if (planCreationMode === "manual") {
+    return [getContentTypeById("manual_prompt")].filter(Boolean);
+  }
+
+  if (planCreationMode === "select") {
+    return selectedContentTypeIds.map(getContentTypeById).filter(Boolean);
+  }
+
+  const strategy = getAutoPlanStrategy(autoPlanGoal);
+
+  return strategy.contentTypeIds
+    .map(getContentTypeById)
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
 function getSlotScheduleSummary(slot, scheduleType, timeZone) {
   const startLabel = formatStartDateLabel(slot.startDate, timeZone);
   const weekday = getWeekdayFromDateString(slot.startDate, timeZone);
