@@ -40,14 +40,6 @@ const recommendedWeeklySchedule = [
     weekday: "Friday",
     publishTime: "09:00",
   },
-  {
-    weekday: "Saturday",
-    publishTime: "10:00",
-  },
-  {
-    weekday: "Sunday",
-    publishTime: "10:00",
-  },
 ];
 
 const recommendedTimesByWeekday = recommendedWeeklySchedule.reduce(
@@ -259,12 +251,98 @@ const recommendedContentTypeIds = [
   "faq",
 ];
 
+const autoPlanGoals = [
+  {
+    id: "sell_more",
+    icon: "💰",
+    label: "Sell more",
+    description:
+      "More product, service and offer focused posts that help people take action.",
+  },
+  {
+    id: "get_followers",
+    icon: "📈",
+    label: "Get more followers",
+    description:
+      "Useful, save-worthy and share-friendly posts that make the account worth following.",
+  },
+  {
+    id: "build_trust",
+    icon: "🤝",
+    label: "Build trust",
+    description:
+      "Posts that show expertise, process, examples and answers to common questions.",
+  },
+  {
+    id: "educate_customers",
+    icon: "🎓",
+    label: "Educate customers",
+    description:
+      "Helpful posts that teach customers what they should know before they buy.",
+  },
+  {
+    id: "stay_visible",
+    icon: "📅",
+    label: "Stay visible",
+    description:
+      "A balanced weekly mix that keeps the business active and consistent.",
+  },
+];
+
+const autoPlanStrategies = {
+  sell_more: {
+    label: "Sell more",
+    contentTypeIds: [
+      "website_item",
+      "service_focus",
+      "case_example",
+      "faq",
+      "website_item",
+    ],
+    imageCount: 3,
+  },
+  get_followers: {
+    label: "Get more followers",
+    contentTypeIds: ["tips", "mistakes", "checklist", "myth_fact", "local"],
+    imageCount: 2,
+  },
+  build_trust: {
+    label: "Build trust",
+    contentTypeIds: [
+      "behind_scenes",
+      "case_example",
+      "faq",
+      "service_focus",
+      "tips",
+    ],
+    imageCount: 2,
+  },
+  educate_customers: {
+    label: "Educate customers",
+    contentTypeIds: ["tips", "mini_guide", "faq", "comparison", "mistakes"],
+    imageCount: 2,
+  },
+  stay_visible: {
+    label: "Stay visible",
+    contentTypeIds: recommendedContentTypeIds,
+    imageCount: 2,
+  },
+};
+
 function makeSlotId() {
   return `slot-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function getContentTypeById(typeId) {
   return contentTypes.find((type) => type.id === typeId) || null;
+}
+
+function getAutoPlanStrategy(goalId) {
+  return autoPlanStrategies[goalId] || autoPlanStrategies.stay_visible;
+}
+
+function getAutoPlanGoalLabel(goalId) {
+  return getAutoPlanStrategy(goalId).label;
 }
 
 function padNumber(value) {
@@ -524,6 +602,7 @@ function buildSmartSlotSchedule({
   startDate,
   count,
   timeZone = DEFAULT_TIME_ZONE,
+  firstPublishTime = null,
 }) {
   const startWeekday = getWeekdayFromDateString(startDate, timeZone);
   const startWeekdayIndex = dayOrder.indexOf(startWeekday);
@@ -532,7 +611,19 @@ function buildSmartSlotSchedule({
     return [];
   }
 
-  const result = [];
+  const result = [
+    {
+      startDate,
+      weekday: startWeekday,
+      publishTime:
+        firstPublishTime || getRecommendedTimeForWeekday(startWeekday),
+    },
+  ];
+
+  if (count === 1) {
+    return result;
+  }
+
   let weekOffset = 0;
 
   while (result.length < count && weekOffset < 20) {
@@ -540,9 +631,13 @@ function buildSmartSlotSchedule({
       .map((item) => {
         const targetWeekdayIndex = dayOrder.indexOf(item.weekday);
 
-        const daysUntilTarget =
+        let daysUntilTarget =
           ((targetWeekdayIndex - startWeekdayIndex + 7) % 7) +
           weekOffset * 7;
+
+        if (daysUntilTarget === 0) {
+          daysUntilTarget = 7;
+        }
 
         const itemStartDate = addDaysToDateString(startDate, daysUntilTarget);
 
@@ -555,6 +650,14 @@ function buildSmartSlotSchedule({
       .sort((a, b) => a.startDate.localeCompare(b.startDate));
 
     for (const candidate of candidates) {
+      const alreadyExists = result.some(
+        (item) => item.startDate === candidate.startDate
+      );
+
+      if (alreadyExists) {
+        continue;
+      }
+
       if (result.length >= count) {
         break;
       }
@@ -571,12 +674,14 @@ function buildSmartSlotSchedule({
 function applySmartScheduleToSlots(
   currentSlots,
   startDate,
-  timeZone = DEFAULT_TIME_ZONE
+  timeZone = DEFAULT_TIME_ZONE,
+  firstPublishTime = null
 ) {
   const smartSchedule = buildSmartSlotSchedule({
     startDate,
     count: currentSlots.length,
     timeZone,
+    firstPublishTime,
   });
 
   return currentSlots.map((slot, index) => {
@@ -635,6 +740,7 @@ function createSlotFromContentType(type, index = 0, options = {}) {
     startDate,
     count: index + 1,
     timeZone,
+    firstPublishTime: options.firstPublishTime || null,
   });
 
   const schedule = smartSchedule[index] || {
@@ -660,23 +766,23 @@ function createSlotFromContentType(type, index = 0, options = {}) {
   });
 }
 
-function shouldAutoPlanGenerateImage(index) {
-  return index < AUTO_PLAN_IMAGE_COUNT;
+function shouldAutoPlanGenerateImage(index, imageCount = AUTO_PLAN_IMAGE_COUNT) {
+  return index < imageCount;
 }
 
 function createRecommendedSlots(options = {}) {
   const timeZone = options.timeZone || DEFAULT_TIME_ZONE;
   const startDate =
     options.startDate || getDateInputValueInTimeZone(new Date(), timeZone);
+  const strategy = getAutoPlanStrategy(options.autoPlanGoal);
 
-  const types = recommendedContentTypeIds
-    .map(getContentTypeById)
-    .filter(Boolean);
+  const types = strategy.contentTypeIds.map(getContentTypeById).filter(Boolean);
 
   const smartSchedule = buildSmartSlotSchedule({
     startDate,
     count: types.length,
     timeZone,
+    firstPublishTime: options.firstPublishTime || null,
   });
 
   return types.map((type, index) => {
@@ -692,7 +798,7 @@ function createRecommendedSlots(options = {}) {
       publishTime: schedule.publishTime,
       prompt: type.prompt,
       imagePrompt: type.imagePrompt,
-      generateImage: shouldAutoPlanGenerateImage(index),
+      generateImage: shouldAutoPlanGenerateImage(index, strategy.imageCount),
       contentTypeId: type.id,
       contentTypeLabel: type.label,
       usesWebsiteContent: Boolean(type.usesWebsiteContent),
@@ -1045,10 +1151,13 @@ export default function AutomationPage() {
   const [defaultPublishTime, setDefaultPublishTime] = useState(
     initialRecommendedTime
   );
+  const [autoPlanGoal, setAutoPlanGoal] = useState("stay_visible");
   const [slots, setSlots] = useState(() =>
     createRecommendedSlots({
       startDate: initialStartDate,
       timeZone: DEFAULT_TIME_ZONE,
+      autoPlanGoal: "stay_visible",
+      firstPublishTime: initialRecommendedTime,
     })
   );
   const [planCreationMode, setPlanCreationMode] = useState("auto");
@@ -1101,7 +1210,8 @@ export default function AutomationPage() {
       applySmartScheduleToSlots(
         currentSlots,
         browserStartDate,
-        browserTimeZone
+        browserTimeZone,
+        browserRecommendedTime
       )
     );
 
@@ -1238,12 +1348,14 @@ export default function AutomationPage() {
   }
 
   function updatePlanStartDate(value) {
-    const recommendedTime = getRecommendedTimeForDate(value, timeZone);
-
     setPlanStartDate(value);
-    setDefaultPublishTime(recommendedTime);
     setSlots((currentSlots) =>
-      applySmartScheduleToSlots(currentSlots, value, timeZone)
+      applySmartScheduleToSlots(
+        currentSlots,
+        value,
+        timeZone,
+        defaultPublishTime
+      )
     );
   }
 
@@ -1251,14 +1363,7 @@ export default function AutomationPage() {
     setDefaultPublishTime(value);
 
     setSlots((currentSlots) =>
-      currentSlots.map((slot, index) =>
-        index === 0
-          ? {
-              ...slot,
-              publishTime: value,
-            }
-          : slot
-      )
+      applySmartScheduleToSlots(currentSlots, planStartDate, timeZone, value)
     );
   }
 
@@ -1276,6 +1381,7 @@ export default function AutomationPage() {
         startDate: planStartDate,
         count: currentSlots.length + 1,
         timeZone,
+        firstPublishTime: defaultPublishTime,
       });
 
       const schedule = smartSchedule[currentSlots.length] || {
@@ -1320,16 +1426,36 @@ export default function AutomationPage() {
     );
   }
 
+  function changeAutoPlanGoal(goalId) {
+    const strategy = getAutoPlanStrategy(goalId);
+
+    setMessage("");
+    setAutoPlanGoal(goalId);
+    setSelectedContentTypeIds(strategy.contentTypeIds);
+    setSlots(
+      createRecommendedSlots({
+        startDate: planStartDate,
+        timeZone,
+        autoPlanGoal: goalId,
+        firstPublishTime: defaultPublishTime,
+      })
+    );
+  }
+
   function changePlanCreationMode(mode) {
     setMessage("");
     setPlanCreationMode(mode);
 
     if (mode === "auto") {
-      setSelectedContentTypeIds(recommendedContentTypeIds);
+      const strategy = getAutoPlanStrategy(autoPlanGoal);
+
+      setSelectedContentTypeIds(strategy.contentTypeIds);
       setSlots(
         createRecommendedSlots({
           startDate: planStartDate,
           timeZone,
+          autoPlanGoal,
+          firstPublishTime: defaultPublishTime,
         })
       );
       return;
@@ -1349,6 +1475,7 @@ export default function AutomationPage() {
             createSlotFromContentType(type, index, {
               startDate: planStartDate,
               timeZone,
+              firstPublishTime: defaultPublishTime,
             })
           )
       );
@@ -1360,7 +1487,7 @@ export default function AutomationPage() {
       createSlot({
         startDate: planStartDate,
         weekday: getWeekdayFromDateString(planStartDate, timeZone),
-        publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
+        publishTime: defaultPublishTime,
         timeZone,
       }),
     ]);
@@ -1381,6 +1508,7 @@ export default function AutomationPage() {
           createSlotFromContentType(type, index, {
             startDate: planStartDate,
             timeZone,
+            firstPublishTime: defaultPublishTime,
           })
         );
 
@@ -1391,7 +1519,7 @@ export default function AutomationPage() {
               createSlot({
                 startDate: planStartDate,
                 weekday: getWeekdayFromDateString(planStartDate, timeZone),
-                publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
+                publishTime: defaultPublishTime,
                 timeZone,
               }),
             ]
@@ -1603,11 +1731,15 @@ export default function AutomationPage() {
       setLanguage("Auto");
 
       if (planCreationMode === "auto") {
-        setSelectedContentTypeIds(recommendedContentTypeIds);
+        const strategy = getAutoPlanStrategy(autoPlanGoal);
+
+        setSelectedContentTypeIds(strategy.contentTypeIds);
         setSlots(
           createRecommendedSlots({
             startDate: planStartDate,
             timeZone,
+            autoPlanGoal,
+            firstPublishTime: defaultPublishTime,
           })
         );
       } else {
@@ -1616,7 +1748,7 @@ export default function AutomationPage() {
           createSlot({
             startDate: planStartDate,
             weekday: getWeekdayFromDateString(planStartDate, timeZone),
-            publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
+            publishTime: defaultPublishTime,
             timeZone,
           }),
         ]);
@@ -1702,14 +1834,13 @@ export default function AutomationPage() {
                   <span>Recommended</span>
                   <h4>1. Auto-plan</h4>
                   <p>
-                    Spreelo creates 5 weekly posts automatically, including one
-                    website-based post and a balanced mix of trust-building
-                    content.
+                    Choose a goal and let Spreelo build a weekly strategy with
+                    the right mix of post types.
                   </p>
                   <div className="method-best">
                     <strong>Best for you if...</strong>
                     <small>
-                      you want a quick and simple way to get started.
+                      you want Spreelo to decide the content strategy for you.
                     </small>
                   </div>
                 </button>
@@ -1765,6 +1896,42 @@ export default function AutomationPage() {
                 </button>
               </div>
 
+              {planCreationMode === "auto" && (
+                <div className="auto-goal-section">
+                  <div className="wizard-subtitle-row">
+                    <div>
+                      <h4>Choose goal</h4>
+                      <p>
+                        Spreelo uses this goal to choose the right mix of post
+                        types, images and content direction.
+                      </p>
+                    </div>
+                    <span>{getAutoPlanGoalLabel(autoPlanGoal)}</span>
+                  </div>
+
+                  <div className="auto-goal-grid">
+                    {autoPlanGoals.map((goal) => {
+                      const isSelected = autoPlanGoal === goal.id;
+
+                      return (
+                        <button
+                          type="button"
+                          key={goal.id}
+                          className={`auto-goal-card ${
+                            isSelected ? "active" : ""
+                          }`}
+                          onClick={() => changeAutoPlanGoal(goal.id)}
+                        >
+                          <span>{goal.icon}</span>
+                          <strong>{goal.label}</strong>
+                          <p>{goal.description}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {planCreationMode === "select" && (
                 <div className="wizard-content-types">
                   <div className="wizard-subtitle-row">
@@ -1805,29 +1972,30 @@ export default function AutomationPage() {
               {planCreationMode === "auto" && (
                 <div className="wizard-info-grid">
                   <div className="wizard-info-box">
-                    <h4>Unsure what to choose?</h4>
+                    <h4>How Auto-plan works</h4>
                     <div className="info-list">
                       <div>
-                        <span>🪄</span>
+                        <span>🎯</span>
                         <p>
-                          <strong>Auto-plan = fastest and easiest</strong>
-                          A balanced weekly plan with website-based content,
-                          image posts and text-only posts.
+                          <strong>Goal first</strong>
+                          Spreelo chooses the post mix based on what you want
+                          to achieve.
                         </p>
                       </div>
                       <div>
                         <span>🛒</span>
                         <p>
-                          <strong>Website content = more concrete</strong>
-                          Spreelo can use the website in your brand profile to
-                          find a product, service, listing or offer.
+                          <strong>Website content when useful</strong>
+                          Sales-focused plans can use products, services,
+                          listings or offers from your website.
                         </p>
                       </div>
                       <div>
-                        <span>👤</span>
+                        <span>📅</span>
                         <p>
-                          <strong>Manual prompt = most control</strong>
-                          Write exactly what you want, and Spreelo follows it.
+                          <strong>Smart schedule</strong>
+                          The first post uses your chosen date and time. The
+                          rest are spread across suggested weekdays and times.
                         </p>
                       </div>
                     </div>
@@ -1838,8 +2006,8 @@ export default function AutomationPage() {
                     <div className="next-step active">
                       <span>1</span>
                       <p>
-                        <strong>Choose method</strong>
-                        You are here.
+                        <strong>Choose goal</strong>
+                        Pick what this plan should help with.
                       </p>
                     </div>
                     <div className="next-step">
@@ -1935,7 +2103,7 @@ export default function AutomationPage() {
                 </div>
 
                 <TimePickerField
-                  label="Time"
+                  label="First time"
                   value={defaultPublishTime}
                   onChange={updateDefaultPublishTime}
                   pickerId="plan-time"
@@ -1947,15 +2115,15 @@ export default function AutomationPage() {
               <div className="mini-info-card">
                 <strong>
                   {scheduleType === "weekly"
-                    ? `Suggested weekly schedule from ${formatStartDateLabel(
+                    ? `First post starts ${formatStartDateLabel(
                         planStartDate,
                         timeZone
-                      )}`
+                      )} at ${defaultPublishTime}`
                     : "Runs once"}
                 </strong>
                 <p>
                   {scheduleType === "weekly"
-                    ? "Spreelo spreads the posts across recommended weekdays and times. You can adjust each post manually."
+                    ? "The first post uses your selected date and time. Spreelo then spreads the remaining posts across suggested days and times."
                     : `The plan runs once on ${formatStartDateLabel(
                         planStartDate,
                         timeZone
@@ -2486,20 +2654,24 @@ export default function AutomationPage() {
                   <span>Method</span>
                   <strong>{formatPlanMode(planCreationMode)}</strong>
                 </div>
+
+                {planCreationMode === "auto" && (
+                  <div>
+                    <span>Goal</span>
+                    <strong>{getAutoPlanGoalLabel(autoPlanGoal)}</strong>
+                  </div>
+                )}
+
                 <div>
                   <span>Starts</span>
                   <strong>{formatStartDateLabel(planStartDate, timeZone)}</strong>
                 </div>
                 <div>
                   <span>Repeats</span>
-                  <strong>
-                    {scheduleType === "weekly"
-                      ? `Weekly`
-                      : "One time"}
-                  </strong>
+                  <strong>{scheduleType === "weekly" ? "Weekly" : "One time"}</strong>
                 </div>
                 <div>
-                  <span>Time</span>
+                  <span>First time</span>
                   <strong>{defaultPublishTime}</strong>
                 </div>
                 <div>
