@@ -6,6 +6,8 @@ import { supabase } from "../../lib/supabaseClient";
 
 const DEFAULT_TIME_ZONE = "Europe/Stockholm";
 const AUTO_PLAN_IMAGE_COUNT = 2;
+const DEFAULT_AUTO_PLAN_POST_COUNT = 5;
+const autoPlanPostCountOptions = [3, 5, 7];
 
 const weekdays = [
   "Monday",
