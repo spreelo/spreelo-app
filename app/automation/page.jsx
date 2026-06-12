@@ -2709,9 +2709,70 @@ function changeAutoPlanGoal(goalId) {
                 {saving ? "Saving..." : "▣ Save content plan"}
               </button>
 
-              {message && <p className="planner-save-message">{message}</p>}
-            </section>
+                          {message && <p className="planner-save-message">{message}</p>}
 
+              {savedPlanSummary && (
+                <div className="planner-save-success">
+                  <div className="planner-save-success-icon">✓</div>
+
+                  <div className="planner-save-success-content">
+                    <div className="planner-save-success-header">
+                      <div>
+                        <p>Your content plan is saved</p>
+                        <h4>{savedPlanSummary.name}</h4>
+                      </div>
+
+                      <span>{savedPlanSummary.method}</span>
+                    </div>
+
+                    <div className="planner-save-success-grid">
+                      <div>
+                        <span>
+                          {savedPlanSummary.scheduleType === "weekly"
+                            ? "Posts per week"
+                            : "Planned posts"}
+                        </span>
+                        <strong>
+                          {savedPlanSummary.scheduleType === "weekly"
+                            ? `${savedPlanSummary.postsPerWeek} posts`
+                            : `${savedPlanSummary.totalPosts} post${
+                                savedPlanSummary.totalPosts === 1 ? "" : "s"
+                              }`}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>First post</span>
+                        <strong>{savedPlanSummary.firstPostLabel}</strong>
+                      </div>
+
+                      <div>
+                        <span>Publishing mode</span>
+                        <strong>{savedPlanSummary.publishingMode}</strong>
+                      </div>
+
+                      <div>
+                        <span>Credits</span>
+                        <strong>
+                          {savedPlanSummary.credits} credits used when generated
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="planner-save-success-actions">
+                      <button
+                        type="button"
+                        onClick={() => setShowSavedRules(true)}
+                      >
+                        View automation rules
+                      </button>
+
+                      <a href="/dashboard">Go to dashboard</a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
             <section className="saved-card saved-card-compact">
               <div className="saved-header">
                 <div>
