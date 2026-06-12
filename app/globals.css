@@ -3255,3 +3255,71 @@ select.input {
 .credit-summary-list {
   margin-top: 6px;
 }
+.wizard-sidebar {
+  position: sticky;
+  top: 24px;
+  align-self: flex-start;
+}
+
+.wizard-sidebar .wizard-summary-card,
+.wizard-sidebar .wizard-credit-card {
+  padding: 16px;
+  border-radius: 18px;
+}
+
+.wizard-sidebar .wizard-summary-card h3,
+.wizard-sidebar .wizard-credit-card h3 {
+  font-size: 18px;
+}
+
+.wizard-sidebar .summary-list {
+  gap: 8px;
+}
+
+.wizard-sidebar .summary-list div {
+  padding: 7px 0;
+}
+
+.wizard-sidebar .summary-list span {
+  font-size: 11px;
+}
+
+.wizard-sidebar .summary-list strong {
+  font-size: 12px;
+}
+
+.wizard-sidebar .credit-card-header {
+  margin-bottom: 12px;
+}
+
+.wizard-sidebar .credit-card-header h3 {
+  font-size: 22px;
+}
+
+.wizard-sidebar .credit-card-header span {
+  font-size: 11px;
+  padding: 6px 9px;
+}
+
+.wizard-sidebar .credit-big-number {
+  margin-bottom: 8px;
+}
+
+.wizard-sidebar .credit-big-number strong {
+  font-size: 34px;
+}
+
+.wizard-sidebar .credit-big-number span {
+  font-size: 12px;
+}
+
+.wizard-sidebar .credit-progress {
+  height: 8px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 1100px) {
+  .wizard-sidebar {
+    position: static;
+  }
+}
