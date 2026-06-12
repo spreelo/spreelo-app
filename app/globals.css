@@ -4696,31 +4696,75 @@ select.input {
 }
 
 .planner-credit-wave {
+  position: relative;
   height: 88px;
   border-radius: 22px;
   margin: 0 -6px 16px;
-  background:
-    radial-gradient(
-      120px 44px at 12% 100%,
-      rgba(196, 181, 253, 0.75) 0%,
-      rgba(196, 181, 253, 0.75) 58%,
-      transparent 59%
-    ),
-    radial-gradient(
-      170px 52px at 45% 100%,
-      rgba(221, 214, 254, 0.92) 0%,
-      rgba(221, 214, 254, 0.92) 58%,
-      transparent 59%
-    ),
-    radial-gradient(
-      150px 48px at 80% 100%,
-      rgba(196, 181, 253, 0.72) 0%,
-      rgba(196, 181, 253, 0.72) 58%,
-      transparent 59%
-    ),
-    linear-gradient(180deg, #faf7ff 0%, #f4efff 100%);
+  overflow: hidden;
+  background: linear-gradient(180deg, #fbf8ff 0%, #f4efff 100%);
 }
 
+.planner-credit-wave::before {
+  content: "";
+  position: absolute;
+  left: -18%;
+  right: -18%;
+  bottom: -46px;
+  height: 92px;
+  background:
+    radial-gradient(
+      130px 52px at 12% 42%,
+      rgba(196, 181, 253, 0.78) 0%,
+      rgba(196, 181, 253, 0.78) 58%,
+      transparent 59%
+    ),
+    radial-gradient(
+      180px 64px at 43% 36%,
+      rgba(221, 214, 254, 0.9) 0%,
+      rgba(221, 214, 254, 0.9) 58%,
+      transparent 59%
+    ),
+    radial-gradient(
+      160px 58px at 76% 38%,
+      rgba(199, 189, 255, 0.82) 0%,
+      rgba(199, 189, 255, 0.82) 58%,
+      transparent 59%
+    ),
+    radial-gradient(
+      140px 54px at 104% 46%,
+      rgba(233, 213, 255, 0.75) 0%,
+      rgba(233, 213, 255, 0.75) 58%,
+      transparent 59%
+    );
+}
+
+.planner-credit-wave::after {
+  content: "";
+  position: absolute;
+  left: -12%;
+  right: -12%;
+  bottom: -58px;
+  height: 96px;
+  background:
+    radial-gradient(
+      150px 60px at 20% 44%,
+      rgba(167, 139, 250, 0.28) 0%,
+      rgba(167, 139, 250, 0.28) 58%,
+      transparent 59%
+    ),
+    radial-gradient(
+      210px 70px at 60% 44%,
+      rgba(139, 92, 246, 0.16) 0%,
+      rgba(139, 92, 246, 0.16) 58%,
+      transparent 59%
+    ),
+    radial-gradient(
+      160px 62px at 92% 46%,
+      rgba(196, 181, 253, 0.28) 0%,
+      rgba(196, 181, 253, 0.28) 58%,
+      transparent 59%
+    );
+}
 .planner-credit-help {
   display: grid;
   gap: 6px;
