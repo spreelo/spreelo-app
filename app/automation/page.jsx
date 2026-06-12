@@ -2067,7 +2067,15 @@ function changeAutoPlanGoal(goalId) {
 
     setSaving(false);
   }
+  function startAnotherPlan() {
+    setMessage("");
+    setSavedPlanSummary(null);
 
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
   return (
     <AppLayout active="automation">
       <div
