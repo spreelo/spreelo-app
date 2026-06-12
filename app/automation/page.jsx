@@ -2430,7 +2430,8 @@ function changeAutoPlanGoal(goalId) {
                           />
                         </div>
 
-                        {planCreationMode === "manual" ? (
+                        {planCreationMode === "manual" ||
+                        slot.contentTypeId === "manual_prompt" ? (
                           <div className="instruction-editor always-open">
                             <label>Post instructions</label>
                             <textarea
