@@ -50,6 +50,30 @@ const recommendedTimesByWeekday = recommendedWeeklySchedule.reduce(
   {}
 );
 
+const timeOptions = [
+  "08:00",
+  "08:30",
+  "09:00",
+  "09:30",
+  "10:00",
+  "10:30",
+  "11:00",
+  "11:30",
+  "12:00",
+  "12:30",
+  "13:00",
+  "13:30",
+  "14:00",
+  "14:30",
+  "15:00",
+  "15:30",
+  "16:00",
+  "16:30",
+  "17:00",
+  "17:30",
+  "18:00",
+];
+
 const commonTimeZones = [
   "Europe/Stockholm",
   "Europe/Copenhagen",
@@ -278,6 +302,90 @@ function addDaysToDateString(dateString, daysToAdd) {
   )}-${padNumber(date.getUTCDate())}`;
 }
 
+function getDatePartsFromDateString(dateString) {
+  const [yearValue, monthValue, dayValue] = String(dateString || "").split("-");
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+
+  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function getMonthStartDateString(dateString) {
+  const parts = getDatePartsFromDateString(dateString);
+
+  if (!parts) {
+    return getDateInputValueInTimeZone(new Date(), DEFAULT_TIME_ZONE).slice(
+      0,
+      8
+    ) + "01";
+  }
+
+  return `${parts.year}-${padNumber(parts.month)}-01`;
+}
+
+function getMonthLabel(dateString) {
+  const parts = getDatePartsFromDateString(dateString);
+
+  if (!parts) {
+    return "";
+  }
+
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, 1));
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function moveMonth(dateString, amount) {
+  const parts = getDatePartsFromDateString(dateString);
+
+  if (!parts) {
+    return dateString;
+  }
+
+  const date = new Date(Date.UTC(parts.year, parts.month - 1 + amount, 1));
+
+  return `${date.getUTCFullYear()}-${padNumber(
+    date.getUTCMonth() + 1
+  )}-01`;
+}
+
+function buildCalendarDays(monthStartDateString) {
+  const parts = getDatePartsFromDateString(monthStartDateString);
+
+  if (!parts) {
+    return [];
+  }
+
+  const firstDay = new Date(Date.UTC(parts.year, parts.month - 1, 1));
+  const firstDayIndex = firstDay.getUTCDay();
+  const mondayBasedOffset = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+  const calendarStart = new Date(
+    Date.UTC(parts.year, parts.month - 1, 1 - mondayBasedOffset)
+  );
+
+  return Array.from({ length: 42 }).map((_, index) => {
+    const date = new Date(calendarStart);
+    date.setUTCDate(calendarStart.getUTCDate() + index);
+
+    return {
+      dateString: `${date.getUTCFullYear()}-${padNumber(
+        date.getUTCMonth() + 1
+      )}-${padNumber(date.getUTCDate())}`,
+      dayNumber: date.getUTCDate(),
+      isCurrentMonth: date.getUTCMonth() === parts.month - 1,
+    };
+  });
+}
+
 function getWeekdayInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -345,19 +453,16 @@ function getWeekdayFromDateString(dateString, timeZone = DEFAULT_TIME_ZONE) {
     return "Monday";
   }
 
-  const [yearValue, monthValue, dayValue] = String(dateString).split("-");
-  const year = Number(yearValue);
-  const month = Number(monthValue);
-  const day = Number(dayValue);
+  const parts = getDatePartsFromDateString(dateString);
 
-  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
+  if (!parts) {
     return "Monday";
   }
 
   const date = zonedLocalToUtcDate({
-    year,
-    month,
-    day,
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
     hour: 12,
     minute: 0,
     second: 0,
@@ -372,19 +477,16 @@ function formatStartDateLabel(dateString, timeZone = DEFAULT_TIME_ZONE) {
     return "No start date";
   }
 
-  const [yearValue, monthValue, dayValue] = String(dateString).split("-");
-  const year = Number(yearValue);
-  const month = Number(monthValue);
-  const day = Number(dayValue);
+  const parts = getDatePartsFromDateString(dateString);
 
-  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
+  if (!parts) {
     return "No start date";
   }
 
   const date = zonedLocalToUtcDate({
-    year,
-    month,
-    day,
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
     hour: 12,
     minute: 0,
     second: 0,
@@ -392,7 +494,7 @@ function formatStartDateLabel(dateString, timeZone = DEFAULT_TIME_ZONE) {
   });
 
   return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
+    weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -431,7 +533,8 @@ function buildSmartSlotSchedule({
         const targetWeekdayIndex = dayOrder.indexOf(item.weekday);
 
         const daysUntilTarget =
-          ((targetWeekdayIndex - startWeekdayIndex + 7) % 7) + weekOffset * 7;
+          ((targetWeekdayIndex - startWeekdayIndex + 7) % 7) +
+          weekOffset * 7;
 
         const itemStartDate = addDaysToDateString(startDate, daysUntilTarget);
 
@@ -488,10 +591,8 @@ function createSlot(overrides = {}) {
   const timeZone = overrides.timeZone || DEFAULT_TIME_ZONE;
   const startDate =
     overrides.startDate || getDateInputValueInTimeZone(new Date(), timeZone);
-
   const weekday =
     overrides.weekday || getWeekdayFromDateString(startDate, timeZone);
-
   const publishTime =
     overrides.publishTime || getRecommendedTimeForWeekday(weekday);
 
@@ -560,7 +661,9 @@ function createRecommendedSlots(options = {}) {
   const startDate =
     options.startDate || getDateInputValueInTimeZone(new Date(), timeZone);
 
-  const types = recommendedContentTypeIds.map(getContentTypeById).filter(Boolean);
+  const types = recommendedContentTypeIds
+    .map(getContentTypeById)
+    .filter(Boolean);
 
   const smartSchedule = buildSmartSlotSchedule({
     startDate,
@@ -596,7 +699,9 @@ function normalizeTime(value) {
 
 function getBrowserTimeZone() {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIME_ZONE;
+    return (
+      Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIME_ZONE
+    );
   } catch {
     return DEFAULT_TIME_ZONE;
   }
@@ -767,6 +872,153 @@ function getSlotScheduleSummary(slot, scheduleType, timeZone) {
   return `Starts ${startLabel} · Repeats every ${weekday} at ${time}`;
 }
 
+function DatePickerField({
+  label,
+  value,
+  onChange,
+  pickerId,
+  openPickerId,
+  setOpenPickerId,
+  timeZone,
+  compact = false,
+}) {
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    getMonthStartDateString(value)
+  );
+
+  useEffect(() => {
+    setVisibleMonth(getMonthStartDateString(value));
+  }, [value]);
+
+  const isOpen = openPickerId === pickerId;
+  const calendarDays = buildCalendarDays(visibleMonth);
+  const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
+
+  return (
+    <div className={`custom-picker-field ${compact ? "compact" : ""}`}>
+      {label && <label>{label}</label>}
+
+      <div className="custom-picker-anchor">
+        <button
+          type="button"
+          className="custom-picker-button"
+          onClick={() => setOpenPickerId(isOpen ? null : pickerId)}
+        >
+          <span>{formatStartDateLabel(value, timeZone)}</span>
+          <strong>📅</strong>
+        </button>
+
+        {isOpen && (
+          <div className="custom-calendar-popover">
+            <div className="custom-calendar-header">
+              <button
+                type="button"
+                onClick={() => setVisibleMonth(moveMonth(visibleMonth, -1))}
+              >
+                ‹
+              </button>
+
+              <strong>{getMonthLabel(visibleMonth)}</strong>
+
+              <button
+                type="button"
+                onClick={() => setVisibleMonth(moveMonth(visibleMonth, 1))}
+              >
+                ›
+              </button>
+            </div>
+
+            <div className="custom-calendar-weekdays">
+              <span>Mon</span>
+              <span>Tue</span>
+              <span>Wed</span>
+              <span>Thu</span>
+              <span>Fri</span>
+              <span>Sat</span>
+              <span>Sun</span>
+            </div>
+
+            <div className="custom-calendar-grid">
+              {calendarDays.map((day) => {
+                const isSelected = day.dateString === value;
+                const isToday = day.dateString === todayDateString;
+
+                return (
+                  <button
+                    type="button"
+                    key={day.dateString}
+                    className={[
+                      "custom-calendar-day",
+                      day.isCurrentMonth ? "" : "muted",
+                      isSelected ? "selected" : "",
+                      isToday ? "today" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onClick={() => {
+                      onChange(day.dateString);
+                      setOpenPickerId(null);
+                    }}
+                  >
+                    {day.dayNumber}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TimePickerField({
+  label,
+  value,
+  onChange,
+  pickerId,
+  openPickerId,
+  setOpenPickerId,
+  compact = false,
+}) {
+  const isOpen = openPickerId === pickerId;
+
+  return (
+    <div className={`custom-picker-field ${compact ? "compact" : ""}`}>
+      {label && <label>{label}</label>}
+
+      <div className="custom-picker-anchor">
+        <button
+          type="button"
+          className="custom-picker-button time"
+          onClick={() => setOpenPickerId(isOpen ? null : pickerId)}
+        >
+          <span>{normalizeTime(value)}</span>
+          <strong>⌄</strong>
+        </button>
+
+        {isOpen && (
+          <div className="custom-time-popover">
+            {timeOptions.map((timeOption) => (
+              <button
+                type="button"
+                key={timeOption}
+                className={timeOption === value ? "selected" : ""}
+                onClick={() => {
+                  onChange(timeOption);
+                  setOpenPickerId(null);
+                }}
+              >
+                {timeOption}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AutomationPage() {
   const initialStartDate = getDateInputValueInTimeZone(
     new Date(),
@@ -821,6 +1073,7 @@ export default function AutomationPage() {
   const [confirmingSingleDeleteId, setConfirmingSingleDeleteId] =
     useState(null);
   const [deletingRules, setDeletingRules] = useState(false);
+  const [openPickerId, setOpenPickerId] = useState(null);
 
   useEffect(() => {
     const browserTimeZone = getBrowserTimeZone();
@@ -837,7 +1090,11 @@ export default function AutomationPage() {
     setPlanStartDate(browserStartDate);
     setDefaultPublishTime(browserRecommendedTime);
     setSlots((currentSlots) =>
-      applySmartScheduleToSlots(currentSlots, browserStartDate, browserTimeZone)
+      applySmartScheduleToSlots(
+        currentSlots,
+        browserStartDate,
+        browserTimeZone
+      )
     );
 
     loadRules();
@@ -888,9 +1145,6 @@ export default function AutomationPage() {
   const savedRulesPreview = rules.slice(0, 3);
   const visibleRules = showSavedRules ? rules : savedRulesPreview;
   const visibleRuleIds = visibleRules.map((rule) => rule.id);
-  const selectedVisibleRuleIds = selectedRuleIds.filter((ruleId) =>
-    visibleRuleIds.includes(ruleId)
-  );
   const allVisibleRulesSelected =
     visibleRuleIds.length > 0 &&
     visibleRuleIds.every((ruleId) => selectedRuleIds.includes(ruleId));
@@ -1139,18 +1393,6 @@ export default function AutomationPage() {
     });
   }
 
-  function applyRecommendedPlan() {
-    setMessage("");
-    setPlanCreationMode("auto");
-    setSelectedContentTypeIds(recommendedContentTypeIds);
-    setSlots(
-      createRecommendedSlots({
-        startDate: planStartDate,
-        timeZone,
-      })
-    );
-  }
-
   function toggleRuleSelection(ruleId) {
     setConfirmingBulkDelete(false);
     setConfirmingSingleDeleteId(null);
@@ -1360,17 +1602,8 @@ export default function AutomationPage() {
             timeZone,
           })
         );
-      } else if (planCreationMode === "select") {
-        setSelectedContentTypeIds([]);
-        setSlots([
-          createSlot({
-            startDate: planStartDate,
-            weekday: getWeekdayFromDateString(planStartDate, timeZone),
-            publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
-            timeZone,
-          }),
-        ]);
       } else {
+        setSelectedContentTypeIds([]);
         setSlots([
           createSlot({
             startDate: planStartDate,
@@ -1389,7 +1622,14 @@ export default function AutomationPage() {
 
   return (
     <AppLayout active="automation">
-      <div className="automation-page planner-wizard-page">
+      <div
+        className="automation-page planner-wizard-page"
+        onClick={(event) => {
+          if (!event.target.closest(".custom-picker-field")) {
+            setOpenPickerId(null);
+          }
+        }}
+      >
         <header className="wizard-header">
           <div>
             <p className="wizard-eyebrow">Automation plan</p>
@@ -1663,23 +1903,21 @@ export default function AutomationPage() {
                 </button>
               </div>
 
-              <div className="wizard-form-row">
-                <div>
-                  <label>Start date</label>
-                  <input
-                    className="input"
-                    type="date"
-                    value={planStartDate}
-                    onChange={(event) =>
-                      updatePlanStartDate(event.target.value)
-                    }
-                  />
-                </div>
+              <div className="wizard-form-row schedule-picker-row">
+                <DatePickerField
+                  label="Start date"
+                  value={planStartDate}
+                  onChange={updatePlanStartDate}
+                  pickerId="plan-start-date"
+                  openPickerId={openPickerId}
+                  setOpenPickerId={setOpenPickerId}
+                  timeZone={timeZone}
+                />
 
-                <div>
+                <div className="custom-picker-field">
                   <label>Repeat</label>
                   <select
-                    className="input"
+                    className="input custom-select-input"
                     value={scheduleType}
                     onChange={(event) => setScheduleType(event.target.value)}
                   >
@@ -1688,23 +1926,20 @@ export default function AutomationPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label>Time</label>
-                  <input
-                    className="input time-input"
-                    type="time"
-                    value={defaultPublishTime}
-                    onChange={(event) =>
-                      updateDefaultPublishTime(event.target.value)
-                    }
-                  />
-                </div>
+                <TimePickerField
+                  label="Time"
+                  value={defaultPublishTime}
+                  onChange={updateDefaultPublishTime}
+                  pickerId="plan-time"
+                  openPickerId={openPickerId}
+                  setOpenPickerId={setOpenPickerId}
+                />
               </div>
 
               <div className="mini-info-card">
                 <strong>
                   {scheduleType === "weekly"
-                    ? `Repeats every ${getWeekdayFromDateString(
+                    ? `Suggested weekly schedule from ${formatStartDateLabel(
                         planStartDate,
                         timeZone
                       )}`
@@ -1712,10 +1947,7 @@ export default function AutomationPage() {
                 </strong>
                 <p>
                   {scheduleType === "weekly"
-                    ? `The plan starts on ${formatStartDateLabel(
-                        planStartDate,
-                        timeZone
-                      )} and then continues weekly.`
+                    ? "Spreelo spreads the posts across recommended weekdays and times. You can adjust each post manually."
                     : `The plan runs once on ${formatStartDateLabel(
                         planStartDate,
                         timeZone
@@ -1772,38 +2004,31 @@ export default function AutomationPage() {
                           </div>
                         </div>
 
-                        <div className="planned-fields wizard-planned-fields">
-                          <div>
-                            <label>Start date</label>
-                            <input
-                              className="input"
-                              type="date"
-                              value={slot.startDate}
-                              onChange={(event) =>
-                                updateSlot(
-                                  slot.id,
-                                  "startDate",
-                                  event.target.value
-                                )
-                              }
-                            />
-                          </div>
+                        <div className="planned-fields wizard-planned-fields custom-slot-pickers">
+                          <DatePickerField
+                            label="Start date"
+                            value={slot.startDate}
+                            onChange={(value) =>
+                              updateSlot(slot.id, "startDate", value)
+                            }
+                            pickerId={`slot-date-${slot.id}`}
+                            openPickerId={openPickerId}
+                            setOpenPickerId={setOpenPickerId}
+                            timeZone={timeZone}
+                            compact
+                          />
 
-                          <div>
-                            <label>Time</label>
-                            <input
-                              className="input time-input"
-                              type="time"
-                              value={slot.publishTime}
-                              onChange={(event) =>
-                                updateSlot(
-                                  slot.id,
-                                  "publishTime",
-                                  event.target.value
-                                )
-                              }
-                            />
-                          </div>
+                          <TimePickerField
+                            label="Time"
+                            value={slot.publishTime}
+                            onChange={(value) =>
+                              updateSlot(slot.id, "publishTime", value)
+                            }
+                            pickerId={`slot-time-${slot.id}`}
+                            openPickerId={openPickerId}
+                            setOpenPickerId={setOpenPickerId}
+                            compact
+                          />
                         </div>
 
                         {planCreationMode === "manual" ? (
@@ -2261,10 +2486,7 @@ export default function AutomationPage() {
                   <span>Repeats</span>
                   <strong>
                     {scheduleType === "weekly"
-                      ? `Every ${getWeekdayFromDateString(
-                          planStartDate,
-                          timeZone
-                        )}`
+                      ? `Weekly`
                       : "One time"}
                   </strong>
                 </div>
