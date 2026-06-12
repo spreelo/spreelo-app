@@ -2281,25 +2281,29 @@ function changeAutoPlanGoal(goalId) {
               </div>
             </section>
 
-            <section className="wizard-card">
-              <div className="wizard-card-title">
+                       <section className="planner-schedule-card">
+              <div className="planner-schedule-header">
                 <div>
                   <h3>Posts & schedule</h3>
-                  <p>
-                    Choose when the plan starts and adjust individual posts if
-                    needed.
-                  </p>
+                  <span>{slots.length} posts planned</span>
                 </div>
-                <button
-                  type="button"
-                  className="add-plan-button"
-                  onClick={addSlot}
-                >
-                  + Add post
-                </button>
+
+                <div className="planner-schedule-actions">
+                  <button type="button" className="view-calendar-button">
+                    □ View calendar
+                  </button>
+
+                  <button
+                    type="button"
+                    className="add-plan-button"
+                    onClick={addSlot}
+                  >
+                    + Add post
+                  </button>
+                </div>
               </div>
 
-              <div className="wizard-form-row schedule-picker-row">
+              <div className="planner-schedule-toolbar">
                 <DatePickerField
                   label="Start date"
                   value={planStartDate}
@@ -2308,9 +2312,10 @@ function changeAutoPlanGoal(goalId) {
                   openPickerId={openPickerId}
                   setOpenPickerId={setOpenPickerId}
                   timeZone={timeZone}
+                  compact
                 />
 
-                <div className="custom-picker-field">
+                <div className="custom-picker-field compact">
                   <label>Repeat</label>
                   <select
                     className="input custom-select-input"
@@ -2329,80 +2334,47 @@ function changeAutoPlanGoal(goalId) {
                   pickerId="plan-time"
                   openPickerId={openPickerId}
                   setOpenPickerId={setOpenPickerId}
+                  compact
                 />
-              </div>
 
-              <div className="mini-info-card">
-                <strong>
+                <div className="planner-schedule-note">
                   {scheduleType === "weekly"
-                    ? `First post starts ${formatStartDateLabel(
+                    ? `Starts ${formatStartDateLabel(
                         planStartDate,
                         timeZone
                       )} at ${defaultPublishTime}`
-                    : "Runs once"}
-                </strong>
-                <p>
-                  {scheduleType === "weekly"
-                    ? "The first post uses your selected date and time. Spreelo then spreads the remaining posts across suggested days and times."
-                    : `The plan runs once on ${formatStartDateLabel(
+                    : `Runs once on ${formatStartDateLabel(
                         planStartDate,
                         timeZone
-                      )}.`}
-                </p>
+                      )}`}
+                </div>
               </div>
 
-              <div className="planned-list cleaner">
+              <div className="planner-post-table">
                 {slots.map((slot, index) => {
                   const instructionsAreExpanded =
                     expandedInstructionSlotIds.includes(slot.id);
                   const displayLabel = getSlotDisplayLabel(slot);
                   const displayDescription = getSlotDisplayDescription(slot);
-                  const imageLabel = getSlotImageLabel(slot);
+                  const formatLabel = getSlotFormatLabel(slot);
 
                   return (
                     <article
-                      className="planned-row wizard-planned-row"
+                      className={`planner-post-row ${
+                        instructionsAreExpanded ? "expanded" : ""
+                      }`}
                       key={slot.id}
                     >
-                      <div className="planned-number">{index + 1}</div>
+                      <div className="planner-post-mainline">
+                        <div className="planner-post-index">{index + 1}</div>
 
-                      <div className="planned-content">
-                        <div className="planned-top">
-                          <div>
-                            <p>Planned post {index + 1}</p>
-                            <h4>
-                              {displayLabel} · {normalizeTime(slot.publishTime)}
-                            </h4>
-                            <small>
-                              {getSlotScheduleSummary(
-                                slot,
-                                scheduleType,
-                                timeZone
-                              )}
-                            </small>
-                          </div>
-
-                          <div className="row-actions">
-                            <button
-                              type="button"
-                              className="tiny-button"
-                              onClick={() => duplicateSlot(slot.id)}
-                            >
-                              Duplicate
-                            </button>
-                            <button
-                              type="button"
-                              className="tiny-button danger"
-                              onClick={() => removeSlot(slot.id)}
-                            >
-                              Remove
-                            </button>
-                          </div>
+                        <div className="planner-post-title">
+                          <strong>{displayLabel}</strong>
+                          <span>{displayDescription}</span>
                         </div>
 
-                        <div className="planned-fields wizard-planned-fields custom-slot-pickers">
+                        <div className="planner-post-date">
                           <DatePickerField
-                            label="Start date"
                             value={slot.startDate}
                             onChange={(value) =>
                               updateSlot(slot.id, "startDate", value)
@@ -2413,9 +2385,10 @@ function changeAutoPlanGoal(goalId) {
                             timeZone={timeZone}
                             compact
                           />
+                        </div>
 
+                        <div className="planner-post-time">
                           <TimePickerField
-                            label="Time"
                             value={slot.publishTime}
                             onChange={(value) =>
                               updateSlot(slot.id, "publishTime", value)
@@ -2427,10 +2400,43 @@ function changeAutoPlanGoal(goalId) {
                           />
                         </div>
 
-                        {planCreationMode === "manual" ||
-                        slot.contentTypeId === "manual_prompt" ? (
-                          <div className="instruction-editor always-open">
-                            <label>Post instructions</label>
+                        <div className="planner-post-format">
+                          <span>{slot.generateImage ? "▧" : "T"}</span>
+                          {formatLabel}
+                        </div>
+
+                        <div className="planner-post-actions">
+                          <button
+                            type="button"
+                            onClick={() => toggleSlotInstructions(slot.id)}
+                          >
+                            {instructionsAreExpanded ? "Hide" : "Edit"}
+                          </button>
+
+                          <button
+                            type="button"
+                            title="Duplicate"
+                            onClick={() => duplicateSlot(slot.id)}
+                          >
+                            ⧉
+                          </button>
+
+                          <button
+                            type="button"
+                            title="Remove"
+                            onClick={() => removeSlot(slot.id)}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+
+                      {(instructionsAreExpanded ||
+                        planCreationMode === "manual" ||
+                        slot.contentTypeId === "manual_prompt") && (
+                        <div className="planner-post-expanded">
+                          <div className="planner-post-expanded-copy">
+                            <label>Instructions</label>
                             <textarea
                               className="input prompt-textarea"
                               value={slot.prompt}
@@ -2441,145 +2447,92 @@ function changeAutoPlanGoal(goalId) {
                                   event.target.value
                                 )
                               }
-                              placeholder="Example: Create a post about our new service"
+                              placeholder="Write instructions for this post"
                             />
-                          </div>
-                        ) : (
-                          <div className="instruction-summary-card">
-                            <div className="instruction-summary-main">
-                              <span className="instruction-pill">
-                                {slot.generateImage
-                                  ? imageLabel
-                                  : "Text only"}
-                              </span>
-                              <div>
-                                <strong>{displayLabel}</strong>
-                                <p>{displayDescription}</p>
-                              </div>
-                            </div>
 
-                            <button
-                              type="button"
-                              className="edit-instructions-button"
-                              onClick={() => toggleSlotInstructions(slot.id)}
-                            >
-                              {instructionsAreExpanded
-                                ? "Hide instructions"
-                                : "Edit instructions"}
-                            </button>
+                            {slot.generateImage && (
+                              <>
+                                <label>Image direction</label>
+                                <textarea
+                                  className="input prompt-textarea"
+                                  value={slot.imagePrompt}
+                                  onChange={(event) =>
+                                    updateSlot(
+                                      slot.id,
+                                      "imagePrompt",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Optional visual direction for the image."
+                                />
+                              </>
+                            )}
                           </div>
-                        )}
 
-                        {planCreationMode !== "manual" &&
-                          instructionsAreExpanded && (
-                            <div className="instruction-editor">
-                              <label>Post instructions</label>
-                              <textarea
-                                className="input prompt-textarea"
-                                value={slot.prompt}
+                          <div className="planner-post-options">
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={slot.generateImage}
                                 onChange={(event) =>
                                   updateSlot(
                                     slot.id,
-                                    "prompt",
-                                    event.target.value
+                                    "generateImage",
+                                    event.target.checked
                                   )
                                 }
-                                placeholder="Edit the instructions for this post"
                               />
+                              {slot.usesWebsiteContent
+                                ? "Website image / AI fallback"
+                                : "AI image"}
+                            </label>
 
-                              {slot.generateImage && (
-                                <>
-                                  <label>Image direction</label>
-                                  <textarea
-                                    className="input prompt-textarea"
-                                    value={slot.imagePrompt}
-                                    onChange={(event) =>
-                                      updateSlot(
-                                        slot.id,
-                                        "imagePrompt",
-                                        event.target.value
-                                      )
-                                    }
-                                    placeholder="Optional visual direction for the image."
-                                  />
-                                </>
-                              )}
-                            </div>
-                          )}
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={slot.includeEmojis}
+                                onChange={(event) =>
+                                  updateSlot(
+                                    slot.id,
+                                    "includeEmojis",
+                                    event.target.checked
+                                  )
+                                }
+                              />
+                              Emojis
+                            </label>
 
-                        <div className="planned-bottom cleaner">
-                          <label className="image-check">
-                            <input
-                              type="checkbox"
-                              checked={slot.generateImage}
-                              onChange={(event) =>
-                                updateSlot(
-                                  slot.id,
-                                  "generateImage",
-                                  event.target.checked
-                                )
-                              }
-                            />
-                            {slot.usesWebsiteContent
-                              ? "Use website image / AI fallback"
-                              : "AI image"}
-                          </label>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={slot.includeHashtags}
+                                onChange={(event) =>
+                                  updateSlot(
+                                    slot.id,
+                                    "includeHashtags",
+                                    event.target.checked
+                                  )
+                                }
+                              />
+                              Hashtags
+                            </label>
 
-                          <label className="image-check">
-                            <input
-                              type="checkbox"
-                              checked={slot.includeEmojis}
-                              onChange={(event) =>
-                                updateSlot(
-                                  slot.id,
-                                  "includeEmojis",
-                                  event.target.checked
-                                )
-                              }
-                            />
-                            Emojis
-                          </label>
-
-                          <label className="image-check">
-                            <input
-                              type="checkbox"
-                              checked={slot.includeHashtags}
-                              onChange={(event) =>
-                                updateSlot(
-                                  slot.id,
-                                  "includeHashtags",
-                                  event.target.checked
-                                )
-                              }
-                            />
-                            Hashtags
-                          </label>
-
-                          <span className="credit-chip">
-                            {getSlotCreditLabel(slot)}
-                          </span>
+                            <span>{getSlotCreditLabel(slot)}</span>
+                          </div>
                         </div>
-
-                        {planCreationMode === "manual" &&
-                          slot.generateImage && (
-                            <textarea
-                              className="image-prompt-box"
-                              value={slot.imagePrompt}
-                              onChange={(event) =>
-                                updateSlot(
-                                  slot.id,
-                                  "imagePrompt",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Optional visual direction for the image."
-                            />
-                          )}
-                      </div>
+                      )}
                     </article>
                   );
                 })}
               </div>
+
+              <button
+                type="button"
+                className="planner-add-post-bottom"
+                onClick={addSlot}
+              >
+                + Add post
+              </button>
             </section>
 
             <section className="settings-card wizard-settings-card">
