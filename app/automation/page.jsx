@@ -2112,7 +2112,7 @@ function changeAutoPlanGoal(goalId) {
 
               {planCreationMode === "auto" && (
                 <div className="auto-goal-section">
-                  <div className="wizard-subtitle-row">
+<div className="wizard-subtitle-row">
                     <div>
                       <h4>Choose goal</h4>
                       <p>
@@ -2121,6 +2121,25 @@ function changeAutoPlanGoal(goalId) {
                       </p>
                     </div>
                     <span>{getAutoPlanGoalLabel(autoPlanGoal)}</span>
+                  </div>
+
+                  <div className="auto-post-count-row">
+                    <span>Posts per week</span>
+
+                    <div>
+                      {autoPlanPostCountOptions.map((option) => (
+                        <button
+                          type="button"
+                          key={option}
+                          className={
+                            autoPlanPostCount === option ? "active" : ""
+                          }
+                          onClick={() => changeAutoPlanPostCount(option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="auto-goal-grid">
