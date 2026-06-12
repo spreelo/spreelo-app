@@ -1547,7 +1547,18 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
     );
   }
 
-  function addSlot() {
+ function addSlot() {
+    setMessage("");
+    setShowAddPostModal(true);
+  }
+
+  function addSlotFromContentType(typeId) {
+    const selectedType = getContentTypeById(typeId);
+
+    if (!selectedType) {
+      return;
+    }
+
     setSlots((currentSlots) => {
       const smartSchedule = buildSmartSlotSchedule({
         startDate: planStartDate,
@@ -1562,18 +1573,31 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
         publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
       };
 
-      return [
-        ...currentSlots,
-        createSlot({
-          startDate: schedule.startDate,
-          publishTime: schedule.publishTime,
-          weekday: schedule.weekday,
-          timeZone,
-        }),
-      ];
-    });
-  }
+      const newSlot = createSlot({
+        startDate: schedule.startDate,
+        publishTime: schedule.publishTime,
+        weekday: schedule.weekday,
+        prompt: selectedType.prompt,
+        imagePrompt: selectedType.imagePrompt,
+        generateImage: selectedType.id === "manual_prompt" ? false : true,
+        contentTypeId: selectedType.id,
+        contentTypeLabel: selectedType.label,
+        usesWebsiteContent: Boolean(selectedType.usesWebsiteContent),
+        timeZone,
+      });
 
+      if (selectedType.id === "manual_prompt") {
+        setExpandedInstructionSlotIds((currentIds) => [
+          ...currentIds,
+          newSlot.id,
+        ]);
+      }
+
+      return [...currentSlots, newSlot];
+    });
+
+    setShowAddPostModal(false);
+  }
   function duplicateSlot(slotId) {
     const slotToCopy = slots.find((slot) => slot.id === slotId);
     if (!slotToCopy) return;
