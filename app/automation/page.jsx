@@ -230,7 +230,7 @@ const contentTypes = [
       "Create a professional image that suggests comparison or decision-making in a clean and tasteful way, without split-screen text.",
     usesWebsiteContent: false,
   },
-  {
+   {
     id: "mini_guide",
     label: "Mini-guide",
     shortLabel: "Mini-guide",
@@ -240,6 +240,16 @@ const contentTypes = [
     imagePrompt:
       "Create a professional image that supports a guide or learning theme, clean and easy to understand without readable text.",
     usesWebsiteContent: false,
+  },
+  {
+    id: "manual_prompt",
+    label: "Manual prompt",
+    shortLabel: "Manual",
+    description: "Write your own instructions for this post.",
+    prompt: "",
+    imagePrompt: "",
+    usesWebsiteContent: false,
+    isManualPrompt: true,
   },
 ];
 
