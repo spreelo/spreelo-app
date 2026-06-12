@@ -1368,9 +1368,9 @@ export default function AutomationPage() {
   );
 
   const [message, setMessage] = useState("");
+  const [savedPlanSummary, setSavedPlanSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [scheduleType, setScheduleType] = useState("weekly");
 
   const [planName, setPlanName] = useState("");
