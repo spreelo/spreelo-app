@@ -4394,6 +4394,18 @@ select.input {
   transform: none;
 }
 
+.planner-save-button.saved {
+  background: #ffffff;
+  color: #15803d;
+  border: 1.5px solid rgba(22, 163, 74, 0.32);
+  box-shadow: none;
+}
+
+.planner-save-button.saved:hover {
+  background: #f0fdf4;
+  transform: translateY(-1px);
+}
+
 .planner-save-message {
   grid-column: 1 / -1;
   margin: 0;
