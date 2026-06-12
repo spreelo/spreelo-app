@@ -26,19 +26,19 @@ const recommendedWeeklySchedule = [
   },
   {
     weekday: "Tuesday",
-    publishTime: "11:30",
+    publishTime: "10:00",
   },
   {
     weekday: "Wednesday",
-    publishTime: "15:00",
+    publishTime: "11:00",
   },
   {
     weekday: "Thursday",
-    publishTime: "18:00",
+    publishTime: "10:00",
   },
   {
     weekday: "Friday",
-    publishTime: "10:00",
+    publishTime: "09:00",
   },
 ];
 
