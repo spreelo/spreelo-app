@@ -2840,24 +2840,27 @@ function changeAutoPlanGoal(goalId) {
           </main>
 
                    <aside className="planner-sidebar">
-            <section className="planner-summary-card">
-              <div className="planner-sidebar-title">
+                      <section className="planner-summary-card">
+              <div className="planner-sidebar-title planner-summary-title">
                 <span>▤</span>
-                <h3>Plan summary</h3>
+                <div>
+                  <h3>Plan summary</h3>
+                  <p>Ready to create</p>
+                </div>
               </div>
 
-              <div className="planner-summary-list">
-                <div>
-                  <span>Method</span>
-                  <strong>{formatPlanMode(planCreationMode)}</strong>
-                </div>
-
+              <div className="planner-summary-list premium">
                 {planCreationMode === "auto" && (
                   <div>
                     <span>Goal</span>
                     <strong>{getAutoPlanGoalLabel(autoPlanGoal)}</strong>
                   </div>
                 )}
+
+                <div>
+                  <span>Method</span>
+                  <strong>{formatPlanMode(planCreationMode)}</strong>
+                </div>
 
                 <div>
                   <span>Posts per week</span>
@@ -2878,7 +2881,9 @@ function changeAutoPlanGoal(goalId) {
 
                 <div>
                   <span>Time period</span>
-                  <strong>{scheduleType === "weekly" ? "Weekly" : "Once"}</strong>
+                  <strong>
+                    {scheduleType === "weekly" ? "Weekly" : "Once"}
+                  </strong>
                 </div>
 
                 <div>
@@ -2889,6 +2894,14 @@ function changeAutoPlanGoal(goalId) {
                 <div>
                   <span>Credits</span>
                   <strong>{plannedCredits}</strong>
+                </div>
+              </div>
+
+              <div className="planner-summary-status">
+                <span>✓</span>
+                <div>
+                  <strong>Plan is ready</strong>
+                  <p>You can adjust posts or save the content plan.</p>
                 </div>
               </div>
 
