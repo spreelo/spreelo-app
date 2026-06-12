@@ -3142,3 +3142,39 @@ select.input {
     grid-template-columns: 1fr;
   }
 }
+.setting-tile-wide {
+  grid-column: 1 / -1;
+}
+
+.setting-tile-wide input {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.save-step-panel {
+  grid-column: 1 / -1;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  background: #f8fafc;
+  padding: 16px 18px;
+}
+
+.save-step-panel p {
+  margin: 0 0 4px;
+  color: #4f46e5;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.save-step-panel h4 {
+  margin: 0 0 5px;
+  color: #111827;
+  font-size: 16px;
+}
+
+.save-step-panel span {
+  color: #64748b;
+  font-size: 13px;
+}
