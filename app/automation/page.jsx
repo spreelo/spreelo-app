@@ -1994,12 +1994,45 @@ function changeAutoPlanGoal(goalId) {
 
     const { error } = await supabase.from("automation_rules").insert(rows);
 
-    if (error) {
+      if (error) {
       setMessage(error.message);
     } else {
-      setMessage(
-        `${rows.length} planned post${rows.length === 1 ? "" : "s"} saved.`
-      );
+      const nextRunDates = rows
+        .map((row) => row.next_run_at)
+        .filter(Boolean)
+        .sort((a, b) => new Date(a) - new Date(b));
+
+      const firstSlot = slots
+        .slice()
+        .sort((a, b) =>
+          `${a.startDate || ""} ${a.publishTime || ""}`.localeCompare(
+            `${b.startDate || ""} ${b.publishTime || ""}`
+          )
+        )[0];
+
+      const firstPostLabel = nextRunDates[0]
+        ? formatDateTime(nextRunDates[0], selectedTimeZone)
+        : firstSlot
+        ? `${formatStartDateLabel(
+            firstSlot.startDate,
+            selectedTimeZone
+          )} at ${normalizeTime(firstSlot.publishTime)}`
+        : "Not set";
+
+      setMessage("");
+
+      setSavedPlanSummary({
+        name: planName.trim() || "Content plan",
+        totalPosts: rows.length,
+        scheduleType,
+        postsPerWeek: scheduleType === "weekly" ? rows.length : null,
+        firstPostLabel,
+        publishingMode: approvalRequired
+          ? "Review before publishing"
+          : "Publish automatically",
+        credits: plannedCredits,
+        method: formatPlanMode(planCreationMode),
+      });
 
       setPlanName("");
       setLanguage("Auto");
@@ -2008,7 +2041,7 @@ function changeAutoPlanGoal(goalId) {
         const strategy = getAutoPlanStrategy(autoPlanGoal);
 
         setSelectedContentTypeIds(strategy.contentTypeIds);
-    setSlots(
+        setSlots(
           createRecommendedSlots({
             startDate: planStartDate,
             timeZone,
