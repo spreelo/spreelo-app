@@ -4034,10 +4034,10 @@ select.input {
 
 .planner-schedule-card {
   border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 22px;
+  border-radius: 24px;
   background: #ffffff;
-  padding: 18px;
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.035);
+  padding: 20px;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.04);
 }
 
 .planner-schedule-header {
@@ -4051,8 +4051,8 @@ select.input {
 .planner-schedule-header h3 {
   margin: 0;
   color: #111827;
-  font-size: 24px;
-  letter-spacing: -0.04em;
+  font-size: 25px;
+  letter-spacing: -0.045em;
 }
 
 .planner-schedule-header span {
@@ -4092,11 +4092,11 @@ select.input {
   grid-template-columns: 190px 140px 120px 1fr;
   gap: 12px;
   align-items: end;
-  margin-bottom: 14px;
-  padding: 13px;
-  border-radius: 16px;
-  background: #fbfaf8;
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fbfaf8 0%, #ffffff 100%);
+  border: 1px solid rgba(226, 232, 240, 0.9);
 }
 
 .planner-schedule-toolbar .custom-picker-field label {
@@ -4123,38 +4123,51 @@ select.input {
   line-height: 1.4;
 }
 
+/* New softer schedule rows */
+
 .planner-post-table {
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 18px;
+  display: grid;
+  gap: 9px;
+  border: 0;
+  border-radius: 0;
   overflow: visible;
-  background: #ffffff;
+  background: transparent;
 }
 
 .planner-post-row {
-  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 17px;
   background: #ffffff;
+  overflow: visible;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
 }
 
-.planner-post-row:last-child {
-  border-bottom: 0;
+.planner-post-row:hover {
+  border-color: rgba(124, 58, 237, 0.16);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.035);
 }
 
 .planner-post-row.expanded {
-  background: linear-gradient(90deg, #fff8ed, #ffffff);
+  border-color: rgba(251, 146, 60, 0.28);
+  background: linear-gradient(90deg, #fff8ed 0%, #ffffff 70%);
+  box-shadow: 0 16px 34px rgba(251, 146, 60, 0.07);
 }
 
 .planner-post-mainline {
   display: grid;
-  grid-template-columns: 42px minmax(170px, 1.4fr) 170px 108px 130px auto;
+  grid-template-columns: 38px minmax(220px, 1fr) 160px 96px 126px 92px;
   gap: 12px;
   align-items: center;
-  min-height: 58px;
-  padding: 10px 12px;
+  min-height: 62px;
+  padding: 11px 13px;
 }
 
 .planner-post-index {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   border-radius: 999px;
@@ -4162,26 +4175,32 @@ select.input {
   color: #ffffff;
   font-size: 13px;
   font-weight: 950;
+  box-shadow: 0 10px 20px rgba(79, 70, 229, 0.18);
 }
 
 .planner-post-row:nth-child(2) .planner-post-index {
   background: #14b8a6;
+  box-shadow: 0 10px 20px rgba(20, 184, 166, 0.16);
 }
 
 .planner-post-row:nth-child(3) .planner-post-index {
   background: #2563eb;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.16);
 }
 
 .planner-post-row:nth-child(4) .planner-post-index {
   background: #f97316;
+  box-shadow: 0 10px 20px rgba(249, 115, 22, 0.16);
 }
 
 .planner-post-row:nth-child(5) .planner-post-index {
   background: #0ea5e9;
+  box-shadow: 0 10px 20px rgba(14, 165, 233, 0.16);
 }
 
 .planner-post-row:nth-child(6) .planner-post-index {
   background: #7c3aed;
+  box-shadow: 0 10px 20px rgba(124, 58, 237, 0.16);
 }
 
 .planner-post-title {
@@ -4191,15 +4210,15 @@ select.input {
 .planner-post-title strong {
   display: block;
   color: #111827;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 950;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .planner-post-title span {
   display: block;
   color: #667085;
-  font-size: 11px;
+  font-size: 11.5px;
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
@@ -4208,60 +4227,94 @@ select.input {
 
 .planner-post-date .custom-picker-button,
 .planner-post-time .custom-picker-button {
+  min-height: 36px;
+  height: 36px;
+  border-radius: 12px;
   box-shadow: none;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.planner-post-date .custom-picker-button:hover,
+.planner-post-time .custom-picker-button:hover {
+  border-color: rgba(124, 58, 237, 0.24);
+  background: #fbfaff;
 }
 
 .planner-post-format {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 7px;
+  width: fit-content;
+  max-width: 126px;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: #f8fafc;
   color: #475467;
-  font-size: 12px;
-  font-weight: 850;
+  font-size: 11.5px;
+  font-weight: 900;
   white-space: nowrap;
 }
 
 .planner-post-format span {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  background: #f8fafc;
-  color: #4f46e5;
-  font-size: 12px;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #5b21b6;
+  font-size: 11px;
   font-weight: 950;
+  box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.9);
 }
 
 .planner-post-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 5px;
 }
 
 .planner-post-actions button {
-  border: 0;
+  min-height: 31px;
+  border: 1px solid transparent;
   background: transparent;
   color: #111827;
-  border-radius: 9px;
-  padding: 7px 8px;
+  border-radius: 10px;
+  padding: 0 8px;
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
+}
+
+.planner-post-actions button:first-child {
+  border-color: rgba(226, 232, 240, 0.95);
+  background: #ffffff;
 }
 
 .planner-post-actions button:hover {
   background: #f3f4f6;
 }
 
+.planner-post-actions button:first-child:hover {
+  border-color: rgba(124, 58, 237, 0.22);
+  background: #fbfaff;
+  color: #5b21b6;
+}
+
+/* Expanded edit area */
+
 .planner-post-expanded {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 230px;
   gap: 18px;
-  margin: 0 12px 12px 54px;
+  margin: 0 13px 13px 51px;
   padding: 16px;
   border-radius: 16px;
-  background: rgba(255, 251, 235, 0.82);
+  background:
+    radial-gradient(circle at 92% 25%, rgba(124, 58, 237, 0.07), transparent 26%),
+    rgba(255, 251, 235, 0.86);
   border: 1px solid rgba(251, 191, 36, 0.18);
 }
 
@@ -4326,7 +4379,7 @@ select.input {
   gap: 8px;
   width: fit-content;
   min-width: 130px;
-  margin: 14px auto 0;
+  margin: 15px auto 0;
   border: 1px solid rgba(109, 93, 252, 0.28);
   background: #ffffff;
   color: #5b21b6;
@@ -4341,9 +4394,11 @@ select.input {
   background: #f7f4ff;
 }
 
+/* Responsive */
+
 @media (max-width: 1200px) {
   .planner-post-mainline {
-    grid-template-columns: 38px minmax(160px, 1fr) 150px 100px;
+    grid-template-columns: 38px minmax(160px, 1fr) 150px 96px;
   }
 
   .planner-post-format,
@@ -4382,13 +4437,14 @@ select.input {
     grid-column: 2;
   }
 
+  .planner-post-format {
+    max-width: none;
+  }
+
   .planner-post-expanded {
     margin-left: 12px;
   }
 }
-/* ===== Spreelo automation redesign - settings and save ===== */
-
-/* ===== Spreelo automation redesign - settings and save ===== */
 
 .planner-settings-card {
   border: 1px solid rgba(226, 232, 240, 0.95);
