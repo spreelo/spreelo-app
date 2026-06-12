@@ -1903,6 +1903,7 @@ function changeAutoPlanGoal(goalId) {
 
   async function savePlan() {
     setMessage("");
+    setSavedPlanSummary(null);
 
     const invalidDateSlot = slots.find((slot) => !slot.startDate);
 
