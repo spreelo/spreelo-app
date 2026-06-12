@@ -1455,8 +1455,8 @@ export default function AutomationPage() {
     const { data: balanceData, error: balanceError } = await supabase
       .from("user_credit_balances")
       .select(
-        "credits_remaining, monthly_credit_limit, plan_name, subscription_status, subscription_plan, current_period_start, current_period_end, credits_renewed_at"
-      )
+  "credits_remaining, monthly_credit_limit, plan_name, subscription_status, subscription_plan, current_period_start, current_period_end, credits_renewed_at, trial_start, trial_end, cancel_at_period_end, payment_provider, provider_customer_id, provider_subscription_id, subscription_price_amount, subscription_currency"
+)
       .eq("user_id", user.id)
       .single();
 
