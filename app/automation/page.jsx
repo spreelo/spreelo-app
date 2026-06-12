@@ -2034,201 +2034,181 @@ function changeAutoPlanGoal(goalId) {
           }
         }}
       >
-        <header className="wizard-header">
+      <header className="planner-hero">
           <div>
-            <p className="wizard-eyebrow">Automation plan</p>
             <h2>Create content plan</h2>
-            <span>
-              Build a plan that creates social posts for you automatically.
-            </span>
+            <p>Build a plan that grows your presence automatically.</p>
           </div>
 
-          <button type="button" className="wizard-cancel-button">
-            ✕ Cancel
+          <button type="button" className="learn-more-button">
+            ⓘ Learn more
           </button>
         </header>
 
-        <section className="wizard-steps">
-          <div className="wizard-step active">
-            <span>1</span>
-            <strong>{getWizardStepOneLabel(planCreationMode)}</strong>
-          </div>
-          <div className="wizard-line" />
-          <div className="wizard-step">
-            <span>2</span>
-            <strong>Posts & schedule</strong>
-          </div>
-          <div className="wizard-line" />
-          <div className="wizard-step">
-            <span>3</span>
-            <strong>Settings</strong>
-          </div>
-          <div className="wizard-line" />
-          <div className="wizard-step">
-            <span>4</span>
-            <strong>Save plan</strong>
-          </div>
-        </section>
-
         <div className="wizard-layout">
           <main className="wizard-main">
-            <section className="wizard-card">
-              <div className="wizard-card-title">
-                <div>
-                  <h3>Choose how you want to create the plan</h3>
-                  <p>
-                    Three simple ways to get started. You can still change the
-                    details before saving.
-                  </p>
+            <section className="planner-setup-grid">
+              <div className="planner-setup-card">
+                <div className="setup-step-title">
+                  <span>1</span>
+                  <div>
+                    <strong>Choose goal</strong>
+                    <small>What is your main objective?</small>
+                  </div>
                 </div>
+
+                <select
+                  className="planner-select-control"
+                  value={autoPlanGoal}
+                  onChange={(event) => {
+                    if (planCreationMode !== "auto") {
+                      setPlanCreationMode("auto");
+                    }
+
+                    changeAutoPlanGoal(event.target.value);
+                  }}
+                >
+                  {autoPlanGoals.map((goal) => (
+                    <option key={goal.id} value={goal.id}>
+                      {goal.label}
+                    </option>
+                  ))}
+                </select>
+
+                <p>
+                  Spreelo tailors the content mix to match the goal you choose.
+                </p>
               </div>
 
-              <div className="wizard-method-grid">
+              <div className="planner-setup-card">
+                <div className="setup-step-title">
+                  <span>2</span>
+                  <div>
+                    <strong>Posts per week</strong>
+                    <small>How often should Spreelo post?</small>
+                  </div>
+                </div>
+
+                <div className="planner-segmented-buttons">
+                  {autoPlanPostCountOptions.map((option) => (
+                    <button
+                      type="button"
+                      key={option}
+                      className={autoPlanPostCount === option ? "active" : ""}
+                      onClick={() => {
+                        if (planCreationMode !== "auto") {
+                          setPlanCreationMode("auto");
+                        }
+
+                        changeAutoPlanPostCount(option);
+                      }}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+
+                <p>Recommended for steady growth and consistent visibility.</p>
+              </div>
+
+              <div className="planner-setup-card">
+                <div className="setup-step-title">
+                  <span>3</span>
+                  <div>
+                    <strong>Start date & time</strong>
+                    <small>When should we start?</small>
+                  </div>
+                </div>
+
+                <div className="planner-date-time-row">
+                  <DatePickerField
+                    value={planStartDate}
+                    onChange={updatePlanStartDate}
+                    pickerId="top-start-date"
+                    openPickerId={openPickerId}
+                    setOpenPickerId={setOpenPickerId}
+                    timeZone={timeZone}
+                    compact
+                  />
+
+                  <TimePickerField
+                    value={defaultPublishTime}
+                    onChange={updateDefaultPublishTime}
+                    pickerId="top-start-time"
+                    openPickerId={openPickerId}
+                    setOpenPickerId={setOpenPickerId}
+                    compact
+                  />
+                </div>
+
+                <p>Spreelo builds the schedule from this date and time.</p>
+              </div>
+            </section>
+
+            <section className="planner-mode-card">
+              <div className="planner-mode-grid">
                 <button
                   type="button"
-                  className={`wizard-method-card ${
+                  className={`planner-mode-option ${
                     planCreationMode === "auto" ? "active" : ""
                   }`}
                   onClick={() => changePlanCreationMode("auto")}
                 >
-                  <div className="method-check">
+                  <span className="mode-radio">
                     {planCreationMode === "auto" ? "✓" : ""}
-                  </div>
-                  <div className="method-illustration">🪄</div>
-                  <span>Recommended</span>
-                  <h4>Auto-plan</h4>
-                  <p>
-                    Choose a goal and let Spreelo build a weekly strategy with
-                    the right mix of post types.
-                  </p>
-                  <div className="method-best">
-                    <strong>Best for you if...</strong>
-                    <small>
-                      you want Spreelo to decide the content strategy for you.
-                    </small>
-                  </div>
+                  </span>
+                  <div className="mode-big-icon">✦</div>
+                  <strong>Auto-plan</strong>
+                  <p>AI creates the optimal plan for your goal.</p>
+                  <small>Recommended</small>
                 </button>
 
                 <button
                   type="button"
-                  className={`wizard-method-card ${
+                  className={`planner-mode-option ${
                     planCreationMode === "select" ? "active" : ""
                   }`}
                   onClick={() => changePlanCreationMode("select")}
                 >
-                  <div className="method-check">
+                  <span className="mode-radio">
                     {planCreationMode === "select" ? "✓" : ""}
-                  </div>
-                  <div className="method-illustration">🎛️</div>
-                  <span>Flexible</span>
-                  <h4>Choose content types</h4>
-                  <p>
-                    Pick the types of posts you want, and Spreelo builds the
-                    plan around your choices.
-                  </p>
-                  <div className="method-best blue">
-                    <strong>Best for you if...</strong>
-                    <small>
-                      you want more control without writing everything yourself.
-                    </small>
-                  </div>
+                  </span>
+                  <div className="mode-big-icon neutral">▦</div>
+                  <strong>Choose content types</strong>
+                  <p>Pick the post types you want to include.</p>
                 </button>
 
                 <button
                   type="button"
-                  className={`wizard-method-card ${
+                  className={`planner-mode-option ${
                     planCreationMode === "manual" ? "active" : ""
                   }`}
                   onClick={() => changePlanCreationMode("manual")}
                 >
-                  <div className="method-check">
+                  <span className="mode-radio">
                     {planCreationMode === "manual" ? "✓" : ""}
-                  </div>
-                  <div className="method-illustration">📝</div>
-                  <span>Advanced</span>
-                  <h4>Manual prompt</h4>
-                  <p>
-                    Write exactly what every post should be about and control
-                    the details yourself.
-                  </p>
-                  <div className="method-best green">
-                    <strong>Best for you if...</strong>
-                    <small>
-                      you have very specific wishes or campaign ideas.
-                    </small>
-                  </div>
+                  </span>
+                  <div className="mode-big-icon neutral">✎</div>
+                  <strong>Manual prompt</strong>
+                  <p>Guide the AI with a few words about what you want.</p>
                 </button>
               </div>
 
-              {planCreationMode === "auto" && (
-                <div className="auto-goal-section">
-<div className="wizard-subtitle-row">
-                    <div>
-                      <h4>Choose goal</h4>
-                      <p>
-                        Spreelo uses this goal to choose the right mix of post
-                        types, images and content direction.
-                      </p>
-                    </div>
-                    <span>{getAutoPlanGoalLabel(autoPlanGoal)}</span>
-                  </div>
-
-                  <div className="auto-post-count-row">
-                    <span>Posts per week</span>
-
-                    <div>
-                      {autoPlanPostCountOptions.map((option) => (
-                        <button
-                          type="button"
-                          key={option}
-                          className={
-                            autoPlanPostCount === option ? "active" : ""
-                          }
-                          onClick={() => changeAutoPlanPostCount(option)}
-                        >
-                          {option}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="auto-goal-grid">
-                    {autoPlanGoals.map((goal) => {
-                      const isSelected = autoPlanGoal === goal.id;
-
-                      return (
-                        <button
-                          type="button"
-                          key={goal.id}
-                          className={`auto-goal-card ${
-                            isSelected ? "active" : ""
-                          }`}
-                          onClick={() => changeAutoPlanGoal(goal.id)}
-                        >
-                          <span>{goal.icon}</span>
-                          <strong>{goal.label}</strong>
-                          <p>{goal.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {planCreationMode === "select" && (
-                <div className="wizard-content-types">
-                  <div className="wizard-subtitle-row">
+                <div className="planner-content-picker">
+                  <div className="planner-section-heading">
                     <div>
-                      <h4>Choose content types</h4>
+                      <h3>Choose content types</h3>
                       <p>
-                        Each selected type becomes a planned post with a
-                        ready-made prompt.
+                        Select the post types you want. Each selected type
+                        becomes one planned post.
                       </p>
                     </div>
+
                     <span>{selectedContentTypeIds.length} selected</span>
                   </div>
 
-                  <div className="wizard-content-type-grid">
+                  <div className="planner-content-grid">
                     {contentTypes.map((type) => {
                       const isSelected = selectedContentTypeIds.includes(
                         type.id
@@ -2238,12 +2218,13 @@ function changeAutoPlanGoal(goalId) {
                         <button
                           type="button"
                           key={type.id}
-                          className={`wizard-content-type ${
+                          className={`planner-content-chip ${
                             isSelected ? "active" : ""
                           }`}
                           onClick={() => toggleContentType(type.id)}
                         >
-                          <strong>{type.label}</strong>
+                          <span>{getContentTypeIcon(type.id)}</span>
+                          <strong>{type.shortLabel || type.label}</strong>
                           <p>{type.description}</p>
                         </button>
                       );
@@ -2252,86 +2233,42 @@ function changeAutoPlanGoal(goalId) {
                 </div>
               )}
 
-              {planCreationMode === "auto" && (
-                <div className="wizard-info-grid">
-                  <div className="wizard-info-box">
-                    <h4>How Auto-plan works</h4>
-                    <div className="info-list">
-                      <div>
-                        <span>🎯</span>
-                        <p>
-                          <strong>Goal first</strong>
-                          Spreelo chooses the post mix based on what you want
-                          to achieve.
-                        </p>
-                      </div>
-                      <div>
-                        <span>🛒</span>
-                        <p>
-                          <strong>Website content when useful</strong>
-                          Sales-focused plans can use products, services,
-                          listings or offers from your website.
-                        </p>
-                      </div>
-                      <div>
-                        <span>📅</span>
-                        <p>
-                          <strong>Smart schedule</strong>
-                          The first post uses your chosen date and time. The
-                          rest are spread across suggested weekdays and times.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="wizard-next-box">
-                    <h4>How you continue</h4>
-                    <div className="next-step active">
-                      <span>1</span>
-                      <p>
-                        <strong>Choose goal</strong>
-                        Pick what this plan should help with.
-                      </p>
-                    </div>
-                    <div className="next-step">
-                      <span>2</span>
-                      <p>
-                        <strong>Posts & schedule</strong>
-                        Choose start date, repeat and publishing time.
-                      </p>
-                    </div>
-                    <div className="next-step">
-                      <span>3</span>
-                      <p>
-                        <strong>Settings & save</strong>
-                        Choose defaults and save the plan.
-                      </p>
-                    </div>
+              <div className="planner-included-card">
+                <div className="planner-section-heading compact">
+                  <div>
+                    <h3>
+                      {planCreationMode === "auto"
+                        ? "Included in this plan"
+                        : planCreationMode === "select"
+                        ? "Selected content types"
+                        : "Manual prompt plan"}
+                    </h3>
+                    <p>
+                      {planCreationMode === "auto"
+                        ? "Spreelo balances this content mix automatically to match your goal."
+                        : planCreationMode === "select"
+                        ? "These post types will be used when the plan is saved."
+                        : "Write your own instructions in the planned post below."}
+                    </p>
                   </div>
                 </div>
-              )}
 
-              {planCreationMode === "select" && (
-                <div className="wizard-info-box single">
-                  <h4>How Choose content types works</h4>
-                  <p>
-                    Select the types of posts you want in the plan. Spreelo
-                    fills the plan with ready-made instructions, but you can
-                    still edit each post before saving.
-                  </p>
+                <div className="planner-included-grid">
+                  {includedContentTypes.map((type) => (
+                    <div className="planner-included-type" key={type.id}>
+                      <span>{getContentTypeIcon(type.id)}</span>
+                      <strong>{type.shortLabel || type.label}</strong>
+                    </div>
+                  ))}
                 </div>
-              )}
 
-              {planCreationMode === "manual" && (
-                <div className="wizard-info-box single">
-                  <h4>Write prompt</h4>
-                  <p>
-                    This mode is best when you already know exactly what each
-                    post should be about. Write your own instructions in the
-                    planned post below.
-                  </p>
-                </div>
-              )}
+                {planCreationMode === "auto" && (
+                  <div className="planner-balance-note">
+                    ✦ Spreelo balances this content mix automatically to match
+                    your selected goal.
+                  </div>
+                )}
+              </div>
             </section>
 
             <section className="wizard-card">
