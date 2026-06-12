@@ -1296,17 +1296,18 @@ export default function AutomationPage() {
   const [defaultPublishTime, setDefaultPublishTime] = useState(
     initialRecommendedTime
   );
-  const [autoPlanGoal, setAutoPlanGoal] = useState("stay_visible");
+ const [autoPlanGoal, setAutoPlanGoal] = useState("stay_visible");
   const [autoPlanPostCount, setAutoPlanPostCount] = useState(
-  DEFAULT_AUTO_PLAN_POST_COUNT
-);
-const [showAddPostModal, setShowAddPostModal] = useState(false);
+    DEFAULT_AUTO_PLAN_POST_COUNT
+  );
+  const [showAddPostModal, setShowAddPostModal] = useState(false);
   const [slots, setSlots] = useState(() =>
     createRecommendedSlots({
       startDate: initialStartDate,
       timeZone: DEFAULT_TIME_ZONE,
       autoPlanGoal: "stay_visible",
       firstPublishTime: initialRecommendedTime,
+      postCount: DEFAULT_AUTO_PLAN_POST_COUNT,
     })
   );
   const [planCreationMode, setPlanCreationMode] = useState("auto");
