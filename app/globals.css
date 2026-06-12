@@ -4698,11 +4698,12 @@ select.input {
 /* The wave and lower CTA area are one connected soft section */
 .planner-credit-wave {
   position: relative;
-  height: 108px;
-  margin: 18px -20px 0;
+  height: 96px;
+  margin: 8px -20px 0;
   overflow: hidden;
   border-radius: 0;
-  background: linear-gradient(180deg, #ffffff 0%, #fbf8ff 44%, #f4efff 100%);
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fbf8ff 40%, #f4efff 100%);
 }
 
 .planner-credit-wave::before {
@@ -4710,8 +4711,8 @@ select.input {
   position: absolute;
   inset: 0;
   background:
-    url("data:image/svg+xml,%3Csvg width='420' height='108' viewBox='0 0 420 108' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 72C41 62 73 58 108 68C144 79 164 89 204 82C244 75 259 55 303 52C348 49 380 62 420 55V108H0V72Z' fill='%23F1ECFF'/%3E%3Cpath d='M0 88C42 77 76 75 112 84C151 94 174 98 209 88C246 78 270 75 309 84C348 93 380 96 420 86V108H0V88Z' fill='%23C9B8FF' fill-opacity='0.26'/%3E%3C/svg%3E")
-    center bottom / 100% 108px no-repeat;
+    url("data:image/svg+xml,%3Csvg width='420' height='96' viewBox='0 0 420 96' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 55C42 43 72 44 107 58C144 73 171 80 209 68C247 56 270 41 314 48C357 55 382 66 420 56V96H0V55Z' fill='%23EEE9FF'/%3E%3Cpath d='M0 70C43 58 74 60 111 72C149 84 178 88 213 76C248 64 276 62 315 74C353 86 386 87 420 75V96H0V70Z' fill='%23CFC0FF' fill-opacity='0.22'/%3E%3C/svg%3E")
+    center bottom / 100% 96px no-repeat;
 }
 
 .planner-credit-wave::after {
@@ -4721,13 +4722,11 @@ select.input {
   background: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.08) 48%,
-    rgba(244, 239, 255, 0.5) 76%,
+    rgba(244, 239, 255, 0) 68%,
     #f4efff 100%
   );
   pointer-events: none;
 }
-
 .planner-credit-help {
   position: relative;
   z-index: 2;
