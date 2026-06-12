@@ -936,7 +936,6 @@ function formatSubscriptionPlan(value) {
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
-
 function formatRenewDate(value, timeZone = DEFAULT_TIME_ZONE) {
   if (!value) return "Not set yet";
 
@@ -946,6 +945,89 @@ function formatRenewDate(value, timeZone = DEFAULT_TIME_ZONE) {
     year: "numeric",
     timeZone,
   }).format(new Date(value));
+}
+
+function getSubscriptionStatusLabel(value) {
+  if (value === "trialing") return "Trial period";
+  if (value === "active") return "Active subscription";
+  if (value === "past_due") return "Payment issue";
+  if (value === "canceled") return "Canceled";
+  if (value === "expired") return "Expired";
+  if (value === "incomplete") return "Payment required";
+  if (value === "paused") return "Paused";
+
+  return formatSubscriptionPlan(value || "trialing");
+}
+
+function getPlanBadgeLabel(balance) {
+  const planLabel = formatSubscriptionPlan(
+    balance?.subscription_plan || balance?.plan_name || "starter"
+  );
+
+  if (balance?.subscription_status === "trialing") {
+    return `${planLabel} trial`;
+  }
+
+  return planLabel;
+}
+
+function getSubscriptionDateLabel(balance) {
+  if (!balance) return "Renews";
+
+  if (balance.subscription_status === "trialing") return "Trial ends";
+
+  if (balance.cancel_at_period_end) {
+    return "Access until";
+  }
+
+  if (balance.subscription_status === "active") return "Renews";
+  if (balance.subscription_status === "past_due") return "Payment due";
+  if (balance.subscription_status === "canceled") return "Ended";
+  if (balance.subscription_status === "expired") return "Expired";
+
+  return "Renews";
+}
+
+function getSubscriptionDateValue(balance, timeZone = DEFAULT_TIME_ZONE) {
+  if (!balance) return "Not set yet";
+
+  if (balance.subscription_status === "trialing") {
+    return formatRenewDate(
+      balance.trial_end || balance.current_period_end,
+      timeZone
+    );
+  }
+
+  return formatRenewDate(
+    balance.current_period_end || balance.trial_end,
+    timeZone
+  );
+}
+
+function getSubscriptionNextStepText(balance) {
+  if (!balance) return "Not set yet";
+
+  const amount = balance.subscription_price_amount;
+  const currency = balance.subscription_currency || "SEK";
+
+  if (balance.cancel_at_period_end) {
+    return "Will not renew";
+  }
+
+  if (balance.subscription_status === "trialing") {
+    if (amount) {
+      return `Then ${amount} ${currency}/month`;
+    }
+
+    return "Then monthly subscription";
+  }
+
+  if (balance.subscription_status === "active") return "Renews monthly";
+  if (balance.subscription_status === "past_due") return "Update payment method";
+  if (balance.subscription_status === "canceled") return "Subscription canceled";
+  if (balance.subscription_status === "expired") return "Trial expired";
+
+  return "Subscription";
 }
 
 function formatPlanMode(value) {
