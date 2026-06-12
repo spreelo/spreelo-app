@@ -1139,7 +1139,17 @@ function getContentTypeIcon(typeId) {
 
   return icons[typeId] || "✦";
 }
+function getSlotFormatLabel(slot) {
+  if (slot.usesWebsiteContent && slot.generateImage) {
+    return "Website image";
+  }
 
+  if (slot.generateImage) {
+    return "Text + image";
+  }
+
+  return "Text only";
+}
 function getPlanIncludedContentTypes({
   planCreationMode,
   autoPlanGoal,
