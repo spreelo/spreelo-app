@@ -762,7 +762,11 @@ function createSlotFromContentType(type, index = 0, options = {}) {
   };
 
   const shouldGenerateImage =
-    typeof options.generateImage === "boolean" ? options.generateImage : true;
+    typeof options.generateImage === "boolean"
+      ? options.generateImage
+      : type.id === "manual_prompt"
+      ? false
+      : true;
 
   return createSlot({
     weekday: schedule.weekday,
