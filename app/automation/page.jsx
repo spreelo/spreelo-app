@@ -1288,6 +1288,10 @@ export default function AutomationPage() {
     initialRecommendedTime
   );
   const [autoPlanGoal, setAutoPlanGoal] = useState("stay_visible");
+  const [autoPlanPostCount, setAutoPlanPostCount] = useState(
+  DEFAULT_AUTO_PLAN_POST_COUNT
+);
+const [showAddPostModal, setShowAddPostModal] = useState(false);
   const [slots, setSlots] = useState(() =>
     createRecommendedSlots({
       startDate: initialStartDate,
