@@ -4388,6 +4388,8 @@ select.input {
 }
 /* ===== Spreelo automation redesign - settings and save ===== */
 
+/* ===== Spreelo automation redesign - settings and save ===== */
+
 .planner-settings-card {
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 22px;
@@ -4531,6 +4533,7 @@ select.input {
     grid-template-columns: 1fr;
   }
 }
+
 /* ===== Spreelo automation redesign - right sidebar ===== */
 
 .planner-sidebar {
@@ -4544,10 +4547,15 @@ select.input {
 .planner-summary-card,
 .planner-credits-card {
   border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 22px;
+  border-radius: 24px;
   background: #ffffff;
-  padding: 18px;
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.035);
+  padding: 20px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.045);
+}
+
+.planner-credits-card {
+  overflow: hidden;
+  padding: 22px 20px 20px;
 }
 
 .planner-sidebar-title {
@@ -4621,97 +4629,139 @@ select.input {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .planner-credit-number strong {
   color: #111827;
-  font-size: 40px;
+  font-size: 48px;
   line-height: 1;
-  letter-spacing: -0.065em;
+  letter-spacing: -0.06em;
+  font-weight: 900;
 }
 
 .planner-credit-number span {
   color: #475467;
-  font-size: 13px;
-  font-weight: 850;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .planner-credit-progress {
-  height: 9px;
+  height: 10px;
   border-radius: 999px;
-  background: #eef2ff;
+  background: #eceffd;
   overflow: hidden;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .planner-credit-progress div {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #6d28d9, #4f46e5);
+  background: linear-gradient(90deg, #6d28d9 0%, #7c3aed 50%, #8b5cf6 100%);
 }
 
 .planner-credit-reset {
-  margin: 0 0 14px;
+  margin: 0 0 16px;
   color: #667085;
-  font-size: 12px;
-  font-weight: 750;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .planner-credit-included {
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 38px;
-  border-radius: 13px;
-  background: #ecfdf5;
-  color: #047857;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ecfdf5 0%, #e7f8f0 100%);
+  border: 1px solid #cdeedd;
+  color: #0f8b63;
+  font-size: 13px;
+  font-weight: 900;
+  margin-bottom: 18px;
+}
+
+.planner-credit-included-icon {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(15, 139, 99, 0.12);
+  color: #0f8b63;
   font-size: 12px;
-  font-weight: 950;
-  margin-bottom: 16px;
+  font-weight: 900;
+  flex-shrink: 0;
 }
 
 .planner-credit-wave {
-  height: 54px;
-  border-radius: 18px;
-  margin: 0 -4px 16px;
+  height: 88px;
+  border-radius: 22px;
+  margin: 0 -6px 16px;
   background:
-    radial-gradient(circle at 22% 100%, rgba(124, 58, 237, 0.13), transparent 42%),
-    radial-gradient(circle at 72% 90%, rgba(79, 70, 229, 0.14), transparent 44%),
-    linear-gradient(180deg, #ffffff 0%, #f5f3ff 100%);
+    radial-gradient(
+      120px 44px at 12% 100%,
+      rgba(196, 181, 253, 0.75) 0%,
+      rgba(196, 181, 253, 0.75) 58%,
+      transparent 59%
+    ),
+    radial-gradient(
+      170px 52px at 45% 100%,
+      rgba(221, 214, 254, 0.92) 0%,
+      rgba(221, 214, 254, 0.92) 58%,
+      transparent 59%
+    ),
+    radial-gradient(
+      150px 48px at 80% 100%,
+      rgba(196, 181, 253, 0.72) 0%,
+      rgba(196, 181, 253, 0.72) 58%,
+      transparent 59%
+    ),
+    linear-gradient(180deg, #faf7ff 0%, #f4efff 100%);
+}
+
+.planner-credit-help {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.planner-credit-help strong {
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 900;
+}
+
+.planner-credit-help p {
+  margin: 0;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 600;
 }
 
 .planner-credit-footer {
-  display: grid;
-  gap: 4px;
-  margin-bottom: 14px;
-}
-
-.planner-credit-footer strong {
-  color: #111827;
-  font-size: 14px;
-}
-
-.planner-credit-footer span {
-  color: #667085;
-  font-size: 12px;
-  line-height: 1.4;
+  display: none;
 }
 
 .planner-upgrade-button {
   width: 100%;
-  height: 46px;
-  border: 1px solid rgba(109, 93, 252, 0.35);
-  border-radius: 13px;
+  height: 48px;
+  border: 1.5px solid rgba(124, 58, 237, 0.4);
+  border-radius: 14px;
   background: #ffffff;
-  color: #5b21b6;
-  font-size: 13px;
-  font-weight: 950;
+  color: #6d28d9;
+  font-size: 14px;
+  font-weight: 900;
   cursor: pointer;
+  transition: all 0.18s ease;
 }
 
 .planner-upgrade-button:hover {
-  background: #f7f4ff;
+  background: #f8f4ff;
+  border-color: rgba(109, 40, 217, 0.55);
 }
 
 @media (max-width: 1200px) {
