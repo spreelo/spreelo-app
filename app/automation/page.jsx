@@ -791,8 +791,13 @@ function createRecommendedSlots(options = {}) {
   const startDate =
     options.startDate || getDateInputValueInTimeZone(new Date(), timeZone);
   const strategy = getAutoPlanStrategy(options.autoPlanGoal);
+  const postCount = options.postCount || DEFAULT_AUTO_PLAN_POST_COUNT;
 
-  const types = strategy.contentTypeIds.map(getContentTypeById).filter(Boolean);
+  const repeatedTypeIds = Array.from({ length: postCount }).map((_, index) => {
+    return strategy.contentTypeIds[index % strategy.contentTypeIds.length];
+  });
+
+  const types = repeatedTypeIds.map(getContentTypeById).filter(Boolean);
 
   const smartSchedule = buildSmartSlotSchedule({
     startDate,
