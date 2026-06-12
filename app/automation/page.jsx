@@ -1668,6 +1668,7 @@ function changeAutoPlanGoal(goalId) {
           timeZone,
           autoPlanGoal,
           firstPublishTime: defaultPublishTime,
+          postCount: autoPlanPostCount,
         })
       );
       return;
