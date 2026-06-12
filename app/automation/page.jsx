@@ -1802,7 +1802,7 @@ export default function AutomationPage() {
   <div className="wizard-line" />
   <div className="wizard-step">
     <span>4</span>
-    <strong>Review & save</strong>
+    <strong>Save plan</strong>
   </div>
 </section>
 
