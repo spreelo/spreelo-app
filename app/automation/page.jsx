@@ -2535,28 +2535,21 @@ function changeAutoPlanGoal(goalId) {
               </button>
             </section>
 
-            <section className="settings-card wizard-settings-card">
-              <div className="setup-title">
-                <p>Step 3</p>
-                <h3>Settings</h3>
-                <span>
-                  Name the plan and choose default settings for all rows in this
-                  plan.
-                </span>
-              </div>
-
-              <div className="settings-panel">
-                <div className="setting-tile setting-tile-wide">
-                  <span>Plan name</span>
-                  <input
-                    className="input"
-                    value={planName}
-                    onChange={(event) => setPlanName(event.target.value)}
-                    placeholder="Example: Weekly social media plan"
-                  />
+                        <section className="planner-settings-card">
+              <div className="planner-section-heading">
+                <div>
+                  <h3>Settings</h3>
+                  <p>
+                    These settings apply to all planned posts. You can keep the
+                    recommended defaults.
+                  </p>
                 </div>
 
-                <div className="setting-tile">
+                <span>Recommended</span>
+              </div>
+
+              <div className="planner-settings-grid">
+                <label className="planner-setting-field">
                   <span>Platform</span>
                   <select
                     value={platform}
@@ -2566,9 +2559,9 @@ function changeAutoPlanGoal(goalId) {
                     <option>Facebook</option>
                     <option>LinkedIn</option>
                   </select>
-                </div>
+                </label>
 
-                <div className="setting-tile">
+                <label className="planner-setting-field">
                   <span>Tone</span>
                   <select
                     value={tone}
@@ -2579,20 +2572,20 @@ function changeAutoPlanGoal(goalId) {
                     <option>Sales-focused</option>
                     <option>Premium</option>
                   </select>
-                </div>
+                </label>
 
-                <div className="setting-tile">
+                <label className="planner-setting-field">
                   <span>Language</span>
                   <select
                     value={language}
                     onChange={(event) => setLanguage(event.target.value)}
                   >
-                    <option value="Auto">Auto-detect from prompt</option>
+                    <option value="Auto">Auto-detect</option>
                     <option value="English">English</option>
                   </select>
-                </div>
+                </label>
 
-                <div className="setting-tile">
+                <label className="planner-setting-field">
                   <span>Post type</span>
                   <select
                     value={postType}
@@ -2603,9 +2596,9 @@ function changeAutoPlanGoal(goalId) {
                     <option>Educational</option>
                     <option>Reminder</option>
                   </select>
-                </div>
+                </label>
 
-                <div className="setting-tile">
+                <label className="planner-setting-field">
                   <span>Length</span>
                   <select
                     value={length}
@@ -2615,10 +2608,10 @@ function changeAutoPlanGoal(goalId) {
                     <option>Medium</option>
                     <option>Long</option>
                   </select>
-                </div>
+                </label>
 
-                <div className="setting-tile">
-                  <span>CTA type</span>
+                <label className="planner-setting-field">
+                  <span>CTA style</span>
                   <select
                     value={ctaType}
                     onChange={(event) => setCtaType(event.target.value)}
@@ -2629,9 +2622,9 @@ function changeAutoPlanGoal(goalId) {
                     <option>Book now</option>
                     <option>Shop now</option>
                   </select>
-                </div>
+                </label>
 
-                <div className="setting-tile">
+                <label className="planner-setting-field">
                   <span>Publishing mode</span>
                   <select
                     value={approvalRequired ? "review" : "auto"}
@@ -2642,9 +2635,9 @@ function changeAutoPlanGoal(goalId) {
                     <option value="review">Review before publishing</option>
                     <option value="auto">Publish automatically</option>
                   </select>
-                </div>
+                </label>
 
-                <div className="setting-tile">
+                <label className="planner-setting-field">
                   <span>Timezone</span>
                   <select
                     value={timeZone}
@@ -2656,27 +2649,33 @@ function changeAutoPlanGoal(goalId) {
                       </option>
                     ))}
                   </select>
-                </div>
+                </label>
+              </div>
+            </section>
 
-                <div className="save-step-panel">
-                  <p>Step 4</p>
-                  <h4>Save plan</h4>
-                  <span>
-                    When you save, each planned post becomes an automation rule.
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  className="save-plan-button"
-                  onClick={savePlan}
-                  disabled={saving || !hasEnoughCredits}
-                >
-                  {saving ? "Saving..." : "Save content plan"}
-                </button>
+            <section className="planner-save-card">
+              <div>
+                <h3>Step 4: Save plan</h3>
+                <p>Give your plan a name so you can find it later.</p>
               </div>
 
-              {message && <p className="login-message">{message}</p>}
+              <input
+                className="planner-save-input"
+                value={planName}
+                onChange={(event) => setPlanName(event.target.value)}
+                placeholder="e.g., Weekly awareness plan"
+              />
+
+              <button
+                type="button"
+                className="planner-save-button"
+                onClick={savePlan}
+                disabled={saving || !hasEnoughCredits}
+              >
+                {saving ? "Saving..." : "▣ Save content plan"}
+              </button>
+
+              {message && <p className="planner-save-message">{message}</p>}
             </section>
 
             <section className="saved-card saved-card-compact">
