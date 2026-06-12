@@ -1397,9 +1397,16 @@ export default function AutomationPage() {
     creditBalance?.current_period_end,
     timeZone
   );
-  const subscriptionPlanLabel = formatSubscriptionPlan(
-    creditBalance?.subscription_plan || creditBalance?.plan_name
-  );
+  const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
+const subscriptionDateLabel = getSubscriptionDateLabel(creditBalance);
+const subscriptionDateValue = getSubscriptionDateValue(
+  creditBalance,
+  timeZone
+);
+const subscriptionNextStepText = getSubscriptionNextStepText(creditBalance);
+const subscriptionStatusLabel = getSubscriptionStatusLabel(
+  creditBalance?.subscription_status
+);
 
   const savedRulesPreview = rules.slice(0, 3);
   const visibleRules = showSavedRules ? rules : savedRulesPreview;
