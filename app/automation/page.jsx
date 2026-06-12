@@ -1622,7 +1622,7 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
     );
   }
 
-  function changeAutoPlanGoal(goalId) {
+function changeAutoPlanGoal(goalId) {
     const strategy = getAutoPlanStrategy(goalId);
 
     setMessage("");
@@ -1634,6 +1634,22 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
         timeZone,
         autoPlanGoal: goalId,
         firstPublishTime: defaultPublishTime,
+        postCount: autoPlanPostCount,
+      })
+    );
+  }
+
+  function changeAutoPlanPostCount(nextCount) {
+    setMessage("");
+    setAutoPlanPostCount(nextCount);
+
+    setSlots(
+      createRecommendedSlots({
+        startDate: planStartDate,
+        timeZone,
+        autoPlanGoal,
+        firstPublishTime: defaultPublishTime,
+        postCount: nextCount,
       })
     );
   }
