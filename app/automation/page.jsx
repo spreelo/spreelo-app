@@ -2913,16 +2913,21 @@ const subscriptionStatusLabel = getSubscriptionStatusLabel(
 
                     <div>
                       <span>Renews</span>
-                      <strong>{creditRenewDate}</strong>
+                   <span>{subscriptionDateLabel}</span>
+<strong>{subscriptionDateValue}</strong>
+<div>
+  <span>
+    {creditBalance.subscription_status === "trialing"
+      ? "After trial"
+      : "Subscription"}
+  </span>
+  <strong>{subscriptionNextStepText}</strong>
+</div>
                     </div>
 
                     <div>
                       <span>Status</span>
-                      <strong>
-                        {formatSubscriptionPlan(
-                          creditBalance.subscription_status
-                        )}
-                      </strong>
+                      <strong>{subscriptionStatusLabel}</strong>
                     </div>
                   </div>
 
