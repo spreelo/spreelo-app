@@ -4030,3 +4030,359 @@ select.input {
     grid-template-columns: 1fr;
   }
 }
+/* ===== Spreelo automation redesign - compact schedule ===== */
+
+.planner-schedule-card {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 22px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.035);
+}
+
+.planner-schedule-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.planner-schedule-header h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 24px;
+  letter-spacing: -0.04em;
+}
+
+.planner-schedule-header span {
+  display: inline-flex;
+  margin-top: 7px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f3f0ff;
+  color: #5b21b6;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.planner-schedule-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.view-calendar-button {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
+  color: #111827;
+  border-radius: 12px;
+  padding: 11px 13px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.view-calendar-button:hover {
+  background: #f8fafc;
+}
+
+.planner-schedule-toolbar {
+  display: grid;
+  grid-template-columns: 190px 140px 120px 1fr;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+  padding: 13px;
+  border-radius: 16px;
+  background: #fbfaf8;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.planner-schedule-toolbar .custom-picker-field label {
+  font-size: 11px;
+  color: #667085;
+  margin-bottom: 6px;
+}
+
+.planner-schedule-toolbar .custom-select-input {
+  height: 38px;
+  min-height: 38px;
+  border-radius: 12px;
+  padding: 0 11px;
+  font-size: 13px;
+  font-weight: 850;
+  margin: 0;
+}
+
+.planner-schedule-note {
+  align-self: center;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.planner-post-table {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  overflow: visible;
+  background: #ffffff;
+}
+
+.planner-post-row {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
+}
+
+.planner-post-row:last-child {
+  border-bottom: 0;
+}
+
+.planner-post-row.expanded {
+  background: linear-gradient(90deg, #fff8ed, #ffffff);
+}
+
+.planner-post-mainline {
+  display: grid;
+  grid-template-columns: 42px minmax(170px, 1.4fr) 170px 108px 130px auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 58px;
+  padding: 10px 12px;
+}
+
+.planner-post-index {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.planner-post-row:nth-child(2) .planner-post-index {
+  background: #14b8a6;
+}
+
+.planner-post-row:nth-child(3) .planner-post-index {
+  background: #2563eb;
+}
+
+.planner-post-row:nth-child(4) .planner-post-index {
+  background: #f97316;
+}
+
+.planner-post-row:nth-child(5) .planner-post-index {
+  background: #0ea5e9;
+}
+
+.planner-post-row:nth-child(6) .planner-post-index {
+  background: #7c3aed;
+}
+
+.planner-post-title {
+  min-width: 0;
+}
+
+.planner-post-title strong {
+  display: block;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 950;
+  margin-bottom: 3px;
+}
+
+.planner-post-title span {
+  display: block;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.planner-post-date .custom-picker-button,
+.planner-post-time .custom-picker-button {
+  box-shadow: none;
+}
+
+.planner-post-format {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.planner-post-format span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.planner-post-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.planner-post-actions button {
+  border: 0;
+  background: transparent;
+  color: #111827;
+  border-radius: 9px;
+  padding: 7px 8px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.planner-post-actions button:hover {
+  background: #f3f4f6;
+}
+
+.planner-post-expanded {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 18px;
+  margin: 0 12px 12px 54px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 251, 235, 0.82);
+  border: 1px solid rgba(251, 191, 36, 0.18);
+}
+
+.planner-post-expanded-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.planner-post-expanded-copy label {
+  margin: 0;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.planner-post-expanded-copy textarea {
+  margin: 0;
+  min-height: 78px;
+  border-radius: 13px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.planner-post-options {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  align-self: start;
+}
+
+.planner-post-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.planner-post-options input {
+  width: 15px;
+  height: 15px;
+}
+
+.planner-post-options > span {
+  margin-top: 4px;
+  display: inline-flex;
+  width: fit-content;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #f3f0ff;
+  color: #5b21b6;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.planner-add-post-bottom {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-width: 130px;
+  margin: 14px auto 0;
+  border: 1px solid rgba(109, 93, 252, 0.28);
+  background: #ffffff;
+  color: #5b21b6;
+  border-radius: 13px;
+  padding: 11px 16px;
+  font-size: 13px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.planner-add-post-bottom:hover {
+  background: #f7f4ff;
+}
+
+@media (max-width: 1200px) {
+  .planner-post-mainline {
+    grid-template-columns: 38px minmax(160px, 1fr) 150px 100px;
+  }
+
+  .planner-post-format,
+  .planner-post-actions {
+    grid-column: 2 / -1;
+  }
+
+  .planner-post-actions {
+    justify-content: flex-start;
+  }
+
+  .planner-post-expanded {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .planner-schedule-header,
+  .planner-schedule-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .planner-schedule-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .planner-post-mainline {
+    grid-template-columns: 34px 1fr;
+  }
+
+  .planner-post-date,
+  .planner-post-time,
+  .planner-post-format,
+  .planner-post-actions {
+    grid-column: 2;
+  }
+
+  .planner-post-expanded {
+    margin-left: 12px;
+  }
+}
