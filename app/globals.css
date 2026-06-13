@@ -5644,3 +5644,73 @@ select.input {
   opacity: 0.55;
   cursor: not-allowed;
 }
+.current-brand-danger {
+  margin-top: 10px;
+  border-top: 1px solid rgba(120, 79, 25, 0.14);
+  padding-top: 10px;
+}
+
+.current-brand-delete-button {
+  width: 100%;
+  border: 1px solid rgba(180, 60, 60, 0.28);
+  background: rgba(180, 60, 60, 0.06);
+  color: #9b2f2f;
+  border-radius: 12px;
+  padding: 9px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.current-brand-delete-button:hover {
+  background: rgba(180, 60, 60, 0.1);
+}
+
+.current-brand-delete-confirm {
+  border: 1px solid rgba(180, 60, 60, 0.25);
+  background: rgba(180, 60, 60, 0.06);
+  border-radius: 14px;
+  padding: 10px;
+}
+
+.current-brand-delete-confirm p {
+  margin: 0 0 10px;
+  color: #6e2a2a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.current-brand-delete-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.current-brand-delete-confirm-button,
+.current-brand-delete-cancel-button {
+  width: 100%;
+  border-radius: 11px;
+  padding: 8px 9px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.current-brand-delete-confirm-button {
+  border: 1px solid rgba(180, 60, 60, 0.35);
+  background: #9b2f2f;
+  color: #fff;
+}
+
+.current-brand-delete-cancel-button {
+  border: 1px solid rgba(120, 79, 25, 0.16);
+  background: #fff;
+  color: #4b3a2a;
+}
+
+.current-brand-action-message {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #9b2f2f;
+}
