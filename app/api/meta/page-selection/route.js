@@ -57,7 +57,7 @@ function sanitizePagesForClient(pages) {
 async function getSelectionSession({ supabaseAdmin, sessionId, userId }) {
   const { data, error } = await supabaseAdmin
     .from("meta_page_selection_sessions")
-    .select("id, user_id, pages, expires_at")
+    .select("id, user_id, brand_profile_id, pages, expires_at")
     .eq("id", sessionId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -79,35 +79,78 @@ async function getSelectionSession({ supabaseAdmin, sessionId, userId }) {
   return data;
 }
 
-async function saveFacebookConnection({ supabaseAdmin, userId, page }) {
+async function getBrandForSession({ supabaseAdmin, userId, brandProfileId }) {
+  if (!brandProfileId) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("brand_profiles")
+    .select("id, business_name")
+    .eq("id", brandProfileId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+async function saveFacebookConnection({
+  supabaseAdmin,
+  userId,
+  brandProfileId,
+  page,
+}) {
+  if (!brandProfileId) {
+    throw new Error("Missing brand_profile_id for Facebook connection");
+  }
+
+  const nowIso = new Date().toISOString();
+
   const connectionPayload = {
     user_id: userId,
+    brand_profile_id: brandProfileId,
     platform: "facebook",
     page_id: page.id,
     page_name: page.name || "Facebook Page",
     page_access_token: page.access_token,
     permissions: page.tasks || [],
     status: "connected",
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
 
-  const { data: existingConnection, error: existingError } = await supabaseAdmin
-    .from("social_connections")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("platform", "facebook")
-    .eq("page_id", page.id)
-    .maybeSingle();
+  /*
+    One connected Facebook Page per brand.
 
-  if (existingError) {
-    throw existingError;
+    If this brand already has a Facebook connection, update that row.
+    This prevents one brand from accidentally ending up with several active
+    Facebook pages.
+  */
+  const { data: existingBrandConnection, error: existingBrandError } =
+    await supabaseAdmin
+      .from("social_connections")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("brand_profile_id", brandProfileId)
+      .eq("platform", "facebook")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  if (existingBrandError) {
+    throw existingBrandError;
   }
 
-  if (existingConnection?.id) {
+  if (existingBrandConnection?.id) {
     const { error: updateError } = await supabaseAdmin
       .from("social_connections")
       .update(connectionPayload)
-      .eq("id", existingConnection.id);
+      .eq("id", existingBrandConnection.id)
+      .eq("user_id", userId)
+      .eq("brand_profile_id", brandProfileId);
 
     if (updateError) {
       throw updateError;
@@ -116,11 +159,16 @@ async function saveFacebookConnection({ supabaseAdmin, userId, page }) {
     return;
   }
 
+  /*
+    If the same Facebook Page was previously connected to the same user but
+    without brand_profile_id, or to an old wrong brand during earlier testing,
+    do not reuse that row blindly. Create/update only for the selected brand.
+  */
   const { error: insertError } = await supabaseAdmin
     .from("social_connections")
     .insert({
       ...connectionPayload,
-      created_at: new Date().toISOString(),
+      created_at: nowIso,
     });
 
   if (insertError) {
@@ -160,8 +208,29 @@ export async function GET(request) {
       );
     }
 
+    if (!selectionSession.brand_profile_id) {
+      return NextResponse.json(
+        { error: "Selection session is missing brand_profile_id" },
+        { status: 400 }
+      );
+    }
+
+    const brand = await getBrandForSession({
+      supabaseAdmin,
+      userId: user.id,
+      brandProfileId: selectionSession.brand_profile_id,
+    });
+
+    if (!brand) {
+      return NextResponse.json(
+        { error: "Selected brand not found" },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       pages: sanitizePagesForClient(selectionSession.pages),
+      brand,
     });
   } catch (error) {
     console.error("Meta page selection GET error:", error);
@@ -206,6 +275,26 @@ export async function POST(request) {
       );
     }
 
+    if (!selectionSession.brand_profile_id) {
+      return NextResponse.json(
+        { error: "Selection session is missing brand_profile_id" },
+        { status: 400 }
+      );
+    }
+
+    const brand = await getBrandForSession({
+      supabaseAdmin,
+      userId: user.id,
+      brandProfileId: selectionSession.brand_profile_id,
+    });
+
+    if (!brand) {
+      return NextResponse.json(
+        { error: "Selected brand not found" },
+        { status: 404 }
+      );
+    }
+
     const selectedPage = (selectionSession.pages || []).find(
       (page) => page.id === pageId
     );
@@ -220,6 +309,7 @@ export async function POST(request) {
     await saveFacebookConnection({
       supabaseAdmin,
       userId: user.id,
+      brandProfileId: selectionSession.brand_profile_id,
       page: selectedPage,
     });
 
@@ -231,6 +321,11 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
+      brand,
+      page: {
+        id: selectedPage.id,
+        name: selectedPage.name || "Facebook Page",
+      },
     });
   } catch (error) {
     console.error("Meta page selection POST error:", error);
