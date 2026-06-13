@@ -92,53 +92,15 @@ async function getFacebookPages(userAccessToken) {
   return data?.data || [];
 }
 
-async function saveFacebookConnection({ supabaseAdmin, userId, page }) {
-  const connectionPayload = {
-    user_id: userId,
-    platform: "facebook",
-    page_id: page.id,
-    page_name: page.name || "Facebook Page",
-    page_access_token: page.access_token,
-    permissions: page.tasks || [],
-    status: "connected",
-    updated_at: new Date().toISOString(),
-  };
-
-  const { data: existingConnection, error: existingError } = await supabaseAdmin
-    .from("social_connections")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("platform", "facebook")
-    .eq("page_id", page.id)
-    .maybeSingle();
-
-  if (existingError) {
-    throw existingError;
-  }
-
-  if (existingConnection?.id) {
-    const { error: updateError } = await supabaseAdmin
-      .from("social_connections")
-      .update(connectionPayload)
-      .eq("id", existingConnection.id);
-
-    if (updateError) {
-      throw updateError;
-    }
-
-    return;
-  }
-
-  const { error: insertError } = await supabaseAdmin
-    .from("social_connections")
-    .insert({
-      ...connectionPayload,
-      created_at: new Date().toISOString(),
-    });
-
-  if (insertError) {
-    throw insertError;
-  }
+function getValidPages(pages) {
+  return (pages || [])
+    .filter((page) => page?.id && page?.access_token)
+    .map((page) => ({
+      id: page.id,
+      name: page.name || "Facebook Page",
+      access_token: page.access_token,
+      tasks: page.tasks || [],
+    }));
 }
 
 export async function GET(request) {
@@ -198,31 +160,34 @@ export async function GET(request) {
     });
 
     const pages = await getFacebookPages(userAccessToken);
+    const validPages = getValidPages(pages);
 
-    if (!pages.length) {
+    if (!validPages.length) {
       return NextResponse.redirect(
         `${baseUrl}/social-channels?error=no_pages_found`
       );
     }
 
-    const firstPage = pages[0];
-
-    if (!firstPage?.id || !firstPage?.access_token) {
-      return NextResponse.redirect(
-        `${baseUrl}/social-channels?error=missing_page_token`
-      );
-    }
-
     const supabaseAdmin = createSupabaseAdminClient();
 
-    await saveFacebookConnection({
-      supabaseAdmin,
-      userId: decodedState.userId,
-      page: firstPage,
-    });
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    const { data: sessionData, error: sessionError } = await supabaseAdmin
+      .from("meta_page_selection_sessions")
+      .insert({
+        user_id: decodedState.userId,
+        pages: validPages,
+        expires_at: expiresAt,
+      })
+      .select("id")
+      .single();
+
+    if (sessionError) {
+      throw sessionError;
+    }
 
     const response = NextResponse.redirect(
-      `${baseUrl}/social-channels?connected=facebook`
+      `${baseUrl}/social-channels/facebook/select?session_id=${sessionData.id}`
     );
 
     response.cookies.delete("spreelo_meta_oauth_state");
