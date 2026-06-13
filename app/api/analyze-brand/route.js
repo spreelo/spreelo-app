@@ -231,31 +231,47 @@ async function logAnalysisRun({ supabase, userId, websiteUrl }) {
   }
 }
 
+async function verifyBrandOwnership({ supabase, userId, brandProfileId }) {
+  const { data, error } = await supabase
+    .from("brand_profiles")
+    .select("id, business_name")
+    .eq("id", brandProfileId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "Could not verify brand profile");
+  }
+
+  if (!data?.id) {
+    throw new Error("Brand profile not found.");
+  }
+
+  return data;
+}
+
 async function saveBrandProfile({
   supabase,
   userId,
+  brandProfileId,
   websiteUrl,
   brandDescription,
   profile,
 }) {
   const { data, error } = await supabase
     .from("brand_profiles")
-    .upsert(
-      {
-        user_id: userId,
-        business_name: profile.business_name,
-        website_url: websiteUrl || "",
-        brand_description: brandDescription || "",
-        industry: profile.industry,
-        target_audience: profile.target_audience,
-        updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "user_id",
-      }
-    )
+    .update({
+      business_name: profile.business_name,
+      website_url: websiteUrl || "",
+      brand_description: brandDescription || "",
+      industry: profile.industry,
+      target_audience: profile.target_audience,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", brandProfileId)
+    .eq("user_id", userId)
     .select(
-      "business_name, website_url, brand_description, industry, target_audience"
+      "id, business_name, website_url, brand_description, industry, target_audience"
     )
     .single();
 
@@ -268,6 +284,7 @@ async function saveBrandProfile({
 
 async function analyzeWebsiteWithOpenAI({
   openai,
+  businessName,
   websiteUrl,
   html,
   brandDescription,
@@ -288,6 +305,9 @@ async function analyzeWebsiteWithOpenAI({
         role: "user",
         content: `
 Analyze this business and create a brand profile for a social media automation tool.
+
+User-entered business name:
+${businessName || "Not provided"}
 
 Website URL:
 ${websiteUrl}
@@ -315,6 +335,7 @@ Return JSON only in this exact shape:
 Rules:
 - Use only information supported by the website content and optional brand description.
 - Do not make up products, locations, services or claims.
+- If the user-entered business name is provided, prefer that name unless the website clearly shows a better official name.
 - Write business_name as the official business name, not translated.
 - Industry should be useful for generating social media posts.
 - Target audience should be practical and specific, not vague.
@@ -335,14 +356,18 @@ Rules:
   }
 
   return {
-    business_name: String(parsed.business_name || "").trim(),
+    business_name: String(parsed.business_name || businessName || "").trim(),
     industry: String(parsed.industry || "").trim(),
     target_audience: String(parsed.target_audience || "").trim(),
     detected_language: String(parsed.detected_language || "").trim(),
   };
 }
 
-async function analyzeDescriptionWithOpenAI({ openai, brandDescription }) {
+async function analyzeDescriptionWithOpenAI({
+  openai,
+  businessName,
+  brandDescription,
+}) {
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini",
     messages: [
@@ -355,6 +380,9 @@ async function analyzeDescriptionWithOpenAI({ openai, brandDescription }) {
         role: "user",
         content: `
 Create a brand profile for a social media automation tool based on this user-provided description.
+
+User-entered business name:
+${businessName || "Not provided"}
 
 Brand description:
 ${brandDescription}
@@ -370,7 +398,7 @@ Return JSON only in this exact shape:
 Rules:
 - Use only information supported by the description.
 - Do not invent products, locations, services or claims.
-- If the business name is unclear, infer the most likely name carefully from the description.
+- If the user-entered business name is provided, use it as the business_name.
 - Industry should be useful for generating social media posts.
 - Target audience should be practical and specific, not vague.
 - If the description is Swedish, answer in Swedish.
@@ -390,7 +418,7 @@ Rules:
   }
 
   return {
-    business_name: String(parsed.business_name || "").trim(),
+    business_name: String(parsed.business_name || businessName || "").trim(),
     industry: String(parsed.industry || "").trim(),
     target_audience: String(parsed.target_audience || "").trim(),
     detected_language: String(parsed.detected_language || "").trim(),
@@ -450,8 +478,30 @@ export async function POST(request) {
     }
 
     const body = await request.json();
+    const brandProfileId = String(body?.brandProfileId || "").trim();
+    const businessName = String(body?.businessName || "").trim();
     const websiteUrl = normalizeWebsiteUrl(body?.websiteUrl);
     const brandDescription = String(body?.brandDescription || "").trim();
+
+    if (!brandProfileId) {
+      return Response.json(
+        {
+          ok: false,
+          error: "Missing brand profile.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!businessName) {
+      return Response.json(
+        {
+          ok: false,
+          error: "Business name is required.",
+        },
+        { status: 400 }
+      );
+    }
 
     if (!websiteUrl && !brandDescription) {
       return Response.json(
@@ -462,6 +512,12 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    await verifyBrandOwnership({
+      supabase,
+      userId: user.id,
+      brandProfileId,
+    });
 
     await checkRateLimit({
       supabase,
@@ -481,6 +537,7 @@ export async function POST(request) {
 
       profile = await analyzeWebsiteWithOpenAI({
         openai,
+        businessName,
         websiteUrl: website.url,
         html: website.html,
         brandDescription,
@@ -488,6 +545,7 @@ export async function POST(request) {
     } else {
       profile = await analyzeDescriptionWithOpenAI({
         openai,
+        businessName,
         brandDescription,
       });
     }
@@ -495,6 +553,7 @@ export async function POST(request) {
     const savedProfile = await saveBrandProfile({
       supabase,
       userId: user.id,
+      brandProfileId,
       websiteUrl: finalWebsiteUrl,
       brandDescription,
       profile,
