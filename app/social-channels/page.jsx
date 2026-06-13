@@ -23,6 +23,7 @@ function getStatusClass(status) {
 
 export default function SocialChannelsPage() {
   const [facebookConnection, setFacebookConnection] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -42,6 +43,8 @@ export default function SocialChannelsPage() {
       window.location.href = "/login";
       return;
     }
+
+    setCurrentUser(user);
 
     const { data, error } = await supabase
       .from("social_connections")
@@ -151,7 +154,14 @@ export default function SocialChannelsPage() {
                 Facebook and choosing the page Spreelo should publish to.
               </p>
 
-              <a className="primary-button full" href="/api/meta/connect">
+              <a
+                className="primary-button full"
+                href={
+                  currentUser?.id
+                    ? `/api/meta/connect?user_id=${currentUser.id}`
+                    : "/social-channels"
+                }
+              >
                 Connect Facebook
               </a>
             </>
