@@ -1802,21 +1802,49 @@ async function publishImagePostToFacebook({
   return result;
 }
 
+async function getFacebookConnectionForBrand({
+  supabase,
+  userId,
+  brandProfileId,
+}) {
+  if (!userId || !brandProfileId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("social_connections")
+    .select("id, page_id, page_name, page_access_token, status")
+    .eq("user_id", userId)
+    .eq("brand_profile_id", brandProfileId)
+    .eq("platform", "facebook")
+    .eq("status", "connected")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not load Facebook connection for brand", {
+      userId,
+      brandProfileId,
+      message: error.message,
+    });
+
+    return null;
+  }
+
+  return data || null;
+}
+
 async function publishApprovedFacebookPosts({
   supabase,
-  pageId,
-  pageAccessToken,
   nowIso,
   summary,
 }) {
-  if (!pageId || !pageAccessToken) {
-    summary.facebook_publish_skipped_no_config += 1;
-    return;
-  }
-
   const { data: posts, error } = await supabase
     .from("posts")
-    .select("id, content, platform, status, published_at, approved_at, image_url")
+    .select(
+      "id, user_id, brand_profile_id, content, platform, status, published_at, approved_at, image_url"
+    )
     .eq("status", "approved")
     .eq("platform", "Facebook")
     .is("published_at", null)
@@ -1824,6 +1852,10 @@ async function publishApprovedFacebookPosts({
     .limit(BATCH_SIZE);
 
   if (error) {
+    console.error("Could not load approved Facebook posts", {
+      message: error.message,
+    });
+
     summary.facebook_publish_failed += 1;
     return;
   }
@@ -1838,17 +1870,63 @@ async function publishApprovedFacebookPosts({
         continue;
       }
 
+      if (!post.brand_profile_id) {
+        console.error("Approved Facebook post is missing brand_profile_id", {
+          postId: post.id,
+          userId: post.user_id,
+        });
+
+        await supabase
+          .from("posts")
+          .update({
+            status: "failed",
+            updated_at: nowIso,
+          })
+          .eq("id", post.id);
+
+        summary.facebook_publish_failed += 1;
+        continue;
+      }
+
+      const facebookConnection = await getFacebookConnectionForBrand({
+        supabase,
+        userId: post.user_id,
+        brandProfileId: post.brand_profile_id,
+      });
+
+      if (
+        !facebookConnection?.page_id ||
+        !facebookConnection?.page_access_token
+      ) {
+        console.error("No connected Facebook page found for post brand", {
+          postId: post.id,
+          userId: post.user_id,
+          brandProfileId: post.brand_profile_id,
+        });
+
+        await supabase
+          .from("posts")
+          .update({
+            status: "failed",
+            updated_at: nowIso,
+          })
+          .eq("id", post.id);
+
+        summary.facebook_publish_skipped_no_config += 1;
+        continue;
+      }
+
       if (post.image_url) {
         await publishImagePostToFacebook({
-          pageId,
-          pageAccessToken,
+          pageId: facebookConnection.page_id,
+          pageAccessToken: facebookConnection.page_access_token,
           imageUrl: post.image_url,
           caption: post.content,
         });
       } else {
         await publishTextPostToFacebook({
-          pageId,
-          pageAccessToken,
+          pageId: facebookConnection.page_id,
+          pageAccessToken: facebookConnection.page_access_token,
           message: post.content,
         });
       }
@@ -1871,8 +1949,18 @@ async function publishApprovedFacebookPosts({
     } catch (error) {
       console.error("Facebook publish failed", {
         postId: post.id,
+        userId: post.user_id,
+        brandProfileId: post.brand_profile_id,
         message: error.message,
       });
+
+      await supabase
+        .from("posts")
+        .update({
+          status: "failed",
+          updated_at: nowIso,
+        })
+        .eq("id", post.id);
 
       summary.facebook_publish_failed += 1;
     }
