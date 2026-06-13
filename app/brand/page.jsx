@@ -427,10 +427,46 @@ async function deleteWebsiteContentHistory(ruleIds, postIds) {
         throw new Error("Could not find another brand to switch to.");
       }
 
-      await deleteRows("website_content_history", "brand_profile_id", brandProfileId);
-await deleteRows("automation_rules", "brand_id", brandProfileId);
-await deleteRows("posts", "brand_id", brandProfileId);
-await deleteRows("social_connections", "brand_id", brandProfileId);
+      const { data: rulesToDelete, error: rulesLoadError } = await supabase
+  .from("automation_rules")
+  .select("id")
+  .eq("brand_profile_id", brandProfileId);
+
+if (rulesLoadError) {
+  throw new Error(`automation_rules: ${rulesLoadError.message}`);
+}
+
+const { data: postsToDelete, error: postsLoadError } = await supabase
+  .from("posts")
+  .select("id")
+  .eq("brand_profile_id", brandProfileId);
+
+if (postsLoadError) {
+  throw new Error(`posts: ${postsLoadError.message}`);
+}
+
+const ruleIds = (rulesToDelete || []).map((rule) => rule.id);
+const postIds = (postsToDelete || []).map((post) => post.id);
+
+await deleteWebsiteContentHistory(ruleIds, postIds);
+
+await deleteRowsByColumn(
+  "automation_rules",
+  "brand_profile_id",
+  brandProfileId
+);
+
+await deleteRowsByColumn(
+  "posts",
+  "brand_profile_id",
+  brandProfileId
+);
+
+await deleteRowsByColumn(
+  "social_connections",
+  "brand_profile_id",
+  brandProfileId
+);
       const { error: deleteBrandError } = await supabase
         .from("brand_profiles")
         .delete()
