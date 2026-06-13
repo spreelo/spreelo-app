@@ -2008,9 +2008,20 @@ const { error } = await supabase
       return;
     }
 
-    const selectedTimeZone = timeZone || DEFAULT_TIME_ZONE;
+  const selectedBrandId =
+  currentBrandId || (await getCurrentBrandIdForUser(user));
 
-    const rows = slots.map((slot) => {
+if (!selectedBrandId) {
+  setMessage("Choose or create a brand before saving an automation plan.");
+  setSaving(false);
+  return;
+}
+
+setCurrentBrandId(selectedBrandId);
+
+const selectedTimeZone = timeZone || DEFAULT_TIME_ZONE;
+
+const rows = slots.map((slot) => {
       const slotWeekday = getWeekdayFromDateString(
         slot.startDate,
         selectedTimeZone
