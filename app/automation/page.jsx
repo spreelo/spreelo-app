@@ -1499,7 +1499,44 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
   const allVisibleRulesSelected =
     visibleRuleIds.length > 0 &&
     visibleRuleIds.every((ruleId) => selectedRuleIds.includes(ruleId));
+async function getCurrentBrandIdForUser(currentUser) {
+  const savedBrandId =
+    typeof window !== "undefined"
+      ? localStorage.getItem(getBrandStorageKey(currentUser.id))
+      : "";
 
+  if (savedBrandId) {
+    const { data: savedBrand, error: savedBrandError } = await supabase
+      .from("brand_profiles")
+      .select("id")
+      .eq("id", savedBrandId)
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+
+    if (!savedBrandError && savedBrand?.id) {
+      return savedBrand.id;
+    }
+  }
+
+  const { data: defaultBrand, error: defaultBrandError } = await supabase
+    .from("brand_profiles")
+    .select("id")
+    .eq("user_id", currentUser.id)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (defaultBrandError) {
+    throw defaultBrandError;
+  }
+
+  if (defaultBrand?.id && typeof window !== "undefined") {
+    localStorage.setItem(getBrandStorageKey(currentUser.id), defaultBrand.id);
+  }
+
+  return defaultBrand?.id || "";
+}
   async function loadRules() {
     setLoading(true);
 
