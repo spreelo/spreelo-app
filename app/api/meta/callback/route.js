@@ -72,12 +72,7 @@ async function exchangeCodeForUserToken({ code, appId, appSecret, redirectUri })
 }
 
 async function getFacebookPages(userAccessToken) {
-  const fields = [
-    "id",
-    "name",
-    "access_token",
-    "tasks",
-  ].join(",");
+  const fields = ["id", "name", "access_token", "tasks"].join(",");
 
   const params = new URLSearchParams({
     fields,
@@ -95,6 +90,55 @@ async function getFacebookPages(userAccessToken) {
   }
 
   return data?.data || [];
+}
+
+async function saveFacebookConnection({ supabaseAdmin, userId, page }) {
+  const connectionPayload = {
+    user_id: userId,
+    platform: "facebook",
+    page_id: page.id,
+    page_name: page.name || "Facebook Page",
+    page_access_token: page.access_token,
+    permissions: page.tasks || [],
+    status: "connected",
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: existingConnection, error: existingError } = await supabaseAdmin
+    .from("social_connections")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("platform", "facebook")
+    .eq("page_id", page.id)
+    .maybeSingle();
+
+  if (existingError) {
+    throw existingError;
+  }
+
+  if (existingConnection?.id) {
+    const { error: updateError } = await supabaseAdmin
+      .from("social_connections")
+      .update(connectionPayload)
+      .eq("id", existingConnection.id);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return;
+  }
+
+  const { error: insertError } = await supabaseAdmin
+    .from("social_connections")
+    .insert({
+      ...connectionPayload,
+      created_at: new Date().toISOString(),
+    });
+
+  if (insertError) {
+    throw insertError;
+  }
 }
 
 export async function GET(request) {
@@ -171,27 +215,11 @@ export async function GET(request) {
 
     const supabaseAdmin = createSupabaseAdminClient();
 
-    const { error: upsertError } = await supabaseAdmin
-      .from("social_connections")
-      .upsert(
-        {
-          user_id: decodedState.userId,
-          platform: "facebook",
-          page_id: firstPage.id,
-          page_name: firstPage.name || "Facebook Page",
-          page_access_token: firstPage.access_token,
-          permissions: firstPage.tasks || [],
-          status: "connected",
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "user_id,platform,page_id",
-        }
-      );
-
-    if (upsertError) {
-      throw upsertError;
-    }
+    await saveFacebookConnection({
+      supabaseAdmin,
+      userId: decodedState.userId,
+      page: firstPage,
+    });
 
     const response = NextResponse.redirect(
       `${baseUrl}/social-channels?connected=facebook`
