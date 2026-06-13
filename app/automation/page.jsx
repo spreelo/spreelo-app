@@ -1549,11 +1549,29 @@ async function getCurrentBrandIdForUser(currentUser) {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("automation_rules")
-      .select("*")
-      .eq("user_id", user.id);
+    let selectedBrandId = "";
 
+try {
+  selectedBrandId = await getCurrentBrandIdForUser(user);
+  setCurrentBrandId(selectedBrandId);
+} catch (error) {
+  setMessage(error.message || "Could not load selected brand.");
+  setRules([]);
+  setLoading(false);
+  return;
+}
+
+if (!selectedBrandId) {
+  setRules([]);
+  setLoading(false);
+  return;
+}
+
+const { data, error } = await supabase
+  .from("automation_rules")
+  .select("*")
+  .eq("user_id", user.id)
+  .eq("brand_profile_id", selectedBrandId);
     if (error) {
       setMessage(error.message);
     } else {
