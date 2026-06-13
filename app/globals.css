@@ -5577,3 +5577,70 @@ select.input {
     font-size: 31px;
   }
 }
+.current-brand-card {
+  margin: 14px 16px 18px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.current-brand-card label {
+  display: block;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.current-brand-select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  outline: none;
+  background: rgba(8, 12, 28, 0.88);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.current-brand-select:focus {
+  border-color: rgba(124, 92, 255, 0.9);
+}
+
+.current-brand-loading {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: rgba(8, 12, 28, 0.55);
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+}
+
+.current-brand-new {
+  width: 100%;
+  margin-top: 10px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(124, 92, 255, 0.18);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.current-brand-new:hover {
+  background: rgba(124, 92, 255, 0.28);
+}
+
+.current-brand-new:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
