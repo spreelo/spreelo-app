@@ -24,6 +24,7 @@ function formatStatus(status) {
     scheduled: "Scheduled",
     published: "Published",
     failed: "Failed",
+    rejected: "Discarded",
   };
 
   return labels[status] || status;
@@ -46,6 +47,7 @@ function getStatusClass(status) {
   if (status === "approved") return "status-pill success";
   if (status === "published") return "status-pill success";
   if (status === "failed") return "status-pill danger";
+  if (status === "rejected") return "status-pill danger";
 
   return "status-pill";
 }
@@ -68,6 +70,7 @@ export default function EditPostPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
 
   useEffect(() => {
     async function loadPost() {
@@ -172,6 +175,41 @@ export default function EditPostPage() {
     setApproving(false);
   }
 
+  async function discardPost() {
+    const confirmDiscard = window.confirm(
+      "Discard this post? It will disappear from pending approval and will not be published."
+    );
+
+    if (!confirmDiscard) return;
+
+    setDiscarding(true);
+    setMessage("");
+
+    const discardedAt = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("posts")
+      .update({
+        status: "rejected",
+        updated_at: discardedAt,
+      })
+      .eq("id", postId)
+      .select(
+        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt"
+      )
+      .single();
+
+    if (error) {
+      setMessage(error.message);
+    } else {
+      setPost(data);
+      setContent(data.content || "");
+      setMessage("Post discarded. It will not be published.");
+    }
+
+    setDiscarding(false);
+  }
+
   if (loading) {
     return (
       <AppLayout active="dashboard">
@@ -237,20 +275,31 @@ export default function EditPostPage() {
             type="button"
             className="primary-button"
             onClick={savePost}
-            disabled={saving || approving}
+            disabled={saving || approving || discarding}
           >
             {saving ? "Saving..." : "Save changes"}
           </button>
 
           {isPendingApproval && (
-            <button
-              type="button"
-              className="primary-button"
-              onClick={approvePost}
-              disabled={saving || approving}
-            >
-              {approving ? "Approving..." : "Approve"}
-            </button>
+            <>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={discardPost}
+                disabled={saving || approving || discarding}
+              >
+                {discarding ? "Discarding..." : "Discard"}
+              </button>
+
+              <button
+                type="button"
+                className="primary-button"
+                onClick={approvePost}
+                disabled={saving || approving || discarding}
+              >
+                {approving ? "Approving..." : "Approve"}
+              </button>
+            </>
           )}
         </div>
       </header>
@@ -320,6 +369,13 @@ export default function EditPostPage() {
               connected.
             </p>
           )}
+
+          {post.status === "rejected" && (
+            <p>
+              <strong>Note:</strong> This post was discarded and will not be
+              published.
+            </p>
+          )}
         </div>
 
         {post.image_url && (
@@ -373,8 +429,6 @@ export default function EditPostPage() {
               onChange={(event) => setContent(event.target.value)}
             />
           </div>
-
-
         </div>
 
         {message && <p className="login-message">{message}</p>}
