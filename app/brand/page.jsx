@@ -447,9 +447,19 @@ if (postsLoadError) {
 
 const ruleIds = (rulesToDelete || []).map((rule) => rule.id);
 const postIds = (postsToDelete || []).map((post) => post.id);
-
+const imagePaths = (postsToDelete || [])
+  .map((post) => post.image_storage_path)
+  .filter(Boolean);
 await deleteWebsiteContentHistory(ruleIds, postIds);
+if (imagePaths.length > 0) {
+  const { error: storageDeleteError } = await supabase.storage
+    .from("post-images")
+    .remove(imagePaths);
 
+  if (storageDeleteError) {
+    throw new Error(`post-images storage: ${storageDeleteError.message}`);
+  }
+}
 await deleteRowsByColumn(
   "automation_rules",
   "brand_profile_id",
