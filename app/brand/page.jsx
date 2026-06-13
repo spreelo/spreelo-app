@@ -11,12 +11,13 @@ export default function BrandProfile() {
   const [brandDescription, setBrandDescription] = useState("");
   const [industry, setIndustry] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
+  const [showGeneratedFields, setShowGeneratedFields] = useState(false);
+
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [user, setUser] = useState(null);
-  const [profileHasBeenLoaded, setProfileHasBeenLoaded] = useState(false);
 
   const [lastAnalyzedWebsiteUrl, setLastAnalyzedWebsiteUrl] = useState("");
   const [lastAnalyzedBrandDescription, setLastAnalyzedBrandDescription] =
@@ -25,10 +26,6 @@ export default function BrandProfile() {
   const normalizedWebsiteUrl = useMemo(() => {
     return normalizeWebsiteUrl(websiteUrl);
   }, [websiteUrl]);
-
-  const hasGeneratedProfile = useMemo(() => {
-    return Boolean(industry.trim() || targetAudience.trim());
-  }, [industry, targetAudience]);
 
   const shouldAnalyzeWebsite = useMemo(() => {
     if (hasNoWebsite) return false;
@@ -84,12 +81,14 @@ export default function BrandProfile() {
       if (data) {
         const loadedWebsiteUrl = data.website_url || "";
         const loadedBrandDescription = data.brand_description || "";
+        const loadedIndustry = data.industry || "";
+        const loadedTargetAudience = data.target_audience || "";
 
         setBusinessName(data.business_name || "");
         setWebsiteUrl(loadedWebsiteUrl);
         setBrandDescription(loadedBrandDescription);
-        setIndustry(data.industry || "");
-        setTargetAudience(data.target_audience || "");
+        setIndustry(loadedIndustry);
+        setTargetAudience(loadedTargetAudience);
 
         setLastAnalyzedWebsiteUrl(normalizeWebsiteUrl(loadedWebsiteUrl));
         setLastAnalyzedBrandDescription(loadedBrandDescription.trim());
@@ -98,14 +97,8 @@ export default function BrandProfile() {
           setHasNoWebsite(true);
         }
 
-        if (
-          data.business_name ||
-          data.industry ||
-          data.target_audience ||
-          data.website_url ||
-          data.brand_description
-        ) {
-          setProfileHasBeenLoaded(true);
+        if (loadedIndustry || loadedTargetAudience) {
+          setShowGeneratedFields(true);
         }
       }
 
@@ -137,16 +130,23 @@ export default function BrandProfile() {
 
     setHasNoWebsite(checked);
     setMessage("");
+    setShowGeneratedFields(false);
 
     if (checked) {
       setWebsiteUrl("");
+      setIndustry("");
+      setTargetAudience("");
+    } else {
+      setBrandDescription("");
+      setIndustry("");
+      setTargetAudience("");
     }
   }
 
   async function handleMainSave() {
     if (!user) return;
 
-    if (shouldAnalyze) {
+    if (shouldAnalyze || !showGeneratedFields) {
       await analyzeBrand();
       return;
     }
@@ -207,15 +207,18 @@ export default function BrandProfile() {
 
       const profile = result.profile || {};
 
+      const finalWebsiteUrl =
+        profile.website_url || result.website_url || normalizedWebsiteUrl;
+
       setBusinessName(profile.business_name || trimmedBusinessName);
-      setWebsiteUrl(profile.website_url || result.website_url || normalizedWebsiteUrl);
+      setWebsiteUrl(finalWebsiteUrl);
       setBrandDescription(profile.brand_description || trimmedDescription);
       setIndustry(profile.industry || "");
       setTargetAudience(profile.target_audience || "");
-      setProfileHasBeenLoaded(true);
+      setShowGeneratedFields(true);
 
       setLastAnalyzedWebsiteUrl(
-        hasNoWebsite ? "" : normalizeWebsiteUrl(profile.website_url || result.website_url || normalizedWebsiteUrl)
+        hasNoWebsite ? "" : normalizeWebsiteUrl(finalWebsiteUrl)
       );
       setLastAnalyzedBrandDescription(hasNoWebsite ? trimmedDescription : "");
 
@@ -265,7 +268,6 @@ export default function BrandProfile() {
       setMessage(error.message);
     } else {
       setWebsiteUrl(finalWebsiteUrl);
-      setProfileHasBeenLoaded(true);
       setMessage("Brand profile saved.");
     }
 
@@ -317,7 +319,10 @@ export default function BrandProfile() {
             className="input"
             placeholder="Example: Your Company"
             value={businessName}
-            onChange={(event) => setBusinessName(event.target.value)}
+            onChange={(event) => {
+              setBusinessName(event.target.value);
+              setMessage("");
+            }}
             disabled={analyzing || saving}
           />
 
@@ -329,6 +334,9 @@ export default function BrandProfile() {
             onChange={(event) => {
               setWebsiteUrl(event.target.value);
               setHasNoWebsite(false);
+              setShowGeneratedFields(false);
+              setIndustry("");
+              setTargetAudience("");
               setMessage("");
             }}
             disabled={hasNoWebsite || analyzing || saving}
@@ -349,10 +357,13 @@ export default function BrandProfile() {
               <label>Describe your business</label>
               <textarea
                 className="input prompt-textarea"
-                placeholder="Describe what the business does, what you offer, who your customers are, what style or tone you want, and what Spreelo should know before creating posts."
+                placeholder="Describe what your business does, what you offer, who your customers are, what style or tone you want, and what Spreelo should know before creating posts."
                 value={brandDescription}
                 onChange={(event) => {
                   setBrandDescription(event.target.value);
+                  setShowGeneratedFields(false);
+                  setIndustry("");
+                  setTargetAudience("");
                   setMessage("");
                 }}
                 disabled={analyzing || saving}
@@ -360,7 +371,7 @@ export default function BrandProfile() {
             </>
           )}
 
-          {hasGeneratedProfile && (
+          {showGeneratedFields && (
             <>
               <label>Industry</label>
               <textarea
