@@ -9,10 +9,11 @@ function signState(payload, secret) {
   return crypto.createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
-function createSignedState({ userId, secret }) {
+function createSignedState({ userId, brandProfileId, secret }) {
   const payload = base64UrlEncode(
     JSON.stringify({
       userId,
+      brandProfileId,
       nonce: crypto.randomBytes(16).toString("hex"),
       createdAt: Date.now(),
     })
@@ -32,6 +33,7 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("user_id");
+  const brandProfileId = searchParams.get("brand_profile_id");
 
   if (!appId) {
     return NextResponse.json(
@@ -53,8 +55,15 @@ export async function GET(request) {
     );
   }
 
+  if (!brandProfileId) {
+    return NextResponse.redirect(
+      new URL("/social-channels?error=missing_brand", request.url)
+    );
+  }
+
   const state = createSignedState({
     userId,
+    brandProfileId,
     secret: appSecret,
   });
 
@@ -64,11 +73,11 @@ export async function GET(request) {
     state,
     response_type: "code",
     scope: [
-  "pages_show_list",
-  "pages_read_engagement",
-  "pages_manage_posts",
-  "business_management",
-].join(","),
+      "pages_show_list",
+      "pages_read_engagement",
+      "pages_manage_posts",
+      "business_management",
+    ].join(","),
   });
 
   const facebookLoginUrl = `https://www.facebook.com/v20.0/dialog/oauth?${params.toString()}`;
