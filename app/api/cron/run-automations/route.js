@@ -2027,8 +2027,7 @@ export async function GET(request) {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     const cronSecret = process.env.CRON_SECRET;
     const resendApiKey = process.env.RESEND_API_KEY;
-    const facebookPageId = process.env.FACEBOOK_PAGE_ID;
-    const facebookPageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+
 
     if (!supabaseUrl || !serviceRoleKey || !openaiApiKey || !cronSecret) {
       return Response.json(
