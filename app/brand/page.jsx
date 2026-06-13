@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabaseClient";
 export default function BrandProfile() {
   const [businessName, setBusinessName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [brandDescription, setBrandDescription] = useState("");
   const [industry, setIndustry] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
   const [message, setMessage] = useState("");
@@ -16,16 +17,13 @@ export default function BrandProfile() {
   const [user, setUser] = useState(null);
   const [profileHasBeenLoaded, setProfileHasBeenLoaded] = useState(false);
 
-  const hasCompleteProfile = useMemo(() => {
+  const hasUsefulProfile = useMemo(() => {
     return Boolean(
-      businessName.trim() &&
-        websiteUrl.trim() &&
-        industry.trim() &&
-        targetAudience.trim()
+      businessName.trim() && industry.trim() && targetAudience.trim()
     );
-  }, [businessName, websiteUrl, industry, targetAudience]);
+  }, [businessName, industry, targetAudience]);
 
-  const shouldShowProfileFields = profileHasBeenLoaded || hasCompleteProfile;
+  const shouldShowProfileFields = profileHasBeenLoaded || hasUsefulProfile;
 
   useEffect(() => {
     async function loadProfile() {
@@ -42,7 +40,9 @@ export default function BrandProfile() {
 
       const { data, error } = await supabase
         .from("brand_profiles")
-        .select("business_name, website_url, industry, target_audience")
+        .select(
+          "business_name, website_url, brand_description, industry, target_audience"
+        )
         .eq("user_id", user.id)
         .single();
 
@@ -53,6 +53,7 @@ export default function BrandProfile() {
       if (data) {
         setBusinessName(data.business_name || "");
         setWebsiteUrl(data.website_url || "");
+        setBrandDescription(data.brand_description || "");
         setIndustry(data.industry || "");
         setTargetAudience(data.target_audience || "");
 
@@ -60,7 +61,8 @@ export default function BrandProfile() {
           data.business_name ||
           data.industry ||
           data.target_audience ||
-          data.website_url
+          data.website_url ||
+          data.brand_description
         ) {
           setProfileHasBeenLoaded(true);
         }
@@ -89,13 +91,19 @@ export default function BrandProfile() {
     return `https://${trimmedValue}`;
   }
 
-  async function analyzeAndSaveWebsite() {
+  async function analyzeBrand(source) {
     setMessage("");
 
     const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+    const trimmedDescription = brandDescription.trim();
 
-    if (!normalizedWebsiteUrl) {
+    if (source === "website" && !normalizedWebsiteUrl) {
       setMessage("Add a website URL first.");
+      return;
+    }
+
+    if (source === "description" && !trimmedDescription) {
+      setMessage("Describe your business first.");
       return;
     }
 
@@ -118,27 +126,33 @@ export default function BrandProfile() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          websiteUrl: normalizedWebsiteUrl,
+          websiteUrl: source === "website" ? normalizedWebsiteUrl : "",
+          brandDescription: trimmedDescription,
         }),
       });
 
       const result = await response.json();
 
       if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Could not analyze website.");
+        throw new Error(result?.error || "Could not analyze brand.");
       }
 
       const profile = result.profile || {};
 
       setWebsiteUrl(profile.website_url || result.website_url || normalizedWebsiteUrl);
+      setBrandDescription(profile.brand_description || trimmedDescription);
       setBusinessName(profile.business_name || "");
       setIndustry(profile.industry || "");
       setTargetAudience(profile.target_audience || "");
       setProfileHasBeenLoaded(true);
 
-      setMessage("Website analyzed and brand profile saved.");
+      setMessage(
+        source === "website"
+          ? "Website analyzed and brand profile saved."
+          : "Description analyzed and brand profile saved."
+      );
     } catch (error) {
-      setMessage(error.message || "Could not analyze website.");
+      setMessage(error.message || "Could not analyze brand.");
     }
 
     setAnalyzing(false);
@@ -157,6 +171,7 @@ export default function BrandProfile() {
         user_id: user.id,
         business_name: businessName.trim(),
         website_url: normalizedWebsiteUrl,
+        brand_description: brandDescription.trim(),
         industry: industry.trim(),
         target_audience: targetAudience.trim(),
         updated_at: new Date().toISOString(),
@@ -213,31 +228,31 @@ export default function BrandProfile() {
           <h3>
             {shouldShowProfileFields
               ? "Review your brand profile"
-              : "Start with your website"}
+              : "Start with a website or description"}
           </h3>
 
           <p>
             {shouldShowProfileFields
               ? "Spreelo uses this profile to create posts that match your business, audience and offers."
-              : "Add your website and Spreelo will analyze it, create your brand profile and save it automatically."}
+              : "Add a website if you have one, or describe the business manually. Spreelo can build the profile from either source."}
           </p>
 
           <div className="mini-info-card">
             <strong>
               {shouldShowProfileFields
                 ? "You can edit everything"
-                : "One click setup"}
+                : "Works without a website"}
             </strong>
             <p>
               {shouldShowProfileFields
                 ? "Change the fields if needed, then save your updated brand profile."
-                : "Spreelo will detect what the business does and describe the audience in the same language as the website."}
+                : "Useful for artists, creators, local businesses, clubs and companies without a website."}
             </p>
           </div>
         </div>
 
         <div className="prompt-box">
-          <label>Website URL</label>
+          <label>Website URL optional</label>
           <input
             className="input"
             placeholder="Example: https://www.yourbusiness.com"
@@ -246,17 +261,35 @@ export default function BrandProfile() {
             disabled={analyzing || saving}
           />
 
+          <label>Describe your brand optional</label>
+          <textarea
+            className="input prompt-textarea"
+            placeholder="Example: Cavero is a melodic EDM artist project inspired by Avicii, Alan Walker and Martin Garrix. The audience is people who enjoy emotional dance music, festival sounds and radio-friendly electronic pop."
+            value={brandDescription}
+            onChange={(event) => setBrandDescription(event.target.value)}
+            disabled={analyzing || saving}
+          />
+
           {!shouldShowProfileFields && (
-            <button
-              className="primary-button full"
-              type="button"
-              onClick={analyzeAndSaveWebsite}
-              disabled={analyzing || saving}
-            >
-              {analyzing
-                ? "Analyzing and saving..."
-                : "Analyze and save brand profile"}
-            </button>
+            <>
+              <button
+                className="primary-button full"
+                type="button"
+                onClick={() => analyzeBrand("website")}
+                disabled={analyzing || saving}
+              >
+                {analyzing ? "Analyzing..." : "Analyze website"}
+              </button>
+
+              <button
+                className="secondary-button full"
+                type="button"
+                onClick={() => analyzeBrand("description")}
+                disabled={analyzing || saving}
+              >
+                {analyzing ? "Generating..." : "Generate from description"}
+              </button>
+            </>
           )}
 
           {shouldShowProfileFields && (
@@ -299,10 +332,21 @@ export default function BrandProfile() {
               <button
                 className="secondary-button full"
                 type="button"
-                onClick={analyzeAndSaveWebsite}
+                onClick={() => analyzeBrand("website")}
                 disabled={analyzing || saving}
               >
                 {analyzing ? "Re-analyzing..." : "Re-analyze website"}
+              </button>
+
+              <button
+                className="secondary-button full"
+                type="button"
+                onClick={() => analyzeBrand("description")}
+                disabled={analyzing || saving}
+              >
+                {analyzing
+                  ? "Regenerating..."
+                  : "Regenerate from description"}
               </button>
             </>
           )}
