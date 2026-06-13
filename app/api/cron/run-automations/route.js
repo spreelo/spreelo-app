@@ -2061,13 +2061,11 @@ export async function GET(request) {
 
     const summary = createEmptySummary();
 
-    await publishApprovedFacebookPosts({
-      supabase,
-      pageId: facebookPageId,
-      pageAccessToken: facebookPageAccessToken,
-      nowIso,
-      summary,
-    });
+   await publishApprovedFacebookPosts({
+  supabase,
+  nowIso,
+  summary,
+});
 
     const rules = await getRulesToProcess({
       supabase,
