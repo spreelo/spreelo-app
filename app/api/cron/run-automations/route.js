@@ -2027,10 +2027,7 @@ export async function GET(request) {
           continue;
         }
 
-        const brandProfile = await getBrandProfileForUser(
-          supabase,
-          rule.user_id
-        );
+const brandProfile = await getBrandProfileForRule(supabase, rule);
 
         if (brandProfile) {
           summary.brand_profile_found += 1;
