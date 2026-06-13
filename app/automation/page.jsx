@@ -1343,8 +1343,9 @@ export default function AutomationPage() {
     DEFAULT_TIME_ZONE
   );
 
-  const [rules, setRules] = useState([]);
-  const [creditBalance, setCreditBalance] = useState(null);
+const [rules, setRules] = useState([]);
+const [creditBalance, setCreditBalance] = useState(null);
+const [currentBrandId, setCurrentBrandId] = useState("");
 
   const [planStartDate, setPlanStartDate] = useState(initialStartDate);
   const [defaultPublishTime, setDefaultPublishTime] = useState(
