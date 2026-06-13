@@ -103,6 +103,26 @@ function getValidPages(pages) {
     }));
 }
 
+async function verifyBrandBelongsToUser({ supabaseAdmin, userId, brandProfileId }) {
+  if (!userId || !brandProfileId) {
+    return false;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("brand_profiles")
+    .select("id")
+    .eq("id", brandProfileId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not verify brand profile ownership:", error);
+    return false;
+  }
+
+  return Boolean(data?.id);
+}
+
 export async function GET(request) {
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
@@ -151,7 +171,27 @@ export async function GET(request) {
     );
   }
 
+  if (!decodedState?.brandProfileId) {
+    return NextResponse.redirect(
+      `${baseUrl}/social-channels?error=missing_brand`
+    );
+  }
+
   try {
+    const supabaseAdmin = createSupabaseAdminClient();
+
+    const brandIsValid = await verifyBrandBelongsToUser({
+      supabaseAdmin,
+      userId: decodedState.userId,
+      brandProfileId: decodedState.brandProfileId,
+    });
+
+    if (!brandIsValid) {
+      return NextResponse.redirect(
+        `${baseUrl}/social-channels?error=invalid_brand`
+      );
+    }
+
     const userAccessToken = await exchangeCodeForUserToken({
       code,
       appId,
@@ -168,14 +208,13 @@ export async function GET(request) {
       );
     }
 
-    const supabaseAdmin = createSupabaseAdminClient();
-
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
     const { data: sessionData, error: sessionError } = await supabaseAdmin
       .from("meta_page_selection_sessions")
       .insert({
         user_id: decodedState.userId,
+        brand_profile_id: decodedState.brandProfileId,
         pages: validPages,
         expires_at: expiresAt,
       })
