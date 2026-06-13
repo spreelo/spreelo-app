@@ -1908,11 +1908,15 @@ function changeAutoPlanGoal(goalId) {
       return;
     }
 
-    const { error } = await supabase
-      .from("automation_rules")
-      .delete()
-      .eq("user_id", user.id)
-      .in("id", ruleIds);
+    const selectedBrandId =
+  currentBrandId || (await getCurrentBrandIdForUser(user));
+
+const { error } = await supabase
+  .from("automation_rules")
+  .delete()
+  .eq("user_id", user.id)
+  .eq("brand_profile_id", selectedBrandId)
+  .in("id", ruleIds);
 
     if (error) {
       setMessage(error.message);
