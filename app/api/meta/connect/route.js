@@ -64,10 +64,11 @@ export async function GET(request) {
     state,
     response_type: "code",
     scope: [
-      "pages_show_list",
-      "pages_read_engagement",
-      "pages_manage_posts",
-    ].join(","),
+  "pages_show_list",
+  "pages_read_engagement",
+  "pages_manage_posts",
+  "business_management",
+].join(","),
   });
 
   const facebookLoginUrl = `https://www.facebook.com/v20.0/dialog/oauth?${params.toString()}`;
