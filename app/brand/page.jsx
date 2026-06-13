@@ -4,6 +4,44 @@ import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 
+const marketOptions = [
+  { label: "Sweden", countryCode: "SE", language: "Swedish" },
+  { label: "United States", countryCode: "US", language: "English" },
+  { label: "United Kingdom", countryCode: "GB", language: "English" },
+  { label: "Germany", countryCode: "DE", language: "German" },
+  { label: "Denmark", countryCode: "DK", language: "Danish" },
+  { label: "Norway", countryCode: "NO", language: "Norwegian" },
+  { label: "Finland", countryCode: "FI", language: "Finnish" },
+  { label: "Netherlands", countryCode: "NL", language: "Dutch" },
+  { label: "France", countryCode: "FR", language: "French" },
+  { label: "Spain", countryCode: "ES", language: "Spanish" },
+  { label: "Italy", countryCode: "IT", language: "Italian" },
+  { label: "Canada", countryCode: "CA", language: "English" },
+  { label: "Australia", countryCode: "AU", language: "English" },
+  { label: "India", countryCode: "IN", language: "English" },
+  { label: "United Arab Emirates", countryCode: "AE", language: "English" },
+  { label: "Iran", countryCode: "IR", language: "Persian" },
+  { label: "International / Global", countryCode: "GLOBAL", language: "English" },
+  { label: "Other", countryCode: "OTHER", language: "English" },
+];
+
+const languageOptions = [
+  "Swedish",
+  "English",
+  "German",
+  "Danish",
+  "Norwegian",
+  "Finnish",
+  "Dutch",
+  "French",
+  "Spanish",
+  "Italian",
+  "Persian",
+  "Arabic",
+  "Hindi",
+  "Other",
+];
+
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
@@ -16,6 +54,9 @@ export default function BrandProfile() {
   const [brandDescription, setBrandDescription] = useState("");
   const [industry, setIndustry] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
+  const [contentMarket, setContentMarket] = useState("Sweden");
+  const [countryCode, setCountryCode] = useState("SE");
+  const [contentLanguage, setContentLanguage] = useState("Swedish");
   const [showGeneratedFields, setShowGeneratedFields] = useState(false);
 
   const [message, setMessage] = useState("");
@@ -57,8 +98,9 @@ export default function BrandProfile() {
     if (saving) return "Saving...";
     if (analyzing) return "Analyzing...";
 
-    if (shouldAnalyzeWebsite) return "Save and analyze website";
-    if (shouldAnalyzeDescription) return "Save and analyze description";
+    if (shouldAnalyzeWebsite) return "Save, analyze website and create calendar";
+    if (shouldAnalyzeDescription)
+      return "Save, analyze description and create calendar";
 
     return "Save";
   }, [saving, analyzing, shouldAnalyzeWebsite, shouldAnalyzeDescription]);
@@ -117,7 +159,7 @@ export default function BrandProfile() {
       const { data, error } = await supabase
         .from("brand_profiles")
         .select(
-          "id, business_name, website_url, brand_description, industry, target_audience, is_default, created_at"
+          "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, is_default, created_at"
         )
         .eq("user_id", user.id)
         .eq("id", brandIdToLoad)
@@ -150,6 +192,14 @@ export default function BrandProfile() {
       setBrandDescription(loadedBrandDescription);
       setIndustry(loadedIndustry);
       setTargetAudience(loadedTargetAudience);
+
+      const loadedMarket = data.content_market || "Sweden";
+      const loadedCountryCode = data.country_code || "SE";
+      const loadedContentLanguage = data.content_language || "Swedish";
+
+      setContentMarket(loadedMarket);
+      setCountryCode(loadedCountryCode);
+      setContentLanguage(loadedContentLanguage);
 
       setLastAnalyzedWebsiteUrl(normalizeWebsiteUrl(loadedWebsiteUrl));
       setLastAnalyzedBrandDescription(loadedBrandDescription.trim());
@@ -187,6 +237,19 @@ export default function BrandProfile() {
     }
 
     return `https://${trimmedValue}`;
+  }
+
+  function handleMarketChange(event) {
+    const nextMarket = event.target.value;
+    const selectedMarket = marketOptions.find(
+      (market) => market.label === nextMarket
+    );
+
+    setContentMarket(nextMarket);
+    setCountryCode(selectedMarket?.countryCode || "");
+    setContentLanguage(selectedMarket?.language || contentLanguage || "English");
+    setShowGeneratedFields(false);
+    setMessage("");
   }
 
   function handleNoWebsiteChange(event) {
@@ -229,6 +292,16 @@ export default function BrandProfile() {
       return;
     }
 
+    if (!contentMarket || !countryCode) {
+      setMessage("Choose the market/country this brand targets.");
+      return;
+    }
+
+    if (!contentLanguage) {
+      setMessage("Choose the content language for this brand.");
+      return;
+    }
+
     if (!hasNoWebsite && !normalizedWebsiteUrl) {
       setMessage("Add a website URL, or select that you do not have a website.");
       return;
@@ -262,6 +335,9 @@ export default function BrandProfile() {
           businessName: trimmedBusinessName,
           websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
           brandDescription: hasNoWebsite ? trimmedDescription : "",
+          contentMarket,
+          countryCode,
+          contentLanguage,
         }),
       });
 
@@ -281,6 +357,9 @@ export default function BrandProfile() {
       setBrandDescription(profile.brand_description || trimmedDescription);
       setIndustry(profile.industry || "");
       setTargetAudience(profile.target_audience || "");
+      setContentMarket(profile.content_market || contentMarket);
+      setCountryCode(profile.country_code || countryCode);
+      setContentLanguage(profile.content_language || contentLanguage);
       setShowGeneratedFields(true);
 
       setLastAnalyzedWebsiteUrl(
@@ -289,9 +368,10 @@ export default function BrandProfile() {
       setLastAnalyzedBrandDescription(hasNoWebsite ? trimmedDescription : "");
 
       setMessage(
-        hasNoWebsite
-          ? "Brand description analyzed and saved."
-          : "Website analyzed and saved."
+        result.message ||
+          (hasNoWebsite
+            ? "Brand description analyzed, saved and campaign calendar created."
+            : "Website analyzed, saved and campaign calendar created.")
       );
     } catch (error) {
       setMessage(error.message || "Could not analyze brand.");
@@ -310,6 +390,16 @@ export default function BrandProfile() {
       return;
     }
 
+    if (!contentMarket || !countryCode) {
+      setMessage("Choose the market/country this brand targets.");
+      return;
+    }
+
+    if (!contentLanguage) {
+      setMessage("Choose the content language for this brand.");
+      return;
+    }
+
     setSaving(true);
     setMessage("");
 
@@ -323,6 +413,9 @@ export default function BrandProfile() {
         brand_description: hasNoWebsite ? brandDescription.trim() : "",
         industry: industry.trim(),
         target_audience: targetAudience.trim(),
+        content_market: contentMarket,
+        country_code: countryCode,
+        content_language: contentLanguage,
         updated_at: new Date().toISOString(),
       })
       .eq("id", brandProfileId)
@@ -361,40 +454,40 @@ export default function BrandProfile() {
     setDeleteMessage("");
   }
 
-async function deleteRowsByColumn(tableName, columnName, value) {
-  const { error } = await supabase
-    .from(tableName)
-    .delete()
-    .eq(columnName, value);
-
-  if (error) {
-    throw new Error(`${tableName}: ${error.message}`);
-  }
-}
-
-async function deleteWebsiteContentHistory(ruleIds, postIds) {
-  if (ruleIds.length > 0) {
+  async function deleteRowsByColumn(tableName, columnName, value) {
     const { error } = await supabase
-      .from("website_content_history")
+      .from(tableName)
       .delete()
-      .in("automation_rule_id", ruleIds);
+      .eq(columnName, value);
 
     if (error) {
-      throw new Error(`website_content_history: ${error.message}`);
+      throw new Error(`${tableName}: ${error.message}`);
     }
   }
 
-  if (postIds.length > 0) {
-    const { error } = await supabase
-      .from("website_content_history")
-      .delete()
-      .in("post_id", postIds);
+  async function deleteWebsiteContentHistory(ruleIds, postIds) {
+    if (ruleIds.length > 0) {
+      const { error } = await supabase
+        .from("website_content_history")
+        .delete()
+        .in("automation_rule_id", ruleIds);
 
-    if (error) {
-      throw new Error(`website_content_history: ${error.message}`);
+      if (error) {
+        throw new Error(`website_content_history: ${error.message}`);
+      }
+    }
+
+    if (postIds.length > 0) {
+      const { error } = await supabase
+        .from("website_content_history")
+        .delete()
+        .in("post_id", postIds);
+
+      if (error) {
+        throw new Error(`website_content_history: ${error.message}`);
+      }
     }
   }
-}
 
   async function handleDeleteConfirm() {
     if (!user || !brandProfileId || deletingBrand) return;
@@ -428,55 +521,61 @@ async function deleteWebsiteContentHistory(ruleIds, postIds) {
       }
 
       const { data: rulesToDelete, error: rulesLoadError } = await supabase
-  .from("automation_rules")
-  .select("id")
-  .eq("brand_profile_id", brandProfileId);
+        .from("automation_rules")
+        .select("id")
+        .eq("brand_profile_id", brandProfileId);
 
-if (rulesLoadError) {
-  throw new Error(`automation_rules: ${rulesLoadError.message}`);
-}
+      if (rulesLoadError) {
+        throw new Error(`automation_rules: ${rulesLoadError.message}`);
+      }
 
-const { data: postsToDelete, error: postsLoadError } = await supabase
-  .from("posts")
-  .select("id, image_storage_path")
-  .eq("brand_profile_id", brandProfileId);
+      const { data: postsToDelete, error: postsLoadError } = await supabase
+        .from("posts")
+        .select("id, image_storage_path")
+        .eq("brand_profile_id", brandProfileId);
 
-if (postsLoadError) {
-  throw new Error(`posts: ${postsLoadError.message}`);
-}
+      if (postsLoadError) {
+        throw new Error(`posts: ${postsLoadError.message}`);
+      }
 
-const ruleIds = (rulesToDelete || []).map((rule) => rule.id);
-const postIds = (postsToDelete || []).map((post) => post.id);
-const imagePaths = (postsToDelete || [])
-  .map((post) => post.image_storage_path)
-  .filter(Boolean);
-await deleteWebsiteContentHistory(ruleIds, postIds);
-if (imagePaths.length > 0) {
-  const { error: storageDeleteError } = await supabase.storage
-    .from("post-images")
-    .remove(imagePaths);
+      const ruleIds = (rulesToDelete || []).map((rule) => rule.id);
+      const postIds = (postsToDelete || []).map((post) => post.id);
+      const imagePaths = (postsToDelete || [])
+        .map((post) => post.image_storage_path)
+        .filter(Boolean);
 
-  if (storageDeleteError) {
-    throw new Error(`post-images storage: ${storageDeleteError.message}`);
-  }
-}
-await deleteRowsByColumn(
-  "automation_rules",
-  "brand_profile_id",
-  brandProfileId
-);
+      await deleteWebsiteContentHistory(ruleIds, postIds);
 
-await deleteRowsByColumn(
-  "posts",
-  "brand_profile_id",
-  brandProfileId
-);
+      if (imagePaths.length > 0) {
+        const { error: storageDeleteError } = await supabase.storage
+          .from("post-images")
+          .remove(imagePaths);
 
-await deleteRowsByColumn(
-  "social_connections",
-  "brand_profile_id",
-  brandProfileId
-);
+        if (storageDeleteError) {
+          throw new Error(`post-images storage: ${storageDeleteError.message}`);
+        }
+      }
+
+      await deleteRowsByColumn(
+        "brand_campaign_opportunities",
+        "brand_profile_id",
+        brandProfileId
+      );
+
+      await deleteRowsByColumn(
+        "automation_rules",
+        "brand_profile_id",
+        brandProfileId
+      );
+
+      await deleteRowsByColumn("posts", "brand_profile_id", brandProfileId);
+
+      await deleteRowsByColumn(
+        "social_connections",
+        "brand_profile_id",
+        brandProfileId
+      );
+
       const { error: deleteBrandError } = await supabase
         .from("brand_profiles")
         .delete()
@@ -557,6 +656,15 @@ await deleteRowsByColumn(
               brands keep their own profile, automations and connected channels.
             </p>
           </div>
+
+          <div className="mini-info-card">
+            <strong>Campaign calendar</strong>
+            <p>
+              When Spreelo analyzes your brand, it also creates AI-suggested
+              campaign opportunities for your selected market. No posts are
+              created until you choose a campaign.
+            </p>
+          </div>
         </div>
 
         <div className="prompt-box">
@@ -617,6 +725,38 @@ await deleteRowsByColumn(
             </>
           )}
 
+          <label>Content market</label>
+          <select
+            className="input"
+            value={contentMarket}
+            onChange={handleMarketChange}
+            disabled={analyzing || saving || deletingBrand}
+          >
+            {marketOptions.map((market) => (
+              <option key={market.countryCode} value={market.label}>
+                {market.label}
+              </option>
+            ))}
+          </select>
+
+          <label>Content language</label>
+          <select
+            className="input"
+            value={contentLanguage}
+            onChange={(event) => {
+              setContentLanguage(event.target.value);
+              setShowGeneratedFields(false);
+              setMessage("");
+            }}
+            disabled={analyzing || saving || deletingBrand}
+          >
+            {languageOptions.map((language) => (
+              <option key={language} value={language}>
+                {language}
+              </option>
+            ))}
+          </select>
+
           {showGeneratedFields && (
             <>
               <label>Industry</label>
@@ -657,10 +797,9 @@ await deleteRowsByColumn(
           <p className="eyebrow danger-eyebrow">Danger zone</p>
           <h3>Delete this brand</h3>
           <p>
-            Permanently delete{" "}
-            <strong>{businessName || "this brand"}</strong>, including its
-            generated posts, saved plans, automation rules, website history and
-            social connection.
+            Permanently delete <strong>{businessName || "this brand"}</strong>,
+            including its generated posts, saved plans, automation rules,
+            website history, campaign opportunities and social connection.
           </p>
           <p className="danger-zone-note">
             This cannot be undone. You cannot delete your last remaining brand.
