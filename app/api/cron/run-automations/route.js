@@ -1477,6 +1477,7 @@ function hasWebsiteItemAlreadyBeenUsed(item, usedItems, sourceUrl) {
 async function chooseUnusedWebsiteItem({
   supabase,
   userId,
+  brandProfileId,
   sourceUrl,
   contentType,
   items,
