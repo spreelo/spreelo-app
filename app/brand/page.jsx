@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 
+function getBrandStorageKey(userId) {
+  return `spreelo_current_brand_id_${userId}`;
+}
+
 export default function BrandProfile() {
+  const [brandProfileId, setBrandProfileId] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [hasNoWebsite, setHasNoWebsite] = useState(false);
@@ -66,40 +71,71 @@ export default function BrandProfile() {
 
       setUser(user);
 
-      const { data, error } = await supabase
+      const selectedBrandId =
+        typeof window !== "undefined"
+          ? localStorage.getItem(getBrandStorageKey(user.id))
+          : "";
+
+      let brandQuery = supabase
         .from("brand_profiles")
         .select(
-          "business_name, website_url, brand_description, industry, target_audience"
+          "id, business_name, website_url, brand_description, industry, target_audience, is_default, created_at"
         )
-        .eq("user_id", user.id)
-        .single();
+        .eq("user_id", user.id);
+
+      if (selectedBrandId) {
+        brandQuery = brandQuery.eq("id", selectedBrandId).maybeSingle();
+      } else {
+        brandQuery = brandQuery
+          .order("is_default", { ascending: false })
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+      }
+
+      const { data, error } = await brandQuery;
 
       if (error && error.code !== "PGRST116") {
         setMessage(error.message);
+        setLoading(false);
+        return;
       }
 
-      if (data) {
-        const loadedWebsiteUrl = data.website_url || "";
-        const loadedBrandDescription = data.brand_description || "";
-        const loadedIndustry = data.industry || "";
-        const loadedTargetAudience = data.target_audience || "";
+      if (!data) {
+        setMessage("No brand profile found. Create a brand from the sidebar.");
+        setLoading(false);
+        return;
+      }
 
-        setBusinessName(data.business_name || "");
-        setWebsiteUrl(loadedWebsiteUrl);
-        setBrandDescription(loadedBrandDescription);
-        setIndustry(loadedIndustry);
-        setTargetAudience(loadedTargetAudience);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(getBrandStorageKey(user.id), data.id);
+      }
 
-        setLastAnalyzedWebsiteUrl(normalizeWebsiteUrl(loadedWebsiteUrl));
-        setLastAnalyzedBrandDescription(loadedBrandDescription.trim());
+      const loadedWebsiteUrl = data.website_url || "";
+      const loadedBrandDescription = data.brand_description || "";
+      const loadedIndustry = data.industry || "";
+      const loadedTargetAudience = data.target_audience || "";
 
-        if (!loadedWebsiteUrl && loadedBrandDescription) {
-          setHasNoWebsite(true);
-        }
+      setBrandProfileId(data.id);
+      setBusinessName(data.business_name || "");
+      setWebsiteUrl(loadedWebsiteUrl);
+      setBrandDescription(loadedBrandDescription);
+      setIndustry(loadedIndustry);
+      setTargetAudience(loadedTargetAudience);
 
-        if (loadedIndustry || loadedTargetAudience) {
-          setShowGeneratedFields(true);
-        }
+      setLastAnalyzedWebsiteUrl(normalizeWebsiteUrl(loadedWebsiteUrl));
+      setLastAnalyzedBrandDescription(loadedBrandDescription.trim());
+
+      if (!loadedWebsiteUrl && loadedBrandDescription) {
+        setHasNoWebsite(true);
+      } else {
+        setHasNoWebsite(false);
+      }
+
+      if (loadedIndustry || loadedTargetAudience) {
+        setShowGeneratedFields(true);
+      } else {
+        setShowGeneratedFields(false);
       }
 
       setLoading(false);
@@ -144,7 +180,7 @@ export default function BrandProfile() {
   }
 
   async function handleMainSave() {
-    if (!user) return;
+    if (!user || !brandProfileId) return;
 
     if (shouldAnalyze || !showGeneratedFields) {
       await analyzeBrand();
@@ -194,6 +230,8 @@ export default function BrandProfile() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
+          brandProfileId,
+          businessName: trimmedBusinessName,
           websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
           brandDescription: hasNoWebsite ? trimmedDescription : "",
         }),
@@ -235,7 +273,7 @@ export default function BrandProfile() {
   }
 
   async function saveProfile() {
-    if (!user) return;
+    if (!user || !brandProfileId) return;
 
     const trimmedBusinessName = businessName.trim();
 
@@ -249,20 +287,18 @@ export default function BrandProfile() {
 
     const finalWebsiteUrl = hasNoWebsite ? "" : normalizeWebsiteUrl(websiteUrl);
 
-    const { error } = await supabase.from("brand_profiles").upsert(
-      {
-        user_id: user.id,
+    const { error } = await supabase
+      .from("brand_profiles")
+      .update({
         business_name: trimmedBusinessName,
         website_url: finalWebsiteUrl,
         brand_description: hasNoWebsite ? brandDescription.trim() : "",
         industry: industry.trim(),
         target_audience: targetAudience.trim(),
         updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "user_id",
-      }
-    );
+      })
+      .eq("id", brandProfileId)
+      .eq("user_id", user.id);
 
     if (error) {
       setMessage(error.message);
@@ -305,10 +341,10 @@ export default function BrandProfile() {
           </p>
 
           <div className="mini-info-card">
-            <strong>Start simple</strong>
+            <strong>Current brand profile</strong>
             <p>
-              Add your business name and website. If you do not have a website,
-              describe the business manually instead.
+              Changes here only affect the brand selected in the sidebar. Other
+              brands keep their own profile, automations and connected channels.
             </p>
           </div>
         </div>
@@ -397,7 +433,7 @@ export default function BrandProfile() {
             className="primary-button full"
             type="button"
             onClick={handleMainSave}
-            disabled={saving || analyzing}
+            disabled={saving || analyzing || !brandProfileId}
           >
             {mainButtonLabel}
           </button>
