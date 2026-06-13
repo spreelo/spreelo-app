@@ -1485,6 +1485,7 @@ async function chooseUnusedWebsiteItem({
   const currentCycle = await getCurrentWebsiteCycle({
     supabase,
     userId,
+    brandProfileId,
     sourceUrl,
     contentType,
   });
