@@ -1549,13 +1549,14 @@ async function prepareWebsiteContentForRule({
     throw new Error("No usable products, services, listings or offers found on website");
   }
 
-  const selected = await chooseUnusedWebsiteItem({
-    supabase,
-    userId: rule.user_id,
-    sourceUrl: websiteUrl,
-    contentType: rule.content_type_id || "website_item",
-    items,
-  });
+const selected = await chooseUnusedWebsiteItem({
+  supabase,
+  userId: rule.user_id,
+  brandProfileId: rule.brand_profile_id,
+  sourceUrl: websiteUrl,
+  contentType: rule.content_type_id || "website_item",
+  items,
+});
 
   if (selected.startedNewCycle) {
     summary.website_items_reused_cycle += 1;
