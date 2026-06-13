@@ -403,11 +403,10 @@ async function deleteRows(tableName, columnName, brandId) {
         throw new Error("Could not find another brand to switch to.");
       }
 
-      await deleteRows("website_content_history", brandProfileId);
-      await deleteRows("automation_rules", brandProfileId);
-      await deleteRows("posts", brandProfileId);
-      await deleteRows("social_connections", brandProfileId);
-
+      await deleteRows("website_content_history", "brand_profile_id", brandProfileId);
+await deleteRows("automation_rules", "brand_id", brandProfileId);
+await deleteRows("posts", "brand_id", brandProfileId);
+await deleteRows("social_connections", "brand_id", brandProfileId);
       const { error: deleteBrandError } = await supabase
         .from("brand_profiles")
         .delete()
