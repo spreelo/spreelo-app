@@ -187,27 +187,20 @@ export default function EditPostPage() {
 
     const discardedAt = new Date().toISOString();
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("posts")
       .update({
         status: "rejected",
         updated_at: discardedAt,
       })
-      .eq("id", postId)
-      .select(
-        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt"
-      )
-      .single();
+      .eq("id", postId);
 
     if (error) {
       setMessage(error.message);
+      setDiscarding(false);
     } else {
-      setPost(data);
-      setContent(data.content || "");
-      setMessage("Post discarded. It will not be published.");
+      window.location.href = "/";
     }
-
-    setDiscarding(false);
   }
 
   if (loading) {
