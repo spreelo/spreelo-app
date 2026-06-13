@@ -2084,10 +2084,11 @@ const brandProfile = await getBrandProfileForRule(supabase, rule);
         const postStatus = approvalRequired ? "pending_approval" : "draft";
         const wantsImage = Boolean(rule.generate_image);
 
-        const { data: post, error: postError } = await supabase
-          .from("posts")
-          .insert({
-            user_id: rule.user_id,
+const { data: post, error: postError } = await supabase
+  .from("posts")
+  .insert({
+    user_id: rule.user_id,
+    brand_profile_id: rule.brand_profile_id,
 
             content: generatedContent,
             platform: rule.platform || null,
