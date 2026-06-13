@@ -1369,6 +1369,7 @@ ${analysisInput}
 async function getCurrentWebsiteCycle({
   supabase,
   userId,
+  brandProfileId,
   sourceUrl,
   contentType,
 }) {
