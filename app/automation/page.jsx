@@ -2848,7 +2848,7 @@ const rows = slots.map((slot) => {
                         View automation rules
                       </button>
 
-                      <a href="/dashboard">Go to dashboard</a>
+                      <a href="/">Go to dashboard</a>
                     </div>
                   </div>
                 </div>
