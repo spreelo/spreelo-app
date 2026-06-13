@@ -6,6 +6,7 @@ import { supabase } from "../../../../lib/supabaseClient";
 
 export default function SelectFacebookPage() {
   const [pages, setPages] = useState([]);
+  const [selectedBrand, setSelectedBrand] = useState(null);
   const [sessionId, setSessionId] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingPageId, setSavingPageId] = useState("");
@@ -59,11 +60,13 @@ export default function SelectFacebookPage() {
     if (!response.ok) {
       setMessage(data?.error || "Could not load Facebook pages.");
       setPages([]);
+      setSelectedBrand(null);
       setLoading(false);
       return;
     }
 
     setPages(data.pages || []);
+    setSelectedBrand(data.brand || null);
     setLoading(false);
   }
 
@@ -109,6 +112,13 @@ export default function SelectFacebookPage() {
         <div>
           <p className="eyebrow">Facebook</p>
           <h2>Choose Facebook Page</h2>
+
+          {selectedBrand?.business_name && (
+            <p>
+              This Facebook Page will be connected to{" "}
+              <strong>{selectedBrand.business_name}</strong>.
+            </p>
+          )}
         </div>
       </header>
 
@@ -119,9 +129,18 @@ export default function SelectFacebookPage() {
           <p className="eyebrow">Connect Facebook</p>
           <h3>Select the page Spreelo should publish to</h3>
           <p>
-            Choose the business page that should receive posts from Spreelo.
-            You can disconnect or change this later.
+            Choose the Facebook Page that belongs to the selected brand. Spreelo
+            will only publish that brand&apos;s approved posts to this connected
+            page.
           </p>
+
+          {selectedBrand?.business_name && (
+            <div className="idea-box">
+              <p>
+                <strong>Selected brand:</strong> {selectedBrand.business_name}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="prompt-box">
