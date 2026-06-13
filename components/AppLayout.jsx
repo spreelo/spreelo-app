@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const navItems = [
@@ -35,11 +35,11 @@ const navItems = [
     icon: "◎",
   },
   {
-  id: "social-channels",
-  label: "Social channels",
-  href: "/social-channels",
-  icon: "◉",
-},
+    id: "social-channels",
+    label: "Social channels",
+    href: "/social-channels",
+    icon: "◉",
+  },
   {
     id: "settings",
     label: "Settings",
@@ -48,9 +48,25 @@ const navItems = [
   },
 ];
 
+function getBrandStorageKey(userId) {
+  return `spreelo_current_brand_id_${userId}`;
+}
+
 export default function AppLayout({ active, children }) {
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [brandProfiles, setBrandProfiles] = useState([]);
+  const [currentBrandId, setCurrentBrandId] = useState("");
+  const [loadingBrands, setLoadingBrands] = useState(true);
+  const [creatingBrand, setCreatingBrand] = useState(false);
+
+  const currentBrand = useMemo(() => {
+    return (
+      brandProfiles.find((brand) => brand.id === currentBrandId) ||
+      brandProfiles[0] ||
+      null
+    );
+  }, [brandProfiles, currentBrandId]);
 
   useEffect(() => {
     async function checkUser() {
@@ -64,11 +80,121 @@ export default function AppLayout({ active, children }) {
       }
 
       setUser(user);
+      await loadBrands(user);
       setCheckingSession(false);
     }
 
     checkUser();
   }, []);
+
+  async function loadBrands(currentUser) {
+    setLoadingBrands(true);
+
+    const { data, error } = await supabase
+      .from("brand_profiles")
+      .select("id, business_name, is_default, created_at")
+      .eq("user_id", currentUser.id)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Could not load brands:", error);
+      setBrandProfiles([]);
+      setCurrentBrandId("");
+      setLoadingBrands(false);
+      return;
+    }
+
+    const brands = data || [];
+    setBrandProfiles(brands);
+
+    const storageKey = getBrandStorageKey(currentUser.id);
+    const savedBrandId =
+      typeof window !== "undefined" ? localStorage.getItem(storageKey) : "";
+
+    const savedBrandExists = brands.some((brand) => brand.id === savedBrandId);
+    const defaultBrand = brands.find((brand) => brand.is_default) || brands[0];
+
+    const nextBrandId = savedBrandExists
+      ? savedBrandId
+      : defaultBrand?.id || "";
+
+    setCurrentBrandId(nextBrandId);
+
+    if (nextBrandId && typeof window !== "undefined") {
+      localStorage.setItem(storageKey, nextBrandId);
+    }
+
+    setLoadingBrands(false);
+  }
+
+  function handleBrandChange(event) {
+    const nextBrandId = event.target.value;
+
+    setCurrentBrandId(nextBrandId);
+
+    if (user?.id && typeof window !== "undefined") {
+      localStorage.setItem(getBrandStorageKey(user.id), nextBrandId);
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("spreelo-current-brand-changed", {
+        detail: {
+          brandProfileId: nextBrandId,
+        },
+      })
+    );
+
+    window.location.reload();
+  }
+
+  async function handleCreateBrand() {
+    if (!user?.id || creatingBrand) return;
+
+    const brandName = window.prompt(
+      "Name this brand or business, for example Cavero or Ghostland."
+    );
+
+    const trimmedBrandName = String(brandName || "").trim();
+
+    if (!trimmedBrandName) return;
+
+    setCreatingBrand(true);
+
+    const { data, error } = await supabase
+      .from("brand_profiles")
+      .insert({
+        user_id: user.id,
+        business_name: trimmedBrandName,
+        website_url: "",
+        brand_description: "",
+        industry: "",
+        target_audience: "",
+        is_default: brandProfiles.length === 0,
+        updated_at: new Date().toISOString(),
+      })
+      .select("id, business_name, is_default, created_at")
+      .single();
+
+    if (error) {
+      console.error("Could not create brand:", error);
+      alert(error.message || "Could not create brand.");
+      setCreatingBrand(false);
+      return;
+    }
+
+    const nextBrands = [...brandProfiles, data];
+
+    setBrandProfiles(nextBrands);
+    setCurrentBrandId(data.id);
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(getBrandStorageKey(user.id), data.id);
+    }
+
+    setCreatingBrand(false);
+    window.location.href = "/brand";
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -102,6 +228,37 @@ export default function AppLayout({ active, children }) {
             <h1>Spreelo</h1>
             <p>AI social media planner</p>
           </div>
+        </div>
+
+        <div className="current-brand-card">
+          <label>Current brand</label>
+
+          {loadingBrands ? (
+            <div className="current-brand-loading">Loading brands...</div>
+          ) : brandProfiles.length > 0 ? (
+            <select
+              className="current-brand-select"
+              value={currentBrand?.id || ""}
+              onChange={handleBrandChange}
+            >
+              {brandProfiles.map((brand) => (
+                <option key={brand.id} value={brand.id}>
+                  {brand.business_name || "Unnamed brand"}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="current-brand-loading">No brand yet</div>
+          )}
+
+          <button
+            type="button"
+            className="current-brand-new"
+            onClick={handleCreateBrand}
+            disabled={creatingBrand}
+          >
+            {creatingBrand ? "Creating..." : "+ New brand"}
+          </button>
         </div>
 
         <nav className="nav spreelo-nav">
