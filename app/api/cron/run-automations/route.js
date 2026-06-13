@@ -722,16 +722,30 @@ async function setRuleError(supabase, ruleId, message) {
     .eq("id", ruleId);
 }
 
-async function getBrandProfileForUser(supabase, userId) {
+async function getBrandProfileForRule(supabase, rule) {
+  if (!rule?.brand_profile_id) {
+    console.error("Automation rule has no brand_profile_id", {
+      ruleId: rule?.id,
+      userId: rule?.user_id,
+    });
+
+    return null;
+  }
+
   const { data, error } = await supabase
     .from("brand_profiles")
-    .select("business_name, website_url, industry, target_audience")
-    .eq("user_id", userId)
+    .select(
+      "id, business_name, website_url, brand_description, industry, target_audience"
+    )
+    .eq("id", rule.brand_profile_id)
+    .eq("user_id", rule.user_id)
     .maybeSingle();
 
   if (error) {
-    console.error("Could not load brand profile", {
-      userId,
+    console.error("Could not load brand profile for rule", {
+      ruleId: rule.id,
+      userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id,
       message: error.message,
     });
 
@@ -740,7 +754,6 @@ async function getBrandProfileForUser(supabase, userId) {
 
   return data || null;
 }
-
 function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
 
