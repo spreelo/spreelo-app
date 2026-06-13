@@ -1493,6 +1493,7 @@ async function chooseUnusedWebsiteItem({
   const usedItems = await getUsedWebsiteItems({
     supabase,
     userId,
+    brandProfileId,
     sourceUrl,
     contentType,
     cycleNumber: currentCycle,
