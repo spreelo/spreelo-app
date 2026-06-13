@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../components/AppLayout";
 import { supabase } from "../lib/supabaseClient";
 
+function getBrandStorageKey(userId) {
+  return `spreelo_current_brand_id_${userId}`;
+}
+
 function formatDate(value) {
   if (!value) return "Not set";
 
@@ -78,9 +82,13 @@ function calculateBrandProfileCompleteness(profile) {
     };
   }
 
+  const hasWebsiteOrDescription =
+    String(profile.website_url || "").trim() ||
+    String(profile.brand_description || "").trim();
+
   const fields = [
     profile.business_name,
-    profile.website_url,
+    hasWebsiteOrDescription,
     profile.industry,
     profile.target_audience,
   ];
@@ -100,12 +108,49 @@ export default function Home() {
   const [rules, setRules] = useState([]);
   const [creditBalance, setCreditBalance] = useState(null);
   const [brandProfile, setBrandProfile] = useState(null);
+  const [currentBrandId, setCurrentBrandId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  async function getCurrentBrand(user) {
+    const savedBrandId =
+      typeof window !== "undefined"
+        ? localStorage.getItem(getBrandStorageKey(user.id))
+        : "";
+
+    let query = supabase
+      .from("brand_profiles")
+      .select(
+        "id, business_name, website_url, brand_description, industry, target_audience, is_default, created_at"
+      )
+      .eq("user_id", user.id);
+
+    if (savedBrandId) {
+      query = query.eq("id", savedBrandId).maybeSingle();
+    } else {
+      query = query
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+    }
+
+    const { data, error } = await query;
+
+    if (error && error.code !== "PGRST116") {
+      throw error;
+    }
+
+    if (data?.id && typeof window !== "undefined") {
+      localStorage.setItem(getBrandStorageKey(user.id), data.id);
+    }
+
+    return data || null;
+  }
 
   async function loadDashboard() {
     setLoading(true);
@@ -120,12 +165,33 @@ export default function Home() {
       return;
     }
 
+    let selectedBrand = null;
+
+    try {
+      selectedBrand = await getCurrentBrand(user);
+    } catch (error) {
+      setMessage(error.message || "Could not load selected brand.");
+    }
+
+    if (!selectedBrand?.id) {
+      setPosts([]);
+      setRules([]);
+      setBrandProfile(null);
+      setCurrentBrandId("");
+      setLoading(false);
+      return;
+    }
+
+    setBrandProfile(selectedBrand);
+    setCurrentBrandId(selectedBrand.id);
+
     const { data: postsData, error: postsError } = await supabase
       .from("posts")
       .select(
-        "id, platform, tone, language, post_type, idea, content, status, created_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status"
+        "id, brand_profile_id, platform, tone, language, post_type, idea, content, status, created_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status"
       )
       .eq("user_id", user.id)
+      .eq("brand_profile_id", selectedBrand.id)
       .order("created_at", { ascending: false });
 
     if (postsError) {
@@ -137,9 +203,10 @@ export default function Home() {
     const { data: rulesData, error: rulesError } = await supabase
       .from("automation_rules")
       .select(
-        "id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, content_type_label, uses_website_content, generate_image, approval_required"
+        "id, brand_profile_id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, content_type_label, uses_website_content, generate_image, approval_required"
       )
       .eq("user_id", user.id)
+      .eq("brand_profile_id", selectedBrand.id)
       .order("next_run_at", { ascending: true });
 
     if (rulesError) {
@@ -160,18 +227,6 @@ export default function Home() {
 
     if (balanceData) {
       setCreditBalance(balanceData);
-    }
-
-    const { data: profileData } = await supabase
-      .from("brand_profiles")
-      .select("business_name, website_url, industry, target_audience")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (profileData) {
-      setBrandProfile(profileData);
     }
 
     setLoading(false);
@@ -229,6 +284,7 @@ export default function Home() {
       : 0;
 
   const nextAutomation = upcomingRules[0] || null;
+  const currentBrandName = brandProfile?.business_name || "Current brand";
 
   return (
     <AppLayout active="dashboard">
@@ -236,10 +292,10 @@ export default function Home() {
         <header className="dashboard-hero">
           <div>
             <p className="dashboard-eyebrow">Dashboard</p>
-            <h2>Your social media overview</h2>
+            <h2>{currentBrandName} overview</h2>
             <span>
-              See what Spreelo is creating, what needs review and what is coming
-              next.
+              See what Spreelo is creating for this brand, what needs review and
+              what is coming next.
             </span>
           </div>
 
@@ -256,287 +312,318 @@ export default function Home() {
 
         {message && <p className="login-message">{message}</p>}
 
-        <section className="dashboard-stat-grid">
-                 <div className="dashboard-stat-card">
-            <span>Planned posts</span>
-            <strong>{activeRules.length + scheduledPosts.length}</strong>
-            <p>Upcoming automation rules and scheduled content.</p>
-          </div>
-
-          <div className="dashboard-stat-card">
-            <span>Pending approval</span>
-            <strong>{pendingApprovalPosts.length}</strong>
-            <p>Posts waiting for review.</p>
-          </div>
-
-          <div className="dashboard-stat-card">
-            <span>Published this month</span>
-            <strong>{publishedThisMonthCount}</strong>
-            <p>Published posts in the current month.</p>
-          </div>
-
-          <div className="dashboard-stat-card">
-            <span>Credits left</span>
-            <strong>{creditsRemaining}</strong>
-            <p>
-              {monthlyCreditLimit
-                ? `Out of ${monthlyCreditLimit} monthly credits.`
-                : "No monthly limit found."}
-            </p>
-          </div>
-        </section>
-
-        <div className="dashboard-layout">
-          <main className="dashboard-main">
-            <section className="dashboard-card">
-              <div className="dashboard-card-header">
-                <div>
-                  <p>Upcoming</p>
-                  <h3>Next planned posts</h3>
-                </div>
-
-                <a href="/calendar">View calendar</a>
+        {!loading && !currentBrandId ? (
+          <section className="dashboard-card">
+            <div className="dashboard-empty">
+              <h4>No brand selected</h4>
+              <p>Create or choose a brand from the sidebar to see its dashboard.</p>
+              <a href="/brand">Open brand profile</a>
+            </div>
+          </section>
+        ) : (
+          <>
+            <section className="dashboard-stat-grid">
+              <div className="dashboard-stat-card">
+                <span>Planned posts</span>
+                <strong>{activeRules.length + scheduledPosts.length}</strong>
+                <p>Upcoming automation rules and scheduled content.</p>
               </div>
 
-              {loading ? (
-                <div className="dashboard-empty">
-                  <h4>Loading upcoming posts...</h4>
-                  <p>Please wait while Spreelo loads your plan.</p>
-                </div>
-              ) : upcomingRules.length === 0 ? (
-                <div className="dashboard-empty">
-                  <h4>No upcoming automation yet</h4>
-                  <p>
-                    Create an automation plan and Spreelo will show the next
-                    planned posts here.
-                  </p>
-                  <a href="/automation">Create automation</a>
-                </div>
-              ) : (
-                <div className="dashboard-upcoming-list">
-                  {upcomingRules.map((rule) => (
-                    <article className="dashboard-upcoming-item" key={rule.id}>
-                      <div className="dashboard-upcoming-date">
-                        <strong>{formatShortDate(rule.next_run_at)}</strong>
-                        <span>{formatScheduleType(rule.schedule_type)}</span>
-                      </div>
+              <div className="dashboard-stat-card">
+                <span>Pending approval</span>
+                <strong>{pendingApprovalPosts.length}</strong>
+                <p>Posts waiting for review.</p>
+              </div>
 
-                      <div className="dashboard-upcoming-content">
-                        <h4>{formatPlanName(rule)}</h4>
-                        <p>
-                          {rule.platform || "Platform not set"} ·{" "}
-                          {rule.content_type_label || rule.post_type || "Post"}{" "}
-                          ·{" "}
-                          {rule.generate_image ? "Text + image" : "Text only"}
-                        </p>
-                      </div>
+              <div className="dashboard-stat-card">
+                <span>Published this month</span>
+                <strong>{publishedThisMonthCount}</strong>
+                <p>Published posts in the current month.</p>
+              </div>
 
-                      <div className="dashboard-upcoming-mode">
-                        {rule.approval_required
-                          ? "Review first"
-                          : "Auto publish"}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
+              <div className="dashboard-stat-card">
+                <span>Credits left</span>
+                <strong>{creditsRemaining}</strong>
+                <p>
+                  {monthlyCreditLimit
+                    ? `Out of ${monthlyCreditLimit} monthly credits.`
+                    : "No monthly limit found."}
+                </p>
+              </div>
             </section>
 
-            <section className="dashboard-card" id="pending-review">
-              <div className="dashboard-card-header">
-                <div>
-                  <p>Review</p>
-                  <h3>Pending approval</h3>
-                </div>
+            <div className="dashboard-layout">
+              <main className="dashboard-main">
+                <section className="dashboard-card">
+                  <div className="dashboard-card-header">
+                    <div>
+                      <p>Upcoming</p>
+                      <h3>Next planned posts</h3>
+                    </div>
 
-                <span>{pendingApprovalPosts.length} waiting</span>
-              </div>
-
-              {loading ? (
-                <div className="dashboard-empty">
-                  <h4>Loading review queue...</h4>
-                  <p>Please wait while Spreelo loads your content.</p>
-                </div>
-              ) : pendingApprovalPosts.length === 0 ? (
-                <div className="dashboard-empty success">
-                  <h4>No posts waiting for approval</h4>
-                  <p>
-                    You are all caught up. New posts will appear here when they
-                    need review.
-                  </p>
-                </div>
-              ) : (
-                <div className="dashboard-review-list">
-                  {pendingApprovalPosts.slice(0, 4).map((post) => (
-                    <article className="dashboard-review-item" key={post.id}>
-                      {post.image_url ? (
-                        <img src={post.image_url} alt="Generated post image" />
-                      ) : (
-                        <div className="dashboard-review-placeholder">
-                          {post.platform?.slice(0, 1) || "S"}
-                        </div>
-                      )}
-
-                      <div>
-                        <div className="dashboard-review-topline">
-                          <h4>
-                            {post.platform || "Platform not set"} ·{" "}
-                            {post.post_type || "Post"}
-                          </h4>
-
-                          <span className={getStatusClass(post.status)}>
-                            {formatStatus(post.status)}
-                          </span>
-                        </div>
-
-                        <p>
-                          {(post.content || post.idea || "No preview available")
-                            .split("\n")
-                            .slice(0, 2)
-                            .join(" ")}
-                        </p>
-
-                        <small>
-                          Created {formatDate(post.created_at)} ·{" "}
-                          {post.source_label ||
-                            (post.source === "automation"
-                              ? "Generated by automation"
-                              : "Manual draft")}
-                        </small>
-                      </div>
-
-                      <a href={`/posts/${post.id}`}>Review</a>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-          </main>
-
-          <aside className="dashboard-sidebar">
-            <section className="dashboard-side-card">
-              <div className="dashboard-side-title">
-                <span>▣</span>
-                <div>
-                  <h3>Credits usage</h3>
-                  <p>Your current credit balance.</p>
-                </div>
-              </div>
-
-              {creditBalance ? (
-                <>
-                  <div className="dashboard-credit-number">
-                    <strong>{creditsRemaining}</strong>
-                    <span>/ {monthlyCreditLimit || "—"} left</span>
+                    <a href="/calendar">View calendar</a>
                   </div>
 
-                  <div className="dashboard-credit-bar">
-                    <div style={{ width: `${creditUsagePercent}%` }} />
+                  {loading ? (
+                    <div className="dashboard-empty">
+                      <h4>Loading upcoming posts...</h4>
+                      <p>Please wait while Spreelo loads your plan.</p>
+                    </div>
+                  ) : upcomingRules.length === 0 ? (
+                    <div className="dashboard-empty">
+                      <h4>No upcoming automation for {currentBrandName}</h4>
+                      <p>
+                        Create an automation plan for this brand and Spreelo will
+                        show the next planned posts here.
+                      </p>
+                      <a href="/automation">Create automation</a>
+                    </div>
+                  ) : (
+                    <div className="dashboard-upcoming-list">
+                      {upcomingRules.map((rule) => (
+                        <article
+                          className="dashboard-upcoming-item"
+                          key={rule.id}
+                        >
+                          <div className="dashboard-upcoming-date">
+                            <strong>{formatShortDate(rule.next_run_at)}</strong>
+                            <span>{formatScheduleType(rule.schedule_type)}</span>
+                          </div>
+
+                          <div className="dashboard-upcoming-content">
+                            <h4>{formatPlanName(rule)}</h4>
+                            <p>
+                              {rule.platform || "Platform not set"} ·{" "}
+                              {rule.content_type_label ||
+                                rule.post_type ||
+                                "Post"}{" "}
+                              ·{" "}
+                              {rule.generate_image
+                                ? "Text + image"
+                                : "Text only"}
+                            </p>
+                          </div>
+
+                          <div className="dashboard-upcoming-mode">
+                            {rule.approval_required
+                              ? "Review first"
+                              : "Auto publish"}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="dashboard-card" id="pending-review">
+                  <div className="dashboard-card-header">
+                    <div>
+                      <p>Review</p>
+                      <h3>Pending approval</h3>
+                    </div>
+
+                    <span>{pendingApprovalPosts.length} waiting</span>
+                  </div>
+
+                  {loading ? (
+                    <div className="dashboard-empty">
+                      <h4>Loading review queue...</h4>
+                      <p>Please wait while Spreelo loads your content.</p>
+                    </div>
+                  ) : pendingApprovalPosts.length === 0 ? (
+                    <div className="dashboard-empty success">
+                      <h4>No posts waiting for approval</h4>
+                      <p>
+                        You are all caught up for {currentBrandName}. New posts
+                        will appear here when they need review.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="dashboard-review-list">
+                      {pendingApprovalPosts.slice(0, 4).map((post) => (
+                        <article
+                          className="dashboard-review-item"
+                          key={post.id}
+                        >
+                          {post.image_url ? (
+                            <img
+                              src={post.image_url}
+                              alt="Generated post image"
+                            />
+                          ) : (
+                            <div className="dashboard-review-placeholder">
+                              {post.platform?.slice(0, 1) || "S"}
+                            </div>
+                          )}
+
+                          <div>
+                            <div className="dashboard-review-topline">
+                              <h4>
+                                {post.platform || "Platform not set"} ·{" "}
+                                {post.post_type || "Post"}
+                              </h4>
+
+                              <span className={getStatusClass(post.status)}>
+                                {formatStatus(post.status)}
+                              </span>
+                            </div>
+
+                            <p>
+                              {(
+                                post.content ||
+                                post.idea ||
+                                "No preview available"
+                              )
+                                .split("\n")
+                                .slice(0, 2)
+                                .join(" ")}
+                            </p>
+
+                            <small>
+                              Created {formatDate(post.created_at)} ·{" "}
+                              {post.source_label ||
+                                (post.source === "automation"
+                                  ? "Generated by automation"
+                                  : "Manual draft")}
+                            </small>
+                          </div>
+
+                          <a href={`/posts/${post.id}`}>Review</a>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </main>
+
+              <aside className="dashboard-sidebar">
+                <section className="dashboard-side-card">
+                  <div className="dashboard-side-title">
+                    <span>▣</span>
+                    <div>
+                      <h3>Credits usage</h3>
+                      <p>Your current credit balance.</p>
+                    </div>
+                  </div>
+
+                  {creditBalance ? (
+                    <>
+                      <div className="dashboard-credit-number">
+                        <strong>{creditsRemaining}</strong>
+                        <span>/ {monthlyCreditLimit || "—"} left</span>
+                      </div>
+
+                      <div className="dashboard-credit-bar">
+                        <div style={{ width: `${creditUsagePercent}%` }} />
+                      </div>
+
+                      <p className="dashboard-side-note">
+                        Credits are used when posts are generated, not when a
+                        plan is saved.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="dashboard-mini-empty">
+                      <strong>No credit balance found</strong>
+                      <p>
+                        Credits will appear here when the account has a balance.
+                      </p>
+                    </div>
+                  )}
+                </section>
+
+                <section className="dashboard-side-card">
+                  <div className="dashboard-side-title">
+                    <span>✓</span>
+                    <div>
+                      <h3>Brand profile</h3>
+                      <p>Helps Spreelo create better posts.</p>
+                    </div>
+                  </div>
+
+                  <div className="dashboard-brand-progress">
+                    <div>
+                      <strong>{brandCompleteness.percent}%</strong>
+                      <span>
+                        {brandCompleteness.completed}/{brandCompleteness.total}{" "}
+                        completed
+                      </span>
+                    </div>
+
+                    <div className="dashboard-credit-bar">
+                      <div style={{ width: `${brandCompleteness.percent}%` }} />
+                    </div>
                   </div>
 
                   <p className="dashboard-side-note">
-                    Credits are used when posts are generated, not when a plan is
-                    saved.
+                    {brandCompleteness.percent === 100
+                      ? "This brand profile has the core fields completed."
+                      : "Complete this brand profile to improve future content."}
                   </p>
-                </>
-              ) : (
-                <div className="dashboard-mini-empty">
-                  <strong>No credit balance found</strong>
-                  <p>Credits will appear here when the account has a balance.</p>
-                </div>
-              )}
-            </section>
 
-            <section className="dashboard-side-card">
-              <div className="dashboard-side-title">
-                <span>✓</span>
-                <div>
-                  <h3>Brand profile</h3>
-                  <p>Helps Spreelo create better posts.</p>
-                </div>
-              </div>
+                  <a className="dashboard-side-link" href="/brand">
+                    Edit brand profile
+                  </a>
+                </section>
 
-              <div className="dashboard-brand-progress">
-                <div>
-                  <strong>{brandCompleteness.percent}%</strong>
-                  <span>
-                    {brandCompleteness.completed}/{brandCompleteness.total}{" "}
-                    completed
-                  </span>
-                </div>
-
-                <div className="dashboard-credit-bar">
-                  <div style={{ width: `${brandCompleteness.percent}%` }} />
-                </div>
-              </div>
-
-              <p className="dashboard-side-note">
-                {brandCompleteness.percent === 100
-                  ? "Your brand profile has the core fields completed."
-                  : "Complete your brand profile to improve future content."}
-              </p>
-
-              <a className="dashboard-side-link" href="/brand">
-                Edit brand profile
-              </a>
-            </section>
-
-            <section className="dashboard-side-card">
-              <div className="dashboard-side-title">
-                <span>⚡</span>
-                <div>
-                  <h3>Quick actions</h3>
-                  <p>Go directly to the next task.</p>
-                </div>
-              </div>
-
-              <div className="dashboard-action-list">
-                <a href="/automation">
-                  <span>New automation</span>
-                  <strong>→</strong>
-                </a>
-
-                <a href="/calendar">
-                  <span>Open calendar</span>
-                  <strong>→</strong>
-                </a>
-
-                <a href="#pending-review">
-                  <span>Approve content</span>
-                  <strong>→</strong>
-                </a>
-
-                <a href="/brand">
-                  <span>Edit brand profile</span>
-                  <strong>→</strong>
-                </a>
-              </div>
-            </section>
-
-            {nextAutomation && (
-              <section className="dashboard-side-card highlighted">
-                <div className="dashboard-side-title">
-                  <span>⌁</span>
-                  <div>
-                    <h3>Next automation</h3>
-                    <p>{formatDate(nextAutomation.next_run_at)}</p>
+                <section className="dashboard-side-card">
+                  <div className="dashboard-side-title">
+                    <span>⚡</span>
+                    <div>
+                      <h3>Quick actions</h3>
+                      <p>Go directly to the next task.</p>
+                    </div>
                   </div>
-                </div>
 
-                <strong className="dashboard-next-title">
-                  {formatPlanName(nextAutomation)}
-                </strong>
+                  <div className="dashboard-action-list">
+                    <a href="/automation">
+                      <span>New automation</span>
+                      <strong>→</strong>
+                    </a>
 
-                <p className="dashboard-side-note">
-                  {nextAutomation.platform || "Platform not set"} ·{" "}
-                  {nextAutomation.approval_required
-                    ? "Review before publishing"
-                    : "Publishes automatically"}
-                </p>
-              </section>
-            )}
-          </aside>
-        </div>
+                    <a href="/calendar">
+                      <span>Open calendar</span>
+                      <strong>→</strong>
+                    </a>
+
+                    <a href="#pending-review">
+                      <span>Approve content</span>
+                      <strong>→</strong>
+                    </a>
+
+                    <a href="/brand">
+                      <span>Edit brand profile</span>
+                      <strong>→</strong>
+                    </a>
+                  </div>
+                </section>
+
+                {nextAutomation && (
+                  <section className="dashboard-side-card highlighted">
+                    <div className="dashboard-side-title">
+                      <span>⌁</span>
+                      <div>
+                        <h3>Next automation</h3>
+                        <p>{formatDate(nextAutomation.next_run_at)}</p>
+                      </div>
+                    </div>
+
+                    <strong className="dashboard-next-title">
+                      {formatPlanName(nextAutomation)}
+                    </strong>
+
+                    <p className="dashboard-side-note">
+                      {nextAutomation.platform || "Platform not set"} ·{" "}
+                      {nextAutomation.approval_required
+                        ? "Review before publishing"
+                        : "Publishes automatically"}
+                    </p>
+                  </section>
+                )}
+              </aside>
+            </div>
+          </>
+        )}
       </div>
     </AppLayout>
   );
