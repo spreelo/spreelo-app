@@ -438,7 +438,7 @@ if (rulesLoadError) {
 
 const { data: postsToDelete, error: postsLoadError } = await supabase
   .from("posts")
-  .select("id")
+  .select("id, image_storage_path")
   .eq("brand_profile_id", brandProfileId);
 
 if (postsLoadError) {
