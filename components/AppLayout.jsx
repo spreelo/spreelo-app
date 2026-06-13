@@ -152,7 +152,7 @@ export default function AppLayout({ active, children }) {
     if (!user?.id || creatingBrand) return;
 
     const brandName = window.prompt(
-      "Name this brand or business, for example Cavero or Ghostland."
+      "What should this brand or business be called?"
     );
 
     const trimmedBrandName = String(brandName || "").trim();
