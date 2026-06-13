@@ -24,6 +24,11 @@ export default function BrandProfile() {
   const [analyzing, setAnalyzing] = useState(false);
   const [user, setUser] = useState(null);
 
+  const [allBrands, setAllBrands] = useState([]);
+  const [deleteStep, setDeleteStep] = useState(false);
+  const [deletingBrand, setDeletingBrand] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState("");
+
   const [lastAnalyzedWebsiteUrl, setLastAnalyzedWebsiteUrl] = useState("");
   const [lastAnalyzedBrandDescription, setLastAnalyzedBrandDescription] =
     useState("");
@@ -71,29 +76,52 @@ export default function BrandProfile() {
 
       setUser(user);
 
+      const { data: brandListData, error: brandListError } = await supabase
+        .from("brand_profiles")
+        .select("id, business_name, is_default, created_at")
+        .eq("user_id", user.id)
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: true });
+
+      if (brandListError) {
+        setMessage(brandListError.message);
+        setLoading(false);
+        return;
+      }
+
+      const brands = brandListData || [];
+      setAllBrands(brands);
+
       const selectedBrandId =
         typeof window !== "undefined"
           ? localStorage.getItem(getBrandStorageKey(user.id))
           : "";
 
-      let brandQuery = supabase
+      const selectedBrandExists = brands.some(
+        (brand) => brand.id === selectedBrandId
+      );
+
+      const fallbackBrand =
+        brands.find((brand) => brand.is_default) || brands[0] || null;
+
+      const brandIdToLoad = selectedBrandExists
+        ? selectedBrandId
+        : fallbackBrand?.id || "";
+
+      if (!brandIdToLoad) {
+        setMessage("No brand profile found. Create a brand from the sidebar.");
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
         .from("brand_profiles")
         .select(
           "id, business_name, website_url, brand_description, industry, target_audience, is_default, created_at"
         )
-        .eq("user_id", user.id);
-
-      if (selectedBrandId) {
-        brandQuery = brandQuery.eq("id", selectedBrandId).maybeSingle();
-      } else {
-        brandQuery = brandQuery
-          .order("is_default", { ascending: false })
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-      }
-
-      const { data, error } = await brandQuery;
+        .eq("user_id", user.id)
+        .eq("id", brandIdToLoad)
+        .maybeSingle();
 
       if (error && error.code !== "PGRST116") {
         setMessage(error.message);
@@ -310,6 +338,119 @@ export default function BrandProfile() {
     setSaving(false);
   }
 
+  function handleDeleteStart() {
+    setDeleteMessage("");
+
+    if (!brandProfileId) {
+      setDeleteMessage("No brand selected.");
+      return;
+    }
+
+    if (allBrands.length <= 1) {
+      setDeleteMessage(
+        "You cannot delete your last brand. Create another brand first."
+      );
+      return;
+    }
+
+    setDeleteStep(true);
+  }
+
+  function handleDeleteCancel() {
+    setDeleteStep(false);
+    setDeleteMessage("");
+  }
+
+  async function deleteRows(tableName, brandId) {
+    const { error } = await supabase
+      .from(tableName)
+      .delete()
+      .eq("brand_id", brandId);
+
+    if (error) {
+      throw new Error(`${tableName}: ${error.message}`);
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    if (!user || !brandProfileId || deletingBrand) return;
+
+    if (allBrands.length <= 1) {
+      setDeleteMessage(
+        "You cannot delete your last brand. Create another brand first."
+      );
+      return;
+    }
+
+    setDeletingBrand(true);
+    setDeleteMessage("");
+
+    try {
+      const brandToDelete = allBrands.find(
+        (brand) => brand.id === brandProfileId
+      );
+
+      const remainingBrands = allBrands.filter(
+        (brand) => brand.id !== brandProfileId
+      );
+
+      const nextBrand =
+        remainingBrands.find((brand) => brand.is_default) ||
+        remainingBrands[0] ||
+        null;
+
+      if (!nextBrand?.id) {
+        throw new Error("Could not find another brand to switch to.");
+      }
+
+      await deleteRows("website_content_history", brandProfileId);
+      await deleteRows("automation_rules", brandProfileId);
+      await deleteRows("posts", brandProfileId);
+      await deleteRows("social_connections", brandProfileId);
+
+      const { error: deleteBrandError } = await supabase
+        .from("brand_profiles")
+        .delete()
+        .eq("id", brandProfileId)
+        .eq("user_id", user.id);
+
+      if (deleteBrandError) {
+        throw new Error(`brand_profiles: ${deleteBrandError.message}`);
+      }
+
+      if (brandToDelete?.is_default && nextBrand.id) {
+        await supabase
+          .from("brand_profiles")
+          .update({
+            is_default: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", nextBrand.id)
+          .eq("user_id", user.id);
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(getBrandStorageKey(user.id), nextBrand.id);
+
+        window.dispatchEvent(
+          new CustomEvent("spreelo-current-brand-changed", {
+            detail: {
+              brandProfileId: nextBrand.id,
+            },
+          })
+        );
+      }
+
+      window.location.href = "/brand";
+    } catch (error) {
+      console.error("Could not delete brand:", error);
+      setDeleteMessage(
+        error.message || "Could not delete brand. Please try again."
+      );
+      setDeletingBrand(false);
+    }
+  }
+
   if (loading) {
     return (
       <AppLayout active="brand">
@@ -359,7 +500,7 @@ export default function BrandProfile() {
               setBusinessName(event.target.value);
               setMessage("");
             }}
-            disabled={analyzing || saving}
+            disabled={analyzing || saving || deletingBrand}
           />
 
           <label>Website URL</label>
@@ -375,7 +516,7 @@ export default function BrandProfile() {
               setTargetAudience("");
               setMessage("");
             }}
-            disabled={hasNoWebsite || analyzing || saving}
+            disabled={hasNoWebsite || analyzing || saving || deletingBrand}
           />
 
           <label className="checkbox-row">
@@ -383,7 +524,7 @@ export default function BrandProfile() {
               type="checkbox"
               checked={hasNoWebsite}
               onChange={handleNoWebsiteChange}
-              disabled={analyzing || saving}
+              disabled={analyzing || saving || deletingBrand}
             />
             <span>I do not have a website</span>
           </label>
@@ -402,7 +543,7 @@ export default function BrandProfile() {
                   setTargetAudience("");
                   setMessage("");
                 }}
-                disabled={analyzing || saving}
+                disabled={analyzing || saving || deletingBrand}
               />
             </>
           )}
@@ -415,7 +556,7 @@ export default function BrandProfile() {
                 placeholder="Example: Local service business helping homeowners with..."
                 value={industry}
                 onChange={(event) => setIndustry(event.target.value)}
-                disabled={analyzing || saving}
+                disabled={analyzing || saving || deletingBrand}
               />
 
               <label>Target audience</label>
@@ -424,7 +565,7 @@ export default function BrandProfile() {
                 placeholder="Example: Customers who need..."
                 value={targetAudience}
                 onChange={(event) => setTargetAudience(event.target.value)}
-                disabled={analyzing || saving}
+                disabled={analyzing || saving || deletingBrand}
               />
             </>
           )}
@@ -433,12 +574,70 @@ export default function BrandProfile() {
             className="primary-button full"
             type="button"
             onClick={handleMainSave}
-            disabled={saving || analyzing || !brandProfileId}
+            disabled={saving || analyzing || deletingBrand || !brandProfileId}
           >
             {mainButtonLabel}
           </button>
 
           {message && <p className="login-message">{message}</p>}
+        </div>
+      </section>
+
+      <section className="danger-zone-card">
+        <div>
+          <p className="eyebrow danger-eyebrow">Danger zone</p>
+          <h3>Delete this brand</h3>
+          <p>
+            Permanently delete{" "}
+            <strong>{businessName || "this brand"}</strong>, including its
+            generated posts, saved plans, automation rules, website history and
+            social connection.
+          </p>
+          <p className="danger-zone-note">
+            This cannot be undone. You cannot delete your last remaining brand.
+          </p>
+        </div>
+
+        <div className="danger-zone-actions">
+          {deleteStep ? (
+            <div className="delete-confirm-box">
+              <p>
+                Are you sure you want to permanently delete{" "}
+                <strong>{businessName || "this brand"}</strong>?
+              </p>
+
+              <div className="delete-confirm-actions">
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={handleDeleteConfirm}
+                  disabled={deletingBrand}
+                >
+                  {deletingBrand ? "Deleting..." : "Yes, delete permanently"}
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={handleDeleteCancel}
+                  disabled={deletingBrand}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="danger-button"
+              onClick={handleDeleteStart}
+              disabled={deletingBrand}
+            >
+              Delete brand
+            </button>
+          )}
+
+          {deleteMessage && <p className="danger-message">{deleteMessage}</p>}
         </div>
       </section>
     </AppLayout>
