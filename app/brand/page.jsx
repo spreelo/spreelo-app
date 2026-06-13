@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabaseClient";
 export default function BrandProfile() {
   const [businessName, setBusinessName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [hasNoWebsite, setHasNoWebsite] = useState(false);
   const [brandDescription, setBrandDescription] = useState("");
   const [industry, setIndustry] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
@@ -17,13 +18,43 @@ export default function BrandProfile() {
   const [user, setUser] = useState(null);
   const [profileHasBeenLoaded, setProfileHasBeenLoaded] = useState(false);
 
-  const hasUsefulProfile = useMemo(() => {
-    return Boolean(
-      businessName.trim() && industry.trim() && targetAudience.trim()
-    );
-  }, [businessName, industry, targetAudience]);
+  const [lastAnalyzedWebsiteUrl, setLastAnalyzedWebsiteUrl] = useState("");
+  const [lastAnalyzedBrandDescription, setLastAnalyzedBrandDescription] =
+    useState("");
 
-  const shouldShowProfileFields = profileHasBeenLoaded || hasUsefulProfile;
+  const normalizedWebsiteUrl = useMemo(() => {
+    return normalizeWebsiteUrl(websiteUrl);
+  }, [websiteUrl]);
+
+  const hasGeneratedProfile = useMemo(() => {
+    return Boolean(industry.trim() || targetAudience.trim());
+  }, [industry, targetAudience]);
+
+  const shouldAnalyzeWebsite = useMemo(() => {
+    if (hasNoWebsite) return false;
+    if (!normalizedWebsiteUrl) return false;
+
+    return normalizedWebsiteUrl !== lastAnalyzedWebsiteUrl;
+  }, [hasNoWebsite, normalizedWebsiteUrl, lastAnalyzedWebsiteUrl]);
+
+  const shouldAnalyzeDescription = useMemo(() => {
+    if (!hasNoWebsite) return false;
+    if (!brandDescription.trim()) return false;
+
+    return brandDescription.trim() !== lastAnalyzedBrandDescription;
+  }, [hasNoWebsite, brandDescription, lastAnalyzedBrandDescription]);
+
+  const shouldAnalyze = shouldAnalyzeWebsite || shouldAnalyzeDescription;
+
+  const mainButtonLabel = useMemo(() => {
+    if (saving) return "Saving...";
+    if (analyzing) return "Analyzing...";
+
+    if (shouldAnalyzeWebsite) return "Save and analyze website";
+    if (shouldAnalyzeDescription) return "Save and analyze description";
+
+    return "Save";
+  }, [saving, analyzing, shouldAnalyzeWebsite, shouldAnalyzeDescription]);
 
   useEffect(() => {
     async function loadProfile() {
@@ -51,11 +82,21 @@ export default function BrandProfile() {
       }
 
       if (data) {
+        const loadedWebsiteUrl = data.website_url || "";
+        const loadedBrandDescription = data.brand_description || "";
+
         setBusinessName(data.business_name || "");
-        setWebsiteUrl(data.website_url || "");
-        setBrandDescription(data.brand_description || "");
+        setWebsiteUrl(loadedWebsiteUrl);
+        setBrandDescription(loadedBrandDescription);
         setIndustry(data.industry || "");
         setTargetAudience(data.target_audience || "");
+
+        setLastAnalyzedWebsiteUrl(normalizeWebsiteUrl(loadedWebsiteUrl));
+        setLastAnalyzedBrandDescription(loadedBrandDescription.trim());
+
+        if (!loadedWebsiteUrl && loadedBrandDescription) {
+          setHasNoWebsite(true);
+        }
 
         if (
           data.business_name ||
@@ -91,18 +132,45 @@ export default function BrandProfile() {
     return `https://${trimmedValue}`;
   }
 
-  async function analyzeBrand(source) {
+  function handleNoWebsiteChange(event) {
+    const checked = event.target.checked;
+
+    setHasNoWebsite(checked);
     setMessage("");
 
-    const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
-    const trimmedDescription = brandDescription.trim();
+    if (checked) {
+      setWebsiteUrl("");
+    }
+  }
 
-    if (source === "website" && !normalizedWebsiteUrl) {
-      setMessage("Add a website URL first.");
+  async function handleMainSave() {
+    if (!user) return;
+
+    if (shouldAnalyze) {
+      await analyzeBrand();
       return;
     }
 
-    if (source === "description" && !trimmedDescription) {
+    await saveProfile();
+  }
+
+  async function analyzeBrand() {
+    setMessage("");
+
+    const trimmedBusinessName = businessName.trim();
+    const trimmedDescription = brandDescription.trim();
+
+    if (!trimmedBusinessName) {
+      setMessage("Add your business name first.");
+      return;
+    }
+
+    if (!hasNoWebsite && !normalizedWebsiteUrl) {
+      setMessage("Add a website URL, or select that you do not have a website.");
+      return;
+    }
+
+    if (hasNoWebsite && !trimmedDescription) {
       setMessage("Describe your business first.");
       return;
     }
@@ -126,8 +194,8 @@ export default function BrandProfile() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          websiteUrl: source === "website" ? normalizedWebsiteUrl : "",
-          brandDescription: trimmedDescription,
+          websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
+          brandDescription: hasNoWebsite ? trimmedDescription : "",
         }),
       });
 
@@ -139,17 +207,22 @@ export default function BrandProfile() {
 
       const profile = result.profile || {};
 
+      setBusinessName(profile.business_name || trimmedBusinessName);
       setWebsiteUrl(profile.website_url || result.website_url || normalizedWebsiteUrl);
       setBrandDescription(profile.brand_description || trimmedDescription);
-      setBusinessName(profile.business_name || "");
       setIndustry(profile.industry || "");
       setTargetAudience(profile.target_audience || "");
       setProfileHasBeenLoaded(true);
 
+      setLastAnalyzedWebsiteUrl(
+        hasNoWebsite ? "" : normalizeWebsiteUrl(profile.website_url || result.website_url || normalizedWebsiteUrl)
+      );
+      setLastAnalyzedBrandDescription(hasNoWebsite ? trimmedDescription : "");
+
       setMessage(
-        source === "website"
-          ? "Website analyzed and brand profile saved."
-          : "Description analyzed and brand profile saved."
+        hasNoWebsite
+          ? "Brand description analyzed and saved."
+          : "Website analyzed and saved."
       );
     } catch (error) {
       setMessage(error.message || "Could not analyze brand.");
@@ -161,17 +234,24 @@ export default function BrandProfile() {
   async function saveProfile() {
     if (!user) return;
 
+    const trimmedBusinessName = businessName.trim();
+
+    if (!trimmedBusinessName) {
+      setMessage("Add your business name first.");
+      return;
+    }
+
     setSaving(true);
     setMessage("");
 
-    const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+    const finalWebsiteUrl = hasNoWebsite ? "" : normalizeWebsiteUrl(websiteUrl);
 
     const { error } = await supabase.from("brand_profiles").upsert(
       {
         user_id: user.id,
-        business_name: businessName.trim(),
-        website_url: normalizedWebsiteUrl,
-        brand_description: brandDescription.trim(),
+        business_name: trimmedBusinessName,
+        website_url: finalWebsiteUrl,
+        brand_description: hasNoWebsite ? brandDescription.trim() : "",
         industry: industry.trim(),
         target_audience: targetAudience.trim(),
         updated_at: new Date().toISOString(),
@@ -184,7 +264,7 @@ export default function BrandProfile() {
     if (error) {
       setMessage(error.message);
     } else {
-      setWebsiteUrl(normalizedWebsiteUrl);
+      setWebsiteUrl(finalWebsiteUrl);
       setProfileHasBeenLoaded(true);
       setMessage("Brand profile saved.");
     }
@@ -210,103 +290,82 @@ export default function BrandProfile() {
           <p className="eyebrow">Brand profile</p>
           <h2>Teach Spreelo about your business</h2>
         </div>
-
-        {shouldShowProfileFields && (
-          <button
-            className="primary-button"
-            onClick={saveProfile}
-            disabled={saving || analyzing}
-          >
-            {saving ? "Saving..." : "Save profile"}
-          </button>
-        )}
       </header>
 
       <section className="hero-card">
         <div>
           <p className="eyebrow">Business context</p>
-          <h3>
-            {shouldShowProfileFields
-              ? "Review your brand profile"
-              : "Start with a website or description"}
-          </h3>
+          <h3>Set up your brand profile</h3>
 
           <p>
-            {shouldShowProfileFields
-              ? "Spreelo uses this profile to create posts that match your business, audience and offers."
-              : "Add a website if you have one, or describe the business manually. Spreelo can build the profile from either source."}
+            Spreelo uses this profile to understand your business, your audience
+            and what kind of content it should create.
           </p>
 
           <div className="mini-info-card">
-            <strong>
-              {shouldShowProfileFields
-                ? "You can edit everything"
-                : "Works without a website"}
-            </strong>
+            <strong>Start simple</strong>
             <p>
-              {shouldShowProfileFields
-                ? "Change the fields if needed, then save your updated brand profile."
-                : "Useful for artists, creators, local businesses, clubs and companies without a website."}
+              Add your business name and website. If you do not have a website,
+              describe the business manually instead.
             </p>
           </div>
         </div>
 
         <div className="prompt-box">
-          <label>Website URL optional</label>
+          <label>Business name</label>
+          <input
+            className="input"
+            placeholder="Example: Your Company"
+            value={businessName}
+            onChange={(event) => setBusinessName(event.target.value)}
+            disabled={analyzing || saving}
+          />
+
+          <label>Website URL</label>
           <input
             className="input"
             placeholder="Example: https://www.yourbusiness.com"
             value={websiteUrl}
-            onChange={(event) => setWebsiteUrl(event.target.value)}
-            disabled={analyzing || saving}
+            onChange={(event) => {
+              setWebsiteUrl(event.target.value);
+              setHasNoWebsite(false);
+              setMessage("");
+            }}
+            disabled={hasNoWebsite || analyzing || saving}
           />
 
-          <label>Describe your brand optional</label>
-          <textarea
-            className="input prompt-textarea"
-            placeholder="Example: Cavero is a melodic EDM artist project inspired by Avicii, Alan Walker and Martin Garrix. The audience is people who enjoy emotional dance music, festival sounds and radio-friendly electronic pop."
-            value={brandDescription}
-            onChange={(event) => setBrandDescription(event.target.value)}
-            disabled={analyzing || saving}
-          />
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={hasNoWebsite}
+              onChange={handleNoWebsiteChange}
+              disabled={analyzing || saving}
+            />
+            <span>I do not have a website</span>
+          </label>
 
-          {!shouldShowProfileFields && (
+          {hasNoWebsite && (
             <>
-              <button
-                className="primary-button full"
-                type="button"
-                onClick={() => analyzeBrand("website")}
+              <label>Describe your business</label>
+              <textarea
+                className="input prompt-textarea"
+                placeholder="Describe what the business does, what you offer, who your customers are, what style or tone you want, and what Spreelo should know before creating posts."
+                value={brandDescription}
+                onChange={(event) => {
+                  setBrandDescription(event.target.value);
+                  setMessage("");
+                }}
                 disabled={analyzing || saving}
-              >
-                {analyzing ? "Analyzing..." : "Analyze website"}
-              </button>
-
-              <button
-                className="secondary-button full"
-                type="button"
-                onClick={() => analyzeBrand("description")}
-                disabled={analyzing || saving}
-              >
-                {analyzing ? "Generating..." : "Generate from description"}
-              </button>
+              />
             </>
           )}
 
-          {shouldShowProfileFields && (
+          {hasGeneratedProfile && (
             <>
-              <label>Business name</label>
-              <input
-                className="input"
-                placeholder="Example: Spreelo"
-                value={businessName}
-                onChange={(event) => setBusinessName(event.target.value)}
-                disabled={analyzing || saving}
-              />
-
               <label>Industry</label>
               <textarea
                 className="input prompt-textarea"
-                placeholder="Example: Online pet store selling food, toys and accessories..."
+                placeholder="Example: Local service business helping homeowners with..."
                 value={industry}
                 onChange={(event) => setIndustry(event.target.value)}
                 disabled={analyzing || saving}
@@ -315,41 +374,22 @@ export default function BrandProfile() {
               <label>Target audience</label>
               <textarea
                 className="input prompt-textarea"
-                placeholder="Example: Pet owners who want quality products and convenient online shopping..."
+                placeholder="Example: Customers who need..."
                 value={targetAudience}
                 onChange={(event) => setTargetAudience(event.target.value)}
                 disabled={analyzing || saving}
               />
-
-              <button
-                className="primary-button full"
-                onClick={saveProfile}
-                disabled={saving || analyzing}
-              >
-                {saving ? "Saving..." : "Save brand profile"}
-              </button>
-
-              <button
-                className="secondary-button full"
-                type="button"
-                onClick={() => analyzeBrand("website")}
-                disabled={analyzing || saving}
-              >
-                {analyzing ? "Re-analyzing..." : "Re-analyze website"}
-              </button>
-
-              <button
-                className="secondary-button full"
-                type="button"
-                onClick={() => analyzeBrand("description")}
-                disabled={analyzing || saving}
-              >
-                {analyzing
-                  ? "Regenerating..."
-                  : "Regenerate from description"}
-              </button>
             </>
           )}
+
+          <button
+            className="primary-button full"
+            type="button"
+            onClick={handleMainSave}
+            disabled={saving || analyzing}
+          >
+            {mainButtonLabel}
+          </button>
 
           {message && <p className="login-message">{message}</p>}
         </div>
