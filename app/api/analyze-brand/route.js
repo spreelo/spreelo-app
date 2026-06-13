@@ -207,7 +207,7 @@ async function checkRateLimit({ supabase, userId }) {
 
   if (runs.length >= MAX_ANALYSES_PER_24_HOURS) {
     throw new Error(
-      `Analyze limit reached. You can analyze your website ${MAX_ANALYSES_PER_24_HOURS} times per 24 hours.`
+      `Analyze limit reached. You can analyze your brand ${MAX_ANALYSES_PER_24_HOURS} times per 24 hours.`
     );
   }
 
@@ -223,7 +223,7 @@ async function checkRateLimit({ supabase, userId }) {
 async function logAnalysisRun({ supabase, userId, websiteUrl }) {
   const { error } = await supabase.from("brand_analysis_runs").insert({
     user_id: userId,
-    website_url: websiteUrl,
+    website_url: websiteUrl || "manual_description",
   });
 
   if (error) {
@@ -235,6 +235,7 @@ async function saveBrandProfile({
   supabase,
   userId,
   websiteUrl,
+  brandDescription,
   profile,
 }) {
   const { data, error } = await supabase
@@ -243,7 +244,8 @@ async function saveBrandProfile({
       {
         user_id: userId,
         business_name: profile.business_name,
-        website_url: websiteUrl,
+        website_url: websiteUrl || "",
+        brand_description: brandDescription || "",
         industry: profile.industry,
         target_audience: profile.target_audience,
         updated_at: new Date().toISOString(),
@@ -252,7 +254,9 @@ async function saveBrandProfile({
         onConflict: "user_id",
       }
     )
-    .select("business_name, website_url, industry, target_audience")
+    .select(
+      "business_name, website_url, brand_description, industry, target_audience"
+    )
     .single();
 
   if (error) {
@@ -262,7 +266,12 @@ async function saveBrandProfile({
   return data;
 }
 
-async function analyzeWebsiteWithOpenAI({ openai, websiteUrl, html }) {
+async function analyzeWebsiteWithOpenAI({
+  openai,
+  websiteUrl,
+  html,
+  brandDescription,
+}) {
   const title = extractPageTitle(html);
   const description = extractMetaDescription(html);
   const visibleText = truncateText(stripHtmlToText(html), WEBSITE_MAX_TEXT_CHARS);
@@ -273,15 +282,18 @@ async function analyzeWebsiteWithOpenAI({ openai, websiteUrl, html }) {
       {
         role: "system",
         content:
-          "You analyze business websites and return strict JSON only. Do not invent details that are not supported by the website content.",
+          "You analyze business websites and return strict JSON only. Do not invent details that are not supported by the provided website content and optional brand description.",
       },
       {
         role: "user",
         content: `
-Analyze this business website and create a brand profile for a social media automation tool.
+Analyze this business and create a brand profile for a social media automation tool.
 
 Website URL:
 ${websiteUrl}
+
+Optional user-provided brand description:
+${brandDescription || "Not provided"}
 
 Page title:
 ${title || "Not found"}
@@ -295,24 +307,74 @@ ${visibleText}
 Return JSON only in this exact shape:
 {
   "business_name": "Business name",
-  "industry": "Short but clear description of what the business does, written in the same language as the website",
-  "target_audience": "Clear description of the likely customers/audience, written in the same language as the website",
-  "detected_language": "Detected main website language"
+  "industry": "Short but clear description of what the business does, written in the same language as the strongest source",
+  "target_audience": "Clear description of the likely customers/audience, written in the same language as the strongest source",
+  "detected_language": "Detected main language"
 }
 
 Rules:
-- Use only information supported by the website content.
+- Use only information supported by the website content and optional brand description.
 - Do not make up products, locations, services or claims.
-- Detect the main language of the website.
 - Write business_name as the official business name, not translated.
-- Write industry in the same language as the website.
-- Write target_audience in the same language as the website.
-- If the website is Swedish, write industry and target_audience in Swedish.
-- If the website is English, write industry and target_audience in English.
-- If the website mixes languages, use the language that dominates the homepage text.
-- If the business name is unclear, infer the most likely name from the title/domain.
 - Industry should be useful for generating social media posts.
 - Target audience should be practical and specific, not vague.
+- If Swedish dominates, write industry and target_audience in Swedish.
+- If English dominates, write industry and target_audience in English.
+- Keep each field concise but useful.
+`.trim(),
+      },
+    ],
+    temperature: 0.2,
+  });
+
+  const content = completion.choices?.[0]?.message?.content || "";
+  const parsed = safeJsonParse(content);
+
+  if (!parsed) {
+    throw new Error("Could not parse OpenAI response");
+  }
+
+  return {
+    business_name: String(parsed.business_name || "").trim(),
+    industry: String(parsed.industry || "").trim(),
+    target_audience: String(parsed.target_audience || "").trim(),
+    detected_language: String(parsed.detected_language || "").trim(),
+  };
+}
+
+async function analyzeDescriptionWithOpenAI({ openai, brandDescription }) {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          "You create brand profiles from user-provided business descriptions and return strict JSON only. Do not invent unsupported claims.",
+      },
+      {
+        role: "user",
+        content: `
+Create a brand profile for a social media automation tool based on this user-provided description.
+
+Brand description:
+${brandDescription}
+
+Return JSON only in this exact shape:
+{
+  "business_name": "Business name",
+  "industry": "Short but clear description of what the business does, written in the same language as the description",
+  "target_audience": "Clear description of the likely customers/audience, written in the same language as the description",
+  "detected_language": "Detected main language"
+}
+
+Rules:
+- Use only information supported by the description.
+- Do not invent products, locations, services or claims.
+- If the business name is unclear, infer the most likely name carefully from the description.
+- Industry should be useful for generating social media posts.
+- Target audience should be practical and specific, not vague.
+- If the description is Swedish, answer in Swedish.
+- If the description is English, answer in English.
 - Keep each field concise but useful.
 `.trim(),
       },
@@ -389,12 +451,13 @@ export async function POST(request) {
 
     const body = await request.json();
     const websiteUrl = normalizeWebsiteUrl(body?.websiteUrl);
+    const brandDescription = String(body?.brandDescription || "").trim();
 
-    if (!websiteUrl) {
+    if (!websiteUrl && !brandDescription) {
       return Response.json(
         {
           ok: false,
-          error: "Website URL is required.",
+          error: "Add a website URL or describe your brand.",
         },
         { status: 400 }
       );
@@ -409,39 +472,54 @@ export async function POST(request) {
       apiKey: openaiApiKey,
     });
 
-    const website = await fetchWebsiteHtml(websiteUrl);
+    let profile;
+    let finalWebsiteUrl = websiteUrl;
 
-    const profile = await analyzeWebsiteWithOpenAI({
-      openai,
-      websiteUrl: website.url,
-      html: website.html,
-    });
+    if (websiteUrl) {
+      const website = await fetchWebsiteHtml(websiteUrl);
+      finalWebsiteUrl = website.url;
+
+      profile = await analyzeWebsiteWithOpenAI({
+        openai,
+        websiteUrl: website.url,
+        html: website.html,
+        brandDescription,
+      });
+    } else {
+      profile = await analyzeDescriptionWithOpenAI({
+        openai,
+        brandDescription,
+      });
+    }
 
     const savedProfile = await saveBrandProfile({
       supabase,
       userId: user.id,
-      websiteUrl: website.url,
+      websiteUrl: finalWebsiteUrl,
+      brandDescription,
       profile,
     });
 
     await logAnalysisRun({
       supabase,
       userId: user.id,
-      websiteUrl: website.url,
+      websiteUrl: finalWebsiteUrl,
     });
 
     return Response.json({
       ok: true,
-      website_url: website.url,
+      website_url: finalWebsiteUrl,
       profile: savedProfile,
       detected_language: profile.detected_language || null,
-      message: "Website analyzed and brand profile saved.",
+      message: finalWebsiteUrl
+        ? "Website analyzed and brand profile saved."
+        : "Description analyzed and brand profile saved.",
     });
   } catch (error) {
     return Response.json(
       {
         ok: false,
-        error: error.message || "Could not analyze website.",
+        error: error.message || "Could not analyze brand.",
       },
       { status: 500 }
     );
