@@ -1585,6 +1585,7 @@ async function saveWebsiteContentHistory({
 
   const { error } = await supabase.from("website_content_history").insert({
     user_id: rule.user_id,
+    brand_profile_id: rule.brand_profile_id,
     automation_rule_id: rule.id,
     post_id: postId,
     source_url: sourceUrl,
