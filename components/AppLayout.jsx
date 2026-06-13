@@ -60,10 +60,6 @@ export default function AppLayout({ active, children }) {
   const [loadingBrands, setLoadingBrands] = useState(true);
   const [creatingBrand, setCreatingBrand] = useState(false);
 
-  const [deleteConfirmBrandId, setDeleteConfirmBrandId] = useState("");
-  const [deletingBrand, setDeletingBrand] = useState(false);
-  const [brandActionMessage, setBrandActionMessage] = useState("");
-
   const currentBrand = useMemo(() => {
     return (
       brandProfiles.find((brand) => brand.id === currentBrandId) ||
@@ -136,8 +132,6 @@ export default function AppLayout({ active, children }) {
     const nextBrandId = event.target.value;
 
     setCurrentBrandId(nextBrandId);
-    setDeleteConfirmBrandId("");
-    setBrandActionMessage("");
 
     if (user?.id && typeof window !== "undefined") {
       localStorage.setItem(getBrandStorageKey(user.id), nextBrandId);
@@ -166,8 +160,6 @@ export default function AppLayout({ active, children }) {
     if (!trimmedBrandName) return;
 
     setCreatingBrand(true);
-    setBrandActionMessage("");
-    setDeleteConfirmBrandId("");
 
     const { data, error } = await supabase
       .from("brand_profiles")
@@ -202,127 +194,6 @@ export default function AppLayout({ active, children }) {
 
     setCreatingBrand(false);
     window.location.href = "/brand";
-  }
-
-  function handleDeleteBrandStart() {
-    setBrandActionMessage("");
-
-    if (!currentBrand?.id) {
-      setBrandActionMessage("No brand selected.");
-      return;
-    }
-
-    if (brandProfiles.length <= 1) {
-      setBrandActionMessage(
-        "You cannot delete your last brand. Create another brand first."
-      );
-      return;
-    }
-
-    setDeleteConfirmBrandId(currentBrand.id);
-  }
-
-  function handleDeleteBrandCancel() {
-    setDeleteConfirmBrandId("");
-    setBrandActionMessage("");
-  }
-
-  async function deleteRows(tableName, brandId) {
-    const { error } = await supabase.from(tableName).delete().eq("brand_id", brandId);
-
-    if (error) {
-      throw new Error(`${tableName}: ${error.message}`);
-    }
-  }
-
-  async function handleDeleteBrandConfirm() {
-    if (!user?.id || !currentBrand?.id || deletingBrand) return;
-
-    const brandToDelete = currentBrand;
-
-    if (brandProfiles.length <= 1) {
-      setBrandActionMessage(
-        "You cannot delete your last brand. Create another brand first."
-      );
-      return;
-    }
-
-    setDeletingBrand(true);
-    setBrandActionMessage("");
-
-    try {
-      const remainingBrands = brandProfiles.filter(
-        (brand) => brand.id !== brandToDelete.id
-      );
-
-      const nextBrand =
-        remainingBrands.find((brand) => brand.is_default) ||
-        remainingBrands[0] ||
-        null;
-
-      if (!nextBrand?.id) {
-        throw new Error("Could not find another brand to switch to.");
-      }
-
-      await deleteRows("website_content_history", brandToDelete.id);
-      await deleteRows("automation_rules", brandToDelete.id);
-      await deleteRows("posts", brandToDelete.id);
-      await deleteRows("social_connections", brandToDelete.id);
-
-      const { error: deleteBrandError } = await supabase
-        .from("brand_profiles")
-        .delete()
-        .eq("id", brandToDelete.id)
-        .eq("user_id", user.id);
-
-      if (deleteBrandError) {
-        throw new Error(`brand_profiles: ${deleteBrandError.message}`);
-      }
-
-      if (brandToDelete.is_default && nextBrand.id) {
-        await supabase
-          .from("brand_profiles")
-          .update({
-            is_default: true,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", nextBrand.id)
-          .eq("user_id", user.id);
-      }
-
-      const nextBrands = remainingBrands.map((brand) => {
-        if (brand.id !== nextBrand.id) return brand;
-
-        return {
-          ...brand,
-          is_default: brandToDelete.is_default ? true : brand.is_default,
-        };
-      });
-
-      setBrandProfiles(nextBrands);
-      setCurrentBrandId(nextBrand.id);
-      setDeleteConfirmBrandId("");
-
-      if (typeof window !== "undefined") {
-        localStorage.setItem(getBrandStorageKey(user.id), nextBrand.id);
-
-        window.dispatchEvent(
-          new CustomEvent("spreelo-current-brand-changed", {
-            detail: {
-              brandProfileId: nextBrand.id,
-            },
-          })
-        );
-      }
-
-      window.location.href = "/brand";
-    } catch (error) {
-      console.error("Could not delete brand:", error);
-      setBrandActionMessage(
-        error.message || "Could not delete brand. Please try again."
-      );
-      setDeletingBrand(false);
-    }
   }
 
   async function handleLogout() {
@@ -369,7 +240,6 @@ export default function AppLayout({ active, children }) {
               className="current-brand-select"
               value={currentBrand?.id || ""}
               onChange={handleBrandChange}
-              disabled={deletingBrand}
             >
               {brandProfiles.map((brand) => (
                 <option key={brand.id} value={brand.id}>
@@ -385,60 +255,10 @@ export default function AppLayout({ active, children }) {
             type="button"
             className="current-brand-new"
             onClick={handleCreateBrand}
-            disabled={creatingBrand || deletingBrand}
+            disabled={creatingBrand}
           >
             {creatingBrand ? "Creating..." : "+ New brand"}
           </button>
-
-          {brandProfiles.length > 0 && (
-            <div className="current-brand-danger">
-              {deleteConfirmBrandId === currentBrand?.id ? (
-                <div className="current-brand-delete-confirm">
-                  <p>
-                    Permanently delete{" "}
-                    <strong>{currentBrand?.business_name || "this brand"}</strong>?
-                    This will delete its posts, saved plans, website history and
-                    social connection. This cannot be undone.
-                  </p>
-
-                  <div className="current-brand-delete-actions">
-                    <button
-                      type="button"
-                      className="current-brand-delete-confirm-button"
-                      onClick={handleDeleteBrandConfirm}
-                      disabled={deletingBrand}
-                    >
-                      {deletingBrand ? "Deleting..." : "Yes, delete permanently"}
-                    </button>
-
-                    <button
-                      type="button"
-                      className="current-brand-delete-cancel-button"
-                      onClick={handleDeleteBrandCancel}
-                      disabled={deletingBrand}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="current-brand-delete-button"
-                  onClick={handleDeleteBrandStart}
-                  disabled={deletingBrand}
-                >
-                  Delete brand
-                </button>
-              )}
-
-              {brandActionMessage && (
-                <p className="current-brand-action-message">
-                  {brandActionMessage}
-                </p>
-              )}
-            </div>
-          )}
         </div>
 
         <nav className="nav spreelo-nav">
