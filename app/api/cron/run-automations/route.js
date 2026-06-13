@@ -1377,6 +1377,7 @@ async function getCurrentWebsiteCycle({
     .from("website_content_history")
     .select("cycle_number")
     .eq("user_id", userId)
+    .eq("brand_profile_id", brandProfileId)
     .eq("source_url", sourceUrl)
     .eq("content_type", contentType)
     .order("cycle_number", { ascending: false })
