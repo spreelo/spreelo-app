@@ -361,14 +361,38 @@ export default function BrandProfile() {
     setDeleteMessage("");
   }
 
-async function deleteRows(tableName, columnName, brandId) {
+async function deleteRowsByColumn(tableName, columnName, value) {
   const { error } = await supabase
     .from(tableName)
     .delete()
-    .eq(columnName, brandId);
+    .eq(columnName, value);
 
   if (error) {
     throw new Error(`${tableName}: ${error.message}`);
+  }
+}
+
+async function deleteWebsiteContentHistory(ruleIds, postIds) {
+  if (ruleIds.length > 0) {
+    const { error } = await supabase
+      .from("website_content_history")
+      .delete()
+      .in("automation_rule_id", ruleIds);
+
+    if (error) {
+      throw new Error(`website_content_history: ${error.message}`);
+    }
+  }
+
+  if (postIds.length > 0) {
+    const { error } = await supabase
+      .from("website_content_history")
+      .delete()
+      .in("post_id", postIds);
+
+    if (error) {
+      throw new Error(`website_content_history: ${error.message}`);
+    }
   }
 }
 
