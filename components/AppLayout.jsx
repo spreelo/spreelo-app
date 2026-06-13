@@ -35,6 +35,12 @@ const navItems = [
     icon: "◎",
   },
   {
+  id: "social-channels",
+  label: "Social channels",
+  href: "/social-channels",
+  icon: "◉",
+},
+  {
     id: "settings",
     label: "Settings",
     href: "/settings",
