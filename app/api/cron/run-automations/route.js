@@ -1416,17 +1416,19 @@ function isWeakItemUrl(itemUrl, sourceUrl) {
 async function getUsedWebsiteItems({
   supabase,
   userId,
+  brandProfileId,
   sourceUrl,
   contentType,
   cycleNumber,
 }) {
-  const { data, error } = await supabase
-    .from("website_content_history")
-    .select("item_key, item_url, item_title, item_image_url")
-    .eq("user_id", userId)
-    .eq("source_url", sourceUrl)
-    .eq("content_type", contentType)
-    .eq("cycle_number", cycleNumber);
+const { data, error } = await supabase
+  .from("website_content_history")
+  .select("item_key, item_url, item_title, item_image_url")
+  .eq("user_id", userId)
+  .eq("brand_profile_id", brandProfileId)
+  .eq("source_url", sourceUrl)
+  .eq("content_type", contentType)
+  .eq("cycle_number", cycleNumber);
 
   if (error) {
     throw new Error(error.message || "Could not load used website items");
