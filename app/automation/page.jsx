@@ -1329,7 +1329,9 @@ function TimePickerField({
     </div>
   );
 }
-
+function getBrandStorageKey(userId) {
+  return `spreelo_current_brand_id_${userId}`;
+}
 export default function AutomationPage() {
   const initialStartDate = getDateInputValueInTimeZone(
     new Date(),
