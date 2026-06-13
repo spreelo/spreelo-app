@@ -2029,6 +2029,7 @@ const rows = slots.map((slot) => {
 
       return {
         user_id: user.id,
+        brand_profile_id: selectedBrandId,
         name:
           planName ||
           slot.contentTypeLabel ||
