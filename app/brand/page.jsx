@@ -361,16 +361,16 @@ export default function BrandProfile() {
     setDeleteMessage("");
   }
 
-  async function deleteRows(tableName, brandId) {
-    const { error } = await supabase
-      .from(tableName)
-      .delete()
-      .eq("brand_id", brandId);
+async function deleteRows(tableName, columnName, brandId) {
+  const { error } = await supabase
+    .from(tableName)
+    .delete()
+    .eq(columnName, brandId);
 
-    if (error) {
-      throw new Error(`${tableName}: ${error.message}`);
-    }
+  if (error) {
+    throw new Error(`${tableName}: ${error.message}`);
   }
+}
 
   async function handleDeleteConfirm() {
     if (!user || !brandProfileId || deletingBrand) return;
