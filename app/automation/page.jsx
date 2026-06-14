@@ -1375,7 +1375,196 @@ function getDefaultCampaignDaysBeforeEvent(count) {
     return Math.max((count - 1 - index) * 4, 1);
   });
 }
+function getCampaignSearchText(campaign) {
+  return [
+    campaign?.title,
+    campaign?.description,
+    campaign?.prompt_context,
+    campaign?.industry,
+    campaign?.event_type,
+    campaign?.market,
+    Array.isArray(campaign?.campaign_angles)
+      ? campaign.campaign_angles.join(" ")
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
 
+function getDaysBetweenDateStrings(startDateString, endDateString) {
+  const startParts = getDatePartsFromDateString(startDateString);
+  const endParts = getDatePartsFromDateString(endDateString);
+
+  if (!startParts || !endParts) return null;
+
+  const startDate = Date.UTC(
+    startParts.year,
+    startParts.month - 1,
+    startParts.day
+  );
+  const endDate = Date.UTC(endParts.year, endParts.month - 1, endParts.day);
+
+  return Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
+}
+
+function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
+  const campaignText = getCampaignSearchText(campaign);
+  const roleText = `${postPlanItem?.role || ""} ${
+    postPlanItem?.purpose || ""
+  }`.toLowerCase();
+
+  const hasProductIntent =
+    /shop|store|ecommerce|e-commerce|product|products|gift|gifts|present|sale|discount|offer|black friday|christmas|valentine|mother|father|holiday|seasonal|collection|launch|buy|order/.test(
+      campaignText
+    );
+
+  const hasServiceIntent =
+    /service|services|book|booking|appointment|treatment|consultation|cleaning|clearing|repair|quote|visit|call|contact/.test(
+      campaignText
+    );
+
+  const isLaterCampaignPost =
+    index >= Math.max(1, Math.floor(total / 2)) ||
+    /reminder|final|push|spotlight|highlight|cta|offer|gift|book|buy|order|shop/.test(
+      roleText
+    );
+
+  if (hasProductIntent && isLaterCampaignPost) {
+    return "website_product";
+  }
+
+  if (hasProductIntent) {
+    return "mixed_campaign_and_website";
+  }
+
+  if (hasServiceIntent && isLaterCampaignPost) {
+    return "website_service";
+  }
+
+  if (hasServiceIntent) {
+    return "mixed_campaign_and_website";
+  }
+
+  return "generic_campaign";
+}
+
+function shouldUseWebsiteContentForCampaign(sourceMode) {
+  return [
+    "website_product",
+    "website_service",
+    "mixed_campaign_and_website",
+  ].includes(sourceMode);
+}
+
+function getCampaignSourceInstruction(sourceMode) {
+  if (sourceMode === "website_product") {
+    return "Use a relevant product from the brand website if available. Connect the product naturally to the campaign. Use only product details that clearly exist on the website. If no relevant product is found, fall back to a general campaign post.";
+  }
+
+  if (sourceMode === "website_service") {
+    return "Use a relevant service or offer from the brand website if available. Connect the service naturally to the campaign. Use only details that clearly exist on the website. If no relevant service is found, fall back to a general campaign post.";
+  }
+
+  if (sourceMode === "mixed_campaign_and_website") {
+    return "If relevant website content is available, use it as supporting context, but keep the main focus on the campaign theme.";
+  }
+
+  return "Do not force a product or service into this post. Keep the focus on the campaign theme and the audience value.";
+}
+
+function getCampaignTimingInstruction(campaign, daysBeforeEvent) {
+  const campaignTitle = campaign?.title || "the campaign";
+
+  if (!campaign?.event_date || typeof daysBeforeEvent !== "number") {
+    return `This campaign has a flexible date. Do not mention days left. Instead, give this post a clear campaign role and make it different from the other posts.`;
+  }
+
+  if (daysBeforeEvent === 0) {
+    return `This post is for the day itself. Clearly lift up that today is ${campaignTitle}. Make the day feel important, timely and worth noticing.`;
+  }
+
+  if (daysBeforeEvent === 1) {
+    return `This post is for the day before ${campaignTitle}. Mention that it is tomorrow and create a natural final reminder.`;
+  }
+
+  return `This post is ${daysBeforeEvent} days before ${campaignTitle}. Mention the timing naturally, for example that ${campaignTitle} is coming soon or that there are ${daysBeforeEvent} days left.`;
+}
+
+function buildCampaignPostPlanItem({
+  campaign,
+  postPlanItem,
+  index,
+  total,
+  daysBeforeEvent = null,
+}) {
+  const campaignTitle = campaign?.title || "Campaign";
+  const hasFixedDate = Boolean(campaign?.event_date);
+
+  if (hasFixedDate) {
+    let role = "Campaign reminder";
+    let purpose = `Lift up ${campaignTitle} and make the audience understand why it matters now.`;
+
+    if (daysBeforeEvent === 0) {
+      role = "Campaign day post";
+      purpose = `Celebrate or highlight ${campaignTitle} on the day itself. Make it feel current, warm and relevant.`;
+    } else if (daysBeforeEvent === 1) {
+      role = "Final reminder";
+      purpose = `Remind the audience that ${campaignTitle} is tomorrow and give them a clear reason to act or engage.`;
+    } else if (daysBeforeEvent <= 3) {
+      role = "Urgency reminder";
+      purpose = `Create urgency because ${campaignTitle} is very close. Make the post useful, timely and action-oriented.`;
+    } else if (daysBeforeEvent <= 7) {
+      role = "One-week reminder";
+      purpose = `Remind the audience that ${campaignTitle} is coming soon and connect it to a useful idea, product, service or action.`;
+    } else if (index === 0) {
+      role = "Early campaign teaser";
+      purpose = `Introduce ${campaignTitle} early and start building interest without being too salesy.`;
+    }
+
+    return {
+      ...postPlanItem,
+      role,
+      purpose,
+      days_before_event: daysBeforeEvent,
+    };
+  }
+
+  const flexibleRoles = [
+    {
+      role: "Campaign introduction",
+      purpose: `Introduce ${campaignTitle} and explain why it is relevant to the audience.`,
+    },
+    {
+      role: "Value explanation",
+      purpose: `Explain the value, idea or benefit behind ${campaignTitle}. Make it useful and easy to understand.`,
+    },
+    {
+      role: "Inspiration or example",
+      purpose: `Give inspiration, an example or a concrete angle connected to ${campaignTitle}.`,
+    },
+    {
+      role: "Participation reminder",
+      purpose: `Encourage the audience to engage, participate, comment, share, book, visit or take the next step.`,
+    },
+    {
+      role: "Final campaign push",
+      purpose: `Create a final push for ${campaignTitle} with a clear and natural call to action.`,
+    },
+  ];
+
+  const fallbackRole =
+    flexibleRoles[index] ||
+    flexibleRoles[flexibleRoles.length - 1] ||
+    flexibleRoles[0];
+
+  return {
+    ...postPlanItem,
+    role: fallbackRole.role,
+    purpose: fallbackRole.purpose,
+    days_before_event: null,
+  };
+}
 function buildCampaignPrompt(campaign, postPlanItem, index) {
   const campaignTitle = campaign?.title || "Campaign";
   const campaignDate = getCampaignDateLabel(campaign);
