@@ -2609,135 +2609,157 @@ const rows = slots.map((slot) => {
               </div>
             </section>
 
-            <section className="planner-mode-card">
-              <div className="planner-mode-grid">
-                <button
-                  type="button"
-                  className={`planner-mode-option ${
-                    planCreationMode === "auto" ? "active" : ""
-                  }`}
-                  onClick={() => changePlanCreationMode("auto")}
-                >
-                  <span className="mode-radio">
-                    {planCreationMode === "auto" ? "✓" : ""}
-                  </span>
-                  <div className="mode-big-icon">✦</div>
-                  <strong>Auto-plan</strong>
-                  <p>AI creates the optimal plan for your goal.</p>
-                  <small>Recommended</small>
-                </button>
+            {planCreationMode === "campaign" ? (
+  <section className="planner-mode-card">
+    <div className="planner-included-card">
+      <div className="planner-section-heading compact">
+        <div>
+          <h3>Campaign posts</h3>
+          <p>
+            Spreelo has created a campaign-specific sequence based on the
+            selected opportunity.
+          </p>
+        </div>
+      </div>
 
-                <button
-                  type="button"
-                  className={`planner-mode-option ${
-                    planCreationMode === "select" ? "active" : ""
-                  }`}
-                  onClick={() => changePlanCreationMode("select")}
-                >
-                  <span className="mode-radio">
-                    {planCreationMode === "select" ? "✓" : ""}
-                  </span>
-                  <div className="mode-big-icon neutral">▦</div>
-                  <strong>Choose content types</strong>
-                  <p>Pick the post types you want to include.</p>
-                </button>
+      <div className="planner-included-grid">
+        <div className="planner-included-type">
+          <span>🎯</span>
+          <strong>Campaign plan</strong>
+        </div>
 
-                <button
-                  type="button"
-                  className={`planner-mode-option ${
-                    planCreationMode === "manual" ? "active" : ""
-                  }`}
-                  onClick={() => changePlanCreationMode("manual")}
-                >
-                  <span className="mode-radio">
-                    {planCreationMode === "manual" ? "✓" : ""}
-                  </span>
-                  <div className="mode-big-icon neutral">✎</div>
-                  <strong>Manual prompt</strong>
-                  <p>Guide the AI with a few words about what you want.</p>
-                </button>
-              </div>
+        <div className="planner-included-type">
+          <span>{slots.length}</span>
+          <strong>Planned posts</strong>
+        </div>
+      </div>
+    </div>
+  </section>
+) : (
+  <section className="planner-mode-card">
+    <div className="planner-mode-grid">
+      <button
+        type="button"
+        className={`planner-mode-option ${
+          planCreationMode === "auto" ? "active" : ""
+        }`}
+        onClick={() => changePlanCreationMode("auto")}
+      >
+        <span className="mode-radio">
+          {planCreationMode === "auto" ? "✓" : ""}
+        </span>
+        <div className="mode-big-icon">✦</div>
+        <strong>Auto-plan</strong>
+        <p>AI creates the optimal plan for your goal.</p>
+        <small>Recommended</small>
+      </button>
 
-              {planCreationMode === "select" && (
-                <div className="planner-content-picker">
-                  <div className="planner-section-heading">
-                    <div>
-                      <h3>Choose content types</h3>
-                      <p>
-                        Select the post types you want. Each selected type
-                        becomes one planned post.
-                      </p>
-                    </div>
+      <button
+        type="button"
+        className={`planner-mode-option ${
+          planCreationMode === "select" ? "active" : ""
+        }`}
+        onClick={() => changePlanCreationMode("select")}
+      >
+        <span className="mode-radio">
+          {planCreationMode === "select" ? "✓" : ""}
+        </span>
+        <div className="mode-big-icon neutral">▦</div>
+        <strong>Choose content types</strong>
+        <p>Pick the post types you want to include.</p>
+      </button>
 
-                    <span>{selectedContentTypeIds.length} selected</span>
-                  </div>
+      <button
+        type="button"
+        className={`planner-mode-option ${
+          planCreationMode === "manual" ? "active" : ""
+        }`}
+        onClick={() => changePlanCreationMode("manual")}
+      >
+        <span className="mode-radio">
+          {planCreationMode === "manual" ? "✓" : ""}
+        </span>
+        <div className="mode-big-icon neutral">✎</div>
+        <strong>Manual prompt</strong>
+        <p>Guide the AI with a few words about what you want.</p>
+      </button>
+    </div>
 
-                  <div className="planner-content-grid">
-                    {contentTypes.map((type) => {
-                      const isSelected = selectedContentTypeIds.includes(
-                        type.id
-                      );
+    {planCreationMode === "select" && (
+      <div className="planner-content-picker">
+        <div className="planner-section-heading">
+          <div>
+            <h3>Choose content types</h3>
+            <p>
+              Select the post types you want. Each selected type becomes one
+              planned post.
+            </p>
+          </div>
 
-                      return (
-                        <button
-                          type="button"
-                          key={type.id}
-                          className={`planner-content-chip ${
-                            isSelected ? "active" : ""
-                          }`}
-                          onClick={() => toggleContentType(type.id)}
-                        >
-                          <span>{getContentTypeIcon(type.id)}</span>
-                          <strong>{type.shortLabel || type.label}</strong>
-                          <p>{type.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+          <span>{selectedContentTypeIds.length} selected</span>
+        </div>
 
-              <div className="planner-included-card">
-                <div className="planner-section-heading compact">
-                  <div>
-                    <h3>
-                     {planCreationMode === "campaign"
-  ? "Campaign posts"
-  : planCreationMode === "auto"
-  ? "Included in this plan"
-  : planCreationMode === "select"
-  ? "Selected content types"
-  : "Manual prompt plan"} 
-                    </h3>
-                    <p>
-{planCreationMode === "campaign"
-  ? "Spreelo has created a campaign-specific sequence based on the selected opportunity."
-  : planCreationMode === "auto"
-  ? "Spreelo balances this content mix automatically to match your goal."
-  : planCreationMode === "select"
-  ? "These post types will be used when the plan is saved."
-  : "Write your own instructions in the planned post below."}
-                    </p>
-                  </div>
-                </div>
+        <div className="planner-content-grid">
+          {contentTypes.map((type) => {
+            const isSelected = selectedContentTypeIds.includes(type.id);
 
-                <div className="planner-included-grid">
-                  {includedContentTypes.map((type) => (
-                    <div className="planner-included-type" key={type.id}>
-                      <span>{getContentTypeIcon(type.id)}</span>
-                      <strong>{type.shortLabel || type.label}</strong>
-                    </div>
-                  ))}
-                </div>
+            return (
+              <button
+                type="button"
+                key={type.id}
+                className={`planner-content-chip ${
+                  isSelected ? "active" : ""
+                }`}
+                onClick={() => toggleContentType(type.id)}
+              >
+                <span>{getContentTypeIcon(type.id)}</span>
+                <strong>{type.shortLabel || type.label}</strong>
+                <p>{type.description}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    )}
 
-                {planCreationMode === "auto" && (
-                  <div className="planner-balance-note">
-                    ✦ Spreelo balances this content mix automatically to match
-                    your selected goal.
-                  </div>
-                )}
-              </div>
-            </section>
+    <div className="planner-included-card">
+      <div className="planner-section-heading compact">
+        <div>
+          <h3>
+            {planCreationMode === "auto"
+              ? "Included in this plan"
+              : planCreationMode === "select"
+              ? "Selected content types"
+              : "Manual prompt plan"}
+          </h3>
+          <p>
+            {planCreationMode === "auto"
+              ? "Spreelo balances this content mix automatically to match your goal."
+              : planCreationMode === "select"
+              ? "These post types will be used when the plan is saved."
+              : "Write your own instructions in the planned post below."}
+          </p>
+        </div>
+      </div>
+
+      <div className="planner-included-grid">
+        {includedContentTypes.map((type) => (
+          <div className="planner-included-type" key={type.id}>
+            <span>{getContentTypeIcon(type.id)}</span>
+            <strong>{type.shortLabel || type.label}</strong>
+          </div>
+        ))}
+      </div>
+
+      {planCreationMode === "auto" && (
+        <div className="planner-balance-note">
+          ✦ Spreelo balances this content mix automatically to match your
+          selected goal.
+        </div>
+      )}
+    </div>
+  </section>
+)}
 
                        <section className="planner-schedule-card">
               <div className="planner-schedule-header">
