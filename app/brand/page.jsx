@@ -43,6 +43,7 @@ const languageOptions = [
   "Hindi",
   "Other",
 ];
+
 const analyzingSteps = [
   "Fetching website content...",
   "Understanding your business...",
@@ -50,6 +51,7 @@ const analyzingSteps = [
   "Creating your campaign calendar...",
   "Saving everything to your brand profile...",
 ];
+
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
@@ -231,6 +233,25 @@ export default function BrandProfile() {
     loadProfile();
   }, []);
 
+  useEffect(() => {
+    if (!analyzing) {
+      setCurrentAnalyzingStep(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setCurrentAnalyzingStep((currentStep) => {
+        if (currentStep >= analyzingSteps.length - 1) {
+          return currentStep;
+        }
+
+        return currentStep + 1;
+      });
+    }, 4500);
+
+    return () => clearInterval(interval);
+  }, [analyzing]);
+
   function normalizeWebsiteUrl(value) {
     const trimmedValue = String(value || "").trim();
 
@@ -292,6 +313,7 @@ export default function BrandProfile() {
 
   async function analyzeBrand() {
     setMessage("");
+    setCurrentAnalyzingStep(0);
 
     const trimmedBusinessName = businessName.trim();
     const trimmedDescription = brandDescription.trim();
@@ -384,9 +406,9 @@ export default function BrandProfile() {
       );
     } catch (error) {
       setMessage(error.message || "Could not analyze brand.");
+    } finally {
+      setAnalyzing(false);
     }
-
-    setAnalyzing(false);
   }
 
   async function saveProfile() {
@@ -877,6 +899,21 @@ export default function BrandProfile() {
             >
               {mainButtonLabel}
             </button>
+
+            {analyzing && (
+              <div className="brand-profile-analyzing-card">
+                <div className="brand-profile-spinner" />
+
+                <div>
+                  <strong>{analyzingSteps[currentAnalyzingStep]}</strong>
+                  <p>
+                    This can take up to a minute. Please keep this page open
+                    while Spreelo analyzes your brand and prepares the campaign
+                    calendar.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {message && <p className="brand-profile-message">{message}</p>}
 
