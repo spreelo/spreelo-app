@@ -2213,14 +2213,14 @@ let useWebsiteImage = false;
 
         if (rule.uses_website_content) {
           try {
-            const preparedWebsiteContent = await prepareWebsiteContentForRule({
-              supabase,
-              openai,
-              rule,
-              brandProfile,
-              summary,
-            });
-
+           const preparedWebsiteContent = await prepareWebsiteContentForRule({
+  supabase,
+  openai,
+  rule,
+  brandProfile,
+  summary,
+  usedWebsiteImageUrlsThisRun,
+});
             websiteItem = preparedWebsiteContent.websiteItem;
             websiteSourceUrl = preparedWebsiteContent.websiteSourceUrl;
             websiteCycleNumber = preparedWebsiteContent.websiteCycleNumber;
