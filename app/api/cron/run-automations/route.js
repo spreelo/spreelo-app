@@ -1410,8 +1410,9 @@ Return JSON in this exact shape:
       "title": "Item title",
       "type": "product | service | listing | property | treatment | offer | course | menu_item | package | event | other",
       "url": "Full URL if known",
-      "description": "Specific factual description based only on the website",
-      "image_url": "Full image URL if clearly relevant, otherwise null"
+"description": "Specific factual description based only on the website",
+"price": "Visible price if clearly found on the website, otherwise empty string",
+"image_url": "Full image URL if clearly relevant, otherwise null"
     }
   ]
 }
