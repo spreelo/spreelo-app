@@ -72,6 +72,35 @@ function getSortDate(campaign) {
   return timestamp;
 }
 
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function isUpcomingCampaign(campaign, todayDateString) {
+  if (!campaign) return false;
+
+  if (campaign.event_date) {
+    return campaign.event_date >= todayDateString;
+  }
+
+  if (campaign.end_date) {
+    return campaign.end_date >= todayDateString;
+  }
+
+  if (campaign.start_date) {
+    return campaign.start_date >= todayDateString;
+  }
+
+  const currentYear = Number(todayDateString.slice(0, 4));
+  const campaignYear = Number(campaign.event_year);
+
+  if (Number.isFinite(campaignYear)) {
+    return campaignYear >= currentYear;
+  }
+
+  return true;
+}
+
 export default function Calendar() {
   const [user, setUser] = useState(null);
   const [brandProfileId, setBrandProfileId] = useState("");
@@ -183,13 +212,17 @@ export default function Calendar() {
         return;
       }
 
-      const sortedCampaigns = (data || []).sort(
-        (firstCampaign, secondCampaign) =>
-          getSortDate(firstCampaign) - getSortDate(secondCampaign)
-      );
+      const todayDateString = getTodayDateString();
 
-      setCampaigns(sortedCampaigns);
-      setSelectedCampaignId(sortedCampaigns[0]?.id || "");
+      const upcomingCampaigns = (data || [])
+        .filter((campaign) => isUpcomingCampaign(campaign, todayDateString))
+        .sort(
+          (firstCampaign, secondCampaign) =>
+            getSortDate(firstCampaign) - getSortDate(secondCampaign)
+        );
+
+      setCampaigns(upcomingCampaigns);
+      setSelectedCampaignId(upcomingCampaigns[0]?.id || "");
       setLoading(false);
     }
 
@@ -226,15 +259,15 @@ export default function Calendar() {
             <p className="dashboard-eyebrow">Campaign calendar</p>
             <h2>Campaign opportunities for {brandName}</h2>
             <span>
-              Spreelo suggests useful campaign moments based on your brand,
-              market and content language. Choose one to create a focused
+              Spreelo suggests useful upcoming campaign moments based on your
+              brand, market and content language. Choose one to create a focused
               content plan.
             </span>
           </div>
 
           <div className="campaign-calendar-hero-card">
             <strong>{campaignStats.total}</strong>
-            <span>AI campaign opportunities</span>
+            <span>Upcoming AI campaign opportunities</span>
             <p>No posts are created until you choose a campaign.</p>
           </div>
         </header>
@@ -244,35 +277,35 @@ export default function Calendar() {
         {campaigns.length === 0 ? (
           <section className="campaign-calendar-empty">
             <div>
-              <p className="dashboard-eyebrow">No campaigns yet</p>
-              <h3>Create your campaign calendar</h3>
+              <p className="dashboard-eyebrow">No upcoming campaigns</p>
+              <h3>Create a new campaign calendar</h3>
               <p>
-                Go to Brand Profile and run the brand analysis. Spreelo will
-                create campaign opportunities for this brand.
+                There are no upcoming campaign opportunities for this brand. Go
+                to Brand Profile and generate or refresh the campaign calendar.
               </p>
             </div>
 
-            <a href="/brand">Go to Brand Profile</a>
+            <a href="/brand">Generate campaign calendar</a>
           </section>
         ) : (
           <>
             <section className="campaign-calendar-stat-grid">
               <div>
-                <span>Total opportunities</span>
+                <span>Upcoming opportunities</span>
                 <strong>{campaignStats.total}</strong>
-                <p>Saved for the current brand.</p>
+                <p>Upcoming campaigns for the current brand.</p>
               </div>
 
               <div>
-                <span>Fixed dates</span>
+                <span>Upcoming fixed dates</span>
                 <strong>{campaignStats.fixedDate}</strong>
-                <p>Campaigns tied to a specific date.</p>
+                <p>Campaigns tied to a specific future date.</p>
               </div>
 
               <div>
-                <span>Flexible campaigns</span>
+                <span>Upcoming flexible campaigns</span>
                 <strong>{campaignStats.flexible}</strong>
-                <p>Useful campaigns without a strict date.</p>
+                <p>Useful upcoming campaigns without a strict date.</p>
               </div>
             </section>
 
