@@ -1690,7 +1690,7 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
     `Campaign timing: ${campaignDate}.`,
     timingInstruction,
     `Campaign context: ${campaignContext}`,
-    getCampaignSourceInstruction(sourceMode),
+    getCampaignSourceInstruction(sourceMode, campaign),
     relevanceReason ? `Why this fits the brand: ${relevanceReason}` : "",
     languageInstruction,
     "This post must clearly lift up the campaign theme, day or celebration.",
