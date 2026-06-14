@@ -1668,7 +1668,24 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
   const allVisibleRulesSelected =
     visibleRuleIds.length > 0 &&
     visibleRuleIds.every((ruleId) => selectedRuleIds.includes(ruleId));
-async function getCurrentBrandIdForUser(currentUser) {
+async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
+  if (preferredBrandId) {
+    const { data: preferredBrand, error: preferredBrandError } = await supabase
+      .from("brand_profiles")
+      .select("id")
+      .eq("id", preferredBrandId)
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+
+    if (!preferredBrandError && preferredBrand?.id) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(getBrandStorageKey(currentUser.id), preferredBrand.id);
+      }
+
+      return preferredBrand.id;
+    }
+  }
+
   const savedBrandId =
     typeof window !== "undefined"
       ? localStorage.getItem(getBrandStorageKey(currentUser.id))
