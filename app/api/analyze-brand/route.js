@@ -226,6 +226,10 @@ function normalizeWebsiteContentStrategy(value) {
   return "support";
 }
 
+function normalizeWebsiteProductSelectionHint(value) {
+  return String(value || "").trim().slice(0, 500);
+}
+
 function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
   const title = String(rawOpportunity?.title || "").trim();
 
@@ -273,6 +277,9 @@ function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
     ),
     website_content_strategy: normalizeWebsiteContentStrategy(
       rawOpportunity?.website_content_strategy
+    ),
+    website_product_selection_hint: normalizeWebsiteProductSelectionHint(
+      rawOpportunity?.website_product_selection_hint
     ),
   };
 }
@@ -573,6 +580,7 @@ async function replaceBrandCampaignOpportunities({
     date_confidence: opportunity.date_confidence,
     website_content_fit: opportunity.website_content_fit,
     website_content_strategy: opportunity.website_content_strategy,
+    website_product_selection_hint: opportunity.website_product_selection_hint,
 
     is_ai_generated: true,
     is_hidden: false,
@@ -588,7 +596,7 @@ async function replaceBrandCampaignOpportunities({
     .from("brand_campaign_opportunities")
     .insert(rows)
     .select(
-      "id, title, event_date, event_year, slug, website_content_fit, website_content_strategy"
+      "id, title, event_date, event_year, slug, website_content_fit, website_content_strategy, website_product_selection_hint"
     );
 
   if (error) {
@@ -682,6 +690,7 @@ Return JSON only in this exact shape:
       "date_confidence": "high | medium | low",
       "website_content_fit": "strong | medium | weak",
       "website_content_strategy": "product | service | support | none",
+      "website_product_selection_hint": "Short instruction for what type of website product, service or offer should be selected for this campaign. Use an empty string when website_content_strategy is none.",
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
       "sales_score": 1,
@@ -701,12 +710,22 @@ Return JSON only in this exact shape:
 }
 
 Rules:
-- Return 10 to 20 campaign opportunities, never more than 20.
+- Return 15 to 20 campaign opportunities when the brand is ecommerce, fashion, beauty, gifts, retail, food, restaurants, local services or product-based.
+- Return 10 to 20 campaign opportunities for other businesses, never more than 20.
 - Do not create finished social media posts.
 - Only include opportunities that are genuinely useful for this business, industry and selected market.
+- For ecommerce, fashion, beauty, gifts, retail and product-based businesses, actively include relevant gift days, shopping days and seasonal buying moments when they fit the brand.
+- Do not exclude Mother's Day, Father's Day or Valentine's Day just because they are broad holidays. For ecommerce, fashion, beauty, gifts and retail brands, these are often strong sales opportunities when connected naturally to gifts, outfits, shoes, accessories, beauty, personal style or products.
+- For fashion ecommerce specifically, prioritize campaigns around outfit inspiration, gift buying, partywear, seasonal wardrobe updates, shoes, sneakers, accessories, sustainable fashion, school/graduation, weddings, festivals and major shopping days.
+- Always consider these commercial campaign moments when relevant to the brand and selected market: Valentine's Day, Mother's Day, Father's Day, graduation season, wedding season, festival season, back to school, Black Friday, Cyber Monday, Singles Day, Christmas gifts, New Year outfits, seasonal sales and wardrobe refreshes.
+- If the brand clearly sells products online, at least 50% of the campaign opportunities should have clear commercial usefulness, such as gifts, seasonal demand, shopping days, product categories, launches, offers or buying inspiration.
+- When a campaign is connected to a gift day such as Father's Day, Mother's Day or Valentine's Day, the campaign should explain what type of products or services are suitable for that occasion.
+- For ecommerce campaigns, do not use random products from the website. The selected product must naturally fit the campaign, the recipient, the buyer intent and the audience.
+- For a toy store on Father's Day, suitable product angles could include board games, family games, building sets, puzzles, outdoor play, hobby kits or products that children and parents can enjoy together. Do not promote unrelated baby toys or random toys just because they exist on the website.
+- For gift-day campaigns, think about who buys the gift, who receives it, and why the product makes sense for that occasion.
 - Prefer fewer highly relevant campaign opportunities over many weak ones.
 - Avoid forced or weak campaign ideas that do not clearly connect to what the business sells, offers or represents.
-- Do not include irrelevant popular theme days just because they are well known.
+- Do not include irrelevant popular theme days just because they are well known, but do include broad commercial gift and shopping days when they naturally fit what the business sells.
 - A cafe can use food theme days. A hair salon should get hair/beauty/self-care/gift/seasonal opportunities instead.
 - Include industry-specific days when they are useful.
 - Include important local holidays or cultural moments when they are useful for marketing.
@@ -729,11 +748,15 @@ Rules:
   - "none" when the campaign should not use website content automatically.
 - If the business is an ecommerce store, do not automatically mark every campaign as product. Only use "product" when the campaign clearly connects to what the store sells.
 - If website_content_fit is "weak", website_content_strategy should normally be "none".
+- Always write website_product_selection_hint when website_content_strategy is "product" or "service".
+- website_product_selection_hint should help the later automation choose a suitable website item. It should describe the product/service category, recipient, buying intent and what to avoid.
+- If website_content_strategy is "none", website_product_selection_hint should be an empty string.
 - Examples:
   - Gift campaign for a personalized pet portrait store: strong / product.
   - Father's Day for a personalized gift business: strong / product.
   - Allergy-related pet owner campaign for a business that only sells portraits: weak / none.
   - Educational awareness campaign with no clear product match: medium / support or weak / none.
+  - Father's Day for a toy store: strong / product, with website_product_selection_hint focused on board games, family games, building sets, puzzles, outdoor play, hobby kits or products children and parents can enjoy together.
 - The selected market/country is used mainly for campaign calendar relevance, holidays, cultural timing and content language.
 - Do not automatically restrict the target audience geographically to the selected market unless the website or description clearly says the business only serves that country or local area.
 - If the business appears remote, online, global or international, describe the target audience without limiting it to the selected market.
@@ -742,6 +765,7 @@ Rules:
 - If the selected content language is English, write user-facing fields in English.
 - Keep prompt_context useful but concise.
 - Avoid political or sensitive events unless they are clearly suitable and low-risk for business marketing.
+- When choosing between a generic seasonal campaign and a strong commercial occasion for ecommerce or retail, prefer the stronger commercial occasion.
 - Do not invent specific services, offers, products or locations not supported by the website or description.
 `.trim(),
       },
@@ -837,6 +861,7 @@ Return JSON only in this exact shape:
       "date_confidence": "high | medium | low",
       "website_content_fit": "strong | medium | weak",
       "website_content_strategy": "product | service | support | none",
+      "website_product_selection_hint": "Short instruction for what type of website product, service or offer should be selected for this campaign. Use an empty string when website_content_strategy is none.",
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
       "sales_score": 1,
@@ -856,12 +881,22 @@ Return JSON only in this exact shape:
 }
 
 Rules:
-- Return 10 to 20 campaign opportunities, never more than 20.
+- Return 15 to 20 campaign opportunities when the brand is ecommerce, fashion, beauty, gifts, retail, food, restaurants, local services or product-based.
+- Return 10 to 20 campaign opportunities for other businesses, never more than 20.
 - Do not create finished social media posts.
 - Only include opportunities that are genuinely useful for this business, industry and selected market.
+- For ecommerce, fashion, beauty, gifts, retail and product-based businesses, actively include relevant gift days, shopping days and seasonal buying moments when they fit the brand.
+- Do not exclude Mother's Day, Father's Day or Valentine's Day just because they are broad holidays. For ecommerce, fashion, beauty, gifts and retail brands, these are often strong sales opportunities when connected naturally to gifts, outfits, shoes, accessories, beauty, personal style or products.
+- For fashion ecommerce specifically, prioritize campaigns around outfit inspiration, gift buying, partywear, seasonal wardrobe updates, shoes, sneakers, accessories, sustainable fashion, school/graduation, weddings, festivals and major shopping days.
+- Always consider these commercial campaign moments when relevant to the brand and selected market: Valentine's Day, Mother's Day, Father's Day, graduation season, wedding season, festival season, back to school, Black Friday, Cyber Monday, Singles Day, Christmas gifts, New Year outfits, seasonal sales and wardrobe refreshes.
+- If the brand clearly sells products online, at least 50% of the campaign opportunities should have clear commercial usefulness, such as gifts, seasonal demand, shopping days, product categories, launches, offers or buying inspiration.
+- When a campaign is connected to a gift day such as Father's Day, Mother's Day or Valentine's Day, the campaign should explain what type of products or services are suitable for that occasion.
+- For ecommerce campaigns, do not use random products from the website. The selected product must naturally fit the campaign, the recipient, the buyer intent and the audience.
+- For a toy store on Father's Day, suitable product angles could include board games, family games, building sets, puzzles, outdoor play, hobby kits or products that children and parents can enjoy together. Do not promote unrelated baby toys or random toys just because they exist on the website.
+- For gift-day campaigns, think about who buys the gift, who receives it, and why the product makes sense for that occasion.
 - Prefer fewer highly relevant campaign opportunities over many weak ones.
 - Avoid forced or weak campaign ideas that do not clearly connect to what the business sells, offers or represents.
-- Do not include irrelevant popular theme days just because they are well known.
+- Do not include irrelevant popular theme days just because they are well known, but do include broad commercial gift and shopping days when they naturally fit what the business sells.
 - A cafe can use food theme days. A hair salon should get hair/beauty/self-care/gift/seasonal opportunities instead.
 - Include industry-specific days when they are useful.
 - Include important local holidays or cultural moments when they are useful for marketing.
@@ -884,11 +919,15 @@ Rules:
   - "none" when the campaign should not use website content automatically.
 - If the business is an ecommerce store, do not automatically mark every campaign as product. Only use "product" when the campaign clearly connects to what the store sells.
 - If website_content_fit is "weak", website_content_strategy should normally be "none".
+- Always write website_product_selection_hint when website_content_strategy is "product" or "service".
+- website_product_selection_hint should help the later automation choose a suitable website item. It should describe the product/service category, recipient, buying intent and what to avoid.
+- If website_content_strategy is "none", website_product_selection_hint should be an empty string.
 - Examples:
   - Gift campaign for a personalized pet portrait store: strong / product.
   - Father's Day for a personalized gift business: strong / product.
   - Allergy-related pet owner campaign for a business that only sells portraits: weak / none.
   - Educational awareness campaign with no clear product match: medium / support or weak / none.
+  - Father's Day for a toy store: strong / product, with website_product_selection_hint focused on board games, family games, building sets, puzzles, outdoor play, hobby kits or products children and parents can enjoy together.
 - The selected market/country is used mainly for campaign calendar relevance, holidays, cultural timing and content language.
 - Do not automatically restrict the target audience geographically to the selected market unless the website or description clearly says the business only serves that country or local area.
 - If the business appears remote, online, global or international, describe the target audience without limiting it to the selected market.
@@ -897,6 +936,7 @@ Rules:
 - If the selected content language is English, write user-facing fields in English.
 - Keep prompt_context useful but concise.
 - Avoid political or sensitive events unless they are clearly suitable and low-risk for business marketing.
+- When choosing between a generic seasonal campaign and a strong commercial occasion for ecommerce or retail, prefer the stronger commercial occasion.
 - Do not invent specific services, offers, products or locations not supported by the description.
 `.trim(),
       },
