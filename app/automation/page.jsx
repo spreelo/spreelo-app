@@ -3148,13 +3148,13 @@ const rows = slots.map((slot) => {
                     □ View calendar
                   </button>
 
-                  <button
-                    type="button"
-                    className="add-plan-button"
-                    onClick={addSlot}
-                  >
-                    + Add post
-                  </button>
+          <button
+  type="button"
+  className="add-plan-button"
+  onClick={addSlot}
+>
+  {planCreationMode === "campaign" ? "+ Add campaign post" : "+ Add post"}
+</button>
                 </div>
               </div>
 
