@@ -3381,13 +3381,13 @@ const rows = slots.map((slot) => {
                 })}
               </div>
 
-              <button
-                type="button"
-                className="planner-add-post-bottom"
-                onClick={addSlot}
-              >
-                + Add post
-              </button>
+ <button
+  type="button"
+  className="planner-add-post-bottom"
+  onClick={addSlot}
+>
+  {planCreationMode === "campaign" ? "+ Add campaign post" : "+ Add post"}
+</button>
             </section>
 
                         <section className="planner-settings-card">
