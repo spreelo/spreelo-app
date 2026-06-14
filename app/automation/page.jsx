@@ -1535,20 +1535,26 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
     campaign?.website_content_strategy || ""
   ).toLowerCase();
 
+  const productSelectionHint = getCampaignProductSelectionHint(campaign);
+
+  const productSelectionInstruction = productSelectionHint
+    ? ` Product selection hint: ${productSelectionHint}. Use this hint when choosing website content. Do not pick a random product or service just because it exists on the website.`
+    : "";
+
   if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
     return "Do not use website products or services for this post. The website content match is weak, so keep the post focused on the campaign theme and audience value.";
   }
 
   if (sourceMode === "website_product") {
-    return "Use a relevant product from the brand website if available. Connect the product naturally to the campaign. Use only product details that clearly exist on the website. If no relevant product is found, fall back to a general campaign post.";
+    return `Use a relevant product from the brand website if available. Connect the product naturally to the campaign. Use only product details that clearly exist on the website. If no relevant product is found, fall back to a general campaign post.${productSelectionInstruction}`;
   }
 
   if (sourceMode === "website_service") {
-    return "Use a relevant service or offer from the brand website if available. Connect the service naturally to the campaign. Use only details that clearly exist on the website. If no relevant service is found, fall back to a general campaign post.";
+    return `Use a relevant service or offer from the brand website if available. Connect the service naturally to the campaign. Use only details that clearly exist on the website. If no relevant service is found, fall back to a general campaign post.${productSelectionInstruction}`;
   }
 
   if (sourceMode === "mixed_campaign_and_website") {
-    return "If relevant website content is available, use it as supporting context, but keep the main focus on the campaign theme. Do not force a product or service if the match is not natural.";
+    return `If relevant website content is available, use it as supporting context, but keep the main focus on the campaign theme. Do not force a product or service if the match is not natural.${productSelectionInstruction}`;
   }
 
   return "Do not force a product or service into this post. Keep the focus on the campaign theme and the audience value.";
