@@ -2367,6 +2367,7 @@ campaignSummary: buildCampaignSummary(
   postPlanItem,
   nextIndex
 ),
+dateLocked: false,
 timeZone: selectedTimeZone,
     });
 
