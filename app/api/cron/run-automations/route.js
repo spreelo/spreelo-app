@@ -1330,6 +1330,8 @@ Analyze the website content below.
 
 Find concrete items that could become individual social media posts.
 
+Current automation context:
+${selectionContext}
 An item can be:
 - product
 - service
