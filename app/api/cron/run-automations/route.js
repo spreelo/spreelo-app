@@ -1512,6 +1512,7 @@ async function chooseUnusedWebsiteItem({
   sourceUrl,
   contentType,
   items,
+  usedWebsiteImageUrlsThisRun = new Set(),
 }) {
   const currentCycle = await getCurrentWebsiteCycle({
     supabase,
@@ -1534,18 +1535,68 @@ async function chooseUnusedWebsiteItem({
     (item) => !hasWebsiteItemAlreadyBeenUsed(item, usedItems, sourceUrl)
   );
 
-  if (unusedItems.length > 0) {
+  function hasFreshWebsiteImage(item) {
+    const imageUrl = normalizeComparableValue(item?.image_url);
+
+    if (!imageUrl) {
+      return false;
+    }
+
+    return !usedWebsiteImageUrlsThisRun.has(imageUrl);
+  }
+
+  function hasDuplicateWebsiteImageThisRun(item) {
+    const imageUrl = normalizeComparableValue(item?.image_url);
+
+    if (!imageUrl) {
+      return false;
+    }
+
+    return usedWebsiteImageUrlsThisRun.has(imageUrl);
+  }
+
+  const bestUnusedWithFreshImage = unusedItems.find(hasFreshWebsiteImage);
+
+  if (bestUnusedWithFreshImage) {
     return {
-      item: unusedItems[0],
+      item: bestUnusedWithFreshImage,
       cycleNumber: currentCycle,
       startedNewCycle: false,
+      useWebsiteImage: true,
     };
   }
 
+  const bestUnusedWithoutImage = unusedItems.find((item) => !item.image_url);
+
+  if (bestUnusedWithoutImage) {
+    return {
+      item: bestUnusedWithoutImage,
+      cycleNumber: currentCycle,
+      startedNewCycle: false,
+      useWebsiteImage: false,
+    };
+  }
+
+  const bestUnusedWithDuplicateImage = unusedItems.find(
+    hasDuplicateWebsiteImageThisRun
+  );
+
+  if (bestUnusedWithDuplicateImage) {
+    return {
+      item: bestUnusedWithDuplicateImage,
+      cycleNumber: currentCycle,
+      startedNewCycle: false,
+      useWebsiteImage: false,
+    };
+  }
+
+  const fallbackItem = items[0];
+
   return {
-    item: items[0],
+    item: fallbackItem,
     cycleNumber: currentCycle + 1,
     startedNewCycle: true,
+    useWebsiteImage: hasFreshWebsiteImage(fallbackItem),
   };
 }
 async function prepareWebsiteContentForRule({
