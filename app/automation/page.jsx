@@ -2433,18 +2433,47 @@ const rows = slots.map((slot) => {
           }
         }}
       >
-      <header className="planner-hero">
-          <div>
-            <h2>Create content plan</h2>
-            <p>Build a plan that grows your presence automatically.</p>
-          </div>
+     <header className="planner-hero">
+  <div>
+    <h2>
+      {campaignOpportunity
+        ? `Create campaign: ${campaignOpportunity.title}`
+        : "Create content plan"}
+    </h2>
+    <p>
+      {campaignOpportunity
+        ? "Spreelo has prepared a focused campaign plan from your campaign calendar."
+        : "Build a plan that grows your presence automatically."}
+    </p>
+  </div>
 
-          <button type="button" className="learn-more-button">
-            ⓘ Learn more
-          </button>
-        </header>
+  <button type="button" className="learn-more-button">
+    ⓘ Learn more
+  </button>
+</header>
 
-        <div className="wizard-layout">
+{campaignOpportunity && (
+  <section className="campaign-mode-banner">
+    <div>
+      <p className="dashboard-eyebrow">Campaign mode</p>
+      <h3>{campaignOpportunity.title}</h3>
+      <span>
+        {campaignOpportunity.description ||
+          "This plan is connected to a selected campaign opportunity."}
+      </span>
+    </div>
+
+    <div className="campaign-mode-meta">
+      <strong>{getCampaignDateLabel(campaignOpportunity)}</strong>
+      <span>
+        {campaignOpportunity.recommended_post_count || slots.length} recommended
+        posts
+      </span>
+    </div>
+  </section>
+)}
+
+<div className="wizard-layout">
           <main className="wizard-main">
             <section className="planner-setup-grid">
               <div className="planner-setup-card">
