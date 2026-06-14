@@ -3370,19 +3370,26 @@ ${slot.campaignSummary}`
                         slot.contentTypeId === "manual_prompt") && (
                         <div className="planner-post-expanded">
                           <div className="planner-post-expanded-copy">
-                            <label>Instructions</label>
-                            <textarea
-                              className="input prompt-textarea"
-                              value={slot.prompt}
-                              onChange={(event) =>
-                                updateSlot(
-                                  slot.id,
-                                  "prompt",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Write instructions for this post"
-                            />
+<label>
+  {slot.isCampaignSlot ? "Post idea" : "Instructions"}
+</label>
+
+<textarea
+  className="input prompt-textarea"
+  value={slot.isCampaignSlot ? slot.campaignSummary : slot.prompt}
+  onChange={(event) =>
+    updateSlot(
+      slot.id,
+      slot.isCampaignSlot ? "campaignSummary" : "prompt",
+      event.target.value
+    )
+  }
+  placeholder={
+    slot.isCampaignSlot
+      ? "Describe what this campaign post should be about"
+      : "Write instructions for this post"
+  }
+/>
 
                             {slot.generateImage && (
                               <>
