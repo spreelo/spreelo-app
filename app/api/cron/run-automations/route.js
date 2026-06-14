@@ -2305,7 +2305,7 @@ const { data: post, error: postError } = await supabase
         let imageStoragePath = null;
         let finalImagePrompt = wantsImage ? rule.image_prompt || null : null;
 
-        if (wantsImage && websiteItem?.image_url) {
+        if (wantsImage && websiteItem?.image_url && useWebsiteImage) {
           imageUrl = websiteItem.image_url;
           finalImagePrompt =
             "Website image selected because it appears connected to the selected website item.";
