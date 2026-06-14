@@ -1649,10 +1649,11 @@ const selected = await chooseUnusedWebsiteItem({
   summary.website_content_success += 1;
 
   return {
-    websiteItem: selected.item,
-    websiteSourceUrl: websiteUrl,
-    websiteCycleNumber: selected.cycleNumber,
-  };
+  websiteItem: selected.item,
+  websiteSourceUrl: websiteUrl,
+  websiteCycleNumber: selected.cycleNumber,
+  useWebsiteImage: selected.useWebsiteImage,
+};
 }
 
 async function saveWebsiteContentHistory({
