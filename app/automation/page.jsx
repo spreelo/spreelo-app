@@ -2476,37 +2476,52 @@ const rows = slots.map((slot) => {
 <div className="wizard-layout">
           <main className="wizard-main">
             <section className="planner-setup-grid">
-              <div className="planner-setup-card">
-                <div className="setup-step-title">
-                  <span>1</span>
-                  <div>
-                    <strong>Choose goal</strong>
-                    <small>What is your main objective?</small>
-                  </div>
-                </div>
+<div className="planner-setup-card">
+  <div className="setup-step-title">
+    <span>1</span>
+    <div>
+      <strong>
+        {planCreationMode === "campaign" ? "Campaign goal" : "Choose goal"}
+      </strong>
+      <small>
+        {planCreationMode === "campaign"
+          ? "This plan is based on your selected campaign."
+          : "What is your main objective?"}
+      </small>
+    </div>
+  </div>
 
-                <select
-                  className="planner-select-control"
-                  value={autoPlanGoal}
-                  onChange={(event) => {
-                    if (planCreationMode !== "auto") {
-                      setPlanCreationMode("auto");
-                    }
+  {planCreationMode === "campaign" ? (
+    <div className="planner-campaign-count-box">
+      <strong>🎯</strong>
+      <span>Focused campaign from calendar</span>
+    </div>
+  ) : (
+    <select
+      className="planner-select-control"
+      value={autoPlanGoal}
+      onChange={(event) => {
+        if (planCreationMode !== "auto") {
+          setPlanCreationMode("auto");
+        }
 
-                    changeAutoPlanGoal(event.target.value);
-                  }}
-                >
-                  {autoPlanGoals.map((goal) => (
-                    <option key={goal.id} value={goal.id}>
-                      {goal.label}
-                    </option>
-                  ))}
-                </select>
+        changeAutoPlanGoal(event.target.value);
+      }}
+    >
+      {autoPlanGoals.map((goal) => (
+        <option key={goal.id} value={goal.id}>
+          {goal.label}
+        </option>
+      ))}
+    </select>
+  )}
 
-                <p>
-                  Spreelo tailors the content mix to match the goal you choose.
-                </p>
-              </div>
+  <p>
+    {planCreationMode === "campaign"
+      ? "Spreelo keeps this plan connected to the campaign opportunity."
+      : "Spreelo tailors the content mix to match the goal you choose."}
+  </p>
+</div>
 
               <div className="planner-setup-card">
                 <div className="setup-step-title">
