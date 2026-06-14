@@ -2328,6 +2328,9 @@ const { data: post, error: postError } = await supabase
             );
           }
 
+          usedWebsiteImageUrlsThisRun.add(
+  normalizeComparableValue(websiteItem.image_url)
+);
           summary.website_image_used += 1;
         } else if (wantsImage) {
           if (rule.uses_website_content) {
