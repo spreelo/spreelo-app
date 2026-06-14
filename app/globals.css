@@ -6783,3 +6783,18 @@ select.input {
   font-size: 11px;
   font-weight: 800;
 }
+.unlock-campaign-date-button {
+  margin-top: 5px;
+  border: 0;
+  background: transparent;
+  color: #6d28d9;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.unlock-campaign-date-button:hover {
+  text-decoration: underline;
+}
