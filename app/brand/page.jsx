@@ -54,9 +54,9 @@ export default function BrandProfile() {
   const [brandDescription, setBrandDescription] = useState("");
   const [industry, setIndustry] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
-  const [contentMarket, setContentMarket] = useState("Sweden");
-  const [countryCode, setCountryCode] = useState("SE");
-  const [contentLanguage, setContentLanguage] = useState("Swedish");
+  const [contentMarket, setContentMarket] = useState("International / Global");
+const [countryCode, setCountryCode] = useState("GLOBAL");
+const [contentLanguage, setContentLanguage] = useState("English");
   const [showGeneratedFields, setShowGeneratedFields] = useState(false);
 
   const [message, setMessage] = useState("");
