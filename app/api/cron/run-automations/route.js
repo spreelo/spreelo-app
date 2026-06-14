@@ -2224,6 +2224,7 @@ let useWebsiteImage = false;
             websiteItem = preparedWebsiteContent.websiteItem;
             websiteSourceUrl = preparedWebsiteContent.websiteSourceUrl;
             websiteCycleNumber = preparedWebsiteContent.websiteCycleNumber;
+            useWebsiteImage = Boolean(preparedWebsiteContent.useWebsiteImage);
           } catch (websiteError) {
             summary.website_content_failed += 1;
 
