@@ -2145,6 +2145,7 @@ export async function GET(request) {
     const nowIso = now.toISOString();
 
     const summary = createEmptySummary();
+    const usedWebsiteImageUrlsThisRun = new Set();
 
    await publishApprovedFacebookPosts({
   supabase,
