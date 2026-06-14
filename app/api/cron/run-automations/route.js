@@ -1639,6 +1639,7 @@ const selected = await chooseUnusedWebsiteItem({
   sourceUrl: websiteUrl,
   contentType: rule.content_type_id || "website_item",
   items,
+  usedWebsiteImageUrlsThisRun,
 });
 
   if (selected.startedNewCycle) {
