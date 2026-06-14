@@ -353,6 +353,7 @@ Title: ${websiteItem.title || "Not provided"}
 Type: ${websiteItem.type || "Not provided"}
 URL: ${websiteItem.url || "Not provided"}
 Description: ${websiteItem.description || "Not provided"}
+Price: ${websiteItem.price || "Not provided"}
 Image URL: ${websiteItem.image_url || "Not provided"}
 
 Important website item rules:
