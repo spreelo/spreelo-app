@@ -1313,8 +1313,8 @@ function normalizeWebsiteItem(item, websiteUrl) {
 
 async function extractWebsiteItems(openai, brandProfile, pages, rule = null) {
   const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
-  const analysisInput = buildWebsiteAnalysisInput({ brandProfile, pages });
-
+const analysisInput = buildWebsiteAnalysisInput({ brandProfile, pages });
+const selectionContext = buildWebsiteItemSelectionContext(rule);
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini",
     messages: [
