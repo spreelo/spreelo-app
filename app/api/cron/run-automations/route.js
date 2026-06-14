@@ -1350,9 +1350,12 @@ Rules:
 - Prefer specific product/service/listing pages over generic homepage claims.
 - Do not use privacy policy, cookie policy, blog posts or generic about pages as items.
 - Avoid generic company descriptions unless the website only offers one clear service.
-- For image_url, choose an image that seems directly connected to the item.
-- Avoid logos, icons, banners, hero images and decorative images when possible.
-- If no relevant image is found for an item, use null.
+- For image_url, only choose a real image URL from the website that clearly shows the selected product, service, listing or item.
+- For product pages, prefer the main product image from the product page.
+- The image_url must be used exactly as found on the website. Do not describe, modify, recreate or invent a product image.
+- Do not use logos, brand logos, franchise logos, mascot images, category graphics, navigation graphics, decorative banners, hero images or generic campaign artwork as image_url.
+- Do not use an image_url if the image mainly shows a logo, brand mark, character artwork or campaign graphic without a clearly identifiable purchasable product.
+- If no real product/item image is clearly available for the selected item, set image_url to null.
 - Rank the returned items from strongest campaign match to weakest campaign match for the current automation context.
 - Do not rank by what appears first on the website.
 - Do not rank by which image is largest or most visually prominent.
