@@ -2206,9 +2206,10 @@ const brandProfile = await getBrandProfileForRule(supabase, rule);
           summary.brand_profile_missing += 1;
         }
 
-        let websiteItem = null;
-        let websiteSourceUrl = null;
-        let websiteCycleNumber = null;
+let websiteItem = null;
+let websiteSourceUrl = null;
+let websiteCycleNumber = null;
+let useWebsiteImage = false;
 
         if (rule.uses_website_content) {
           try {
