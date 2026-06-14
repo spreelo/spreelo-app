@@ -1399,7 +1399,9 @@ function getCampaignSearchText(campaign) {
     .join(" ")
     .toLowerCase();
 }
-
+function getCampaignProductSelectionHint(campaign) {
+  return String(campaign?.website_product_selection_hint || "").trim();
+}
 function getDaysBetweenDateStrings(startDateString, endDateString) {
   const startParts = getDatePartsFromDateString(startDateString);
   const endParts = getDatePartsFromDateString(endDateString);
