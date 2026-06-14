@@ -3365,9 +3365,9 @@ ${slot.campaignSummary}`
                         </div>
                       </div>
 
-                      {(instructionsAreExpanded ||
-                        planCreationMode === "manual" ||
-                        slot.contentTypeId === "manual_prompt") && (
+                     {(instructionsAreExpanded ||
+  planCreationMode === "manual" ||
+  (!slot.isCampaignSlot && slot.contentTypeId === "manual_prompt")) && (
                         <div className="planner-post-expanded">
                           <div className="planner-post-expanded-copy">
 <label>
