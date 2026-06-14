@@ -730,9 +730,12 @@ function createSlot(overrides = {}) {
       typeof overrides.includeHashtags === "boolean"
         ? overrides.includeHashtags
         : true,
-    contentTypeId: overrides.contentTypeId || null,
-    contentTypeLabel: overrides.contentTypeLabel || null,
-    usesWebsiteContent: Boolean(overrides.usesWebsiteContent),
+contentTypeId: overrides.contentTypeId || null,
+contentTypeLabel: overrides.contentTypeLabel || null,
+usesWebsiteContent: Boolean(overrides.usesWebsiteContent),
+isCampaignSlot: Boolean(overrides.isCampaignSlot),
+campaignRole: overrides.campaignRole || "",
+campaignSummary: overrides.campaignSummary || "",
   };
 }
 
