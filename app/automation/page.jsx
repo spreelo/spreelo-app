@@ -2425,7 +2425,7 @@ function addCampaignSlot() {
 contentTypeLabel: campaignOpportunity.title || "Campaign post",
 usesWebsiteContent: shouldUseWebsiteContentForCampaign(
   contentSourceMode,
-  campaign
+  campaignOpportunity
 ),
 isCampaignSlot: true,
 campaignRole: postPlanItem.role || "Campaign post",
