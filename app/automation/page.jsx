@@ -2367,10 +2367,6 @@ campaignSummary: buildCampaignSummary(
 timeZone: selectedTimeZone,
     });
 
-    setExpandedInstructionSlotIds((currentIds) => [
-      ...currentIds,
-      newSlot.id,
-    ]);
 
     return [...currentSlots, newSlot].sort((a, b) =>
       `${a.startDate || ""} ${a.publishTime || ""}`.localeCompare(
