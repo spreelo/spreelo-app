@@ -1218,6 +1218,28 @@ ${pageBlocks.join("\n\n---\n\n")}
 `.trim();
 }
 
+function buildWebsiteItemSelectionContext(rule) {
+  const prompt = String(rule?.prompt || "").trim();
+
+  if (!prompt) {
+    return `
+No specific automation prompt was provided.
+
+Choose website items that are generally relevant to the brand and content type.
+`.trim();
+  }
+
+  return `
+Current automation / campaign prompt:
+${truncateText(prompt, 3000)}
+
+Important:
+- If the prompt contains a "Product selection hint", treat that hint as high priority.
+- The selected website item must fit the campaign, occasion, buyer intent, recipient and audience.
+- Do not choose a random product or service just because it exists on the website.
+`.trim();
+}
+
 function safeJsonParse(value) {
   try {
     return JSON.parse(value);
