@@ -2508,51 +2508,56 @@ const rows = slots.map((slot) => {
                 </p>
               </div>
 
-<div className="setup-step-title">
-  <span>2</span>
-  <div>
-    <strong>
-      {planCreationMode === "campaign" ? "Campaign posts" : "Posts per week"}
-    </strong>
-    <small>
-      {planCreationMode === "campaign"
-        ? "How many posts are included in this campaign?"
-        : "How often should Spreelo post?"}
-    </small>
-  </div>
-</div>
+              <div className="planner-setup-card">
+                <div className="setup-step-title">
+                  <span>2</span>
+                  <div>
+                    <strong>
+                      {planCreationMode === "campaign"
+                        ? "Campaign posts"
+                        : "Posts per week"}
+                    </strong>
+                    <small>
+                      {planCreationMode === "campaign"
+                        ? "How many posts are included in this campaign?"
+                        : "How often should Spreelo post?"}
+                    </small>
+                  </div>
+                </div>
 
-{planCreationMode === "campaign" ? (
-  <div className="planner-campaign-count-box">
-    <strong>{slots.length}</strong>
-    <span>planned campaign posts</span>
-  </div>
-) : (
-  <div className="planner-segmented-buttons">
-    {autoPlanPostCountOptions.map((option) => (
-      <button
-        type="button"
-        key={option}
-        className={autoPlanPostCount === option ? "active" : ""}
-        onClick={() => {
-          if (planCreationMode !== "auto") {
-            setPlanCreationMode("auto");
-          }
+                {planCreationMode === "campaign" ? (
+                  <div className="planner-campaign-count-box">
+                    <strong>{slots.length}</strong>
+                    <span>planned campaign posts</span>
+                  </div>
+                ) : (
+                  <div className="planner-segmented-buttons">
+                    {autoPlanPostCountOptions.map((option) => (
+                      <button
+                        type="button"
+                        key={option}
+                        className={
+                          autoPlanPostCount === option ? "active" : ""
+                        }
+                        onClick={() => {
+                          if (planCreationMode !== "auto") {
+                            setPlanCreationMode("auto");
+                          }
 
-          changeAutoPlanPostCount(option);
-        }}
-      >
-        {option}
-      </button>
-    ))}
-  </div>
-)}
+                          changeAutoPlanPostCount(option);
+                        }}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <p>
-  {planCreationMode === "campaign"
-    ? `${slots.length} posts are prepared for this campaign.`
-    : "Recommended for steady growth and consistent visibility."}
-</p>
+                  {planCreationMode === "campaign"
+                    ? `${slots.length} posts are prepared for this campaign.`
+                    : "Recommended for steady growth and consistent visibility."}
+                </p>
               </div>
 
               <div className="planner-setup-card">
