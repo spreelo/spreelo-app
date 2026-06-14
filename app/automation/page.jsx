@@ -2522,24 +2522,31 @@ const rows = slots.map((slot) => {
   </div>
 </div>
 
-                <div className="planner-segmented-buttons">
-                  {autoPlanPostCountOptions.map((option) => (
-                    <button
-                      type="button"
-                      key={option}
-                      className={autoPlanPostCount === option ? "active" : ""}
-                      onClick={() => {
-                        if (planCreationMode !== "auto") {
-                          setPlanCreationMode("auto");
-                        }
+{planCreationMode === "campaign" ? (
+  <div className="planner-campaign-count-box">
+    <strong>{slots.length}</strong>
+    <span>planned campaign posts</span>
+  </div>
+) : (
+  <div className="planner-segmented-buttons">
+    {autoPlanPostCountOptions.map((option) => (
+      <button
+        type="button"
+        key={option}
+        className={autoPlanPostCount === option ? "active" : ""}
+        onClick={() => {
+          if (planCreationMode !== "auto") {
+            setPlanCreationMode("auto");
+          }
 
-                        changeAutoPlanPostCount(option);
-                      }}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
+          changeAutoPlanPostCount(option);
+        }}
+      >
+        {option}
+      </button>
+    ))}
+  </div>
+)}
 
                 <p>
   {planCreationMode === "campaign"
