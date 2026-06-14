@@ -1045,6 +1045,7 @@ function getSubscriptionNextStepText(balance) {
 }
 
 function formatPlanMode(value) {
+  if (value === "campaign") return "Campaign plan";
   if (value === "auto") return "Auto-plan";
   if (value === "select") return "Choose content types";
   return "Manual prompt";
