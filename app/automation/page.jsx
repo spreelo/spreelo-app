@@ -1387,6 +1387,7 @@ function getCampaignSearchText(campaign) {
     campaign?.title,
     campaign?.description,
     campaign?.prompt_context,
+    campaign?.website_product_selection_hint,
     campaign?.industry,
     campaign?.event_type,
     campaign?.market,
