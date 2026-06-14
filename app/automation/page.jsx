@@ -1733,12 +1733,19 @@ function createCampaignSlotsFromOpportunity({
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
         generateImage:
           index < 2 || shouldUseWebsiteContentForCampaign(contentSourceMode),
-        contentTypeId: "manual_prompt",
-        contentTypeLabel: campaign?.title || "Campaign post",
-        usesWebsiteContent: shouldUseWebsiteContentForCampaign(
-          contentSourceMode
-        ),
-        timeZone,
+       contentTypeId: "manual_prompt",
+contentTypeLabel: campaign?.title || "Campaign post",
+usesWebsiteContent: shouldUseWebsiteContentForCampaign(
+  contentSourceMode
+),
+isCampaignSlot: true,
+campaignRole: enhancedPostPlanItem.role || "Campaign post",
+campaignSummary: buildCampaignSummary(
+  campaign,
+  enhancedPostPlanItem,
+  index
+),
+timeZone,
       });
     });
   }
