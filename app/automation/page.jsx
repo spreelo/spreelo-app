@@ -1523,7 +1523,19 @@ function shouldUseWebsiteContentForCampaign(sourceMode, campaign = null) {
   ].includes(sourceMode);
 }
 
-function getCampaignSourceInstruction(sourceMode) {
+function getCampaignSourceInstruction(sourceMode, campaign = null) {
+  const websiteContentFit = String(
+    campaign?.website_content_fit || ""
+  ).toLowerCase();
+
+  const websiteContentStrategy = String(
+    campaign?.website_content_strategy || ""
+  ).toLowerCase();
+
+  if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
+    return "Do not use website products or services for this post. The website content match is weak, so keep the post focused on the campaign theme and audience value.";
+  }
+
   if (sourceMode === "website_product") {
     return "Use a relevant product from the brand website if available. Connect the product naturally to the campaign. Use only product details that clearly exist on the website. If no relevant product is found, fall back to a general campaign post.";
   }
@@ -1533,7 +1545,7 @@ function getCampaignSourceInstruction(sourceMode) {
   }
 
   if (sourceMode === "mixed_campaign_and_website") {
-    return "If relevant website content is available, use it as supporting context, but keep the main focus on the campaign theme.";
+    return "If relevant website content is available, use it as supporting context, but keep the main focus on the campaign theme. Do not force a product or service if the match is not natural.";
   }
 
   return "Do not force a product or service into this post. Keep the focus on the campaign theme and the audience value.";
