@@ -1368,6 +1368,8 @@ Rules:
 - Do not use logos, brand logos, franchise logos, mascot images, category graphics, navigation graphics, decorative banners, hero images or generic campaign artwork as image_url.
 - Do not use an image_url if the image mainly shows a logo, brand mark, character artwork or campaign graphic without a clearly identifiable purchasable product.
 - If no real product/item image is clearly available for the selected item, set image_url to null.
+- If a clear product price is visible in the website content, include it in price.
+- If the price is not clearly visible, use an empty string for price.
 - Rank the returned items from strongest campaign match to weakest campaign match for the current automation context.
 - Do not rank by what appears first on the website.
 - Do not rank by which image is largest or most visually prominent.
