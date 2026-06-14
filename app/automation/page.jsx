@@ -1087,6 +1087,9 @@ function getSlotDisplayLabel(slot) {
 }
 
 function getSlotDisplayDescription(slot) {
+  if (slot.isCampaignSlot && slot.campaignSummary) {
+  return slot.campaignSummary;
+}
   const contentType = getContentTypeById(slot.contentTypeId);
 
   if (contentType?.description) {
