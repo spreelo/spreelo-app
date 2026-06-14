@@ -2180,10 +2180,143 @@ const { data, error } = await supabase
     );
   }
 
- function addSlot() {
-    setMessage("");
-    setShowAddPostModal(true);
+function addCampaignSlot() {
+  if (!campaignOpportunity) {
+    setMessage("No campaign opportunity is loaded.");
+    return;
   }
+
+  setMessage("");
+
+  setSlots((currentSlots) => {
+    const nextIndex = currentSlots.length;
+    const nextTotal = currentSlots.length + 1;
+    const selectedTimeZone = timeZone || DEFAULT_TIME_ZONE;
+    const hasFixedCampaignDate = Boolean(campaignOpportunity.event_date);
+
+    let startDate = planStartDate;
+    let publishTime = defaultPublishTime;
+    let daysBeforeEvent = null;
+
+    if (hasFixedCampaignDate) {
+      const usedDaysBeforeEvent = currentSlots
+        .map((slot) =>
+          getDaysBetweenDateStrings(slot.startDate, campaignOpportunity.event_date)
+        )
+        .filter((value) => typeof value === "number" && value >= 0);
+
+      const preferredDays = [
+        ...getDefaultCampaignDaysBeforeEvent(nextTotal),
+        45,
+        30,
+        21,
+        14,
+        10,
+        7,
+        5,
+        3,
+        2,
+        1,
+        0,
+      ];
+
+      daysBeforeEvent =
+        preferredDays.find(
+          (value) => !usedDaysBeforeEvent.includes(value)
+        ) ?? 0;
+
+      startDate = addDaysToDateString(
+        campaignOpportunity.event_date,
+        -daysBeforeEvent
+      );
+
+      publishTime = getRecommendedTimeForDate(startDate, selectedTimeZone);
+    } else {
+      const sortedSlots = currentSlots
+        .slice()
+        .sort((a, b) =>
+          `${a.startDate || ""} ${a.publishTime || ""}`.localeCompare(
+            `${b.startDate || ""} ${b.publishTime || ""}`
+          )
+        );
+
+      const lastSlot = sortedSlots[sortedSlots.length - 1];
+      const fallbackStartDate =
+        lastSlot?.startDate ||
+        campaignOpportunity.start_date ||
+        planStartDate ||
+        getDateInputValueInTimeZone(new Date(), selectedTimeZone);
+
+      const smartSchedule = buildSmartSlotSchedule({
+        startDate: fallbackStartDate,
+        count: 2,
+        timeZone: selectedTimeZone,
+        firstPublishTime: lastSlot?.publishTime || defaultPublishTime,
+      });
+
+      const nextSchedule = smartSchedule[1] || {
+        startDate: addDaysToDateString(fallbackStartDate, 3),
+        weekday: getWeekdayFromDateString(fallbackStartDate, selectedTimeZone),
+        publishTime: defaultPublishTime,
+      };
+
+      startDate = nextSchedule.startDate;
+      publishTime = nextSchedule.publishTime;
+    }
+
+    const postPlanItem = buildCampaignPostPlanItem({
+      campaign: campaignOpportunity,
+      postPlanItem: {},
+      index: nextIndex,
+      total: nextTotal,
+      daysBeforeEvent,
+    });
+
+    const contentSourceMode = getCampaignContentSourceMode(
+      campaignOpportunity,
+      postPlanItem,
+      nextIndex,
+      nextTotal
+    );
+
+    postPlanItem.content_source_mode = contentSourceMode;
+
+    const newSlot = createSlot({
+      startDate,
+      weekday: getWeekdayFromDateString(startDate, selectedTimeZone),
+      publishTime,
+      prompt: buildCampaignPrompt(campaignOpportunity, postPlanItem, nextIndex),
+      imagePrompt: buildCampaignImagePrompt(campaignOpportunity, postPlanItem),
+      generateImage: shouldUseWebsiteContentForCampaign(contentSourceMode),
+      contentTypeId: "manual_prompt",
+      contentTypeLabel: campaignOpportunity.title || "Campaign post",
+      usesWebsiteContent: shouldUseWebsiteContentForCampaign(contentSourceMode),
+      timeZone: selectedTimeZone,
+    });
+
+    setExpandedInstructionSlotIds((currentIds) => [
+      ...currentIds,
+      newSlot.id,
+    ]);
+
+    return [...currentSlots, newSlot].sort((a, b) =>
+      `${a.startDate || ""} ${a.publishTime || ""}`.localeCompare(
+        `${b.startDate || ""} ${b.publishTime || ""}`
+      )
+    );
+  });
+}
+
+function addSlot() {
+  setMessage("");
+
+  if (planCreationMode === "campaign") {
+    addCampaignSlot();
+    return;
+  }
+
+  setShowAddPostModal(true);
+}
 
   function addSlotFromContentType(typeId) {
     const selectedType = getContentTypeById(typeId);
