@@ -6144,3 +6144,530 @@ select.input {
     transform: rotate(360deg);
   }
 }
+/* ===== Spreelo Campaign Calendar ===== */
+
+.campaign-calendar-page {
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.campaign-calendar-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.campaign-calendar-hero h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 38px;
+  letter-spacing: -0.055em;
+}
+
+.campaign-calendar-hero span {
+  display: block;
+  margin-top: 8px;
+  max-width: 760px;
+  color: #667085;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.campaign-calendar-hero-card {
+  min-width: 260px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.13), transparent 35%),
+    #ffffff;
+  padding: 20px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.04);
+}
+
+.campaign-calendar-hero-card strong {
+  display: block;
+  color: #111827;
+  font-size: 42px;
+  line-height: 1;
+  letter-spacing: -0.06em;
+}
+
+.campaign-calendar-hero-card span {
+  margin: 7px 0 0;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.campaign-calendar-hero-card p {
+  margin: 9px 0 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.campaign-calendar-message {
+  margin: 0 0 18px;
+  padding: 14px 15px;
+  border-radius: 15px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.campaign-calendar-empty {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 26px;
+  background: #ffffff;
+  padding: 28px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.04);
+}
+
+.campaign-calendar-empty h3 {
+  margin: 0 0 8px;
+  color: #111827;
+  font-size: 28px;
+  letter-spacing: -0.045em;
+}
+
+.campaign-calendar-empty p {
+  margin: 0;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.campaign-calendar-empty a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  color: #ffffff;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.campaign-calendar-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.campaign-calendar-stat-grid > div {
+  min-height: 128px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.08), transparent 34%),
+    #ffffff;
+  padding: 20px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.035);
+}
+
+.campaign-calendar-stat-grid span {
+  display: block;
+  margin-bottom: 12px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.campaign-calendar-stat-grid strong {
+  display: block;
+  color: #111827;
+  font-size: 38px;
+  line-height: 1;
+  letter-spacing: -0.06em;
+}
+
+.campaign-calendar-stat-grid p {
+  margin: 12px 0 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.campaign-calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 390px;
+  gap: 24px;
+  align-items: start;
+}
+
+.campaign-calendar-main,
+.campaign-detail-card {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 26px;
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.04);
+}
+
+.campaign-calendar-main {
+  padding: 20px;
+}
+
+.campaign-calendar-section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.campaign-calendar-section-heading h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 25px;
+  letter-spacing: -0.045em;
+}
+
+.campaign-calendar-section-heading > span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #f3f0ff;
+  color: #5b21b6;
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.campaign-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.campaign-card {
+  text-align: left;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 16px;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    background 0.18s ease;
+}
+
+.campaign-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(124, 58, 237, 0.22);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.035);
+}
+
+.campaign-card.active {
+  border-color: rgba(109, 93, 252, 0.38);
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.09), transparent 34%),
+    #fbfaff;
+  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.08);
+}
+
+.campaign-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.campaign-card-top span {
+  border-radius: 999px;
+  background: #f3f0ff;
+  color: #5b21b6;
+  padding: 6px 9px;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.campaign-card-top strong {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.campaign-card h4 {
+  margin: 0 0 8px;
+  color: #111827;
+  font-size: 17px;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.campaign-card p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 58px;
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.campaign-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.campaign-card-meta span {
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475467;
+  padding: 7px 9px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.campaign-calendar-sidebar {
+  position: sticky;
+  top: 24px;
+}
+
+.campaign-detail-card {
+  padding: 20px;
+}
+
+.campaign-detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.campaign-detail-header h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.045em;
+}
+
+.campaign-detail-header > span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #f3f0ff;
+  color: #5b21b6;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.campaign-detail-date {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 13px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.campaign-detail-date strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.campaign-detail-date span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.campaign-detail-score-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.campaign-detail-score-grid div {
+  border-radius: 15px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  padding: 12px;
+}
+
+.campaign-detail-score-grid span {
+  display: block;
+  margin-bottom: 6px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.campaign-detail-score-grid strong {
+  color: #111827;
+  font-size: 18px;
+}
+
+.campaign-detail-section {
+  margin-bottom: 16px;
+}
+
+.campaign-detail-section h4 {
+  margin: 0 0 8px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.campaign-detail-section p {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.campaign-angle-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.campaign-angle-list span {
+  border-radius: 999px;
+  background: #f3f0ff;
+  color: #5b21b6;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.campaign-post-plan {
+  display: grid;
+  gap: 10px;
+}
+
+.campaign-post-plan > div {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border-radius: 15px;
+  background: #f8fafc;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.campaign-post-plan > div > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.campaign-post-plan strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.campaign-post-plan p {
+  margin: 0 0 5px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.campaign-post-plan small {
+  color: #5b21b6;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.campaign-create-button {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  color: #ffffff;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 950;
+  cursor: pointer;
+  box-shadow: 0 16px 30px rgba(79, 70, 229, 0.22);
+}
+
+.campaign-create-button:hover {
+  transform: translateY(-1px);
+}
+
+.campaign-calendar-disclaimer {
+  margin: 14px 0 0;
+  padding: 13px;
+  border-radius: 15px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 750;
+}
+
+@media (max-width: 1200px) {
+  .campaign-calendar-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .campaign-calendar-sidebar {
+    position: static;
+  }
+}
+
+@media (max-width: 900px) {
+  .campaign-calendar-hero,
+  .campaign-calendar-empty,
+  .campaign-calendar-section-heading,
+  .campaign-detail-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .campaign-calendar-hero h2 {
+    font-size: 31px;
+  }
+
+  .campaign-calendar-hero-card {
+    min-width: 0;
+  }
+
+  .campaign-calendar-stat-grid,
+  .campaign-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .campaign-detail-score-grid {
+    grid-template-columns: 1fr;
+  }
+}
