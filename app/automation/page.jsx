@@ -1416,10 +1416,63 @@ function getDaysBetweenDateStrings(startDateString, endDateString) {
 }
 
 function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
-  const campaignText = getCampaignSearchText(campaign);
+  const websiteContentFit = String(
+    campaign?.website_content_fit || ""
+  ).toLowerCase();
+
+  const websiteContentStrategy = String(
+    campaign?.website_content_strategy || ""
+  ).toLowerCase();
+
   const roleText = `${postPlanItem?.role || ""} ${
     postPlanItem?.purpose || ""
   }`.toLowerCase();
+
+  const isLaterCampaignPost =
+    index >= Math.max(1, Math.floor(total / 2)) ||
+    /reminder|final|push|spotlight|highlight|cta|offer|gift|book|buy|order|shop/.test(
+      roleText
+    );
+
+  if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
+    return "generic_campaign";
+  }
+
+  if (websiteContentFit === "strong") {
+    if (websiteContentStrategy === "product") {
+      return isLaterCampaignPost
+        ? "website_product"
+        : "mixed_campaign_and_website";
+    }
+
+    if (websiteContentStrategy === "service") {
+      return isLaterCampaignPost
+        ? "website_service"
+        : "mixed_campaign_and_website";
+    }
+
+    if (websiteContentStrategy === "support") {
+      return "mixed_campaign_and_website";
+    }
+  }
+
+  if (websiteContentFit === "medium") {
+    if (websiteContentStrategy === "product" && isLaterCampaignPost) {
+      return "mixed_campaign_and_website";
+    }
+
+    if (websiteContentStrategy === "service" && isLaterCampaignPost) {
+      return "mixed_campaign_and_website";
+    }
+
+    if (websiteContentStrategy === "support") {
+      return "mixed_campaign_and_website";
+    }
+
+    return "generic_campaign";
+  }
+
+  const campaignText = getCampaignSearchText(campaign);
 
   const hasProductIntent =
     /shop|store|ecommerce|e-commerce|product|products|gift|gifts|present|sale|discount|offer|black friday|christmas|valentine|mother|father|holiday|seasonal|collection|launch|buy|order/.test(
@@ -1429,12 +1482,6 @@ function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
   const hasServiceIntent =
     /service|services|book|booking|appointment|treatment|consultation|cleaning|clearing|repair|quote|visit|call|contact/.test(
       campaignText
-    );
-
-  const isLaterCampaignPost =
-    index >= Math.max(1, Math.floor(total / 2)) ||
-    /reminder|final|push|spotlight|highlight|cta|offer|gift|book|buy|order|shop/.test(
-      roleText
     );
 
   if (hasProductIntent && isLaterCampaignPost) {
