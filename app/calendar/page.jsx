@@ -23,8 +23,21 @@ function formatDate(value) {
 }
 
 function getCampaignDateLabel(campaign) {
+  const eventType = String(campaign?.event_type || "").toLowerCase();
+
+  const isFullYearFlexibleCampaign =
+    campaign?.start_date &&
+    campaign?.end_date &&
+    String(campaign.start_date).endsWith("-01-01") &&
+    String(campaign.end_date).endsWith("-12-31") &&
+    ["custom_campaign", "campaign", "seasonal"].includes(eventType);
+
   if (campaign.event_date) {
     return formatDate(campaign.event_date);
+  }
+
+  if (isFullYearFlexibleCampaign && campaign.event_year) {
+    return `Flexible campaign · ${campaign.event_year}`;
   }
 
   if (campaign.start_date && campaign.end_date) {
@@ -38,10 +51,10 @@ function getCampaignDateLabel(campaign) {
   }
 
   if (campaign.event_year) {
-    return `Flexible date · ${campaign.event_year}`;
+    return `Flexible campaign · ${campaign.event_year}`;
   }
 
-  return "Flexible date";
+  return "Flexible campaign";
 }
 
 function getEventTypeLabel(value) {
