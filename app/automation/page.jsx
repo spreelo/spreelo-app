@@ -1856,8 +1856,9 @@ timeZone,
       publishTime: schedule.publishTime,
       prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
       imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
-      generateImage:
-        index < 2 || shouldUseWebsiteContentForCampaign(contentSourceMode),
+    generateImage:
+  index < 2 ||
+  shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
 contentTypeId: "manual_prompt",
 contentTypeLabel: campaign?.title || "Campaign post",
 usesWebsiteContent: shouldUseWebsiteContentForCampaign(contentSourceMode),
