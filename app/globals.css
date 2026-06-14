@@ -6760,3 +6760,26 @@ select.input {
   font-size: 13px;
   font-weight: 900;
 }
+.locked-campaign-date {
+  min-width: 170px;
+  border: 1px solid rgba(124, 58, 237, 0.16);
+  background: #f7f4ff;
+  border-radius: 14px;
+  padding: 8px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.locked-campaign-date strong {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.locked-campaign-date span {
+  color: #6d28d9;
+  font-size: 11px;
+  font-weight: 800;
+}
