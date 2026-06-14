@@ -92,6 +92,13 @@ function getTodayDateString() {
 function isUpcomingCampaign(campaign, todayDateString) {
   if (!campaign) return false;
 
+  const currentYear = Number(todayDateString.slice(0, 4));
+  const campaignYear = Number(campaign.event_year);
+
+  if (Number.isFinite(campaignYear) && campaignYear !== currentYear) {
+    return false;
+  }
+
   if (campaign.event_date) {
     return campaign.event_date >= todayDateString;
   }
@@ -104,11 +111,8 @@ function isUpcomingCampaign(campaign, todayDateString) {
     return campaign.start_date >= todayDateString;
   }
 
-  const currentYear = Number(todayDateString.slice(0, 4));
-  const campaignYear = Number(campaign.event_year);
-
   if (Number.isFinite(campaignYear)) {
-    return campaignYear >= currentYear;
+    return campaignYear === currentYear;
   }
 
   return true;
@@ -215,7 +219,7 @@ export default function Calendar() {
         .eq("is_active", true)
         .eq("is_hidden", false)
         .eq("is_archived", false)
-        .gte("event_year", currentYear)
+        .eq("event_year", currentYear)
         .order("event_year", { ascending: true })
         .order("event_date", { ascending: true, nullsFirst: false });
 
