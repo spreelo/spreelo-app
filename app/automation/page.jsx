@@ -2508,14 +2508,19 @@ const rows = slots.map((slot) => {
                 </p>
               </div>
 
-              <div className="planner-setup-card">
-                <div className="setup-step-title">
-                  <span>2</span>
-                  <div>
-                    <strong>Posts per week</strong>
-                    <small>How often should Spreelo post?</small>
-                  </div>
-                </div>
+<div className="setup-step-title">
+  <span>2</span>
+  <div>
+    <strong>
+      {planCreationMode === "campaign" ? "Campaign posts" : "Posts per week"}
+    </strong>
+    <small>
+      {planCreationMode === "campaign"
+        ? "How many posts are included in this campaign?"
+        : "How often should Spreelo post?"}
+    </small>
+  </div>
+</div>
 
                 <div className="planner-segmented-buttons">
                   {autoPlanPostCountOptions.map((option) => (
