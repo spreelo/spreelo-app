@@ -1325,6 +1325,180 @@ function TimePickerField({
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
+
+function getCampaignDateLabel(campaign) {
+  if (campaign?.event_date) {
+    return campaign.event_date;
+  }
+
+  if (campaign?.start_date && campaign?.end_date) {
+    return `${campaign.start_date} – ${campaign.end_date}`;
+  }
+
+  if (campaign?.start_date) {
+    return campaign.start_date;
+  }
+
+  return "Flexible date";
+}
+
+function buildFallbackCampaignPlan(count) {
+  return Array.from({ length: count }).map((_, index) => ({
+    role:
+      index === count - 1
+        ? "Final campaign post"
+        : `Campaign build-up post ${index + 1}`,
+    purpose:
+      index === count - 1
+        ? "Create the main campaign post connected to the campaign date."
+        : "Build interest and relevance before the campaign date.",
+    days_before_event: Math.max((count - 1 - index) * 3, 0),
+  }));
+}
+
+function getDefaultCampaignDaysBeforeEvent(count) {
+  if (count <= 1) return [0];
+  if (count === 2) return [7, 0];
+  if (count === 3) return [14, 7, 0];
+  if (count === 4) return [21, 14, 7, 0];
+  if (count === 5) return [21, 14, 7, 3, 0];
+  if (count === 6) return [28, 21, 14, 7, 3, 0];
+  if (count === 7) return [30, 21, 14, 10, 7, 3, 0];
+
+  return Array.from({ length: count }).map((_, index) => {
+    if (index === count - 1) return 0;
+
+    return Math.max((count - 1 - index) * 4, 1);
+  });
+}
+
+function buildCampaignPrompt(campaign, postPlanItem, index) {
+  const campaignTitle = campaign?.title || "Campaign";
+  const campaignDate = getCampaignDateLabel(campaign);
+  const campaignContext =
+    campaign?.prompt_context ||
+    campaign?.description ||
+    "Create a campaign-related social media post.";
+  const postRole = postPlanItem?.role || `Campaign post ${index + 1}`;
+  const postPurpose =
+    postPlanItem?.purpose || "Create a useful campaign-related post.";
+  const relevanceReason = campaign?.relevance_reason || "";
+  const languageInstruction = campaign?.language
+    ? `Write the post in ${campaign.language}.`
+    : "Use the best language for the brand.";
+
+  return [
+    `Create one social media post for the campaign: ${campaignTitle}.`,
+    `Campaign timing: ${campaignDate}.`,
+    `Post role: ${postRole}.`,
+    `Post purpose: ${postPurpose}.`,
+    `Campaign context: ${campaignContext}`,
+    relevanceReason ? `Why this fits the brand: ${relevanceReason}` : "",
+    languageInstruction,
+    "Make the post clearly connected to this campaign, but do not invent discounts, prices, events, guarantees, offers, locations or claims that are not known.",
+    "Make it useful, trustworthy and natural for social media.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function buildCampaignImagePrompt(campaign, postPlanItem) {
+  const campaignTitle = campaign?.title || "campaign";
+  const postRole = postPlanItem?.role || "campaign post";
+
+  return [
+    `Create a professional social media image connected to ${campaignTitle}.`,
+    `The image should support this campaign post role: ${postRole}.`,
+    "Make it polished, believable and relevant to the brand.",
+    "Do not include readable text, logos, watermarks, fake UI, prices or discount labels.",
+  ].join(" ");
+}
+
+function createCampaignSlotsFromOpportunity({
+  campaign,
+  timeZone = DEFAULT_TIME_ZONE,
+  defaultPublishTime = "09:00",
+}) {
+  const recommendedCount = Math.min(
+    Math.max(Number(campaign?.recommended_post_count || 5), 1),
+    10
+  );
+
+  const rawPostPlan = Array.isArray(campaign?.post_plan)
+    ? campaign.post_plan
+    : [];
+
+  const postPlan =
+    rawPostPlan.length > 0
+      ? rawPostPlan.slice(0, recommendedCount)
+      : buildFallbackCampaignPlan(recommendedCount);
+
+  const defaultDaysBeforeEvent = getDefaultCampaignDaysBeforeEvent(
+    postPlan.length
+  );
+
+  const hasFixedCampaignDate = Boolean(campaign?.event_date);
+
+  if (hasFixedCampaignDate) {
+    return postPlan.map((postPlanItem, index) => {
+      const rawDaysBeforeEvent = Number(postPlanItem?.days_before_event);
+      const daysBeforeEvent = Number.isFinite(rawDaysBeforeEvent)
+        ? Math.max(rawDaysBeforeEvent, 0)
+        : defaultDaysBeforeEvent[index] || 0;
+
+      const startDate = addDaysToDateString(
+        campaign.event_date,
+        -daysBeforeEvent
+      );
+
+      return createSlot({
+        startDate,
+        weekday: getWeekdayFromDateString(startDate, timeZone),
+        publishTime: defaultPublishTime,
+        prompt: buildCampaignPrompt(campaign, postPlanItem, index),
+        imagePrompt: buildCampaignImagePrompt(campaign, postPlanItem),
+        generateImage: index < 2,
+        contentTypeId: "manual_prompt",
+        contentTypeLabel: campaign?.title || "Campaign post",
+        usesWebsiteContent: false,
+        timeZone,
+      });
+    });
+  }
+
+  const fallbackStartDate =
+    campaign?.start_date ||
+    getDateInputValueInTimeZone(new Date(), timeZone);
+
+  const smartSchedule = buildSmartSlotSchedule({
+    startDate: fallbackStartDate,
+    count: postPlan.length,
+    timeZone,
+    firstPublishTime: defaultPublishTime,
+  });
+
+  return postPlan.map((postPlanItem, index) => {
+    const schedule = smartSchedule[index] || {
+      startDate: fallbackStartDate,
+      weekday: getWeekdayFromDateString(fallbackStartDate, timeZone),
+      publishTime: defaultPublishTime,
+    };
+
+    return createSlot({
+      startDate: schedule.startDate,
+      weekday: schedule.weekday,
+      publishTime: schedule.publishTime,
+      prompt: buildCampaignPrompt(campaign, postPlanItem, index),
+      imagePrompt: buildCampaignImagePrompt(campaign, postPlanItem),
+      generateImage: index < 2,
+      contentTypeId: "manual_prompt",
+      contentTypeLabel: campaign?.title || "Campaign post",
+      usesWebsiteContent: false,
+      timeZone,
+    });
+  });
+}
+
 export default function AutomationPage() {
   const initialStartDate = getDateInputValueInTimeZone(
     new Date(),
