@@ -71,6 +71,7 @@ export default function BrandProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [currentAnalyzingStep, setCurrentAnalyzingStep] = useState(0);
   const [user, setUser] = useState(null);
 
   const [allBrands, setAllBrands] = useState([]);
