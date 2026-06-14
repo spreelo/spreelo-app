@@ -193,10 +193,9 @@ const [contentLanguage, setContentLanguage] = useState("English");
       setIndustry(loadedIndustry);
       setTargetAudience(loadedTargetAudience);
 
-      const loadedMarket = data.content_market || "Sweden";
-      const loadedCountryCode = data.country_code || "SE";
-      const loadedContentLanguage = data.content_language || "Swedish";
-
+     const loadedMarket = data.content_market || "International / Global";
+const loadedCountryCode = data.country_code || "GLOBAL";
+const loadedContentLanguage = data.content_language || "English";
       setContentMarket(loadedMarket);
       setCountryCode(loadedCountryCode);
       setContentLanguage(loadedContentLanguage);
