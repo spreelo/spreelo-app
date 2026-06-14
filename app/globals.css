@@ -6671,3 +6671,68 @@ select.input {
     grid-template-columns: 1fr;
   }
 }
+/* ===== Automation campaign mode ===== */
+
+.campaign-mode-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 22px;
+  margin-bottom: 22px;
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid rgba(124, 58, 237, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.14), transparent 34%),
+    #ffffff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.045);
+}
+
+.campaign-mode-banner h3 {
+  margin: 0 0 8px;
+  color: #111827;
+  font-size: 26px;
+  letter-spacing: -0.045em;
+}
+
+.campaign-mode-banner span {
+  display: block;
+  max-width: 760px;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 700;
+}
+
+.campaign-mode-meta {
+  min-width: 230px;
+  padding: 16px;
+  border-radius: 18px;
+  background: #f8f7ff;
+  border: 1px solid rgba(124, 58, 237, 0.14);
+}
+
+.campaign-mode-meta strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.campaign-mode-meta span {
+  color: #5b21b6;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+@media (max-width: 900px) {
+  .campaign-mode-banner {
+    flex-direction: column;
+  }
+
+  .campaign-mode-meta {
+    min-width: 0;
+    width: 100%;
+  }
+}
