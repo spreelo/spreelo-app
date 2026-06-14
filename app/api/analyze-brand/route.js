@@ -206,6 +206,26 @@ function normalizeDateConfidence(value) {
   return "medium";
 }
 
+function normalizeWebsiteContentFit(value) {
+  const normalizedValue = String(value || "").toLowerCase().trim();
+
+  if (["strong", "medium", "weak"].includes(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return "medium";
+}
+
+function normalizeWebsiteContentStrategy(value) {
+  const normalizedValue = String(value || "").toLowerCase().trim();
+
+  if (["product", "service", "support", "none"].includes(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return "support";
+}
+
 function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
   const title = String(rawOpportunity?.title || "").trim();
 
@@ -220,8 +240,8 @@ function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
   const eventYear = eventDate
     ? getYearFromDate(eventDate, fallbackYear)
     : startDate
-      ? getYearFromDate(startDate, fallbackYear)
-      : fallbackYear;
+    ? getYearFromDate(startDate, fallbackYear)
+    : fallbackYear;
 
   const slug = slugify(rawOpportunity?.slug || title);
 
@@ -248,6 +268,12 @@ function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
     campaign_angles: normalizeJsonArray(rawOpportunity?.campaign_angles),
     post_plan: normalizeJsonArray(rawOpportunity?.post_plan),
     date_confidence: normalizeDateConfidence(rawOpportunity?.date_confidence),
+    website_content_fit: normalizeWebsiteContentFit(
+      rawOpportunity?.website_content_fit
+    ),
+    website_content_strategy: normalizeWebsiteContentStrategy(
+      rawOpportunity?.website_content_strategy
+    ),
   };
 }
 
@@ -545,6 +571,9 @@ async function replaceBrandCampaignOpportunities({
     post_plan: opportunity.post_plan,
 
     date_confidence: opportunity.date_confidence,
+    website_content_fit: opportunity.website_content_fit,
+    website_content_strategy: opportunity.website_content_strategy,
+
     is_ai_generated: true,
     is_hidden: false,
     is_active: true,
@@ -558,7 +587,9 @@ async function replaceBrandCampaignOpportunities({
   const { data, error } = await supabase
     .from("brand_campaign_opportunities")
     .insert(rows)
-    .select("id, title, event_date, event_year, slug");
+    .select(
+      "id, title, event_date, event_year, slug, website_content_fit, website_content_strategy"
+    );
 
   if (error) {
     throw new Error(error.message || "Could not save campaign opportunities");
@@ -649,6 +680,8 @@ Return JSON only in this exact shape:
       "start_date": "YYYY-MM-DD or null",
       "end_date": "YYYY-MM-DD or null",
       "date_confidence": "high | medium | low",
+      "website_content_fit": "strong | medium | weak",
+      "website_content_strategy": "product | service | support | none",
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
       "sales_score": 1,
@@ -671,6 +704,8 @@ Rules:
 - Return 10 to 20 campaign opportunities, never more than 20.
 - Do not create finished social media posts.
 - Only include opportunities that are genuinely useful for this business, industry and selected market.
+- Prefer fewer highly relevant campaign opportunities over many weak ones.
+- Avoid forced or weak campaign ideas that do not clearly connect to what the business sells, offers or represents.
 - Do not include irrelevant popular theme days just because they are well known.
 - A cafe can use food theme days. A hair salon should get hair/beauty/self-care/gift/seasonal opportunities instead.
 - Include industry-specific days when they are useful.
@@ -683,6 +718,26 @@ Rules:
 - Earlier post_plan items should prepare the audience before the event.
 - recommended_post_count must be between 1 and 10.
 - relevance_score, sales_score and engagement_score must be between 1 and 5.
+- For each campaign opportunity, classify website_content_fit:
+  - "strong" when the campaign has a clear natural match with products, services, offers, listings or content found on the website or in the description.
+  - "medium" when website content may support the campaign but should not dominate it.
+  - "weak" when using website products or services would feel forced or irrelevant.
+- For each campaign opportunity, classify website_content_strategy:
+  - "product" when posts should try to use a relevant product from the website.
+  - "service" when posts should try to use a relevant service or offer from the website.
+  - "support" when website content can be used as supporting context but the campaign theme should lead.
+  - "none" when the campaign should not use website content automatically.
+- If the business is an ecommerce store, do not automatically mark every campaign as product. Only use "product" when the campaign clearly connects to what the store sells.
+- If website_content_fit is "weak", website_content_strategy should normally be "none".
+- Examples:
+  - Gift campaign for a personalized pet portrait store: strong / product.
+  - Father's Day for a personalized gift business: strong / product.
+  - Allergy-related pet owner campaign for a business that only sells portraits: weak / none.
+  - Educational awareness campaign with no clear product match: medium / support or weak / none.
+- The selected market/country is used mainly for campaign calendar relevance, holidays, cultural timing and content language.
+- Do not automatically restrict the target audience geographically to the selected market unless the website or description clearly says the business only serves that country or local area.
+- If the business appears remote, online, global or international, describe the target audience without limiting it to the selected market.
+- Future campaign posts should be written for the selected content language and market context, but should not repeatedly mention the country unless it is naturally relevant.
 - If the selected content language is Swedish, write user-facing fields in Swedish.
 - If the selected content language is English, write user-facing fields in English.
 - Keep prompt_context useful but concise.
@@ -780,6 +835,8 @@ Return JSON only in this exact shape:
       "start_date": "YYYY-MM-DD or null",
       "end_date": "YYYY-MM-DD or null",
       "date_confidence": "high | medium | low",
+      "website_content_fit": "strong | medium | weak",
+      "website_content_strategy": "product | service | support | none",
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
       "sales_score": 1,
@@ -802,6 +859,8 @@ Rules:
 - Return 10 to 20 campaign opportunities, never more than 20.
 - Do not create finished social media posts.
 - Only include opportunities that are genuinely useful for this business, industry and selected market.
+- Prefer fewer highly relevant campaign opportunities over many weak ones.
+- Avoid forced or weak campaign ideas that do not clearly connect to what the business sells, offers or represents.
 - Do not include irrelevant popular theme days just because they are well known.
 - A cafe can use food theme days. A hair salon should get hair/beauty/self-care/gift/seasonal opportunities instead.
 - Include industry-specific days when they are useful.
@@ -814,6 +873,26 @@ Rules:
 - Earlier post_plan items should prepare the audience before the event.
 - recommended_post_count must be between 1 and 10.
 - relevance_score, sales_score and engagement_score must be between 1 and 5.
+- For each campaign opportunity, classify website_content_fit:
+  - "strong" when the campaign has a clear natural match with products, services, offers, listings or content found on the website or in the description.
+  - "medium" when website content may support the campaign but should not dominate it.
+  - "weak" when using website products or services would feel forced or irrelevant.
+- For each campaign opportunity, classify website_content_strategy:
+  - "product" when posts should try to use a relevant product from the website.
+  - "service" when posts should try to use a relevant service or offer from the website.
+  - "support" when website content can be used as supporting context but the campaign theme should lead.
+  - "none" when the campaign should not use website content automatically.
+- If the business is an ecommerce store, do not automatically mark every campaign as product. Only use "product" when the campaign clearly connects to what the store sells.
+- If website_content_fit is "weak", website_content_strategy should normally be "none".
+- Examples:
+  - Gift campaign for a personalized pet portrait store: strong / product.
+  - Father's Day for a personalized gift business: strong / product.
+  - Allergy-related pet owner campaign for a business that only sells portraits: weak / none.
+  - Educational awareness campaign with no clear product match: medium / support or weak / none.
+- The selected market/country is used mainly for campaign calendar relevance, holidays, cultural timing and content language.
+- Do not automatically restrict the target audience geographically to the selected market unless the website or description clearly says the business only serves that country or local area.
+- If the business appears remote, online, global or international, describe the target audience without limiting it to the selected market.
+- Future campaign posts should be written for the selected content language and market context, but should not repeatedly mention the country unless it is naturally relevant.
 - If the selected content language is Swedish, write user-facing fields in Swedish.
 - If the selected content language is English, write user-facing fields in English.
 - Keep prompt_context useful but concise.
