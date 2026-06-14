@@ -2351,10 +2351,17 @@ function addCampaignSlot() {
       prompt: buildCampaignPrompt(campaignOpportunity, postPlanItem, nextIndex),
       imagePrompt: buildCampaignImagePrompt(campaignOpportunity, postPlanItem),
       generateImage: shouldUseWebsiteContentForCampaign(contentSourceMode),
-      contentTypeId: "manual_prompt",
-      contentTypeLabel: campaignOpportunity.title || "Campaign post",
-      usesWebsiteContent: shouldUseWebsiteContentForCampaign(contentSourceMode),
-      timeZone: selectedTimeZone,
+     contentTypeId: "manual_prompt",
+contentTypeLabel: campaignOpportunity.title || "Campaign post",
+usesWebsiteContent: shouldUseWebsiteContentForCampaign(contentSourceMode),
+isCampaignSlot: true,
+campaignRole: postPlanItem.role || "Campaign post",
+campaignSummary: buildCampaignSummary(
+  campaignOpportunity,
+  postPlanItem,
+  nextIndex
+),
+timeZone: selectedTimeZone,
     });
 
     setExpandedInstructionSlotIds((currentIds) => [
