@@ -1353,12 +1353,36 @@ Rules:
 - For image_url, choose an image that seems directly connected to the item.
 - Avoid logos, icons, banners, hero images and decorative images when possible.
 - If no relevant image is found for an item, use null.
-- Rank the returned items from most relevant to least relevant for the current automation context.
-- If the automation context contains a Product selection hint, use that hint when deciding which items are relevant.
+- Rank the returned items from strongest campaign match to weakest campaign match for the current automation context.
+- Do not rank by what appears first on the website.
+- Do not rank by which image is largest or most visually prominent.
+- Do not rank by which product is currently shown in a campaign banner unless it is also the strongest match for the current campaign.
+- If the automation context contains a Product selection hint, treat that hint as high priority when deciding which items are relevant.
+- First identify the campaign, holiday, theme day, season or occasion.
+- Then identify the likely buyer, the likely recipient, the buying intent and the emotional or practical reason to buy.
+- Before selecting an item, infer the most likely product categories that fit that campaign or occasion.
+- Choose the item that best fits the recipient, buyer intent and campaign theme.
+- Prefer the strongest thematic match, not just any item that could loosely work.
+- If several products are available, rank the one with the clearest gift, seasonal, practical or emotional use case highest.
 - For gift days and shopping occasions, consider who buys the item, who receives it, and why the item fits the occasion.
+- Avoid choosing products mainly aimed at a different recipient when a stronger match exists.
 - Do not return unrelated random products just because they exist on the website.
-- If this is a Valentine's Day campaign for a grocery store, prefer items such as chocolate, flowers, desserts, strawberries, bakery items, dinner ingredients, gift baskets or cozy meal ideas over unrelated groceries.
-- If this is a Father's Day campaign for a toy store, prefer board games, family games, building sets, puzzles, outdoor play, hobby kits or products children and parents can enjoy together over unrelated baby toys or random toys.
+
+Campaign-specific product guidance:
+- For Father's Day, prefer items that feel suitable as a gift for a father or as a shared father-child activity. For toy or game stores, prefer adult-friendly and family-friendly gifts such as board games, party games, music games like Hitster, quiz games, family games, building sets, model kits, hobby kits, outdoor play, sports-related toys, vehicle/tech-themed sets or products children and parents can enjoy together. Avoid toddler products, baby toys or products mainly aimed at very young children when stronger father/gift/family options exist.
+- For Mother's Day, prefer thoughtful gifts, self-care, beauty, flowers, home decor, jewelry, premium food, family-oriented gifts or emotionally meaningful products when available.
+- For Valentine's Day, prefer romantic gifts, sweets, flowers, beauty, fragrance, date-night products, dinner-related items, matching items or emotionally meaningful gifts when available.
+- For Halloween, prefer costumes, decorations, candy, spooky-themed products, party products, masks, makeup, pumpkins, lights, games or products that help customers create a Halloween feeling.
+- For Christmas, prefer gifts, decorations, festive food, premium treats, toys, games, gift cards, partywear, cozy products or products that are naturally bought as Christmas presents.
+- For Easter, prefer candy, eggs, decorations, spring products, flowers, family activities, food, gifts or products connected to Easter celebrations.
+- For Black Friday, Cyber Monday or sales campaigns, prefer products with clear offer, discount, high demand, gift potential, seasonal relevance or strong buying intent.
+- For back-to-school campaigns, prefer school supplies, backpacks, clothing, shoes, lunch boxes, tech, books, sports items or products useful for children, students or parents preparing for school.
+- For graduation campaigns, prefer gifts, partywear, flowers, celebration products, jewelry, beauty, accessories, premium food, decorations or keepsakes.
+- For wedding season campaigns, prefer outfits, shoes, accessories, beauty, gifts, flowers, decor, photography, services or products connected to weddings and guests.
+- For summer campaigns, prefer outdoor products, travel items, swimwear, grilling, picnic items, cold drinks, sunscreen, summer fashion, toys, garden products or seasonal services.
+- For winter campaigns, prefer warm clothing, cozy products, lighting, indoor activities, gifts, seasonal food, winter gear or services connected to the season.
+- For grocery stores or supermarkets, choose products that naturally support the campaign occasion, such as themed treats, flowers, dinner ingredients, dessert items, coffee, chocolate, breakfast, grilling or gift-style bundles, depending on the campaign.
+- If the campaign is broad and several products could fit, choose the item with the strongest practical or emotional reason to buy for that occasion.
 - If no website item fits the automation context, still return generally usable items, but put the closest matches first.
 - Return 3 to 15 items if possible.
 
