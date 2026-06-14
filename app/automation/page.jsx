@@ -2541,7 +2541,11 @@ const rows = slots.map((slot) => {
                   ))}
                 </div>
 
-                <p>Recommended for steady growth and consistent visibility.</p>
+                <p>
+  {planCreationMode === "campaign"
+    ? `${slots.length} posts are prepared for this campaign.`
+    : "Recommended for steady growth and consistent visibility."}
+</p>
               </div>
 
               <div className="planner-setup-card">
