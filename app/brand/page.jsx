@@ -5,7 +5,11 @@ import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 
 const marketOptions = [
-  { label: "International / Global", countryCode: "GLOBAL", language: "English" },
+  {
+    label: "International / Global",
+    countryCode: "GLOBAL",
+    language: "English",
+  },
   { label: "United States", countryCode: "US", language: "English" },
   { label: "United Kingdom", countryCode: "GB", language: "English" },
   { label: "Germany", countryCode: "DE", language: "German" },
@@ -26,8 +30,8 @@ const marketOptions = [
 ];
 
 const languageOptions = [
-  "Swedish",
   "English",
+  "Swedish",
   "German",
   "Danish",
   "Norwegian",
@@ -55,8 +59,8 @@ export default function BrandProfile() {
   const [industry, setIndustry] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
   const [contentMarket, setContentMarket] = useState("International / Global");
-const [countryCode, setCountryCode] = useState("GLOBAL");
-const [contentLanguage, setContentLanguage] = useState("English");
+  const [countryCode, setCountryCode] = useState("GLOBAL");
+  const [contentLanguage, setContentLanguage] = useState("English");
   const [showGeneratedFields, setShowGeneratedFields] = useState(false);
 
   const [message, setMessage] = useState("");
@@ -98,11 +102,11 @@ const [contentLanguage, setContentLanguage] = useState("English");
     if (saving) return "Saving...";
     if (analyzing) return "Analyzing...";
 
-    if (shouldAnalyzeWebsite) return "Save, analyze website and create calendar";
+    if (shouldAnalyzeWebsite) return "Analyze brand & create campaign calendar";
     if (shouldAnalyzeDescription)
-      return "Save, analyze description and create calendar";
+      return "Analyze description & create campaign calendar";
 
-    return "Save";
+    return "Save brand profile";
   }, [saving, analyzing, shouldAnalyzeWebsite, shouldAnalyzeDescription]);
 
   useEffect(() => {
@@ -193,9 +197,10 @@ const [contentLanguage, setContentLanguage] = useState("English");
       setIndustry(loadedIndustry);
       setTargetAudience(loadedTargetAudience);
 
-     const loadedMarket = data.content_market || "International / Global";
-const loadedCountryCode = data.country_code || "GLOBAL";
-const loadedContentLanguage = data.content_language || "English";
+      const loadedMarket = data.content_market || "International / Global";
+      const loadedCountryCode = data.country_code || "GLOBAL";
+      const loadedContentLanguage = data.content_language || "English";
+
       setContentMarket(loadedMarket);
       setCountryCode(loadedCountryCode);
       setContentLanguage(loadedContentLanguage);
@@ -631,222 +636,312 @@ const loadedContentLanguage = data.content_language || "English";
 
   return (
     <AppLayout active="brand">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Brand profile</p>
-          <h2>Teach Spreelo about your business</h2>
-        </div>
-      </header>
-
-      <section className="hero-card">
-        <div>
-          <p className="eyebrow">Business context</p>
-          <h3>Set up your brand profile</h3>
-
-          <p>
-            Spreelo uses this profile to understand your business, your audience
-            and what kind of content it should create.
-          </p>
-
-          <div className="mini-info-card">
-            <strong>Current brand profile</strong>
-            <p>
-              Changes here only affect the brand selected in the sidebar. Other
-              brands keep their own profile, automations and connected channels.
-            </p>
+      <div className="brand-profile-page">
+        <header className="brand-profile-hero">
+          <div>
+            <p className="dashboard-eyebrow">Brand profile</p>
+            <h2>Teach Spreelo about your brand</h2>
+            <span>
+              Set your business context, target market and content language.
+              Spreelo uses this to create better posts and smarter campaign
+              opportunities.
+            </span>
           </div>
 
-          <div className="mini-info-card">
-            <strong>Campaign calendar</strong>
-            <p>
-              When Spreelo analyzes your brand, it also creates AI-suggested
-              campaign opportunities for your selected market. No posts are
-              created until you choose a campaign.
-            </p>
+          <div className="brand-profile-hero-badge">
+            <strong>AI setup</strong>
+            <span>No posts are created until you choose a campaign.</span>
           </div>
-        </div>
+        </header>
 
-        <div className="prompt-box">
-          <label>Business name</label>
-          <input
-            className="input"
-            placeholder="Example: Your Company"
-            value={businessName}
-            onChange={(event) => {
-              setBusinessName(event.target.value);
-              setMessage("");
-            }}
-            disabled={analyzing || saving || deletingBrand}
-          />
+        <section className="brand-profile-layout">
+          <aside className="brand-profile-guide-card">
+            <div className="brand-profile-guide-icon">✦</div>
 
-          <label>Website URL</label>
-          <input
-            className="input"
-            placeholder="Example: https://www.yourbusiness.com"
-            value={websiteUrl}
-            onChange={(event) => {
-              setWebsiteUrl(event.target.value);
-              setHasNoWebsite(false);
-              setShowGeneratedFields(false);
-              setIndustry("");
-              setTargetAudience("");
-              setMessage("");
-            }}
-            disabled={hasNoWebsite || analyzing || saving || deletingBrand}
-          />
+            <p className="dashboard-eyebrow">Setup flow</p>
+            <h3>From brand info to campaign calendar</h3>
 
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={hasNoWebsite}
-              onChange={handleNoWebsiteChange}
-              disabled={analyzing || saving || deletingBrand}
-            />
-            <span>I do not have a website</span>
-          </label>
+            <div className="brand-profile-step-list">
+              <div>
+                <span>1</span>
+                <div>
+                  <strong>Business details</strong>
+                  <p>Add your website or describe the business manually.</p>
+                </div>
+              </div>
 
-          {hasNoWebsite && (
-            <>
-              <label>Describe your business</label>
-              <textarea
-                className="input prompt-textarea"
-                placeholder="Describe what your business does, what you offer, who your customers are, what style or tone you want, and what Spreelo should know before creating posts."
-                value={brandDescription}
+              <div>
+                <span>2</span>
+                <div>
+                  <strong>Market & language</strong>
+                  <p>
+                    Choose where the brand creates content and in which
+                    language.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <span>3</span>
+                <div>
+                  <strong>AI analysis</strong>
+                  <p>
+                    Spreelo analyzes the brand and prepares campaign
+                    opportunities.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <span>4</span>
+                <div>
+                  <strong>Create campaigns later</strong>
+                  <p>
+                    No finished posts are created until you select a campaign.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="brand-profile-note-card">
+              <strong>Recommended default</strong>
+              <p>
+                Use International / Global unless the brand clearly targets a
+                specific local market.
+              </p>
+            </div>
+          </aside>
+
+          <section className="brand-profile-form-card">
+            <div className="brand-profile-form-header">
+              <div>
+                <p className="dashboard-eyebrow">Business context</p>
+                <h3>Brand setup</h3>
+              </div>
+
+              <span>Current brand</span>
+            </div>
+
+            <div className="brand-profile-form-section">
+              <h4>Business details</h4>
+
+              <label>Business name</label>
+              <input
+                className="input"
+                placeholder="Example: Your Company"
+                value={businessName}
                 onChange={(event) => {
-                  setBrandDescription(event.target.value);
+                  setBusinessName(event.target.value);
+                  setMessage("");
+                }}
+                disabled={analyzing || saving || deletingBrand}
+              />
+
+              <label>Website URL</label>
+              <input
+                className="input"
+                placeholder="Example: https://www.yourbusiness.com"
+                value={websiteUrl}
+                onChange={(event) => {
+                  setWebsiteUrl(event.target.value);
+                  setHasNoWebsite(false);
                   setShowGeneratedFields(false);
                   setIndustry("");
                   setTargetAudience("");
                   setMessage("");
                 }}
-                disabled={analyzing || saving || deletingBrand}
-              />
-            </>
-          )}
-
-          <label>Content market</label>
-          <select
-            className="input"
-            value={contentMarket}
-            onChange={handleMarketChange}
-            disabled={analyzing || saving || deletingBrand}
-          >
-            {marketOptions.map((market) => (
-              <option key={market.countryCode} value={market.label}>
-                {market.label}
-              </option>
-            ))}
-          </select>
-
-          <label>Content language</label>
-          <select
-            className="input"
-            value={contentLanguage}
-            onChange={(event) => {
-              setContentLanguage(event.target.value);
-              setShowGeneratedFields(false);
-              setMessage("");
-            }}
-            disabled={analyzing || saving || deletingBrand}
-          >
-            {languageOptions.map((language) => (
-              <option key={language} value={language}>
-                {language}
-              </option>
-            ))}
-          </select>
-
-          {showGeneratedFields && (
-            <>
-              <label>Industry</label>
-              <textarea
-                className="input prompt-textarea"
-                placeholder="Example: Local service business helping homeowners with..."
-                value={industry}
-                onChange={(event) => setIndustry(event.target.value)}
-                disabled={analyzing || saving || deletingBrand}
+                disabled={hasNoWebsite || analyzing || saving || deletingBrand}
               />
 
-              <label>Target audience</label>
-              <textarea
-                className="input prompt-textarea"
-                placeholder="Example: Customers who need..."
-                value={targetAudience}
-                onChange={(event) => setTargetAudience(event.target.value)}
-                disabled={analyzing || saving || deletingBrand}
-              />
-            </>
-          )}
+              <label className="checkbox-row brand-profile-checkbox">
+                <input
+                  type="checkbox"
+                  checked={hasNoWebsite}
+                  onChange={handleNoWebsiteChange}
+                  disabled={analyzing || saving || deletingBrand}
+                />
+                <span>I do not have a website</span>
+              </label>
 
-          <button
-            className="primary-button full"
-            type="button"
-            onClick={handleMainSave}
-            disabled={saving || analyzing || deletingBrand || !brandProfileId}
-          >
-            {mainButtonLabel}
-          </button>
+              {hasNoWebsite && (
+                <>
+                  <label>Describe your business</label>
+                  <textarea
+                    className="input prompt-textarea"
+                    placeholder="Describe what your business does, what you offer, who your customers are, what style or tone you want, and what Spreelo should know before creating posts."
+                    value={brandDescription}
+                    onChange={(event) => {
+                      setBrandDescription(event.target.value);
+                      setShowGeneratedFields(false);
+                      setIndustry("");
+                      setTargetAudience("");
+                      setMessage("");
+                    }}
+                    disabled={analyzing || saving || deletingBrand}
+                  />
+                </>
+              )}
+            </div>
 
-          {message && <p className="login-message">{message}</p>}
-        </div>
-      </section>
+            <div className="brand-profile-form-section market">
+              <div className="brand-profile-section-title">
+                <div>
+                  <h4>Market setup</h4>
+                  <p>
+                    Used for campaign ideas, theme days, seasonal timing and
+                    language.
+                  </p>
+                </div>
+              </div>
 
-      <section className="danger-zone-card">
-        <div>
-          <p className="eyebrow danger-eyebrow">Danger zone</p>
-          <h3>Delete this brand</h3>
-          <p>
-            Permanently delete <strong>{businessName || "this brand"}</strong>,
-            including its generated posts, saved plans, automation rules,
-            website history, campaign opportunities and social connection.
-          </p>
-          <p className="danger-zone-note">
-            This cannot be undone. You cannot delete your last remaining brand.
-          </p>
-        </div>
+              <div className="brand-profile-two-col">
+                <div>
+                  <label>Content market</label>
+                  <select
+                    className="input"
+                    value={contentMarket}
+                    onChange={handleMarketChange}
+                    disabled={analyzing || saving || deletingBrand}
+                  >
+                    {marketOptions.map((market) => (
+                      <option key={market.countryCode} value={market.label}>
+                        {market.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-        <div className="danger-zone-actions">
-          {deleteStep ? (
-            <div className="delete-confirm-box">
-              <p>
-                Are you sure you want to permanently delete{" "}
-                <strong>{businessName || "this brand"}</strong>?
-              </p>
-
-              <div className="delete-confirm-actions">
-                <button
-                  type="button"
-                  className="danger-button"
-                  onClick={handleDeleteConfirm}
-                  disabled={deletingBrand}
-                >
-                  {deletingBrand ? "Deleting..." : "Yes, delete permanently"}
-                </button>
-
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={handleDeleteCancel}
-                  disabled={deletingBrand}
-                >
-                  Cancel
-                </button>
+                <div>
+                  <label>Content language</label>
+                  <select
+                    className="input"
+                    value={contentLanguage}
+                    onChange={(event) => {
+                      setContentLanguage(event.target.value);
+                      setShowGeneratedFields(false);
+                      setMessage("");
+                    }}
+                    disabled={analyzing || saving || deletingBrand}
+                  >
+                    {languageOptions.map((language) => (
+                      <option key={language} value={language}>
+                        {language}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
-          ) : (
-            <button
-              type="button"
-              className="danger-button"
-              onClick={handleDeleteStart}
-              disabled={deletingBrand}
-            >
-              Delete brand
-            </button>
-          )}
 
-          {deleteMessage && <p className="danger-message">{deleteMessage}</p>}
-        </div>
-      </section>
+            {showGeneratedFields && (
+              <div className="brand-profile-form-section ai-profile">
+                <div className="brand-profile-section-title">
+                  <div>
+                    <h4>AI profile</h4>
+                    <p>You can adjust these fields before saving.</p>
+                  </div>
+
+                  <span>Generated</span>
+                </div>
+
+                <label>Industry</label>
+                <textarea
+                  className="input prompt-textarea"
+                  placeholder="Example: Local service business helping homeowners with..."
+                  value={industry}
+                  onChange={(event) => setIndustry(event.target.value)}
+                  disabled={analyzing || saving || deletingBrand}
+                />
+
+                <label>Target audience</label>
+                <textarea
+                  className="input prompt-textarea"
+                  placeholder="Example: Customers who need..."
+                  value={targetAudience}
+                  onChange={(event) => setTargetAudience(event.target.value)}
+                  disabled={analyzing || saving || deletingBrand}
+                />
+              </div>
+            )}
+
+            <button
+              className="brand-profile-primary-button"
+              type="button"
+              onClick={handleMainSave}
+              disabled={saving || analyzing || deletingBrand || !brandProfileId}
+            >
+              {mainButtonLabel}
+            </button>
+
+            {message && <p className="brand-profile-message">{message}</p>}
+
+            <p className="brand-profile-disclaimer">
+              Campaign dates are suggested by AI and may vary by market, region
+              or year. You can edit or move campaign dates later in the
+              calendar.
+            </p>
+          </section>
+        </section>
+
+        <section className="danger-zone-card">
+          <div>
+            <p className="eyebrow danger-eyebrow">Danger zone</p>
+            <h3>Delete this brand</h3>
+            <p>
+              Permanently delete{" "}
+              <strong>{businessName || "this brand"}</strong>, including its
+              generated posts, saved plans, automation rules, website history,
+              campaign opportunities and social connection.
+            </p>
+            <p className="danger-zone-note">
+              This cannot be undone. You cannot delete your last remaining
+              brand.
+            </p>
+          </div>
+
+          <div className="danger-zone-actions">
+            {deleteStep ? (
+              <div className="delete-confirm-box">
+                <p>
+                  Are you sure you want to permanently delete{" "}
+                  <strong>{businessName || "this brand"}</strong>?
+                </p>
+
+                <div className="delete-confirm-actions">
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={handleDeleteConfirm}
+                    disabled={deletingBrand}
+                  >
+                    {deletingBrand ? "Deleting..." : "Yes, delete permanently"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={handleDeleteCancel}
+                    disabled={deletingBrand}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="danger-button"
+                onClick={handleDeleteStart}
+                disabled={deletingBrand}
+              >
+                Delete brand
+              </button>
+            )}
+
+            {deleteMessage && <p className="danger-message">{deleteMessage}</p>}
+          </div>
+        </section>
+      </div>
     </AppLayout>
   );
 }
