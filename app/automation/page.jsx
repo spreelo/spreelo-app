@@ -1659,16 +1659,36 @@ function createCampaignSlotsFromOpportunity({
         -daysBeforeEvent
       );
 
+      const enhancedPostPlanItem = buildCampaignPostPlanItem({
+        campaign,
+        postPlanItem,
+        index,
+        total: postPlan.length,
+        daysBeforeEvent,
+      });
+
+      const contentSourceMode = getCampaignContentSourceMode(
+        campaign,
+        enhancedPostPlanItem,
+        index,
+        postPlan.length
+      );
+
+      enhancedPostPlanItem.content_source_mode = contentSourceMode;
+
       return createSlot({
         startDate,
         weekday: getWeekdayFromDateString(startDate, timeZone),
         publishTime: defaultPublishTime,
-        prompt: buildCampaignPrompt(campaign, postPlanItem, index),
-        imagePrompt: buildCampaignImagePrompt(campaign, postPlanItem),
-        generateImage: index < 2,
+        prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
+        imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
+        generateImage:
+          index < 2 || shouldUseWebsiteContentForCampaign(contentSourceMode),
         contentTypeId: "manual_prompt",
         contentTypeLabel: campaign?.title || "Campaign post",
-        usesWebsiteContent: false,
+        usesWebsiteContent: shouldUseWebsiteContentForCampaign(
+          contentSourceMode
+        ),
         timeZone,
       });
     });
@@ -1692,16 +1712,34 @@ function createCampaignSlotsFromOpportunity({
       publishTime: defaultPublishTime,
     };
 
+    const enhancedPostPlanItem = buildCampaignPostPlanItem({
+      campaign,
+      postPlanItem,
+      index,
+      total: postPlan.length,
+      daysBeforeEvent: null,
+    });
+
+    const contentSourceMode = getCampaignContentSourceMode(
+      campaign,
+      enhancedPostPlanItem,
+      index,
+      postPlan.length
+    );
+
+    enhancedPostPlanItem.content_source_mode = contentSourceMode;
+
     return createSlot({
       startDate: schedule.startDate,
       weekday: schedule.weekday,
       publishTime: schedule.publishTime,
-      prompt: buildCampaignPrompt(campaign, postPlanItem, index),
-      imagePrompt: buildCampaignImagePrompt(campaign, postPlanItem),
-      generateImage: index < 2,
+      prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
+      imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
+      generateImage:
+        index < 2 || shouldUseWebsiteContentForCampaign(contentSourceMode),
       contentTypeId: "manual_prompt",
       contentTypeLabel: campaign?.title || "Campaign post",
-      usesWebsiteContent: false,
+      usesWebsiteContent: shouldUseWebsiteContentForCampaign(contentSourceMode),
       timeZone,
     });
   });
