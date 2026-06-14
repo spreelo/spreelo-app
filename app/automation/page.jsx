@@ -1726,6 +1726,70 @@ async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
 
   return defaultBrand?.id || "";
 }
+  async function loadCampaignOpportunityIntoPlanner({
+  currentUser,
+  selectedBrandId,
+  campaignOpportunityId,
+  selectedTimeZone,
+}) {
+  if (!campaignOpportunityId || !selectedBrandId) {
+    return;
+  }
+
+  const { data: campaign, error } = await supabase
+    .from("brand_campaign_opportunities")
+    .select("*")
+    .eq("id", campaignOpportunityId)
+    .eq("user_id", currentUser.id)
+    .eq("brand_profile_id", selectedBrandId)
+    .eq("is_active", true)
+    .eq("is_hidden", false)
+    .eq("is_archived", false)
+    .maybeSingle();
+
+  if (error) {
+    setMessage(error.message);
+    return;
+  }
+
+  if (!campaign) {
+    setMessage("Could not find this campaign opportunity for the selected brand.");
+    return;
+  }
+
+  const campaignTimeZone = selectedTimeZone || timeZone || DEFAULT_TIME_ZONE;
+
+  const campaignStartDate =
+    campaign.event_date ||
+    campaign.start_date ||
+    getDateInputValueInTimeZone(new Date(), campaignTimeZone);
+
+  const campaignPublishTime = getRecommendedTimeForDate(
+    campaignStartDate,
+    campaignTimeZone
+  );
+
+  const campaignSlots = createCampaignSlotsFromOpportunity({
+    campaign,
+    timeZone: campaignTimeZone,
+    defaultPublishTime: campaignPublishTime,
+  });
+
+  setCampaignOpportunity(campaign);
+  setPlanCreationMode("campaign");
+  setScheduleType("once");
+  setPlanName(campaign.title || "Campaign plan");
+  setLanguage(campaign.language || "Auto");
+  setPostType("Campaign");
+  setTone("Friendly");
+  setCtaType("Learn more");
+  setPlanStartDate(campaignSlots[0]?.startDate || campaignStartDate);
+  setDefaultPublishTime(campaignPublishTime);
+  setSlots(campaignSlots);
+  setExpandedInstructionSlotIds([]);
+  setSavedPlanSummary(null);
+  setMessage("");
+}
   async function loadRules() {
     setLoading(true);
 
