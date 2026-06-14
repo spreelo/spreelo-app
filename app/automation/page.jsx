@@ -1831,6 +1831,15 @@ if (!selectedBrandId) {
   return;
 }
 
+if (campaignOpportunityId) {
+  await loadCampaignOpportunityIntoPlanner({
+    currentUser: user,
+    selectedBrandId,
+    campaignOpportunityId,
+    selectedTimeZone: timeZone || DEFAULT_TIME_ZONE,
+  });
+}
+
 const { data, error } = await supabase
   .from("automation_rules")
   .select("*")
