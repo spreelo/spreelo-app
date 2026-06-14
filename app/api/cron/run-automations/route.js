@@ -1572,7 +1572,7 @@ async function prepareWebsiteContentForRule({
   }
 
   const pages = await fetchWebsitePages(websiteUrl);
-  const items = await extractWebsiteItems(openai, brandProfile, pages);
+const items = await extractWebsiteItems(openai, brandProfile, pages, rule);
 
   summary.website_items_found += items.length;
 
