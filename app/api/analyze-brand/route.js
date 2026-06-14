@@ -891,6 +891,9 @@ Rules:
 - Return 15 to 20 campaign opportunities when the brand is ecommerce, fashion, beauty, gifts, retail, food, restaurants, local services or product-based.
 - Return 10 to 20 campaign opportunities for other businesses, never more than 20.
 - Do not create finished social media posts.
+- Only create campaign opportunities for Calendar year ${campaignCalendarYear}.
+- Do not create campaign opportunities for previous or future calendar years.
+- Every event_date, start_date and end_date must be inside Calendar year ${campaignCalendarYear}. If an opportunity cannot be placed inside this year, omit it.
 - Only include opportunities that are genuinely useful for this business, industry and selected market.
 - For ecommerce, fashion, beauty, gifts, retail and product-based businesses, actively include relevant gift days, shopping days and seasonal buying moments when they fit the brand.
 - Do not exclude Mother's Day, Father's Day or Valentine's Day just because they are broad holidays. For ecommerce, fashion, beauty, gifts and retail brands, these are often strong sales opportunities when connected naturally to gifts, outfits, shoes, accessories, beauty, personal style or products.
