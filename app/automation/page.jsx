@@ -2665,11 +2665,13 @@ const rows = slots.map((slot) => {
                 <div className="planner-section-heading compact">
                   <div>
                     <h3>
-                      {planCreationMode === "auto"
-                        ? "Included in this plan"
-                        : planCreationMode === "select"
-                        ? "Selected content types"
-                        : "Manual prompt plan"}
+                     {planCreationMode === "campaign"
+  ? "Campaign posts"
+  : planCreationMode === "auto"
+  ? "Included in this plan"
+  : planCreationMode === "select"
+  ? "Selected content types"
+  : "Manual prompt plan"} 
                     </h3>
                     <p>
                       {planCreationMode === "auto"
