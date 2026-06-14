@@ -2374,67 +2374,86 @@ const { data: post, error: postError } = await supabase
   normalizeComparableValue(websiteItem.image_url)
 );
           summary.website_image_used += 1;
-        } else if (wantsImage) {
-          if (rule.uses_website_content) {
-            summary.website_image_missing_ai_fallback += 1;
-          }
+       } else if (wantsImage && rule.uses_website_content) {
+  summary.website_image_missing_ai_fallback += 1;
 
-          try {
-            const { imageBase64, imagePrompt } = await generateAutomationImage(
-              openai,
-              ruleWithBrandProfile,
-              generatedContent
-            );
+  finalImagePrompt =
+    "No verified website product image was found. AI image fallback is disabled for website product posts.";
 
-            const uploadedImage = await uploadGeneratedImageToStorage({
-              supabase,
-              imageBase64,
-              userId: rule.user_id,
-              postId: post.id,
-            });
+  const { error: noWebsiteImageUpdateError } = await supabase
+    .from("posts")
+    .update({
+      image_url: null,
+      image_storage_path: null,
+      image_status: "none",
+      image_prompt: finalImagePrompt,
+      updated_at: nowIso,
+    })
+    .eq("id", post.id);
 
-            imageUrl = uploadedImage.imageUrl;
-            imageStoragePath = uploadedImage.imageStoragePath;
-            finalImagePrompt = imagePrompt;
+  if (noWebsiteImageUpdateError) {
+    throw new Error(
+      noWebsiteImageUpdateError.message ||
+        "Could not update post without website image"
+    );
+  }
+} else if (wantsImage) {
+  try {
+    const { imageBase64, imagePrompt } = await generateAutomationImage(
+      openai,
+      ruleWithBrandProfile,
+      generatedContent
+    );
 
-            const { error: imageUpdateError } = await supabase
-              .from("posts")
-              .update({
-                image_url: imageUrl,
-                image_storage_path: imageStoragePath,
-                image_status: "ready",
-                image_prompt: finalImagePrompt,
-                updated_at: nowIso,
-              })
-              .eq("id", post.id);
+    const uploadedImage = await uploadGeneratedImageToStorage({
+      supabase,
+      imageBase64,
+      userId: rule.user_id,
+      postId: post.id,
+    });
 
-            if (imageUpdateError) {
-              throw new Error(
-                imageUpdateError.message || "Could not update post with image"
-              );
-            }
+    imageUrl = uploadedImage.imageUrl;
+    imageStoragePath = uploadedImage.imageStoragePath;
+    finalImagePrompt = imagePrompt;
 
-            summary.image_generated += 1;
-          } catch (imageError) {
-            console.error("Image generation failed", {
-              ruleId: rule.id,
-              postId: post.id,
-              message: imageError.message,
-            });
+    const { error: imageUpdateError } = await supabase
+      .from("posts")
+      .update({
+        image_url: imageUrl,
+        image_storage_path: imageStoragePath,
+        image_status: "ready",
+        image_prompt: finalImagePrompt,
+        updated_at: nowIso,
+      })
+      .eq("id", post.id);
 
-            await supabase
-              .from("posts")
-              .update({
-                image_status: "failed",
-                image_prompt: finalImagePrompt,
-                updated_at: nowIso,
-              })
-              .eq("id", post.id);
+    if (imageUpdateError) {
+      throw new Error(
+        imageUpdateError.message || "Could not update post with image"
+      );
+    }
 
-            summary.image_generation_failed += 1;
-            summary.warnings += 1;
-          }
-        }
+    summary.image_generated += 1;
+  } catch (imageError) {
+    console.error("Image generation failed", {
+      ruleId: rule.id,
+      postId: post.id,
+      message: imageError.message,
+    });
+
+    await supabase
+      .from("posts")
+      .update({
+        image_status: "failed",
+        image_prompt: finalImagePrompt,
+        updated_at: nowIso,
+      })
+      .eq("id", post.id);
+
+    summary.image_generation_failed += 1;
+    summary.warnings += 1;
+  }
+}
 
         if (rule.uses_website_content && websiteItem) {
           try {
