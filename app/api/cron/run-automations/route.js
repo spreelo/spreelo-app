@@ -562,6 +562,14 @@ Image quality rules:
 - Make the image suitable for both Facebook and Instagram feed use.
 - Keep the image clean, premium and easy to understand at a glance.
 
+Product image safety rules:
+- If this post is based on a specific website item but no real website image is being used, do not recreate, imitate or invent a product image.
+- Do not create fake versions of branded products, packaging, logos, mascots, characters, toy designs or trademarked styles.
+- Do not create fake LEGO, DUPLO, Paw Patrol, Disney, Marvel, Barbie, Pokemon, Nintendo or other branded product images.
+- If a real product image is not available from the website, create a generic unbranded lifestyle or campaign image that supports the occasion, feeling or use case instead.
+- The fallback image should not focus on the exact selected product. It should focus on the broader campaign theme, such as family time, gift giving, play, celebration, shopping inspiration or seasonal atmosphere.
+- For product-based website posts, never make the AI image look like an official product photo unless the image is the original website image.
+
 Output only the image.
 `.trim();
 }
