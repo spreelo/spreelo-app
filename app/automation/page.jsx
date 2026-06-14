@@ -1626,7 +1626,39 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
     .filter(Boolean)
     .join("\n\n");
 }
+function buildCampaignSummary(campaign, postPlanItem, index) {
+  const campaignTitle = campaign?.title || "campaign";
+  const postRole = postPlanItem?.role || `Campaign post ${index + 1}`;
+  const postPurpose =
+    postPlanItem?.purpose || "Create a useful campaign-related post.";
 
+  const daysBeforeEvent =
+    typeof postPlanItem?.days_before_event === "number"
+      ? postPlanItem.days_before_event
+      : null;
+
+  if (campaign?.event_date && typeof daysBeforeEvent === "number") {
+    if (daysBeforeEvent === 0) {
+      return `Highlights ${campaignTitle} on the day itself and makes the campaign feel timely and relevant.`;
+    }
+
+    if (daysBeforeEvent === 1) {
+      return `Creates a final reminder that ${campaignTitle} is tomorrow and gives the audience a clear reason to act or engage.`;
+    }
+
+    if (daysBeforeEvent <= 3) {
+      return `Creates urgency because ${campaignTitle} is very close, while keeping the message helpful and natural.`;
+    }
+
+    if (daysBeforeEvent <= 7) {
+      return `Reminds the audience that ${campaignTitle} is coming soon and connects the day to a useful idea, product or service.`;
+    }
+
+    return `Introduces ${campaignTitle} early and starts building interest before the day arrives.`;
+  }
+
+  return `${postRole}: ${postPurpose}`;
+}
 function buildCampaignImagePrompt(campaign, postPlanItem) {
   const campaignTitle = campaign?.title || "campaign";
   const postRole = postPlanItem?.role || "campaign post";
