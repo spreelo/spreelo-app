@@ -736,6 +736,7 @@ usesWebsiteContent: Boolean(overrides.usesWebsiteContent),
 isCampaignSlot: Boolean(overrides.isCampaignSlot),
 campaignRole: overrides.campaignRole || "",
 campaignSummary: overrides.campaignSummary || "",
+dateLocked: Boolean(overrides.dateLocked),
   };
 }
 
