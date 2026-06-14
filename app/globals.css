@@ -6736,3 +6736,27 @@ select.input {
     width: 100%;
   }
 }
+.planner-campaign-count-box {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  background: #f3f0ff;
+  color: #5b21b6;
+  border: 1px solid rgba(124, 58, 237, 0.16);
+}
+
+.planner-campaign-count-box strong {
+  color: #5b21b6;
+  font-size: 24px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.planner-campaign-count-box span {
+  color: #5b21b6;
+  font-size: 13px;
+  font-weight: 900;
+}
