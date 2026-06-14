@@ -3351,14 +3351,22 @@ const rows = slots.map((slot) => {
                   <strong>{formatPlanMode(planCreationMode)}</strong>
                 </div>
 
-                <div>
-                  <span>Posts per week</span>
-                  <strong>
-                    {scheduleType === "weekly"
-                      ? `${slots.length} posts`
-                      : "One time"}
-                  </strong>
-                </div>
+<div>
+  <span>
+    {planCreationMode === "campaign"
+      ? "Planned posts"
+      : scheduleType === "weekly"
+      ? "Posts per week"
+      : "Planned posts"}
+  </span>
+  <strong>
+    {planCreationMode === "campaign"
+      ? `${slots.length} posts`
+      : scheduleType === "weekly"
+      ? `${slots.length} posts`
+      : `${slots.length} post${slots.length === 1 ? "" : "s"}`}
+  </strong>
+</div>
 
                 <div>
                   <span>Start</span>
