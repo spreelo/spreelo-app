@@ -3307,19 +3307,26 @@ ${slot.campaignSummary}`
                           <span>{displayDescription}</span>
                         </div>
 
-                        <div className="planner-post-date">
-                          <DatePickerField
-                            value={slot.startDate}
-                            onChange={(value) =>
-                              updateSlot(slot.id, "startDate", value)
-                            }
-                            pickerId={`slot-date-${slot.id}`}
-                            openPickerId={openPickerId}
-                            setOpenPickerId={setOpenPickerId}
-                            timeZone={timeZone}
-                            compact
-                          />
-                        </div>
+                      <div className="planner-post-date">
+  {slot.dateLocked ? (
+    <div className="locked-campaign-date">
+      <strong>{formatStartDateLabel(slot.startDate, timeZone)}</strong>
+      <span>Locked campaign date</span>
+    </div>
+  ) : (
+    <DatePickerField
+      value={slot.startDate}
+      onChange={(value) =>
+        updateSlot(slot.id, "startDate", value)
+      }
+      pickerId={`slot-date-${slot.id}`}
+      openPickerId={openPickerId}
+      setOpenPickerId={setOpenPickerId}
+      timeZone={timeZone}
+      compact
+    />
+  )}
+</div>
 
                         <div className="planner-post-time">
                           <TimePickerField
