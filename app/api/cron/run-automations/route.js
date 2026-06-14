@@ -360,6 +360,8 @@ Important website item rules:
 - Base this post on the selected website item above.
 - Use only details that are present in the selected item information.
 - Do not invent prices, discounts, guarantees, availability, dates, addresses, square meters, specifications or claims.
+- If a price is provided above, you may mention it in the post.
+- If no price is provided above, do not mention a price.
 - If information is missing, write around the value and benefit instead of inventing facts.
 `.trim();
 }
