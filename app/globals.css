@@ -6097,3 +6097,50 @@ select.input {
     grid-template-columns: 1fr;
   }
 }
+/* ===== Brand profile analyzing state ===== */
+
+.brand-profile-analyzing-card {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 13px;
+  align-items: start;
+  margin-top: 14px;
+  padding: 15px;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.12), transparent 34%),
+    #f8f7ff;
+  border: 1px solid rgba(124, 58, 237, 0.16);
+  color: #111827;
+}
+
+.brand-profile-analyzing-card strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.brand-profile-analyzing-card p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.brand-profile-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 3px solid rgba(124, 58, 237, 0.16);
+  border-top-color: #6d28d9;
+  animation: brand-profile-spin 0.85s linear infinite;
+}
+
+@keyframes brand-profile-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
