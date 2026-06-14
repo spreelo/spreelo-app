@@ -1311,7 +1311,7 @@ function normalizeWebsiteItem(item, websiteUrl) {
   };
 }
 
-async function extractWebsiteItems(openai, brandProfile, pages) {
+async function extractWebsiteItems(openai, brandProfile, pages, rule = null) {
   const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
   const analysisInput = buildWebsiteAnalysisInput({ brandProfile, pages });
 
