@@ -5,10 +5,11 @@ import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 
 const marketOptions = [
-  { label: "Sweden", countryCode: "SE", language: "Swedish" },
+  { label: "International / Global", countryCode: "GLOBAL", language: "English" },
   { label: "United States", countryCode: "US", language: "English" },
   { label: "United Kingdom", countryCode: "GB", language: "English" },
   { label: "Germany", countryCode: "DE", language: "German" },
+  { label: "Sweden", countryCode: "SE", language: "Swedish" },
   { label: "Denmark", countryCode: "DK", language: "Danish" },
   { label: "Norway", countryCode: "NO", language: "Norwegian" },
   { label: "Finland", countryCode: "FI", language: "Finnish" },
@@ -21,7 +22,6 @@ const marketOptions = [
   { label: "India", countryCode: "IN", language: "English" },
   { label: "United Arab Emirates", countryCode: "AE", language: "English" },
   { label: "Iran", countryCode: "IR", language: "Persian" },
-  { label: "International / Global", countryCode: "GLOBAL", language: "English" },
   { label: "Other", countryCode: "OTHER", language: "English" },
 ];
 
