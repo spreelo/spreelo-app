@@ -1149,6 +1149,10 @@ function getPlanIncludedContentTypes({
   autoPlanGoal,
   selectedContentTypeIds,
 }) {
+  if (planCreationMode === "campaign") {
+    return [getContentTypeById("manual_prompt")].filter(Boolean);
+  }
+
   if (planCreationMode === "manual") {
     return [getContentTypeById("manual_prompt")].filter(Boolean);
   }
@@ -1164,7 +1168,6 @@ function getPlanIncludedContentTypes({
     .filter(Boolean)
     .slice(0, 5);
 }
-
 function getSlotScheduleSummary(slot, scheduleType, timeZone) {
   const startLabel = formatStartDateLabel(slot.startDate, timeZone);
   const weekday = getWeekdayFromDateString(slot.startDate, timeZone);
