@@ -1313,13 +1313,14 @@ const price = String(item?.price || "").trim();
     return null;
   }
 
-  return {
-    title,
-    description: truncateText(description, 900),
-    type,
-    url: url || websiteUrl,
-    image_url: imageUrl && isHttpUrl(imageUrl) ? imageUrl : null,
-  };
+return {
+  title,
+  description: truncateText(description, 900),
+  price,
+  type,
+  url: url || websiteUrl,
+  image_url: imageUrl && isHttpUrl(imageUrl) ? imageUrl : null,
+};
 }
 
 async function extractWebsiteItems(openai, brandProfile, pages, rule = null) {
