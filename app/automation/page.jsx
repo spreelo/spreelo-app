@@ -1572,10 +1572,21 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
     campaign?.prompt_context ||
     campaign?.description ||
     "Create a campaign-related social media post.";
+
   const postRole = postPlanItem?.role || `Campaign post ${index + 1}`;
   const postPurpose =
     postPlanItem?.purpose || "Create a useful campaign-related post.";
+
   const relevanceReason = campaign?.relevance_reason || "";
+  const daysBeforeEvent =
+    typeof postPlanItem?.days_before_event === "number"
+      ? postPlanItem.days_before_event
+      : null;
+
+  const sourceMode =
+    postPlanItem?.content_source_mode ||
+    getCampaignContentSourceMode(campaign, postPlanItem, index, 5);
+
   const languageInstruction = campaign?.language
     ? `Write the post in ${campaign.language}.`
     : "Use the best language for the brand.";
@@ -1585,11 +1596,15 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
     `Campaign timing: ${campaignDate}.`,
     `Post role: ${postRole}.`,
     `Post purpose: ${postPurpose}.`,
+    getCampaignTimingInstruction(campaign, daysBeforeEvent),
     `Campaign context: ${campaignContext}`,
+    getCampaignSourceInstruction(sourceMode),
     relevanceReason ? `Why this fits the brand: ${relevanceReason}` : "",
     languageInstruction,
-    "Make the post clearly connected to this campaign, but do not invent discounts, prices, events, guarantees, offers, locations or claims that are not known.",
-    "Make it useful, trustworthy and natural for social media.",
+    "This post must feel clearly connected to the campaign day, theme or celebration.",
+    "Make this post different from the other campaign posts. Do not repeat the same angle.",
+    "Do not invent discounts, prices, events, guarantees, delivery promises, opening hours, locations or product claims that are not known.",
+    "Make it useful, trustworthy, natural and suitable for social media.",
   ]
     .filter(Boolean)
     .join("\n\n");
