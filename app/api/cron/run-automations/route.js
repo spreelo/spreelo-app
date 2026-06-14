@@ -1308,7 +1308,7 @@ function normalizeWebsiteItem(item, websiteUrl) {
   const type = String(item?.type || "website_item").trim();
   const url = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
   const imageUrl = item?.image_url ? resolveUrl(item.image_url, websiteUrl) : null;
-
+const price = String(item?.price || "").trim();
   if (!title || !description) {
     return null;
   }
