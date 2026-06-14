@@ -162,17 +162,20 @@ export default function AppLayout({ active, children }) {
     setCreatingBrand(true);
 
     const { data, error } = await supabase
-      .from("brand_profiles")
-      .insert({
-        user_id: user.id,
-        business_name: trimmedBrandName,
-        website_url: "",
-        brand_description: "",
-        industry: "",
-        target_audience: "",
-        is_default: brandProfiles.length === 0,
-        updated_at: new Date().toISOString(),
-      })
+  .from("brand_profiles")
+  .insert({
+    user_id: user.id,
+    business_name: trimmedBrandName,
+    website_url: "",
+    brand_description: "",
+    industry: "",
+    target_audience: "",
+    content_market: "International / Global",
+    country_code: "GLOBAL",
+    content_language: "English",
+    is_default: brandProfiles.length === 0,
+    updated_at: new Date().toISOString(),
+  })
       .select("id, business_name, is_default, created_at")
       .single();
 
