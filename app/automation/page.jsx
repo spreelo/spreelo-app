@@ -1802,10 +1802,21 @@ async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
       return;
     }
 
-    let selectedBrandId = "";
+const searchParams =
+  typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : null;
+
+const campaignOpportunityId = searchParams?.get("campaignOpportunityId") || "";
+const requestedBrandProfileId = searchParams?.get("brandProfileId") || "";
+
+let selectedBrandId = "";
 
 try {
-  selectedBrandId = await getCurrentBrandIdForUser(user);
+  selectedBrandId = await getCurrentBrandIdForUser(
+    user,
+    requestedBrandProfileId
+  );
   setCurrentBrandId(selectedBrandId);
 } catch (error) {
   setMessage(error.message || "Could not load selected brand.");
