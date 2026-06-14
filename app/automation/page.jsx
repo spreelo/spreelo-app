@@ -2353,7 +2353,7 @@ function addCampaignSlot() {
       publishTime,
       prompt: buildCampaignPrompt(campaignOpportunity, postPlanItem, nextIndex),
       imagePrompt: buildCampaignImagePrompt(campaignOpportunity, postPlanItem),
-      generateImage: shouldUseWebsiteContentForCampaign(contentSourceMode),
+     generateImage: true,
      contentTypeId: "manual_prompt",
 contentTypeLabel: campaignOpportunity.title || "Campaign post",
 usesWebsiteContent: shouldUseWebsiteContentForCampaign(contentSourceMode),
