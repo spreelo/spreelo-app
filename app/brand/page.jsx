@@ -25,7 +25,6 @@ const marketOptions = [
   { label: "Australia", countryCode: "AU", language: "English" },
   { label: "India", countryCode: "IN", language: "English" },
   { label: "United Arab Emirates", countryCode: "AE", language: "English" },
-  { label: "Iran", countryCode: "IR", language: "Persian" },
   { label: "Other", countryCode: "OTHER", language: "English" },
 ];
 
@@ -40,7 +39,6 @@ const languageOptions = [
   "French",
   "Spanish",
   "Italian",
-  "Persian",
   "Arabic",
   "Hindi",
   "Other",
