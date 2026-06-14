@@ -298,12 +298,16 @@ function normalizeCampaignOpportunities(rawOpportunities, fallbackYear) {
       fallbackYear
     );
 
-    if (!normalizedOpportunity) {
-      continue;
-    }
+   if (!normalizedOpportunity) {
+  continue;
+}
 
-    let finalSlug =
-      normalizedOpportunity.slug || slugify(normalizedOpportunity.title);
+if (normalizedOpportunity.event_year !== fallbackYear) {
+  continue;
+}
+
+let finalSlug =
+  normalizedOpportunity.slug || slugify(normalizedOpportunity.title);
 
     if (!finalSlug) {
       finalSlug = `campaign-${normalizedOpportunities.length + 1}`;
