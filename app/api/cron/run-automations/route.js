@@ -1353,6 +1353,13 @@ Rules:
 - For image_url, choose an image that seems directly connected to the item.
 - Avoid logos, icons, banners, hero images and decorative images when possible.
 - If no relevant image is found for an item, use null.
+- Rank the returned items from most relevant to least relevant for the current automation context.
+- If the automation context contains a Product selection hint, use that hint when deciding which items are relevant.
+- For gift days and shopping occasions, consider who buys the item, who receives it, and why the item fits the occasion.
+- Do not return unrelated random products just because they exist on the website.
+- If this is a Valentine's Day campaign for a grocery store, prefer items such as chocolate, flowers, desserts, strawberries, bakery items, dinner ingredients, gift baskets or cozy meal ideas over unrelated groceries.
+- If this is a Father's Day campaign for a toy store, prefer board games, family games, building sets, puzzles, outdoor play, hobby kits or products children and parents can enjoy together over unrelated baby toys or random toys.
+- If no website item fits the automation context, still return generally usable items, but put the closest matches first.
 - Return 3 to 15 items if possible.
 
 Return JSON in this exact shape:
