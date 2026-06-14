@@ -2757,7 +2757,13 @@ const rows = slots.map((slot) => {
           `${slotWeekday} ${slot.publishTime}`,
         weekday: slotWeekday,
         publish_time: slot.publishTime,
-        prompt: slot.prompt,
+        prompt:
+  slot.isCampaignSlot && slot.campaignSummary
+    ? `${slot.prompt}
+
+Post idea visible to customer:
+${slot.campaignSummary}`
+    : slot.prompt,
         platform,
         tone,
         language,
