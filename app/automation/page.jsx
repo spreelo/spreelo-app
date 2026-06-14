@@ -1809,10 +1809,11 @@ function createCampaignSlotsFromOpportunity({
 generateImage:
   index < 2 ||
   shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
-       contentTypeId: "manual_prompt",
+contentTypeId: "manual_prompt",
 contentTypeLabel: campaign?.title || "Campaign post",
 usesWebsiteContent: shouldUseWebsiteContentForCampaign(
-  contentSourceMode
+  contentSourceMode,
+  campaign
 ),
 isCampaignSlot: true,
 campaignRole: enhancedPostPlanItem.role || "Campaign post",
