@@ -43,7 +43,13 @@ const languageOptions = [
   "Hindi",
   "Other",
 ];
-
+const analyzingSteps = [
+  "Fetching website content...",
+  "Understanding your business...",
+  "Finding useful campaign opportunities...",
+  "Creating your campaign calendar...",
+  "Saving everything to your brand profile...",
+];
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
