@@ -1503,7 +1503,19 @@ function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
   return "generic_campaign";
 }
 
-function shouldUseWebsiteContentForCampaign(sourceMode) {
+function shouldUseWebsiteContentForCampaign(sourceMode, campaign = null) {
+  const websiteContentFit = String(
+    campaign?.website_content_fit || ""
+  ).toLowerCase();
+
+  const websiteContentStrategy = String(
+    campaign?.website_content_strategy || ""
+  ).toLowerCase();
+
+  if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
+    return false;
+  }
+
   return [
     "website_product",
     "website_service",
