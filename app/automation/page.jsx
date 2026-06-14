@@ -1861,7 +1861,10 @@ timeZone,
   shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
 contentTypeId: "manual_prompt",
 contentTypeLabel: campaign?.title || "Campaign post",
-usesWebsiteContent: shouldUseWebsiteContentForCampaign(contentSourceMode),
+usesWebsiteContent: shouldUseWebsiteContentForCampaign(
+  contentSourceMode,
+  campaign
+),
 isCampaignSlot: true,
 campaignRole: enhancedPostPlanItem.role || "Campaign post",
 campaignSummary: buildCampaignSummary(
@@ -2420,7 +2423,10 @@ function addCampaignSlot() {
      generateImage: true,
      contentTypeId: "manual_prompt",
 contentTypeLabel: campaignOpportunity.title || "Campaign post",
-usesWebsiteContent: shouldUseWebsiteContentForCampaign(contentSourceMode),
+usesWebsiteContent: shouldUseWebsiteContentForCampaign(
+  contentSourceMode,
+  campaign
+),
 isCampaignSlot: true,
 campaignRole: postPlanItem.role || "Campaign post",
 campaignSummary: buildCampaignSummary(
