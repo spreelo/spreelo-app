@@ -1591,17 +1591,31 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
     ? `Write the post in ${campaign.language}.`
     : "Use the best language for the brand.";
 
+  const timingInstruction = getCampaignTimingInstruction(
+    campaign,
+    daysBeforeEvent
+  );
+
+  const visibleOpening = campaign?.event_date
+    ? daysBeforeEvent === 0
+      ? `This is the campaign-day post for ${campaignTitle}. Clearly highlight that today is ${campaignTitle}.`
+      : daysBeforeEvent === 1
+      ? `This is the final reminder before ${campaignTitle}. Mention that ${campaignTitle} is tomorrow.`
+      : `This post is ${daysBeforeEvent} days before ${campaignTitle}. Use that timing as the main angle.`
+    : `This is a flexible-date campaign post. Do not mention days left. Focus on this specific role: ${postRole}.`;
+
   return [
-    `Create one social media post for the campaign: ${campaignTitle}.`,
-    `Campaign timing: ${campaignDate}.`,
+    visibleOpening,
     `Post role: ${postRole}.`,
     `Post purpose: ${postPurpose}.`,
-    getCampaignTimingInstruction(campaign, daysBeforeEvent),
+    `Campaign: ${campaignTitle}.`,
+    `Campaign timing: ${campaignDate}.`,
+    timingInstruction,
     `Campaign context: ${campaignContext}`,
     getCampaignSourceInstruction(sourceMode),
     relevanceReason ? `Why this fits the brand: ${relevanceReason}` : "",
     languageInstruction,
-    "This post must feel clearly connected to the campaign day, theme or celebration.",
+    "This post must clearly lift up the campaign theme, day or celebration.",
     "Make this post different from the other campaign posts. Do not repeat the same angle.",
     "Do not invent discounts, prices, events, guarantees, delivery promises, opening hours, locations or product claims that are not known.",
     "Make it useful, trustworthy, natural and suitable for social media.",
