@@ -1605,6 +1605,7 @@ async function prepareWebsiteContentForRule({
   rule,
   brandProfile,
   summary,
+  usedWebsiteImageUrlsThisRun = new Set(),
 }) {
   if (!rule.uses_website_content) {
     return {
