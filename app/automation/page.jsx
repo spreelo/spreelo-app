@@ -2674,11 +2674,13 @@ const rows = slots.map((slot) => {
   : "Manual prompt plan"} 
                     </h3>
                     <p>
-                      {planCreationMode === "auto"
-                        ? "Spreelo balances this content mix automatically to match your goal."
-                        : planCreationMode === "select"
-                        ? "These post types will be used when the plan is saved."
-                        : "Write your own instructions in the planned post below."}
+{planCreationMode === "campaign"
+  ? "Spreelo has created a campaign-specific sequence based on the selected opportunity."
+  : planCreationMode === "auto"
+  ? "Spreelo balances this content mix automatically to match your goal."
+  : planCreationMode === "select"
+  ? "These post types will be used when the plan is saved."
+  : "Write your own instructions in the planned post below."}
                     </p>
                   </div>
                 </div>
