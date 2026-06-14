@@ -3307,11 +3307,19 @@ ${slot.campaignSummary}`
                           <span>{displayDescription}</span>
                         </div>
 
-                      <div className="planner-post-date">
+       <div className="planner-post-date">
   {slot.dateLocked ? (
     <div className="locked-campaign-date">
       <strong>{formatStartDateLabel(slot.startDate, timeZone)}</strong>
       <span>Locked campaign date</span>
+
+      <button
+        type="button"
+        className="unlock-campaign-date-button"
+        onClick={() => updateSlot(slot.id, "dateLocked", false)}
+      >
+        Unlock
+      </button>
     </div>
   ) : (
     <DatePickerField
