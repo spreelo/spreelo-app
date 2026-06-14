@@ -1808,6 +1808,7 @@ campaignSummary: buildCampaignSummary(
   enhancedPostPlanItem,
   index
 ),
+dateLocked: true,
 timeZone,
     });
   });
