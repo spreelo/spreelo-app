@@ -1156,6 +1156,7 @@ function getSlotCreditLabel(slot) {
 function getContentTypeIcon(typeId) {
   const icons = {
     website_item: "🛒",
+    problem_solution: "⚡",
     tips: "💡",
     mistakes: "!",
     faq: "?",
