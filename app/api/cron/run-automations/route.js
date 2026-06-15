@@ -2187,13 +2187,19 @@ async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
   const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
 
   if (!websiteUrl) {
-    return [];
+    return {
+      products: [],
+      discoveryPages: [],
+    };
   }
 
   const websiteHost = getHostnameWithoutWww(websiteUrl);
 
   if (!websiteHost) {
-    return [];
+    return {
+      products: [],
+      discoveryPages: [],
+    };
   }
 
   const campaignPrompt = String(rule?.prompt || "").trim();
@@ -2203,7 +2209,7 @@ async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
     tools: [{ type: "web_search" }],
     tool_choice: "required",
     input: `
-Search the web and find 8 real product pages from this exact customer website that could match the campaign.
+Search the web for real product pages and useful product category pages from this exact customer website.
 
 Customer website:
 ${websiteUrl}
@@ -2217,21 +2223,25 @@ ${formatBrandProfileForPrompt(brandProfile)}
 Campaign / automation prompt:
 ${campaignPrompt || "No specific campaign prompt was provided. Choose strong concrete products from the customer's website that would work well in social media sales posts."}
 
-Strict rules:
+Main goal:
+Find real products that can be promoted in a social media post.
+
+Rules for products:
 - Return only real product pages from the allowed customer domain.
 - Do not return products from other domains.
 - Do not return the homepage.
-- Do not return category pages.
 - Do not return blog posts.
-- Do not return campaign landing pages.
 - Do not return search pages.
 - Do not return cart or checkout pages.
 - Do not guess URLs.
 - Prefer product pages that have clear product images.
 - Return several alternatives, not just one.
-- If the first product is uncertain, still include other stronger alternatives.
-- If this is a theme day, holiday or campaign, choose products that strongly fit the theme, buyer intent and recipient.
-- If this is a general "sell something from website" automation, choose concrete products that seem strong, relevant and easy to promote.
+
+Rules for discovery_pages:
+- If direct product pages are hard to find, return relevant category, brand or collection pages from the customer website.
+- Discovery pages may be category pages, brand pages or product listing pages.
+- Discovery pages must still be on the allowed customer domain.
+- Do not include homepage, blog, customer service, FAQ, cart, checkout or search pages.
 
 Father's Day guidance:
 - For toy and game stores, prefer adult-friendly or family-friendly gifts.
@@ -2248,6 +2258,13 @@ Return strict JSON only in this exact shape:
       "price": "Visible price if clearly found, otherwise empty string",
       "reason": "Short reason why this product fits"
     }
+  ],
+  "discovery_pages": [
+    {
+      "title": "Category, brand or listing page title",
+      "url": "Full URL",
+      "reason": "Why this page may contain relevant products"
+    }
   ]
 }
 `.trim(),
@@ -2257,6 +2274,9 @@ Return strict JSON only in this exact shape:
   const parsed = safeJsonParse(content);
 
   const rawProducts = Array.isArray(parsed?.products) ? parsed.products : [];
+  const rawDiscoveryPages = Array.isArray(parsed?.discovery_pages)
+    ? parsed.discovery_pages
+    : [];
 
   const validProducts = [];
 
@@ -2295,7 +2315,34 @@ Return strict JSON only in this exact shape:
     });
   }
 
-  return validProducts.slice(0, 8);
+  const validDiscoveryPages = [];
+
+  for (const page of rawDiscoveryPages) {
+    const pageUrl = String(page?.url || "").trim();
+
+    if (!pageUrl || !isHttpUrl(pageUrl)) {
+      continue;
+    }
+
+    if (!isSameOrSubdomainUrl(pageUrl, websiteUrl)) {
+      continue;
+    }
+
+    if (isLikelyBadDiscoveryPageUrl(pageUrl, websiteUrl)) {
+      continue;
+    }
+
+    validDiscoveryPages.push({
+      title: String(page?.title || "").trim(),
+      url: pageUrl,
+      reason: String(page?.reason || "").trim(),
+    });
+  }
+
+  return {
+    products: dedupeUrlItems(validProducts).slice(0, 8),
+    discoveryPages: dedupeUrlItems(validDiscoveryPages).slice(0, 6),
+  };
 }
 
 async function findWebsiteProductWithWebSearch({
