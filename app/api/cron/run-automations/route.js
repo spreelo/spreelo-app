@@ -2219,11 +2219,14 @@ async function findProductUrlWithWebSearch({
 
   const isBackupAttempt = attempt === "backup_broad";
 
-  const response = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    tools: [{ type: "web_search" }],
-    tool_choice: "required",
-    input: `
+const response = await openai.responses.create({
+  model: "gpt-5.5",
+  tools: [{ type: "web_search" }],
+  tool_choice: "required",
+  reasoning: {
+    effort: "medium",
+  },
+  input: `
 You are a product researcher for a social media automation app.
 
 Your job:
