@@ -1644,6 +1644,448 @@ async function chooseUnusedWebsiteItem({
     useWebsiteImage: hasFreshWebsiteImage(fallbackItem),
   };
 }
+function getHostnameWithoutWww(value) {
+  try {
+    return new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function isSameOrSubdomainUrl(candidateUrl, websiteUrl) {
+  const candidateHost = getHostnameWithoutWww(candidateUrl);
+  const websiteHost = getHostnameWithoutWww(websiteUrl);
+
+  if (!candidateHost || !websiteHost) {
+    return false;
+  }
+
+  return candidateHost === websiteHost || candidateHost.endsWith(`.${websiteHost}`);
+}
+
+function isLikelyNonProductUrl(value, websiteUrl) {
+  try {
+    const url = new URL(value);
+    const path = url.pathname.toLowerCase();
+
+    if (!path || path === "/" || isWeakItemUrl(value, websiteUrl)) {
+      return true;
+    }
+
+    const blockedPathParts = [
+      "/blog",
+      "/news",
+      "/nyheter",
+      "/article",
+      "/artiklar",
+      "/cart",
+      "/checkout",
+      "/kundvagn",
+      "/kassa",
+      "/account",
+      "/login",
+      "/sign-in",
+      "/privacy",
+      "/integritet",
+      "/cookie",
+      "/terms",
+      "/villkor",
+      "/contact",
+      "/kontakt",
+      "/about",
+      "/om-oss",
+      "/search",
+      "/sok",
+      "/sök",
+    ];
+
+    return blockedPathParts.some((part) => path.includes(part));
+  } catch {
+    return true;
+  }
+}
+
+function isBadProductImageUrl(value) {
+  const lowerUrl = String(value || "").toLowerCase();
+
+  if (!lowerUrl) {
+    return true;
+  }
+
+  return (
+    lowerUrl.includes("logo") ||
+    lowerUrl.includes("favicon") ||
+    lowerUrl.includes("icon") ||
+    lowerUrl.includes("sprite") ||
+    lowerUrl.includes("placeholder") ||
+    lowerUrl.includes("banner") ||
+    lowerUrl.includes("hero") ||
+    lowerUrl.includes("background") ||
+    lowerUrl.endsWith(".svg")
+  );
+}
+
+function normalizeJsonLdType(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || "").toLowerCase());
+  }
+
+  return [String(value || "").toLowerCase()];
+}
+
+function flattenJsonLd(value) {
+  const items = [];
+
+  function walk(node) {
+    if (!node) {
+      return;
+    }
+
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        walk(child);
+      }
+
+      return;
+    }
+
+    if (typeof node !== "object") {
+      return;
+    }
+
+    items.push(node);
+
+    if (Array.isArray(node["@graph"])) {
+      walk(node["@graph"]);
+    }
+
+    if (Array.isArray(node.itemListElement)) {
+      walk(node.itemListElement);
+    }
+  }
+
+  walk(value);
+
+  return items;
+}
+
+function extractJsonLdObjects(html) {
+  const objects = [];
+  const scriptRegex =
+    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+
+  let match;
+
+  while ((match = scriptRegex.exec(String(html || ""))) !== null) {
+    const rawJson = decodeHtmlEntities(match[1] || "").trim();
+
+    if (!rawJson) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(rawJson);
+      objects.push(...flattenJsonLd(parsed));
+    } catch {
+      // Ignore invalid JSON-LD blocks.
+    }
+  }
+
+  return objects;
+}
+
+function findJsonLdProduct(html) {
+  const objects = extractJsonLdObjects(html);
+
+  return (
+    objects.find((item) =>
+      normalizeJsonLdType(item?.["@type"]).some((type) => type.includes("product"))
+    ) || null
+  );
+}
+
+function getProductImageFromJsonLd(product, pageUrl) {
+  const image = product?.image;
+
+  if (!image) {
+    return null;
+  }
+
+  let imageUrl = "";
+
+  if (typeof image === "string") {
+    imageUrl = image;
+  } else if (Array.isArray(image)) {
+    const firstImage = image[0];
+
+    if (typeof firstImage === "string") {
+      imageUrl = firstImage;
+    } else if (firstImage?.url) {
+      imageUrl = firstImage.url;
+    }
+  } else if (image?.url) {
+    imageUrl = image.url;
+  }
+
+  const resolvedUrl = imageUrl ? resolveUrl(imageUrl, pageUrl) : null;
+
+  if (!resolvedUrl || !isHttpUrl(resolvedUrl) || isBadProductImageUrl(resolvedUrl)) {
+    return null;
+  }
+
+  return resolvedUrl;
+}
+
+function getProductPriceFromJsonLd(product) {
+  const offers = Array.isArray(product?.offers)
+    ? product.offers[0]
+    : product?.offers;
+
+  const price = offers?.price || offers?.lowPrice || offers?.highPrice || "";
+  const currency = offers?.priceCurrency || "";
+
+  if (!price) {
+    return "";
+  }
+
+  return `${price}${currency ? ` ${currency}` : ""}`.trim();
+}
+
+function extractProductPriceFromHtml(html) {
+  const metaPrice = getMetaContent(html, [
+    "product:price:amount",
+    "og:price:amount",
+    "twitter:data1",
+  ]);
+
+  const metaCurrency = getMetaContent(html, [
+    "product:price:currency",
+    "og:price:currency",
+  ]);
+
+  if (metaPrice) {
+    return `${metaPrice}${metaCurrency ? ` ${metaCurrency}` : ""}`.trim();
+  }
+
+  const text = stripHtmlToText(html);
+  const priceMatch = text.match(/(?:\d{1,3}(?:[ .]\d{3})*|\d+)(?:[,.]\d{1,2})?\s?(?:kr|sek|:-)/i);
+
+  return priceMatch?.[0] ? priceMatch[0].trim() : "";
+}
+
+function extractBestProductImageFromHtml(html, pageUrl) {
+  const product = findJsonLdProduct(html);
+  const jsonLdImage = getProductImageFromJsonLd(product, pageUrl);
+
+  if (jsonLdImage) {
+    return jsonLdImage;
+  }
+
+  const ogImage = getMetaContent(html, ["og:image", "twitter:image"]);
+  const resolvedOgImage = ogImage ? resolveUrl(ogImage, pageUrl) : null;
+
+  if (
+    resolvedOgImage &&
+    isHttpUrl(resolvedOgImage) &&
+    !isBadProductImageUrl(resolvedOgImage)
+  ) {
+    return resolvedOgImage;
+  }
+
+  const imageCandidates = extractImageCandidates(html, pageUrl);
+
+  const bestImage = imageCandidates.find(
+    (image) => image?.url && !isBadProductImageUrl(image.url)
+  );
+
+  return bestImage?.url || null;
+}
+
+async function extractProductDataFromProductPage({
+  productUrl,
+  websiteUrl,
+  webSearchProduct,
+}) {
+  const html = await fetchHtml(productUrl);
+  const product = findJsonLdProduct(html);
+
+  const title =
+    String(product?.name || "").trim() ||
+    String(webSearchProduct?.title || "").trim() ||
+    extractPageTitle(html);
+
+  const metaDescription = getMetaContent(html, [
+    "description",
+    "og:description",
+    "twitter:description",
+  ]);
+
+  const description =
+    String(product?.description || "").trim() ||
+    String(metaDescription || "").trim() ||
+    truncateText(stripHtmlToText(html), 700);
+
+  const price =
+    String(webSearchProduct?.price || "").trim() ||
+    getProductPriceFromJsonLd(product) ||
+    extractProductPriceFromHtml(html);
+
+  const imageUrl = extractBestProductImageFromHtml(html, productUrl);
+
+  const normalizedItem = normalizeWebsiteItem(
+    {
+      title,
+      type: "product",
+      url: productUrl,
+      description,
+      price,
+      image_url: imageUrl,
+    },
+    websiteUrl
+  );
+
+  if (!normalizedItem) {
+    return null;
+  }
+
+  if (!normalizedItem.image_url) {
+    return null;
+  }
+
+  return {
+    ...normalizedItem,
+    item_key: createItemKey(normalizedItem),
+  };
+}
+
+async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
+  const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
+
+  if (!websiteUrl) {
+    return null;
+  }
+
+  const websiteHost = getHostnameWithoutWww(websiteUrl);
+
+  if (!websiteHost) {
+    return null;
+  }
+
+  const campaignPrompt = String(rule?.prompt || "").trim();
+
+  const response = await openai.responses.create({
+    model: "gpt-4.1-mini",
+    tools: [{ type: "web_search" }],
+    tool_choice: "required",
+    input: `
+Search the web and find one real product page from this exact customer website that best matches the campaign.
+
+Customer website:
+${websiteUrl}
+
+Allowed domain:
+${websiteHost}
+
+Brand profile:
+${formatBrandProfileForPrompt(brandProfile)}
+
+Campaign / automation prompt:
+${campaignPrompt || "No specific campaign prompt was provided. Choose a strong concrete product from the customer's website that would work well in a social media sales post."}
+
+Strict rules:
+- Return only a real product page from the allowed customer domain.
+- Do not return products from other domains.
+- Do not return the homepage.
+- Do not return category pages.
+- Do not return blog posts.
+- Do not return campaign landing pages.
+- Do not return search pages.
+- Do not return cart or checkout pages.
+- Do not guess URLs.
+- Prefer a product page that has a clear product image.
+- If this is a theme day, holiday or campaign, choose a product that strongly fits the theme, buyer intent and recipient.
+- If this is a general "sell something from website" automation, choose a concrete product that seems strong, relevant and easy to promote.
+
+Father's Day guidance:
+- For toy and game stores, prefer adult-friendly or family-friendly gifts.
+- Good examples: board games, quiz games, music games, party games, family games, building sets, hobby kits, model kits, outdoor play or products parents and children can enjoy together.
+- Avoid toddler products or baby toys if stronger father/family gift options exist.
+
+Return strict JSON only in this exact shape:
+{
+  "title": "Product title if found, otherwise empty string",
+  "url": "Full product URL if found, otherwise empty string",
+  "price": "Visible price if clearly found, otherwise empty string",
+  "reason": "Short reason why this product fits"
+}
+`.trim(),
+  });
+
+  const content = response.output_text || "";
+  const parsed = safeJsonParse(content);
+
+  const productUrl = String(parsed?.url || "").trim();
+
+  if (!productUrl || !isHttpUrl(productUrl)) {
+    return null;
+  }
+
+  if (!isSameOrSubdomainUrl(productUrl, websiteUrl)) {
+    console.error("Web search returned product from wrong domain", {
+      ruleId: rule?.id,
+      websiteUrl,
+      productUrl,
+    });
+
+    return null;
+  }
+
+  if (isLikelyNonProductUrl(productUrl, websiteUrl)) {
+    console.error("Web search returned weak or non-product URL", {
+      ruleId: rule?.id,
+      websiteUrl,
+      productUrl,
+    });
+
+    return null;
+  }
+
+  return {
+    title: String(parsed?.title || "").trim(),
+    url: productUrl,
+    price: String(parsed?.price || "").trim(),
+    reason: String(parsed?.reason || "").trim(),
+  };
+}
+
+async function findWebsiteProductWithWebSearch({
+  openai,
+  brandProfile,
+  rule,
+  websiteUrl,
+}) {
+  const webSearchProduct = await findProductUrlWithWebSearch({
+    openai,
+    brandProfile,
+    rule,
+  });
+
+  if (!webSearchProduct?.url) {
+    return null;
+  }
+
+  const websiteItem = await extractProductDataFromProductPage({
+    productUrl: webSearchProduct.url,
+    websiteUrl,
+    webSearchProduct,
+  });
+
+  if (!websiteItem) {
+    return null;
+  }
+
+  return websiteItem;
+}
 async function prepareWebsiteContentForRule({
   supabase,
   openai,
