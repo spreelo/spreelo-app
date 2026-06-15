@@ -2428,68 +2428,78 @@ async function findWebsiteProductWithWebSearch({
   rule,
   websiteUrl,
 }) {
-  const searchResult = await findProductUrlWithWebSearch({
-    openai,
-    brandProfile,
-    rule,
-  });
+  const attempts = ["best_match", "backup_broad"];
 
-  const webSearchProducts = Array.isArray(searchResult?.products)
-    ? searchResult.products
-    : [];
-
-  if (!webSearchProducts.length) {
-    console.error("Product researcher found no usable product candidates", {
-      ruleId: rule?.id,
-      brandProfileId: rule?.brand_profile_id,
-      websiteUrl,
+  for (const attempt of attempts) {
+    const searchResult = await findProductUrlWithWebSearch({
+      openai,
+      brandProfile,
+      rule,
+      attempt,
     });
 
-    return null;
-  }
+    const webSearchProducts = Array.isArray(searchResult?.products)
+      ? searchResult.products
+      : [];
 
-  for (const webSearchProduct of webSearchProducts) {
-    try {
-      const websiteItem = await extractProductDataFromProductPage({
-        productUrl: webSearchProduct.url,
+    if (!webSearchProducts.length) {
+      console.error("Product researcher found no usable product candidates", {
+        ruleId: rule?.id,
+        brandProfileId: rule?.brand_profile_id,
         websiteUrl,
-        webSearchProduct,
+        attempt,
       });
 
-      if (!websiteItem?.image_url) {
-        console.error("Product researcher candidate had no usable product image", {
+      continue;
+    }
+
+    for (const webSearchProduct of webSearchProducts) {
+      try {
+        const websiteItem = await extractProductDataFromProductPage({
+          productUrl: webSearchProduct.url,
+          websiteUrl,
+          webSearchProduct,
+        });
+
+        if (!websiteItem?.image_url) {
+          console.error("Product researcher candidate had no usable product image", {
+            ruleId: rule?.id,
+            productUrl: webSearchProduct.url,
+            title: webSearchProduct.title,
+            attempt,
+          });
+
+          continue;
+        }
+
+        console.log("Product researcher selected website product", {
+          ruleId: rule?.id,
+          productUrl: websiteItem.url,
+          title: websiteItem.title,
+          imageUrl: websiteItem.image_url,
+          attempt,
+        });
+
+        return websiteItem;
+      } catch (candidateError) {
+        console.error("Could not extract product data from researcher result", {
           ruleId: rule?.id,
           productUrl: webSearchProduct.url,
           title: webSearchProduct.title,
+          attempt,
+          message: candidateError.message,
         });
-
-        continue;
       }
-
-      console.log("Product researcher selected website product", {
-        ruleId: rule?.id,
-        productUrl: websiteItem.url,
-        title: websiteItem.title,
-        imageUrl: websiteItem.image_url,
-      });
-
-      return websiteItem;
-    } catch (candidateError) {
-      console.error("Could not extract product data from researcher result", {
-        ruleId: rule?.id,
-        productUrl: webSearchProduct.url,
-        title: webSearchProduct.title,
-        message: candidateError.message,
-      });
     }
-  }
 
-  console.error("No product researcher candidates passed product page extraction", {
-    ruleId: rule?.id,
-    brandProfileId: rule?.brand_profile_id,
-    websiteUrl,
-    candidateCount: webSearchProducts.length,
-  });
+    console.error("No product researcher candidates passed product page extraction", {
+      ruleId: rule?.id,
+      brandProfileId: rule?.brand_profile_id,
+      websiteUrl,
+      attempt,
+      candidateCount: webSearchProducts.length,
+    });
+  }
 
   return null;
 }
