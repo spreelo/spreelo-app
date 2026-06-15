@@ -2668,13 +2668,14 @@ function changeAutoPlanGoal(goalId) {
     setMessage("");
     setAutoPlanPostCount(nextCount);
 
-    setSlots(
+       setSlots(
       createRecommendedSlots({
         startDate: planStartDate,
         timeZone,
         autoPlanGoal,
         firstPublishTime: defaultPublishTime,
         postCount: nextCount,
+        websiteProductModeAvailable,
       })
     );
   }
