@@ -1190,7 +1190,7 @@ export async function POST(request) {
       profile.detected_language
     );
 
-    const savedProfile = await saveBrandProfile({
+       const savedProfile = await saveBrandProfile({
       supabase,
       userId: user.id,
       brandProfileId,
@@ -1201,8 +1201,8 @@ export async function POST(request) {
       countryCode,
       contentLanguage: finalContentLanguage,
       campaignCalendarYear,
+      websiteProductMode: analysis.website_product_mode,
     });
-
     const savedOpportunities = await replaceBrandCampaignOpportunities({
       supabase,
       userId: user.id,
