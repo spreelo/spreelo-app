@@ -2235,7 +2235,7 @@ async function findProductUrlWithWebSearch({
   const isBackupAttempt = attempt === "backup_broad";
 
 const response = await openai.responses.create({
-  model: "gpt-5.5",
+  model: PRODUCT_RESEARCH_MODEL,
   tools: [{ type: "web_search" }],
   tool_choice: "required",
   reasoning: {
