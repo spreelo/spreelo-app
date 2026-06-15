@@ -2708,9 +2708,12 @@ function changeAutoPlanGoal(goalId) {
     }
 
     if (mode === "select") {
-      const initialTypeIds = selectedContentTypeIds.length
-        ? selectedContentTypeIds
-        : recommendedContentTypeIds;
+         const initialTypeIds = getBrandSafeContentTypeIds(
+        selectedContentTypeIds.length
+          ? selectedContentTypeIds
+          : recommendedContentTypeIds,
+        websiteProductModeAvailable
+      );
 
       setSelectedContentTypeIds(initialTypeIds);
       setSlots(
