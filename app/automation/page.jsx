@@ -104,6 +104,17 @@ const contentTypes = [
       "Use a relevant image connected to the selected website item if one can be found. Avoid logos, banners, hero images, decorative icons and unrelated images. If no clearly relevant product, service, listing or offer image can be found, create a professional AI image based on the selected item instead.",
     usesWebsiteContent: true,
   },
+    {
+    id: "problem_solution",
+    label: "Problem → Solution",
+    shortLabel: "Problem solved",
+    description: "Highlight a customer problem and show how your business solves it.",
+    prompt:
+      "Create a social media post that starts from a real customer problem, frustration, need or question related to this business. Then explain how the business, service or offer helps solve that problem. Make it useful, trustworthy and specific. Do not exaggerate, scare the audience or invent guarantees.",
+    imagePrompt:
+      "Create a professional image that visualizes a customer problem being solved in a natural and trustworthy way. Make it relevant to the business, polished and believable. Do not include readable text.",
+    usesWebsiteContent: false,
+  },
   {
     id: "tips",
     label: "Tips & advice",
