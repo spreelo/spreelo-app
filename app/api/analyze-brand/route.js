@@ -229,7 +229,22 @@ function normalizeWebsiteContentStrategy(value) {
 function normalizeWebsiteProductSelectionHint(value) {
   return String(value || "").trim().slice(0, 500);
 }
+function normalizeWebsiteProductMode(rawValue) {
+  const rawMode = rawValue || {};
 
+  const available = Boolean(rawMode.available);
+
+  const reason = String(rawMode.reason || "")
+    .trim()
+    .slice(0, 500);
+
+  return {
+    available,
+    reason: reason || (available
+      ? "The website appears to contain sellable items that can be used for website-based posts."
+      : "No clear sellable website item was found during brand analysis."),
+  };
+}
 function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
   const title = String(rawOpportunity?.title || "").trim();
 
