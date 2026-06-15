@@ -1635,14 +1635,25 @@ async function chooseUnusedWebsiteItem({
     };
   }
 
-  const fallbackItem = items[0];
+ const fallbackItem = items.find(
+  (item) => item?.image_url && !hasDuplicateWebsiteImageThisRun(item)
+);
 
+if (!fallbackItem) {
   return {
-    item: fallbackItem,
-    cycleNumber: currentCycle + 1,
-    startedNewCycle: true,
-    useWebsiteImage: hasFreshWebsiteImage(fallbackItem),
+    item: null,
+    cycleNumber: currentCycle,
+    startedNewCycle: false,
+    useWebsiteImage: false,
   };
+}
+
+return {
+  item: fallbackItem,
+  cycleNumber: currentCycle + 1,
+  startedNewCycle: true,
+  useWebsiteImage: hasFreshWebsiteImage(fallbackItem),
+};
 }
 function getHostnameWithoutWww(value) {
   try {
