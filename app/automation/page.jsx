@@ -2275,6 +2275,49 @@ if (!selectedBrandId) {
   return;
 }
 
+const { data: brandProfileData, error: brandProfileError } = await supabase
+  .from("brand_profiles")
+  .select("id, website_product_mode_available")
+  .eq("id", selectedBrandId)
+  .eq("user_id", user.id)
+  .maybeSingle();
+
+if (brandProfileError) {
+  setMessage(brandProfileError.message);
+  setCurrentBrandProfile(null);
+} else {
+  setCurrentBrandProfile(brandProfileData || null);
+
+  const brandAllowsWebsiteProductMode = Boolean(
+    brandProfileData?.website_product_mode_available
+  );
+
+  if (!brandAllowsWebsiteProductMode) {
+    const problemSolutionType = getContentTypeById("problem_solution");
+
+    setSelectedContentTypeIds((currentTypeIds) =>
+      getBrandSafeContentTypeIds(currentTypeIds, false)
+    );
+
+    setSlots((currentSlots) =>
+      currentSlots.map((slot) => {
+        if (slot.contentTypeId !== "website_item" || !problemSolutionType) {
+          return slot;
+        }
+
+        return {
+          ...slot,
+          prompt: problemSolutionType.prompt,
+          imagePrompt: problemSolutionType.imagePrompt,
+          contentTypeId: problemSolutionType.id,
+          contentTypeLabel: problemSolutionType.label,
+          usesWebsiteContent: false,
+          generateImage: true,
+        };
+      })
+    );
+  }
+}
 if (campaignOpportunityId) {
   await loadCampaignOpportunityIntoPlanner({
     currentUser: user,
