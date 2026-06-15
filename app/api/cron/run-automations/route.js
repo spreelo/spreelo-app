@@ -1957,7 +1957,232 @@ async function extractProductDataFromProductPage({
     item_key: createItemKey(normalizedItem),
   };
 }
+function isLikelyBadDiscoveryPageUrl(value, websiteUrl) {
+  try {
+    const url = new URL(value);
+    const path = url.pathname.toLowerCase();
 
+    if (!path || path === "/" || isWeakItemUrl(value, websiteUrl)) {
+      return true;
+    }
+
+    const blockedPathParts = [
+      "/blog",
+      "/news",
+      "/nyheter",
+      "/article",
+      "/artiklar",
+      "/cart",
+      "/checkout",
+      "/kundvagn",
+      "/kassa",
+      "/account",
+      "/login",
+      "/sign-in",
+      "/privacy",
+      "/integritet",
+      "/cookie",
+      "/terms",
+      "/villkor",
+      "/contact",
+      "/kontakt",
+      "/about",
+      "/om-oss",
+      "/search",
+      "/sok",
+      "/sök",
+      "/kundservice",
+      "/faq",
+    ];
+
+    return blockedPathParts.some((part) => path.includes(part));
+  } catch {
+    return true;
+  }
+}
+
+function dedupeUrlItems(items) {
+  const seen = new Set();
+  const result = [];
+
+  for (const item of items || []) {
+    const normalizedUrl = normalizeComparableValue(item?.url);
+
+    if (!normalizedUrl || seen.has(normalizedUrl)) {
+      continue;
+    }
+
+    seen.add(normalizedUrl);
+    result.push(item);
+  }
+
+  return result;
+}
+
+function scorePossibleProductLink({ url, text, campaignPrompt }) {
+  const lower = `${url || ""} ${text || ""}`.toLowerCase();
+  const lowerCampaign = String(campaignPrompt || "").toLowerCase();
+
+  let score = 0;
+
+  const strongProductSignals = [
+    "/produkt",
+    "/produkter",
+    "/product",
+    "/p/",
+    "/lego-",
+    "/spel",
+    "/sallskapsspel",
+    "/sällskapsspel",
+    "/familjespel",
+    "/bradspel",
+    "/brädspel",
+    "/quiz",
+    "/hitster",
+    "/bygg",
+  ];
+
+  const weakOrBadSignals = [
+    "/varumarken",
+    "/varumärken",
+    "/kategori",
+    "/category",
+    "/collections",
+    "/kundservice",
+    "/faq",
+    "/blog",
+    "/news",
+    "/nyheter",
+    "/cart",
+    "/checkout",
+    "/kundvagn",
+    "/kassa",
+    "/search",
+    "/sok",
+    "/sök",
+  ];
+
+  for (const signal of strongProductSignals) {
+    if (lower.includes(signal)) {
+      score += 12;
+    }
+  }
+
+  for (const signal of weakOrBadSignals) {
+    if (lower.includes(signal)) {
+      score -= 20;
+    }
+  }
+
+  const campaignBoostWords = [
+    "fars dag",
+    "pappa",
+    "father",
+    "dad",
+    "spel",
+    "game",
+    "quiz",
+    "hitster",
+    "lego",
+    "bygg",
+    "familj",
+    "family",
+    "sällskap",
+    "sallskap",
+  ];
+
+  for (const word of campaignBoostWords) {
+    if (lowerCampaign.includes(word) && lower.includes(word)) {
+      score += 10;
+    }
+  }
+
+  if (text && String(text).trim().length >= 4) {
+    score += 3;
+  }
+
+  return score;
+}
+
+function extractProductLinksFromDiscoveryPage({
+  html,
+  pageUrl,
+  websiteUrl,
+  campaignPrompt,
+}) {
+  const links = extractLinks(html, pageUrl);
+  const candidates = [];
+
+  for (const link of links) {
+    const url = link?.url;
+
+    if (!url || !isHttpUrl(url)) {
+      continue;
+    }
+
+    if (!isSameOrSubdomainUrl(url, websiteUrl)) {
+      continue;
+    }
+
+    if (isLikelyNonProductUrl(url, websiteUrl)) {
+      continue;
+    }
+
+    const score = scorePossibleProductLink({
+      url,
+      text: link.text || "",
+      campaignPrompt,
+    });
+
+    if (score < 0) {
+      continue;
+    }
+
+    candidates.push({
+      title: link.text || "",
+      url,
+      price: "",
+      reason: `Product link found on discovery page: ${pageUrl}`,
+      score,
+    });
+  }
+
+  return dedupeUrlItems(candidates)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12);
+}
+
+async function findProductCandidatesFromDiscoveryPages({
+  discoveryPages,
+  websiteUrl,
+  campaignPrompt,
+}) {
+  const candidates = [];
+
+  for (const page of discoveryPages || []) {
+    try {
+      const html = await fetchHtml(page.url);
+
+      const pageCandidates = extractProductLinksFromDiscoveryPage({
+        html,
+        pageUrl: page.url,
+        websiteUrl,
+        campaignPrompt,
+      });
+
+      candidates.push(...pageCandidates);
+    } catch (error) {
+      console.error("Could not fetch discovery page for product links", {
+        discoveryPageUrl: page.url,
+        message: error.message,
+      });
+    }
+  }
+
+  return dedupeUrlItems(candidates)
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+    .slice(0, 12);
+}
 async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
   const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
 
