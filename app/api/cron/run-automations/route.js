@@ -2194,6 +2194,7 @@ async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
   }
 
   const websiteHost = getHostnameWithoutWww(websiteUrl);
+  const campaignPrompt = String(rule?.prompt || "").trim();
 
   if (!websiteHost) {
     return {
@@ -2202,14 +2203,15 @@ async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
     };
   }
 
-  const campaignPrompt = String(rule?.prompt || "").trim();
-
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
     tools: [{ type: "web_search" }],
     tool_choice: "required",
     input: `
-Search the web for real product pages and useful product category pages from this exact customer website.
+You are a product researcher for a social media automation app.
+
+Your job:
+Find ONE real, concrete product from the customer's website that can be promoted in a social media post.
 
 Customer website:
 ${websiteUrl}
@@ -2221,52 +2223,63 @@ Brand profile:
 ${formatBrandProfileForPrompt(brandProfile)}
 
 Campaign / automation prompt:
-${campaignPrompt || "No specific campaign prompt was provided. Choose strong concrete products from the customer's website that would work well in social media sales posts."}
+${campaignPrompt || "No specific campaign prompt was provided. Find a concrete product from the customer website that would work well in a social media sales post."}
 
-Main goal:
-Find real products that can be promoted in a social media post.
+Very important:
+You must search like a human researcher, not just open the homepage.
 
-Rules for products:
+Use targeted searches. For example, if the website is Lekia and the campaign is Father's Day, search for things like:
+- site:${websiteHost} Hitster
+- site:${websiteHost} sällskapsspel
+- site:${websiteHost} familjespel
+- site:${websiteHost} quizspel
+- site:${websiteHost} brädspel
+- site:${websiteHost} LEGO Icons
+- site:${websiteHost} byggset
+- site:${websiteHost} spel vuxna
+- site:${websiteHost} present pappa
+
+Rules:
 - Return only real product pages from the allowed customer domain.
-- Do not return products from other domains.
 - Do not return the homepage.
-- Do not return blog posts.
+- Do not return brand pages such as /varumarken/lego.
+- Do not return category pages.
+- Do not return customer service pages.
+- Do not return FAQ pages.
+- Do not return blog/news pages.
 - Do not return search pages.
 - Do not return cart or checkout pages.
+- Do not return images by themselves.
+- Do not return another company's website.
 - Do not guess URLs.
-- Prefer product pages that have clear product images.
-- Return several alternatives, not just one.
-
-Rules for discovery_pages:
-- If direct product pages are hard to find, return relevant category, brand or collection pages from the customer website.
-- Discovery pages may be category pages, brand pages or product listing pages.
-- Discovery pages must still be on the allowed customer domain.
-- Do not include homepage, blog, customer service, FAQ, cart, checkout or search pages.
+- A product page should be a page for one specific product that a customer can buy, book or order.
+- If you cannot find the perfect campaign match, still choose a real concrete product from the customer website rather than returning a category page.
+- Prefer a product that likely has a product image.
 
 Father's Day guidance:
-- For toy and game stores, prefer adult-friendly or family-friendly gifts.
-- Good examples: board games, quiz games, music games, party games, family games, building sets, hobby kits, model kits, outdoor play or products parents and children can enjoy together.
-- Avoid toddler products or baby toys if stronger father/family gift options exist.
-- For toy/game stores, board games and family games are usually stronger Father's Day matches than generic small-child toys.
+- For toy and game stores, prefer products that work as gifts for a father or as a shared father-child activity.
+- Strong choices: board games, quiz games, music games, party games, family games, building sets, hobby kits, model kits, outdoor play, LEGO sets or products parents and children can enjoy together.
+- Avoid toddler products and baby toys if stronger family/father gift products exist.
 
-Return strict JSON only in this exact shape:
+Output:
+Return strict JSON only.
+Do not explain.
+Do not include markdown.
+
+JSON shape:
 {
   "products": [
     {
-      "title": "Product title if found, otherwise empty string",
-      "url": "Full product URL if found, otherwise empty string",
+      "title": "Exact product title",
+      "url": "Full product page URL",
       "price": "Visible price if clearly found, otherwise empty string",
       "reason": "Short reason why this product fits"
     }
   ],
-  "discovery_pages": [
-    {
-      "title": "Category, brand or listing page title",
-      "url": "Full URL",
-      "reason": "Why this page may contain relevant products"
-    }
-  ]
+  "discovery_pages": []
 }
+
+Return 1 to 5 real product pages if possible.
 `.trim(),
   });
 
@@ -2274,9 +2287,6 @@ Return strict JSON only in this exact shape:
   const parsed = safeJsonParse(content);
 
   const rawProducts = Array.isArray(parsed?.products) ? parsed.products : [];
-  const rawDiscoveryPages = Array.isArray(parsed?.discovery_pages)
-    ? parsed.discovery_pages
-    : [];
 
   const validProducts = [];
 
@@ -2288,7 +2298,7 @@ Return strict JSON only in this exact shape:
     }
 
     if (!isSameOrSubdomainUrl(productUrl, websiteUrl)) {
-      console.error("Web search returned product from wrong domain", {
+      console.error("Product researcher returned product from wrong domain", {
         ruleId: rule?.id,
         websiteUrl,
         productUrl,
@@ -2298,7 +2308,17 @@ Return strict JSON only in this exact shape:
     }
 
     if (isLikelyNonProductUrl(productUrl, websiteUrl)) {
-      console.error("Web search returned weak or non-product URL", {
+      console.error("Product researcher returned weak or non-product URL", {
+        ruleId: rule?.id,
+        websiteUrl,
+        productUrl,
+      });
+
+      continue;
+    }
+
+    if (isLikelyBadDiscoveryPageUrl(productUrl, websiteUrl)) {
+      console.error("Product researcher returned discovery/category URL instead of product URL", {
         ruleId: rule?.id,
         websiteUrl,
         productUrl,
@@ -2315,33 +2335,18 @@ Return strict JSON only in this exact shape:
     });
   }
 
-  const validDiscoveryPages = [];
-
-  for (const page of rawDiscoveryPages) {
-    const pageUrl = String(page?.url || "").trim();
-
-    if (!pageUrl || !isHttpUrl(pageUrl)) {
-      continue;
-    }
-
-    if (!isSameOrSubdomainUrl(pageUrl, websiteUrl)) {
-      continue;
-    }
-
-    if (isLikelyBadDiscoveryPageUrl(pageUrl, websiteUrl)) {
-      continue;
-    }
-
-    validDiscoveryPages.push({
-      title: String(page?.title || "").trim(),
-      url: pageUrl,
-      reason: String(page?.reason || "").trim(),
+  if (!validProducts.length) {
+    console.error("Product researcher returned no valid product URLs", {
+      ruleId: rule?.id,
+      brandProfileId: rule?.brand_profile_id,
+      websiteUrl,
+      rawResponse: truncateText(content, 1200),
     });
   }
 
   return {
-    products: dedupeUrlItems(validProducts).slice(0, 8),
-    discoveryPages: dedupeUrlItems(validDiscoveryPages).slice(0, 6),
+    products: dedupeUrlItems(validProducts).slice(0, 5),
+    discoveryPages: [],
   };
 }
 
