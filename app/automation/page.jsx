@@ -3355,7 +3355,7 @@ ${slot.campaignSummary}`
         </div>
 
         <div className="planner-content-grid">
-          {contentTypes.map((type) => {
+                    {visibleContentTypes.map((type) => {
             const isSelected = selectedContentTypeIds.includes(type.id);
 
             return (
