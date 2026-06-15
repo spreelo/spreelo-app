@@ -2351,11 +2351,38 @@ async function findWebsiteProductWithWebSearch({
   rule,
   websiteUrl,
 }) {
-  const webSearchProducts = await findProductUrlWithWebSearch({
+  const campaignPrompt = String(rule?.prompt || "").trim();
+
+  const searchResult = await findProductUrlWithWebSearch({
     openai,
     brandProfile,
     rule,
   });
+
+  let webSearchProducts = Array.isArray(searchResult?.products)
+    ? searchResult.products
+    : [];
+
+  const discoveryPages = Array.isArray(searchResult?.discoveryPages)
+    ? searchResult.discoveryPages
+    : [];
+
+  if (!webSearchProducts.length && discoveryPages.length) {
+    console.log("Web search returned discovery pages, extracting product links", {
+      ruleId: rule?.id,
+      brandProfileId: rule?.brand_profile_id,
+      websiteUrl,
+      discoveryPageCount: discoveryPages.length,
+    });
+
+    const discoveredProducts = await findProductCandidatesFromDiscoveryPages({
+      discoveryPages,
+      websiteUrl,
+      campaignPrompt,
+    });
+
+    webSearchProducts = discoveredProducts;
+  }
 
   if (!webSearchProducts.length) {
     console.error("Web search returned no valid product candidates", {
