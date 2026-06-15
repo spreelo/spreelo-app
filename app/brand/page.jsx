@@ -47,9 +47,12 @@ const languageOptions = [
 const analyzingSteps = [
   "Fetching website content...",
   "Understanding your business...",
+  "Checking if website product posts are available...",
   "Finding useful campaign opportunities...",
   "Creating your campaign calendar...",
   "Saving everything to your brand profile...",
+  "Finalizing your setup...",
+  "Almost done. This can take a little longer for larger websites...",
 ];
 
 function getBrandStorageKey(userId) {
