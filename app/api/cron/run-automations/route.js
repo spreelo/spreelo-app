@@ -2356,41 +2356,18 @@ async function findWebsiteProductWithWebSearch({
   rule,
   websiteUrl,
 }) {
-  const campaignPrompt = String(rule?.prompt || "").trim();
-
   const searchResult = await findProductUrlWithWebSearch({
     openai,
     brandProfile,
     rule,
   });
 
-  let webSearchProducts = Array.isArray(searchResult?.products)
+  const webSearchProducts = Array.isArray(searchResult?.products)
     ? searchResult.products
     : [];
 
-  const discoveryPages = Array.isArray(searchResult?.discoveryPages)
-    ? searchResult.discoveryPages
-    : [];
-
-  if (!webSearchProducts.length && discoveryPages.length) {
-    console.log("Web search returned discovery pages, extracting product links", {
-      ruleId: rule?.id,
-      brandProfileId: rule?.brand_profile_id,
-      websiteUrl,
-      discoveryPageCount: discoveryPages.length,
-    });
-
-    const discoveredProducts = await findProductCandidatesFromDiscoveryPages({
-      discoveryPages,
-      websiteUrl,
-      campaignPrompt,
-    });
-
-    webSearchProducts = discoveredProducts;
-  }
-
   if (!webSearchProducts.length) {
-    console.error("Web search returned no valid product candidates", {
+    console.error("Product researcher found no usable product candidates", {
       ruleId: rule?.id,
       brandProfileId: rule?.brand_profile_id,
       websiteUrl,
@@ -2408,7 +2385,7 @@ async function findWebsiteProductWithWebSearch({
       });
 
       if (!websiteItem?.image_url) {
-        console.error("Web search product candidate had no usable product image", {
+        console.error("Product researcher candidate had no usable product image", {
           ruleId: rule?.id,
           productUrl: webSearchProduct.url,
           title: webSearchProduct.title,
@@ -2417,7 +2394,7 @@ async function findWebsiteProductWithWebSearch({
         continue;
       }
 
-      console.log("Web search selected website product", {
+      console.log("Product researcher selected website product", {
         ruleId: rule?.id,
         productUrl: websiteItem.url,
         title: websiteItem.title,
@@ -2426,7 +2403,7 @@ async function findWebsiteProductWithWebSearch({
 
       return websiteItem;
     } catch (candidateError) {
-      console.error("Could not extract product candidate from web search result", {
+      console.error("Could not extract product data from researcher result", {
         ruleId: rule?.id,
         productUrl: webSearchProduct.url,
         title: webSearchProduct.title,
@@ -2435,7 +2412,7 @@ async function findWebsiteProductWithWebSearch({
     }
   }
 
-  console.error("No web search product candidates passed product page extraction", {
+  console.error("No product researcher candidates passed product page extraction", {
     ruleId: rule?.id,
     brandProfileId: rule?.brand_profile_id,
     websiteUrl,
