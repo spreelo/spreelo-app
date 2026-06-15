@@ -2108,6 +2108,13 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
   const allVisibleRulesSelected =
     visibleRuleIds.length > 0 &&
     visibleRuleIds.every((ruleId) => selectedRuleIds.includes(ruleId));
+    const websiteProductModeAvailable = Boolean(
+    currentBrandProfile?.website_product_mode_available
+  );
+
+  const visibleContentTypes = useMemo(() => {
+    return getVisibleContentTypes(websiteProductModeAvailable);
+  }, [websiteProductModeAvailable]);
 async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
   if (preferredBrandId) {
     const { data: preferredBrand, error: preferredBrandError } = await supabase
