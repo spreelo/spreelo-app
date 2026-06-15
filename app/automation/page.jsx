@@ -3042,7 +3042,13 @@ ${slot.campaignSummary}`
       if (planCreationMode === "auto") {
         const strategy = getAutoPlanStrategy(autoPlanGoal);
 
-        setSelectedContentTypeIds(strategy.contentTypeIds);
+              setSelectedContentTypeIds(
+          getBrandSafeContentTypeIds(
+            strategy.contentTypeIds,
+            websiteProductModeAvailable
+          )
+        );
+
         setSlots(
           createRecommendedSlots({
             startDate: planStartDate,
@@ -3050,8 +3056,9 @@ ${slot.campaignSummary}`
             autoPlanGoal,
             firstPublishTime: defaultPublishTime,
             postCount: autoPlanPostCount,
+            websiteProductModeAvailable,
           })
-        );
+        ); 
       } else {
         setSelectedContentTypeIds([]);
         setSlots([
