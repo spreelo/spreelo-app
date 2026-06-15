@@ -1335,7 +1335,7 @@ async function extractWebsiteItems(openai, brandProfile, pages, rule = null) {
 const analysisInput = buildWebsiteAnalysisInput({ brandProfile, pages });
 const selectionContext = buildWebsiteItemSelectionContext(rule);
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: POST_TEXT_MODEL,
     messages: [
       {
         role: "system",
