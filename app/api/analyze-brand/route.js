@@ -498,6 +498,7 @@ async function saveBrandProfile({
   countryCode,
   contentLanguage,
   campaignCalendarYear,
+  websiteProductMode,
 }) {
   const { data, error } = await supabase
     .from("brand_profiles")
