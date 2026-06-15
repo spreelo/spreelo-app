@@ -4228,7 +4228,7 @@ ${slot.campaignSummary}`
               </div>
 
               <div className="add-post-modal-grid">
-                {contentTypes.map((type) => (
+                              {visibleContentTypes.map((type) => (
                   <button
                     type="button"
                     key={type.id}
