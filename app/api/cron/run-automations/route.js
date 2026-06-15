@@ -2603,7 +2603,7 @@ async function prepareWebsiteContentForRule({
       };
     }
   } catch (webSearchError) {
-    console.error("Website product web search failed, using old fallback flow", {
+    console.error("Website product research failed", {
       ruleId: rule.id,
       brandProfileId: rule.brand_profile_id,
       websiteUrl,
@@ -2615,36 +2615,30 @@ async function prepareWebsiteContentForRule({
 
   summary.website_web_search_fallback_used += 1;
 
-  const pages = await fetchWebsitePages(websiteUrl);
-  const items = await extractWebsiteItems(openai, brandProfile, pages, rule);
-
-  summary.website_items_found += items.length;
-
-  if (!items.length) {
-    throw new Error("No usable products, services, listings or offers found on website");
-  }
-
-  const selected = await chooseUnusedWebsiteItem({
-    supabase,
-    userId: rule.user_id,
+  console.error("No verified website product found. Using safe text-only campaign fallback.", {
+    ruleId: rule.id,
     brandProfileId: rule.brand_profile_id,
-    sourceUrl: websiteUrl,
-    contentType: rule.content_type_id || "website_item",
-    items,
-    usedWebsiteImageUrlsThisRun,
+    websiteUrl,
   });
 
-  if (selected.startedNewCycle) {
-    summary.website_items_reused_cycle += 1;
+  const fallbackItem = createSafeWebsiteCampaignFallbackItem({
+    brandProfile,
+    rule,
+    websiteUrl,
+  });
+
+  if (!fallbackItem) {
+    throw new Error("Could not create safe website campaign fallback item");
   }
 
+  summary.website_items_found += 1;
   summary.website_content_success += 1;
 
   return {
-    websiteItem: selected.item,
+    websiteItem: fallbackItem,
     websiteSourceUrl: websiteUrl,
-    websiteCycleNumber: selected.cycleNumber,
-    useWebsiteImage: selected.useWebsiteImage,
+    websiteCycleNumber: 1,
+    useWebsiteImage: false,
   };
 }
 
