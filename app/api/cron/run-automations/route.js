@@ -2441,6 +2441,9 @@ async function findWebsiteProductWithWebSearch({
   websiteUrl,
 }) {
   const attempts = ["best_match", "backup_broad"];
+  const verifiedItems = [];
+  const seenUrls = new Set();
+  const seenImages = new Set();
 
   for (const attempt of attempts) {
     const searchResult = await findProductUrlWithWebSearch({
@@ -2484,15 +2487,37 @@ async function findWebsiteProductWithWebSearch({
           continue;
         }
 
-        console.log("Product researcher selected website product", {
+        const normalizedUrl = normalizeComparableValue(websiteItem.url);
+        const normalizedImageUrl = normalizeComparableValue(websiteItem.image_url);
+
+        if (seenUrls.has(normalizedUrl) || seenImages.has(normalizedImageUrl)) {
+          console.error("Product researcher duplicate candidate skipped", {
+            ruleId: rule?.id,
+            productUrl: websiteItem.url,
+            title: websiteItem.title,
+            imageUrl: websiteItem.image_url,
+            attempt,
+          });
+
+          continue;
+        }
+
+        seenUrls.add(normalizedUrl);
+        seenImages.add(normalizedImageUrl);
+        verifiedItems.push(websiteItem);
+
+        console.log("Product researcher verified website product", {
           ruleId: rule?.id,
           productUrl: websiteItem.url,
           title: websiteItem.title,
           imageUrl: websiteItem.image_url,
           attempt,
+          verifiedCount: verifiedItems.length,
         });
 
-        return websiteItem;
+        if (verifiedItems.length >= 8) {
+          return verifiedItems;
+        }
       } catch (candidateError) {
         console.error("Could not extract product data from researcher result", {
           ruleId: rule?.id,
@@ -2504,16 +2529,17 @@ async function findWebsiteProductWithWebSearch({
       }
     }
 
-    console.error("No product researcher candidates passed product page extraction", {
+    console.error("Product researcher attempt finished", {
       ruleId: rule?.id,
       brandProfileId: rule?.brand_profile_id,
       websiteUrl,
       attempt,
       candidateCount: webSearchProducts.length,
+      verifiedCount: verifiedItems.length,
     });
   }
 
-  return null;
+  return verifiedItems;
 }
 function createSafeWebsiteCampaignFallbackItem({ brandProfile, rule, websiteUrl }) {
   const businessName = String(brandProfile?.business_name || "the business").trim();
