@@ -2455,6 +2455,8 @@ async function findWebsiteProductWithWebSearch({
   const verifiedItems = [];
   const seenUrls = new Set();
   const seenImages = new Set();
+  const MIN_VERIFIED_ITEMS_BEFORE_STOP = 3;
+  const MAX_VERIFIED_ITEMS = 8;
 
   for (const attempt of attempts) {
     const searchResult = await findProductUrlWithWebSearch({
@@ -2526,7 +2528,15 @@ async function findWebsiteProductWithWebSearch({
           verifiedCount: verifiedItems.length,
         });
 
-        if (verifiedItems.length >= 8) {
+        if (verifiedItems.length >= MAX_VERIFIED_ITEMS) {
+          console.log("Product researcher stopped after reaching max verified products", {
+            ruleId: rule?.id,
+            brandProfileId: rule?.brand_profile_id,
+            websiteUrl,
+            attempt,
+            verifiedCount: verifiedItems.length,
+          });
+
           return verifiedItems;
         }
       } catch (candidateError) {
@@ -2540,7 +2550,7 @@ async function findWebsiteProductWithWebSearch({
       }
     }
 
-    console.error("Product researcher attempt finished", {
+    console.log("Product researcher attempt finished", {
       ruleId: rule?.id,
       brandProfileId: rule?.brand_profile_id,
       websiteUrl,
@@ -2548,6 +2558,20 @@ async function findWebsiteProductWithWebSearch({
       candidateCount: webSearchProducts.length,
       verifiedCount: verifiedItems.length,
     });
+
+    if (
+      attempt === "best_match" &&
+      verifiedItems.length >= MIN_VERIFIED_ITEMS_BEFORE_STOP
+    ) {
+      console.log("Product researcher skipped backup attempt because best_match found enough products", {
+        ruleId: rule?.id,
+        brandProfileId: rule?.brand_profile_id,
+        websiteUrl,
+        verifiedCount: verifiedItems.length,
+      });
+
+      return verifiedItems;
+    }
   }
 
   return verifiedItems;
