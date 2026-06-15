@@ -1953,6 +1953,7 @@ export default function AutomationPage() {
 const [rules, setRules] = useState([]);
 const [creditBalance, setCreditBalance] = useState(null);
 const [currentBrandId, setCurrentBrandId] = useState("");
+const [currentBrandProfile, setCurrentBrandProfile] = useState(null);
 const [campaignOpportunity, setCampaignOpportunity] = useState(null);
 
   const [planStartDate, setPlanStartDate] = useState(initialStartDate);
