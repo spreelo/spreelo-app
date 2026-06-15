@@ -2099,6 +2099,7 @@ async function prepareWebsiteContentForRule({
       websiteItem: null,
       websiteSourceUrl: null,
       websiteCycleNumber: null,
+      useWebsiteImage: false,
     };
   }
 
@@ -2110,8 +2111,55 @@ async function prepareWebsiteContentForRule({
     throw new Error("This automation requires a website URL in Brand profile");
   }
 
+  try {
+    const webSearchItem = await findWebsiteProductWithWebSearch({
+      openai,
+      brandProfile,
+      rule,
+      websiteUrl,
+    });
+
+    if (webSearchItem) {
+      const selected = await chooseUnusedWebsiteItem({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        sourceUrl: websiteUrl,
+        contentType: rule.content_type_id || "website_item",
+        items: [webSearchItem],
+        usedWebsiteImageUrlsThisRun,
+      });
+
+      if (selected.startedNewCycle) {
+        summary.website_items_reused_cycle += 1;
+      }
+
+      summary.website_items_found += 1;
+      summary.website_content_success += 1;
+      summary.website_web_search_success += 1;
+
+      return {
+        websiteItem: selected.item,
+        websiteSourceUrl: websiteUrl,
+        websiteCycleNumber: selected.cycleNumber,
+        useWebsiteImage: selected.useWebsiteImage,
+      };
+    }
+  } catch (webSearchError) {
+    console.error("Website product web search failed, using old fallback flow", {
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      message: webSearchError.message,
+    });
+
+    summary.website_web_search_failed += 1;
+  }
+
+  summary.website_web_search_fallback_used += 1;
+
   const pages = await fetchWebsitePages(websiteUrl);
-const items = await extractWebsiteItems(openai, brandProfile, pages, rule);
+  const items = await extractWebsiteItems(openai, brandProfile, pages, rule);
 
   summary.website_items_found += items.length;
 
@@ -2119,15 +2167,15 @@ const items = await extractWebsiteItems(openai, brandProfile, pages, rule);
     throw new Error("No usable products, services, listings or offers found on website");
   }
 
-const selected = await chooseUnusedWebsiteItem({
-  supabase,
-  userId: rule.user_id,
-  brandProfileId: rule.brand_profile_id,
-  sourceUrl: websiteUrl,
-  contentType: rule.content_type_id || "website_item",
-  items,
-  usedWebsiteImageUrlsThisRun,
-});
+  const selected = await chooseUnusedWebsiteItem({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    contentType: rule.content_type_id || "website_item",
+    items,
+    usedWebsiteImageUrlsThisRun,
+  });
 
   if (selected.startedNewCycle) {
     summary.website_items_reused_cycle += 1;
@@ -2136,11 +2184,11 @@ const selected = await chooseUnusedWebsiteItem({
   summary.website_content_success += 1;
 
   return {
-  websiteItem: selected.item,
-  websiteSourceUrl: websiteUrl,
-  websiteCycleNumber: selected.cycleNumber,
-  useWebsiteImage: selected.useWebsiteImage,
-};
+    websiteItem: selected.item,
+    websiteSourceUrl: websiteUrl,
+    websiteCycleNumber: selected.cycleNumber,
+    useWebsiteImage: selected.useWebsiteImage,
+  };
 }
 
 async function saveWebsiteContentHistory({
