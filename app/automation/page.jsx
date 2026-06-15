@@ -352,7 +352,29 @@ function makeSlotId() {
 function getContentTypeById(typeId) {
   return contentTypes.find((type) => type.id === typeId) || null;
 }
+function getBrandSafeContentTypeId(typeId, websiteProductModeAvailable) {
+  if (typeId === "website_item" && !websiteProductModeAvailable) {
+    return "problem_solution";
+  }
 
+  return typeId;
+}
+
+function getBrandSafeContentTypeIds(typeIds, websiteProductModeAvailable) {
+  return typeIds.map((typeId) =>
+    getBrandSafeContentTypeId(typeId, websiteProductModeAvailable)
+  );
+}
+
+function getVisibleContentTypes(websiteProductModeAvailable) {
+  return contentTypes.filter((type) => {
+    if (type.id === "website_item") {
+      return Boolean(websiteProductModeAvailable);
+    }
+
+    return true;
+  });
+}
 function getAutoPlanStrategy(goalId) {
   return autoPlanStrategies[goalId] || autoPlanStrategies.stay_visible;
 }
