@@ -111,6 +111,9 @@ export default function Home() {
   const [currentBrandId, setCurrentBrandId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [selectedPendingPostIds, setSelectedPendingPostIds] = useState([]);
+  const [deleteConfirmActive, setDeleteConfirmActive] = useState(false);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   useEffect(() => {
     loadDashboard();
@@ -155,6 +158,8 @@ export default function Home() {
   async function loadDashboard() {
     setLoading(true);
     setMessage("");
+    setSelectedPendingPostIds([]);
+    setDeleteConfirmActive(false);
 
     const {
       data: { user },
@@ -238,6 +243,10 @@ export default function Home() {
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }, [posts]);
 
+  const visiblePendingApprovalPosts = useMemo(() => {
+    return pendingApprovalPosts;
+  }, [pendingApprovalPosts]);
+
   const scheduledPosts = useMemo(() => {
     return posts
       .filter((post) => post.status === "scheduled")
@@ -275,6 +284,15 @@ export default function Home() {
     return calculateBrandProfileCompleteness(brandProfile);
   }, [brandProfile]);
 
+  const selectedPendingCount = selectedPendingPostIds.length;
+  const visiblePendingIds = visiblePendingApprovalPosts.map((post) => post.id);
+
+  const allVisiblePendingSelected =
+    visiblePendingIds.length > 0 &&
+    visiblePendingIds.every((postId) =>
+      selectedPendingPostIds.includes(postId)
+    );
+
   const creditsRemaining = creditBalance?.credits_remaining ?? 0;
   const monthlyCreditLimit = creditBalance?.monthly_credit_limit ?? 0;
 
@@ -285,6 +303,76 @@ export default function Home() {
 
   const nextAutomation = upcomingRules[0] || null;
   const currentBrandName = brandProfile?.business_name || "Current brand";
+
+  function togglePendingPostSelection(postId) {
+    setDeleteConfirmActive(false);
+
+    setSelectedPendingPostIds((current) => {
+      if (current.includes(postId)) {
+        return current.filter((id) => id !== postId);
+      }
+
+      return [...current, postId];
+    });
+  }
+
+  function selectVisiblePendingPosts() {
+    setDeleteConfirmActive(false);
+    setSelectedPendingPostIds(visiblePendingIds);
+  }
+
+  function clearSelectedPendingPosts() {
+    setDeleteConfirmActive(false);
+    setSelectedPendingPostIds([]);
+  }
+
+  async function deleteSelectedPendingPosts() {
+    if (!selectedPendingPostIds.length || bulkActionLoading) {
+      return;
+    }
+
+    if (!deleteConfirmActive) {
+      setDeleteConfirmActive(true);
+      return;
+    }
+
+    setBulkActionLoading(true);
+    setMessage("");
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const idsToDelete = [...selectedPendingPostIds];
+
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("brand_profile_id", currentBrandId)
+      .eq("status", "pending_approval")
+      .in("id", idsToDelete);
+
+    if (error) {
+      setMessage(error.message || "Could not delete selected posts.");
+      setBulkActionLoading(false);
+      return;
+    }
+
+    setPosts((currentPosts) =>
+      currentPosts.filter((post) => !idsToDelete.includes(post.id))
+    );
+
+    setSelectedPendingPostIds([]);
+    setDeleteConfirmActive(false);
+    setBulkActionLoading(false);
+    setMessage(`${idsToDelete.length} selected post(s) deleted.`);
+  }
 
   return (
     <AppLayout active="dashboard">
@@ -425,6 +513,67 @@ export default function Home() {
                     <span>{pendingApprovalPosts.length} waiting</span>
                   </div>
 
+                  {!loading && pendingApprovalPosts.length > 0 && (
+                    <div className="dashboard-bulk-actions">
+                      <div>
+                        <strong>{selectedPendingCount} selected</strong>
+                        {deleteConfirmActive && selectedPendingCount > 0 ? (
+                          <span>
+                            Confirm delete {selectedPendingCount} selected post
+                            {selectedPendingCount === 1 ? "" : "s"}.
+                          </span>
+                        ) : (
+                          <span>
+                            Select posts to delete old pending approvals.
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <button
+                          type="button"
+                          onClick={selectVisiblePendingPosts}
+                          disabled={
+                            bulkActionLoading ||
+                            visiblePendingIds.length === 0 ||
+                            allVisiblePendingSelected
+                          }
+                        >
+                          Select visible
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={clearSelectedPendingPosts}
+                          disabled={
+                            bulkActionLoading || selectedPendingCount === 0
+                          }
+                        >
+                          Clear
+                        </button>
+
+                        <button
+                          type="button"
+                          className={
+                            deleteConfirmActive
+                              ? "dashboard-danger-action confirm"
+                              : "dashboard-danger-action"
+                          }
+                          onClick={deleteSelectedPendingPosts}
+                          disabled={
+                            bulkActionLoading || selectedPendingCount === 0
+                          }
+                        >
+                          {bulkActionLoading
+                            ? "Deleting..."
+                            : deleteConfirmActive
+                            ? `Confirm delete ${selectedPendingCount}`
+                            : "Delete selected"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {loading ? (
                     <div className="dashboard-empty">
                       <h4>Loading review queue...</h4>
@@ -440,11 +589,26 @@ export default function Home() {
                     </div>
                   ) : (
                     <div className="dashboard-review-list">
-                      {pendingApprovalPosts.slice(0, 4).map((post) => (
+                      {visiblePendingApprovalPosts.map((post) => (
                         <article
-                          className="dashboard-review-item"
+                          className={`dashboard-review-item ${
+                            selectedPendingPostIds.includes(post.id)
+                              ? "selected"
+                              : ""
+                          }`}
                           key={post.id}
                         >
+                          <label className="dashboard-review-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={selectedPendingPostIds.includes(post.id)}
+                              onChange={() =>
+                                togglePendingPostSelection(post.id)
+                              }
+                            />
+                            <span>Select post</span>
+                          </label>
+
                           {post.image_url ? (
                             <img
                               src={post.image_url}
