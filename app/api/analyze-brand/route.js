@@ -514,6 +514,13 @@ async function saveBrandProfile({
       campaign_calendar_year: campaignCalendarYear,
       campaign_calendar_generated_at: new Date().toISOString(),
       campaign_calendar_refreshed_at: new Date().toISOString(),
+            website_product_mode_available: Boolean(
+        websiteProductMode?.available
+      ),
+      website_product_mode_checked_at: websiteUrl
+        ? new Date().toISOString()
+        : null,
+      website_product_mode_reason: websiteProductMode?.reason || "",
       updated_at: new Date().toISOString(),
     })
     .eq("id", brandProfileId)
