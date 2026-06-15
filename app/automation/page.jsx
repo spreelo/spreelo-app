@@ -2687,7 +2687,13 @@ function changeAutoPlanGoal(goalId) {
     if (mode === "auto") {
       const strategy = getAutoPlanStrategy(autoPlanGoal);
 
-      setSelectedContentTypeIds(strategy.contentTypeIds);
+           setSelectedContentTypeIds(
+        getBrandSafeContentTypeIds(
+          strategy.contentTypeIds,
+          websiteProductModeAvailable
+        )
+      );
+
       setSlots(
         createRecommendedSlots({
           startDate: planStartDate,
@@ -2695,6 +2701,7 @@ function changeAutoPlanGoal(goalId) {
           autoPlanGoal,
           firstPublishTime: defaultPublishTime,
           postCount: autoPlanPostCount,
+          websiteProductModeAvailable,
         })
       );
       return;
