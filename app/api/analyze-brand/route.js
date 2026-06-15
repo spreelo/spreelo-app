@@ -998,7 +998,7 @@ Rules:
     throw new Error("Could not parse OpenAI response");
   }
 
-  return {
+   return {
     profile: {
       business_name: String(
         parsed.profile.business_name || businessName || ""
@@ -1006,6 +1006,11 @@ Rules:
       industry: String(parsed.profile.industry || "").trim(),
       target_audience: String(parsed.profile.target_audience || "").trim(),
       detected_language: String(parsed.profile.detected_language || "").trim(),
+    },
+    website_product_mode: {
+      available: false,
+      reason:
+        "No website was provided, so website product mode is not available.",
     },
     campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
       ? parsed.campaign_opportunities
