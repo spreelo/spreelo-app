@@ -14,6 +14,10 @@ const WEBSITE_MAX_TEXT_CHARS_PER_PAGE = 6500;
 const WEBSITE_MAX_TOTAL_TEXT_CHARS = 22000;
 const WEBSITE_MAX_IMAGE_CANDIDATES = 40;
 
+const PRODUCT_RESEARCH_MODEL = "gpt-5.5";
+const POST_TEXT_MODEL = "gpt-4.1-mini";
+const IMAGE_MODEL = "gpt-image-2";
+
 const WEEKDAYS = [
   "Sunday",
   "Monday",
