@@ -1962,13 +1962,13 @@ async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
   const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
 
   if (!websiteUrl) {
-    return null;
+    return [];
   }
 
   const websiteHost = getHostnameWithoutWww(websiteUrl);
 
   if (!websiteHost) {
-    return null;
+    return [];
   }
 
   const campaignPrompt = String(rule?.prompt || "").trim();
@@ -1978,7 +1978,7 @@ async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
     tools: [{ type: "web_search" }],
     tool_choice: "required",
     input: `
-Search the web and find one real product page from this exact customer website that best matches the campaign.
+Search the web and find 8 real product pages from this exact customer website that could match the campaign.
 
 Customer website:
 ${websiteUrl}
@@ -1990,10 +1990,10 @@ Brand profile:
 ${formatBrandProfileForPrompt(brandProfile)}
 
 Campaign / automation prompt:
-${campaignPrompt || "No specific campaign prompt was provided. Choose a strong concrete product from the customer's website that would work well in a social media sales post."}
+${campaignPrompt || "No specific campaign prompt was provided. Choose strong concrete products from the customer's website that would work well in social media sales posts."}
 
 Strict rules:
-- Return only a real product page from the allowed customer domain.
+- Return only real product pages from the allowed customer domain.
 - Do not return products from other domains.
 - Do not return the homepage.
 - Do not return category pages.
@@ -2002,21 +2002,28 @@ Strict rules:
 - Do not return search pages.
 - Do not return cart or checkout pages.
 - Do not guess URLs.
-- Prefer a product page that has a clear product image.
-- If this is a theme day, holiday or campaign, choose a product that strongly fits the theme, buyer intent and recipient.
-- If this is a general "sell something from website" automation, choose a concrete product that seems strong, relevant and easy to promote.
+- Prefer product pages that have clear product images.
+- Return several alternatives, not just one.
+- If the first product is uncertain, still include other stronger alternatives.
+- If this is a theme day, holiday or campaign, choose products that strongly fit the theme, buyer intent and recipient.
+- If this is a general "sell something from website" automation, choose concrete products that seem strong, relevant and easy to promote.
 
 Father's Day guidance:
 - For toy and game stores, prefer adult-friendly or family-friendly gifts.
 - Good examples: board games, quiz games, music games, party games, family games, building sets, hobby kits, model kits, outdoor play or products parents and children can enjoy together.
 - Avoid toddler products or baby toys if stronger father/family gift options exist.
+- For toy/game stores, board games and family games are usually stronger Father's Day matches than generic small-child toys.
 
 Return strict JSON only in this exact shape:
 {
-  "title": "Product title if found, otherwise empty string",
-  "url": "Full product URL if found, otherwise empty string",
-  "price": "Visible price if clearly found, otherwise empty string",
-  "reason": "Short reason why this product fits"
+  "products": [
+    {
+      "title": "Product title if found, otherwise empty string",
+      "url": "Full product URL if found, otherwise empty string",
+      "price": "Visible price if clearly found, otherwise empty string",
+      "reason": "Short reason why this product fits"
+    }
+  ]
 }
 `.trim(),
   });
@@ -2024,38 +2031,46 @@ Return strict JSON only in this exact shape:
   const content = response.output_text || "";
   const parsed = safeJsonParse(content);
 
-  const productUrl = String(parsed?.url || "").trim();
+  const rawProducts = Array.isArray(parsed?.products) ? parsed.products : [];
 
-  if (!productUrl || !isHttpUrl(productUrl)) {
-    return null;
-  }
+  const validProducts = [];
 
-  if (!isSameOrSubdomainUrl(productUrl, websiteUrl)) {
-    console.error("Web search returned product from wrong domain", {
-      ruleId: rule?.id,
-      websiteUrl,
-      productUrl,
+  for (const product of rawProducts) {
+    const productUrl = String(product?.url || "").trim();
+
+    if (!productUrl || !isHttpUrl(productUrl)) {
+      continue;
+    }
+
+    if (!isSameOrSubdomainUrl(productUrl, websiteUrl)) {
+      console.error("Web search returned product from wrong domain", {
+        ruleId: rule?.id,
+        websiteUrl,
+        productUrl,
+      });
+
+      continue;
+    }
+
+    if (isLikelyNonProductUrl(productUrl, websiteUrl)) {
+      console.error("Web search returned weak or non-product URL", {
+        ruleId: rule?.id,
+        websiteUrl,
+        productUrl,
+      });
+
+      continue;
+    }
+
+    validProducts.push({
+      title: String(product?.title || "").trim(),
+      url: productUrl,
+      price: String(product?.price || "").trim(),
+      reason: String(product?.reason || "").trim(),
     });
-
-    return null;
   }
 
-  if (isLikelyNonProductUrl(productUrl, websiteUrl)) {
-    console.error("Web search returned weak or non-product URL", {
-      ruleId: rule?.id,
-      websiteUrl,
-      productUrl,
-    });
-
-    return null;
-  }
-
-  return {
-    title: String(parsed?.title || "").trim(),
-    url: productUrl,
-    price: String(parsed?.price || "").trim(),
-    reason: String(parsed?.reason || "").trim(),
-  };
+  return validProducts.slice(0, 8);
 }
 
 async function findWebsiteProductWithWebSearch({
