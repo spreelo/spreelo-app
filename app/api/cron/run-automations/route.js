@@ -2079,27 +2079,66 @@ async function findWebsiteProductWithWebSearch({
   rule,
   websiteUrl,
 }) {
-  const webSearchProduct = await findProductUrlWithWebSearch({
+  const webSearchProducts = await findProductUrlWithWebSearch({
     openai,
     brandProfile,
     rule,
   });
 
-  if (!webSearchProduct?.url) {
+  if (!webSearchProducts.length) {
+    console.error("Web search returned no valid product candidates", {
+      ruleId: rule?.id,
+      brandProfileId: rule?.brand_profile_id,
+      websiteUrl,
+    });
+
     return null;
   }
 
-  const websiteItem = await extractProductDataFromProductPage({
-    productUrl: webSearchProduct.url,
+  for (const webSearchProduct of webSearchProducts) {
+    try {
+      const websiteItem = await extractProductDataFromProductPage({
+        productUrl: webSearchProduct.url,
+        websiteUrl,
+        webSearchProduct,
+      });
+
+      if (!websiteItem?.image_url) {
+        console.error("Web search product candidate had no usable product image", {
+          ruleId: rule?.id,
+          productUrl: webSearchProduct.url,
+          title: webSearchProduct.title,
+        });
+
+        continue;
+      }
+
+      console.log("Web search selected website product", {
+        ruleId: rule?.id,
+        productUrl: websiteItem.url,
+        title: websiteItem.title,
+        imageUrl: websiteItem.image_url,
+      });
+
+      return websiteItem;
+    } catch (candidateError) {
+      console.error("Could not extract product candidate from web search result", {
+        ruleId: rule?.id,
+        productUrl: webSearchProduct.url,
+        title: webSearchProduct.title,
+        message: candidateError.message,
+      });
+    }
+  }
+
+  console.error("No web search product candidates passed product page extraction", {
+    ruleId: rule?.id,
+    brandProfileId: rule?.brand_profile_id,
     websiteUrl,
-    webSearchProduct,
+    candidateCount: webSearchProducts.length,
   });
 
-  if (!websiteItem) {
-    return null;
-  }
-
-  return websiteItem;
+  return null;
 }
 async function prepareWebsiteContentForRule({
   supabase,
