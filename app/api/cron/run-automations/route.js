@@ -1925,12 +1925,21 @@ async function extractProductDataFromProductPage({
     String(metaDescription || "").trim() ||
     truncateText(stripHtmlToText(html), 700);
 
-  const price =
-    String(webSearchProduct?.price || "").trim() ||
-    getProductPriceFromJsonLd(product) ||
-    extractProductPriceFromHtml(html);
+ const price =
+  String(webSearchProduct?.price || "").trim() ||
+  getProductPriceFromJsonLd(product) ||
+  extractProductPriceFromHtml(html);
 
-  const imageUrl = extractBestProductImageFromHtml(html, productUrl);
+if (!price) {
+  console.error("Product page candidate rejected because no clear price was found", {
+    productUrl,
+    title,
+  });
+
+  return null;
+}
+
+const imageUrl = extractBestProductImageFromHtml(html, productUrl);
 
   const normalizedItem = normalizeWebsiteItem(
     {
