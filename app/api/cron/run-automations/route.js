@@ -2503,6 +2503,46 @@ async function findWebsiteProductWithWebSearch({
 
   return null;
 }
+function createSafeWebsiteCampaignFallbackItem({ brandProfile, rule, websiteUrl }) {
+  const businessName = String(brandProfile?.business_name || "the business").trim();
+  const prompt = String(rule?.prompt || "").trim();
+
+  const title = prompt
+    ? `Campaign inspiration: ${prompt}`
+    : `Campaign inspiration from ${businessName}`;
+
+  const description = `
+This fallback item is used because no verified product page with a safe product image was found.
+
+Create a general campaign post for ${businessName}.
+Base the post on the campaign instruction and brand profile.
+Do not mention a specific product.
+Do not invent a product, price, discount, stock status or product details.
+Do not claim that a specific item is available.
+Invite people to explore the website for relevant options.
+`.trim();
+
+  const item = normalizeWebsiteItem(
+    {
+      title,
+      type: "campaign_fallback",
+      url: websiteUrl,
+      description,
+      price: "",
+      image_url: null,
+    },
+    websiteUrl
+  );
+
+  if (!item) {
+    return null;
+  }
+
+  return {
+    ...item,
+    item_key: createItemKey(item),
+  };
+}
 async function prepareWebsiteContentForRule({
   supabase,
   openai,
