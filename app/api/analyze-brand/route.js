@@ -526,8 +526,8 @@ async function saveBrandProfile({
     .eq("id", brandProfileId)
     .eq("user_id", userId)
     .select(
-      "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, campaign_calendar_year, campaign_calendar_generated_at, campaign_calendar_refreshed_at"
-    )
+  "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, campaign_calendar_year, campaign_calendar_generated_at, campaign_calendar_refreshed_at, website_product_mode_available, website_product_mode_checked_at, website_product_mode_reason"
+)
     .single();
 
   if (error) {
