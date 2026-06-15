@@ -604,7 +604,10 @@ function createEmptySummary() {
     website_items_found: 0,
     website_items_reused_cycle: 0,
     website_image_used: 0,
-    website_image_missing_ai_fallback: 0,
+website_image_missing_ai_fallback: 0,
+website_web_search_success: 0,
+website_web_search_failed: 0,
+website_web_search_fallback_used: 0,
   };
 }
 
