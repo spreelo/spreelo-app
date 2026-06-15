@@ -6798,3 +6798,66 @@ select.input {
 .unlock-campaign-date-button:hover {
   text-decoration: underline;
 }
+/* ===== Dashboard pending approval using saved plans style ===== */
+
+.dashboard-pending-card {
+  grid-template-columns: 22px 54px minmax(0, 1fr) auto;
+}
+
+.dashboard-pending-thumb,
+.dashboard-pending-placeholder {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+}
+
+.dashboard-pending-thumb {
+  object-fit: cover;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #f8fafc;
+}
+
+.dashboard-pending-placeholder {
+  display: grid;
+  place-items: center;
+  background: #f3f0ff;
+  color: #5b21b6;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.dashboard-pending-card p {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dashboard-pending-review-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(109, 93, 252, 0.28);
+  background: #ffffff;
+  color: #5b21b6;
+  padding: 0 11px;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.dashboard-pending-review-button:hover {
+  background: #f7f4ff;
+}
+
+@media (max-width: 720px) {
+  .dashboard-pending-card {
+    grid-template-columns: 22px 54px 1fr;
+  }
+
+  .dashboard-pending-review-button {
+    grid-column: 3;
+    justify-self: flex-start;
+  }
+}
