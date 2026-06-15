@@ -2649,6 +2649,7 @@ if (Array.isArray(webSearchItems) && webSearchItems.length) {
         useWebsiteImage: selected.useWebsiteImage,
       };
     }
+  }
   } catch (webSearchError) {
     console.error("Website product research failed", {
       ruleId: rule.id,
