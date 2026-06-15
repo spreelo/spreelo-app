@@ -2183,7 +2183,12 @@ async function findProductCandidatesFromDiscoveryPages({
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
     .slice(0, 12);
 }
-async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
+async function findProductUrlWithWebSearch({
+  openai,
+  brandProfile,
+  rule,
+  attempt = "best_match",
+}) {
   const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
 
   if (!websiteUrl) {
@@ -2202,6 +2207,8 @@ async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
       discoveryPages: [],
     };
   }
+
+  const isBackupAttempt = attempt === "backup_broad";
 
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
@@ -2225,6 +2232,25 @@ ${formatBrandProfileForPrompt(brandProfile)}
 Campaign / automation prompt:
 ${campaignPrompt || "No specific campaign prompt was provided. Find a concrete product from the customer website that would work well in a social media sales post."}
 
+Research mode:
+${
+  isBackupAttempt
+    ? `
+This is a backup attempt.
+
+The first attempt did not find a usable product page.
+
+Now broaden the search, but still return ONLY real product pages.
+If the perfect campaign match is hard to find, choose the best concrete product from the customer website that is still reasonably useful for the campaign.
+Do not return category pages, brand pages, gift guide pages, age pages or campaign pages.
+`.trim()
+    : `
+This is the primary attempt.
+
+Find the strongest product match for the campaign.
+`.trim()
+}
+
 Before searching, analyze the campaign like a marketing strategist.
 
 Campaign analysis:
@@ -2242,7 +2268,7 @@ Use several targeted searches based on your campaign analysis.
 Do not only open the homepage.
 Do not only choose the first result.
 Do not choose a product just because it exists on the website.
-Choose products because they strongly match the campaign intent.
+Choose products because they match the campaign intent.
 
 Search strategy:
 - Search for specific product categories that fit the campaign.
@@ -2258,6 +2284,9 @@ Product quality rules:
 - Do not return the homepage.
 - Do not return brand pages.
 - Do not return category pages.
+- Do not return gift guide pages.
+- Do not return age collection pages.
+- Do not return campaign landing pages.
 - Do not return customer service pages.
 - Do not return FAQ pages.
 - Do not return blog/news pages.
@@ -2267,7 +2296,7 @@ Product quality rules:
 - Do not return another company's website.
 - Do not guess URLs.
 - Prefer products that likely have a clear product image.
-- If you cannot find the perfect campaign match, still choose the best real concrete product from the customer website rather than returning a category page.
+- If you cannot find the perfect campaign match, still choose the best real concrete product from the customer website rather than returning a category, brand or guide page.
 
 Ranking rules:
 - Rank products by campaign fit, not by what appears first.
@@ -2341,6 +2370,7 @@ Return 1 to 5 real product pages if possible.
         ruleId: rule?.id,
         websiteUrl,
         productUrl,
+        attempt,
       });
 
       continue;
@@ -2351,6 +2381,7 @@ Return 1 to 5 real product pages if possible.
         ruleId: rule?.id,
         websiteUrl,
         productUrl,
+        attempt,
       });
 
       continue;
@@ -2361,6 +2392,7 @@ Return 1 to 5 real product pages if possible.
         ruleId: rule?.id,
         websiteUrl,
         productUrl,
+        attempt,
       });
 
       continue;
@@ -2379,6 +2411,7 @@ Return 1 to 5 real product pages if possible.
       ruleId: rule?.id,
       brandProfileId: rule?.brand_profile_id,
       websiteUrl,
+      attempt,
       rawResponse: truncateText(content, 1200),
     });
   }
