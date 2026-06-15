@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../components/AppLayout";
 import { supabase } from "../lib/supabaseClient";
 
+const PENDING_PREVIEW_LIMIT = 3;
+
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
@@ -41,15 +43,6 @@ function formatStatus(status) {
   };
 
   return labels[status] || status;
-}
-
-function getStatusClass(status) {
-  if (status === "pending_approval") return "status-pill warning";
-  if (status === "approved") return "status-pill success";
-  if (status === "published") return "status-pill success";
-  if (status === "failed") return "status-pill danger";
-
-  return "status-pill";
 }
 
 function formatScheduleType(value) {
@@ -114,6 +107,7 @@ export default function Home() {
   const [selectedPendingPostIds, setSelectedPendingPostIds] = useState([]);
   const [deleteConfirmActive, setDeleteConfirmActive] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [showAllPendingPosts, setShowAllPendingPosts] = useState(false);
 
   useEffect(() => {
     loadDashboard();
@@ -160,6 +154,7 @@ export default function Home() {
     setMessage("");
     setSelectedPendingPostIds([]);
     setDeleteConfirmActive(false);
+    setShowAllPendingPosts(false);
 
     const {
       data: { user },
@@ -244,8 +239,12 @@ export default function Home() {
   }, [posts]);
 
   const visiblePendingApprovalPosts = useMemo(() => {
-    return pendingApprovalPosts;
-  }, [pendingApprovalPosts]);
+    if (showAllPendingPosts) {
+      return pendingApprovalPosts;
+    }
+
+    return pendingApprovalPosts.slice(0, PENDING_PREVIEW_LIMIT);
+  }, [pendingApprovalPosts, showAllPendingPosts]);
 
   const scheduledPosts = useMemo(() => {
     return posts
@@ -503,66 +502,70 @@ export default function Home() {
                   )}
                 </section>
 
-                <section className="dashboard-card" id="pending-review">
-                  <div className="dashboard-card-header">
+                <section
+                  className="dashboard-card saved-card-compact"
+                  id="pending-review"
+                >
+                  <div className="saved-header">
                     <div>
                       <p>Review</p>
                       <h3>Pending approval</h3>
                     </div>
 
-                    <span>{pendingApprovalPosts.length} waiting</span>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() =>
+                        setShowAllPendingPosts((current) => !current)
+                      }
+                      disabled={
+                        pendingApprovalPosts.length <= PENDING_PREVIEW_LIMIT
+                      }
+                    >
+                      {showAllPendingPosts ? "Show less" : "Show all"}
+                    </button>
                   </div>
 
                   {!loading && pendingApprovalPosts.length > 0 && (
-                    <div className="dashboard-bulk-actions">
-                      <div>
-                        <strong>{selectedPendingCount} selected</strong>
-                        {deleteConfirmActive && selectedPendingCount > 0 ? (
-                          <span>
-                            Confirm delete {selectedPendingCount} selected post
-                            {selectedPendingCount === 1 ? "" : "s"}.
-                          </span>
-                        ) : (
-                          <span>
-                            Select posts to delete old pending approvals.
-                          </span>
-                        )}
-                      </div>
+                    <div className="saved-bulk-actions">
+                      <label className="image-check">
+                        <input
+                          type="checkbox"
+                          checked={allVisiblePendingSelected}
+                          onChange={() => {
+                            if (allVisiblePendingSelected) {
+                              clearSelectedPendingPosts();
+                            } else {
+                              selectVisiblePendingPosts();
+                            }
+                          }}
+                        />
+                        Select visible
+                      </label>
 
-                      <div>
+                      <span>
+                        {selectedPendingCount} selected · showing{" "}
+                        {visiblePendingApprovalPosts.length} of{" "}
+                        {pendingApprovalPosts.length}
+                      </span>
+
+                      {selectedPendingCount > 0 && (
                         <button
                           type="button"
-                          onClick={selectVisiblePendingPosts}
-                          disabled={
-                            bulkActionLoading ||
-                            visiblePendingIds.length === 0 ||
-                            allVisiblePendingSelected
-                          }
-                        >
-                          Select visible
-                        </button>
-
-                        <button
-                          type="button"
+                          className="tiny-button"
                           onClick={clearSelectedPendingPosts}
-                          disabled={
-                            bulkActionLoading || selectedPendingCount === 0
-                          }
+                          disabled={bulkActionLoading}
                         >
                           Clear
                         </button>
+                      )}
 
+                      {selectedPendingCount > 0 && (
                         <button
                           type="button"
-                          className={
-                            deleteConfirmActive
-                              ? "dashboard-danger-action confirm"
-                              : "dashboard-danger-action"
-                          }
+                          className="danger-button"
                           onClick={deleteSelectedPendingPosts}
-                          disabled={
-                            bulkActionLoading || selectedPendingCount === 0
-                          }
+                          disabled={bulkActionLoading}
                         >
                           {bulkActionLoading
                             ? "Deleting..."
@@ -570,7 +573,15 @@ export default function Home() {
                             ? `Confirm delete ${selectedPendingCount}`
                             : "Delete selected"}
                         </button>
-                      </div>
+                      )}
+
+                      {deleteConfirmActive && selectedPendingCount > 0 && (
+                        <span className="delete-confirm-note">
+                          Click confirm to delete {selectedPendingCount}{" "}
+                          selected post
+                          {selectedPendingCount === 1 ? "" : "s"}.
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -588,74 +599,107 @@ export default function Home() {
                       </p>
                     </div>
                   ) : (
-                    <div className="dashboard-review-list">
-                      {visiblePendingApprovalPosts.map((post) => (
-                        <article
-                          className={`dashboard-review-item ${
-                            selectedPendingPostIds.includes(post.id)
-                              ? "selected"
-                              : ""
-                          }`}
-                          key={post.id}
-                        >
-                          <label className="dashboard-review-checkbox">
-                            <input
-                              type="checkbox"
-                              checked={selectedPendingPostIds.includes(post.id)}
-                              onChange={() =>
-                                togglePendingPostSelection(post.id)
-                              }
-                            />
-                            <span>Select post</span>
-                          </label>
+                    <>
+                      <div className="saved-rule-list">
+                        {visiblePendingApprovalPosts.map((post) => (
+                          <article
+                            className={`saved-rule-card dashboard-pending-card ${
+                              selectedPendingPostIds.includes(post.id)
+                                ? "selected"
+                                : ""
+                            }`}
+                            key={post.id}
+                          >
+                            <label className="image-check">
+                              <input
+                                type="checkbox"
+                                checked={selectedPendingPostIds.includes(
+                                  post.id
+                                )}
+                                onChange={() =>
+                                  togglePendingPostSelection(post.id)
+                                }
+                              />
+                            </label>
 
-                          {post.image_url ? (
-                            <img
-                              src={post.image_url}
-                              alt="Generated post image"
-                            />
-                          ) : (
-                            <div className="dashboard-review-placeholder">
-                              {post.platform?.slice(0, 1) || "S"}
-                            </div>
-                          )}
+                            {post.image_url ? (
+                              <img
+                                className="dashboard-pending-thumb"
+                                src={post.image_url}
+                                alt="Generated post image"
+                              />
+                            ) : (
+                              <div className="dashboard-pending-placeholder">
+                                {post.platform?.slice(0, 1) || "S"}
+                              </div>
+                            )}
 
-                          <div>
-                            <div className="dashboard-review-topline">
+                            <div>
                               <h4>
                                 {post.platform || "Platform not set"} ·{" "}
                                 {post.post_type || "Post"}
                               </h4>
 
-                              <span className={getStatusClass(post.status)}>
-                                {formatStatus(post.status)}
-                              </span>
+                              <p>
+                                {(
+                                  post.content ||
+                                  post.idea ||
+                                  "No preview available"
+                                )
+                                  .split("\n")
+                                  .slice(0, 2)
+                                  .join(" ")}
+                              </p>
+
+                              <small>
+                                Created {formatDate(post.created_at)} ·{" "}
+                                {post.source_label ||
+                                  (post.source === "automation"
+                                    ? "Generated by automation"
+                                    : "Manual draft")}
+                              </small>
                             </div>
 
-                            <p>
-                              {(
-                                post.content ||
-                                post.idea ||
-                                "No preview available"
-                              )
-                                .split("\n")
-                                .slice(0, 2)
-                                .join(" ")}
-                            </p>
+                            <a
+                              className="dashboard-pending-review-button"
+                              href={`/posts/${post.id}`}
+                            >
+                              Review
+                            </a>
+                          </article>
+                        ))}
+                      </div>
 
-                            <small>
-                              Created {formatDate(post.created_at)} ·{" "}
-                              {post.source_label ||
-                                (post.source === "automation"
-                                  ? "Generated by automation"
-                                  : "Manual draft")}
-                            </small>
-                          </div>
+                      {!showAllPendingPosts &&
+                        pendingApprovalPosts.length >
+                          PENDING_PREVIEW_LIMIT && (
+                          <button
+                            type="button"
+                            className="show-more-rules"
+                            onClick={() => setShowAllPendingPosts(true)}
+                          >
+                            Show{" "}
+                            {pendingApprovalPosts.length -
+                              PENDING_PREVIEW_LIMIT}{" "}
+                            more pending posts
+                          </button>
+                        )}
 
-                          <a href={`/posts/${post.id}`}>Review</a>
-                        </article>
-                      ))}
-                    </div>
+                      {showAllPendingPosts &&
+                        pendingApprovalPosts.length >
+                          PENDING_PREVIEW_LIMIT && (
+                          <button
+                            type="button"
+                            className="show-more-rules"
+                            onClick={() => {
+                              setShowAllPendingPosts(false);
+                              clearSelectedPendingPosts();
+                            }}
+                          >
+                            Show less
+                          </button>
+                        )}
+                    </>
                   )}
                 </section>
               </main>
