@@ -830,6 +830,9 @@ Rules:
       target_audience: String(parsed.profile.target_audience || "").trim(),
       detected_language: String(parsed.profile.detected_language || "").trim(),
     },
+    website_product_mode: normalizeWebsiteProductMode(
+      parsed.website_product_mode
+    ),
     campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
       ? parsed.campaign_opportunities
       : [],
