@@ -2645,7 +2645,13 @@ function changeAutoPlanGoal(goalId) {
 
     setMessage("");
     setAutoPlanGoal(goalId);
-    setSelectedContentTypeIds(strategy.contentTypeIds);
+       setSelectedContentTypeIds(
+      getBrandSafeContentTypeIds(
+        strategy.contentTypeIds,
+        websiteProductModeAvailable
+      )
+    );
+
     setSlots(
       createRecommendedSlots({
         startDate: planStartDate,
@@ -2653,6 +2659,7 @@ function changeAutoPlanGoal(goalId) {
         autoPlanGoal: goalId,
         firstPublishTime: defaultPublishTime,
         postCount: autoPlanPostCount,
+        websiteProductModeAvailable,
       })
     );
   }
