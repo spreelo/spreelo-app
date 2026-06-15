@@ -2745,6 +2745,10 @@ function changeAutoPlanGoal(goalId) {
   function toggleContentType(typeId) {
     setMessage("");
 
+    if (typeId === "website_item" && !websiteProductModeAvailable) {
+      return;
+    }
+    
     setSelectedContentTypeIds((currentTypeIds) => {
       const nextTypeIds = currentTypeIds.includes(typeId)
         ? currentTypeIds.filter((id) => id !== typeId)
