@@ -705,6 +705,10 @@ Return JSON only in this exact shape:
     "target_audience": "Clear description of the likely customers/audience, written in the most suitable content language",
     "detected_language": "Detected main language"
   },
+  "website_product_mode": {
+    "available": true,
+    "reason": "Short internal explanation. True only if the website clearly appears to contain at least one sellable item with a title, own URL or product/listing page, and a relevant image or product/listing presentation."
+  },
   "campaign_opportunities": [
     {
       "title": "Campaign or theme day name",
