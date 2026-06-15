@@ -2782,7 +2782,7 @@ async function generateAutomationImage(openai, rule, postContent) {
   const prompt = buildImagePrompt(rule, postContent);
 
   const response = await openai.images.generate({
-    model: "gpt-image-2",
+    model: "gpt-image-1",
     prompt,
     size: "1024x1024",
   });
