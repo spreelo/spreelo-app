@@ -2607,23 +2607,32 @@ async function prepareWebsiteContentForRule({
   }
 
   try {
-    const webSearchItem = await findWebsiteProductWithWebSearch({
-      openai,
-      brandProfile,
-      rule,
-      websiteUrl,
-    });
+    const webSearchItems = await findWebsiteProductWithWebSearch({
+  openai,
+  brandProfile,
+  rule,
+  websiteUrl,
+});
 
-    if (webSearchItem) {
-      const selected = await chooseUnusedWebsiteItem({
-        supabase,
-        userId: rule.user_id,
-        brandProfileId: rule.brand_profile_id,
-        sourceUrl: websiteUrl,
-        contentType: rule.content_type_id || "website_item",
-        items: [webSearchItem],
-        usedWebsiteImageUrlsThisRun,
-      });
+if (Array.isArray(webSearchItems) && webSearchItems.length) {
+  const selected = await chooseUnusedWebsiteItem({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    contentType: rule.content_type_id || "website_item",
+    items: webSearchItems,
+    usedWebsiteImageUrlsThisRun,
+  });
+
+  if (!selected?.item) {
+    console.error("No unused website product could be selected from verified products", {
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      verifiedCount: webSearchItems.length,
+    });
+  } else {
 
       if (selected.startedNewCycle) {
         summary.website_items_reused_cycle += 1;
