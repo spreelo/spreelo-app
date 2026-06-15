@@ -910,9 +910,7 @@ export default function BrandProfile() {
                 <div>
                   <strong>{analyzingSteps[currentAnalyzingStep]}</strong>
                   <p>
-                    This can take up to a minute. Please keep this page open
-                    while Spreelo analyzes your brand and prepares the campaign
-                    calendar.
+                    Spreelo is still working. Larger websites and campaign calendars can take a little longer, so please keep this page open.
                   </p>
                 </div>
               </div>
