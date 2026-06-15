@@ -2211,7 +2211,7 @@ async function findProductUrlWithWebSearch({ openai, brandProfile, rule }) {
 You are a product researcher for a social media automation app.
 
 Your job:
-Find ONE real, concrete product from the customer's website that can be promoted in a social media post.
+Find real, concrete products from the customer's website that can be promoted in a social media post.
 
 Customer website:
 ${websiteUrl}
@@ -2225,24 +2225,38 @@ ${formatBrandProfileForPrompt(brandProfile)}
 Campaign / automation prompt:
 ${campaignPrompt || "No specific campaign prompt was provided. Find a concrete product from the customer website that would work well in a social media sales post."}
 
-Very important:
-You must search like a human researcher, not just open the homepage.
+Before searching, analyze the campaign like a marketing strategist.
 
-Use targeted searches. For example, if the website is Lekia and the campaign is Father's Day, search for things like:
-- site:${websiteHost} Hitster
-- site:${websiteHost} sällskapsspel
-- site:${websiteHost} familjespel
-- site:${websiteHost} quizspel
-- site:${websiteHost} brädspel
-- site:${websiteHost} LEGO Icons
-- site:${websiteHost} byggset
-- site:${websiteHost} spel vuxna
-- site:${websiteHost} present pappa
+Campaign analysis:
+- What is the campaign, holiday, season, theme day or sales angle?
+- Who is the likely buyer?
+- Who is the likely recipient or end user?
+- Is the product meant as a gift, shared activity, seasonal need, celebration item, practical purchase, impulse buy, premium purchase, problem-solver or inspiration?
+- What age group, life situation, interest, relationship or occasion does the campaign imply?
+- What product categories naturally fit this intent?
+- What product types would feel wrong, too random, too childish, too adult, too generic, too expensive, too cheap or aimed at the wrong person?
 
-Rules:
+Then search like a human researcher.
+
+Use several targeted searches based on your campaign analysis.
+Do not only open the homepage.
+Do not only choose the first result.
+Do not choose a product just because it exists on the website.
+Choose products because they strongly match the campaign intent.
+
+Search strategy:
+- Search for specific product categories that fit the campaign.
+- Search for recipient-based product ideas.
+- Search for occasion-based product ideas.
+- Search for use-case-based product ideas.
+- Search for gift/activity/seasonal/sales intent when relevant.
+- Prefer concrete product pages over category, brand or listing pages.
+
+Product quality rules:
 - Return only real product pages from the allowed customer domain.
+- A product page must be about one specific product that a customer can buy, book or order.
 - Do not return the homepage.
-- Do not return brand pages such as /varumarken/lego.
+- Do not return brand pages.
 - Do not return category pages.
 - Do not return customer service pages.
 - Do not return FAQ pages.
@@ -2252,14 +2266,39 @@ Rules:
 - Do not return images by themselves.
 - Do not return another company's website.
 - Do not guess URLs.
-- A product page should be a page for one specific product that a customer can buy, book or order.
-- If you cannot find the perfect campaign match, still choose a real concrete product from the customer website rather than returning a category page.
-- Prefer a product that likely has a product image.
+- Prefer products that likely have a clear product image.
+- If you cannot find the perfect campaign match, still choose the best real concrete product from the customer website rather than returning a category page.
 
-Father's Day guidance:
-- For toy and game stores, prefer products that work as gifts for a father or as a shared father-child activity.
-- Strong choices: board games, quiz games, music games, party games, family games, building sets, hobby kits, model kits, outdoor play, LEGO sets or products parents and children can enjoy together.
-- Avoid toddler products and baby toys if stronger family/father gift products exist.
+Ranking rules:
+- Rank products by campaign fit, not by what appears first.
+- Prefer products that match the likely buyer, recipient and reason to buy.
+- Prefer products that create a clear social media angle.
+- Prefer products with strong emotional, practical, seasonal or gift relevance.
+- Avoid products aimed at the wrong recipient or wrong age group if better options exist.
+- Avoid generic products that only loosely match the theme.
+- If several products fit, prefer the one that is easiest to explain in a clear, useful and attractive post.
+
+For toy, game and family stores:
+- If the campaign implies a family gift, shared activity or parent/child moment, prefer products that both adults and children can enjoy.
+- Prefer family games, board games, quiz games, party games, creative building, hobby kits, outdoor activities, role play or products with a clear shared-use angle when those fit the campaign.
+- Avoid baby/toddler products if the campaign implies an older child, adult recipient, family activity or gift for a parent.
+- Do not choose character-branded products just because the image is prominent; choose them only if they match the campaign intent.
+
+For beauty, wellness and self-care businesses:
+- If the campaign implies a thoughtful gift or personal treat, prefer products/services connected to relaxation, care, confidence, pampering or visible value.
+- Avoid random everyday items if more emotionally relevant options exist.
+
+For food, grocery, café or restaurant businesses:
+- If the campaign implies celebration, season or gift, prefer products connected to meals, treats, desserts, flowers, drinks, breakfast, dinner, sharing or hosting.
+- Avoid random staples unless the campaign is practical or price-focused.
+
+For fashion, home, decor or lifestyle businesses:
+- Match the product to the occasion, season, recipient, style and likely buying intent.
+- Prefer items with a clear visual or giftable angle.
+
+For sales campaigns:
+- Prefer products with strong demand, high perceived value, gift potential, seasonal relevance or clear buying intent.
+- If discount information is not clearly visible, do not invent a discount.
 
 Output:
 Return strict JSON only.
@@ -2273,7 +2312,7 @@ JSON shape:
       "title": "Exact product title",
       "url": "Full product page URL",
       "price": "Visible price if clearly found, otherwise empty string",
-      "reason": "Short reason why this product fits"
+      "reason": "Short reason why this product fits the campaign, buyer and recipient"
     }
   ],
   "discovery_pages": []
