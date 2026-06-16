@@ -3606,7 +3606,7 @@ scheduled_for: nowIso,
         }
 
       if (postStatus === "approved") {
-  summary.draft += 1;
+  summary.approved += 1;
 }
       } catch (error) {
         const message = error.message || "Unknown automation error";
