@@ -3769,109 +3769,124 @@ setRules((currentRules) =>
                 <span>Recommended</span>
               </div>
 
-              <div className="planner-settings-grid">
-                <label className="planner-setting-field">
-                  <span>Platform</span>
-                  <select
-                    value={platform}
-                    onChange={(event) => setPlatform(event.target.value)}
-                  >
-                    <option>Instagram</option>
-                    <option>Facebook</option>
-                    <option>LinkedIn</option>
-                  </select>
-                </label>
+             <div className="planner-settings-grid simple">
+  <label className="planner-setting-field">
+    <span>Platform</span>
+    <select
+      value={platform}
+      onChange={(event) => setPlatform(event.target.value)}
+    >
+      <option>Instagram</option>
+      <option>Facebook</option>
+      <option>LinkedIn</option>
+    </select>
+  </label>
 
-                <label className="planner-setting-field">
-                  <span>Tone</span>
-                  <select
-                    value={tone}
-                    onChange={(event) => setTone(event.target.value)}
-                  >
-                    <option>Friendly</option>
-                    <option>Professional</option>
-                    <option>Sales-focused</option>
-                    <option>Premium</option>
-                  </select>
-                </label>
+  <label className="planner-setting-field">
+    <span>Language</span>
+    <select
+      value={language}
+      onChange={(event) => setLanguage(event.target.value)}
+    >
+      <option value="Auto">Auto-detect</option>
+      <option value="Swedish">Swedish</option>
+      <option value="English">English</option>
+    </select>
+  </label>
 
-                <label className="planner-setting-field">
-                  <span>Language</span>
-                  <select
-                    value={language}
-                    onChange={(event) => setLanguage(event.target.value)}
-                  >
-                    <option value="Auto">Auto-detect</option>
-                    <option value="English">English</option>
-                  </select>
-                </label>
+  <label className="planner-setting-field">
+    <span>Publishing mode</span>
+    <select
+      value={approvalRequired ? "review" : "auto"}
+      onChange={(event) =>
+        setApprovalRequired(event.target.value === "review")
+      }
+    >
+      <option value="review">Review before publishing</option>
+      <option value="auto">Publish automatically</option>
+    </select>
+  </label>
+</div>
 
-                <label className="planner-setting-field">
-                  <span>Post type</span>
-                  <select
-                    value={postType}
-                    onChange={(event) => setPostType(event.target.value)}
-                  >
-                    <option>Offer</option>
-                    <option>News</option>
-                    <option>Educational</option>
-                    <option>Reminder</option>
-                  </select>
-                </label>
+<div className="planner-advanced-toggle-row">
+  <button
+    type="button"
+    className="planner-advanced-toggle"
+    onClick={() => setShowAdvancedSettings((current) => !current)}
+  >
+    {showAdvancedSettings ? "Hide advanced settings" : "Advanced settings"}
+  </button>
+</div>
 
-                <label className="planner-setting-field">
-                  <span>Length</span>
-                  <select
-                    value={length}
-                    onChange={(event) => setLength(event.target.value)}
-                  >
-                    <option>Short</option>
-                    <option>Medium</option>
-                    <option>Long</option>
-                  </select>
-                </label>
+{showAdvancedSettings && (
+  <div className="planner-settings-grid advanced">
+    <label className="planner-setting-field">
+      <span>Tone</span>
+      <select
+        value={tone}
+        onChange={(event) => setTone(event.target.value)}
+      >
+        <option>Friendly</option>
+        <option>Professional</option>
+        <option>Sales-focused</option>
+        <option>Premium</option>
+      </select>
+    </label>
 
-                <label className="planner-setting-field">
-                  <span>CTA style</span>
-                  <select
-                    value={ctaType}
-                    onChange={(event) => setCtaType(event.target.value)}
-                  >
-                    <option>Learn more</option>
-                    <option>Visit website</option>
-                    <option>Contact us</option>
-                    <option>Book now</option>
-                    <option>Shop now</option>
-                  </select>
-                </label>
+    <label className="planner-setting-field">
+      <span>Post type</span>
+      <select
+        value={postType}
+        onChange={(event) => setPostType(event.target.value)}
+      >
+        <option>Offer</option>
+        <option>News</option>
+        <option>Educational</option>
+        <option>Reminder</option>
+      </select>
+    </label>
 
-                <label className="planner-setting-field">
-                  <span>Publishing mode</span>
-                  <select
-                    value={approvalRequired ? "review" : "auto"}
-                    onChange={(event) =>
-                      setApprovalRequired(event.target.value === "review")
-                    }
-                  >
-                    <option value="review">Review before publishing</option>
-                    <option value="auto">Publish automatically</option>
-                  </select>
-                </label>
+    <label className="planner-setting-field">
+      <span>Length</span>
+      <select
+        value={length}
+        onChange={(event) => setLength(event.target.value)}
+      >
+        <option>Short</option>
+        <option>Medium</option>
+        <option>Long</option>
+      </select>
+    </label>
 
-                <label className="planner-setting-field">
-                  <span>Timezone</span>
-                  <select
-                    value={timeZone}
-                    onChange={(event) => setTimeZone(event.target.value)}
-                  >
-                    {timeZoneOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+    <label className="planner-setting-field">
+      <span>CTA style</span>
+      <select
+        value={ctaType}
+        onChange={(event) => setCtaType(event.target.value)}
+      >
+        <option>Learn more</option>
+        <option>Visit website</option>
+        <option>Contact us</option>
+        <option>Book now</option>
+        <option>Shop now</option>
+      </select>
+    </label>
+
+    <label className="planner-setting-field">
+      <span>Timezone</span>
+      <select
+        value={timeZone}
+        onChange={(event) => setTimeZone(event.target.value)}
+      >
+        {timeZoneOptions.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  </div>
+)}
             </section>
   </>
 )}
