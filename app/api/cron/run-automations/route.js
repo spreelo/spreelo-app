@@ -3325,10 +3325,12 @@ let useWebsiteImage = false;
           continue;
         }
 
-        const approvalRequired = Boolean(rule.approval_required);
-        const approvalToken = crypto.randomBytes(32).toString("hex");
-        const postStatus = approvalRequired ? "pending_approval" : "draft";
-        const wantsImage = Boolean(rule.generate_image);
+    const approvalRequired = Boolean(rule.approval_required);
+const approvalToken = approvalRequired
+  ? crypto.randomBytes(32).toString("hex")
+  : null;
+const postStatus = approvalRequired ? "pending_approval" : "approved";
+const wantsImage = Boolean(rule.generate_image);
 
 const { data: post, error: postError } = await supabase
   .from("posts")
