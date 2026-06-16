@@ -589,7 +589,7 @@ function createEmptySummary() {
     errors: 0,
     warnings: 0,
     pending_approval: 0,
-    draft: 0,
+    approved: 0,
     image_generated: 0,
     image_generation_failed: 0,
     not_enough_credits: 0,
