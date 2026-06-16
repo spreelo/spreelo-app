@@ -2132,6 +2132,8 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
   const visibleContentTypes = useMemo(() => {
     return getVisibleContentTypes(websiteProductModeAvailable);
   }, [websiteProductModeAvailable]);
+  const campaignPlanWasSaved =
+  Boolean(savedPlanSummary) && planCreationMode === "campaign";
 async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
   if (preferredBrandId) {
     const { data: preferredBrand, error: preferredBrandError } = await supabase
