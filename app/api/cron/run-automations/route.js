@@ -3363,6 +3363,11 @@ approved_at: approvalRequired ? null : nowIso,
 scheduled_for: nowIso,
             image_status: wantsImage ? "generating" : "none",
             image_prompt: wantsImage ? rule.image_prompt || null : null,
+    text_model_used: POST_TEXT_MODEL,
+image_model_used: wantsImage ? IMAGE_MODEL : null,
+product_research_model_used: rule.uses_website_content
+  ? PRODUCT_RESEARCH_MODEL
+  : null,
           })
           .select("id")
           .single();
