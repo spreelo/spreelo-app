@@ -3192,13 +3192,9 @@ setRules((currentRules) =>
     <select
       className="planner-select-control"
       value={autoPlanGoal}
-      onChange={(event) => {
-        if (planCreationMode !== "auto") {
-          setPlanCreationMode("auto");
-        }
-
-        changeAutoPlanGoal(event.target.value);
-      }}
+     onChange={(event) => {
+  changeAutoPlanGoal(event.target.value);
+}}
     >
       <option value="" disabled>
   Choose a goal to build your plan
