@@ -2653,14 +2653,17 @@ function addSlot() {
   }
 
 function changeAutoPlanGoal(goalId) {
+  if (!goalId) {
+    setAutoPlanGoal("");
+    setSelectedContentTypeIds([]);
+    setSlots([]);
+    return;
+  }
+
   const strategy = getAutoPlanStrategy(goalId);
 
   setMessage("");
   setSavedPlanSummary(null);
-  if (!slots.length) {
-  setMessage("Choose a goal before saving a content plan.");
-  return;
-}
   setAutoPlanGoal(goalId);
 
   setSelectedContentTypeIds(
