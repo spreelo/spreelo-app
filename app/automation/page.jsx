@@ -3452,7 +3452,7 @@ setRules((currentRules) =>
   </section>
 )}
 
-              {campaignPlanWasSaved ? (
+              {planWasSaved ? (
   <section className="planner-schedule-card campaign-saved-card">
     <div className="campaign-saved-icon">✓</div>
 
