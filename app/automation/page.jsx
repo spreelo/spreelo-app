@@ -2657,6 +2657,10 @@ function changeAutoPlanGoal(goalId) {
 
   setMessage("");
   setSavedPlanSummary(null);
+  if (!slots.length) {
+  setMessage("Choose a goal before saving a content plan.");
+  return;
+}
   setAutoPlanGoal(goalId);
 
   setSelectedContentTypeIds(
