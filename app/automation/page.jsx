@@ -365,7 +365,26 @@ function getBrandSafeContentTypeIds(typeIds, websiteProductModeAvailable) {
     getBrandSafeContentTypeId(typeId, websiteProductModeAvailable)
   );
 }
+function getGoalContentTypeIds({
+  goalId,
+  postCount,
+  websiteProductModeAvailable,
+}) {
+  if (!goalId) return [];
 
+  const strategy = getAutoPlanStrategy(goalId);
+
+  const safeContentTypeIds = getBrandSafeContentTypeIds(
+    strategy.contentTypeIds,
+    websiteProductModeAvailable
+  );
+
+  const count = Number(postCount) || DEFAULT_AUTO_PLAN_POST_COUNT;
+
+  return Array.from({ length: count }).map((_, index) => {
+    return safeContentTypeIds[index % safeContentTypeIds.length];
+  });
+}
 function getVisibleContentTypes(websiteProductModeAvailable) {
   return contentTypes.filter((type) => {
     if (type.id === "website_item") {
