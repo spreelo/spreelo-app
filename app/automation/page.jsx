@@ -380,6 +380,7 @@ function getAutoPlanStrategy(goalId) {
 }
 
 function getAutoPlanGoalLabel(goalId) {
+  if (!goalId) return "Choose a goal";
   return getAutoPlanStrategy(goalId).label;
 }
 
