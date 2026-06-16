@@ -1258,7 +1258,9 @@ function sortAutomationRules(rulesToSort = []) {
 function getPlanIncludedContentTypes({
   planCreationMode,
   autoPlanGoal,
+  autoPlanPostCount,
   selectedContentTypeIds,
+  websiteProductModeAvailable,
 }) {
   if (planCreationMode === "campaign") {
     return [getContentTypeById("manual_prompt")].filter(Boolean);
@@ -1272,16 +1274,17 @@ function getPlanIncludedContentTypes({
     return selectedContentTypeIds.map(getContentTypeById).filter(Boolean);
   }
 
- if (!autoPlanGoal) {
-  return [];
-}
+  if (!autoPlanGoal) {
+    return [];
+  }
 
-const strategy = getAutoPlanStrategy(autoPlanGoal);
-
-return strategy.contentTypeIds
-  .map(getContentTypeById)
-  .filter(Boolean)
-  .slice(0, 5);
+  return getGoalContentTypeIds({
+    goalId: autoPlanGoal,
+    postCount: autoPlanPostCount,
+    websiteProductModeAvailable,
+  })
+    .map(getContentTypeById)
+    .filter(Boolean);
 }
 function getSlotScheduleSummary(slot, scheduleType, timeZone) {
   const startLabel = formatStartDateLabel(slot.startDate, timeZone);
