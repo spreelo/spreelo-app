@@ -2997,7 +2997,10 @@ ${slot.campaignSummary}`
       };
     });
 
-    const { error } = await supabase.from("automation_rules").insert(rows);
+    const { data: insertedRules, error } = await supabase
+  .from("automation_rules")
+  .insert(rows)
+  .select("*");
 
       if (error) {
       setMessage(error.message);
