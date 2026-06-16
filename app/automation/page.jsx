@@ -2012,6 +2012,7 @@ const [slots, setSlots] = useState([]);
   const [approvalRequired, setApprovalRequired] = useState(true);
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
   const [showSavedRules, setShowSavedRules] = useState(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [expandedInstructionSlotIds, setExpandedInstructionSlotIds] = useState(
     []
   );
