@@ -2118,22 +2118,6 @@ const [slots, setSlots] = useState([]);
     return slots.filter((slot) => slot.usesWebsiteContent).length;
   }, [slots]);
 
- const includedContentTypes = useMemo(() => {
-  return getPlanIncludedContentTypes({
-    planCreationMode,
-    autoPlanGoal,
-    autoPlanPostCount,
-    selectedContentTypeIds,
-    websiteProductModeAvailable,
-  });
-}, [
-  planCreationMode,
-  autoPlanGoal,
-  autoPlanPostCount,
-  selectedContentTypeIds,
-  websiteProductModeAvailable,
-]);
-
   const existingWeeklyCredits = useMemo(() => {
     return rules.reduce((total, rule) => {
       if (!rule.is_active) return total;
