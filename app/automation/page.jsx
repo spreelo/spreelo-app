@@ -1583,11 +1583,7 @@ function shouldUseWebsiteContentForCampaign(sourceMode, campaign = null) {
     return false;
   }
 
-  return [
-    "website_product",
-    "website_service",
-    "mixed_campaign_and_website",
-  ].includes(sourceMode);
+  return ["website_product", "website_service"].includes(sourceMode);
 }
 
 function getCampaignSourceInstruction(sourceMode, campaign = null) {
