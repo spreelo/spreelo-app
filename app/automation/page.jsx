@@ -1185,7 +1185,7 @@ function getContentTypeIcon(typeId) {
 }
 function getSlotFormatLabel(slot) {
   if (slot.usesWebsiteContent && slot.generateImage) {
-    return "Website image";
+    return "Text + website image";
   }
 
   if (slot.generateImage) {
