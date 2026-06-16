@@ -2133,8 +2133,14 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
   const visibleContentTypes = useMemo(() => {
     return getVisibleContentTypes(websiteProductModeAvailable);
   }, [websiteProductModeAvailable]);
-  const campaignPlanWasSaved =
-  Boolean(savedPlanSummary) && planCreationMode === "campaign";
+const planWasSaved = Boolean(savedPlanSummary);
+
+const shouldShowPlannerDetails =
+  !planWasSaved &&
+  (planCreationMode === "campaign" ||
+    planCreationMode === "select" ||
+    planCreationMode === "manual" ||
+    Boolean(autoPlanGoal));
 async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
   if (preferredBrandId) {
     const { data: preferredBrand, error: preferredBrandError } = await supabase
