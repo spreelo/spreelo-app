@@ -3088,15 +3088,20 @@ setShowSavedRules(true);
 
     setSaving(false);
   }
-  function startAnotherPlan() {
-    setMessage("");
-    setSavedPlanSummary(null);
+ function startAnotherPlan() {
+  setMessage("");
+  setSavedPlanSummary(null);
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+  if (planCreationMode === "campaign" || campaignOpportunity) {
+    window.location.href = "/automation";
+    return;
   }
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+}
   return (
     <AppLayout active="automation">
       <div
