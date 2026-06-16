@@ -3299,13 +3299,9 @@ setRules((currentRules) =>
                         className={
                           autoPlanPostCount === option ? "active" : ""
                         }
-                        onClick={() => {
-                          if (planCreationMode !== "auto") {
-                            setPlanCreationMode("auto");
-                          }
-
-                          changeAutoPlanPostCount(option);
-                        }}
+                     onClick={() => {
+  changeAutoPlanPostCount(option);
+}}
                       >
                         {option}
                       </button>
