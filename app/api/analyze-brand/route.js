@@ -802,10 +802,13 @@ Rules:
 - When choosing between a generic seasonal campaign and a strong commercial occasion for ecommerce or retail, prefer the stronger commercial occasion.
 - Do not invent specific services, offers, products or locations not supported by the website or description.
 - Also decide if "Sell something from my website" should be available for this brand.
-- Set website_product_mode.available to true only if the website clearly appears to contain at least one sellable item suitable for a website-based post.
-- A suitable website item should normally have a clear title/name, its own product/listing/service/offer page or URL, and a relevant image or product/listing presentation.
-- Good examples: ecommerce products, real estate listings, bookable treatments, menu items, courses, events, offers or specific services with their own page.
-- Bad examples: generic homepage text, logos, hero banners, about pages, blog posts, navigation links or vague services without a concrete sellable item.
+- Set website_product_mode.available to true only if the website clearly appears to contain at least one concrete website item that can safely be used as a website-based post with a real website image.
+- A suitable website item must normally have a clear title/name, its own dedicated product/listing/menu item/event/course/treatment/offer page or URL, and a relevant non-logo image connected to that exact item.
+- Good examples: ecommerce product pages, real estate listings, menu items, event pages, course pages, bookable treatments with dedicated pages, or concrete offers with a clear individual page and a safe relevant image.
+- Bad examples: generic service websites, artist pages, portfolio pages, spiritual service websites, consultant websites, informational websites, generic homepage text, logos, hero banners, about pages, blog posts, navigation links, vague services, broad service descriptions or offers without a concrete item page and safe item image.
+- Service-only websites should normally return website_product_mode.available = false unless they have clear individual bookable offers with their own dedicated pages and relevant non-logo images.
+- Artist, consultant, spiritual service, informational and portfolio websites should normally return website_product_mode.available = false.
+- If website_product_mode.available is false, campaign opportunities should not use website_content_strategy "product" or "service". Use "support" or "none" instead.
 - If unsure, set website_product_mode.available to false.
 - Do not search the whole website. Base this check only on the provided page title, meta description and visible website text.
 `.trim(),
