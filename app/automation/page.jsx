@@ -2703,28 +2703,34 @@ function changeAutoPlanGoal(goalId) {
     setMessage("");
     setPlanCreationMode(mode);
 
-    if (mode === "auto") {
-      const strategy = getAutoPlanStrategy(autoPlanGoal);
+   if (mode === "auto") {
+  if (!autoPlanGoal) {
+    setSelectedContentTypeIds([]);
+    setSlots([]);
+    return;
+  }
 
-           setSelectedContentTypeIds(
-        getBrandSafeContentTypeIds(
-          strategy.contentTypeIds,
-          websiteProductModeAvailable
-        )
-      );
+  const strategy = getAutoPlanStrategy(autoPlanGoal);
 
-      setSlots(
-        createRecommendedSlots({
-          startDate: planStartDate,
-          timeZone,
-          autoPlanGoal,
-          firstPublishTime: defaultPublishTime,
-          postCount: autoPlanPostCount,
-          websiteProductModeAvailable,
-        })
-      );
-      return;
-    }
+  setSelectedContentTypeIds(
+    getBrandSafeContentTypeIds(
+      strategy.contentTypeIds,
+      websiteProductModeAvailable
+    )
+  );
+
+  setSlots(
+    createRecommendedSlots({
+      startDate: planStartDate,
+      timeZone,
+      autoPlanGoal,
+      firstPublishTime: defaultPublishTime,
+      postCount: autoPlanPostCount,
+      websiteProductModeAvailable,
+    })
+  );
+  return;
+}
 
     if (mode === "select") {
          const initialTypeIds = getBrandSafeContentTypeIds(
