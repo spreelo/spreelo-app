@@ -2168,6 +2168,21 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
   const visibleContentTypes = useMemo(() => {
     return getVisibleContentTypes(websiteProductModeAvailable);
   }, [websiteProductModeAvailable]);
+  const includedContentTypes = useMemo(() => {
+  return getPlanIncludedContentTypes({
+    planCreationMode,
+    autoPlanGoal,
+    autoPlanPostCount,
+    selectedContentTypeIds,
+    websiteProductModeAvailable,
+  });
+}, [
+  planCreationMode,
+  autoPlanGoal,
+  autoPlanPostCount,
+  selectedContentTypeIds,
+  websiteProductModeAvailable,
+]);
 const planWasSaved = Boolean(savedPlanSummary);
 
 const shouldShowPlannerDetails =
