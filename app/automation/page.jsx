@@ -3451,7 +3451,8 @@ setRules((currentRules) =>
     </div>
   </section>
 )}
-
+{shouldShowPlannerDetails && (
+  <>
               {planWasSaved ? (
   <section className="planner-schedule-card campaign-saved-card">
     <div className="campaign-saved-icon">✓</div>
