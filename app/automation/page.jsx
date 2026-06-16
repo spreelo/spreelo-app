@@ -3899,27 +3899,35 @@ setRules((currentRules) =>
       : "Give your plan a name so you can find it later."}
   </p>
 </div>
-              <input
-                className="planner-save-input"
-                value={planName}
-                onChange={(event) => setPlanName(event.target.value)}
-                placeholder="e.g., Weekly awareness plan"
-              />
+         {savedPlanSummary ? (
+  <div className="planner-create-another-panel">
+    <button
+      type="button"
+      className="planner-create-another-button"
+      onClick={startAnotherPlan}
+    >
+      Create another plan
+    </button>
+  </div>
+) : (
+  <>
+    <input
+      className="planner-save-input"
+      value={planName}
+      onChange={(event) => setPlanName(event.target.value)}
+      placeholder="e.g., Weekly awareness plan"
+    />
 
-                         <button
-                type="button"
-                className={`planner-save-button ${
-                  savedPlanSummary ? "saved" : ""
-                }`}
-                onClick={savedPlanSummary ? startAnotherPlan : savePlan}
-                disabled={saving || (!hasEnoughCredits && !savedPlanSummary)}
-              >
-                {saving
-                  ? "Saving..."
-                  : savedPlanSummary
-                  ? "Create another plan"
-                  : "▣ Save content plan"}
-              </button>
+    <button
+      type="button"
+      className="planner-save-button"
+      onClick={savePlan}
+      disabled={saving || !hasEnoughCredits}
+    >
+      {saving ? "Saving..." : "▣ Save content plan"}
+    </button>
+  </>
+)}
 
                           {message && <p className="planner-save-message">{message}</p>}
 
