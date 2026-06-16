@@ -1985,20 +1985,12 @@ const [campaignOpportunity, setCampaignOpportunity] = useState(null);
   const [defaultPublishTime, setDefaultPublishTime] = useState(
     initialRecommendedTime
   );
- const [autoPlanGoal, setAutoPlanGoal] = useState("stay_visible");
-  const [autoPlanPostCount, setAutoPlanPostCount] = useState(
-    DEFAULT_AUTO_PLAN_POST_COUNT
-  );
-  const [showAddPostModal, setShowAddPostModal] = useState(false);
-  const [slots, setSlots] = useState(() =>
-    createRecommendedSlots({
-      startDate: initialStartDate,
-      timeZone: DEFAULT_TIME_ZONE,
-      autoPlanGoal: "stay_visible",
-      firstPublishTime: initialRecommendedTime,
-      postCount: DEFAULT_AUTO_PLAN_POST_COUNT,
-    })
-  );
+const [autoPlanGoal, setAutoPlanGoal] = useState("");
+const [autoPlanPostCount, setAutoPlanPostCount] = useState(
+  DEFAULT_AUTO_PLAN_POST_COUNT
+);
+const [showAddPostModal, setShowAddPostModal] = useState(false);
+const [slots, setSlots] = useState([]);
   const [planCreationMode, setPlanCreationMode] = useState("auto");
   const [selectedContentTypeIds, setSelectedContentTypeIds] = useState(
     recommendedContentTypeIds
