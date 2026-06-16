@@ -2653,28 +2653,30 @@ function addSlot() {
   }
 
 function changeAutoPlanGoal(goalId) {
-    const strategy = getAutoPlanStrategy(goalId);
+  const strategy = getAutoPlanStrategy(goalId);
 
-    setMessage("");
-    setAutoPlanGoal(goalId);
-       setSelectedContentTypeIds(
-      getBrandSafeContentTypeIds(
-        strategy.contentTypeIds,
-        websiteProductModeAvailable
-      )
-    );
+  setMessage("");
+  setSavedPlanSummary(null);
+  setAutoPlanGoal(goalId);
 
-    setSlots(
-      createRecommendedSlots({
-        startDate: planStartDate,
-        timeZone,
-        autoPlanGoal: goalId,
-        firstPublishTime: defaultPublishTime,
-        postCount: autoPlanPostCount,
-        websiteProductModeAvailable,
-      })
-    );
-  }
+  setSelectedContentTypeIds(
+    getBrandSafeContentTypeIds(
+      strategy.contentTypeIds,
+      websiteProductModeAvailable
+    )
+  );
+
+  setSlots(
+    createRecommendedSlots({
+      startDate: planStartDate,
+      timeZone,
+      autoPlanGoal: goalId,
+      firstPublishTime: defaultPublishTime,
+      postCount: autoPlanPostCount,
+      websiteProductModeAvailable,
+    })
+  );
+}
 
   function changeAutoPlanPostCount(nextCount) {
     setMessage("");
