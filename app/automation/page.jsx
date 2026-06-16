@@ -3442,281 +3442,308 @@ setShowSavedRules(true);
   </section>
 )}
 
-                       <section className="planner-schedule-card">
-              <div className="planner-schedule-header">
-                <div>
-                  <h3>Posts & schedule</h3>
-                  <span>{slots.length} posts planned</span>
-                </div>
+              {campaignPlanWasSaved ? (
+  <section className="planner-schedule-card campaign-saved-card">
+    <div className="campaign-saved-icon">✓</div>
 
-                <div className="planner-schedule-actions">
-                  <button type="button" className="view-calendar-button">
-                    □ View calendar
-                  </button>
+    <div>
+      <p className="dashboard-eyebrow">Campaign scheduled</p>
+      <h3>{savedPlanSummary.name} is ready</h3>
+      <p>
+        Spreelo has saved this campaign as automation rules. The planned posts
+        are now scheduled and will follow the publishing mode you selected.
+      </p>
 
-          <button
-  type="button"
-  className="add-plan-button"
-  onClick={addSlot}
->
-  {planCreationMode === "campaign" ? "+ Add campaign post" : "+ Add post"}
-</button>
-                </div>
-              </div>
+      <div className="campaign-saved-grid">
+        <div>
+          <span>Planned posts</span>
+          <strong>{savedPlanSummary.totalPosts}</strong>
+        </div>
 
-              <div className="planner-schedule-toolbar">
-                <DatePickerField
-                  label="Start date"
-                  value={planStartDate}
-                  onChange={updatePlanStartDate}
-                  pickerId="plan-start-date"
-                  openPickerId={openPickerId}
-                  setOpenPickerId={setOpenPickerId}
-                  timeZone={timeZone}
-                  compact
-                />
+        <div>
+          <span>First post</span>
+          <strong>{savedPlanSummary.firstPostLabel}</strong>
+        </div>
 
-                <div className="custom-picker-field compact">
-                  <label>Repeat</label>
-                  <select
-                    className="input custom-select-input"
-                    value={scheduleType}
-                    onChange={(event) => setScheduleType(event.target.value)}
-                  >
-                    <option value="weekly">Weekly</option>
-                    <option value="once">One time</option>
-                  </select>
-                </div>
+        <div>
+          <span>Publishing mode</span>
+          <strong>{savedPlanSummary.publishingMode}</strong>
+        </div>
 
-                <TimePickerField
-                  label="First time"
-                  value={defaultPublishTime}
-                  onChange={updateDefaultPublishTime}
-                  pickerId="plan-time"
-                  openPickerId={openPickerId}
-                  setOpenPickerId={setOpenPickerId}
-                  compact
-                />
+        <div>
+          <span>Credits</span>
+          <strong>{savedPlanSummary.credits}</strong>
+        </div>
+      </div>
 
-                <div className="planner-schedule-note">
-                  {scheduleType === "weekly"
-                    ? `Starts ${formatStartDateLabel(
-                        planStartDate,
-                        timeZone
-                      )} at ${defaultPublishTime}`
-                    : `Runs once on ${formatStartDateLabel(
-                        planStartDate,
-                        timeZone
-                      )}`}
-                </div>
-              </div>
+      <div className="campaign-saved-actions">
+        <button type="button" onClick={() => setShowSavedRules(true)}>
+          View automation rules
+        </button>
 
-              <div className="planner-post-table">
-                {slots.map((slot, index) => {
-                  const instructionsAreExpanded =
-                    expandedInstructionSlotIds.includes(slot.id);
-                  const displayLabel = getSlotDisplayLabel(slot);
-                  const displayDescription = getSlotDisplayDescription(slot);
-                  const formatLabel = getSlotFormatLabel(slot);
-
-                  return (
-                    <article
-                      className={`planner-post-row ${
-                        instructionsAreExpanded ? "expanded" : ""
-                      }`}
-                      key={slot.id}
-                    >
-                      <div className="planner-post-mainline">
-                        <div className="planner-post-index">{index + 1}</div>
-
-                        <div className="planner-post-title">
-                          <strong>{displayLabel}</strong>
-                          <span>{displayDescription}</span>
-                        </div>
-
-       <div className="planner-post-date">
-  {slot.dateLocked ? (
-    <div className="locked-campaign-date">
-      <strong>{formatStartDateLabel(slot.startDate, timeZone)}</strong>
-      <span>Locked campaign date</span>
-
-      <button
-        type="button"
-        className="unlock-campaign-date-button"
-        onClick={() => updateSlot(slot.id, "dateLocked", false)}
-      >
-        Unlock
-      </button>
+        <a href="/">Go to dashboard</a>
+      </div>
     </div>
-  ) : (
-    <DatePickerField
-      value={slot.startDate}
-      onChange={(value) =>
-        updateSlot(slot.id, "startDate", value)
-      }
-      pickerId={`slot-date-${slot.id}`}
-      openPickerId={openPickerId}
-      setOpenPickerId={setOpenPickerId}
-      timeZone={timeZone}
-      compact
-    />
-  )}
-</div>
+  </section>
+) : (
+  <section className="planner-schedule-card">
+    <div className="planner-schedule-header">
+      <div>
+        <h3>Posts & schedule</h3>
+        <span>{slots.length} posts planned</span>
+      </div>
 
-                        <div className="planner-post-time">
-                          <TimePickerField
-                            value={slot.publishTime}
-                            onChange={(value) =>
-                              updateSlot(slot.id, "publishTime", value)
-                            }
-                            pickerId={`slot-time-${slot.id}`}
-                            openPickerId={openPickerId}
-                            setOpenPickerId={setOpenPickerId}
-                            compact
-                          />
-                        </div>
+      <div className="planner-schedule-actions">
+        <button type="button" className="view-calendar-button">
+          □ View calendar
+        </button>
 
-                        <div className="planner-post-format">
-                          <span>{slot.generateImage ? "▧" : "T"}</span>
-                          {formatLabel}
-                        </div>
+        <button
+          type="button"
+          className="add-plan-button"
+          onClick={addSlot}
+        >
+          {planCreationMode === "campaign" ? "+ Add campaign post" : "+ Add post"}
+        </button>
+      </div>
+    </div>
 
-                        <div className="planner-post-actions">
-                          <button
-                            type="button"
-                            onClick={() => toggleSlotInstructions(slot.id)}
-                          >
-                            {instructionsAreExpanded ? "Hide" : "Edit"}
-                          </button>
+    <div className="planner-schedule-toolbar">
+      <DatePickerField
+        label="Start date"
+        value={planStartDate}
+        onChange={updatePlanStartDate}
+        pickerId="plan-start-date"
+        openPickerId={openPickerId}
+        setOpenPickerId={setOpenPickerId}
+        timeZone={timeZone}
+        compact
+      />
 
-                          <button
-                            type="button"
-                            title="Duplicate"
-                            onClick={() => duplicateSlot(slot.id)}
-                          >
-                            ⧉
-                          </button>
+      <div className="custom-picker-field compact">
+        <label>Repeat</label>
+        <select
+          className="input custom-select-input"
+          value={scheduleType}
+          onChange={(event) => setScheduleType(event.target.value)}
+        >
+          <option value="weekly">Weekly</option>
+          <option value="once">One time</option>
+        </select>
+      </div>
 
-                          <button
-                            type="button"
-                            title="Remove"
-                            onClick={() => removeSlot(slot.id)}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
+      <TimePickerField
+        label="First time"
+        value={defaultPublishTime}
+        onChange={updateDefaultPublishTime}
+        pickerId="plan-time"
+        openPickerId={openPickerId}
+        setOpenPickerId={setOpenPickerId}
+        compact
+      />
 
-                     {(instructionsAreExpanded ||
-  planCreationMode === "manual" ||
-  (!slot.isCampaignSlot && slot.contentTypeId === "manual_prompt")) && (
-                        <div className="planner-post-expanded">
-                          <div className="planner-post-expanded-copy">
-<label>
-  {slot.isCampaignSlot ? "Post idea" : "Instructions"}
-</label>
+      <div className="planner-schedule-note">
+        {scheduleType === "weekly"
+          ? `Starts ${formatStartDateLabel(
+              planStartDate,
+              timeZone
+            )} at ${defaultPublishTime}`
+          : `Runs once on ${formatStartDateLabel(
+              planStartDate,
+              timeZone
+            )}`}
+      </div>
+    </div>
 
-<textarea
-  className="input prompt-textarea"
-  value={slot.isCampaignSlot ? slot.campaignSummary : slot.prompt}
-  onChange={(event) =>
-    updateSlot(
-      slot.id,
-      slot.isCampaignSlot ? "campaignSummary" : "prompt",
-      event.target.value
-    )
-  }
-  placeholder={
-    slot.isCampaignSlot
-      ? "Describe what this campaign post should be about"
-      : "Write instructions for this post"
-  }
-/>
+    <div className="planner-post-table">
+      {slots.map((slot, index) => {
+        const instructionsAreExpanded =
+          expandedInstructionSlotIds.includes(slot.id);
+        const displayLabel = getSlotDisplayLabel(slot);
+        const displayDescription = getSlotDisplayDescription(slot);
+        const formatLabel = getSlotFormatLabel(slot);
 
-                            {slot.generateImage && (
-                              <>
-                                <label>Image direction</label>
-                                <textarea
-                                  className="input prompt-textarea"
-                                  value={slot.imagePrompt}
-                                  onChange={(event) =>
-                                    updateSlot(
-                                      slot.id,
-                                      "imagePrompt",
-                                      event.target.value
-                                    )
-                                  }
-                                  placeholder="Optional visual direction for the image."
-                                />
-                              </>
-                            )}
-                          </div>
+        return (
+          <article
+            className={`planner-post-row ${
+              instructionsAreExpanded ? "expanded" : ""
+            }`}
+            key={slot.id}
+          >
+            <div className="planner-post-mainline">
+              <div className="planner-post-index">{index + 1}</div>
 
-                          <div className="planner-post-options">
-                            <label>
-                              <input
-                                type="checkbox"
-                                checked={slot.generateImage}
-                                onChange={(event) =>
-                                  updateSlot(
-                                    slot.id,
-                                    "generateImage",
-                                    event.target.checked
-                                  )
-                                }
-                              />
-                              {slot.usesWebsiteContent
-                                ? "Website image / AI fallback"
-                                : "AI image"}
-                            </label>
-
-                            <label>
-                              <input
-                                type="checkbox"
-                                checked={slot.includeEmojis}
-                                onChange={(event) =>
-                                  updateSlot(
-                                    slot.id,
-                                    "includeEmojis",
-                                    event.target.checked
-                                  )
-                                }
-                              />
-                              Emojis
-                            </label>
-
-                            <label>
-                              <input
-                                type="checkbox"
-                                checked={slot.includeHashtags}
-                                onChange={(event) =>
-                                  updateSlot(
-                                    slot.id,
-                                    "includeHashtags",
-                                    event.target.checked
-                                  )
-                                }
-                              />
-                              Hashtags
-                            </label>
-
-                            <span>{getSlotCreditLabel(slot)}</span>
-                          </div>
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
+              <div className="planner-post-title">
+                <strong>{displayLabel}</strong>
+                <span>{displayDescription}</span>
               </div>
 
- <button
-  type="button"
-  className="planner-add-post-bottom"
-  onClick={addSlot}
->
-  {planCreationMode === "campaign" ? "+ Add campaign post" : "+ Add post"}
-</button>
-            </section>
+              <div className="planner-post-date">
+                {slot.dateLocked ? (
+                  <div className="locked-campaign-date">
+                    <strong>{formatStartDateLabel(slot.startDate, timeZone)}</strong>
+                    <span>Locked campaign date</span>
+
+                    <button
+                      type="button"
+                      className="unlock-campaign-date-button"
+                      onClick={() => updateSlot(slot.id, "dateLocked", false)}
+                    >
+                      Unlock
+                    </button>
+                  </div>
+                ) : (
+                  <DatePickerField
+                    value={slot.startDate}
+                    onChange={(value) =>
+                      updateSlot(slot.id, "startDate", value)
+                    }
+                    pickerId={`slot-date-${slot.id}`}
+                    openPickerId={openPickerId}
+                    setOpenPickerId={setOpenPickerId}
+                    timeZone={timeZone}
+                    compact
+                  />
+                )}
+              </div>
+
+              <div className="planner-post-time">
+                <TimePickerField
+                  value={slot.publishTime}
+                  onChange={(value) =>
+                    updateSlot(slot.id, "publishTime", value)
+                  }
+                  pickerId={`slot-time-${slot.id}`}
+                  openPickerId={openPickerId}
+                  setOpenPickerId={setOpenPickerId}
+                  compact
+                />
+              </div>
+
+              <div className="planner-post-format">
+                <span>{slot.generateImage ? "▧" : "T"}</span>
+                {formatLabel}
+              </div>
+
+              <div className="planner-post-actions">
+                <button
+                  type="button"
+                  onClick={() => toggleSlotInstructions(slot.id)}
+                >
+                  {instructionsAreExpanded ? "Hide" : "Edit"}
+                </button>
+
+                <button
+                  type="button"
+                  title="Duplicate"
+                  onClick={() => duplicateSlot(slot.id)}
+                >
+                  ⧉
+                </button>
+
+                <button
+                  type="button"
+                  title="Remove"
+                  onClick={() => removeSlot(slot.id)}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {(instructionsAreExpanded ||
+              planCreationMode === "manual" ||
+              (!slot.isCampaignSlot && slot.contentTypeId === "manual_prompt")) && (
+              <div className="planner-post-expanded">
+                <div className="planner-post-expanded-copy">
+                  <label>{slot.isCampaignSlot ? "Post idea" : "Instructions"}</label>
+
+                  <textarea
+                    className="input prompt-textarea"
+                    value={slot.isCampaignSlot ? slot.campaignSummary : slot.prompt}
+                    onChange={(event) =>
+                      updateSlot(
+                        slot.id,
+                        slot.isCampaignSlot ? "campaignSummary" : "prompt",
+                        event.target.value
+                      )
+                    }
+                    placeholder={
+                      slot.isCampaignSlot
+                        ? "Describe what this campaign post should be about"
+                        : "Write instructions for this post"
+                    }
+                  />
+
+                  {slot.generateImage && (
+                    <>
+                      <label>Image direction</label>
+                      <textarea
+                        className="input prompt-textarea"
+                        value={slot.imagePrompt}
+                        onChange={(event) =>
+                          updateSlot(slot.id, "imagePrompt", event.target.value)
+                        }
+                        placeholder="Optional visual direction for the image."
+                      />
+                    </>
+                  )}
+                </div>
+
+                <div className="planner-post-options">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={slot.generateImage}
+                      onChange={(event) =>
+                        updateSlot(slot.id, "generateImage", event.target.checked)
+                      }
+                    />
+                    {slot.usesWebsiteContent
+                      ? "Website image / AI fallback"
+                      : "AI image"}
+                  </label>
+
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={slot.includeEmojis}
+                      onChange={(event) =>
+                        updateSlot(slot.id, "includeEmojis", event.target.checked)
+                      }
+                    />
+                    Emojis
+                  </label>
+
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={slot.includeHashtags}
+                      onChange={(event) =>
+                        updateSlot(slot.id, "includeHashtags", event.target.checked)
+                      }
+                    />
+                    Hashtags
+                  </label>
+
+                  <span>{getSlotCreditLabel(slot)}</span>
+                </div>
+              </div>
+            )}
+          </article>
+        );
+      })}
+    </div>
+
+    <button
+      type="button"
+      className="planner-add-post-bottom"
+      onClick={addSlot}
+    >
+      {planCreationMode === "campaign" ? "+ Add campaign post" : "+ Add post"}
+    </button>
+  </section>
+)}
 
                         <section className="planner-settings-card">
               <div className="planner-section-heading">
