@@ -3873,7 +3873,8 @@ setRules((currentRules) =>
                 </label>
               </div>
             </section>
-
+  </>
+)}
             <section className="planner-save-card">
               <div>
                 <h3>Step 4: Save plan</h3>
