@@ -3081,10 +3081,29 @@ setRules((currentRules) =>
  function startAnotherPlan() {
   setMessage("");
   setSavedPlanSummary(null);
+  setCampaignOpportunity(null);
 
-  if (planCreationMode === "campaign" || campaignOpportunity) {
-    window.location.href = "/automation";
-    return;
+  setPlanCreationMode("auto");
+  setAutoPlanGoal("");
+  setAutoPlanPostCount(DEFAULT_AUTO_PLAN_POST_COUNT);
+  setSelectedContentTypeIds([]);
+  setSlots([]);
+
+  setPlanName("");
+  setLanguage("Auto");
+  setTone("Friendly");
+  setPostType("Offer");
+  setLength("Medium");
+  setCtaType("Learn more");
+  setApprovalRequired(true);
+  setScheduleType("weekly");
+  setShowAdvancedSettings(false);
+
+  if (typeof window !== "undefined") {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("campaignOpportunityId");
+    url.searchParams.delete("brandProfileId");
+    window.history.replaceState({}, "", url.toString());
   }
 
   window.scrollTo({
