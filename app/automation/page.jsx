@@ -855,7 +855,10 @@ function createRecommendedSlots(options = {}) {
       publishTime: schedule.publishTime,
       prompt: type.prompt,
       imagePrompt: type.imagePrompt,
-      generateImage: shouldAutoPlanGenerateImage(index, strategy.imageCount),
+      generateImage:
+  type.id === "website_item"
+    ? true
+    : shouldAutoPlanGenerateImage(index, strategy.imageCount),
       contentTypeId: type.id,
       contentTypeLabel: type.label,
       usesWebsiteContent: Boolean(type.usesWebsiteContent),
