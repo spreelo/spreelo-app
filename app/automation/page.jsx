@@ -2352,21 +2352,7 @@ const { data, error } = await supabase
     if (error) {
       setMessage(error.message);
     } else {
-      const sortedRules = (data || []).sort((a, b) => {
-        if (a.next_run_at && b.next_run_at) {
-          return new Date(a.next_run_at) - new Date(b.next_run_at);
-        }
-
-        if (a.next_run_at && !b.next_run_at) return -1;
-        if (!a.next_run_at && b.next_run_at) return 1;
-
-        const dayDiff =
-          dayOrder.indexOf(a.weekday) - dayOrder.indexOf(b.weekday);
-
-        if (dayDiff !== 0) return dayDiff;
-
-        return String(a.publish_time).localeCompare(String(b.publish_time));
-      });
+    const sortedRules = sortAutomationRules(data || []);
 
       setRules(sortedRules);
       setSelectedRuleIds((currentIds) =>
