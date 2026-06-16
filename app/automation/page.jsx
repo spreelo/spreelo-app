@@ -3892,10 +3892,13 @@ setRules((currentRules) =>
 )}
             <section className="planner-save-card">
               <div>
-                <h3>Step 4: Save plan</h3>
-                <p>Give your plan a name so you can find it later.</p>
-              </div>
-
+  <h3>{savedPlanSummary ? "Plan saved" : "Step 4: Save plan"}</h3>
+  <p>
+    {savedPlanSummary
+      ? "Your automation plan is ready. Create another plan when you want."
+      : "Give your plan a name so you can find it later."}
+  </p>
+</div>
               <input
                 className="planner-save-input"
                 value={planName}
