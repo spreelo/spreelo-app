@@ -1228,12 +1228,16 @@ function getPlanIncludedContentTypes({
     return selectedContentTypeIds.map(getContentTypeById).filter(Boolean);
   }
 
-  const strategy = getAutoPlanStrategy(autoPlanGoal);
+ if (!autoPlanGoal) {
+  return [];
+}
 
-  return strategy.contentTypeIds
-    .map(getContentTypeById)
-    .filter(Boolean)
-    .slice(0, 5);
+const strategy = getAutoPlanStrategy(autoPlanGoal);
+
+return strategy.contentTypeIds
+  .map(getContentTypeById)
+  .filter(Boolean)
+  .slice(0, 5);
 }
 function getSlotScheduleSummary(slot, scheduleType, timeZone) {
   const startLabel = formatStartDateLabel(slot.startDate, timeZone);
