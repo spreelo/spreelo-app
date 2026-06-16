@@ -3467,8 +3467,11 @@ select.input {
 @media (max-width: 900px) {
   .spreelo-sidebar {
     width: 100%;
+    min-width: 0;
+    height: auto;
     min-height: auto;
     position: static;
+    overflow-y: visible;
   }
 
   .spreelo-nav {
