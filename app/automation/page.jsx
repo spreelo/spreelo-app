@@ -3576,9 +3576,9 @@ setRules((currentRules) =>
 
         return (
           <article
-            className={`planner-post-row ${
-              instructionsAreExpanded ? "expanded" : ""
-            }`}
+          className={`planner-post-row type-${slot.contentTypeId || "custom"} ${
+  instructionsAreExpanded ? "expanded" : ""
+}`}
             key={slot.id}
           >
             <div className="planner-post-mainline">
