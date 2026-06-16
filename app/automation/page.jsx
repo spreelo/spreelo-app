@@ -2729,8 +2729,17 @@ function changeAutoPlanGoal(goalId) {
 
   if (!autoPlanGoal) {
     setSlots([]);
+    setSelectedContentTypeIds([]);
     return;
   }
+
+  const goalContentTypeIds = getGoalContentTypeIds({
+    goalId: autoPlanGoal,
+    postCount: nextCount,
+    websiteProductModeAvailable,
+  });
+
+  setSelectedContentTypeIds(goalContentTypeIds);
 
   setSlots(
     createRecommendedSlots({
@@ -2743,7 +2752,6 @@ function changeAutoPlanGoal(goalId) {
     })
   );
 }
-
   function changePlanCreationMode(mode) {
     setMessage("");
     setPlanCreationMode(mode);
