@@ -3042,40 +3042,42 @@ ${slot.campaignSummary}`
         method: formatPlanMode(planCreationMode),
       });
 
-      setPlanName("");
-      setLanguage("Auto");
+   setPlanName("");
+setLanguage("Auto");
 
-      if (planCreationMode === "auto") {
-        const strategy = getAutoPlanStrategy(autoPlanGoal);
+if (planCreationMode === "campaign") {
+  setShowSavedRules(true);
+} else if (planCreationMode === "auto") {
+  const strategy = getAutoPlanStrategy(autoPlanGoal);
 
-              setSelectedContentTypeIds(
-          getBrandSafeContentTypeIds(
-            strategy.contentTypeIds,
-            websiteProductModeAvailable
-          )
-        );
+  setSelectedContentTypeIds(
+    getBrandSafeContentTypeIds(
+      strategy.contentTypeIds,
+      websiteProductModeAvailable
+    )
+  );
 
-        setSlots(
-          createRecommendedSlots({
-            startDate: planStartDate,
-            timeZone,
-            autoPlanGoal,
-            firstPublishTime: defaultPublishTime,
-            postCount: autoPlanPostCount,
-            websiteProductModeAvailable,
-          })
-        ); 
-      } else {
-        setSelectedContentTypeIds([]);
-        setSlots([
-          createSlot({
-            startDate: planStartDate,
-            weekday: getWeekdayFromDateString(planStartDate, timeZone),
-            publishTime: defaultPublishTime,
-            timeZone,
-          }),
-        ]);
-      }
+  setSlots(
+    createRecommendedSlots({
+      startDate: planStartDate,
+      timeZone,
+      autoPlanGoal,
+      firstPublishTime: defaultPublishTime,
+      postCount: autoPlanPostCount,
+      websiteProductModeAvailable,
+    })
+  );
+} else {
+  setSelectedContentTypeIds([]);
+  setSlots([
+    createSlot({
+      startDate: planStartDate,
+      weekday: getWeekdayFromDateString(planStartDate, timeZone),
+      publishTime: defaultPublishTime,
+      timeZone,
+    }),
+  ]);
+}
 
      setRules((currentRules) =>
   sortAutomationRules([...(insertedRules || []), ...currentRules])
