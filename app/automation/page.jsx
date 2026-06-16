@@ -2678,21 +2678,26 @@ function changeAutoPlanGoal(goalId) {
   );
 }
 
-  function changeAutoPlanPostCount(nextCount) {
-    setMessage("");
-    setAutoPlanPostCount(nextCount);
+ function changeAutoPlanPostCount(nextCount) {
+  setMessage("");
+  setAutoPlanPostCount(nextCount);
 
-       setSlots(
-      createRecommendedSlots({
-        startDate: planStartDate,
-        timeZone,
-        autoPlanGoal,
-        firstPublishTime: defaultPublishTime,
-        postCount: nextCount,
-        websiteProductModeAvailable,
-      })
-    );
+  if (!autoPlanGoal) {
+    setSlots([]);
+    return;
   }
+
+  setSlots(
+    createRecommendedSlots({
+      startDate: planStartDate,
+      timeZone,
+      autoPlanGoal,
+      firstPublishTime: defaultPublishTime,
+      postCount: nextCount,
+      websiteProductModeAvailable,
+    })
+  );
+}
 
   function changePlanCreationMode(mode) {
     setMessage("");
