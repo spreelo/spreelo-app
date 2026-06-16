@@ -3077,7 +3077,11 @@ ${slot.campaignSummary}`
         ]);
       }
 
-      await loadRules();
+     setRules((currentRules) =>
+  sortAutomationRules([...(insertedRules || []), ...currentRules])
+);
+
+setShowSavedRules(true);
     }
 
     setSaving(false);
