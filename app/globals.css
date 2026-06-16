@@ -3314,6 +3314,8 @@ select.input {
 
 .spreelo-sidebar {
   width: 260px;
+  min-width: 260px;
+  height: 100vh;
   min-height: 100vh;
   padding: 30px 18px;
   background:
@@ -3323,8 +3325,10 @@ select.input {
   gap: 34px;
   position: sticky;
   top: 0;
+  align-self: flex-start;
+  overflow-y: auto;
+  flex-shrink: 0;
 }
-
 .spreelo-brand {
   padding: 0 4px;
 }
