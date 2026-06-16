@@ -871,14 +871,11 @@ function createRecommendedSlots(options = {}) {
   const strategy = getAutoPlanStrategy(options.autoPlanGoal);
   const postCount = options.postCount || DEFAULT_AUTO_PLAN_POST_COUNT;
 
-   const safeContentTypeIds = getBrandSafeContentTypeIds(
-    strategy.contentTypeIds,
-    options.websiteProductModeAvailable !== false
-  );
-
-  const repeatedTypeIds = Array.from({ length: postCount }).map((_, index) => {
-    return safeContentTypeIds[index % safeContentTypeIds.length];
-  });
+   const repeatedTypeIds = getGoalContentTypeIds({
+  goalId: options.autoPlanGoal,
+  postCount,
+  websiteProductModeAvailable: options.websiteProductModeAvailable !== false,
+});
 
   const types = repeatedTypeIds.map(getContentTypeById).filter(Boolean);
 
