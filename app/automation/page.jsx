@@ -3068,48 +3068,12 @@ ${slot.campaignSummary}`
         method: formatPlanMode(planCreationMode),
       });
 
-   setPlanName("");
+setPlanName("");
 setLanguage("Auto");
 
-if (planCreationMode === "campaign") {
-  setShowSavedRules(true);
-} else if (planCreationMode === "auto") {
-  const strategy = getAutoPlanStrategy(autoPlanGoal);
-
-  setSelectedContentTypeIds(
-    getBrandSafeContentTypeIds(
-      strategy.contentTypeIds,
-      websiteProductModeAvailable
-    )
-  );
-
-  setSlots(
-    createRecommendedSlots({
-      startDate: planStartDate,
-      timeZone,
-      autoPlanGoal,
-      firstPublishTime: defaultPublishTime,
-      postCount: autoPlanPostCount,
-      websiteProductModeAvailable,
-    })
-  );
-} else {
-  setSelectedContentTypeIds([]);
-  setSlots([
-    createSlot({
-      startDate: planStartDate,
-      weekday: getWeekdayFromDateString(planStartDate, timeZone),
-      publishTime: defaultPublishTime,
-      timeZone,
-    }),
-  ]);
-}
-
-     setRules((currentRules) =>
+setRules((currentRules) =>
   sortAutomationRules([...(insertedRules || []), ...currentRules])
 );
-
-setShowSavedRules(true);
     }
 
     setSaving(false);
