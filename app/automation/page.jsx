@@ -2705,15 +2705,23 @@ function addSlot() {
   }
 
   function removeSlot(slotId) {
-    if (slots.length === 1) {
-      setMessage("You need at least one planned post.");
-      return;
-    }
+  if (slots.length === 1) {
+    setMessage("You need at least one planned post.");
+    return;
+  }
 
-    setSlots((currentSlots) =>
-      currentSlots.filter((slot) => slot.id !== slotId)
+  const slotIndex = slots.findIndex((slot) => slot.id === slotId);
+
+  setSlots((currentSlots) =>
+    currentSlots.filter((slot) => slot.id !== slotId)
+  );
+
+  if (planCreationMode === "select" && slotIndex >= 0) {
+    setSelectedContentTypeIds((currentTypeIds) =>
+      currentTypeIds.filter((_, index) => index !== slotIndex)
     );
   }
+}
 
 function changeAutoPlanGoal(goalId) {
   if (!goalId) {
