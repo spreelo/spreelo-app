@@ -2750,6 +2750,12 @@ function changeAutoPlanGoal(goalId) {
   setMessage("");
   setAutoPlanPostCount(nextCount);
 
+   if (planCreationMode === "select") {
+  setSelectedContentTypeIds([]);
+  setSlots([]);
+  return;
+}
+
   if (!autoPlanGoal) {
     setSlots([]);
     setSelectedContentTypeIds([]);
