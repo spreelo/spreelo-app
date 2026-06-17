@@ -3474,9 +3474,9 @@ setRules((currentRules) =>
               <button
                 type="button"
                 key={type.id}
-                className={`planner-content-chip ${
-                  isSelected ? "active" : ""
-                }`}
+               className={`planner-content-chip ${
+  isRecentlyAdded ? "just-added" : ""
+}`}
                 onClick={() => toggleContentType(type.id)}
               >
                 <span>{getContentTypeIcon(type.id)}</span>
