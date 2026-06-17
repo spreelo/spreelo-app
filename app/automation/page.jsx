@@ -3468,7 +3468,7 @@ setRules((currentRules) =>
 
         <div className="planner-content-grid">
                     {visibleContentTypes.map((type) => {
-            const isSelected = selectedContentTypeIds.includes(type.id);
+            const isRecentlyAdded = recentlyAddedContentTypeId === type.id;
 
             return (
               <button
