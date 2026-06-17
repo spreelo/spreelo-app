@@ -2808,33 +2808,11 @@ function changeAutoPlanGoal(goalId) {
   return;
 }
 
-    if (mode === "select") {
-      const initialTypeIds = autoPlanGoal
-  ? getGoalContentTypeIds({
-      goalId: autoPlanGoal,
-      postCount: autoPlanPostCount,
-      websiteProductModeAvailable,
-    })
-  : getBrandSafeContentTypeIds(
-      recommendedContentTypeIds,
-      websiteProductModeAvailable
-    ).slice(0, autoPlanPostCount);
-
-      setSelectedContentTypeIds(initialTypeIds);
-      setSlots(
-        initialTypeIds
-          .map(getContentTypeById)
-          .filter(Boolean)
-          .map((type, index) =>
-            createSlotFromContentType(type, index, {
-              startDate: planStartDate,
-              timeZone,
-              firstPublishTime: defaultPublishTime,
-            })
-          )
-      );
-      return;
-    }
+  if (mode === "select") {
+  setSelectedContentTypeIds([]);
+  setSlots([]);
+  return;
+}
 
     setSelectedContentTypeIds([]);
     setSlots([
@@ -2847,45 +2825,47 @@ function changeAutoPlanGoal(goalId) {
     ]);
   }
 
-  function toggleContentType(typeId) {
-    setMessage("");
+function toggleContentType(typeId) {
+  setMessage("");
 
-    if (typeId === "website_item" && !websiteProductModeAvailable) {
-      return;
-    }
-    
-    setSelectedContentTypeIds((currentTypeIds) => {
-      const nextTypeIds = currentTypeIds.includes(typeId)
-        ? currentTypeIds.filter((id) => id !== typeId)
-        : [...currentTypeIds, typeId];
-
-      const nextSlots = nextTypeIds
-        .map(getContentTypeById)
-        .filter(Boolean)
-        .map((type, index) =>
-          createSlotFromContentType(type, index, {
-            startDate: planStartDate,
-            timeZone,
-            firstPublishTime: defaultPublishTime,
-          })
-        );
-
-      setSlots(
-        nextSlots.length
-          ? nextSlots
-          : [
-              createSlot({
-                startDate: planStartDate,
-                weekday: getWeekdayFromDateString(planStartDate, timeZone),
-                publishTime: defaultPublishTime,
-                timeZone,
-              }),
-            ]
-      );
-
-      return nextTypeIds;
-    });
+  if (typeId === "website_item" && !websiteProductModeAvailable) {
+    return;
   }
+
+  if (selectedContentTypeIds.length >= autoPlanPostCount) {
+    setMessage(
+      `You have already selected ${autoPlanPostCount} posts. Remove a post below or change posts per week.`
+    );
+    return;
+  }
+
+  const selectedType = getContentTypeById(typeId);
+
+  if (!selectedType) {
+    return;
+  }
+
+  const nextIndex = selectedContentTypeIds.length;
+
+  const newSlot = createSlotFromContentType(selectedType, nextIndex, {
+    startDate: planStartDate,
+    timeZone,
+    firstPublishTime: defaultPublishTime,
+  });
+
+  setSelectedContentTypeIds((currentTypeIds) => [...currentTypeIds, typeId]);
+  setSlots((currentSlots) => [...currentSlots, newSlot]);
+
+  setRecentlyAddedContentTypeId(typeId);
+
+  setTimeout(() => {
+    setRecentlyAddedContentTypeId("");
+  }, 450);
+
+  if (nextIndex + 1 >= autoPlanPostCount) {
+    scrollToPlannerSchedule();
+  }
+}
 
   function toggleRuleSelection(ruleId) {
     setConfirmingBulkDelete(false);
