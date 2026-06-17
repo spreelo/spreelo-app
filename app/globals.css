@@ -8490,3 +8490,722 @@ textarea.input:focus,
     position: static;
   }
 }
+/* ===== Spreelo Light Modular Theme - Option B ===== */
+/* Visual redesign only. No functional changes. */
+/* Put this at the very bottom of globals.css */
+
+/* ===== Global app surface ===== */
+
+html,
+body {
+  background: #fbfaff;
+}
+
+body {
+  color: #111827;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+.spreelo-shell,
+.app-shell {
+  background:
+    radial-gradient(circle at 78% 0%, rgba(124, 58, 237, 0.10), transparent 32%),
+    radial-gradient(circle at 8% 12%, rgba(236, 72, 153, 0.045), transparent 28%),
+    linear-gradient(180deg, #fbfaff 0%, #f8fafc 52%, #fbfaf8 100%);
+}
+
+.spreelo-content,
+.content {
+  background:
+    radial-gradient(circle at 84% 2%, rgba(124, 58, 237, 0.10), transparent 32%),
+    radial-gradient(circle at 8% 16%, rgba(236, 72, 153, 0.045), transparent 28%),
+    linear-gradient(180deg, #fbfaff 0%, #f8fafc 52%, #fbfaf8 100%);
+  padding: 34px 38px 46px;
+}
+
+/* ===== Light premium sidebar like the mockup ===== */
+
+.spreelo-sidebar,
+.sidebar {
+  width: 292px;
+  min-width: 292px;
+  height: 100vh;
+  min-height: 100vh;
+  padding: 28px 20px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(124, 58, 237, 0.11), transparent 34%),
+    linear-gradient(180deg, #ffffff 0%, #fbfaff 42%, #f8fafc 100%);
+  color: #111827;
+  border-right: 1px solid rgba(226, 232, 240, 0.92);
+  box-shadow: 18px 0 60px rgba(15, 23, 42, 0.045);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* Logo / brand */
+
+.spreelo-brand,
+.brand {
+  padding: 0 6px 16px;
+}
+
+.spreelo-brand-mark,
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 28% 20%, rgba(255, 255, 255, 0.60), transparent 24%),
+    linear-gradient(135deg, #ff4fa3 0%, #7c3aed 48%, #3b82f6 100%);
+  color: #ffffff;
+  box-shadow: 0 18px 34px rgba(124, 58, 237, 0.28);
+}
+
+.spreelo-brand h1,
+.brand h1 {
+  color: #111827;
+  font-size: 29px;
+  font-weight: 950;
+  letter-spacing: -0.065em;
+}
+
+.spreelo-brand p,
+.brand p {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Current brand card */
+
+.current-brand-card {
+  margin: 4px 0 20px;
+  padding: 15px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.045);
+}
+
+.current-brand-card label {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+}
+
+.current-brand-select {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  background: #ffffff;
+  color: #111827;
+  font-weight: 850;
+}
+
+.current-brand-select:focus {
+  border-color: rgba(124, 58, 237, 0.62);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.10);
+}
+
+.current-brand-new {
+  min-height: 40px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #f5f3ff, #eee7ff);
+  color: #5b21b6;
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  font-weight: 950;
+}
+
+.current-brand-new:hover {
+  background: linear-gradient(135deg, #eee7ff, #e9d5ff);
+}
+
+/* Sidebar nav */
+
+.spreelo-nav,
+.nav {
+  gap: 8px;
+}
+
+.spreelo-nav a,
+.nav a {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 15px;
+  color: #334155;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 850;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.spreelo-nav a:hover,
+.nav a:hover {
+  background: #ffffff;
+  color: #5b21b6;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.055);
+  transform: translateY(-1px);
+}
+
+.spreelo-nav a.active,
+.nav a.active {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #ffffff;
+  box-shadow: 0 18px 36px rgba(79, 70, 229, 0.28);
+}
+
+.nav-icon {
+  opacity: 0.95;
+}
+
+/* Sidebar plan/footer */
+
+.spreelo-sidebar-footer,
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.sidebar-plan-card {
+  grid-template-columns: 36px 1fr 16px;
+  padding: 15px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.10), transparent 34%),
+    #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.055);
+}
+
+.sidebar-plan-icon {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #ffffff;
+}
+
+.sidebar-plan-card strong {
+  color: #111827;
+}
+
+.sidebar-plan-card span {
+  color: #64748b;
+}
+
+.sidebar-plan-arrow {
+  color: #7c3aed !important;
+}
+
+.sidebar-user-email,
+.sidebar-footer p {
+  color: #94a3b8;
+}
+
+.spreelo-sidebar-footer button,
+.sidebar-footer button {
+  min-height: 46px;
+  border-radius: 15px;
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.045);
+}
+
+.spreelo-sidebar-footer button:hover,
+.sidebar-footer button:hover {
+  background: #f8fafc;
+  color: #5b21b6;
+}
+
+/* ===== Page headers ===== */
+
+.dashboard-hero,
+.brand-profile-hero,
+.campaign-calendar-hero,
+.planner-hero {
+  margin-bottom: 26px;
+}
+
+.dashboard-eyebrow,
+.wizard-eyebrow,
+.danger-eyebrow,
+.saved-header p,
+.dashboard-card-header p {
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+}
+
+.dashboard-hero h2,
+.brand-profile-hero h2,
+.campaign-calendar-hero h2,
+.planner-hero h2,
+.wizard-header h2,
+.topbar h2 {
+  color: #111827;
+  font-size: 42px;
+  line-height: 1.02;
+  font-weight: 950;
+  letter-spacing: -0.075em;
+}
+
+.dashboard-hero span,
+.brand-profile-hero span,
+.campaign-calendar-hero span,
+.planner-hero p,
+.wizard-header span {
+  color: #64748b;
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 650;
+}
+
+/* ===== Shared premium cards ===== */
+
+.dashboard-card,
+.dashboard-side-card,
+.dashboard-stat-card,
+.brand-profile-guide-card,
+.brand-profile-form-card,
+.brand-profile-form-section,
+.brand-profile-hero-badge,
+.campaign-calendar-main,
+.campaign-detail-card,
+.campaign-calendar-hero-card,
+.campaign-calendar-stat-grid > div,
+.campaign-card,
+.planner-setup-card,
+.planner-mode-card,
+.planner-schedule-card,
+.planner-settings-card,
+.planner-save-card,
+.saved-card-compact,
+.planner-summary-card,
+.planner-credits-card,
+.login-card {
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.055), transparent 34%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow:
+    0 28px 78px rgba(15, 23, 42, 0.060),
+    inset 0 1px 0 rgba(255, 255, 255, 0.74);
+}
+
+/* Smaller internal cards / rows */
+
+.dashboard-upcoming-item,
+.dashboard-review-item,
+.saved-rule-card,
+.campaign-post-plan > div,
+.campaign-detail-date,
+.dashboard-empty,
+.automation-empty,
+.brand-profile-note-card,
+.planner-post-row {
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.028);
+}
+
+/* Hover rows */
+
+.dashboard-upcoming-item:hover,
+.dashboard-review-item:hover,
+.saved-rule-card:hover,
+.campaign-card:hover,
+.planner-post-row:hover {
+  border-color: rgba(124, 58, 237, 0.24);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.060);
+  transform: translateY(-1px);
+}
+
+/* ===== Buttons ===== */
+
+.dashboard-primary-action,
+.brand-profile-primary-button,
+.campaign-create-button,
+.campaign-calendar-empty a,
+.planner-save-button,
+.add-plan-button,
+.planner-create-another-button,
+.save-plan-button,
+.primary-button {
+  border: 0;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #ffffff;
+  box-shadow: 0 20px 38px rgba(79, 70, 229, 0.26);
+  font-weight: 950;
+}
+
+.dashboard-primary-action:hover,
+.brand-profile-primary-button:hover,
+.campaign-create-button:hover,
+.campaign-calendar-empty a:hover,
+.planner-save-button:hover,
+.add-plan-button:hover,
+.planner-create-another-button:hover,
+.save-plan-button:hover,
+.primary-button:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: 0 26px 52px rgba(79, 70, 229, 0.34);
+}
+
+.dashboard-secondary-action,
+.dashboard-card-header a,
+.dashboard-side-link,
+.dashboard-action-list a,
+.dashboard-empty a,
+.dashboard-review-item > a,
+.dashboard-pending-review-button,
+.campaign-saved-actions a,
+.campaign-saved-actions button,
+.planner-save-success-actions a,
+.planner-save-success-actions button,
+.view-calendar-button,
+.planner-add-post-bottom,
+.secondary-button,
+.tiny-button,
+.learn-more-button {
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 15px;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.040);
+  font-weight: 900;
+}
+
+.dashboard-secondary-action:hover,
+.dashboard-card-header a:hover,
+.dashboard-side-link:hover,
+.dashboard-action-list a:hover,
+.dashboard-empty a:hover,
+.dashboard-review-item > a:hover,
+.dashboard-pending-review-button:hover,
+.campaign-saved-actions a:hover,
+.campaign-saved-actions button:hover,
+.planner-save-success-actions a:hover,
+.planner-save-success-actions button:hover,
+.view-calendar-button:hover,
+.planner-add-post-bottom:hover,
+.secondary-button:hover,
+.tiny-button:hover,
+.learn-more-button:hover {
+  background: #fbfaff;
+  border-color: rgba(124, 58, 237, 0.25);
+  color: #5b21b6;
+  transform: translateY(-1px);
+}
+
+/* ===== Inputs ===== */
+
+.input,
+.planner-select-control,
+.planner-setting-field select,
+.planner-save-input,
+.brand-profile-form-section .input,
+.custom-picker-button,
+.custom-select-input,
+textarea.input,
+.prompt-textarea,
+.large-textarea {
+  border: 1px solid rgba(203, 213, 225, 0.88);
+  border-radius: 15px;
+  background: #ffffff;
+  color: #111827;
+  font-weight: 750;
+}
+
+.input:hover,
+.planner-select-control:hover,
+.planner-setting-field select:hover,
+.planner-save-input:hover,
+.brand-profile-form-section .input:hover,
+.custom-picker-button:hover,
+.custom-select-input:hover,
+textarea.input:hover,
+.prompt-textarea:hover,
+.large-textarea:hover {
+  border-color: rgba(124, 58, 237, 0.28);
+}
+
+.input:focus,
+.planner-select-control:focus,
+.planner-setting-field select:focus,
+.planner-save-input:focus,
+.brand-profile-form-section .input:focus,
+.custom-picker-button:focus,
+.custom-select-input:focus,
+textarea.input:focus,
+.prompt-textarea:focus,
+.large-textarea:focus {
+  outline: none;
+  border-color: rgba(124, 58, 237, 0.68);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.10);
+}
+
+/* ===== Pills / badges ===== */
+
+.dashboard-card-header a,
+.dashboard-card-header > span,
+.dashboard-upcoming-date span,
+.dashboard-upcoming-mode,
+.campaign-card-top span,
+.campaign-card-meta span,
+.campaign-angle-list span,
+.campaign-calendar-section-heading > span,
+.campaign-detail-header > span,
+.planner-section-heading > span,
+.planner-schedule-header span,
+.planner-post-options > span,
+.credit-chip,
+.status-pill,
+.planner-summary-status > span {
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f5f3ff 0%, #eee7ff 100%);
+  color: #5b21b6;
+}
+
+/* ===== Dashboard stronger modular style ===== */
+
+.dashboard-stat-grid {
+  gap: 18px;
+}
+
+.dashboard-stat-card {
+  min-height: 154px;
+  padding: 22px;
+}
+
+.dashboard-stat-card strong {
+  font-size: 46px;
+}
+
+.dashboard-layout {
+  gap: 30px;
+}
+
+.dashboard-card {
+  padding: 24px;
+}
+
+.dashboard-card-header h3 {
+  font-size: 28px;
+}
+
+.dashboard-upcoming-item {
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  padding: 16px;
+}
+
+/* ===== Campaign calendar stronger modular style ===== */
+
+.campaign-calendar-layout {
+  gap: 28px;
+}
+
+.campaign-card-grid {
+  gap: 16px;
+}
+
+.campaign-card {
+  padding: 20px;
+  min-height: 178px;
+}
+
+.campaign-card.active {
+  border-color: rgba(124, 58, 237, 0.45);
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.13), transparent 34%),
+    #fbfaff;
+  box-shadow:
+    0 24px 58px rgba(79, 70, 229, 0.10),
+    inset 0 0 0 1px rgba(124, 58, 237, 0.10);
+}
+
+.campaign-card h4 {
+  font-size: 18px;
+  letter-spacing: -0.035em;
+}
+
+/* ===== Brand profile stronger modular style ===== */
+
+.brand-profile-layout {
+  gap: 28px;
+}
+
+.brand-profile-guide-card {
+  padding: 28px;
+}
+
+.brand-profile-guide-icon {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #ffffff;
+}
+
+.brand-profile-form-card {
+  padding: 28px;
+}
+
+.brand-profile-form-section {
+  padding: 22px;
+}
+
+.brand-profile-form-section.market {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.07), transparent 32%),
+    #ffffff;
+}
+
+.brand-profile-form-section.ai-profile {
+  background:
+    radial-gradient(circle at top right, rgba(20, 184, 166, 0.09), transparent 32%),
+    #ffffff;
+}
+
+/* ===== Automation stronger modular style ===== */
+
+.planner-setup-grid {
+  gap: 20px;
+}
+
+.planner-setup-card {
+  min-height: 188px;
+}
+
+.planner-mode-grid {
+  gap: 18px;
+}
+
+.planner-mode-option {
+  border-radius: 24px;
+}
+
+.planner-schedule-card {
+  padding: 24px;
+}
+
+.planner-post-mainline {
+  min-height: 76px;
+}
+
+/* ===== Credits / right cards ===== */
+
+.dashboard-side-card.highlighted,
+.planner-credits-card,
+.planner-summary-card,
+.brand-profile-hero-badge,
+.campaign-calendar-hero-card {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.14), transparent 35%),
+    linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
+}
+
+.dashboard-credit-bar div,
+.planner-credit-progress div,
+.credit-progress div {
+  background: linear-gradient(90deg, #7c3aed, #4f46e5, #8b5cf6);
+}
+
+/* ===== Login ===== */
+
+.login-page {
+  background:
+    radial-gradient(circle at 84% 4%, rgba(124, 58, 237, 0.12), transparent 30%),
+    radial-gradient(circle at 12% 16%, rgba(236, 72, 153, 0.06), transparent 28%),
+    linear-gradient(180deg, #fbfaff 0%, #f8fafc 52%, #fbfaf8 100%);
+}
+
+/* ===== Danger zones should remain distinct ===== */
+
+.danger-zone-card {
+  border-color: rgba(180, 60, 60, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(180, 60, 60, 0.045), transparent 34%),
+    #fffafa;
+  box-shadow: none;
+}
+
+.danger-button,
+.saved-rule-card .danger-button {
+  background: #a73535;
+  color: #ffffff;
+  border-color: rgba(180, 60, 60, 0.30);
+  box-shadow: none;
+}
+
+.danger-button:hover,
+.saved-rule-card .danger-button:hover {
+  background: #842626;
+  color: #ffffff;
+}
+
+/* ===== Mobile ===== */
+
+@media (max-width: 900px) {
+  .spreelo-sidebar,
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    min-height: auto;
+    position: static;
+    overflow-y: visible;
+  }
+
+  .spreelo-content,
+  .content {
+    padding: 24px;
+  }
+
+  .spreelo-nav,
+  .nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-hero h2,
+  .brand-profile-hero h2,
+  .campaign-calendar-hero h2,
+  .planner-hero h2,
+  .wizard-header h2,
+  .topbar h2 {
+    font-size: 32px;
+  }
+
+  .dashboard-upcoming-item {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .spreelo-nav,
+  .nav {
+    grid-template-columns: 1fr;
+  }
+}
