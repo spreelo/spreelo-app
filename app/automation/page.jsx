@@ -2886,6 +2886,12 @@ function changeAutoPlanGoal(goalId) {
   return;
 }
 
+if (mode === "manual") {
+  setSelectedContentTypeIds([]);
+  setSlots([]);
+  return;
+}
+
 setSelectedContentTypeIds([]);
 setSlots([
   createSlot({
