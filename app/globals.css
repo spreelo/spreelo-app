@@ -7179,3 +7179,74 @@ select.input {
   font-size: 13px;
   font-weight: 900;
 }
+/* ===== Manual prompt intro ===== */
+
+.planner-manual-intro-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.05);
+}
+
+.planner-manual-intro-card h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.planner-manual-intro-card p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ===== Disabled setup fields in Manual prompt ===== */
+
+.planner-select-control:disabled {
+  cursor: not-allowed;
+  color: #94a3b8;
+  background: #f8fafc;
+  border-color: rgba(203, 213, 225, 0.9);
+}
+
+.planner-segmented-buttons button:disabled {
+  cursor: not-allowed;
+  color: #94a3b8;
+  background: #f8fafc;
+  border-color: rgba(203, 213, 225, 0.75);
+  box-shadow: none;
+}
+
+.planner-segmented-buttons button:disabled:hover {
+  transform: none;
+}
+
+/* Settings now has 4 primary fields */
+.planner-settings-grid.simple {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .planner-settings-grid.simple {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .planner-manual-intro-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .planner-manual-intro-card .add-plan-button {
+    width: 100%;
+  }
+}
