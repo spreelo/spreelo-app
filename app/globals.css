@@ -7989,3 +7989,504 @@ select.input {
     margin: 0 12px 12px 12px;
   }
 }
+/* ===== Spreelo unified app theme - step 3 ===== */
+/* Global visual theme for Dashboard, Automation, Brand Profile and Calendar. */
+/* Visual refresh only. No functional changes. */
+
+/* Shared app background */
+.spreelo-content,
+.content {
+  background:
+    radial-gradient(circle at 88% 4%, rgba(124, 58, 237, 0.085), transparent 30%),
+    radial-gradient(circle at 8% 14%, rgba(236, 72, 153, 0.045), transparent 28%),
+    linear-gradient(180deg, #fbfaff 0%, #f8fafc 46%, #fbfaf8 100%);
+}
+
+/* Shared page widths */
+.dashboard-page,
+.brand-profile-page,
+.campaign-calendar-page,
+.automation-page,
+.planner-wizard-page {
+  max-width: 1520px;
+  margin: 0 auto;
+}
+
+/* Shared hero sections */
+.dashboard-hero,
+.brand-profile-hero,
+.campaign-calendar-hero,
+.planner-hero {
+  margin-bottom: 26px;
+}
+
+.dashboard-hero h2,
+.brand-profile-hero h2,
+.campaign-calendar-hero h2,
+.planner-hero h2 {
+  color: #0f172a;
+  font-size: 39px;
+  font-weight: 950;
+  letter-spacing: -0.065em;
+}
+
+.dashboard-hero span,
+.brand-profile-hero span,
+.campaign-calendar-hero span,
+.planner-hero p {
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.dashboard-eyebrow,
+.campaign-calendar-section-heading > span,
+.brand-profile-form-header > span,
+.brand-profile-section-title > span,
+.planner-section-heading > span,
+.dashboard-card-header p,
+.saved-header p {
+  color: #5b21b6;
+}
+
+/* Shared cards */
+.dashboard-card,
+.dashboard-side-card,
+.dashboard-stat-card,
+.brand-profile-guide-card,
+.brand-profile-form-card,
+.brand-profile-form-section,
+.brand-profile-hero-badge,
+.campaign-calendar-main,
+.campaign-detail-card,
+.campaign-calendar-hero-card,
+.campaign-calendar-stat-grid > div,
+.campaign-card,
+.planner-setup-card,
+.planner-mode-card,
+.planner-schedule-card,
+.planner-settings-card,
+.planner-save-card,
+.saved-card-compact,
+.planner-summary-card,
+.planner-credits-card {
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow:
+    0 24px 70px rgba(15, 23, 42, 0.052),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+/* Shared rounded card shape */
+.dashboard-card,
+.dashboard-side-card,
+.dashboard-stat-card,
+.brand-profile-guide-card,
+.brand-profile-form-card,
+.brand-profile-form-section,
+.brand-profile-hero-badge,
+.campaign-calendar-main,
+.campaign-detail-card,
+.campaign-calendar-hero-card,
+.campaign-calendar-stat-grid > div,
+.campaign-card,
+.planner-setup-card,
+.planner-mode-card,
+.planner-schedule-card,
+.planner-settings-card,
+.planner-save-card,
+.saved-card-compact,
+.planner-summary-card,
+.planner-credits-card {
+  border-radius: 26px;
+}
+
+/* Light premium top-right glow for major cards */
+.dashboard-card,
+.brand-profile-form-card,
+.campaign-calendar-main,
+.campaign-detail-card,
+.planner-schedule-card,
+.planner-settings-card,
+.planner-summary-card {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.055), transparent 34%),
+    rgba(255, 255, 255, 0.94);
+}
+
+/* Shared card headers */
+.dashboard-card-header h3,
+.dashboard-side-title h3,
+.brand-profile-form-header h3,
+.brand-profile-form-section h4,
+.campaign-calendar-section-heading h3,
+.campaign-detail-header h3,
+.planner-section-heading h3,
+.planner-schedule-header h3,
+.saved-header h3,
+.planner-sidebar-title h3 {
+  color: #0f172a;
+  font-weight: 950;
+  letter-spacing: -0.045em;
+}
+
+.dashboard-card-header p,
+.dashboard-side-title p,
+.brand-profile-section-title p,
+.brand-profile-step-list p,
+.brand-profile-note-card p,
+.campaign-card p,
+.campaign-detail-section p,
+.planner-section-heading p,
+.planner-settings-card p,
+.saved-header span,
+.saved-rule-card p {
+  color: #64748b;
+}
+
+/* Shared stat cards */
+.dashboard-stat-card,
+.campaign-calendar-stat-grid > div {
+  min-height: 142px;
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.09), transparent 34%),
+    linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
+}
+
+.dashboard-stat-card span,
+.campaign-calendar-stat-grid span {
+  color: #64748b;
+}
+
+.dashboard-stat-card strong,
+.campaign-calendar-stat-grid strong,
+.campaign-calendar-hero-card strong,
+.dashboard-brand-progress strong,
+.dashboard-credit-number strong {
+  color: #0f172a;
+}
+
+/* Shared sidebars */
+.dashboard-sidebar,
+.campaign-calendar-sidebar,
+.planner-sidebar,
+.brand-profile-guide-card {
+  position: sticky;
+  top: 24px;
+}
+
+.dashboard-side-card.highlighted,
+.planner-summary-card,
+.brand-profile-guide-card,
+.campaign-calendar-hero-card {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.11), transparent 35%),
+    linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
+}
+
+/* Shared icon bubbles */
+.dashboard-side-title > span,
+.planner-sidebar-title span,
+.brand-profile-guide-icon,
+.brand-profile-step-list span,
+.campaign-post-plan > div > span,
+.campaign-saved-icon,
+.planner-save-success-icon {
+  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.18);
+}
+
+.dashboard-side-title > span,
+.planner-sidebar-title span,
+.brand-profile-step-list span {
+  background: linear-gradient(135deg, #f5f3ff, #eef2ff);
+  color: #5b21b6;
+}
+
+/* Shared primary action buttons */
+.dashboard-primary-action,
+.brand-profile-primary-button,
+.campaign-create-button,
+.campaign-calendar-empty a,
+.planner-save-button,
+.add-plan-button,
+.planner-create-another-button,
+.save-plan-button {
+  border: 0;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #ffffff;
+  box-shadow: 0 18px 36px rgba(79, 70, 229, 0.24);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.dashboard-primary-action:hover,
+.brand-profile-primary-button:hover,
+.campaign-create-button:hover,
+.campaign-calendar-empty a:hover,
+.planner-save-button:hover,
+.add-plan-button:hover,
+.planner-create-another-button:hover,
+.save-plan-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 24px 48px rgba(79, 70, 229, 0.30);
+}
+
+/* Shared secondary/link buttons */
+.dashboard-secondary-action,
+.dashboard-card-header a,
+.dashboard-side-link,
+.dashboard-action-list a,
+.dashboard-empty a,
+.dashboard-review-item > a,
+.dashboard-pending-review-button,
+.campaign-saved-actions a,
+.campaign-saved-actions button,
+.planner-save-success-actions a,
+.planner-save-success-actions button,
+.view-calendar-button,
+.planner-add-post-bottom,
+.secondary-button,
+.tiny-button {
+  border-color: rgba(226, 232, 240, 0.96);
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.dashboard-secondary-action:hover,
+.dashboard-card-header a:hover,
+.dashboard-side-link:hover,
+.dashboard-action-list a:hover,
+.dashboard-empty a:hover,
+.dashboard-review-item > a:hover,
+.dashboard-pending-review-button:hover,
+.campaign-saved-actions a:hover,
+.campaign-saved-actions button:hover,
+.planner-save-success-actions a:hover,
+.planner-save-success-actions button:hover,
+.view-calendar-button:hover,
+.planner-add-post-bottom:hover,
+.secondary-button:hover,
+.tiny-button:hover {
+  background: #fbfaff;
+  border-color: rgba(109, 40, 217, 0.24);
+  color: #5b21b6;
+  transform: translateY(-1px);
+}
+
+/* Shared inputs/selects/textareas */
+.input,
+.planner-select-control,
+.planner-setting-field select,
+.planner-save-input,
+.current-brand-select,
+.brand-profile-form-section .input,
+.custom-picker-button,
+.custom-select-input,
+textarea.input,
+.prompt-textarea {
+  border-color: rgba(203, 213, 225, 0.86);
+  background: rgba(255, 255, 255, 0.94);
+  color: #0f172a;
+}
+
+.input:focus,
+.planner-select-control:focus,
+.planner-setting-field select:focus,
+.planner-save-input:focus,
+.current-brand-select:focus,
+.brand-profile-form-section .input:focus,
+.custom-picker-button:focus,
+.custom-select-input:focus,
+textarea.input:focus,
+.prompt-textarea:focus {
+  outline: none;
+  border-color: rgba(109, 40, 217, 0.68);
+  box-shadow: 0 0 0 4px rgba(109, 40, 217, 0.10);
+}
+
+/* Shared pills/badges */
+.dashboard-card-header a,
+.dashboard-card-header > span,
+.dashboard-upcoming-date span,
+.dashboard-upcoming-mode,
+.dashboard-side-link,
+.campaign-card-top span,
+.campaign-card-meta span,
+.campaign-angle-list span,
+.campaign-calendar-section-heading > span,
+.campaign-detail-header > span,
+.planner-section-heading > span,
+.planner-schedule-header span,
+.planner-post-options > span,
+.credit-chip,
+.status-pill {
+  border: 1px solid rgba(124, 58, 237, 0.10);
+  background: linear-gradient(180deg, #f5f3ff 0%, #eee7ff 100%);
+  color: #5b21b6;
+}
+
+/* Dashboard list rows */
+.dashboard-upcoming-item,
+.dashboard-review-item,
+.saved-rule-card,
+.campaign-post-plan > div,
+.campaign-detail-date,
+.dashboard-empty,
+.automation-empty,
+.brand-profile-note-card {
+  border-color: rgba(226, 232, 240, 0.96);
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 18px;
+}
+
+.dashboard-upcoming-item:hover,
+.dashboard-review-item:hover,
+.saved-rule-card:hover,
+.campaign-card:hover {
+  border-color: rgba(109, 40, 217, 0.22);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.045);
+}
+
+/* Dashboard review thumbnails */
+.dashboard-review-placeholder,
+.dashboard-pending-placeholder {
+  background: linear-gradient(135deg, #f5f3ff, #eef2ff);
+  color: #5b21b6;
+}
+
+/* Brand profile */
+.brand-profile-guide-icon {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+}
+
+.brand-profile-form-section.market {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.075), transparent 32%),
+    rgba(255, 255, 255, 0.94);
+}
+
+.brand-profile-form-section.ai-profile {
+  background:
+    radial-gradient(circle at top right, rgba(20, 184, 166, 0.08), transparent 32%),
+    rgba(255, 255, 255, 0.94);
+}
+
+/* Campaign calendar */
+.campaign-card.active {
+  border-color: rgba(109, 40, 217, 0.42);
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.10), transparent 34%),
+    #fbfaff;
+}
+
+.campaign-card h4,
+.campaign-detail-section h4,
+.campaign-post-plan strong,
+.dashboard-upcoming-content h4,
+.dashboard-review-topline h4,
+.saved-rule-card h4 {
+  color: #0f172a;
+}
+
+/* Empty/success/error cards */
+.dashboard-empty.success,
+.planner-save-success,
+.campaign-saved-card {
+  background:
+    radial-gradient(circle at top right, rgba(34, 197, 94, 0.12), transparent 34%),
+    linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
+  border-color: rgba(34, 197, 94, 0.24);
+}
+
+.campaign-calendar-message,
+.campaign-calendar-disclaimer,
+.planner-sidebar-warning,
+.credit-warning {
+  border-color: rgba(251, 146, 60, 0.28);
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+/* Danger areas remain clear but softer */
+.danger-zone-card,
+.danger-button,
+.saved-rule-card .danger-button,
+.danger-button {
+  border-color: rgba(180, 60, 60, 0.28);
+}
+
+.danger-button {
+  background: #9b2f2f;
+  color: #ffffff;
+}
+
+.danger-button:hover {
+  background: #842626;
+}
+
+/* Sidebar consistency */
+.spreelo-sidebar {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(124, 58, 237, 0.38), transparent 30%),
+    radial-gradient(circle at 80% 26%, rgba(79, 70, 229, 0.16), transparent 25%),
+    linear-gradient(180deg, #110c2d 0%, #0b1024 54%, #070b18 100%);
+}
+
+.spreelo-nav a.active {
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.32);
+}
+
+.sidebar-plan-card,
+.current-brand-card {
+  background: rgba(255, 255, 255, 0.075);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+/* Login also gets same softer background */
+.login-page {
+  background:
+    radial-gradient(circle at 86% 4%, rgba(124, 58, 237, 0.10), transparent 30%),
+    radial-gradient(circle at 10% 16%, rgba(236, 72, 153, 0.05), transparent 28%),
+    linear-gradient(180deg, #fbfaff 0%, #f8fafc 52%, #fbfaf8 100%);
+}
+
+.login-card {
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.075);
+}
+
+/* Better mobile consistency */
+@media (max-width: 900px) {
+  .dashboard-hero h2,
+  .brand-profile-hero h2,
+  .campaign-calendar-hero h2,
+  .planner-hero h2 {
+    font-size: 32px;
+  }
+
+  .dashboard-page,
+  .brand-profile-page,
+  .campaign-calendar-page,
+  .automation-page,
+  .planner-wizard-page {
+    max-width: 100%;
+  }
+
+  .dashboard-sidebar,
+  .campaign-calendar-sidebar,
+  .planner-sidebar,
+  .brand-profile-guide-card {
+    position: static;
+  }
+}
