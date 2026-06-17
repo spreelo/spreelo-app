@@ -2732,6 +2732,12 @@ function changeAutoPlanGoal(goalId) {
   setMessage("");
   setSavedPlanSummary(null);
   setAutoPlanGoal(goalId);
+  
+  if (planCreationMode === "select") {
+  setSelectedContentTypeIds([]);
+  setSlots([]);
+  return;
+}
 
   setSelectedContentTypeIds(goalContentTypeIds);
 
