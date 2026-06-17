@@ -3647,7 +3647,11 @@ setRules((currentRules) =>
           className="add-plan-button"
           onClick={addSlot}
         >
-          {planCreationMode === "campaign" ? "+ Add campaign post" : "+ Add post"}
+          {planCreationMode === "campaign"
+  ? "+ Add campaign post"
+  : planCreationMode === "manual"
+  ? "+ Add manual post"
+  : "+ Add post"}
         </button>
       </div>
     </div>
@@ -3884,7 +3888,11 @@ setRules((currentRules) =>
       className="planner-add-post-bottom"
       onClick={addSlot}
     >
-      {planCreationMode === "campaign" ? "+ Add campaign post" : "+ Add post"}
+      {planCreationMode === "campaign"
+  ? "+ Add campaign post"
+  : planCreationMode === "manual"
+  ? "+ Add manual post"
+  : "+ Add post"}
     </button>
   </section>
 )}
