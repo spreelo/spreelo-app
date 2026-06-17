@@ -3656,53 +3656,6 @@ setRules((currentRules) =>
       </div>
     </div>
 
-    <div className="planner-schedule-toolbar">
-      <DatePickerField
-        label="Start date"
-        value={planStartDate}
-        onChange={updatePlanStartDate}
-        pickerId="plan-start-date"
-        openPickerId={openPickerId}
-        setOpenPickerId={setOpenPickerId}
-        timeZone={timeZone}
-        compact
-      />
-
-      <div className="custom-picker-field compact">
-        <label>Repeat</label>
-        <select
-          className="input custom-select-input"
-          value={scheduleType}
-          onChange={(event) => setScheduleType(event.target.value)}
-        >
-          <option value="weekly">Weekly</option>
-          <option value="once">One time</option>
-        </select>
-      </div>
-
-      <TimePickerField
-        label="First time"
-        value={defaultPublishTime}
-        onChange={updateDefaultPublishTime}
-        pickerId="plan-time"
-        openPickerId={openPickerId}
-        setOpenPickerId={setOpenPickerId}
-        compact
-      />
-
-      <div className="planner-schedule-note">
-        {scheduleType === "weekly"
-          ? `Starts ${formatStartDateLabel(
-              planStartDate,
-              timeZone
-            )} at ${defaultPublishTime}`
-          : `Runs once on ${formatStartDateLabel(
-              planStartDate,
-              timeZone
-            )}`}
-      </div>
-    </div>
-
     <div className="planner-post-table">
       {slots.map((slot, index) => {
         const instructionsAreExpanded =
