@@ -7250,3 +7250,413 @@ select.input {
     width: 100%;
   }
 }
+/* ===== Spreelo Modern Modular refresh - step 1 ===== */
+/* Visual refresh only. No functional changes. */
+
+/* Page background and main spacing */
+.spreelo-content {
+  background:
+    radial-gradient(circle at 86% 4%, rgba(124, 58, 237, 0.09), transparent 30%),
+    radial-gradient(circle at 14% 12%, rgba(236, 72, 153, 0.045), transparent 26%),
+    linear-gradient(180deg, #fbfaff 0%, #f8fafc 48%, #fbfaf8 100%);
+}
+
+.planner-wizard-page {
+  max-width: 1520px;
+}
+
+/* Hero */
+.planner-hero {
+  margin-bottom: 22px;
+}
+
+.planner-hero h2 {
+  font-size: 39px;
+  font-weight: 950;
+  letter-spacing: -0.065em;
+  color: #0f172a;
+}
+
+.planner-hero p {
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.learn-more-button {
+  min-height: 40px;
+  border-radius: 14px;
+  border-color: rgba(226, 232, 240, 0.92);
+  background: rgba(255, 255, 255, 0.88);
+  color: #0f172a;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.045);
+}
+
+.learn-more-button:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* Main layout cards */
+.planner-setup-card,
+.planner-mode-card,
+.planner-schedule-card,
+.planner-settings-card,
+.planner-save-card,
+.saved-card-compact,
+.planner-summary-card,
+.planner-credits-card,
+.campaign-mode-banner {
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 24px 70px rgba(15, 23, 42, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.planner-setup-card,
+.planner-mode-card,
+.planner-schedule-card,
+.planner-settings-card,
+.planner-save-card,
+.saved-card-compact {
+  border-radius: 26px;
+}
+
+/* Top step cards */
+.planner-setup-grid {
+  gap: 18px;
+}
+
+.planner-setup-card {
+  position: relative;
+  min-height: 178px;
+  padding: 22px;
+  overflow: hidden;
+}
+
+.planner-setup-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -30px -55px auto;
+  width: 155px;
+  height: 155px;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.055);
+  pointer-events: none;
+}
+
+.planner-setup-card:nth-child(1) {
+  background:
+    radial-gradient(circle at 92% 82%, rgba(124, 58, 237, 0.10), transparent 32%),
+    linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
+}
+
+.planner-setup-card:nth-child(2) {
+  background:
+    radial-gradient(circle at 92% 82%, rgba(236, 72, 153, 0.10), transparent 32%),
+    linear-gradient(180deg, #ffffff 0%, #fff8fb 100%);
+}
+
+.planner-setup-card:nth-child(3) {
+  background:
+    radial-gradient(circle at 92% 82%, rgba(249, 115, 22, 0.10), transparent 32%),
+    linear-gradient(180deg, #ffffff 0%, #fffaf5 100%);
+}
+
+.setup-step-title {
+  margin-bottom: 18px;
+}
+
+.setup-step-title > span {
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  font-size: 18px;
+  box-shadow: 0 16px 30px rgba(79, 70, 229, 0.26);
+}
+
+.planner-setup-card:nth-child(2) .setup-step-title > span {
+  background: linear-gradient(135deg, #ec4899, #f43f5e);
+  box-shadow: 0 16px 30px rgba(236, 72, 153, 0.22);
+}
+
+.planner-setup-card:nth-child(3) .setup-step-title > span {
+  background: linear-gradient(135deg, #f97316, #f59e0b);
+  box-shadow: 0 16px 30px rgba(249, 115, 22, 0.22);
+}
+
+.setup-step-title strong {
+  font-size: 17px;
+  letter-spacing: -0.025em;
+}
+
+.setup-step-title small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.planner-setup-card p {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* Inputs inside top cards */
+.planner-select-control,
+.custom-picker-button,
+.planner-setting-field select,
+.planner-save-input {
+  border-color: rgba(203, 213, 225, 0.86);
+  background: rgba(255, 255, 255, 0.94);
+  color: #0f172a;
+}
+
+.planner-select-control:hover,
+.custom-picker-button:hover,
+.planner-setting-field select:hover,
+.planner-save-input:hover {
+  border-color: rgba(124, 58, 237, 0.30);
+}
+
+.planner-select-control:focus,
+.planner-setting-field select:focus,
+.planner-save-input:focus {
+  border-color: rgba(109, 40, 217, 0.72);
+  box-shadow: 0 0 0 4px rgba(109, 40, 217, 0.10);
+}
+
+/* Posts per week buttons */
+.planner-segmented-buttons button {
+  border-color: rgba(203, 213, 225, 0.86);
+  background: rgba(255, 255, 255, 0.88);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+.planner-segmented-buttons button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(109, 40, 217, 0.32);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.055);
+}
+
+.planner-segmented-buttons button.active {
+  border-color: rgba(109, 40, 217, 0.68);
+  background: linear-gradient(180deg, #f5f3ff 0%, #eee7ff 100%);
+  color: #5b21b6;
+  box-shadow:
+    inset 0 0 0 1px rgba(109, 40, 217, 0.18),
+    0 12px 26px rgba(109, 40, 217, 0.10);
+}
+
+/* Method cards */
+.planner-mode-card {
+  padding: 20px;
+}
+
+.planner-mode-grid {
+  gap: 16px;
+}
+
+.planner-mode-option {
+  min-height: 205px;
+  border-radius: 22px;
+  border-color: rgba(226, 232, 240, 0.96);
+  background:
+    radial-gradient(circle at 50% 30%, rgba(124, 58, 237, 0.045), transparent 28%),
+    #ffffff;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.planner-mode-option:hover {
+  transform: translateY(-2px);
+  border-color: rgba(109, 40, 217, 0.30);
+  box-shadow: 0 22px 50px rgba(15, 23, 42, 0.065);
+}
+
+.planner-mode-option.active {
+  border-color: rgba(109, 40, 217, 0.72);
+  background:
+    radial-gradient(circle at 50% 24%, rgba(124, 58, 237, 0.12), transparent 32%),
+    linear-gradient(180deg, #ffffff 0%, #f7f4ff 100%);
+  box-shadow:
+    0 24px 58px rgba(79, 70, 229, 0.12),
+    inset 0 0 0 1px rgba(109, 40, 217, 0.10);
+}
+
+.mode-big-icon {
+  width: 76px;
+  height: 76px;
+  background: linear-gradient(135deg, #f3f0ff, #eee7ff);
+  color: #6d28d9;
+}
+
+.mode-big-icon.neutral {
+  background: linear-gradient(135deg, #f8fafc, #eef2ff);
+  color: #0f172a;
+}
+
+.planner-mode-option strong {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.planner-mode-option p {
+  color: #64748b;
+  font-weight: 650;
+}
+
+.mode-radio {
+  background: #ffffff;
+}
+
+.planner-mode-option.active .mode-radio {
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  border-color: transparent;
+  box-shadow: 0 12px 24px rgba(79, 70, 229, 0.22);
+}
+
+/* Content picker */
+.planner-content-picker {
+  margin-top: 20px;
+}
+
+.planner-content-chip {
+  border-radius: 18px;
+  padding: 15px;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+.planner-content-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(109, 40, 217, 0.28);
+  background: #fbfaff;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.045);
+}
+
+.planner-content-chip > span {
+  background: linear-gradient(135deg, #f3f0ff, #eef2ff);
+}
+
+/* Section headings */
+.planner-section-heading h3,
+.planner-schedule-header h3,
+.planner-settings-card h3,
+.saved-header h3 {
+  color: #0f172a;
+  font-weight: 950;
+}
+
+.planner-section-heading p,
+.planner-settings-card p,
+.saved-header p {
+  color: #64748b;
+}
+
+/* Buttons */
+.add-plan-button,
+.planner-save-button {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #ffffff;
+  box-shadow: 0 18px 36px rgba(79, 70, 229, 0.24);
+}
+
+.add-plan-button:hover,
+.planner-save-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 22px 44px rgba(79, 70, 229, 0.30);
+}
+
+.view-calendar-button,
+.planner-add-post-bottom {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(226, 232, 240, 0.96);
+}
+
+.view-calendar-button:hover,
+.planner-add-post-bottom:hover {
+  background: #fbfaff;
+  border-color: rgba(109, 40, 217, 0.22);
+}
+
+/* Settings */
+.planner-settings-card {
+  padding: 20px;
+}
+
+.planner-setting-field span {
+  color: #64748b;
+}
+
+.planner-advanced-toggle {
+  background: #f5f3ff;
+  border-color: rgba(109, 40, 217, 0.18);
+}
+
+.planner-advanced-toggle:hover {
+  background: #eee7ff;
+}
+
+/* Save card */
+.planner-save-card {
+  background:
+    radial-gradient(circle at 82% 50%, rgba(124, 58, 237, 0.08), transparent 28%),
+    #ffffff;
+}
+
+/* Right sidebar */
+.planner-summary-card,
+.planner-credits-card {
+  border-radius: 26px;
+}
+
+.planner-summary-card {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.09), transparent 34%),
+    linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
+}
+
+.planner-summary-status {
+  background: linear-gradient(180deg, #f7f4ff 0%, #ffffff 100%);
+}
+
+.planner-credit-progress div {
+  background: linear-gradient(90deg, #7c3aed, #4f46e5, #8b5cf6);
+}
+
+/* Campaign banner */
+.campaign-mode-banner {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.13), transparent 35%),
+    linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
+}
+
+/* Manual intro */
+.planner-manual-intro-card {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.10), transparent 34%),
+    #ffffff;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .planner-setup-card {
+    min-height: auto;
+  }
+
+  .planner-mode-option {
+    min-height: 170px;
+  }
+}
