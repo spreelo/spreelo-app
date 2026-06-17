@@ -3817,10 +3817,10 @@ setRules((currentRules) =>
                       )
                     }
                     placeholder={
-                      slot.isCampaignSlot
-                        ? "Describe what this campaign post should be about"
-                        : "Write instructions for this post"
-                    }
+  slot.isCampaignSlot
+    ? "Describe what this campaign post should be about"
+    : "Tell Spreelo what this post should be about."
+}
                   />
 
                   {slot.generateImage && (
@@ -3832,7 +3832,7 @@ setRules((currentRules) =>
                         onChange={(event) =>
                           updateSlot(slot.id, "imagePrompt", event.target.value)
                         }
-                        placeholder="Optional visual direction for the image."
+                        placeholder="Optional: describe what the image should show."
                       />
                     </>
                   )}
