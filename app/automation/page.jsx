@@ -3486,42 +3486,6 @@ setRules((currentRules) =>
       </div>
     )}
 
-    <div className="planner-included-card">
-      <div className="planner-section-heading compact">
-        <div>
-          <h3>
-            {planCreationMode === "auto"
-              ? "Included in this plan"
-              : planCreationMode === "select"
-              ? "Selected content types"
-              : "Manual prompt plan"}
-          </h3>
-          <p>
-            {planCreationMode === "auto"
-              ? "Spreelo balances this content mix automatically to match your goal."
-              : planCreationMode === "select"
-              ? "These post types will be used when the plan is saved."
-              : "Write your own instructions in the planned post below."}
-          </p>
-        </div>
-      </div>
-
-      <div className="planner-included-grid">
-        {includedContentTypes.map((type) => (
-          <div className="planner-included-type" key={type.id}>
-            <span>{getContentTypeIcon(type.id)}</span>
-            <strong>{type.shortLabel || type.label}</strong>
-          </div>
-        ))}
-      </div>
-
-      {planCreationMode === "auto" && (
-        <div className="planner-balance-note">
-          ✦ Spreelo balances this content mix automatically to match your
-          selected goal.
-        </div>
-      )}
-    </div>
   </section>
 )}
 {shouldShowPlannerDetails && (
