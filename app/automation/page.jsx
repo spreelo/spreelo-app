@@ -3453,11 +3453,11 @@ setRules((currentRules) =>
       <div className="planner-content-picker">
         <div className="planner-section-heading">
           <div>
-            <h3>Choose content types</h3>
-            <p>
-              Select the post types you want. Each selected type becomes one
-              planned post.
-            </p>
+         <h3>Choose {autoPlanPostCount} post types</h3>
+<p>
+  Click a post type to add it to your plan. You can choose the same
+  type more than once.
+</p>
           </div>
 
           <span>{selectedContentTypeIds.length} selected</span>
