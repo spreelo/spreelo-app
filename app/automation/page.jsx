@@ -3863,7 +3863,7 @@ setRules((currentRules) =>
                 <span>Recommended</span>
               </div>
 
-             <div className="planner-settings-grid simple">
+            <div className="planner-settings-grid simple">
   <label className="planner-setting-field">
     <span>Platform</span>
     <select
@@ -3898,6 +3898,17 @@ setRules((currentRules) =>
     >
       <option value="review">Review before publishing</option>
       <option value="auto">Publish automatically</option>
+    </select>
+  </label>
+
+  <label className="planner-setting-field">
+    <span>Repeat</span>
+    <select
+      value={scheduleType}
+      onChange={(event) => setScheduleType(event.target.value)}
+    >
+      <option value="weekly">Weekly</option>
+      <option value="once">One time</option>
     </select>
   </label>
 </div>
