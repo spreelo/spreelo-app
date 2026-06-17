@@ -3569,6 +3569,21 @@ setRules((currentRules) =>
 
   </section>
 )}
+            {planCreationMode === "manual" && !planWasSaved && (
+  <section className="planner-manual-intro-card">
+    <div>
+      <h3>Manual prompt</h3>
+      <p>
+        Add one or more manual posts. Each post can have its own instructions
+        and optional image direction.
+      </p>
+    </div>
+
+    <button type="button" className="add-plan-button" onClick={addManualSlot}>
+      + Add manual post
+    </button>
+  </section>
+)}
 {shouldShowPlannerDetails && (
   <>
               {planWasSaved ? (
