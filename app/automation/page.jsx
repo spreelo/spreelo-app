@@ -3377,18 +3377,22 @@ setRules((currentRules) =>
                 ) : (
                   <div className="planner-segmented-buttons">
                     {autoPlanPostCountOptions.map((option) => (
-                      <button
-                        type="button"
-                        key={option}
-                        className={
-                          autoPlanPostCount === option ? "active" : ""
-                        }
-                     onClick={() => {
-  changeAutoPlanPostCount(option);
-}}
-                      >
-                        {option}
-                      </button>
+                   <button
+  type="button"
+  key={option}
+  disabled={planCreationMode === "manual"}
+  className={
+    planCreationMode !== "manual" && autoPlanPostCount === option
+      ? "active"
+      : ""
+  }
+  onClick={() => {
+    if (planCreationMode === "manual") return;
+    changeAutoPlanPostCount(option);
+  }}
+>
+  {option}
+</button>
                     ))}
                   </div>
                 )}
