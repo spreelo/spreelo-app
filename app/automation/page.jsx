@@ -2191,7 +2191,7 @@ const shouldShowPlannerDetails =
   !planWasSaved &&
   (planCreationMode === "campaign" ||
     (planCreationMode === "select" && slots.length > 0) ||
-    planCreationMode === "manual" ||
+    (planCreationMode === "manual" && slots.length > 0) ||
     Boolean(autoPlanGoal));
 async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
   if (preferredBrandId) {
