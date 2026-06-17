@@ -3883,7 +3883,6 @@ setRules((currentRules) =>
       onChange={(event) => setLanguage(event.target.value)}
     >
       <option value="Auto">Auto-detect</option>
-      <option value="Swedish">Swedish</option>
       <option value="English">English</option>
     </select>
   </label>
