@@ -2190,7 +2190,7 @@ const planWasSaved = Boolean(savedPlanSummary);
 const shouldShowPlannerDetails =
   !planWasSaved &&
   (planCreationMode === "campaign" ||
-    planCreationMode === "select" ||
+    (planCreationMode === "select" && slots.length > 0) ||
     planCreationMode === "manual" ||
     Boolean(autoPlanGoal));
 async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
