@@ -3460,7 +3460,10 @@ setRules((currentRules) =>
 </p>
           </div>
 
-          <span>{selectedContentTypeIds.length} selected</span>
+          <span>
+  {Math.min(selectedContentTypeIds.length, autoPlanPostCount)}/
+  {autoPlanPostCount} selected
+</span>
         </div>
 
         <div className="planner-content-grid">
