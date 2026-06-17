@@ -2634,6 +2634,47 @@ function scrollToPlannerSchedule() {
     }
   }, 120);
 }
+  function addManualSlot() {
+  setMessage("");
+
+  const manualType = getContentTypeById("manual_prompt");
+  const nextIndex = slots.length;
+
+  const newSlot = createSlotFromContentType(
+    manualType || {
+      id: "manual_prompt",
+      label: "Manual prompt",
+      prompt: "",
+      imagePrompt: "",
+      usesWebsiteContent: false,
+    },
+    nextIndex,
+    {
+      startDate: planStartDate,
+      timeZone,
+      firstPublishTime: defaultPublishTime,
+      generateImage: true,
+    }
+  );
+
+  const preparedSlot = {
+    ...newSlot,
+    prompt: "",
+    imagePrompt: "",
+    generateImage: true,
+    contentTypeId: "manual_prompt",
+    contentTypeLabel: "Manual prompt",
+    usesWebsiteContent: false,
+  };
+
+  setSlots((currentSlots) => [...currentSlots, preparedSlot]);
+  setExpandedInstructionSlotIds((currentIds) => [
+    ...currentIds,
+    preparedSlot.id,
+  ]);
+
+  scrollToPlannerSchedule();
+}
 function addSlot() {
   setMessage("");
 
