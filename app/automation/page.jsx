@@ -3332,8 +3332,10 @@ setRules((currentRules) =>
     changeAutoPlanGoal(event.target.value);
   }}
 >
-      <option value="" disabled>
-  Choose a goal to build your plan
+ <option value="" disabled>
+  {planCreationMode === "manual"
+    ? "Not used for manual prompt"
+    : "Choose a goal to build your plan"}
 </option>
       {autoPlanGoals.map((goal) => (
         <option key={goal.id} value={goal.id}>
