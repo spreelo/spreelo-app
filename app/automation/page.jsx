@@ -3398,9 +3398,11 @@ setRules((currentRules) =>
                 )}
 
                 <p>
-                  {planCreationMode === "campaign"
-                    ? `${slots.length} posts are prepared for this campaign.`
-                    : "Recommended for steady growth and consistent visibility."}
+                 {planCreationMode === "campaign"
+  ? `${slots.length} posts are prepared for this campaign.`
+  : planCreationMode === "manual"
+  ? "Manual posts are added one by one."
+  : "Recommended for steady growth and consistent visibility."}
                 </p>
               </div>
 
