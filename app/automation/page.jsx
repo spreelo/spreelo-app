@@ -2056,6 +2056,8 @@ const [slots, setSlots] = useState([]);
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
   const [showSavedRules, setShowSavedRules] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [recentlyAddedContentTypeId, setRecentlyAddedContentTypeId] =
+  useState("");
   const [expandedInstructionSlotIds, setExpandedInstructionSlotIds] = useState(
     []
   );
@@ -2620,7 +2622,18 @@ timeZone: selectedTimeZone,
     );
   });
 }
+function scrollToPlannerSchedule() {
+  setTimeout(() => {
+    const scheduleElement = document.querySelector(".planner-schedule-card");
 
+    if (scheduleElement) {
+      scheduleElement.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, 120);
+}
 function addSlot() {
   setMessage("");
 
