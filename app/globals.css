@@ -9889,3 +9889,278 @@ textarea.input:focus,
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }
+/* ===== Spreelo mobile fix after mockup override ===== */
+/* Keeps the desktop mockup style, but stacks everything correctly on mobile. */
+
+@media (max-width: 900px) {
+  html,
+  body {
+    width: 100%;
+    overflow-x: hidden !important;
+  }
+
+  .app-shell,
+  .spreelo-shell {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .spreelo-sidebar,
+  .sidebar {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    position: relative !important;
+    top: auto !important;
+    border-radius: 0 0 22px 22px !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-top: 0 !important;
+    padding: 22px 16px !important;
+    overflow: visible !important;
+  }
+
+  .spreelo-content,
+  .content {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 18px 14px 34px !important;
+    overflow-x: hidden !important;
+  }
+
+  .planner-wizard-page,
+  .dashboard-page,
+  .brand-profile-page,
+  .campaign-calendar-page,
+  .automation-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .wizard-layout,
+  .dashboard-layout,
+  .campaign-calendar-layout,
+  .brand-profile-layout {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .wizard-main,
+  .dashboard-main {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .planner-sidebar,
+  .dashboard-sidebar,
+  .campaign-calendar-sidebar,
+  .brand-profile-guide-card {
+    position: static !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .planner-hero,
+  .dashboard-hero,
+  .brand-profile-hero,
+  .campaign-calendar-hero {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .planner-hero h2,
+  .dashboard-hero h2,
+  .brand-profile-hero h2,
+  .campaign-calendar-hero h2 {
+    font-size: 28px !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.055em !important;
+  }
+
+  .learn-more-button {
+    width: 100% !important;
+  }
+
+  .planner-setup-grid,
+  .planner-mode-grid,
+  .dashboard-stat-grid,
+  .campaign-calendar-stat-grid,
+  .campaign-card-grid,
+  .brand-profile-two-col,
+  .planner-settings-grid,
+  .planner-settings-grid.simple,
+  .planner-settings-grid.advanced {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    gap: 12px !important;
+  }
+
+  .planner-setup-card,
+  .planner-mode-card,
+  .planner-schedule-card,
+  .planner-settings-card,
+  .planner-save-card,
+  .saved-card-compact,
+  .planner-summary-card,
+  .planner-credits-card,
+  .dashboard-card,
+  .dashboard-side-card,
+  .dashboard-stat-card,
+  .brand-profile-guide-card,
+  .brand-profile-form-card,
+  .brand-profile-form-section,
+  .campaign-calendar-main,
+  .campaign-detail-card,
+  .campaign-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-radius: 18px !important;
+  }
+
+  .planner-setup-card {
+    min-height: auto !important;
+  }
+
+  .planner-mode-option {
+    min-height: 150px !important;
+  }
+
+  .planner-save-card {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .planner-save-input,
+  .planner-save-button {
+    width: 100% !important;
+  }
+
+  .planner-schedule-header,
+  .planner-schedule-actions,
+  .planner-section-heading,
+  .dashboard-card-header,
+  .brand-profile-form-header,
+  .campaign-calendar-section-heading,
+  .campaign-detail-header {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .planner-schedule-actions {
+    width: 100% !important;
+  }
+
+  .planner-schedule-actions button,
+  .view-calendar-button,
+  .add-plan-button {
+    width: 100% !important;
+  }
+
+  .planner-post-table {
+    border-radius: 16px !important;
+    overflow: visible !important;
+    border: 0 !important;
+    background: transparent !important;
+    display: grid !important;
+    gap: 10px !important;
+  }
+
+  .planner-post-row {
+    border: 1px solid #e1e6ef !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+  }
+
+  .planner-post-mainline {
+    display: grid !important;
+    grid-template-columns: 52px minmax(0, 1fr) !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    min-height: auto !important;
+  }
+
+  .planner-post-index {
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 20px !important;
+  }
+
+  .planner-post-title,
+  .planner-post-date,
+  .planner-post-time,
+  .planner-post-format,
+  .planner-post-actions {
+    grid-column: 2 !important;
+    min-width: 0 !important;
+  }
+
+  .planner-post-title strong,
+  .planner-post-title span {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+  }
+
+  .planner-post-date .custom-picker-button,
+  .planner-post-time .custom-picker-button,
+  .planner-post-format {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .planner-post-actions {
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+  }
+
+  .planner-post-expanded {
+    grid-template-columns: 1fr !important;
+    margin: 0 12px 12px !important;
+  }
+
+  .saved-rule-card {
+    display: grid !important;
+    grid-template-columns: 22px minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .saved-rule-card .danger-button {
+    grid-column: 2 !important;
+    justify-self: flex-start !important;
+  }
+
+  .dashboard-upcoming-item,
+  .dashboard-review-item {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dashboard-review-item img,
+  .dashboard-review-placeholder {
+    width: 100% !important;
+    height: 170px !important;
+  }
+
+  .campaign-calendar-empty {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .campaign-calendar-empty a {
+    width: 100% !important;
+  }
+}
