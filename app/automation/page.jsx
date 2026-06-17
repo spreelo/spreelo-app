@@ -3324,13 +3324,14 @@ setRules((currentRules) =>
       <span>Focused campaign from calendar</span>
     </div>
   ) : (
-    <select
-      className="planner-select-control"
-      value={autoPlanGoal}
-     onChange={(event) => {
-  changeAutoPlanGoal(event.target.value);
-}}
-    >
+   <select
+  className="planner-select-control"
+  value={planCreationMode === "manual" ? "" : autoPlanGoal}
+  disabled={planCreationMode === "manual"}
+  onChange={(event) => {
+    changeAutoPlanGoal(event.target.value);
+  }}
+>
       <option value="" disabled>
   Choose a goal to build your plan
 </option>
