@@ -3486,6 +3486,17 @@ setRules((currentRules) =>
             );
           })}
         </div>
+        <div className="content-picker-progress-note">
+  {selectedContentTypeIds.length < autoPlanPostCount ? (
+    <span>
+      Choose {autoPlanPostCount - selectedContentTypeIds.length} more post
+      {autoPlanPostCount - selectedContentTypeIds.length === 1 ? "" : "s"} to
+      complete this plan.
+    </span>
+  ) : (
+    <span>Your plan is ready. Review the schedule below.</span>
+  )}
+</div>
       </div>
     )}
 
