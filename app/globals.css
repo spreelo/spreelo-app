@@ -9209,3 +9209,683 @@ textarea.input:focus,
     grid-template-columns: 1fr;
   }
 }
+/* ===== Spreelo Mockup Match Theme - stronger override ===== */
+/* Visual only. Copies the Modern Modular mockup direction more closely. */
+
+/* App shell */
+.spreelo-shell,
+.app-shell {
+  background: #f8f8fb !important;
+  min-height: 100vh;
+}
+
+.spreelo-content,
+.content {
+  padding: 24px 36px 42px !important;
+  background: #f8f8fb !important;
+}
+
+/* ===== Sidebar like mockup ===== */
+
+.spreelo-sidebar,
+.sidebar {
+  width: 238px !important;
+  min-width: 238px !important;
+  padding: 34px 20px 24px !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfaff 100%) !important;
+  color: #111827 !important;
+  border: 1px solid #e7e7ef !important;
+  border-radius: 0 22px 22px 0 !important;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.06) !important;
+}
+
+/* Brand/logo */
+.spreelo-brand,
+.brand {
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 0 0 34px !important;
+}
+
+.spreelo-brand-mark,
+.brand-mark {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 13px !important;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255,255,255,.75), transparent 24%),
+    linear-gradient(135deg, #ff4f9f 0%, #8b5cf6 48%, #3b82f6 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 26px rgba(124, 58, 237, 0.28) !important;
+}
+
+.spreelo-brand h1,
+.brand h1 {
+  color: #111827 !important;
+  font-size: 28px !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.07em !important;
+}
+
+.spreelo-brand p,
+.brand p {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 650 !important;
+}
+
+/* Current brand */
+.current-brand-card {
+  margin: 0 0 24px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.current-brand-card label {
+  margin-bottom: 10px !important;
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+}
+
+.current-brand-select {
+  height: 52px !important;
+  border-radius: 12px !important;
+  border: 1px solid #dfe3ec !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-size: 15px !important;
+  font-weight: 750 !important;
+  box-shadow: none !important;
+}
+
+.current-brand-new {
+  height: 46px !important;
+  margin-top: 12px !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #dfe3ec !important;
+  font-size: 14px !important;
+  font-weight: 850 !important;
+  box-shadow: none !important;
+}
+
+.current-brand-new:hover {
+  background: #f7f4ff !important;
+  color: #6d28d9 !important;
+}
+
+/* Navigation */
+.spreelo-nav,
+.nav {
+  gap: 8px !important;
+}
+
+.spreelo-nav a,
+.nav a {
+  height: 48px !important;
+  min-height: 48px !important;
+  padding: 0 14px !important;
+  border-radius: 12px !important;
+  color: #334155 !important;
+  background: transparent !important;
+  font-size: 15px !important;
+  font-weight: 760 !important;
+  box-shadow: none !important;
+}
+
+.spreelo-nav a:hover,
+.nav a:hover {
+  background: #f7f4ff !important;
+  color: #6d28d9 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.spreelo-nav a.active,
+.nav a.active {
+  background: #ffffff !important;
+  color: #6d28d9 !important;
+  border: 1px solid #a78bfa !important;
+  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.10) !important;
+}
+
+/* Sidebar pro card/footer */
+.sidebar-plan-card {
+  padding: 20px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(180deg, #fbfaff 0%, #f5f3ff 100%) !important;
+  border: 1px solid #e4ddff !important;
+  box-shadow: none !important;
+}
+
+.sidebar-plan-card strong {
+  color: #6d28d9 !important;
+  font-size: 22px !important;
+}
+
+.sidebar-plan-card span {
+  color: #64748b !important;
+  font-size: 14px !important;
+}
+
+.spreelo-sidebar-footer button,
+.sidebar-footer button {
+  background: #ffffff !important;
+  color: #334155 !important;
+  border: 1px solid #dfe3ec !important;
+  box-shadow: none !important;
+}
+
+/* ===== Main page container like mockup ===== */
+
+.planner-wizard-page,
+.dashboard-page,
+.brand-profile-page,
+.campaign-calendar-page {
+  max-width: 1460px !important;
+  margin: 0 auto !important;
+}
+
+/* White app frame mostly on automation */
+.planner-wizard-page {
+  padding: 0 !important;
+}
+
+/* Headers */
+.planner-hero,
+.dashboard-hero,
+.brand-profile-hero,
+.campaign-calendar-hero {
+  margin-bottom: 22px !important;
+}
+
+.planner-hero h2,
+.dashboard-hero h2,
+.brand-profile-hero h2,
+.campaign-calendar-hero h2 {
+  color: #111827 !important;
+  font-size: 34px !important;
+  line-height: 1.05 !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.055em !important;
+}
+
+.planner-hero p,
+.dashboard-hero span,
+.brand-profile-hero span,
+.campaign-calendar-hero span {
+  color: #64748b !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+}
+
+/* ===== Layout spacing ===== */
+
+.wizard-layout,
+.dashboard-layout,
+.campaign-calendar-layout {
+  gap: 18px !important;
+}
+
+.wizard-main,
+.dashboard-main {
+  gap: 18px !important;
+}
+
+/* ===== Card base closer to mockup ===== */
+
+.planner-setup-card,
+.planner-mode-card,
+.planner-schedule-card,
+.planner-settings-card,
+.planner-save-card,
+.saved-card-compact,
+.planner-summary-card,
+.planner-credits-card,
+.dashboard-card,
+.dashboard-side-card,
+.dashboard-stat-card,
+.brand-profile-guide-card,
+.brand-profile-form-card,
+.campaign-calendar-main,
+.campaign-detail-card,
+.campaign-card,
+.campaign-calendar-stat-grid > div,
+.brand-profile-form-section {
+  background: #ffffff !important;
+  border: 1px solid #e1e6ef !important;
+  border-radius: 18px !important;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.045) !important;
+}
+
+/* ===== Top step cards like mockup ===== */
+
+.planner-setup-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 16px !important;
+  margin-bottom: 18px !important;
+}
+
+.planner-setup-card {
+  min-height: 150px !important;
+  padding: 20px !important;
+  overflow: hidden !important;
+}
+
+.planner-setup-card:nth-child(1) {
+  background: linear-gradient(135deg, #ffffff 0%, #f6f2ff 100%) !important;
+  border-color: #ddd2ff !important;
+}
+
+.planner-setup-card:nth-child(2) {
+  background: linear-gradient(135deg, #ffffff 0%, #fff0f6 100%) !important;
+  border-color: #ffd0df !important;
+}
+
+.planner-setup-card:nth-child(3) {
+  background: linear-gradient(135deg, #ffffff 0%, #fff6eb 100%) !important;
+  border-color: #ffd9ad !important;
+}
+
+.setup-step-title > span {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 999px !important;
+  font-size: 17px !important;
+}
+
+.planner-setup-card:nth-child(1) .setup-step-title > span {
+  background: #6d28d9 !important;
+}
+
+.planner-setup-card:nth-child(2) .setup-step-title > span {
+  background: #ec407a !important;
+}
+
+.planner-setup-card:nth-child(3) .setup-step-title > span {
+  background: #f57c00 !important;
+}
+
+.setup-step-title strong {
+  font-size: 16px !important;
+  color: #111827 !important;
+}
+
+.setup-step-title small {
+  color: #475569 !important;
+  font-size: 12px !important;
+}
+
+.planner-setup-card p {
+  color: #64748b !important;
+  font-size: 13px !important;
+}
+
+/* Inputs in top cards */
+.planner-select-control,
+.custom-picker-button,
+.planner-setting-field select,
+.planner-save-input {
+  height: 46px !important;
+  border-radius: 10px !important;
+  border: 1px solid #dbe2ec !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  color: #111827 !important;
+  font-size: 14px !important;
+}
+
+/* Posts per week buttons */
+.planner-segmented-buttons {
+  gap: 8px !important;
+}
+
+.planner-segmented-buttons button {
+  height: 46px !important;
+  border-radius: 10px !important;
+  border: 1px solid #dbe2ec !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.planner-segmented-buttons button.active {
+  background: #f5f0ff !important;
+  border-color: #8b5cf6 !important;
+  color: #6d28d9 !important;
+}
+
+/* ===== Method cards like mockup ===== */
+
+.planner-mode-card {
+  padding: 16px !important;
+  margin-bottom: 18px !important;
+}
+
+.planner-mode-grid {
+  gap: 12px !important;
+}
+
+.planner-mode-option {
+  min-height: 170px !important;
+  border-radius: 16px !important;
+  border: 1px solid #e1e6ef !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  padding: 22px 18px !important;
+}
+
+.planner-mode-option.active {
+  border: 2px solid #8b5cf6 !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fbf8ff 100%) !important;
+  box-shadow: none !important;
+}
+
+.mode-big-icon {
+  width: 58px !important;
+  height: 58px !important;
+  margin: 14px auto 16px !important;
+  border-radius: 999px !important;
+  background: #f3f0ff !important;
+  color: #6d28d9 !important;
+  font-size: 28px !important;
+}
+
+.planner-mode-option strong {
+  font-size: 17px !important;
+  color: #111827 !important;
+}
+
+.planner-mode-option p {
+  color: #64748b !important;
+  font-size: 13px !important;
+}
+
+.mode-radio {
+  width: 24px !important;
+  height: 24px !important;
+  border: 1px solid #dbe2ec !important;
+  background: #ffffff !important;
+}
+
+.planner-mode-option.active .mode-radio {
+  background: #6d28d9 !important;
+  border-color: #6d28d9 !important;
+}
+
+/* ===== Posts & schedule like mockup table ===== */
+
+.planner-schedule-card {
+  padding: 20px !important;
+  border-radius: 18px !important;
+  margin-bottom: 18px !important;
+}
+
+.planner-schedule-header {
+  align-items: center !important;
+  margin-bottom: 14px !important;
+}
+
+.planner-schedule-header h3 {
+  font-size: 26px !important;
+}
+
+.planner-schedule-header span {
+  background: #f1eaff !important;
+  color: #6d28d9 !important;
+  border: 0 !important;
+}
+
+.planner-post-table {
+  gap: 0 !important;
+  border: 1px solid #e1e6ef !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+}
+
+.planner-post-row {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid #edf0f5 !important;
+}
+
+.planner-post-row:last-child {
+  border-bottom: 0 !important;
+}
+
+.planner-post-row:hover {
+  transform: none !important;
+  background: #fbfaff !important;
+  box-shadow: none !important;
+}
+
+.planner-post-mainline {
+  min-height: 72px !important;
+  padding: 12px 14px !important;
+  grid-template-columns: 60px minmax(230px, 1fr) 160px 96px 136px 92px !important;
+  gap: 12px !important;
+}
+
+/* Large square number blocks like mockup */
+.planner-post-index {
+  width: 50px !important;
+  height: 50px !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
+  font-size: 25px !important;
+  font-weight: 950 !important;
+  box-shadow: none !important;
+}
+
+.planner-post-row:nth-child(1) .planner-post-index {
+  background: linear-gradient(135deg, #6d28d9, #4f46e5) !important;
+}
+
+.planner-post-row:nth-child(2) .planner-post-index {
+  background: linear-gradient(135deg, #ec407a, #f43f5e) !important;
+}
+
+.planner-post-row:nth-child(3) .planner-post-index {
+  background: linear-gradient(135deg, #0d6efd, #0284c7) !important;
+}
+
+.planner-post-row:nth-child(4) .planner-post-index {
+  background: linear-gradient(135deg, #fb8500, #f97316) !important;
+}
+
+.planner-post-row:nth-child(5) .planner-post-index {
+  background: linear-gradient(135deg, #65a30d, #16a34a) !important;
+}
+
+.planner-post-title strong {
+  font-size: 15px !important;
+  color: #111827 !important;
+}
+
+.planner-post-title span {
+  font-size: 13px !important;
+  color: #64748b !important;
+}
+
+.planner-post-date .custom-picker-button,
+.planner-post-time .custom-picker-button {
+  height: 38px !important;
+  min-height: 38px !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+  box-shadow: none !important;
+}
+
+.planner-post-format {
+  border-radius: 999px !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  border: 1px solid #e1e6ef !important;
+  font-size: 12px !important;
+}
+
+.planner-post-actions button:first-child {
+  border: 1px solid #dbe2ec !important;
+  background: #ffffff !important;
+  border-radius: 9px !important;
+}
+
+/* Add post button */
+.planner-add-post-bottom {
+  margin-top: 16px !important;
+  border-radius: 999px !important;
+  background: #ffffff !important;
+  color: #6d28d9 !important;
+  border: 1px solid #ddd2ff !important;
+  box-shadow: none !important;
+}
+
+/* ===== Settings and save like mockup ===== */
+
+.planner-settings-card,
+.planner-save-card,
+.saved-card-compact {
+  padding: 18px !important;
+  border-radius: 18px !important;
+  margin-bottom: 18px !important;
+}
+
+.planner-save-card {
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 340px) auto !important;
+  background: linear-gradient(135deg, #ffffff 0%, #f7f3ff 100%) !important;
+}
+
+.planner-save-button {
+  height: 54px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
+  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.24) !important;
+}
+
+/* ===== Right side cards like mockup ===== */
+
+.planner-sidebar {
+  gap: 14px !important;
+}
+
+.planner-summary-card,
+.planner-credits-card,
+.dashboard-side-card {
+  border-radius: 18px !important;
+  padding: 20px !important;
+  background: #ffffff !important;
+  border: 1px solid #e1e6ef !important;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.055) !important;
+}
+
+.planner-credit-number strong,
+.dashboard-credit-number strong {
+  font-size: 44px !important;
+}
+
+.planner-credit-progress,
+.dashboard-credit-bar {
+  height: 8px !important;
+  background: #eee7ff !important;
+}
+
+.planner-credit-progress div,
+.dashboard-credit-bar div {
+  background: linear-gradient(90deg, #7c3aed, #8b5cf6) !important;
+}
+
+/* ===== Dashboard cards closer to mockup ===== */
+
+.dashboard-stat-card {
+  min-height: 132px !important;
+  border-radius: 18px !important;
+  box-shadow: none !important;
+}
+
+.dashboard-card {
+  border-radius: 18px !important;
+}
+
+.dashboard-upcoming-item,
+.dashboard-review-item {
+  border-radius: 14px !important;
+  box-shadow: none !important;
+}
+
+/* ===== Brand profile / calendar match theme ===== */
+
+.brand-profile-guide-card,
+.brand-profile-form-card,
+.campaign-calendar-main,
+.campaign-detail-card {
+  border-radius: 18px !important;
+}
+
+.campaign-card {
+  border-radius: 16px !important;
+  box-shadow: none !important;
+}
+
+.campaign-card.active {
+  border: 2px solid #c4b5fd !important;
+  background: #fbfaff !important;
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 900px) {
+  .spreelo-sidebar,
+  .sidebar {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-radius: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+
+  .spreelo-content,
+  .content {
+    padding: 22px !important;
+  }
+
+  .planner-post-mainline {
+    grid-template-columns: 54px 1fr !important;
+  }
+
+  .planner-post-date,
+  .planner-post-time,
+  .planner-post-format,
+  .planner-post-actions {
+    grid-column: 2 !important;
+  }
+
+  .planner-save-card {
+    grid-template-columns: 1fr !important;
+  }
+}
+/* ===== Hide sidebar scrollbar to match mockup ===== */
+
+.spreelo-sidebar,
+.sidebar {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* Edge/IE */
+}
+
+.spreelo-sidebar::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar {
+  display: none !important; /* Chrome/Safari */
+}
+/* Keep sidebar clean and fixed-height like the mockup */
+
+.spreelo-sidebar,
+.sidebar {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
