@@ -2683,6 +2683,11 @@ function addSlot() {
     return;
   }
 
+  if (planCreationMode === "manual") {
+    addManualSlot();
+    return;
+  }
+
   setShowAddPostModal(true);
 }
 
