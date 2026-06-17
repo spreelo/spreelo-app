@@ -7660,3 +7660,332 @@ select.input {
     min-height: 170px;
   }
 }
+/* ===== Spreelo Modern Modular refresh - step 2: Posts & schedule ===== */
+/* Visual refresh only. No functional changes. */
+
+/* Schedule card */
+.planner-schedule-card {
+  padding: 22px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 96% 8%, rgba(124, 58, 237, 0.055), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+}
+
+.planner-schedule-header {
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.planner-schedule-header h3 {
+  font-size: 28px;
+  letter-spacing: -0.055em;
+}
+
+.planner-schedule-header span {
+  background: linear-gradient(180deg, #f5f3ff 0%, #eee7ff 100%);
+  color: #5b21b6;
+  border: 1px solid rgba(124, 58, 237, 0.10);
+}
+
+/* Post list as clean modular rows */
+.planner-post-table {
+  gap: 11px;
+}
+
+.planner-post-row {
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.94);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.025);
+}
+
+.planner-post-row:hover {
+  border-color: rgba(124, 58, 237, 0.22);
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.055);
+  transform: translateY(-1px);
+}
+
+.planner-post-row.expanded {
+  background:
+    radial-gradient(circle at 95% 24%, rgba(124, 58, 237, 0.06), transparent 26%),
+    linear-gradient(180deg, #ffffff 0%, #fffaf5 100%);
+  border-color: rgba(251, 146, 60, 0.24);
+}
+
+/* Main row layout */
+.planner-post-mainline {
+  min-height: 72px;
+  padding: 13px 15px;
+  grid-template-columns: 46px minmax(230px, 1fr) 170px 104px 142px 104px;
+  gap: 13px;
+}
+
+/* Big colored number, closer to mockup */
+.planner-post-index {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  font-size: 18px;
+  font-weight: 950;
+  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.20);
+}
+
+/* More premium color sequence */
+.planner-post-row:nth-child(1) .planner-post-index {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+}
+
+.planner-post-row:nth-child(2) .planner-post-index {
+  background: linear-gradient(135deg, #ec4899, #f43f5e);
+  box-shadow: 0 14px 28px rgba(236, 72, 153, 0.18);
+}
+
+.planner-post-row:nth-child(3) .planner-post-index {
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.18);
+}
+
+.planner-post-row:nth-child(4) .planner-post-index {
+  background: linear-gradient(135deg, #f97316, #f59e0b);
+  box-shadow: 0 14px 28px rgba(249, 115, 22, 0.18);
+}
+
+.planner-post-row:nth-child(5) .planner-post-index {
+  background: linear-gradient(135deg, #16a34a, #65a30d);
+  box-shadow: 0 14px 28px rgba(22, 163, 74, 0.18);
+}
+
+.planner-post-row:nth-child(6) .planner-post-index {
+  background: linear-gradient(135deg, #0891b2, #14b8a6);
+  box-shadow: 0 14px 28px rgba(8, 145, 178, 0.18);
+}
+
+.planner-post-row:nth-child(7) .planner-post-index {
+  background: linear-gradient(135deg, #9333ea, #7c3aed);
+  box-shadow: 0 14px 28px rgba(147, 51, 234, 0.18);
+}
+
+/* Keep content-type colors as a subtle override only when needed */
+.planner-post-row.type-website_item .planner-post-index {
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+}
+
+.planner-post-row.type-manual_prompt .planner-post-index,
+.planner-post-row.type-custom .planner-post-index {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+}
+
+/* Title column */
+.planner-post-title strong {
+  color: #0f172a;
+  font-size: 14.5px;
+  letter-spacing: -0.015em;
+}
+
+.planner-post-title span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* Date/time controls inside rows */
+.planner-post-date .custom-picker-button,
+.planner-post-time .custom-picker-button {
+  height: 40px;
+  min-height: 40px;
+  border-radius: 13px;
+  border-color: rgba(203, 213, 225, 0.78);
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.planner-post-date .custom-picker-button:hover,
+.planner-post-time .custom-picker-button:hover {
+  border-color: rgba(109, 40, 217, 0.26);
+  background: #fbfaff;
+}
+
+/* Format pill */
+.planner-post-format {
+  max-width: 142px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid rgba(226, 232, 240, 0.90);
+  color: #475569;
+  font-size: 12px;
+}
+
+.planner-post-format span {
+  background: #ffffff;
+  color: #6d28d9;
+}
+
+/* Make website content visually stand out */
+.planner-post-row.type-website_item .planner-post-format,
+.planner-post-row:has(.planner-post-options label:first-child input:checked) .planner-post-format {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.16);
+  color: #1d4ed8;
+}
+
+.planner-post-row.type-website_item .planner-post-format span {
+  color: #2563eb;
+}
+
+/* Actions */
+.planner-post-actions {
+  gap: 6px;
+}
+
+.planner-post-actions button {
+  min-height: 34px;
+  border-radius: 11px;
+  color: #334155;
+}
+
+.planner-post-actions button:first-child {
+  min-width: 46px;
+  background: #ffffff;
+  border-color: rgba(203, 213, 225, 0.84);
+  color: #0f172a;
+}
+
+.planner-post-actions button:first-child:hover {
+  background: #f5f3ff;
+  color: #5b21b6;
+  border-color: rgba(109, 40, 217, 0.28);
+}
+
+.planner-post-actions button:not(:first-child):hover {
+  background: #f8fafc;
+}
+
+/* Expanded edit panel */
+.planner-post-expanded {
+  margin: 0 15px 15px 61px;
+  padding: 18px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 94% 24%, rgba(124, 58, 237, 0.07), transparent 28%),
+    linear-gradient(180deg, #fffaf5 0%, #ffffff 100%);
+  border: 1px solid rgba(251, 191, 36, 0.20);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.planner-post-expanded-copy label {
+  color: #0f172a;
+  font-size: 12px;
+  letter-spacing: -0.005em;
+}
+
+.planner-post-expanded-copy textarea {
+  min-height: 86px;
+  border-radius: 15px;
+  border-color: rgba(203, 213, 225, 0.86);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.planner-post-expanded-copy textarea:focus {
+  border-color: rgba(109, 40, 217, 0.58);
+  box-shadow: 0 0 0 4px rgba(109, 40, 217, 0.08);
+  outline: none;
+}
+
+/* Options on expanded panel */
+.planner-post-options {
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(226, 232, 240, 0.72);
+}
+
+.planner-post-options label {
+  color: #475569;
+}
+
+.planner-post-options > span {
+  background: linear-gradient(180deg, #f5f3ff 0%, #eee7ff 100%);
+  color: #5b21b6;
+  border: 1px solid rgba(124, 58, 237, 0.12);
+}
+
+/* Add post bottom */
+.planner-add-post-bottom {
+  margin-top: 18px;
+  min-height: 42px;
+  border-radius: 14px;
+  padding: 0 18px;
+  background: #ffffff;
+  color: #5b21b6;
+  border-color: rgba(109, 40, 217, 0.22);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.025);
+}
+
+.planner-add-post-bottom:hover {
+  background: #f7f4ff;
+  box-shadow: 0 14px 30px rgba(109, 40, 217, 0.08);
+}
+
+/* Locked campaign date */
+.locked-campaign-date {
+  border-radius: 15px;
+  background: linear-gradient(180deg, #f7f4ff 0%, #ffffff 100%);
+  border-color: rgba(124, 58, 237, 0.18);
+}
+
+.locked-campaign-date strong {
+  color: #0f172a;
+}
+
+.locked-campaign-date span,
+.unlock-campaign-date-button {
+  color: #6d28d9;
+}
+
+/* Calendar/time popovers should stay above rows */
+.custom-calendar-popover,
+.custom-time-popover {
+  z-index: 120;
+}
+
+/* Responsive */
+@media (max-width: 1300px) {
+  .planner-post-mainline {
+    grid-template-columns: 46px minmax(180px, 1fr) 160px 104px;
+  }
+
+  .planner-post-format,
+  .planner-post-actions {
+    grid-column: 2 / -1;
+  }
+
+  .planner-post-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .planner-post-mainline {
+    grid-template-columns: 44px 1fr;
+  }
+
+  .planner-post-index {
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
+    font-size: 16px;
+  }
+
+  .planner-post-date,
+  .planner-post-time,
+  .planner-post-format,
+  .planner-post-actions {
+    grid-column: 2;
+  }
+
+  .planner-post-expanded {
+    margin: 0 12px 12px 12px;
+  }
+}
