@@ -2880,15 +2880,21 @@ function changeAutoPlanGoal(goalId) {
   return;
 }
 
-    setSelectedContentTypeIds([]);
-    setSlots([
-      createSlot({
-        startDate: planStartDate,
-        weekday: getWeekdayFromDateString(planStartDate, timeZone),
-        publishTime: defaultPublishTime,
-        timeZone,
-      }),
-    ]);
+  if (mode === "manual") {
+  setSelectedContentTypeIds([]);
+  setSlots([]);
+  return;
+}
+
+setSelectedContentTypeIds([]);
+setSlots([
+  createSlot({
+    startDate: planStartDate,
+    weekday: getWeekdayFromDateString(planStartDate, timeZone),
+    publishTime: defaultPublishTime,
+    timeZone,
+  }),
+]);
   }
 
 function toggleContentType(typeId) {
