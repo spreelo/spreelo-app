@@ -10164,3 +10164,290 @@ textarea.input:focus,
     width: 100% !important;
   }
 }
+/* ===== Spreelo color system cleanup ===== */
+/* Keeps current layout, but makes the color balance cleaner and less purple-heavy */
+
+:root {
+  --sp-bg: #f6f5fa;
+  --sp-surface: #ffffff;
+  --sp-surface-soft: #fbfaff;
+  --sp-border: #e4e7ef;
+
+  --sp-text: #111827;
+  --sp-text-soft: #334155;
+  --sp-muted: #667085;
+  --sp-muted-light: #94a3b8;
+
+  --sp-primary: #7c3aed;
+  --sp-primary-dark: #5b21b6;
+  --sp-primary-soft: #f3edff;
+  --sp-primary-soft-2: #faf7ff;
+  --sp-primary-border: #c4b5fd;
+
+  --sp-blue: #3b82f6;
+  --sp-blue-soft: #eef6ff;
+
+  --sp-teal: #14b8a6;
+  --sp-teal-soft: #e9fbf8;
+
+  --sp-pink: #ec4899;
+  --sp-pink-soft: #fff0f7;
+
+  --sp-orange: #f97316;
+  --sp-orange-soft: #fff4e8;
+
+  --sp-green: #22c55e;
+  --sp-green-soft: #ecfdf3;
+
+  --sp-slate: #475569;
+  --sp-slate-soft: #f1f5f9;
+}
+
+/* Page background */
+body,
+.app-shell,
+.spreelo-shell,
+.content,
+.spreelo-content {
+  background: var(--sp-bg) !important;
+  color: var(--sp-text) !important;
+}
+
+/* Main white surfaces */
+.dashboard-card,
+.dashboard-side-card,
+.dashboard-stat-card,
+.brand-profile-guide-card,
+.brand-profile-form-card,
+.brand-profile-form-section,
+.campaign-calendar-main,
+.campaign-detail-card,
+.campaign-card,
+.planner-setup-card,
+.planner-mode-card,
+.planner-schedule-card,
+.planner-settings-card,
+.planner-save-card,
+.saved-card-compact,
+.planner-summary-card,
+.planner-credits-card,
+.login-card {
+  background: var(--sp-surface) !important;
+  border-color: var(--sp-border) !important;
+}
+
+/* Main text */
+h1,
+h2,
+h3,
+h4,
+strong,
+.dashboard-hero h2,
+.planner-hero h2,
+.brand-profile-hero h2,
+.campaign-calendar-hero h2,
+.dashboard-card-header h3,
+.planner-schedule-header h3,
+.saved-header h3 {
+  color: var(--sp-text) !important;
+}
+
+/* Secondary text */
+p,
+small,
+.dashboard-hero span,
+.planner-hero p,
+.brand-profile-hero span,
+.campaign-calendar-hero span,
+.dashboard-card-header p,
+.planner-section-heading p,
+.planner-settings-card p,
+.saved-rule-card p,
+.campaign-card p,
+.brand-profile-section-title p {
+  color: var(--sp-muted) !important;
+}
+
+/* Primary buttons */
+.dashboard-primary-action,
+.brand-profile-primary-button,
+.campaign-create-button,
+.planner-save-button,
+.add-plan-button,
+.planner-create-another-button,
+.save-plan-button,
+.primary-button {
+  background: linear-gradient(135deg, var(--sp-primary), var(--sp-primary-dark)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 16px 34px rgba(124, 58, 237, 0.20) !important;
+}
+
+/* Secondary buttons */
+.dashboard-secondary-action,
+.view-calendar-button,
+.planner-add-post-bottom,
+.secondary-button,
+.tiny-button,
+.learn-more-button {
+  background: var(--sp-surface) !important;
+  border-color: var(--sp-border) !important;
+  color: var(--sp-text-soft) !important;
+}
+
+.dashboard-secondary-action:hover,
+.view-calendar-button:hover,
+.planner-add-post-bottom:hover,
+.secondary-button:hover,
+.tiny-button:hover,
+.learn-more-button:hover {
+  background: var(--sp-primary-soft-2) !important;
+  border-color: var(--sp-primary-border) !important;
+  color: var(--sp-primary-dark) !important;
+}
+
+/* Inputs */
+.input,
+.planner-select-control,
+.planner-setting-field select,
+.planner-save-input,
+.current-brand-select,
+.custom-picker-button,
+.custom-select-input,
+textarea.input,
+.prompt-textarea,
+.large-textarea {
+  background: var(--sp-surface) !important;
+  border-color: var(--sp-border) !important;
+  color: var(--sp-text) !important;
+}
+
+.input:focus,
+.planner-select-control:focus,
+.planner-setting-field select:focus,
+.planner-save-input:focus,
+.current-brand-select:focus,
+.custom-picker-button:focus,
+.custom-select-input:focus,
+textarea.input:focus,
+.prompt-textarea:focus,
+.large-textarea:focus {
+  border-color: var(--sp-primary) !important;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.10) !important;
+}
+
+/* Pills and selected states */
+.status-pill,
+.credit-chip,
+.dashboard-card-header a,
+.dashboard-card-header > span,
+.planner-section-heading > span,
+.planner-schedule-header span,
+.campaign-calendar-section-heading > span,
+.campaign-detail-header > span,
+.planner-summary-status,
+.planner-post-options > span {
+  background: var(--sp-primary-soft) !important;
+  border-color: rgba(124, 58, 237, 0.14) !important;
+  color: var(--sp-primary-dark) !important;
+}
+
+/* Sidebar active nav */
+.spreelo-nav a.active,
+.nav a.active {
+  color: var(--sp-primary) !important;
+  border-color: rgba(124, 58, 237, 0.42) !important;
+  background: #ffffff !important;
+  box-shadow: 0 12px 30px rgba(124, 58, 237, 0.10) !important;
+}
+
+/* Sidebar inactive nav */
+.spreelo-nav a,
+.nav a {
+  color: var(--sp-text-soft) !important;
+}
+
+/* Make purple softer in big cards */
+.planner-summary-card,
+.planner-credits-card,
+.dashboard-side-card.highlighted,
+.campaign-calendar-hero-card,
+.brand-profile-guide-card {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.06), transparent 34%),
+    var(--sp-surface) !important;
+}
+
+/* Step cards: keep color variety, not all purple */
+.planner-setup-card:nth-child(1) {
+  background:
+    radial-gradient(circle at 92% 82%, rgba(124, 58, 237, 0.07), transparent 34%),
+    #ffffff !important;
+  border-color: rgba(196, 181, 253, 0.55) !important;
+}
+
+.planner-setup-card:nth-child(2) {
+  background:
+    radial-gradient(circle at 92% 82%, rgba(236, 72, 153, 0.065), transparent 34%),
+    #ffffff !important;
+  border-color: rgba(249, 168, 212, 0.48) !important;
+}
+
+.planner-setup-card:nth-child(3) {
+  background:
+    radial-gradient(circle at 92% 82%, rgba(249, 115, 22, 0.065), transparent 34%),
+    #ffffff !important;
+  border-color: rgba(253, 186, 116, 0.48) !important;
+}
+
+/* Method cards */
+.planner-mode-option {
+  background: #ffffff !important;
+  border-color: var(--sp-border) !important;
+}
+
+.planner-mode-option.active {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(124, 58, 237, 0.07), transparent 34%),
+    #ffffff !important;
+  border-color: var(--sp-primary) !important;
+  box-shadow: 0 16px 36px rgba(124, 58, 237, 0.10) !important;
+}
+
+/* Content type cards: cleaner and less purple-heavy */
+.planner-content-chip {
+  background: #ffffff !important;
+  border-color: var(--sp-border) !important;
+}
+
+.planner-content-chip:hover,
+.planner-content-chip.active {
+  background: var(--sp-primary-soft-2) !important;
+  border-color: var(--sp-primary-border) !important;
+}
+
+/* Credit progress */
+.planner-credit-progress div,
+.dashboard-credit-bar div,
+.credit-progress div {
+  background: linear-gradient(90deg, var(--sp-primary), #8b5cf6) !important;
+}
+
+/* Success states should be green, not purple */
+.planner-credit-included,
+.dashboard-empty.success,
+.planner-save-success,
+.campaign-saved-card {
+  background: var(--sp-green-soft) !important;
+  border-color: rgba(34, 197, 94, 0.24) !important;
+  color: #15803d !important;
+}
+
+/* Warning states should be orange */
+.credit-warning,
+.planner-sidebar-warning,
+.campaign-calendar-message,
+.campaign-calendar-disclaimer {
+  background: var(--sp-orange-soft) !important;
+  border-color: rgba(249, 115, 22, 0.26) !important;
+  color: #9a3412 !important;
+}
