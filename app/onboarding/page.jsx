@@ -3,6 +3,46 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
+const marketOptions = [
+  {
+    label: "International / Global",
+    countryCode: "GLOBAL",
+    language: "English",
+  },
+  { label: "United States", countryCode: "US", language: "English" },
+  { label: "United Kingdom", countryCode: "GB", language: "English" },
+  { label: "Germany", countryCode: "DE", language: "German" },
+  { label: "Sweden", countryCode: "SE", language: "Swedish" },
+  { label: "Denmark", countryCode: "DK", language: "Danish" },
+  { label: "Norway", countryCode: "NO", language: "Norwegian" },
+  { label: "Finland", countryCode: "FI", language: "Finnish" },
+  { label: "Netherlands", countryCode: "NL", language: "Dutch" },
+  { label: "France", countryCode: "FR", language: "French" },
+  { label: "Spain", countryCode: "ES", language: "Spanish" },
+  { label: "Italy", countryCode: "IT", language: "Italian" },
+  { label: "Canada", countryCode: "CA", language: "English" },
+  { label: "Australia", countryCode: "AU", language: "English" },
+  { label: "India", countryCode: "IN", language: "English" },
+  { label: "United Arab Emirates", countryCode: "AE", language: "English" },
+  { label: "Other", countryCode: "OTHER", language: "English" },
+];
+
+const languageOptions = [
+  "English",
+  "Swedish",
+  "German",
+  "Danish",
+  "Norwegian",
+  "Finnish",
+  "Dutch",
+  "French",
+  "Spanish",
+  "Italian",
+  "Arabic",
+  "Hindi",
+  "Other",
+];
+
 const onboardingAnalyzingSteps = [
   "Creating your brand profile...",
   "Fetching your website content...",
