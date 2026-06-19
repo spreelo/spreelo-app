@@ -10451,3 +10451,32 @@ textarea.input:focus,
   border-color: rgba(249, 115, 22, 0.26) !important;
   color: #9a3412 !important;
 }
+/* ===== Sidebar PNG icons ===== */
+
+.spreelo-nav a,
+.nav a {
+  display: flex !important;
+  align-items: center !important;
+  gap: 13px !important;
+}
+
+.sidebar-menu-icon {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  flex: 0 0 34px;
+  display: block;
+}
+
+.spreelo-nav a.active .sidebar-menu-icon,
+.nav a.active .sidebar-menu-icon {
+  transform: scale(1.03);
+}
+
+@media (max-width: 900px) {
+  .sidebar-menu-icon {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+}
