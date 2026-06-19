@@ -3,6 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
+const onboardingAnalyzingSteps = [
+  "Creating your brand profile...",
+  "Fetching your website content...",
+  "Understanding your business...",
+  "Checking if website product posts are available...",
+  "Finding useful campaign opportunities...",
+  "Creating your campaign calendar...",
+  "Saving everything to your workspace...",
+  "Almost done. This can take a little longer for larger websites...",
+];
+
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
