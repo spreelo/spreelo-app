@@ -82,7 +82,24 @@ export default function OnboardingPage() {
 
     checkUserAndBrand();
   }, []);
+useEffect(() => {
+  if (!loading) {
+    setCurrentAnalyzingStep(0);
+    return;
+  }
 
+  const interval = setInterval(() => {
+    setCurrentAnalyzingStep((currentStep) => {
+      if (currentStep >= onboardingAnalyzingSteps.length - 1) {
+        return currentStep;
+      }
+
+      return currentStep + 1;
+    });
+  }, 4500);
+
+  return () => clearInterval(interval);
+}, [loading]);
   async function handleSubmit(event) {
     event.preventDefault();
 
