@@ -249,27 +249,6 @@ export default function SocialChannelsPage() {
         </div>
       </section>
 
-      <section className="hero-card">
-        <div>
-          <p className="eyebrow">Coming later</p>
-          <h3>More channels</h3>
-          <p>
-            Instagram, Google Business Profile and LinkedIn can be added later
-            using the same brand-based connection structure.
-          </p>
-        </div>
-
-        <div className="prompt-box">
-          <label>Instagram</label>
-          <div className="input">Coming soon</div>
-
-          <label>Google Business Profile</label>
-          <div className="input">Coming soon</div>
-
-          <label>LinkedIn</label>
-          <div className="input">Coming soon</div>
-        </div>
-      </section>
     </AppLayout>
   );
 }
