@@ -108,6 +108,11 @@ export default function AppLayout({ active, children }) {
     const brands = data || [];
     setBrandProfiles(brands);
 
+    if (brands.length === 0) {
+  window.location.href = "/onboarding";
+  return;
+}
+
     const storageKey = getBrandStorageKey(currentUser.id);
     const savedBrandId =
       typeof window !== "undefined" ? localStorage.getItem(storageKey) : "";
