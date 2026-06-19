@@ -3594,7 +3594,7 @@ setRules((currentRules) =>
       <p className="dashboard-eyebrow">Campaign scheduled</p>
       <h3>{savedPlanSummary.name} is ready</h3>
       <p>
-        Spreelo has saved this campaign as automation rules. The planned posts
+        Spreelo has saved this campaign as content plan. The planned posts
         are now scheduled and will follow the publishing mode you selected.
       </p>
 
@@ -3622,7 +3622,7 @@ setRules((currentRules) =>
 
       <div className="campaign-saved-actions">
         <button type="button" onClick={() => setShowSavedRules(true)}>
-          View automation rules
+          View content plans
         </button>
 
         <a href="/">Go to dashboard</a>
@@ -4088,7 +4088,7 @@ setRules((currentRules) =>
                         type="button"
                         onClick={() => setShowSavedRules(true)}
                       >
-                        View automation rules
+                        View content plans
                       </button>
 
                       <a href="/">Go to dashboard</a>
@@ -4101,7 +4101,7 @@ setRules((currentRules) =>
               <div className="saved-header">
                 <div>
                   <p>Saved plans</p>
-                  <h3>Automation rules</h3>
+                  <h3>Content plans</h3>
                 </div>
 
                 <div className="row-actions">
@@ -4117,14 +4117,14 @@ setRules((currentRules) =>
 
               {loading ? (
                 <div className="automation-empty">
-                  <h4>Loading automation rules...</h4>
-                  <p>Please wait while Spreelo loads your plans.</p>
+                  <h4>Loading content plans...</h4>
+                  <p>Please wait while Spreelo loads your saved plans.</p>
                 </div>
               ) : rules.length === 0 ? (
                 <div className="automation-empty">
                   <div className="folder-icon">📁</div>
                   <div>
-                    <h4>No automation rules yet</h4>
+                    <h4>No content plans yet</h4>
                     <p>
                       Add your first content plan above. Each planned post will
                       be saved as its own automation rule.
