@@ -271,8 +271,12 @@ export default function AppLayout({ active, children }) {
               className={active === item.id ? "active" : ""}
               href={item.href}
             >
-              <span className="nav-icon">{item.icon}</span>
-              <span>{item.label}</span>
+<img
+  src={item.icon}
+  alt=""
+  className="sidebar-menu-icon"
+/>
+<span>{item.label}</span>
             </a>
           ))}
         </nav>
