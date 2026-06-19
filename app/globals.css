@@ -10823,24 +10823,35 @@ textarea.input:focus,
 .saved-rule-card .danger-button:hover {
   background: #ffe4e6 !important;
 }
-/* ===== Spreelo logo image ===== */
+/* ===== Responsive Spreelo logo ===== */
+
+.spreelo-brand {
+  width: 100%;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding-bottom: 28px !important;
+  overflow: hidden !important;
+}
 
 .spreelo-logo-image {
-  width: 176px;
-  height: auto;
-  display: block;
-  object-fit: contain;
+  width: clamp(130px, 11vw, 178px) !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  object-fit: contain !important;
 }
 
-.spreelo-brand,
-.login-brand {
-  display: flex;
-  align-items: center;
-  gap: 0;
+/* Desktop sidebar safety */
+.spreelo-sidebar .spreelo-logo-image {
+  width: clamp(120px, 10vw, 165px) !important;
+  max-width: calc(100% - 8px) !important;
 }
 
+/* Mobile: logo can be a bit larger */
 @media (max-width: 900px) {
   .spreelo-logo-image {
-    width: 190px;
+    width: clamp(150px, 46vw, 210px) !important;
+    max-width: 100% !important;
   }
 }
