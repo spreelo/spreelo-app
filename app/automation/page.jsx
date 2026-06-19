@@ -3265,7 +3265,7 @@ setRules((currentRules) =>
     <h2>
       {campaignOpportunity
         ? `Create campaign: ${campaignOpportunity.title}`
-        : "Create content plan"}
+        : "Create your social content"}
     </h2>
     <p>
       {campaignOpportunity
