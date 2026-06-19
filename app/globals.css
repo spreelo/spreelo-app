@@ -10927,3 +10927,17 @@ textarea.input:focus,
   min-height: 120px !important;
   line-height: 1.5 !important;
 }
+/* ===== Onboarding market setup ===== */
+
+.onboarding-market-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 14px !important;
+  margin-top: 8px !important;
+}
+
+@media (max-width: 640px) {
+  .onboarding-market-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
