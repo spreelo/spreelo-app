@@ -191,7 +191,7 @@ export default function SocialChannelsPage() {
           </p>
         </div>
 
-        <div className="prompt-box">
+       <div className="prompt-box social-connect-box">
           {loading ? (
             <p className="login-message">Loading connection...</p>
           ) : facebookConnection?.status === "connected" ? (
