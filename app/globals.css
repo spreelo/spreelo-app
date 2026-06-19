@@ -11011,3 +11011,28 @@ textarea.input:focus,
     grid-template-columns: 1fr !important;
   }
 }
+/* ===== Social channels cleanup ===== */
+
+.social-connect-box {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 12px !important;
+}
+
+.social-connect-box p {
+  margin: 4px 0 8px !important;
+  line-height: 1.55 !important;
+}
+
+.social-connect-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: flex-start !important;
+  width: auto !important;
+  min-width: 170px !important;
+  margin-top: 4px !important;
+  padding: 13px 18px !important;
+  white-space: nowrap !important;
+}
