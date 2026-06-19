@@ -16,12 +16,12 @@ const navItems = [
     href: "/create",
     icon: "/icons/sidebar/content.png",
   },
-  {
-    id: "automation",
-    label: "Automation",
-    href: "/automation",
-    icon: "/icons/sidebar/automation.png",
-  },
+{
+  id: "automation",
+  label: "Content Creator",
+  href: "/automation",
+  icon: "/icons/sidebar/automation.png",
+},
   {
     id: "calendar",
     label: "Calendar",
