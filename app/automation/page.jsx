@@ -3270,7 +3270,7 @@ setRules((currentRules) =>
     <p>
       {campaignOpportunity
         ? "Spreelo has prepared a focused campaign plan from your campaign calendar."
-        : "Build a plan that grows your presence automatically."}
+        : "Plan and create posts for your social channels."}
     </p>
   </div>
 
