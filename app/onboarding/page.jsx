@@ -235,9 +235,9 @@ content_language: contentLanguage,
           businessName: trimmedBusinessName,
           websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
           brandDescription: hasNoWebsite ? trimmedDescription : "",
-          contentMarket: "International / Global",
-          countryCode: "GLOBAL",
-          contentLanguage: "English",
+contentMarket,
+countryCode,
+contentLanguage,
         }),
       });
 
