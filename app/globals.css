@@ -10823,3 +10823,24 @@ textarea.input:focus,
 .saved-rule-card .danger-button:hover {
   background: #ffe4e6 !important;
 }
+/* ===== Spreelo logo image ===== */
+
+.spreelo-logo-image {
+  width: 176px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.spreelo-brand,
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+@media (max-width: 900px) {
+  .spreelo-logo-image {
+    width: 190px;
+  }
+}
