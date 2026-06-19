@@ -10480,3 +10480,346 @@ textarea.input:focus,
     flex-basis: 34px;
   }
 }
+/* =========================================================
+   SPREELO CLEAN COLOR BALANCE OVERRIDE
+   Lägg längst ner i CSS-filen
+   Mål: mindre lila, mer premium/neutral SaaS
+========================================================= */
+
+:root {
+  --sp-bg: #f6f7fb;
+  --sp-surface: #ffffff;
+  --sp-surface-soft: #f8fafc;
+  --sp-border: #e4e7ec;
+  --sp-border-strong: #d0d5dd;
+
+  --sp-text: #101828;
+  --sp-text-soft: #344054;
+  --sp-muted: #667085;
+
+  --sp-primary: #6d28d9;
+  --sp-primary-dark: #4c1d95;
+  --sp-primary-soft: #f3efff;
+  --sp-primary-border: #d8c9ff;
+
+  --sp-blue-soft: #eff6ff;
+  --sp-green-soft: #ecfdf3;
+  --sp-orange-soft: #fff4e5;
+  --sp-red-soft: #fff1f3;
+}
+
+/* Page foundation */
+
+body,
+.app-shell,
+.spreelo-shell,
+.content,
+.spreelo-content {
+  background: var(--sp-bg) !important;
+  color: var(--sp-text) !important;
+}
+
+/* Main white cards */
+
+.dashboard-card,
+.dashboard-side-card,
+.dashboard-stat-card,
+.brand-profile-guide-card,
+.brand-profile-form-card,
+.brand-profile-form-section,
+.campaign-calendar-main,
+.campaign-detail-card,
+.campaign-card,
+.planner-setup-card,
+.planner-mode-card,
+.planner-schedule-card,
+.planner-settings-card,
+.planner-save-card,
+.saved-card-compact,
+.planner-summary-card,
+.planner-credits-card,
+.login-card {
+  background: var(--sp-surface) !important;
+  border: 1px solid var(--sp-border) !important;
+  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.045) !important;
+}
+
+/* Text */
+
+h1,
+h2,
+h3,
+h4,
+strong {
+  color: var(--sp-text) !important;
+}
+
+p,
+small,
+.dashboard-hero span,
+.planner-hero p,
+.brand-profile-hero span,
+.campaign-calendar-hero span,
+.dashboard-card-header p,
+.planner-section-heading p,
+.planner-settings-card p,
+.saved-rule-card p,
+.campaign-card p,
+.brand-profile-section-title p,
+.campaign-detail-section p {
+  color: var(--sp-muted) !important;
+}
+
+/* Primary action: lila ska främst synas här */
+
+.dashboard-primary-action,
+.brand-profile-primary-button,
+.campaign-create-button,
+.planner-save-button,
+.planner-create-another-button,
+.save-plan-button,
+.primary-button {
+  background: linear-gradient(135deg, var(--sp-primary), var(--sp-primary-dark)) !important;
+  color: #ffffff !important;
+  border: 0 !important;
+  box-shadow: 0 16px 34px rgba(109, 40, 217, 0.18) !important;
+}
+
+.dashboard-primary-action:hover,
+.brand-profile-primary-button:hover,
+.campaign-create-button:hover,
+.planner-save-button:hover,
+.planner-create-another-button:hover,
+.save-plan-button:hover,
+.primary-button:hover {
+  opacity: 0.94;
+}
+
+/* Secondary buttons: neutrala */
+
+.dashboard-secondary-action,
+.view-calendar-button,
+.planner-add-post-bottom,
+.secondary-button,
+.tiny-button,
+.learn-more-button {
+  background: #ffffff !important;
+  border: 1px solid var(--sp-border) !important;
+  color: var(--sp-text-soft) !important;
+  box-shadow: none !important;
+}
+
+.dashboard-secondary-action:hover,
+.view-calendar-button:hover,
+.planner-add-post-bottom:hover,
+.secondary-button:hover,
+.tiny-button:hover,
+.learn-more-button:hover {
+  background: var(--sp-surface-soft) !important;
+  border-color: var(--sp-border-strong) !important;
+  color: var(--sp-text) !important;
+}
+
+/* Inputs */
+
+.input,
+.planner-select-control,
+.planner-setting-field select,
+.planner-save-input,
+.current-brand-select,
+.custom-picker-button,
+.custom-select-input,
+textarea.input,
+.prompt-textarea,
+.large-textarea {
+  background: #ffffff !important;
+  border: 1px solid var(--sp-border) !important;
+  color: var(--sp-text) !important;
+  box-shadow: none !important;
+}
+
+.input:focus,
+.planner-select-control:focus,
+.planner-setting-field select:focus,
+.planner-save-input:focus,
+.current-brand-select:focus,
+.custom-picker-button:focus,
+.custom-select-input:focus,
+textarea.input:focus,
+.prompt-textarea:focus,
+.large-textarea:focus {
+  border-color: var(--sp-primary) !important;
+  box-shadow: 0 0 0 4px rgba(109, 40, 217, 0.09) !important;
+}
+
+/* Sidebar: behåll premium, men mindre lila överallt */
+
+.spreelo-sidebar,
+.sidebar {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border-right: 1px solid var(--sp-border) !important;
+  color: var(--sp-text) !important;
+}
+
+.spreelo-nav a,
+.nav a {
+  color: var(--sp-text-soft) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.spreelo-nav a:hover,
+.nav a:hover {
+  background: var(--sp-surface-soft) !important;
+  color: var(--sp-text) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.spreelo-nav a.active,
+.nav a.active {
+  background: #ffffff !important;
+  color: var(--sp-primary) !important;
+  border: 1px solid var(--sp-primary-border) !important;
+  box-shadow: 0 10px 26px rgba(109, 40, 217, 0.09) !important;
+}
+
+/* Current brand */
+
+.current-brand-card {
+  background: #ffffff !important;
+  border: 1px solid var(--sp-border) !important;
+  box-shadow: none !important;
+}
+
+.current-brand-new {
+  background: #ffffff !important;
+  color: var(--sp-text) !important;
+  border: 1px solid var(--sp-border) !important;
+}
+
+.current-brand-new:hover {
+  background: var(--sp-surface-soft) !important;
+  color: var(--sp-primary) !important;
+  border-color: var(--sp-primary-border) !important;
+}
+
+/* Badges / pills: gör de flesta neutrala istället för lila */
+
+.dashboard-card-header a,
+.dashboard-card-header > span,
+.dashboard-upcoming-date span,
+.dashboard-upcoming-mode,
+.campaign-card-top span,
+.campaign-card-meta span,
+.campaign-calendar-section-heading > span,
+.campaign-detail-header > span,
+.planner-section-heading > span,
+.planner-schedule-header span,
+.planner-post-options > span,
+.credit-chip,
+.status-pill,
+.planner-summary-status > span {
+  background: var(--sp-surface-soft) !important;
+  border: 1px solid var(--sp-border) !important;
+  color: var(--sp-text-soft) !important;
+  box-shadow: none !important;
+}
+
+/* Behåll lite lila endast på utvalda campaign angles */
+
+.campaign-angle-list span {
+  background: var(--sp-primary-soft) !important;
+  border: 1px solid var(--sp-primary-border) !important;
+  color: var(--sp-primary-dark) !important;
+}
+
+/* Campaign cards */
+
+.campaign-card {
+  background: #ffffff !important;
+  border: 1px solid var(--sp-border) !important;
+  box-shadow: none !important;
+}
+
+.campaign-card:hover {
+  border-color: var(--sp-border-strong) !important;
+  box-shadow: 0 14px 32px rgba(16, 24, 40, 0.055) !important;
+}
+
+.campaign-card.active {
+  background: #ffffff !important;
+  border: 2px solid var(--sp-primary-border) !important;
+  box-shadow: 0 18px 42px rgba(109, 40, 217, 0.10) !important;
+}
+
+.campaign-card.active::before {
+  display: none !important;
+}
+
+/* Right selected campaign card */
+
+.campaign-detail-card {
+  background: #ffffff !important;
+  border: 1px solid var(--sp-border) !important;
+}
+
+.campaign-detail-date,
+.campaign-detail-score-grid div,
+.campaign-post-plan > div {
+  background: var(--sp-surface-soft) !important;
+  border: 1px solid var(--sp-border) !important;
+}
+
+.campaign-post-plan > div > span {
+  background: var(--sp-primary) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+/* Top stat cards på campaign calendar */
+
+.campaign-calendar-stat-card,
+.dashboard-stat-card {
+  background: #ffffff !important;
+  border: 1px solid var(--sp-border) !important;
+  box-shadow: 0 14px 34px rgba(16, 24, 40, 0.04) !important;
+}
+
+/* Ta bort onödiga stora lila gradients */
+
+.planner-summary-card,
+.planner-credits-card,
+.dashboard-side-card.highlighted,
+.campaign-calendar-hero-card,
+.brand-profile-guide-card,
+.campaign-card.active {
+  background-image: none !important;
+}
+
+/* Warning ska gärna vara orange/beige, den bryter av fint */
+
+.credit-warning,
+.campaign-warning,
+.campaign-schedule-warning,
+.sidebar-warning {
+  background: var(--sp-orange-soft) !important;
+  border: 1px solid #fed7aa !important;
+  color: #9a3412 !important;
+}
+
+/* Danger buttons */
+
+.danger-button,
+.tiny-button.danger,
+.saved-rule-card .danger-button {
+  background: #fff7f7 !important;
+  border: 1px solid #fecaca !important;
+  color: #991b1b !important;
+}
+
+.danger-button:hover,
+.tiny-button.danger:hover,
+.saved-rule-card .danger-button:hover {
+  background: #ffe4e6 !important;
+}
