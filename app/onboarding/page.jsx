@@ -328,6 +328,38 @@ function handleMarketChange(event) {
             <span>I don’t have a website</span>
           </label>
 
+          <div className="onboarding-market-grid">
+  <div>
+    <label>Content market</label>
+    <select
+      className="input"
+      value={contentMarket}
+      onChange={handleMarketChange}
+    >
+      {marketOptions.map((option) => (
+        <option key={option.countryCode} value={option.label}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div>
+    <label>Content language</label>
+    <select
+      className="input"
+      value={contentLanguage}
+      onChange={(event) => setContentLanguage(event.target.value)}
+    >
+      {languageOptions.map((language) => (
+        <option key={language} value={language}>
+          {language}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
+          
           {hasNoWebsite && (
             <>
               <label>Describe your business</label>
