@@ -41,6 +41,7 @@ export default function OnboardingPage() {
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [currentAnalyzingStep, setCurrentAnalyzingStep] = useState(0);
 
   const normalizedWebsiteUrl = useMemo(() => {
     return normalizeWebsiteUrl(websiteUrl);
