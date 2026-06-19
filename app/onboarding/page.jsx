@@ -79,6 +79,10 @@ export default function OnboardingPage() {
   const [hasNoWebsite, setHasNoWebsite] = useState(false);
   const [brandDescription, setBrandDescription] = useState("");
 
+const [contentMarket, setContentMarket] = useState("International / Global");
+const [countryCode, setCountryCode] = useState("GLOBAL");
+const [contentLanguage, setContentLanguage] = useState("English");
+  
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [currentAnalyzingStep, setCurrentAnalyzingStep] = useState(0);
