@@ -291,7 +291,21 @@ useEffect(() => {
           </button>
         </form>
 
-        {message && <p className="login-message">{message}</p>}
+        {loading ? (
+  <div className="brand-profile-analyzing-card onboarding-analyzing-card">
+    <div className="brand-profile-spinner" />
+
+    <div>
+      <strong>{onboardingAnalyzingSteps[currentAnalyzingStep]}</strong>
+      <p>
+        Spreelo is preparing your brand profile, content ideas and campaign
+        calendar. Please keep this page open.
+      </p>
+    </div>
+  </div>
+) : (
+  message && <p className="login-message">{message}</p>
+)}
       </section>
     </main>
   );
