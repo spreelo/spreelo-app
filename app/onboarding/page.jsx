@@ -192,9 +192,9 @@ function handleMarketChange(event) {
           brand_description: hasNoWebsite ? trimmedDescription : "",
           industry: "",
           target_audience: "",
-          content_market: "International / Global",
-          country_code: "GLOBAL",
-          content_language: "English",
+        content_market: contentMarket,
+country_code: countryCode,
+content_language: contentLanguage,
           is_default: true,
           updated_at: new Date().toISOString(),
         })
