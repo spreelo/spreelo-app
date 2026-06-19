@@ -13,10 +13,10 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
 
-    const redirectTo =
-      typeof window !== "undefined"
-        ? window.location.origin
-        : "https://app.spreelo.com";
+const redirectTo =
+  typeof window !== "undefined"
+    ? `${window.location.origin}/onboarding`
+    : "https://app.spreelo.com/onboarding";
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
