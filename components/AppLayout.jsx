@@ -209,12 +209,12 @@ export default function AppLayout({ active, children }) {
       <main className="login-page">
         <section className="login-card">
           <div className="brand login-brand">
-            <div className="brand-mark">S</div>
-            <div>
-              <h1>Spreelo</h1>
-              <p>AI social media planner</p>
-            </div>
-          </div>
+  <img
+    src="/brand/spreelologo.png"
+    alt="Spreelo"
+    className="spreelo-logo-image"
+  />
+</div>
 
           <p className="login-message">Loading your workspace...</p>
         </section>
