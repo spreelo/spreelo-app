@@ -10855,3 +10855,48 @@ textarea.input:focus,
     max-width: 100% !important;
   }
 }
+/* ===== Fix Spreelo logo visibility in sidebar ===== */
+
+.spreelo-brand,
+.brand.spreelo-brand {
+  width: 100% !important;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+  padding: 22px 14px 30px !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  overflow: visible !important;
+}
+
+.spreelo-logo-image {
+  display: block !important;
+  width: 145px !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: left center !important;
+  margin: 0 !important;
+}
+
+/* Make sure sidebar does not crop the logo horizontally */
+.spreelo-sidebar,
+.sidebar {
+  overflow-x: visible !important;
+}
+
+/* Mobile logo can be larger */
+@media (max-width: 900px) {
+  .spreelo-brand,
+  .brand.spreelo-brand {
+    padding: 24px 16px 34px !important;
+  }
+
+  .spreelo-logo-image {
+    width: 190px !important;
+    max-width: 100% !important;
+  }
+}
