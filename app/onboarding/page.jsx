@@ -144,6 +144,18 @@ useEffect(() => {
 
   return () => clearInterval(interval);
 }, [loading]);
+
+function handleMarketChange(event) {
+  const selectedMarket = event.target.value;
+  const selectedOption = marketOptions.find(
+    (option) => option.label === selectedMarket
+  );
+
+  setContentMarket(selectedMarket);
+  setCountryCode(selectedOption?.countryCode || "OTHER");
+  setContentLanguage(selectedOption?.language || "English");
+}
+  
   async function handleSubmit(event) {
     event.preventDefault();
 
