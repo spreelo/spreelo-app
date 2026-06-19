@@ -241,9 +241,9 @@ export default function SocialChannelsPage() {
                 another Facebook Page.
               </p>
 
-              <a className="primary-button full" href={connectUrl}>
-                Connect Facebook
-              </a>
+            <a className="primary-button social-connect-button" href={connectUrl}>
+  Connect Facebook
+</a>
             </>
           )}
         </div>
