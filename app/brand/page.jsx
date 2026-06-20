@@ -758,11 +758,10 @@ export default function BrandProfile() {
               <div>
                 <span>3</span>
                 <div>
-                  <strong>AI analysis</strong>
-                  <p>
-                    Spreelo analyzes the brand and prepares campaign
-                    opportunities.
-                  </p>
+                <strong>AI analysis</strong>
+<p>
+  Spreelo analyzes the brand and prepares better content ideas.
+</p>
                 </div>
               </div>
 
