@@ -46,13 +46,19 @@ const languageOptions = [
 const onboardingAnalyzingSteps = [
   "Creating your brand profile...",
   "Fetching your website content...",
-  "Understanding your business...",
-  "Checking if website product posts are available...",
-  "Finding useful campaign opportunities...",
-  "Creating your campaign calendar...",
+  "Reading your business information...",
+  "Detecting market and language...",
+  "Preparing your AI profile...",
+  "Finding relevant content opportunities...",
+  "Building your campaign calendar...",
   "Saving everything to your workspace...",
-  "Almost done. This can take a little longer for larger websites...",
+  "Still working — some websites take a little longer to analyze.",
+  "Almost there — Spreelo is preparing your brand setup.",
+  "This can take up to a minute for larger websites.",
+  "Still processing — please keep this page open.",
 ];
+
+const longOnboardingStepStartIndex = 8;
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
@@ -79,10 +85,10 @@ export default function OnboardingPage() {
   const [hasNoWebsite, setHasNoWebsite] = useState(false);
   const [brandDescription, setBrandDescription] = useState("");
 
-const [contentMarket, setContentMarket] = useState("International / Global");
-const [countryCode, setCountryCode] = useState("GLOBAL");
-const [contentLanguage, setContentLanguage] = useState("English");
-  
+  const [contentMarket, setContentMarket] = useState("International / Global");
+  const [countryCode, setCountryCode] = useState("GLOBAL");
+  const [contentLanguage, setContentLanguage] = useState("English");
+
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [currentAnalyzingStep, setCurrentAnalyzingStep] = useState(0);
@@ -126,36 +132,38 @@ const [contentLanguage, setContentLanguage] = useState("English");
 
     checkUserAndBrand();
   }, []);
-useEffect(() => {
-  if (!loading) {
-    setCurrentAnalyzingStep(0);
-    return;
+
+  useEffect(() => {
+    if (!loading) {
+      setCurrentAnalyzingStep(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setCurrentAnalyzingStep((currentStep) => {
+        if (currentStep >= onboardingAnalyzingSteps.length - 1) {
+          return longOnboardingStepStartIndex;
+        }
+
+        return currentStep + 1;
+      });
+    }, 4500);
+
+    return () => clearInterval(interval);
+  }, [loading]);
+
+  function handleMarketChange(event) {
+    const selectedMarket = event.target.value;
+    const selectedOption = marketOptions.find(
+      (option) => option.label === selectedMarket
+    );
+
+    setContentMarket(selectedMarket);
+    setCountryCode(selectedOption?.countryCode || "OTHER");
+    setContentLanguage(selectedOption?.language || "English");
+    setMessage("");
   }
 
-  const interval = setInterval(() => {
-    setCurrentAnalyzingStep((currentStep) => {
-      if (currentStep >= onboardingAnalyzingSteps.length - 1) {
-        return currentStep;
-      }
-
-      return currentStep + 1;
-    });
-  }, 4500);
-
-  return () => clearInterval(interval);
-}, [loading]);
-
-function handleMarketChange(event) {
-  const selectedMarket = event.target.value;
-  const selectedOption = marketOptions.find(
-    (option) => option.label === selectedMarket
-  );
-
-  setContentMarket(selectedMarket);
-  setCountryCode(selectedOption?.countryCode || "OTHER");
-  setContentLanguage(selectedOption?.language || "English");
-}
-  
   async function handleSubmit(event) {
     event.preventDefault();
 
@@ -169,8 +177,20 @@ function handleMarketChange(event) {
       return;
     }
 
+    if (!contentMarket || !countryCode) {
+      setMessage("Choose the market/country this brand targets.");
+      return;
+    }
+
+    if (!contentLanguage) {
+      setMessage("Choose the content language for this brand.");
+      return;
+    }
+
     if (!hasNoWebsite && !normalizedWebsiteUrl) {
-      setMessage("Add your website URL, or select that you do not have a website.");
+      setMessage(
+        "Add your website URL, or select that you do not have a website."
+      );
       return;
     }
 
@@ -180,7 +200,8 @@ function handleMarketChange(event) {
     }
 
     setLoading(true);
-    setMessage("Creating your brand profile...");
+    setCurrentAnalyzingStep(0);
+    setMessage("");
 
     try {
       const { data: createdBrand, error: createError } = await supabase
@@ -192,9 +213,9 @@ function handleMarketChange(event) {
           brand_description: hasNoWebsite ? trimmedDescription : "",
           industry: "",
           target_audience: "",
-        content_market: contentMarket,
-country_code: countryCode,
-content_language: contentLanguage,
+          content_market: contentMarket,
+          country_code: countryCode,
+          content_language: contentLanguage,
           is_default: true,
           updated_at: new Date().toISOString(),
         })
@@ -202,18 +223,14 @@ content_language: contentLanguage,
         .single();
 
       if (createError) {
-        throw new Error(createError.message || "Could not create brand profile.");
+        throw new Error(
+          createError.message || "Could not create brand profile."
+        );
       }
 
       if (typeof window !== "undefined") {
         localStorage.setItem(getBrandStorageKey(user.id), createdBrand.id);
       }
-
-      setMessage(
-        hasNoWebsite
-          ? "Analyzing your business description..."
-          : "Analyzing your website..."
-      );
 
       const {
         data: { session },
@@ -235,9 +252,9 @@ content_language: contentLanguage,
           businessName: trimmedBusinessName,
           websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
           brandDescription: hasNoWebsite ? trimmedDescription : "",
-contentMarket,
-countryCode,
-contentLanguage,
+          contentMarket,
+          countryCode,
+          contentLanguage,
         }),
       });
 
@@ -288,7 +305,8 @@ contentLanguage,
           <p className="eyebrow">Step 1 of 3</p>
           <h2>Set up your business</h2>
           <p>
-            Add your website and Spreelo will prepare your brand profile
+            Add your website or describe your business. Spreelo will prepare
+            your brand profile, content ideas and campaign calendar
             automatically.
           </p>
         </div>
@@ -300,8 +318,12 @@ contentLanguage,
             type="text"
             placeholder="Example: Luna Studio"
             value={businessName}
-            onChange={(event) => setBusinessName(event.target.value)}
+            onChange={(event) => {
+              setBusinessName(event.target.value);
+              setMessage("");
+            }}
             required
+            disabled={loading}
           />
 
           <label>Website URL</label>
@@ -310,18 +332,26 @@ contentLanguage,
             type="text"
             placeholder="example.com"
             value={websiteUrl}
-            onChange={(event) => setWebsiteUrl(event.target.value)}
-            disabled={hasNoWebsite}
+            onChange={(event) => {
+              setWebsiteUrl(event.target.value);
+              setMessage("");
+            }}
+            disabled={hasNoWebsite || loading}
           />
 
           <label className="onboarding-checkbox">
             <input
               type="checkbox"
               checked={hasNoWebsite}
+              disabled={loading}
               onChange={(event) => {
                 setHasNoWebsite(event.target.checked);
+                setMessage("");
+
                 if (event.target.checked) {
                   setWebsiteUrl("");
+                } else {
+                  setBrandDescription("");
                 }
               }}
             />
@@ -329,37 +359,42 @@ contentLanguage,
           </label>
 
           <div className="onboarding-market-grid">
-  <div>
-    <label>Content market</label>
-    <select
-      className="input"
-      value={contentMarket}
-      onChange={handleMarketChange}
-    >
-      {marketOptions.map((option) => (
-        <option key={option.countryCode} value={option.label}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  </div>
+            <div>
+              <label>Content market</label>
+              <select
+                className="input"
+                value={contentMarket}
+                onChange={handleMarketChange}
+                disabled={loading}
+              >
+                {marketOptions.map((option) => (
+                  <option key={option.countryCode} value={option.label}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-  <div>
-    <label>Content language</label>
-    <select
-      className="input"
-      value={contentLanguage}
-      onChange={(event) => setContentLanguage(event.target.value)}
-    >
-      {languageOptions.map((language) => (
-        <option key={language} value={language}>
-          {language}
-        </option>
-      ))}
-    </select>
-  </div>
-</div>
-          
+            <div>
+              <label>Content language</label>
+              <select
+                className="input"
+                value={contentLanguage}
+                onChange={(event) => {
+                  setContentLanguage(event.target.value);
+                  setMessage("");
+                }}
+                disabled={loading}
+              >
+                {languageOptions.map((language) => (
+                  <option key={language} value={language}>
+                    {language}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {hasNoWebsite && (
             <>
               <label>Describe your business</label>
@@ -368,32 +403,43 @@ contentLanguage,
                 rows={5}
                 placeholder="Tell Spreelo what your business does, who your customers are and what you offer."
                 value={brandDescription}
-                onChange={(event) => setBrandDescription(event.target.value)}
+                onChange={(event) => {
+                  setBrandDescription(event.target.value);
+                  setMessage("");
+                }}
                 required
+                disabled={loading}
               />
             </>
           )}
 
-          <button className="primary-button full" type="submit" disabled={loading}>
+          <button
+            className="primary-button full"
+            type="submit"
+            disabled={loading}
+          >
             {loading ? "Setting up..." : "Continue"}
           </button>
         </form>
 
         {loading ? (
-  <div className="brand-profile-analyzing-card onboarding-analyzing-card">
-    <div className="brand-profile-spinner" />
+          <div className="brand-profile-analyzing-card onboarding-analyzing-card">
+            <div className="brand-profile-spinner" />
 
-    <div>
-      <strong>{onboardingAnalyzingSteps[currentAnalyzingStep]}</strong>
-      <p>
-        Spreelo is preparing your brand profile, content ideas and campaign
-        calendar. Please keep this page open.
-      </p>
-    </div>
-  </div>
-) : (
-  message && <p className="login-message">{message}</p>
-)}
+            <div>
+              <strong>
+                {onboardingAnalyzingSteps[currentAnalyzingStep]}
+              </strong>
+              <p>
+                Spreelo is still working. Larger websites and campaign
+                calendars can take a little longer, so please keep this page
+                open.
+              </p>
+            </div>
+          </div>
+        ) : (
+          message && <p className="login-message">{message}</p>
+        )}
       </section>
     </main>
   );
