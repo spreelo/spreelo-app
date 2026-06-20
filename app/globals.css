@@ -8889,3 +8889,12 @@ textarea.input:focus,
   margin-bottom: 0 !important;
   color: #5b21b6 !important;
 }
+/* ===== Campaign calendar recommended post plan note ===== */
+
+.campaign-post-plan-note {
+  margin: 0 0 12px !important;
+  color: #667085 !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  font-weight: 700 !important;
+}
