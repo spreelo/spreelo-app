@@ -481,39 +481,37 @@ export default function Calendar() {
                         </div>
                       )}
 
-                    {Array.isArray(selectedCampaign.post_plan) &&
-                      selectedCampaign.post_plan.length > 0 && (
-                        <div className="campaign-detail-section">
-                          <h4>Suggested post plan</h4>
+                    <div className="campaign-detail-section">
+  <h4>Recommended post plan</h4>
 
-                          <div className="campaign-post-plan">
-                            {selectedCampaign.post_plan
-                              .slice(0, 6)
-                              .map((post, index) => (
-                                <div key={`${post.role}-${index}`}>
-                                  <span>{index + 1}</span>
-                                  <div>
-                                    <strong>
-                                      {post.role || `Post ${index + 1}`}
-                                    </strong>
-                                    <p>
-                                      {post.purpose ||
-                                        "Create a useful campaign post."}
-                                    </p>
-                                    {typeof post.days_before_event ===
-                                      "number" && (
-                                      <small>
-                                        {post.days_before_event === 0
-                                          ? "Publish on campaign date"
-                                          : `${post.days_before_event} days before`}
-                                      </small>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                        </div>
-                      )}
+  <p className="campaign-post-plan-note">
+    Spreelo recommends{" "}
+    {getCampaignRecommendedPostCount(selectedCampaign)} posts for this campaign.
+  </p>
+
+  <div className="campaign-post-plan">
+    {buildCampaignPostPlan(
+      selectedCampaign,
+      getCampaignRecommendedPostCount(selectedCampaign)
+    ).map((post, index) => (
+      <div key={`${post.role || "campaign-post"}-${index}`}>
+        <span>{index + 1}</span>
+        <div>
+          <strong>{post.role || `Post ${index + 1}`}</strong>
+          <p>{post.purpose || "Create a useful campaign post."}</p>
+
+          {typeof post.days_before_event === "number" && (
+            <small>
+              {post.days_before_event === 0
+                ? "Publish on campaign date"
+                : `${post.days_before_event} days before`}
+            </small>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
 
                     <button
                       type="button"
