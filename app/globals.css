@@ -11319,3 +11319,48 @@ textarea.input:focus,
   background: #fee2e2 !important;
   color: #b91c1c !important;
 }
+/* ===== Sidebar logout button ===== */
+
+.sidebar-logout-button {
+  width: 100% !important;
+  min-height: 44px !important;
+  margin-top: 12px !important;
+  padding: 0 13px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  color: #64748b !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease !important;
+}
+
+.sidebar-logout-button span {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 9px !important;
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+
+.sidebar-logout-button:hover {
+  background: #fff7f7 !important;
+  color: #b91c1c !important;
+  border-color: #fecaca !important;
+}
+
+.sidebar-logout-button:hover span {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+}
