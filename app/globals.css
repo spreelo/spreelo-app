@@ -9245,3 +9245,51 @@ textarea.input:focus,
   font-size: 14px;
   line-height: 1.5;
 }
+@media (max-width: 900px) {
+  .automation-page .wizard-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  .automation-page .wizard-main,
+  .automation-page .planner-sidebar {
+    display: contents !important;
+  }
+
+  .automation-page .planner-setup-grid {
+    order: 10 !important;
+  }
+
+  .automation-page .planner-mode-card {
+    order: 20 !important;
+  }
+
+  .automation-page .planner-summary-card {
+    order: 30 !important;
+  }
+
+  .automation-page .planner-schedule-card {
+    order: 40 !important;
+  }
+
+  .automation-page .planner-settings-card {
+    order: 50 !important;
+  }
+
+  .automation-page .planner-save-card {
+    order: 60 !important;
+  }
+
+  .automation-page .planner-credits-card {
+    order: 70 !important;
+  }
+
+  .automation-page .saved-card-compact {
+    order: 80 !important;
+  }
+
+  .automation-page .planner-mode-card:has(.planner-included-card) {
+    display: none !important;
+  }
+}
