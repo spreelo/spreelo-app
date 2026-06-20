@@ -88,7 +88,7 @@ export default function LoginPage() {
     setEmail(normalizedEmail);
     setCodeSent(true);
     setOtpCode("");
-   setMessage("We sent a 6-digit sign-in code to your email.");
+    setMessage("We sent a 6-digit sign-in code to your email.");
     setLoading(false);
   }
 
@@ -157,9 +157,9 @@ export default function LoginPage() {
               sign-in code.
             </p>
           ) : (
-<p>
-  Enter the 6-digit code we sent to <strong>{email}</strong>.
-</p>
+            <p>
+              Enter the 6-digit code we sent to <strong>{email}</strong>.
+            </p>
           )}
         </div>
 
@@ -234,6 +234,16 @@ export default function LoginPage() {
         )}
 
         {message && <p className="login-message">{message}</p>}
+
+        {codeSent && (
+          <div className="login-help-box">
+            <strong>Can’t find the email?</strong>
+            <p>
+              Check your spam or junk folder. The code can sometimes take up to
+              a minute to arrive.
+            </p>
+          </div>
+        )}
       </section>
     </main>
   );
