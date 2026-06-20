@@ -5,6 +5,7 @@ import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function Settings() {
+  const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
