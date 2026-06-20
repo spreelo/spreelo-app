@@ -4526,6 +4526,134 @@ setRules((currentRules) =>
             </div>
           </div>
         )}
+        {showLearnMoreModal && (
+  <div
+    className="learn-more-modal-backdrop"
+    onClick={() => setShowLearnMoreModal(false)}
+  >
+    <div
+      className="learn-more-modal"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="learn-more-modal-header">
+        <div>
+          <p>
+            {campaignOpportunity ? "Campaign plan help" : "Content Creator help"}
+          </p>
+          <h3>
+            {campaignOpportunity
+              ? "About this campaign plan"
+              : "How Content Creator works"}
+          </h3>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowLearnMoreModal(false)}
+        >
+          ✕
+        </button>
+      </div>
+
+      {campaignOpportunity ? (
+        <div className="learn-more-modal-content">
+          <p>
+            Spreelo creates a focused content plan from the selected campaign in
+            your campaign calendar.
+          </p>
+
+          <div className="learn-more-steps">
+            <div>
+              <span>1</span>
+              <strong>Campaign date</strong>
+              <p>
+                The campaign date controls when the planned posts should be
+                published.
+              </p>
+            </div>
+
+            <div>
+              <span>2</span>
+              <strong>Recommended plan</strong>
+              <p>
+                Spreelo uses the recommended number of posts to prepare the full
+                campaign sequence.
+              </p>
+            </div>
+
+            <div>
+              <span>3</span>
+              <strong>Edit before saving</strong>
+              <p>
+                You can edit, add, remove and adjust posts before saving the
+                final content plan.
+              </p>
+            </div>
+
+            <div>
+              <span>4</span>
+              <strong>Nothing is published yet</strong>
+              <p>
+                Posts are only scheduled after you click Save content plan.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="learn-more-modal-content">
+          <p>
+            Spreelo helps you create a complete social content plan in a few
+            simple steps.
+          </p>
+
+          <div className="learn-more-steps">
+            <div>
+              <span>1</span>
+              <strong>Choose a goal</strong>
+              <p>
+                Pick what you want your content to achieve, such as awareness,
+                trust, engagement or sales.
+              </p>
+            </div>
+
+            <div>
+              <span>2</span>
+              <strong>Choose post amount</strong>
+              <p>
+                Select how many posts Spreelo should prepare for your plan.
+              </p>
+            </div>
+
+            <div>
+              <span>3</span>
+              <strong>Review the schedule</strong>
+              <p>
+                Adjust dates, times, images and instructions before saving.
+              </p>
+            </div>
+
+            <div>
+              <span>4</span>
+              <strong>Save the plan</strong>
+              <p>
+                Saved posts are added to your content plan and follow your
+                publishing settings.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="primary-button full"
+        onClick={() => setShowLearnMoreModal(false)}
+      >
+        Got it
+      </button>
+    </div>
+  </div>
+)}
       </div>
     </AppLayout>
   );
