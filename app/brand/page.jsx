@@ -46,14 +46,19 @@ const languageOptions = [
 
 const analyzingSteps = [
   "Fetching website content...",
-  "Understanding your business...",
-  "Checking if website product posts are available...",
-  "Finding useful campaign opportunities...",
-  "Creating your campaign calendar...",
+  "Reading your business information...",
+  "Detecting market and language...",
+  "Preparing your AI profile...",
+  "Finding relevant content opportunities...",
+  "Building your campaign calendar...",
   "Saving everything to your brand profile...",
-  "Finalizing your setup...",
-  "Almost done. This can take a little longer for larger websites...",
+  "Still working — some websites take a little longer to analyze.",
+  "Almost there — Spreelo is preparing your brand setup.",
+  "This can take up to a minute for larger websites.",
+  "Still processing — please keep this page open.",
 ];
+
+const longAnalysisStepStartIndex = 7;
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
