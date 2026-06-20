@@ -7187,10 +7187,10 @@ textarea.input:focus,
 
 .planner-post-table {
   gap: 0 !important;
-    border: 1px solid #e1e6ef !important;
-    border-radius: 14px !important;
-    overflow: hidden !important;
-    background: #ffffff !important;
+  border: 1px solid #e1e6ef !important;
+  border-radius: 14px !important;
+  overflow: visible !important;
+  background: #ffffff !important;
 }
 
 .planner-post-row {
