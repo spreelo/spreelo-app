@@ -90,6 +90,7 @@ export default function OnboardingPage() {
   const [contentLanguage, setContentLanguage] = useState("English");
 
   const [loading, setLoading] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [message, setMessage] = useState("");
   const [currentAnalyzingStep, setCurrentAnalyzingStep] = useState(0);
 
@@ -164,10 +165,36 @@ export default function OnboardingPage() {
     setMessage("");
   }
 
+  async function handleLogout() {
+    if (loading || loggingOut) return;
+
+    setLoggingOut(true);
+    setMessage("");
+
+    try {
+      if (typeof window !== "undefined") {
+        if (user?.id) {
+          localStorage.removeItem(getBrandStorageKey(user.id));
+        }
+
+        localStorage.removeItem("spreelo_current_brand_id");
+        localStorage.removeItem("spreelo_onboarding_step");
+        localStorage.removeItem("spreelo_selected_brand_id");
+      }
+
+      await supabase.auth.signOut();
+
+      window.location.href = "/login";
+    } catch (error) {
+      setMessage(error.message || "Could not log out.");
+      setLoggingOut(false);
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!user?.id || loading) return;
+    if (!user?.id || loading || loggingOut) return;
 
     const trimmedBusinessName = businessName.trim();
     const trimmedDescription = brandDescription.trim();
@@ -293,12 +320,23 @@ export default function OnboardingPage() {
   return (
     <main className="login-page">
       <section className="login-card onboarding-card">
-        <div className="brand login-brand">
-          <img
-            src="/brand/spreelologo.png"
-            alt="Spreelo"
-            className="spreelo-logo-image"
-          />
+        <div className="onboarding-card-top">
+          <div className="brand login-brand">
+            <img
+              src="/brand/spreelologo.png"
+              alt="Spreelo"
+              className="spreelo-logo-image"
+            />
+          </div>
+
+          <button
+            type="button"
+            className="onboarding-logout-button"
+            onClick={handleLogout}
+            disabled={loading || loggingOut}
+          >
+            {loggingOut ? "Logging out..." : "Log out"}
+          </button>
         </div>
 
         <div className="login-content">
@@ -323,7 +361,7 @@ export default function OnboardingPage() {
               setMessage("");
             }}
             required
-            disabled={loading}
+            disabled={loading || loggingOut}
           />
 
           <label>Website URL</label>
@@ -336,14 +374,14 @@ export default function OnboardingPage() {
               setWebsiteUrl(event.target.value);
               setMessage("");
             }}
-            disabled={hasNoWebsite || loading}
+            disabled={hasNoWebsite || loading || loggingOut}
           />
 
           <label className="onboarding-checkbox">
             <input
               type="checkbox"
               checked={hasNoWebsite}
-              disabled={loading}
+              disabled={loading || loggingOut}
               onChange={(event) => {
                 setHasNoWebsite(event.target.checked);
                 setMessage("");
@@ -365,7 +403,7 @@ export default function OnboardingPage() {
                 className="input"
                 value={contentMarket}
                 onChange={handleMarketChange}
-                disabled={loading}
+                disabled={loading || loggingOut}
               >
                 {marketOptions.map((option) => (
                   <option key={option.countryCode} value={option.label}>
@@ -384,7 +422,7 @@ export default function OnboardingPage() {
                   setContentLanguage(event.target.value);
                   setMessage("");
                 }}
-                disabled={loading}
+                disabled={loading || loggingOut}
               >
                 {languageOptions.map((language) => (
                   <option key={language} value={language}>
@@ -408,7 +446,7 @@ export default function OnboardingPage() {
                   setMessage("");
                 }}
                 required
-                disabled={loading}
+                disabled={loading || loggingOut}
               />
             </>
           )}
@@ -416,7 +454,7 @@ export default function OnboardingPage() {
           <button
             className="primary-button full"
             type="submit"
-            disabled={loading}
+            disabled={loading || loggingOut}
           >
             {loading ? "Setting up..." : "Continue"}
           </button>
