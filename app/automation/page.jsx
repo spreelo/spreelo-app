@@ -1478,6 +1478,31 @@ function buildFallbackCampaignPlan(count) {
   }));
 }
 
+function getCampaignRecommendedPostCount(campaign, fallbackCount = 3) {
+  const rawRecommendedCount = Number(campaign?.recommended_post_count);
+
+  const count = Number.isFinite(rawRecommendedCount)
+    ? rawRecommendedCount
+    : fallbackCount;
+
+  return Math.min(Math.max(Math.round(count), 1), 7);
+}
+
+function buildCampaignPostPlan(campaign, recommendedCount) {
+  const rawPostPlan = Array.isArray(campaign?.post_plan)
+    ? campaign.post_plan
+    : [];
+
+  const fallbackPostPlan = buildFallbackCampaignPlan(recommendedCount);
+
+  return Array.from({ length: recommendedCount }).map((_, index) => {
+    return {
+      ...(fallbackPostPlan[index] || {}),
+      ...(rawPostPlan[index] || {}),
+    };
+  });
+}
+
 function getDefaultCampaignDaysBeforeEvent(count) {
   if (count <= 1) return [0];
   if (count === 2) return [7, 0];
