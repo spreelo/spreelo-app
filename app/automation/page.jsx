@@ -4116,7 +4116,7 @@ setRules((currentRules) =>
       onClick={savePlan}
       disabled={saving || !hasEnoughCredits}
     >
-      {saving ? "Saving..." : "▣ Save content plan"}
+      {saving ? "Saving..." : "Save content plan"}
     </button>
   </>
 )}
