@@ -448,30 +448,46 @@ export default function Calendar() {
                     const isSelected = selectedCampaign?.id === campaign.id;
 
                     return (
-                      <button
-                        key={campaign.id}
-                        type="button"
-                        className={`campaign-card ${
-                          isSelected ? "active" : ""
-                        }`}
-                        onClick={() => setSelectedCampaignId(campaign.id)}
-                      >
-                        <div className="campaign-card-top">
-                          <span>{getEventTypeLabel(campaign.event_type)}</span>
-                          <strong>{getCampaignDateLabel(campaign)}</strong>
-                        </div>
+                    <article
+  key={campaign.id}
+  className={`campaign-card ${isSelected ? "active" : ""}`}
+  role="button"
+  tabIndex={0}
+  onClick={() => setSelectedCampaignId(campaign.id)}
+  onKeyDown={(event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setSelectedCampaignId(campaign.id);
+    }
+  }}
+>
+  <div className="campaign-card-top">
+    <span>{getEventTypeLabel(campaign.event_type)}</span>
+    <strong>{getCampaignDateLabel(campaign)}</strong>
+  </div>
 
-                        <h4>{campaign.title}</h4>
+  <h4>{campaign.title}</h4>
 
-                        <p>{campaign.description}</p>
+  <p>{campaign.description}</p>
 
-                        <div className="campaign-card-meta">
-                         <span>{getCampaignRecommendedPostCount(campaign)} posts</span>
-                          <span>
-                            {getConfidenceLabel(campaign.date_confidence)}
-                          </span>
-                        </div>
-                      </button>
+  <div className="campaign-card-meta">
+    <span>{getCampaignRecommendedPostCount(campaign)} posts</span>
+    <span>{getConfidenceLabel(campaign.date_confidence)}</span>
+  </div>
+
+  {isSelected && (
+    <button
+      type="button"
+      className="campaign-card-create-button"
+      onClick={(event) => {
+        event.stopPropagation();
+        handleCreateCampaign(campaign);
+      }}
+    >
+      Create posts
+    </button>
+  )}
+</article>
                     );
                   })}
                 </div>
