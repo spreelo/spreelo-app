@@ -2137,6 +2137,7 @@ const [slots, setSlots] = useState([]);
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
   const [showSavedRules, setShowSavedRules] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [showLearnMoreModal, setShowLearnMoreModal] = useState(false);
   const [recentlyAddedContentTypeId, setRecentlyAddedContentTypeId] =
   useState("");
   const [expandedInstructionSlotIds, setExpandedInstructionSlotIds] = useState(
