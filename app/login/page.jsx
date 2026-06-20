@@ -159,9 +159,10 @@ export default function LoginPage() {
               sign-in code.
             </p>
           ) : (
-            <p>
-              Enter the 6-digit code we sent to <strong>{email}</strong>.
-            </p>
+<p>
+  Enter the 6-digit code we sent to <strong>{email}</strong>. If you do not see
+  it, check your spam or junk folder.
+</p>
           )}
         </div>
 
