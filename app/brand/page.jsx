@@ -768,10 +768,11 @@ export default function BrandProfile() {
               <div>
                 <span>4</span>
                 <div>
-                  <strong>Create campaigns later</strong>
-                  <p>
-                    No finished posts are created until you select a campaign.
-                  </p>
+                  <strong>Create content</strong>
+<p>
+  Use Content Creator for regular posts or Calendar for
+  campaign-based plans.
+</p>
                 </div>
               </div>
             </div>
