@@ -182,12 +182,46 @@ function buildCampaignPostPlan(campaign, recommendedCount) {
     ? campaign.post_plan
     : [];
 
+  const sortedRawPostPlan = [...rawPostPlan].sort((a, b) => {
+    const aDays =
+      typeof a?.days_before_event === "number" ? a.days_before_event : 0;
+    const bDays =
+      typeof b?.days_before_event === "number" ? b.days_before_event : 0;
+
+    return bDays - aDays;
+  });
+
   const fallbackPostPlan = buildFallbackCampaignPlan(recommendedCount);
 
-  return Array.from({ length: recommendedCount }).map((_, index) => ({
-    ...(fallbackPostPlan[index] || {}),
-    ...(rawPostPlan[index] || {}),
-  }));
+  const mergedPlan = Array.from({ length: recommendedCount }).map((_, index) => {
+    const fallbackPost = fallbackPostPlan[index] || {};
+    const aiPost = sortedRawPostPlan[index] || {};
+
+    const role =
+      aiPost.role && !/^campaign post/i.test(aiPost.role)
+        ? aiPost.role
+        : fallbackPost.role;
+
+    return {
+      ...fallbackPost,
+      ...aiPost,
+      role,
+      purpose: aiPost.purpose || fallbackPost.purpose,
+      days_before_event:
+        typeof aiPost.days_before_event === "number"
+          ? aiPost.days_before_event
+          : fallbackPost.days_before_event,
+    };
+  });
+
+  return mergedPlan.sort((a, b) => {
+    const aDays =
+      typeof a?.days_before_event === "number" ? a.days_before_event : 0;
+    const bDays =
+      typeof b?.days_before_event === "number" ? b.days_before_event : 0;
+
+    return bDays - aDays;
+  });
 }
 
 export default function Calendar() {
