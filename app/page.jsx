@@ -853,12 +853,12 @@ export default function Home() {
                         </p>
                       )}
 
-                      <a
-                        className="dashboard-side-link"
-                        href={`/automation?campaignId=${suggestedCampaign.id}`}
-                      >
-                        Create campaign plan
-                      </a>
+                   <a
+  className="dashboard-side-link"
+  href={`/automation?campaignOpportunityId=${suggestedCampaign.id}&brandProfileId=${currentBrandId}`}
+>
+  Create campaign plan
+</a>
                     </>
                   ) : (
                     <>
