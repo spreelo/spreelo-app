@@ -295,13 +295,13 @@ export default function BrandProfile() {
     }
 
     const interval = setInterval(() => {
-      setCurrentAnalyzingStep((currentStep) => {
-        if (currentStep >= analyzingSteps.length - 1) {
-          return currentStep;
-        }
+     setCurrentAnalyzingStep((currentStep) => {
+  if (currentStep >= analyzingSteps.length - 1) {
+    return longAnalysisStepStartIndex;
+  }
 
-        return currentStep + 1;
-      });
+  return currentStep + 1;
+});
     }, 4500);
 
     return () => clearInterval(interval);
