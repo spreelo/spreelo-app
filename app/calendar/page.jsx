@@ -401,9 +401,7 @@ export default function Calendar() {
                         <p>{campaign.description}</p>
 
                         <div className="campaign-card-meta">
-                          <span>
-                            {campaign.recommended_post_count || 5} posts
-                          </span>
+                         <span>{getCampaignRecommendedPostCount(campaign)} posts</span>
                           <span>
                             {getConfidenceLabel(campaign.date_confidence)}
                           </span>
