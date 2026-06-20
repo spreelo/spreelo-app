@@ -594,13 +594,13 @@ export default function Calendar() {
   </div>
 </div>
 
-                    <button
-                      type="button"
-                      className="campaign-create-button"
-                      onClick={() => handleCreateCampaign(selectedCampaign)}
-                    >
-                      Create campaign
-                    </button>
+<button
+  type="button"
+  className="campaign-create-button"
+  onClick={() => handleCreateCampaign(selectedCampaign)}
+>
+  Create posts
+</button>
 
                     <p className="campaign-calendar-disclaimer">
                       Campaign dates are suggested by AI and may vary by market,
