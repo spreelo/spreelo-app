@@ -9025,3 +9025,34 @@ textarea.input:focus,
     font-size: 22px !important;
   }
 }
+/* ===== Brand profile setup status badge ===== */
+
+.brand-profile-hero-badge.needs-setup {
+  background:
+    radial-gradient(circle at top right, rgba(249, 115, 22, 0.11), transparent 36%),
+    #ffffff !important;
+  border-color: rgba(249, 115, 22, 0.22) !important;
+}
+
+.brand-profile-hero-badge.needs-setup strong {
+  color: #9a3412 !important;
+}
+
+.brand-profile-hero-badge.needs-setup span {
+  color: #7c2d12 !important;
+}
+
+.brand-profile-hero-badge.ready {
+  background:
+    radial-gradient(circle at top right, rgba(34, 197, 94, 0.12), transparent 36%),
+    linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%) !important;
+  border-color: rgba(34, 197, 94, 0.24) !important;
+}
+
+.brand-profile-hero-badge.ready strong {
+  color: #15803d !important;
+}
+
+.brand-profile-hero-badge.ready span {
+  color: #166534 !important;
+}
