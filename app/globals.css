@@ -8862,3 +8862,30 @@ textarea.input:focus,
 .sidebar-plan-arrow {
   font-size: 15px !important;
 }
+/* ===== Campaign mode meta clarity ===== */
+
+.campaign-mode-meta {
+  display: grid !important;
+  gap: 6px !important;
+}
+
+.campaign-mode-meta span {
+  display: block !important;
+  margin: 0 !important;
+  color: #667085 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+
+.campaign-mode-meta strong {
+  display: block !important;
+  margin: 0 0 8px !important;
+  color: #111827 !important;
+  font-size: 15px !important;
+  font-weight: 950 !important;
+}
+
+.campaign-mode-meta strong:last-child {
+  margin-bottom: 0 !important;
+  color: #5b21b6 !important;
+}
