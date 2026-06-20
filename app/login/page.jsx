@@ -160,8 +160,7 @@ export default function LoginPage() {
             </p>
           ) : (
 <p>
-  Enter the 6-digit code we sent to <strong>{email}</strong>. If you do not see
-  it, check your spam or junk folder.
+  Enter the 6-digit code we sent to <strong>{email}</strong>.
 </p>
           )}
         </div>
