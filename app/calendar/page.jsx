@@ -118,6 +118,47 @@ function isUpcomingCampaign(campaign, todayDateString) {
   return true;
 }
 
+function getCampaignRecommendedPostCount(campaign, fallbackCount = 3) {
+  const rawRecommendedCount = Number(campaign?.recommended_post_count);
+
+  const count = Number.isFinite(rawRecommendedCount)
+    ? rawRecommendedCount
+    : fallbackCount;
+
+  return Math.min(Math.max(Math.round(count), 1), 7);
+}
+
+function buildFallbackCampaignPlan(count) {
+  return Array.from({ length: count }).map((_, index) => ({
+    role:
+      index === 0
+        ? "Campaign introduction"
+        : index === count - 1
+          ? "Final campaign reminder"
+          : `Campaign post ${index + 1}`,
+    purpose:
+      index === 0
+        ? "Introduce the campaign and explain why it matters."
+        : index === count - 1
+          ? "Create a final reminder connected to the campaign date."
+          : "Build interest and relevance before the campaign date.",
+    days_before_event: Math.max((count - 1 - index) * 3, 0),
+  }));
+}
+
+function buildCampaignPostPlan(campaign, recommendedCount) {
+  const rawPostPlan = Array.isArray(campaign?.post_plan)
+    ? campaign.post_plan
+    : [];
+
+  const fallbackPostPlan = buildFallbackCampaignPlan(recommendedCount);
+
+  return Array.from({ length: recommendedCount }).map((_, index) => ({
+    ...(fallbackPostPlan[index] || {}),
+    ...(rawPostPlan[index] || {}),
+  }));
+}
+
 export default function Calendar() {
   const [user, setUser] = useState(null);
   const [brandProfileId, setBrandProfileId] = useState("");
