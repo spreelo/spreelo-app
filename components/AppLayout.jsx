@@ -16,12 +16,12 @@ const navItems = [
     href: "/create",
     icon: "/icons/sidebar/content.png",
   },
-{
-  id: "automation",
-  label: "Content Creator",
-  href: "/automation",
-  icon: "/icons/sidebar/automation.png",
-},
+  {
+    id: "automation",
+    label: "Content Creator",
+    href: "/automation",
+    icon: "/icons/sidebar/automation.png",
+  },
   {
     id: "calendar",
     label: "Calendar",
@@ -109,9 +109,9 @@ export default function AppLayout({ active, children }) {
     setBrandProfiles(brands);
 
     if (brands.length === 0) {
-  window.location.href = "/onboarding";
-  return;
-}
+      window.location.href = "/onboarding";
+      return;
+    }
 
     const storageKey = getBrandStorageKey(currentUser.id);
     const savedBrandId =
@@ -167,20 +167,20 @@ export default function AppLayout({ active, children }) {
     setCreatingBrand(true);
 
     const { data, error } = await supabase
-  .from("brand_profiles")
-  .insert({
-    user_id: user.id,
-    business_name: trimmedBrandName,
-    website_url: "",
-    brand_description: "",
-    industry: "",
-    target_audience: "",
-    content_market: "International / Global",
-    country_code: "GLOBAL",
-    content_language: "English",
-    is_default: brandProfiles.length === 0,
-    updated_at: new Date().toISOString(),
-  })
+      .from("brand_profiles")
+      .insert({
+        user_id: user.id,
+        business_name: trimmedBrandName,
+        website_url: "",
+        brand_description: "",
+        industry: "",
+        target_audience: "",
+        content_market: "International / Global",
+        country_code: "GLOBAL",
+        content_language: "English",
+        is_default: brandProfiles.length === 0,
+        updated_at: new Date().toISOString(),
+      })
       .select("id, business_name, is_default, created_at")
       .single();
 
@@ -214,12 +214,12 @@ export default function AppLayout({ active, children }) {
       <main className="login-page">
         <section className="login-card">
           <div className="brand login-brand">
-  <img
-    src="/brand/spreelologo.png"
-    alt="Spreelo"
-    className="spreelo-logo-image"
-  />
-</div>
+            <img
+              src="/brand/spreelologo.png"
+              alt="Spreelo"
+              className="spreelo-logo-image"
+            />
+          </div>
 
           <p className="login-message">Loading your workspace...</p>
         </section>
@@ -230,13 +230,13 @@ export default function AppLayout({ active, children }) {
   return (
     <main className="app-shell spreelo-shell">
       <aside className="sidebar spreelo-sidebar">
-      <div className="brand spreelo-brand">
-  <img
-    src="/brand/spreelologo.png"
-    alt="Spreelo"
-    className="spreelo-logo-image"
-  />
-</div>
+        <div className="brand spreelo-brand">
+          <img
+            src="/brand/spreelologo.png"
+            alt="Spreelo"
+            className="spreelo-logo-image"
+          />
+        </div>
 
         <div className="current-brand-card">
           <label>Current brand</label>
@@ -276,12 +276,8 @@ export default function AppLayout({ active, children }) {
               className={active === item.id ? "active" : ""}
               href={item.href}
             >
-<img
-  src={item.icon}
-  alt=""
-  className="sidebar-menu-icon"
-/>
-<span>{item.label}</span>
+              <img src={item.icon} alt="" className="sidebar-menu-icon" />
+              <span>{item.label}</span>
             </a>
           ))}
         </nav>
@@ -289,16 +285,22 @@ export default function AppLayout({ active, children }) {
         <div className="sidebar-footer spreelo-sidebar-footer">
           <div className="sidebar-plan-card">
             <div className="sidebar-plan-icon">✦</div>
+
             <div>
               <strong>Plan: Pro</strong>
               <span>Upgrade for more credits & features</span>
             </div>
+
             <span className="sidebar-plan-arrow">›</span>
           </div>
 
           <div className="sidebar-user-email">{user?.email}</div>
 
-          <button type="button" onClick={handleLogout}>
+          <button
+            type="button"
+            className="sidebar-logout-button"
+            onClick={handleLogout}
+          >
             <span>⇱</span>
             Log out
           </button>
