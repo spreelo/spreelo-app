@@ -11036,3 +11036,241 @@ textarea.input:focus,
   padding: 13px 18px !important;
   white-space: nowrap !important;
 }
+/* ===== Final sidebar polish - closer to premium mockup ===== */
+
+.spreelo-sidebar,
+.sidebar.spreelo-sidebar {
+  width: 238px !important;
+  padding: 22px 20px 24px !important;
+  background: #ffffff !important;
+  border-right: 1px solid #e7ebf3 !important;
+  border-radius: 0 24px 24px 0 !important;
+  box-shadow: 22px 0 50px rgba(15, 23, 42, 0.06) !important;
+  overflow-x: hidden !important;
+}
+
+/* Logo area */
+.spreelo-brand,
+.brand.spreelo-brand {
+  width: 100% !important;
+  padding: 0 0 28px !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  overflow: visible !important;
+}
+
+.spreelo-logo-image {
+  width: 148px !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  object-fit: contain !important;
+}
+
+/* Current brand - no outer card */
+.current-brand-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 0 34px !important;
+}
+
+.current-brand-card label {
+  display: block !important;
+  margin: 0 0 9px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.09em !important;
+  text-transform: uppercase !important;
+  color: #6b768c !important;
+}
+
+.current-brand-select,
+.current-brand-new {
+  width: 100% !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  border-radius: 14px !important;
+  border: 1px solid #dfe4ee !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  box-shadow: none !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+}
+
+.current-brand-select {
+  padding: 0 13px !important;
+}
+
+.current-brand-new {
+  margin-top: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+}
+
+/* Navigation */
+.spreelo-nav,
+.nav.spreelo-nav {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+.spreelo-nav a,
+.nav.spreelo-nav a {
+  min-height: 46px !important;
+  padding: 0 13px !important;
+  border-radius: 14px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 13px !important;
+  color: #182238 !important;
+  text-decoration: none !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.1 !important;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+.spreelo-nav a:hover,
+.nav.spreelo-nav a:hover {
+  background: #f7f3ff !important;
+  color: #6d28d9 !important;
+}
+
+.spreelo-nav a.active,
+.nav.spreelo-nav a.active {
+  background: #f4efff !important;
+  color: #6d28d9 !important;
+  border: 1px solid #e3d6ff !important;
+  box-shadow: 0 14px 30px rgba(124, 58, 237, 0.08) !important;
+}
+
+/* Sidebar icons - smaller and calmer */
+.sidebar-menu-icon {
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  max-width: 26px !important;
+  object-fit: contain !important;
+  display: block !important;
+  flex: 0 0 26px !important;
+}
+
+/* If old nav-icon wrapper still exists somewhere */
+.spreelo-nav .nav-icon,
+.nav.spreelo-nav .nav-icon {
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 22px !important;
+}
+
+/* Sidebar footer */
+.spreelo-sidebar-footer,
+.sidebar-footer.spreelo-sidebar-footer {
+  margin-top: auto !important;
+  padding-top: 28px !important;
+}
+
+/* Plan card */
+.sidebar-plan-card {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: 44px 1fr 14px !important;
+  align-items: center !important;
+  gap: 13px !important;
+  padding: 15px !important;
+  border-radius: 18px !important;
+  border: 1px solid #dfd2ff !important;
+  background: linear-gradient(135deg, #fbf9ff, #f6f0ff) !important;
+  box-shadow: none !important;
+}
+
+.sidebar-plan-icon {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 13px !important;
+  background: #efe7ff !important;
+  color: #6d28d9 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 18px !important;
+}
+
+.sidebar-plan-card strong {
+  display: block !important;
+  margin: 0 0 3px !important;
+  color: #6d28d9 !important;
+  font-size: 18px !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
+}
+
+.sidebar-plan-card span {
+  color: #6b7280 !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  font-weight: 500 !important;
+}
+
+.sidebar-plan-arrow {
+  color: #64748b !important;
+  font-size: 19px !important;
+}
+
+.sidebar-user-email {
+  margin-top: 12px !important;
+  font-size: 10px !important;
+  color: #94a3b8 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Hide scrollbar but keep sidebar usable */
+.spreelo-sidebar,
+.sidebar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.spreelo-sidebar::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Mobile */
+@media (max-width: 900px) {
+  .spreelo-sidebar,
+  .sidebar.spreelo-sidebar {
+    width: 100% !important;
+    border-radius: 0 !important;
+    padding: 18px !important;
+  }
+
+  .spreelo-logo-image {
+    width: 150px !important;
+  }
+
+  .sidebar-menu-icon {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+  }
+}
