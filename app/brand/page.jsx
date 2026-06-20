@@ -259,24 +259,7 @@ export default function BrandProfile() {
 
     return () => clearInterval(interval);
   }, [analyzing]);
-
-  function normalizeWebsiteUrl(value) {
-    const trimmedValue = String(value || "").trim();
-
-    if (!trimmedValue) {
-      return "";
-    }
-
-    if (
-      trimmedValue.startsWith("http://") ||
-      trimmedValue.startsWith("https://")
-    ) {
-      return trimmedValue;
-    }
-
-    return `https://${trimmedValue}`;
-  }
-
+  
   function handleMarketChange(event) {
     const nextMarket = event.target.value;
     const selectedMarket = marketOptions.find(
