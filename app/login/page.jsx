@@ -88,9 +88,7 @@ export default function LoginPage() {
     setEmail(normalizedEmail);
     setCodeSent(true);
     setOtpCode("");
-    setMessage(
-  "We sent a 6-digit sign-in code to your email. If you do not see it, please check your spam or junk folder."
-);
+   setMessage("We sent a 6-digit sign-in code to your email.");
     setLoading(false);
   }
 
