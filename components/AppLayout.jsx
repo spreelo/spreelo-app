@@ -244,21 +244,21 @@ export default function AppLayout({ active, children }) {
           {loadingBrands ? (
             <div className="current-brand-loading">Loading brands...</div>
           ) : brandProfiles.length > 0 ? (
-          <div className="current-brand-select-wrap">
-  <span className="current-brand-business-icon">▦</span>
+            <div className="current-brand-select-wrap">
+              <span className="current-brand-business-icon">▦</span>
 
-  <select
-    className="current-brand-select"
-    value={currentBrand?.id || ""}
-    onChange={handleBrandChange}
-  >
-    {brandProfiles.map((brand) => (
-      <option key={brand.id} value={brand.id}>
-        {brand.business_name || "Unnamed brand"}
-      </option>
-    ))}
-  </select>
-</div>
+              <select
+                className="current-brand-select"
+                value={currentBrand?.id || ""}
+                onChange={handleBrandChange}
+              >
+                {brandProfiles.map((brand) => (
+                  <option key={brand.id} value={brand.id}>
+                    {brand.business_name || "Unnamed brand"}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : (
             <div className="current-brand-loading">No brand yet</div>
           )}
@@ -269,7 +269,7 @@ export default function AppLayout({ active, children }) {
             onClick={handleCreateBrand}
             disabled={creatingBrand}
           >
-            {creatingBrand ? "Creating..." : "+ New brand"}
+            {creatingBrand ? "Creating..." : "Add new brand"}
           </button>
         </div>
 
@@ -297,8 +297,6 @@ export default function AppLayout({ active, children }) {
 
             <span className="sidebar-plan-arrow">›</span>
           </div>
-
-          <div className="sidebar-user-email">{user?.email}</div>
 
           <button
             type="button"
