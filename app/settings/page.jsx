@@ -11,16 +11,16 @@ export default function Settings() {
   const [deleteMessage, setDeleteMessage] = useState("");
 
   useEffect(() => {
-  async function loadUser() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    async function loadUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    setCurrentUserEmail(user?.email || "");
-  }
+      setCurrentUserEmail(user?.email || "");
+    }
 
-  loadUser();
-}, []);
+    loadUser();
+  }, []);
 
   async function handleDeleteAccount() {
     if (deletingAccount) return;
@@ -81,21 +81,18 @@ export default function Settings() {
       </header>
 
       <section className="hero-card">
-  <div>
-    <p className="eyebrow">Account</p>
-    <h3>Your account</h3>
-    <p>
-      Manage your Spreelo account and account data.
-    </p>
-  </div>
+        <div>
+          <p className="eyebrow">Account</p>
+          <h3>Your account</h3>
+          <p>Manage your Spreelo account and account data.</p>
+        </div>
 
-  <div className="prompt-box">
-    <label>Signed in as</label>
-    <div className="input">
-      {currentUserEmail || "Signed in user"}
-    </div>
-  </div>
-</section>
+        <div className="prompt-box">
+          <label>Signed in as</label>
+          <div className="input">{currentUserEmail || "Signed in user"}</div>
+        </div>
+      </section>
+
       <section className="settings-danger-zone">
         <div>
           <p className="eyebrow danger-eyebrow">Danger zone</p>
