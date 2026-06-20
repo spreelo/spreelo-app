@@ -1465,17 +1465,52 @@ function getCampaignDateLabel(campaign) {
 }
 
 function buildFallbackCampaignPlan(count) {
-  return Array.from({ length: count }).map((_, index) => ({
-    role:
-      index === count - 1
-        ? "Final campaign post"
-        : `Campaign build-up post ${index + 1}`,
-    purpose:
-      index === count - 1
-        ? "Create the main campaign post connected to the campaign date."
-        : "Build interest and relevance before the campaign date.",
-    days_before_event: Math.max((count - 1 - index) * 3, 0),
-  }));
+  const templates = [
+    {
+      role: "Awareness post",
+      purpose: "Introduce the campaign and explain why it matters to the audience.",
+    },
+    {
+      role: "Education post",
+      purpose: "Share useful information connected to the campaign topic.",
+    },
+    {
+      role: "Value post",
+      purpose: "Explain the value, benefit or reason to act before the campaign date.",
+    },
+    {
+      role: "Trust post",
+      purpose: "Build trust with an example, reassurance or helpful explanation.",
+    },
+    {
+      role: "Engagement post",
+      purpose: "Encourage the audience to react, comment or think about the campaign topic.",
+    },
+    {
+      role: "Reminder post",
+      purpose: "Remind the audience that the campaign date is getting closer.",
+    },
+    {
+      role: "Final campaign reminder",
+      purpose: "Create a final reminder connected to the campaign date.",
+    },
+  ];
+
+  return Array.from({ length: count }).map((_, index) => {
+    const isLast = index === count - 1;
+    const template =
+      templates[index] ||
+      templates[templates.length - 2] ||
+      templates[0];
+
+    return {
+      role: isLast ? "Final campaign reminder" : template.role,
+      purpose: isLast
+        ? "Create a final reminder connected to the campaign date."
+        : template.purpose,
+      days_before_event: isLast ? 0 : Math.max((count - 1 - index) * 3, 1),
+    };
+  });
 }
 
 function getCampaignRecommendedPostCount(campaign, fallbackCount = 3) {
