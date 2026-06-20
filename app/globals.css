@@ -1791,18 +1791,26 @@ select.input {
 }
 
 .view-calendar-button {
-  border: 1px solid rgba(226, 232, 240, 0.95);
-    background: #ffffff;
-    color: #111827;
-    border-radius: 12px;
-    padding: 11px 13px;
-    font-size: 13px;
-    font-weight: 900;
-    cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid #dbe2ec;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: none;
 }
 
 .view-calendar-button:hover {
-  background: #f8fafc;
+  background: #f7f4ff;
+  border-color: #c4b5fd;
+  color: #6d28d9;
 }
 
 .planner-post-table {
