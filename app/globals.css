@@ -9203,3 +9203,25 @@ textarea.input:focus,
   opacity: 0.55;
   cursor: not-allowed;
 }
+.login-help-box {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  background: rgba(255, 247, 237, 0.9);
+  color: #78350f;
+}
+
+.login-help-box strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+
+.login-help-box p {
+  margin: 0;
+  color: #92400e;
+  font-size: 14px;
+  line-height: 1.5;
+}
