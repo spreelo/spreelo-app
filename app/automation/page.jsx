@@ -1892,19 +1892,8 @@ function createCampaignSlotsFromOpportunity({
   timeZone = DEFAULT_TIME_ZONE,
   defaultPublishTime = "09:00",
 }) {
-  const recommendedCount = Math.min(
-    Math.max(Number(campaign?.recommended_post_count || 5), 1),
-    10
-  );
-
-  const rawPostPlan = Array.isArray(campaign?.post_plan)
-    ? campaign.post_plan
-    : [];
-
-  const postPlan =
-    rawPostPlan.length > 0
-      ? rawPostPlan.slice(0, recommendedCount)
-      : buildFallbackCampaignPlan(recommendedCount);
+  const recommendedCount = getCampaignRecommendedPostCount(campaign);
+  const postPlan = buildCampaignPostPlan(campaign, recommendedCount);
 
   const defaultDaysBeforeEvent = getDefaultCampaignDaysBeforeEvent(
     postPlan.length
