@@ -3356,9 +3356,13 @@ setRules((currentRules) =>
     </p>
   </div>
 
-  <button type="button" className="learn-more-button">
-    ⓘ Learn more
-  </button>
+<button
+  type="button"
+  className="learn-more-button"
+  onClick={() => setShowLearnMoreModal(true)}
+>
+  ⓘ Learn more
+</button>
 </header>
 
 {campaignOpportunity && (
