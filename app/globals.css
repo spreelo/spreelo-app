@@ -9318,3 +9318,305 @@ textarea.input:focus,
   transform: translateY(-1px);
   box-shadow: 0 18px 34px rgba(79, 70, 229, 0.28);
 }
+.spreelo-mobile-header,
+.spreelo-mobile-menu-backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .spreelo-shell,
+  .app-shell {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    background: #f8f8fb !important;
+  }
+
+  .spreelo-mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 400;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 68px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.96);
+    border-bottom: 1px solid #e7e7ef;
+    box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06);
+    backdrop-filter: blur(12px);
+  }
+
+  .spreelo-mobile-logo {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .spreelo-mobile-logo .spreelo-logo-image {
+    width: 92px;
+    height: auto;
+    display: block;
+  }
+
+  .spreelo-mobile-brand {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .spreelo-mobile-brand span {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .spreelo-mobile-brand strong {
+    color: #111827;
+    font-size: 13px;
+    font-weight: 950;
+    line-height: 1.2;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .spreelo-mobile-menu-button {
+    width: 42px;
+    height: 42px;
+    border: 1px solid #dfe3ec;
+    border-radius: 14px;
+    background: #ffffff;
+    display: grid;
+    place-items: center;
+    gap: 4px;
+    padding: 9px;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+  }
+
+  .spreelo-mobile-menu-button span {
+    display: block;
+    width: 18px;
+    height: 2px;
+    border-radius: 999px;
+    background: #111827;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+  }
+
+  .spreelo-mobile-menu-button.open span:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+  }
+
+  .spreelo-mobile-menu-button.open span:nth-child(2) {
+    opacity: 0;
+  }
+
+  .spreelo-mobile-menu-button.open span:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+  }
+
+  .spreelo-mobile-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 390;
+    display: block;
+    border: 0;
+    background: rgba(15, 23, 42, 0.34);
+    backdrop-filter: blur(4px);
+  }
+
+  .spreelo-sidebar,
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 410 !important;
+    width: min(84vw, 320px) !important;
+    max-width: 320px !important;
+    min-width: 0 !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    padding: 24px 18px !important;
+    border-radius: 0 24px 24px 0 !important;
+    border: 1px solid #e7e7ef !important;
+    border-left: 0 !important;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfaff 100%) !important;
+    box-shadow: 24px 0 70px rgba(15, 23, 42, 0.18) !important;
+    overflow-y: auto !important;
+    transform: translateX(-105%) !important;
+    transition: transform 0.22s ease !important;
+  }
+
+  .spreelo-sidebar.mobile-open,
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  .spreelo-sidebar .spreelo-brand,
+  .sidebar .spreelo-brand,
+  .spreelo-sidebar .brand,
+  .sidebar .brand {
+    padding: 0 0 22px !important;
+  }
+
+  .spreelo-sidebar .spreelo-logo-image,
+  .sidebar .spreelo-logo-image {
+    width: 104px;
+    height: auto;
+  }
+
+  .spreelo-nav,
+  .nav {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .spreelo-nav a,
+  .nav a {
+    height: 46px !important;
+    min-height: 46px !important;
+    border-radius: 13px !important;
+  }
+
+  .spreelo-content,
+  .content {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 18px 10px 34px !important;
+    overflow-x: hidden !important;
+  }
+
+  .planner-wizard-page,
+  .dashboard-page,
+  .brand-profile-page,
+  .campaign-calendar-page,
+  .automation-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .planner-hero,
+  .dashboard-hero,
+  .brand-profile-hero,
+  .campaign-calendar-hero {
+    margin-bottom: 14px !important;
+  }
+
+  .planner-hero h2,
+  .dashboard-hero h2,
+  .brand-profile-hero h2,
+  .campaign-calendar-hero h2 {
+    font-size: 26px !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.055em !important;
+  }
+
+  .planner-hero p,
+  .dashboard-hero span,
+  .brand-profile-hero span,
+  .campaign-calendar-hero span {
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+  }
+
+  .automation-page .planner-summary-card {
+    padding: 16px !important;
+  }
+
+  .automation-page .planner-summary-title {
+    margin-bottom: 10px !important;
+  }
+
+  .automation-page .planner-summary-list.premium {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .automation-page .planner-summary-list.premium div {
+    padding: 10px !important;
+    border: 1px solid #edf0f5 !important;
+    border-radius: 13px !important;
+    background: #ffffff !important;
+  }
+
+  .automation-page .planner-summary-list.premium span {
+    font-size: 10px !important;
+  }
+
+  .automation-page .planner-summary-list.premium strong {
+    font-size: 12px !important;
+  }
+
+  .automation-page .planner-summary-status {
+    margin-top: 10px !important;
+    padding: 10px !important;
+  }
+
+  .automation-page .planner-post-mainline {
+    min-height: auto !important;
+    padding: 12px !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .automation-page .planner-post-index {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 18px !important;
+  }
+
+  .automation-page .planner-post-title strong {
+    font-size: 13px !important;
+  }
+
+  .automation-page .planner-post-title span {
+    font-size: 11.5px !important;
+    white-space: normal !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+  }
+
+  .automation-page .planner-post-date,
+  .automation-page .planner-post-time,
+  .automation-page .planner-post-format,
+  .automation-page .planner-post-actions {
+    grid-column: 2 !important;
+  }
+
+  .automation-page .locked-campaign-date,
+  .automation-page .planner-post-date .custom-picker-button,
+  .automation-page .planner-post-time .custom-picker-button {
+    width: 100% !important;
+  }
+
+  .automation-page .planner-post-actions {
+    justify-content: flex-start !important;
+  }
+
+  .automation-page .planner-post-expanded {
+    margin: 0 10px 12px !important;
+    padding: 12px !important;
+  }
+
+  .automation-page .planner-credits-card:has(.summary-note) {
+    display: none !important;
+  }
+
+  .automation-page .saved-card-compact {
+    margin-top: 0 !important;
+  }
+
+  .campaign-calendar-page .campaign-card-create-button {
+    width: 100% !important;
+  }
+}
