@@ -3304,12 +3304,14 @@ setRules((currentRules) =>
       </span>
     </div>
 
-    <div className="campaign-mode-meta">
+      <div className="campaign-mode-meta">
+      <span>Campaign date</span>
       <strong>{getCampaignDateLabel(campaignOpportunity)}</strong>
-      <span>
-        {campaignOpportunity.recommended_post_count || slots.length} recommended
-        posts
-      </span>
+
+      <span>Recommended plan</span>
+      <strong>
+        {getCampaignRecommendedPostCount(campaignOpportunity, slots.length)} posts
+      </strong>
     </div>
   </section>
 )}
