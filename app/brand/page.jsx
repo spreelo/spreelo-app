@@ -733,7 +733,7 @@ export default function BrandProfile() {
             <div className="brand-profile-guide-icon">✦</div>
 
             <p className="dashboard-eyebrow">Setup flow</p>
-            <h3>From brand info to campaign calendar</h3>
+           <h3>From brand info to content ideas</h3>
 
             <div className="brand-profile-step-list">
               <div>
