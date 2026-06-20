@@ -76,6 +76,16 @@ function normalizeWebsiteUrl(value) {
   return `https://${trimmed}`;
 }
 
+function isDuplicateDefaultBrandError(error) {
+  const message = String(error?.message || "").toLowerCase();
+
+  return (
+    error?.code === "23505" ||
+    message.includes("duplicate key value") ||
+    message.includes("brand_profiles_one_default_per_user_idx")
+  );
+}
+
 export default function OnboardingPage() {
   const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(true);
@@ -98,6 +108,41 @@ export default function OnboardingPage() {
     return normalizeWebsiteUrl(websiteUrl);
   }, [websiteUrl]);
 
+  async function getExistingBrand(userId) {
+    const { data, error } = await supabase
+      .from("brand_profiles")
+      .select("id, business_name")
+      .eq("user_id", userId)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    if (error) {
+      throw error;
+    }
+
+    return (data || [])[0] || null;
+  }
+
+  function saveCurrentBrand(userId, brandId) {
+    if (typeof window === "undefined" || !userId || !brandId) return;
+
+    localStorage.setItem(getBrandStorageKey(userId), brandId);
+    localStorage.setItem("spreelo_current_brand_id", brandId);
+  }
+
+  async function continueWithExistingBrand(userId) {
+    const existingBrand = await getExistingBrand(userId);
+
+    if (!existingBrand?.id) {
+      return false;
+    }
+
+    saveCurrentBrand(userId, existingBrand.id);
+    window.location.href = "/";
+    return true;
+  }
+
   useEffect(() => {
     async function checkUserAndBrand() {
       const {
@@ -111,24 +156,18 @@ export default function OnboardingPage() {
 
       setUser(user);
 
-      const { data: existingBrands, error } = await supabase
-        .from("brand_profiles")
-        .select("id")
-        .eq("user_id", user.id)
-        .limit(1);
+      try {
+        const continued = await continueWithExistingBrand(user.id);
 
-      if (error) {
-        setMessage(error.message);
+        if (continued) {
+          return;
+        }
+
         setChecking(false);
-        return;
+      } catch (error) {
+        setMessage(error.message || "Could not prepare your workspace.");
+        setChecking(false);
       }
-
-      if ((existingBrands || []).length > 0) {
-        window.location.href = "/";
-        return;
-      }
-
-      setChecking(false);
     }
 
     checkUserAndBrand();
@@ -231,6 +270,12 @@ export default function OnboardingPage() {
     setMessage("");
 
     try {
+      const alreadyHasBrand = await continueWithExistingBrand(user.id);
+
+      if (alreadyHasBrand) {
+        return;
+      }
+
       const { data: createdBrand, error: createError } = await supabase
         .from("brand_profiles")
         .insert({
@@ -250,14 +295,20 @@ export default function OnboardingPage() {
         .single();
 
       if (createError) {
+        if (isDuplicateDefaultBrandError(createError)) {
+          const continued = await continueWithExistingBrand(user.id);
+
+          if (continued) {
+            return;
+          }
+        }
+
         throw new Error(
           createError.message || "Could not create brand profile."
         );
       }
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem(getBrandStorageKey(user.id), createdBrand.id);
-      }
+      saveCurrentBrand(user.id, createdBrand.id);
 
       const {
         data: { session },
