@@ -494,7 +494,7 @@ export default function BrandProfile() {
       setMessage(error.message);
     } else {
       setWebsiteUrl(finalWebsiteUrl);
-      setMessage("Brand profile saved.");
+      setMessage("Brand profile saved. AI setup is ready.");
     }
 
     setSaving(false);
