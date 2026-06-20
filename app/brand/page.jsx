@@ -64,6 +64,23 @@ function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
 
+function normalizeWebsiteUrl(value) {
+  const trimmedValue = String(value || "").trim();
+
+  if (!trimmedValue) {
+    return "";
+  }
+
+  if (
+    trimmedValue.startsWith("http://") ||
+    trimmedValue.startsWith("https://")
+  ) {
+    return trimmedValue;
+  }
+
+  return `https://${trimmedValue}`;
+}
+
 export default function BrandProfile() {
   const [brandProfileId, setBrandProfileId] = useState("");
   const [businessName, setBusinessName] = useState("");
