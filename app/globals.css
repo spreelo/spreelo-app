@@ -9056,3 +9056,91 @@ textarea.input:focus,
 .brand-profile-hero-badge.ready span {
   color: #166534 !important;
 }
+/* ===== Sidebar spacing and brand controls refinement ===== */
+
+.spreelo-sidebar {
+  width: 260px !important;
+  min-width: 260px !important;
+  padding: 28px 18px 20px !important;
+}
+
+.spreelo-content {
+  padding-left: 22px !important;
+}
+
+.spreelo-brand {
+  margin-top: 10px !important;
+  margin-bottom: 30px !important;
+}
+
+.spreelo-brand .spreelo-logo-image {
+  display: block !important;
+  max-width: 148px !important;
+  height: auto !important;
+}
+
+.current-brand-card {
+  margin-bottom: 18px !important;
+}
+
+.current-brand-select-wrap {
+  min-height: 46px !important;
+}
+
+.current-brand-new {
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0 13px !important;
+  margin-top: 10px !important;
+  border-radius: 12px !important;
+  background: #f5f3ff !important;
+  border: 1px solid rgba(109, 40, 217, 0.14) !important;
+  color: #6d28d9 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  letter-spacing: -0.01em !important;
+  justify-content: center !important;
+}
+
+.current-brand-new:hover {
+  background: #ede9fe !important;
+  border-color: rgba(109, 40, 217, 0.24) !important;
+  color: #5b21b6 !important;
+}
+
+.spreelo-nav {
+  gap: 5px !important;
+}
+
+.spreelo-sidebar-footer {
+  gap: 12px !important;
+}
+
+.sidebar-user-email {
+  display: none !important;
+}
+
+.sidebar-plan-card {
+  margin-bottom: 0 !important;
+}
+
+.sidebar-logout-button {
+  min-height: 42px !important;
+  width: 100% !important;
+  justify-content: center !important;
+  border-radius: 15px !important;
+  background: #fff7ed !important;
+  border: 1px solid rgba(249, 115, 22, 0.18) !important;
+  color: #9a3412 !important;
+  font-weight: 900 !important;
+}
+
+.sidebar-logout-button span {
+  color: #c2410c !important;
+}
+
+.sidebar-logout-button:hover {
+  background: #ffedd5 !important;
+  border-color: rgba(249, 115, 22, 0.3) !important;
+  color: #7c2d12 !important;
+}
