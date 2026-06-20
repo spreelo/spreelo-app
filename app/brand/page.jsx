@@ -707,10 +707,9 @@ export default function BrandProfile() {
             <p className="dashboard-eyebrow">Brand profile</p>
             <h2>Teach Spreelo about your brand</h2>
             <span>
-              Set your business context, target market and content language.
-              Spreelo uses this to create better posts and smarter campaign
-              opportunities.
-            </span>
+  Set your business context, market and language. Spreelo uses this
+  to create better regular posts, campaign ideas and content plans.
+</span>
           </div>
 
           <div className="brand-profile-hero-badge">
