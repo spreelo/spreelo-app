@@ -244,17 +244,21 @@ export default function AppLayout({ active, children }) {
           {loadingBrands ? (
             <div className="current-brand-loading">Loading brands...</div>
           ) : brandProfiles.length > 0 ? (
-            <select
-              className="current-brand-select"
-              value={currentBrand?.id || ""}
-              onChange={handleBrandChange}
-            >
-              {brandProfiles.map((brand) => (
-                <option key={brand.id} value={brand.id}>
-                  {brand.business_name || "Unnamed brand"}
-                </option>
-              ))}
-            </select>
+          <div className="current-brand-select-wrap">
+  <span className="current-brand-business-icon">▦</span>
+
+  <select
+    className="current-brand-select"
+    value={currentBrand?.id || ""}
+    onChange={handleBrandChange}
+  >
+    {brandProfiles.map((brand) => (
+      <option key={brand.id} value={brand.id}>
+        {brand.business_name || "Unnamed brand"}
+      </option>
+    ))}
+  </select>
+</div>
           ) : (
             <div className="current-brand-loading">No brand yet</div>
           )}
