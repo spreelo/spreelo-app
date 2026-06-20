@@ -30,6 +30,18 @@ function formatShortDate(value) {
   }).format(new Date(value));
 }
 
+function formatCampaignDate(campaign) {
+  if (!campaign) return "Date not set";
+
+  if (campaign.start_date && campaign.end_date) {
+    return `${formatShortDate(campaign.start_date)} – ${formatShortDate(
+      campaign.end_date
+    )}`;
+  }
+
+  return formatShortDate(campaign.event_date || campaign.start_date);
+}
+
 function formatStatus(status) {
   if (!status) return "Draft";
 
@@ -57,7 +69,7 @@ function formatPlanName(rule) {
   if (rule?.content_type_label) return rule.content_type_label;
   if (rule?.post_type) return rule.post_type;
 
-  return "Automation rule";
+  return "Content plan";
 }
 
 function getCurrentMonthStart() {
@@ -96,9 +108,20 @@ function calculateBrandProfileCompleteness(profile) {
   };
 }
 
+function getCampaignSortDate(campaign) {
+  return new Date(
+    campaign?.event_date ||
+      campaign?.start_date ||
+      campaign?.end_date ||
+      campaign?.created_at ||
+      Date.now()
+  );
+}
+
 export default function Home() {
   const [posts, setPosts] = useState([]);
   const [rules, setRules] = useState([]);
+  const [suggestedCampaign, setSuggestedCampaign] = useState(null);
   const [creditBalance, setCreditBalance] = useState(null);
   const [brandProfile, setBrandProfile] = useState(null);
   const [currentBrandId, setCurrentBrandId] = useState("");
@@ -155,6 +178,7 @@ export default function Home() {
     setSelectedPendingPostIds([]);
     setDeleteConfirmActive(false);
     setShowAllPendingPosts(false);
+    setSuggestedCampaign(null);
 
     const {
       data: { user },
@@ -215,6 +239,40 @@ export default function Home() {
       );
     } else {
       setRules(rulesData || []);
+    }
+
+    const { data: campaignData, error: campaignError } = await supabase
+      .from("brand_campaign_opportunities")
+      .select(
+        "id, title, description, event_date, start_date, end_date, recommended_post_count, relevance_score, sales_score, engagement_score, is_active, is_hidden, is_archived, created_at"
+      )
+      .eq("brand_profile_id", selectedBrand.id)
+      .eq("is_active", true)
+      .eq("is_hidden", false)
+      .eq("is_archived", false);
+
+    if (!campaignError) {
+      const now = new Date();
+
+      const upcomingCampaigns = (campaignData || [])
+        .filter((campaign) => getCampaignSortDate(campaign) >= now)
+        .sort((a, b) => {
+          const scoreA =
+            Number(a.relevance_score || 0) +
+            Number(a.sales_score || 0) +
+            Number(a.engagement_score || 0);
+
+          const scoreB =
+            Number(b.relevance_score || 0) +
+            Number(b.sales_score || 0) +
+            Number(b.engagement_score || 0);
+
+          if (scoreB !== scoreA) return scoreB - scoreA;
+
+          return getCampaignSortDate(a) - getCampaignSortDate(b);
+        });
+
+      setSuggestedCampaign(upcomingCampaigns[0] || null);
     }
 
     const { data: balanceData } = await supabase
@@ -372,8 +430,7 @@ export default function Home() {
     setBulkActionLoading(false);
     setMessage(`${idsToDelete.length} selected post(s) deleted.`);
   }
-
-  return (
+    return (
     <AppLayout active="dashboard">
       <div className="dashboard-page">
         <header className="dashboard-hero">
@@ -388,11 +445,11 @@ export default function Home() {
 
           <div className="dashboard-hero-actions">
             <a className="dashboard-secondary-action" href="/calendar">
-              View calendar
+              Your calendar
             </a>
 
             <a className="dashboard-primary-action" href="/automation">
-              New automation
+              New content plan
             </a>
           </div>
         </header>
@@ -413,7 +470,7 @@ export default function Home() {
               <div className="dashboard-stat-card">
                 <span>Planned posts</span>
                 <strong>{activeRules.length + scheduledPosts.length}</strong>
-                <p>Upcoming automation rules and scheduled content.</p>
+                <p>Upcoming content plans and scheduled content.</p>
               </div>
 
               <div className="dashboard-stat-card">
@@ -429,13 +486,9 @@ export default function Home() {
               </div>
 
               <div className="dashboard-stat-card">
-                <span>Credits left</span>
-                <strong>{creditsRemaining}</strong>
-                <p>
-                  {monthlyCreditLimit
-                    ? `Out of ${monthlyCreditLimit} monthly credits.`
-                    : "No monthly limit found."}
-                </p>
+                <span>Active content plans</span>
+                <strong>{activeRules.length}</strong>
+                <p>Saved plans currently active for this brand.</p>
               </div>
             </section>
 
@@ -448,7 +501,7 @@ export default function Home() {
                       <h3>Next planned posts</h3>
                     </div>
 
-                    <a href="/calendar">View calendar</a>
+                    <a href="/calendar">Your calendar</a>
                   </div>
 
                   {loading ? (
@@ -458,12 +511,12 @@ export default function Home() {
                     </div>
                   ) : upcomingRules.length === 0 ? (
                     <div className="dashboard-empty">
-                      <h4>No upcoming automation for {currentBrandName}</h4>
+                      <h4>No upcoming content plans for {currentBrandName}</h4>
                       <p>
-                        Create an automation plan for this brand and Spreelo will
+                        Create a content plan for this brand and Spreelo will
                         show the next planned posts here.
                       </p>
-                      <a href="/automation">Create automation</a>
+                      <a href="/automation">Create content plan</a>
                     </div>
                   ) : (
                     <div className="dashboard-upcoming-list">
@@ -570,8 +623,8 @@ export default function Home() {
                           {bulkActionLoading
                             ? "Deleting..."
                             : deleteConfirmActive
-                            ? `Confirm delete ${selectedPendingCount}`
-                            : "Delete selected"}
+                              ? `Confirm delete ${selectedPendingCount}`
+                              : "Delete selected"}
                         </button>
                       )}
 
@@ -655,7 +708,7 @@ export default function Home() {
                                 Created {formatDate(post.created_at)} ·{" "}
                                 {post.source_label ||
                                   (post.source === "automation"
-                                    ? "Generated by automation"
+                                    ? "Generated by content plan"
                                     : "Manual draft")}
                               </small>
                             </div>
@@ -774,36 +827,54 @@ export default function Home() {
                   </a>
                 </section>
 
-                <section className="dashboard-side-card">
+                <section className="dashboard-side-card highlighted">
                   <div className="dashboard-side-title">
-                    <span>⚡</span>
+                    <span>◇</span>
                     <div>
-                      <h3>Quick actions</h3>
-                      <p>Go directly to the next task.</p>
+                      <h3>Suggested campaign</h3>
+                      <p>Recommended next campaign idea.</p>
                     </div>
                   </div>
 
-                  <div className="dashboard-action-list">
-                    <a href="/automation">
-                      <span>New automation</span>
-                      <strong>→</strong>
-                    </a>
+                  {suggestedCampaign ? (
+                    <>
+                      <strong className="dashboard-next-title">
+                        {suggestedCampaign.title}
+                      </strong>
 
-                    <a href="/calendar">
-                      <span>Open calendar</span>
-                      <strong>→</strong>
-                    </a>
+                      <p className="dashboard-side-note">
+                        {formatCampaignDate(suggestedCampaign)} · Recommended:{" "}
+                        {suggestedCampaign.recommended_post_count || 3} posts
+                      </p>
 
-                    <a href="#pending-review">
-                      <span>Approve content</span>
-                      <strong>→</strong>
-                    </a>
+                      {suggestedCampaign.description && (
+                        <p className="dashboard-side-note">
+                          {suggestedCampaign.description}
+                        </p>
+                      )}
 
-                    <a href="/brand">
-                      <span>Edit brand profile</span>
-                      <strong>→</strong>
-                    </a>
-                  </div>
+                      <a
+                        className="dashboard-side-link"
+                        href={`/automation?campaignId=${suggestedCampaign.id}`}
+                      >
+                        Create campaign plan
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <strong className="dashboard-next-title">
+                        No suggested campaign yet
+                      </strong>
+
+                      <p className="dashboard-side-note">
+                        Open Calendar to review campaign ideas for this brand.
+                      </p>
+
+                      <a className="dashboard-side-link" href="/calendar">
+                        Open calendar
+                      </a>
+                    </>
+                  )}
                 </section>
 
                 {nextAutomation && (
@@ -811,7 +882,7 @@ export default function Home() {
                     <div className="dashboard-side-title">
                       <span>⌁</span>
                       <div>
-                        <h3>Next automation</h3>
+                        <h3>Next content plan</h3>
                         <p>{formatDate(nextAutomation.next_run_at)}</p>
                       </div>
                     </div>
