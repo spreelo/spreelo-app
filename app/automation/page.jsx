@@ -3726,9 +3726,9 @@ setRules((currentRules) =>
       </div>
 
       <div className="planner-schedule-actions">
-        <button type="button" className="view-calendar-button">
-          □ View calendar
-        </button>
+    <a className="view-calendar-button" href="/calendar">
+  View calendar
+</a>
 
         <button
           type="button"
