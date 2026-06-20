@@ -10,6 +10,18 @@ export default function Settings() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
 
+  useEffect(() => {
+  async function loadUser() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    setCurrentUserEmail(user?.email || "");
+  }
+
+  loadUser();
+}, []);
+
   async function handleDeleteAccount() {
     if (deletingAccount) return;
 
