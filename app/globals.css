@@ -817,14 +817,20 @@ select.input {
 }
 
 .saved-rule-card .danger-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   height: 32px;
-    padding: 0 11px;
-    border-radius: 10px;
-    background: #fff7f7;
-    border-color: #fecaca;
-    color: #991b1b;
-    font-size: 12px;
-    font-weight: 900;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: #fff7f7;
+  border-color: #fecaca;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1 !important;
+  vertical-align: middle;
 }
 
 .saved-rule-card .danger-button:hover {
