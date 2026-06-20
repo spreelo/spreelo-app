@@ -59,6 +59,7 @@ export default function AppLayout({ active, children }) {
   const [currentBrandId, setCurrentBrandId] = useState("");
   const [loadingBrands, setLoadingBrands] = useState(true);
   const [creatingBrand, setCreatingBrand] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const currentBrand = useMemo(() => {
     return (
@@ -229,7 +230,52 @@ export default function AppLayout({ active, children }) {
 
   return (
     <main className="app-shell spreelo-shell">
-      <aside className="sidebar spreelo-sidebar">
+      <header className="spreelo-mobile-header">
+        <a href="/" className="spreelo-mobile-logo">
+          <img
+            src="/brand/spreelologo.png"
+            alt="Spreelo"
+            className="spreelo-logo-image"
+          />
+        </a>
+
+        <div className="spreelo-mobile-brand">
+          <span>Current brand</span>
+          <strong>
+            {loadingBrands
+              ? "Loading..."
+              : currentBrand?.business_name || "No brand"}
+          </strong>
+        </div>
+
+        <button
+          type="button"
+          className={`spreelo-mobile-menu-button ${
+            mobileMenuOpen ? "open" : ""
+          }`}
+          onClick={() => setMobileMenuOpen((current) => !current)}
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+      </header>
+
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          className="spreelo-mobile-menu-backdrop"
+          aria-label="Close menu"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`sidebar spreelo-sidebar ${
+          mobileMenuOpen ? "mobile-open" : ""
+        }`}
+      >
         <div className="brand spreelo-brand">
           <img
             src="/brand/spreelologo.png"
@@ -279,6 +325,7 @@ export default function AppLayout({ active, children }) {
               key={item.id}
               className={active === item.id ? "active" : ""}
               href={item.href}
+              onClick={() => setMobileMenuOpen(false)}
             >
               <img src={item.icon} alt="" className="sidebar-menu-icon" />
               <span>{item.label}</span>
