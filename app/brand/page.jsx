@@ -712,10 +712,20 @@ export default function BrandProfile() {
 </span>
           </div>
 
-          <div className="brand-profile-hero-badge">
-            <strong>AI setup</strong>
-            <span>No posts are created until you choose a campaign.</span>
-          </div>
+         <div
+  className={`brand-profile-hero-badge ${
+    isBrandProfileReady ? "ready" : "needs-setup"
+  }`}
+>
+  <strong>
+    {isBrandProfileReady ? "AI setup ready" : "Setup needed"}
+  </strong>
+  <span>
+    {isBrandProfileReady
+      ? "You can now create content with Content Creator or choose campaign ideas in Calendar."
+      : "Complete and save your brand profile before creating content."}
+  </span>
+</div>
         </header>
 
         <section className="brand-profile-layout">
