@@ -77,8 +77,9 @@ const [isConnectingFacebook, setIsConnectingFacebook] = useState(false);
   }
 
   async function loadConnections() {
-    setLoading(true);
-    setMessage("");
+  setLoading(true);
+setMessage("");
+setIsConnectingFacebook(false);
 
     const {
       data: { user },
