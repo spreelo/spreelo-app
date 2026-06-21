@@ -341,6 +341,9 @@ Important:
   return `
 Business name: ${brandProfile.business_name || "Not provided"}
 Website URL: ${brandProfile.website_url || "Not provided"}
+Website product source URL: ${
+  brandProfile.website_product_source_url || "Not provided"
+}
 Industry / business type: ${brandProfile.industry || "Not provided"}
 Target audience: ${brandProfile.target_audience || "Not provided"}
 `.trim();
