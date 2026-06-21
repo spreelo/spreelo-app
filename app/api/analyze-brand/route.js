@@ -833,9 +833,13 @@ Return JSON only in this exact shape:
       "campaign_angles": ["angle 1", "angle 2"],
       "post_plan": [
         {
-          "role": "Reminder",
+          "role": "Campaign post role, for example Awareness, Product idea, Trust builder or Final reminder",
           "days_before_event": 14,
-          "purpose": "What this post should achieve"
+          "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main",
+          "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency | main",
+          "customer_stage": "cold | warm | ready_to_buy",
+          "cta_strength": "soft | medium | strong",
+          "purpose": "What this post should achieve in the campaign sequence"
         }
       ],
       "prompt_context": "Reusable prompt context for generating posts later. Do not include finished post copy."
