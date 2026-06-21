@@ -259,7 +259,7 @@ await redirectAfterLogin(data?.user);
 
         {codeSent && (
           <div className="login-help-box">
-            <strong>Can’t find the email?</strong>
+            <strong>Didn’t receive the code?</strong>
             <p>
               Check your spam or junk folder. The code can sometimes take up to
               a minute to arrive.
