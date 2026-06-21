@@ -993,8 +993,8 @@ setAnalyzing(true);
       <div>
         <strong>Analyzing your brand</strong>
         <p>
-          This usually takes 1–2 minutes. Please keep this page open while
-          Spreelo reads your website and prepares your campaign calendar.
+         This usually takes 1–3 minutes. Please keep this page open while
+Spreelo reads your website and prepares your campaign calendar.
         </p>
       </div>
 
