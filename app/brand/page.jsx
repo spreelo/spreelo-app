@@ -310,23 +310,29 @@ export default function BrandProfile() {
   }, []);
 
   useEffect(() => {
-    if (!analyzing) {
-      setCurrentAnalyzingStep(0);
-      return;
-    }
-
-    const interval = setInterval(() => {
-     setCurrentAnalyzingStep((currentStep) => {
-  if (currentStep >= analyzingSteps.length - 1) {
-    return longAnalysisStepStartIndex;
+  if (!analyzing) {
+    setAnalysisProgress(0);
+    return;
   }
 
-  return currentStep + 1;
-});
-    }, 4500);
+  setAnalysisProgress((currentProgress) =>
+    currentProgress > 0 ? currentProgress : 4
+  );
 
-    return () => clearInterval(interval);
-  }, [analyzing]);
+  const interval = setInterval(() => {
+    setAnalysisProgress((currentProgress) => {
+      if (currentProgress >= 95) return 95;
+
+      if (currentProgress < 20) return currentProgress + 4;
+      if (currentProgress < 45) return currentProgress + 3;
+      if (currentProgress < 75) return currentProgress + 2;
+
+      return currentProgress + 1;
+    });
+  }, 1200);
+
+  return () => clearInterval(interval);
+}, [analyzing]);
   
   function handleMarketChange(event) {
     const nextMarket = event.target.value;
