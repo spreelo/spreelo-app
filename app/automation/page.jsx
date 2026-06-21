@@ -2550,11 +2550,12 @@ const requestedBrandProfileId = searchParams?.get("brandProfileId") || "";
 let selectedBrandId = "";
 
 try {
-  selectedBrandId = await getCurrentBrandIdForUser(
+    selectedBrandId = await getCurrentBrandIdForUser(
     user,
     requestedBrandProfileId
   );
   setCurrentBrandId(selectedBrandId);
+  await loadConnectedPlatformsForBrand(user.id, selectedBrandId);
 } catch (error) {
   setMessage(error.message || "Could not load selected brand.");
   setRules([]);
