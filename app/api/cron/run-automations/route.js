@@ -467,6 +467,16 @@ Critical brand relevance rules:
 - If the User instruction says "FAQ", answer a question that would make sense for this specific business, industry and audience.
 - If the User instruction says "behind the scenes", describe something that would realistically happen in this specific business.
 - Keep the content useful, specific and trustworthy.
+- If Campaign strategy is provided, follow it carefully.
+- If the strategy says marketing_angle "awareness", focus on interest, recognition, timing or inspiration before selling.
+- If the strategy says marketing_angle "engagement", make the post easy to react to, comment on or relate to.
+- If the strategy says marketing_angle "product_discovery", help the audience discover a suitable product, service, idea or option.
+- If the strategy says marketing_angle "product_push", make the product, service or offer concrete and relevant.
+- If the strategy says marketing_angle "trust", reduce doubt and build confidence without inventing proof, reviews or guarantees.
+- If the strategy says marketing_angle "offer", create a clear buying reason without inventing discounts.
+- If the strategy says marketing_angle "urgency", make timing matter without exaggerating or using fake scarcity.
+- Match CTA strength to the strategy: soft means gentle, medium means clear, strong means action-focused.
+
 
 Output rules:
 - Return only the final post text.
