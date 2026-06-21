@@ -190,6 +190,7 @@ await redirectAfterLogin(data?.user);
             <input
               className="input"
               type="email"
+              autoComplete="email"
               placeholder="you@example.com"
               value={email}
               onChange={(event) => {
