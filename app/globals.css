@@ -9720,3 +9720,528 @@ textarea.input:focus,
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05) !important;
   }
 }
+/* Premium Posts & schedule redesign */
+.automation-page .planner-schedule-card {
+  padding: 32px !important;
+  border-radius: 28px !important;
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.055), transparent 34%),
+    rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  box-shadow:
+    0 30px 80px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78) !important;
+  overflow: visible !important;
+}
+
+.automation-page .planner-schedule-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin-bottom: 28px !important;
+}
+
+.automation-page .planner-schedule-header h3 {
+  margin: 0 0 12px !important;
+  color: #0f172a !important;
+  font-size: 32px !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.06em !important;
+}
+
+.automation-page .planner-schedule-header > div:first-child > span {
+  display: inline-flex !important;
+  align-items: center !important;
+  width: auto !important;
+  min-height: 34px !important;
+  padding: 0 18px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #f5f0ff 0%, #eee7ff 100%) !important;
+  color: #6d28d9 !important;
+  border: 1px solid rgba(124, 58, 237, 0.10) !important;
+  font-size: 14px !important;
+  font-weight: 950 !important;
+}
+
+.automation-page .planner-schedule-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+}
+
+.automation-page .view-calendar-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  min-height: 54px !important;
+  padding: 0 24px !important;
+  border-radius: 15px !important;
+  border: 1px solid #dfe4ee !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  font-size: 14px !important;
+  font-weight: 950 !important;
+  text-decoration: none !important;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.035) !important;
+}
+
+.automation-page .view-calendar-button::before {
+  content: "▣";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #4f46e5;
+  font-size: 14px;
+}
+
+.automation-page .view-calendar-button:hover {
+  background: #faf7ff !important;
+  border-color: #c4b5fd !important;
+  color: #5b21b6 !important;
+  transform: translateY(-1px);
+}
+
+.automation-page .planner-schedule-actions .add-plan-button {
+  min-height: 54px !important;
+  padding: 0 26px !important;
+  border-radius: 15px !important;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
+  box-shadow: 0 20px 38px rgba(79, 70, 229, 0.26) !important;
+  font-size: 14px !important;
+  font-weight: 950 !important;
+}
+
+.automation-page .planner-post-table {
+  display: grid !important;
+  gap: 0 !important;
+  overflow: visible !important;
+  border: 1px solid rgba(226, 232, 240, 0.96) !important;
+  border-radius: 22px !important;
+  background: #ffffff !important;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.035) !important;
+}
+
+.automation-page .planner-post-row {
+  position: relative !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid #edf0f6 !important;
+  transform: none !important;
+}
+
+.automation-page .planner-post-row:last-child {
+  border-bottom: 0 !important;
+}
+
+.automation-page .planner-post-row:hover {
+  background: #fbfaff !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.automation-page .planner-post-row:has(.custom-time-popover),
+.automation-page .planner-post-row:has(.custom-calendar-popover) {
+  z-index: 250 !important;
+}
+
+.automation-page .planner-post-mainline {
+  display: grid !important;
+  grid-template-columns: 86px minmax(260px, 1fr) 210px 110px 150px 150px !important;
+  align-items: center !important;
+  gap: 16px !important;
+  min-height: 118px !important;
+  padding: 22px 24px !important;
+  overflow: visible !important;
+}
+
+.automation-page .planner-post-index {
+  --post-accent: #7c3aed;
+  position: relative !important;
+  width: 58px !important;
+  height: 58px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 999px !important;
+  border: 7px solid transparent !important;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(var(--post-accent) 0 54deg, #eee9fb 54deg 360deg) border-box !important;
+  color: var(--post-accent) !important;
+  font-size: 24px !important;
+  font-weight: 950 !important;
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.automation-page .planner-post-index::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--post-accent);
+  border: 2px solid #ffffff;
+  box-shadow: 0 5px 12px rgba(15, 23, 42, 0.12);
+}
+
+.automation-page .planner-post-row:nth-child(1) .planner-post-index {
+  --post-accent: #7c3aed;
+}
+
+.automation-page .planner-post-row:nth-child(2) .planner-post-index {
+  --post-accent: #ec407a;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(#ec407a 0 54deg, #fae4ef 54deg 360deg) border-box !important;
+}
+
+.automation-page .planner-post-row:nth-child(3) .planner-post-index {
+  --post-accent: #0d6efd;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(#0d6efd 0 54deg, #e3efff 54deg 360deg) border-box !important;
+}
+
+.automation-page .planner-post-row:nth-child(4) .planner-post-index {
+  --post-accent: #f97316;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(#f97316 0 54deg, #ffead8 54deg 360deg) border-box !important;
+}
+
+.automation-page .planner-post-row:nth-child(5) .planner-post-index {
+  --post-accent: #16a34a;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(#16a34a 0 54deg, #ddf8e8 54deg 360deg) border-box !important;
+}
+
+.automation-page .planner-post-row:nth-child(6) .planner-post-index {
+  --post-accent: #0891b2;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(#0891b2 0 54deg, #dff7fb 54deg 360deg) border-box !important;
+}
+
+.automation-page .planner-post-row:nth-child(7) .planner-post-index {
+  --post-accent: #9333ea;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(#9333ea 0 54deg, #f0e7ff 54deg 360deg) border-box !important;
+}
+
+.automation-page .planner-post-title {
+  min-width: 0 !important;
+}
+
+.automation-page .planner-post-title strong {
+  display: block !important;
+  margin-bottom: 8px !important;
+  color: #0f172a !important;
+  font-size: 16px !important;
+  line-height: 1.25 !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.automation-page .planner-post-title span {
+  display: block !important;
+  color: #64748b !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.automation-page .locked-campaign-date {
+  display: grid !important;
+  gap: 7px !important;
+  min-height: 92px !important;
+  padding: 18px 18px !important;
+  border-radius: 17px !important;
+  border: 1px solid #e6dcff !important;
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.10), transparent 42%),
+    linear-gradient(180deg, #fbfaff 0%, #f7f2ff 100%) !important;
+  box-shadow: 0 14px 30px rgba(124, 58, 237, 0.06) !important;
+}
+
+.automation-page .locked-campaign-date strong {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  color: #0f172a !important;
+  font-size: 13.5px !important;
+  line-height: 1.2 !important;
+  font-weight: 950 !important;
+}
+
+.automation-page .locked-campaign-date strong::before {
+  content: "♙";
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  color: #6d28d9;
+  font-size: 11px;
+  background: rgba(124, 58, 237, 0.10);
+}
+
+.automation-page .locked-campaign-date span {
+  color: #7c3aed !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+
+.automation-page .unlock-campaign-date-button {
+  width: fit-content !important;
+  min-height: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #6d28d9 !important;
+  font-size: 12px !important;
+  font-weight: 950 !important;
+  box-shadow: none !important;
+}
+
+.automation-page .planner-post-time .custom-picker-button {
+  min-height: 54px !important;
+  height: 54px !important;
+  border-radius: 14px !important;
+  border: 1px solid #dfe4ee !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  font-size: 14px !important;
+  font-weight: 950 !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.025) !important;
+}
+
+.automation-page .custom-time-popover,
+.automation-page .custom-calendar-popover {
+  z-index: 9999 !important;
+}
+
+.automation-page .planner-post-format {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  min-height: 48px !important;
+  padding: 0 16px !important;
+  border-radius: 14px !important;
+  border: 1px solid #e9e0ff !important;
+  background: linear-gradient(180deg, #fbfaff 0%, #f5f0ff 100%) !important;
+  color: #64748b !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  white-space: nowrap !important;
+}
+
+.automation-page .planner-post-format span {
+  display: inline-grid !important;
+  place-items: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #6d28d9 !important;
+  border: 1px solid rgba(124, 58, 237, 0.15) !important;
+  font-size: 12px !important;
+  font-weight: 950 !important;
+}
+
+.automation-page .planner-post-row:not(:has(.planner-post-options label:first-child input:checked)) .planner-post-format {
+  border-color: #dbeafe !important;
+  background: linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%) !important;
+  color: #2563eb !important;
+}
+
+.automation-page .planner-post-row:not(:has(.planner-post-options label:first-child input:checked)) .planner-post-format span {
+  color: #2563eb !important;
+  border-color: rgba(37, 99, 235, 0.16) !important;
+}
+
+.automation-page .planner-post-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+}
+
+.automation-page .planner-post-actions button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 36px !important;
+  height: 40px !important;
+  padding: 0 10px !important;
+  border-radius: 12px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #64748b !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  box-shadow: none !important;
+}
+
+.automation-page .planner-post-actions button:first-child {
+  min-width: 64px !important;
+  padding: 0 16px !important;
+  border: 1px solid #dfe4ee !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.automation-page .planner-post-actions button:hover {
+  background: #f8fafc !important;
+  color: #4f46e5 !important;
+}
+
+.automation-page .planner-post-actions button[title="Remove"] {
+  font-size: 0 !important;
+}
+
+.automation-page .planner-post-actions button[title="Remove"]::before {
+  content: "⌫";
+  font-size: 16px;
+  line-height: 1;
+}
+
+.automation-page .planner-add-post-bottom {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  min-height: 58px !important;
+  margin: 32px auto 10px !important;
+  padding: 0 38px !important;
+  border-radius: 17px !important;
+  border: 1px solid #d8d2e8 !important;
+  background: #ffffff !important;
+  color: #6d28d9 !important;
+  font-size: 15px !important;
+  font-weight: 950 !important;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.04) !important;
+}
+
+.automation-page .planner-add-post-bottom:hover {
+  background: #faf7ff !important;
+  border-color: #c4b5fd !important;
+  transform: translateY(-1px);
+}
+
+/* Mobile version of premium posts list */
+@media (max-width: 900px) {
+  .automation-page .planner-schedule-card {
+    padding: 18px !important;
+    border-radius: 22px !important;
+  }
+
+  .automation-page .planner-schedule-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+    margin-bottom: 18px !important;
+  }
+
+  .automation-page .planner-schedule-header h3 {
+    font-size: 24px !important;
+  }
+
+  .automation-page .planner-schedule-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .automation-page .view-calendar-button,
+  .automation-page .planner-schedule-actions .add-plan-button {
+    width: 100% !important;
+    min-height: 48px !important;
+  }
+
+  .automation-page .planner-post-table {
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    gap: 12px !important;
+  }
+
+  .automation-page .planner-post-row {
+    border: 1px solid rgba(226, 232, 240, 0.96) !important;
+    border-radius: 20px !important;
+    background: #ffffff !important;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.035) !important;
+  }
+
+  .automation-page .planner-post-mainline {
+    grid-template-columns: 52px minmax(0, 1fr) !important;
+    gap: 12px !important;
+    min-height: auto !important;
+    padding: 15px !important;
+  }
+
+  .automation-page .planner-post-index {
+    width: 42px !important;
+    height: 42px !important;
+    border-width: 5px !important;
+    font-size: 17px !important;
+  }
+
+  .automation-page .planner-post-title,
+  .automation-page .planner-post-date,
+  .automation-page .planner-post-time,
+  .automation-page .planner-post-format,
+  .automation-page .planner-post-actions {
+    grid-column: 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .automation-page .planner-post-title strong {
+    font-size: 13.5px !important;
+  }
+
+  .automation-page .planner-post-title span {
+    white-space: normal !important;
+    display: -webkit-box !important;
+    overflow: hidden !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+  }
+
+  .automation-page .locked-campaign-date {
+    min-height: auto !important;
+    padding: 13px !important;
+  }
+
+  .automation-page .planner-post-time .custom-picker-button,
+  .automation-page .planner-post-format {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .automation-page .planner-post-actions {
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+  }
+
+  .automation-page .planner-add-post-bottom {
+    width: 100% !important;
+    margin-top: 16px !important;
+  }
+}
