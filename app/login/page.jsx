@@ -97,11 +97,16 @@ useEffect(() => {
       return;
     }
 
-    setEmail(normalizedEmail);
-    setCodeSent(true);
-    setOtpCode("");
-    setMessage("We sent a 6-digit sign-in code to your email.");
-    setLoading(false);
+   setEmail(normalizedEmail);
+
+if (typeof window !== "undefined") {
+  localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
+}
+
+setCodeSent(true);
+setOtpCode("");
+setMessage("We sent a 6-digit sign-in code to your email.");
+setLoading(false);
   }
 
   async function handleVerifyCode(event) {
