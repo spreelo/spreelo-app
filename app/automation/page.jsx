@@ -4107,17 +4107,42 @@ setRules((currentRules) =>
               </div>
 
             <div className="planner-settings-grid simple">
-  <label className="planner-setting-field">
-    <span>Platform</span>
-    <select
-      value={platform}
-      onChange={(event) => setPlatform(event.target.value)}
-    >
-      <option>Instagram</option>
-      <option>Facebook</option>
-      <option>LinkedIn</option>
-    </select>
-  </label>
+  {loadingConnectedPlatforms ? (
+    <div className="planner-setting-field planner-setting-connect-box">
+      <span>Platform</span>
+      <div className="input">Loading connected channels...</div>
+    </div>
+  ) : connectedPlatforms.length > 0 ? (
+    <label className="planner-setting-field">
+      <span>Platform</span>
+      <select
+        value={platform}
+        onChange={(event) => setPlatform(event.target.value)}
+      >
+        {connectedPlatforms.map((item) => (
+          <option key={item.value} value={item.label}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  ) : (
+    <div className="planner-setting-field planner-setting-connect-box">
+      <span>Platform</span>
+
+      <div className="planner-connect-first-card">
+        <strong>Connect a social channel first</strong>
+        <p>
+          You need to connect a publishing channel for this brand before saving
+          this plan.
+        </p>
+
+        <a href="/social-channels" className="planner-connect-first-link">
+          Go to Social channels
+        </a>
+      </div>
+    </div>
+  )}
 
   <label className="planner-setting-field">
     <span>Language</span>
