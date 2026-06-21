@@ -3880,22 +3880,10 @@ setRules((currentRules) =>
         <span>{slots.length} posts planned</span>
       </div>
 
-      <div className="planner-schedule-actions">
-    <a className="view-calendar-button" href="/calendar">
-  View calendar
-</a>
-
-        <button
-          type="button"
-          className="add-plan-button"
-          onClick={addSlot}
-        >
-          {planCreationMode === "campaign"
-  ? "+ Add campaign post"
-  : planCreationMode === "manual"
-  ? "+ Add manual post"
-  : "+ Add post"}
-        </button>
+       <div className="planner-schedule-actions">
+        <a className="view-calendar-button" href="/calendar">
+          View calendar
+        </a>
       </div>
     </div>
 
