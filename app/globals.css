@@ -10088,3 +10088,31 @@ textarea.input:focus,
   padding-top: 8px !important;
   border-top: 1px solid rgba(255, 255, 255, 0.14) !important;
 }
+.social-connect-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 50px !important;
+  min-width: 170px !important;
+  gap: 10px !important;
+}
+
+.social-connect-button.loading {
+  pointer-events: none !important;
+  opacity: 0.9 !important;
+}
+
+.social-connect-spinner {
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 999px !important;
+  border: 3px solid rgba(255, 255, 255, 0.35) !important;
+  border-top-color: #ffffff !important;
+  animation: social-connect-spin 0.75s linear infinite !important;
+}
+
+@keyframes social-connect-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
