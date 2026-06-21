@@ -521,7 +521,7 @@ function normalizeCampaignBlueprint(rawOpportunity) {
     image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
   };
 }
-function normalizeWebsiteProductMode(rawValue) {
+function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "") {
   const rawMode = rawValue || {};
 
   const available = Boolean(rawMode.available);
@@ -530,11 +530,21 @@ function normalizeWebsiteProductMode(rawValue) {
     .trim()
     .slice(0, 500);
 
+  const rawSourceUrl = String(rawMode.source_url || "").trim();
+  const normalizedSourceUrl = rawSourceUrl
+    ? normalizeWebsiteUrl(rawSourceUrl)
+    : "";
+
   return {
     available,
-    reason: reason || (available
-      ? "The website appears to contain sellable items that can be used for website-based posts."
-      : "No clear sellable website item was found during brand analysis."),
+    reason:
+      reason ||
+      (available
+        ? "The website appears to contain sellable items that can be used for website-based posts."
+        : "No clear sellable website item was found during brand analysis."),
+    source_url: available
+      ? normalizedSourceUrl || normalizeWebsiteUrl(fallbackWebsiteUrl)
+      : "",
   };
 }
 function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
