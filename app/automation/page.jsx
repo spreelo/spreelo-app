@@ -2008,62 +2008,70 @@ function createCampaignSlotsFromOpportunity({
 
   const hasFixedCampaignDate = Boolean(campaign?.event_date);
 
-  if (hasFixedCampaignDate) {
-    return postPlan.map((postPlanItem, index) => {
-      const rawDaysBeforeEvent = Number(postPlanItem?.days_before_event);
-      const daysBeforeEvent = Number.isFinite(rawDaysBeforeEvent)
-        ? Math.max(rawDaysBeforeEvent, 0)
-        : defaultDaysBeforeEvent[index] || 0;
+ if (hasFixedCampaignDate) {
+  const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
+  const daysUntilEvent = getDaysBetweenDateStrings(
+    todayDateString,
+    campaign.event_date
+  );
 
-      const startDate = addDaysToDateString(
-        campaign.event_date,
-        -daysBeforeEvent
-      );
+  const futureDaysBeforeEvent = getFutureCampaignDaysBeforeEvent(
+    postPlan.length,
+    daysUntilEvent
+  );
 
-      const enhancedPostPlanItem = buildCampaignPostPlanItem({
-        campaign,
-        postPlanItem,
-        index,
-        total: postPlan.length,
-        daysBeforeEvent,
-      });
+  return postPlan.map((postPlanItem, index) => {
+    const daysBeforeEvent = futureDaysBeforeEvent[index] ?? 0;
 
-      const contentSourceMode = getCampaignContentSourceMode(
+    const startDate = addDaysToDateString(
+      campaign.event_date,
+      -daysBeforeEvent
+    );
+
+    const enhancedPostPlanItem = buildCampaignPostPlanItem({
+      campaign,
+      postPlanItem,
+      index,
+      total: postPlan.length,
+      daysBeforeEvent,
+    });
+
+    const contentSourceMode = getCampaignContentSourceMode(
+      campaign,
+      enhancedPostPlanItem,
+      index,
+      postPlan.length
+    );
+
+    enhancedPostPlanItem.content_source_mode = contentSourceMode;
+
+    return createSlot({
+      startDate,
+      weekday: getWeekdayFromDateString(startDate, timeZone),
+      publishTime: defaultPublishTime,
+      prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
+      imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
+      generateImage:
+        index < 2 ||
+        shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
+      contentTypeId: "manual_prompt",
+      contentTypeLabel: campaign?.title || "Campaign post",
+      usesWebsiteContent: shouldUseWebsiteContentForCampaign(
+        contentSourceMode,
+        campaign
+      ),
+      isCampaignSlot: true,
+      campaignRole: enhancedPostPlanItem.role || "Campaign post",
+      campaignSummary: buildCampaignSummary(
         campaign,
         enhancedPostPlanItem,
-        index,
-        postPlan.length
-      );
-
-      enhancedPostPlanItem.content_source_mode = contentSourceMode;
-
-      return createSlot({
-        startDate,
-        weekday: getWeekdayFromDateString(startDate, timeZone),
-        publishTime: defaultPublishTime,
-        prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
-        imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
-generateImage:
-  index < 2 ||
-  shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
-contentTypeId: "manual_prompt",
-contentTypeLabel: campaign?.title || "Campaign post",
-usesWebsiteContent: shouldUseWebsiteContentForCampaign(
-  contentSourceMode,
-  campaign
-),
-isCampaignSlot: true,
-campaignRole: enhancedPostPlanItem.role || "Campaign post",
-campaignSummary: buildCampaignSummary(
-  campaign,
-  enhancedPostPlanItem,
-  index
-),
-dateLocked: true,
-timeZone,
-      });
+        index
+      ),
+      dateLocked: true,
+      timeZone,
     });
-  }
+  });
+}
 
   const fallbackStartDate =
     campaign?.start_date ||
