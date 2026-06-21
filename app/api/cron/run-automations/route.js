@@ -2280,7 +2280,7 @@ async function findProductUrlWithWebSearch({
   rule,
   attempt = "best_match",
 }) {
-  const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
+  const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
 
   if (!websiteUrl) {
     return {
