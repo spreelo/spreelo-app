@@ -31,6 +31,7 @@ export default function SocialChannelsPage() {
   const [currentBrand, setCurrentBrand] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+const [isConnectingFacebook, setIsConnectingFacebook] = useState(false);
 
   useEffect(() => {
     loadConnections();
