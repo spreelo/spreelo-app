@@ -3973,13 +3973,15 @@ setRules((currentRules) =>
                   ⧉
                 </button>
 
-                <button
-                  type="button"
-                  title="Remove"
-                  onClick={() => removeSlot(slot.id)}
-                >
-                  ✕
-                </button>
+              <button
+  type="button"
+  title="Remove"
+  aria-label="Remove post"
+  className="planner-post-delete-button"
+  onClick={() => removeSlot(slot.id)}
+>
+  🗑
+</button>
               </div>
             </div>
 
