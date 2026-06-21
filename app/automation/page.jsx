@@ -2251,49 +2251,35 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
     .filter(Boolean)
     .join("\n\n");
 }
+
 function buildCampaignSummary(campaign, postPlanItem, index) {
   const campaignTitle = campaign?.title || "campaign";
-  const postRole = postPlanItem?.role || `Campaign post ${index + 1}`;
-  const postPurpose =
-    postPlanItem?.purpose || "Create a useful campaign-related post.";
+  const marketingAngle = postPlanItem?.marketing_angle || "main";
+  const angleLabel = getCampaignAngleLabel(marketingAngle);
+  const stageLabel = getCustomerStageLabel(postPlanItem?.customer_stage);
+  const ctaStrength = postPlanItem?.cta_strength || "medium";
+
+  const purpose =
+    postPlanItem?.purpose || getCampaignStrategyPurpose(marketingAngle);
 
   const daysBeforeEvent =
     typeof postPlanItem?.days_before_event === "number"
       ? postPlanItem.days_before_event
       : null;
 
+  let timingText = "";
+
   if (campaign?.event_date && typeof daysBeforeEvent === "number") {
     if (daysBeforeEvent === 0) {
-      return `Highlights ${campaignTitle} on the day itself and makes the campaign feel timely and relevant.`;
+      timingText = ` Scheduled for ${campaignTitle} itself.`;
+    } else if (daysBeforeEvent === 1) {
+      timingText = ` Scheduled as a final reminder the day before ${campaignTitle}.`;
+    } else {
+      timingText = ` Scheduled ${daysBeforeEvent} days before ${campaignTitle}.`;
     }
-
-    if (daysBeforeEvent === 1) {
-      return `Creates a final reminder that ${campaignTitle} is tomorrow and gives the audience a clear reason to act or engage.`;
-    }
-
-    if (daysBeforeEvent <= 3) {
-      return `Creates urgency because ${campaignTitle} is very close, while keeping the message helpful and natural.`;
-    }
-
-    if (daysBeforeEvent <= 7) {
-      return `Reminds the audience that ${campaignTitle} is coming soon and connects the day to a useful idea, product or service.`;
-    }
-
-    return `Introduces ${campaignTitle} early and starts building interest before the day arrives.`;
   }
 
-  return `${postRole}: ${postPurpose}`;
-}
-function buildCampaignImagePrompt(campaign, postPlanItem) {
-  const campaignTitle = campaign?.title || "campaign";
-  const postRole = postPlanItem?.role || "campaign post";
-
-  return [
-    `Create a professional social media image connected to ${campaignTitle}.`,
-    `The image should support this campaign post role: ${postRole}.`,
-    "Make it polished, believable and relevant to the brand.",
-    "Do not include readable text, logos, watermarks, fake UI, prices or discount labels.",
-  ].join(" ");
+  return `${angleLabel}: ${purpose} ${stageLabel}. CTA: ${ctaStrength}.${timingText}`;
 }
 
 function createCampaignSlotsFromOpportunity({
