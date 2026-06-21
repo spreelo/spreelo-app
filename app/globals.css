@@ -10130,10 +10130,18 @@ textarea.input:focus,
   white-space: normal !important;
 }
 
-.strategy-info-button:hover .strategy-info-popover,
-.strategy-info-button:focus .strategy-info-popover,
-.strategy-info-button:focus-within .strategy-info-popover {
-  display: flex !important;
+@media (hover: hover) and (pointer: fine) {
+  .strategy-info-button:hover .strategy-info-popover,
+  .strategy-info-button:focus .strategy-info-popover,
+  .strategy-info-button:focus-within .strategy-info-popover {
+    display: flex !important;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .strategy-info-popover {
+    display: none !important;
+  }
 }
 
 .strategy-info-popover::before {
