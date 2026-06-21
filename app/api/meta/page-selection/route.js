@@ -98,7 +98,96 @@ async function getBrandForSession({ supabaseAdmin, userId, brandProfileId }) {
   return data || null;
 }
 
+async function saveFacebookConnection({
+  supabaseAdmin,
+  userId,
+  brandProfileId,
+  page,
+}) {
+  if (!brandProfileId) {
+    throw new Error("Missing brand_profile_id for Facebook connection");
+  }
 
+  const nowIso = new Date().toISOString();
+
+  const connectionPayload = {
+    user_id: userId,
+    brand_profile_id: brandProfileId,
+    platform: "facebook",
+    page_id: page.id,
+    page_name: page.name || "Facebook Page",
+    page_access_token: page.access_token,
+    permissions: page.tasks || [],
+    status: "connected",
+    updated_at: nowIso,
+  };
+
+  /*
+    One active Facebook connection per brand.
+
+    First disconnect every Facebook connection currently attached to this brand.
+    This prevents the selected brand from having several active Facebook pages.
+  */
+  const { error: disconnectBrandError } = await supabaseAdmin
+    .from("social_connections")
+    .update({
+      status: "disconnected",
+      updated_at: nowIso,
+    })
+    .eq("user_id", userId)
+    .eq("brand_profile_id", brandProfileId)
+    .eq("platform", "facebook");
+
+  if (disconnectBrandError) {
+    throw disconnectBrandError;
+  }
+
+  /*
+    The database has a unique index on:
+    user_id + platform + page_id
+
+    So if this user has connected this Facebook Page before, even to another
+    brand, we must update that existing row instead of inserting a new one.
+    This lets a user move a Facebook Page from one brand profile to another.
+  */
+  const { data: existingPageConnection, error: existingPageError } =
+    await supabaseAdmin
+      .from("social_connections")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("platform", "facebook")
+      .eq("page_id", page.id)
+      .maybeSingle();
+
+  if (existingPageError) {
+    throw existingPageError;
+  }
+
+  if (existingPageConnection?.id) {
+    const { error: updateExistingPageError } = await supabaseAdmin
+      .from("social_connections")
+      .update(connectionPayload)
+      .eq("id", existingPageConnection.id)
+      .eq("user_id", userId);
+
+    if (updateExistingPageError) {
+      throw updateExistingPageError;
+    }
+
+    return;
+  }
+
+  const { error: insertError } = await supabaseAdmin
+    .from("social_connections")
+    .insert({
+      ...connectionPayload,
+      created_at: nowIso,
+    });
+
+  if (insertError) {
+    throw insertError;
+  }
+}
 
 export async function GET(request) {
   try {
