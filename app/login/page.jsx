@@ -18,6 +18,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const savedEmail = localStorage.getItem(SAVED_LOGIN_EMAIL_KEY);
+
+  if (savedEmail) {
+    setEmail(savedEmail);
+  }
+}, []);
+  
   function normalizeEmail(value) {
     return String(value || "").trim().toLowerCase();
   }
