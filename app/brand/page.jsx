@@ -309,27 +309,34 @@ export default function BrandProfile() {
     loadProfile();
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
   if (!analyzing) {
     setAnalysisProgress(0);
     return;
   }
 
-  setAnalysisProgress((currentProgress) =>
-    currentProgress > 0 ? currentProgress : 4
-  );
+  const startedAt = Date.now();
+  const expectedDurationMs = 100000; // cirka 1 minut och 40 sekunder
+
+  setAnalysisProgress(4);
 
   const interval = setInterval(() => {
-    setAnalysisProgress((currentProgress) => {
-      if (currentProgress >= 95) return 95;
+    const elapsedMs = Date.now() - startedAt;
+    const ratio = Math.min(elapsedMs / expectedDurationMs, 1);
 
-      if (currentProgress < 20) return currentProgress + 4;
-      if (currentProgress < 45) return currentProgress + 3;
-      if (currentProgress < 75) return currentProgress + 2;
+    let nextProgress;
 
-      return currentProgress + 1;
-    });
-  }, 1200);
+    if (ratio < 1) {
+      // Smooth progress from 4% to 97% over about 1:40.
+      nextProgress = 4 + ratio * 93;
+    } else {
+      // If the analysis takes longer, keep moving very slowly instead of freezing.
+      const extraSeconds = (elapsedMs - expectedDurationMs) / 1000;
+      nextProgress = Math.min(99.4, 97 + extraSeconds * 0.08);
+    }
+
+    setAnalysisProgress(nextProgress);
+  }, 500);
 
   return () => clearInterval(interval);
 }, [analyzing]);
