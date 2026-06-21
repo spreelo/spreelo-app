@@ -4067,16 +4067,16 @@ setRules((currentRules) =>
       })}
     </div>
 
-    <button
+       <button
       type="button"
       className="planner-add-post-bottom"
       onClick={addSlot}
     >
       {planCreationMode === "campaign"
-  ? "+ Add campaign post"
-  : planCreationMode === "manual"
-  ? "+ Add manual post"
-  : "+ Add post"}
+        ? "Add another campaign post"
+        : planCreationMode === "manual"
+        ? "Add another manual post"
+        : "Add another post"}
     </button>
   </section>
 )}
