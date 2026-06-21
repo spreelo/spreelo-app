@@ -4218,13 +4218,7 @@ setRules((currentRules) =>
             slot.ctaStrength ||
             slot.campaignPhase ||
             slot.strategyNotes);
-        const hasStrategyInfo =
-          slot.isCampaignSlot &&
-          (slot.marketingAngle ||
-            slot.customerStage ||
-            slot.ctaStrength ||
-            slot.campaignPhase ||
-            slot.strategyNotes);
+
 
         return (
           <article
