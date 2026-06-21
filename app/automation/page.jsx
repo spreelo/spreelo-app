@@ -1585,6 +1585,46 @@ function getDefaultCampaignDaysBeforeEvent(count) {
     return Math.max((count - 1 - index) * 4, 1);
   });
 }
+
+function getFutureCampaignDaysBeforeEvent(count, daysUntilEvent) {
+  const postCount = Math.max(Math.round(Number(count) || 0), 0);
+
+  if (postCount <= 0) {
+    return [];
+  }
+
+  const safeDaysUntilEvent = Math.max(
+    Math.floor(Number(daysUntilEvent) || 0),
+    0
+  );
+
+  if (postCount === 1) {
+    return [0];
+  }
+
+  const availableDaysBeforeEvent = Array.from({
+    length: safeDaysUntilEvent + 1,
+  }).map((_, index) => safeDaysUntilEvent - index);
+
+  if (postCount >= availableDaysBeforeEvent.length) {
+    return [
+      ...availableDaysBeforeEvent,
+      ...Array.from(
+        { length: postCount - availableDaysBeforeEvent.length },
+        () => 0
+      ),
+    ];
+  }
+
+  return Array.from({ length: postCount }).map((_, index) => {
+    const availableIndex = Math.round(
+      (index * (availableDaysBeforeEvent.length - 1)) / (postCount - 1)
+    );
+
+    return availableDaysBeforeEvent[availableIndex];
+  });
+}
+
 function getCampaignSearchText(campaign) {
   return [
     campaign?.title,
