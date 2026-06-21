@@ -2189,7 +2189,9 @@ const [slots, setSlots] = useState([]);
   const [scheduleType, setScheduleType] = useState("weekly");
 
   const [planName, setPlanName] = useState("");
-  const [platform, setPlatform] = useState("Instagram");
+  const [platform, setPlatform] = useState("");
+const [connectedPlatforms, setConnectedPlatforms] = useState([]);
+const [loadingConnectedPlatforms, setLoadingConnectedPlatforms] = useState(false);
   const [tone, setTone] = useState("Friendly");
   const [language, setLanguage] = useState("Auto");
   const [postType, setPostType] = useState("Offer");
