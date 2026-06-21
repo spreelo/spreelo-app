@@ -3411,7 +3411,11 @@ const { data: post, error: postError } = await supabase
             language: rule.language || null,
             post_type: rule.post_type || null,
             website_url:
-              brandProfile?.website_url || rule.website_url || websiteSourceUrl || null,
+  websiteSourceUrl ||
+  brandProfile?.website_product_source_url ||
+  brandProfile?.website_url ||
+  rule.website_url ||
+  null,
             length: rule.length || null,
             include_emojis: Boolean(rule.include_emojis),
             include_hashtags: Boolean(rule.include_hashtags),
