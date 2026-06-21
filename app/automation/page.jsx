@@ -2150,6 +2150,16 @@ timeZone,
   });
 }
 
+function formatConnectedPlatformLabel(platformValue) {
+  const value = String(platformValue || "").toLowerCase();
+
+  if (value === "facebook") return "Facebook";
+  if (value === "instagram") return "Instagram";
+  if (value === "linkedin") return "LinkedIn";
+
+  return platformValue;
+}
+
 export default function AutomationPage() {
   const initialStartDate = getDateInputValueInTimeZone(
     new Date(),
