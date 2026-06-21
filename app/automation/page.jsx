@@ -4207,9 +4207,16 @@ setRules((currentRules) =>
       {slots.map((slot, index) => {
         const instructionsAreExpanded =
           expandedInstructionSlotIds.includes(slot.id);
-        const displayLabel = getSlotDisplayLabel(slot);
+             const displayLabel = getSlotDisplayLabel(slot);
         const displayDescription = getSlotDisplayDescription(slot);
         const formatLabel = getSlotFormatLabel(slot);
+        const hasStrategyInfo =
+          slot.isCampaignSlot &&
+          (slot.marketingAngle ||
+            slot.customerStage ||
+            slot.ctaStrength ||
+            slot.campaignPhase ||
+            slot.strategyNotes);
 
         return (
           <article
