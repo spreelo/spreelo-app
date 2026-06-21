@@ -1036,6 +1036,9 @@ ${description || "Not found"}
 Visible website text:
 ${visibleText}
 
+Extra product/source candidate pages checked:
+${productSourceCandidateText}
+
 Return JSON only in this exact shape:
 {
   "profile": {
