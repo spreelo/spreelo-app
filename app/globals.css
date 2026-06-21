@@ -9758,3 +9758,50 @@ textarea.input:focus,
   text-decoration: none;
   font-weight: 800;
 }
+.planner-connect-first-card {
+  border: 1px dashed #d8cffa;
+  background: #faf8ff;
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+
+.planner-connect-first-card strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #1e2433;
+}
+
+.planner-connect-first-card p {
+  margin: 0 0 10px;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.planner-connect-first-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 42px;
+  margin-top: 4px;
+  padding: 0 16px;
+  border-radius: 13px;
+  border: 1px solid rgba(124, 58, 237, 0.22);
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 12px 26px rgba(91, 33, 182, 0.22);
+}
+
+.planner-connect-first-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(91, 33, 182, 0.28);
+}
+
+.planner-connect-first-link::after {
+  content: " →";
+  margin-left: 6px;
+}
