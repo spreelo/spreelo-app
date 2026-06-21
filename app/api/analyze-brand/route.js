@@ -1250,6 +1250,14 @@ Examples:
 - Spiritual service, artist, portfolio or informational website without clear individual bookable offers/items: false.
 - Brand page with no individual products, services or listings: false.
 
+Product source URL rule:
+- If website_product_mode.available is true, website_product_mode.source_url must be the exact URL where the strongest item-level product/service/listing/menu/treatment/course/event/offer evidence was found.
+- The source_url may be the user-entered website URL, a subpage such as /shop, /products, /services or /menu, or a linked subdomain such as shop.example.com, butik.example.com, store.example.com or any other linked subdomain.
+- Do not require the subdomain to be named shop. The name of the subdomain is only a weak signal.
+- Only use a candidate source URL if the content from that URL actually shows item-level evidence.
+- Do not set source_url to a page that only links to a shop, only contains a store locator, only contains weekly offers, only contains a campaign leaflet, or only contains broad assortment text.
+- If available is false, source_url must be an empty string.
+
 Reason requirement:
 - website_product_mode.reason must clearly explain the main evidence for true or false.
 - For false, mention what is missing, for example: no stable individual product pages, no item-level listings, only store locator, only weekly offers, only general assortment or only informational content.
