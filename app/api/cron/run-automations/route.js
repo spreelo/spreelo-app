@@ -346,6 +346,51 @@ Target audience: ${brandProfile.target_audience || "Not provided"}
 `.trim();
 }
 
+function formatCampaignStrategyForPrompt(rule) {
+  const hasStrategy =
+    rule.campaign_phase ||
+    rule.marketing_angle ||
+    rule.customer_stage ||
+    rule.cta_strength ||
+    rule.campaign_goal ||
+    rule.target_customer_need ||
+    rule.strategy_notes ||
+    rule.campaign_post_index ||
+    rule.campaign_post_count;
+
+  if (!hasStrategy) {
+    return "";
+  }
+
+  return `
+Campaign strategy:
+${rule.campaign_post_index && rule.campaign_post_count
+  ? `Post ${rule.campaign_post_index} of ${rule.campaign_post_count}`
+  : "Campaign post"}
+
+Campaign phase: ${rule.campaign_phase || "Not provided"}
+Marketing angle: ${rule.marketing_angle || "Not provided"}
+Customer stage: ${rule.customer_stage || "Not provided"}
+CTA strength: ${rule.cta_strength || "Not provided"}
+Campaign goal: ${rule.campaign_goal || "Not provided"}
+Target customer need: ${rule.target_customer_need || "Not provided"}
+Strategy notes: ${rule.strategy_notes || "Not provided"}
+
+Important campaign strategy rules:
+- Follow the campaign strategy above when writing the post.
+- The marketing angle should control the main purpose of the post.
+- The customer stage should control how direct or sales-focused the post feels.
+- For customer_stage "cold", build interest, recognition or engagement before selling.
+- For customer_stage "warm", create confidence, explain value or make the product/service easier to consider.
+- For customer_stage "ready_to_buy", make the next step clear and action-oriented.
+- For cta_strength "soft", use a light call to action such as inviting people to explore, think, comment or learn more.
+- For cta_strength "medium", use a clear but natural call to action.
+- For cta_strength "strong", use a direct action-focused call to action.
+- Do not make every campaign post sound the same.
+- Do not ignore the user's instruction, but let the strategy guide how the instruction is turned into a post.
+`.trim();
+}
+
 function formatWebsiteItemForPrompt(websiteItem) {
   if (!websiteItem) {
     return "No specific website item was selected.";
