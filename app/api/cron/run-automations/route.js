@@ -349,6 +349,12 @@ Target audience: ${brandProfile.target_audience || "Not provided"}
 `.trim();
 }
 
+function getWebsiteProductSourceUrl(brandProfile) {
+  return normalizeWebsiteUrl(
+    brandProfile?.website_product_source_url || brandProfile?.website_url
+  );
+}
+
 function formatCampaignStrategyForPrompt(rule) {
   const hasStrategy =
     rule.campaign_phase ||
