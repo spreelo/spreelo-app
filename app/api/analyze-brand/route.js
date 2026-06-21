@@ -28,6 +28,46 @@ function normalizeWebsiteUrl(value) {
   return `https://${trimmedValue}`;
 }
 
+function resolveUrl(value, baseUrl) {
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+function isHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function getHostnameWithoutWww(value) {
+  try {
+    return new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function isSameRootDomainOrSubdomain(candidateUrl, websiteUrl) {
+  const candidateHost = getHostnameWithoutWww(candidateUrl);
+  const websiteHost = getHostnameWithoutWww(websiteUrl);
+
+  if (!candidateHost || !websiteHost) {
+    return false;
+  }
+
+  return (
+    candidateHost === websiteHost ||
+    candidateHost.endsWith(`.${websiteHost}`) ||
+    websiteHost.endsWith(`.${candidateHost}`)
+  );
+}
+
 function decodeHtmlEntities(value) {
   return String(value || "")
     .replaceAll("&amp;", "&")
