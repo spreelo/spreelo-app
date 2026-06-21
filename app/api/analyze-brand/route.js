@@ -1044,10 +1044,11 @@ Return JSON only in this exact shape:
     "target_audience": "Clear description of the likely customers/audience, written in the most suitable content language",
     "detected_language": "Detected main language"
   },
-  "website_product_mode": {
-    "available": true,
-    "reason": "Short internal explanation. True only if the website clearly appears to contain at least one sellable item with a title, own URL or product/listing page, and a relevant image or product/listing presentation."
-  },
+"website_product_mode": {
+  "available": true,
+  "reason": "Short internal explanation. True only if the provided website content or checked candidate source pages clearly contain stable individual items suitable for website-based posts.",
+  "source_url": "The exact URL where the best product/service/listing/menu/treatment/course/event/offer items were found. Empty string when available is false."
+},
   "campaign_opportunities": [
     {
       "title": "Campaign or theme day name",
