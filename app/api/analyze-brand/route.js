@@ -149,6 +149,192 @@ function extractMetaDescription(html) {
   ]);
 }
 
+function extractProductSourceLinks(html, pageUrl) {
+  const links = [];
+  const seen = new Set();
+
+  const linkRegex =
+    /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+  let match;
+
+  while ((match = linkRegex.exec(String(html || ""))) !== null) {
+    const href = match[1];
+    const rawText = match[2] || "";
+    const text = stripHtmlToText(rawText);
+    const resolvedUrl = resolveUrl(href, pageUrl);
+
+    if (!resolvedUrl || !isHttpUrl(resolvedUrl)) {
+      continue;
+    }
+
+    if (!isSameRootDomainOrSubdomain(resolvedUrl, pageUrl)) {
+      continue;
+    }
+
+    const cleanUrl = resolvedUrl.split("#")[0];
+
+    if (seen.has(cleanUrl)) {
+      continue;
+    }
+
+    seen.add(cleanUrl);
+
+    const lower = `${cleanUrl} ${text}`.toLowerCase();
+
+    let score = 0;
+
+    const strongSignals = [
+      "shop",
+      "webshop",
+      "butik",
+      "store",
+      "products",
+      "produkter",
+      "produkt",
+      "sortiment",
+      "catalog",
+      "katalog",
+      "collection",
+      "collections",
+      "kategori",
+      "category",
+      "bestall",
+      "beställ",
+      "order",
+      "kop",
+      "köp",
+      "buy",
+      "book",
+      "boka",
+      "menu",
+      "meny",
+      "tjanst",
+      "tjänst",
+      "tjanster",
+      "tjänster",
+      "behandling",
+      "behandlingar",
+      "course",
+      "courses",
+      "event",
+      "events",
+      "erbjudande",
+      "erbjudanden",
+    ];
+
+    const weakSignals = [
+      "privacy",
+      "cookie",
+      "terms",
+      "villkor",
+      "policy",
+      "login",
+      "signin",
+      "sign-in",
+      "account",
+      "konto",
+      "cart",
+      "checkout",
+      "kundvagn",
+      "kassa",
+      "kontakt",
+      "contact",
+      "about",
+      "om-oss",
+      "blog",
+      "news",
+      "nyheter",
+      "press",
+      "faq",
+      "kundservice",
+    ];
+
+    for (const signal of strongSignals) {
+      if (lower.includes(signal)) {
+        score += 10;
+      }
+    }
+
+    for (const signal of weakSignals) {
+      if (lower.includes(signal)) {
+        score -= 15;
+      }
+    }
+
+    const candidateHost = getHostnameWithoutWww(cleanUrl);
+    const pageHost = getHostnameWithoutWww(pageUrl);
+
+    if (candidateHost && pageHost && candidateHost !== pageHost) {
+      score += 8;
+    }
+
+    if (score > 0) {
+      links.push({
+        url: cleanUrl,
+        text,
+        score,
+      });
+    }
+  }
+
+  return links.sort((a, b) => b.score - a.score);
+}
+
+async function fetchProductSourceCandidates({ websiteUrl, html }) {
+  const sourceLinks = extractProductSourceLinks(html, websiteUrl)
+    .slice(0, WEBSITE_MAX_PRODUCT_SOURCE_PAGES);
+
+  const candidates = [];
+
+  for (const link of sourceLinks) {
+    try {
+      const candidate = await fetchWebsiteHtml(link.url);
+
+      candidates.push({
+        url: candidate.url,
+        title: extractPageTitle(candidate.html),
+        description: extractMetaDescription(candidate.html),
+        text: truncateText(
+          stripHtmlToText(candidate.html),
+          WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS
+        ),
+        link_text: link.text || "",
+        score: link.score || 0,
+      });
+    } catch (error) {
+      console.error("Could not fetch product source candidate", {
+        websiteUrl,
+        candidateUrl: link.url,
+        message: error.message,
+      });
+    }
+  }
+
+  return candidates;
+}
+
+function formatProductSourceCandidatesForPrompt(candidates) {
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    return "No extra product source candidate pages were found.";
+  }
+
+  return candidates
+    .map((candidate, index) =>
+      `
+Candidate page ${index + 1}:
+URL: ${candidate.url}
+Link text: ${candidate.link_text || "Not provided"}
+Page title: ${candidate.title || "Not found"}
+Meta description: ${candidate.description || "Not found"}
+
+Visible text:
+${candidate.text || ""}
+`.trim()
+    )
+    .join("\n\n---\n\n");
+}
+
 function truncateText(value, maxLength) {
   const text = String(value || "").trim();
 
