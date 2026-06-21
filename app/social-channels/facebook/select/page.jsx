@@ -108,79 +108,144 @@ export default function SelectFacebookPage() {
 
   return (
     <AppLayout active="social-channels">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Facebook</p>
-          <h2>Choose Facebook Page</h2>
+      <section className="facebook-select-page">
+        <header className="facebook-select-hero">
+          <div className="facebook-select-hero-copy">
+            <div className="facebook-select-badge">
+              <span className="facebook-logo-mark">f</span>
+              <span>Facebook</span>
+            </div>
 
-          {selectedBrand?.business_name && (
-            <p>
-              This Facebook Page will be connected to{" "}
-              <strong>{selectedBrand.business_name}</strong>.
-            </p>
-          )}
-        </div>
-      </header>
+            <h2>Choose Facebook Page</h2>
 
-      {message && <p className="login-message">{message}</p>}
-
-      <section className="hero-card">
-        <div>
-          <p className="eyebrow">Connect Facebook</p>
-          <h3>Select the page Spreelo should publish to</h3>
-          <p>
-            Choose the Facebook Page that belongs to the selected brand. Spreelo
-            will only publish that brand&apos;s approved posts to this connected
-            page.
-          </p>
-
-          {selectedBrand?.business_name && (
-            <div className="idea-box">
+            {selectedBrand?.business_name ? (
               <p>
-                <strong>Selected brand:</strong> {selectedBrand.business_name}
+                Connect the Facebook Page that Spreelo should publish to for{" "}
+                <strong>{selectedBrand.business_name}</strong>.
               </p>
+            ) : (
+              <p>
+                Choose which Facebook Page Spreelo should use for this selected
+                brand.
+              </p>
+            )}
+          </div>
+
+          {selectedBrand?.business_name && (
+            <div className="facebook-selected-brand-card">
+              <span>Selected brand</span>
+              <strong>{selectedBrand.business_name}</strong>
             </div>
           )}
-        </div>
+        </header>
 
-        <div className="prompt-box">
-          {loading ? (
-            <p className="login-message">Loading your Facebook Pages...</p>
-          ) : pages.length === 0 ? (
-            <>
-              <label>No pages found</label>
-              <p>
-                Spreelo could not find any Facebook Pages connected to your
-                Facebook account.
-              </p>
-              <a className="secondary-button full" href="/social-channels">
-                Back to social channels
-              </a>
-            </>
-          ) : (
-            <>
-              <label>Available Facebook Pages</label>
+        {message && <p className="login-message">{message}</p>}
 
-              {pages.map((page) => (
-                <button
-                  key={page.id}
-                  type="button"
-                  className="secondary-button full"
-                  onClick={() => selectPage(page.id)}
-                  disabled={Boolean(savingPageId)}
-                >
-                  {savingPageId === page.id
-                    ? "Connecting..."
-                    : `Connect ${page.name}`}
-                </button>
-              ))}
+        <section className="facebook-select-card">
+          <div className="facebook-select-info">
+            <div className="facebook-large-icon">
+              <span>f</span>
+            </div>
 
-              <a className="secondary-button full" href="/social-channels">
-                Cancel
-              </a>
-            </>
-          )}
-        </div>
+            <p className="eyebrow">Connect Facebook</p>
+            <h3>Select the page Spreelo should publish to</h3>
+
+            <p>
+              Choose the Facebook Page that belongs to the selected brand.
+              Spreelo will only publish this brand&apos;s approved posts to the
+              connected page.
+            </p>
+
+            <div className="facebook-select-note">
+              <strong>Important</strong>
+              <span>
+                If this Facebook Page was connected to another brand before,
+                Spreelo will move the connection to this selected brand.
+              </span>
+            </div>
+          </div>
+
+          <div className="facebook-page-picker-card">
+            {loading ? (
+              <div className="facebook-loading-box">
+                <span className="facebook-select-spinner" />
+                <strong>Loading Facebook Pages</strong>
+                <p>Please wait while Spreelo loads your available pages.</p>
+              </div>
+            ) : pages.length === 0 ? (
+              <>
+                <div className="facebook-picker-header">
+                  <span>No pages found</span>
+                  <h3>No Facebook Pages available</h3>
+                  <p>
+                    Spreelo could not find any Facebook Pages connected to your
+                    Facebook account.
+                  </p>
+                </div>
+
+                <a className="facebook-cancel-button" href="/social-channels">
+                  Back to social channels
+                </a>
+              </>
+            ) : (
+              <>
+                <div className="facebook-picker-header">
+                  <span>Available pages</span>
+                  <h3>Choose a Facebook Page</h3>
+                  <p>
+                    Pick the page that should receive posts for{" "}
+                    <strong>
+                      {selectedBrand?.business_name || "this brand"}
+                    </strong>
+                    .
+                  </p>
+                </div>
+
+                <div className="facebook-page-list">
+                  {pages.map((page) => {
+                    const isSaving = savingPageId === page.id;
+                    const isDisabled = Boolean(savingPageId);
+
+                    return (
+                      <button
+                        key={page.id}
+                        type="button"
+                        className={`facebook-page-option ${
+                          isSaving ? "loading" : ""
+                        }`}
+                        onClick={() => selectPage(page.id)}
+                        disabled={isDisabled}
+                      >
+                        <span className="facebook-page-option-icon">f</span>
+
+                        <span className="facebook-page-option-copy">
+                          <strong>{page.name}</strong>
+                          <small>
+                            {isSaving
+                              ? "Connecting page..."
+                              : "Available to connect"}
+                          </small>
+                        </span>
+
+                        <span className="facebook-page-option-action">
+                          {isSaving ? (
+                            <span className="facebook-select-spinner small" />
+                          ) : (
+                            "Connect"
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <a className="facebook-cancel-button" href="/social-channels">
+                  Cancel
+                </a>
+              </>
+            )}
+          </div>
+        </section>
       </section>
     </AppLayout>
   );
