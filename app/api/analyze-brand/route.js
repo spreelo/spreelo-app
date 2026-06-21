@@ -1265,7 +1265,7 @@ Reason requirement:
 Campaign rule:
 - If website_product_mode.available is false, campaign opportunities must not use website_content_strategy "product" or "service". Use "support" or "none" instead.
 - If website_product_mode.available is true, campaign opportunities may use "product" or "service" only when the campaign clearly fits items that exist on the website.
-- Do not search the whole website. Base this check only on the provided page title, meta description and visible website text.
+- Do not search beyond the provided website content. Base this check only on the provided page title, meta description, visible website text and the extra product/source candidate pages included in this prompt.
 `.trim(),
       },
     ],
