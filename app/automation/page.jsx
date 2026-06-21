@@ -3310,9 +3310,16 @@ const { error } = await supabase
       return;
     }
 
-    if (creditBalance && plannedCredits > creditBalance.credits_remaining) {
+       if (creditBalance && plannedCredits > creditBalance.credits_remaining) {
       setMessage(
         `This plan needs ${plannedCredits} credits, but you only have ${creditBalance.credits_remaining} credits remaining.`
+      );
+      return;
+    }
+
+    if (!platform) {
+      setMessage(
+        "Connect a social channel before saving this content plan."
       );
       return;
     }
