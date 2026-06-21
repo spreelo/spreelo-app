@@ -408,7 +408,8 @@ setAnalysisProgress(0);
       return;
     }
 
-    setAnalyzing(true);
+    setAnalysisProgress(4);
+setAnalyzing(true);
 
     try {
       const {
