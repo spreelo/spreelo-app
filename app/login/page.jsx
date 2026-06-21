@@ -7,6 +7,8 @@ function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
 
+const SAVED_LOGIN_EMAIL_KEY = "spreelo_last_login_email";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
