@@ -985,6 +985,8 @@ async function analyzeWebsiteWithOpenAI({
   const title = extractPageTitle(html);
   const description = extractMetaDescription(html);
   const visibleText = truncateText(stripHtmlToText(html), WEBSITE_MAX_TEXT_CHARS);
+  const productSourceCandidateText =
+  formatProductSourceCandidatesForPrompt(productSourceCandidates);
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini",
