@@ -2291,6 +2291,39 @@ function buildCampaignSummary(campaign, postPlanItem, index) {
   return `${angleLabel}: ${purpose} ${stageLabel}. CTA: ${ctaStrength}.${timingText}`;
 }
 
+function buildCampaignImagePrompt(campaign, postPlanItem, index) {
+  const campaignTitle = campaign?.title || "campaign";
+  const postRole = postPlanItem?.role || `Campaign post ${index + 1}`;
+  const postPurpose =
+    postPlanItem?.purpose || getCampaignStrategyPurpose(postPlanItem?.marketing_angle);
+
+  const marketingAngle = postPlanItem?.marketing_angle || "main";
+  const customerStage = postPlanItem?.customer_stage || "warm";
+  const ctaStrength = postPlanItem?.cta_strength || "medium";
+
+  return [
+    `Create a high-quality social media image for the campaign "${campaignTitle}".`,
+    `This image belongs to post ${postPlanItem?.campaign_post_index || index + 1} of ${
+      postPlanItem?.campaign_post_count || "the campaign sequence"
+    }.`,
+    `Post role: ${postRole}.`,
+    `Post purpose: ${postPurpose}.`,
+    `Marketing angle: ${marketingAngle}.`,
+    `Customer stage: ${customerStage}.`,
+    `CTA strength: ${ctaStrength}.`,
+    campaign?.image_guidance ? `Campaign image guidance: ${campaign.image_guidance}.` : "",
+    campaign?.tone_guidance ? `Tone guidance: ${campaign.tone_guidance}.` : "",
+    campaign?.product_selection_guidance
+      ? `Product selection guidance: ${campaign.product_selection_guidance}.`
+      : "",
+    "Make the image feel professional, clean and suitable for a small business social media post.",
+    "Do not include fake logos, fake discounts, fake reviews or fake guarantees.",
+    "If text is used in the image, keep it short, clear and correctly spelled.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function createCampaignSlotsFromOpportunity({
   campaign,
   timeZone = DEFAULT_TIME_ZONE,
