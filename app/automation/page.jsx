@@ -2644,32 +2644,46 @@ function addCampaignSlot() {
         )
         .filter((value) => typeof value === "number" && value >= 0);
 
-      const preferredDays = [
-        ...getDefaultCampaignDaysBeforeEvent(nextTotal),
-        45,
-        30,
-        21,
-        14,
-        10,
-        7,
-        5,
-        3,
-        2,
-        1,
-        0,
-      ];
+const todayDateString = getDateInputValueInTimeZone(
+  new Date(),
+  selectedTimeZone
+);
 
-      daysBeforeEvent =
-        preferredDays.find(
-          (value) => !usedDaysBeforeEvent.includes(value)
-        ) ?? 0;
+const daysUntilEvent = getDaysBetweenDateStrings(
+  todayDateString,
+  campaignOpportunity.event_date
+);
 
-      startDate = addDaysToDateString(
-        campaignOpportunity.event_date,
-        -daysBeforeEvent
-      );
+const maxFutureDaysBeforeEvent = Math.max(
+  Math.floor(Number(daysUntilEvent) || 0),
+  0
+);
 
-      publishTime = getRecommendedTimeForDate(startDate, selectedTimeZone);
+const futureDaysBeforeEvent = getFutureCampaignDaysBeforeEvent(
+  nextTotal,
+  maxFutureDaysBeforeEvent
+);
+
+const allFutureDaysBeforeEvent = Array.from({
+  length: maxFutureDaysBeforeEvent + 1,
+}).map((_, index) => maxFutureDaysBeforeEvent - index);
+
+const preferredDays = Array.from(
+  new Set([...futureDaysBeforeEvent, ...allFutureDaysBeforeEvent, 0])
+);
+
+daysBeforeEvent =
+  preferredDays.find(
+    (value) => !usedDaysBeforeEvent.includes(value)
+  ) ?? 0;
+
+startDate = addDaysToDateString(
+  campaignOpportunity.event_date,
+  -daysBeforeEvent
+);
+
+publishTime = getRecommendedTimeForDate(startDate, selectedTimeZone);
+      
     } else {
       const sortedSlots = currentSlots
         .slice()
