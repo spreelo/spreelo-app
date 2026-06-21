@@ -5598,19 +5598,24 @@ select.input {
 }
 
 .planner-add-post-bottom {
-  margin-top: 18px;
-    min-height: 42px;
-    border-radius: 14px;
-    padding: 0 18px;
-    background: #ffffff;
-    color: #5b21b6;
-    border-color: rgba(109, 40, 217, 0.22);
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.025);
+  margin: 16px auto 0 !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  border: 1px dashed rgba(109, 40, 217, 0.22) !important;
+  background: transparent !important;
+  color: #6d28d9 !important;
+  box-shadow: none !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
 }
 
 .planner-add-post-bottom:hover {
-  background: #f7f4ff;
-    box-shadow: 0 14px 30px rgba(109, 40, 217, 0.08);
+  background: #f7f4ff !important;
+  border-color: rgba(109, 40, 217, 0.34) !important;
+  color: #5b21b6 !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 .locked-campaign-date {
