@@ -444,49 +444,50 @@ export default function Calendar() {
                 </div>
 
                 <div className="campaign-card-grid">
-                  {campaigns.map((campaign) => {
-                    const isSelected = selectedCampaign?.id === campaign.id;
+               {campaigns.map((campaign) => {
+  const isSelected = selectedCampaign?.id === campaign.id;
 
-                    return (
-                    <article
-  key={campaign.id}
-  className={`campaign-card ${isSelected ? "active" : ""}`}
-  role="button"
-  tabIndex={0}
-  onClick={() => setSelectedCampaignId(campaign.id)}
-  onKeyDown={(event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      setSelectedCampaignId(campaign.id);
-    }
-  }}
->
-  <div className="campaign-card-top">
-    <span>{getEventTypeLabel(campaign.event_type)}</span>
-    <strong>{getCampaignDateLabel(campaign)}</strong>
-  </div>
+  return (
+    <article
+      key={campaign.id}
+      className={`campaign-card ${isSelected ? "active" : ""}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => setSelectedCampaignId(campaign.id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setSelectedCampaignId(campaign.id);
+        }
+      }}
+    >
+      <div className="campaign-card-top">
+        <span>{getEventTypeLabel(campaign.event_type)}</span>
+        <strong>{getCampaignDateLabel(campaign)}</strong>
+      </div>
 
-  <h4>{campaign.title}</h4>
+      <h4>{campaign.title}</h4>
 
-  <p>{campaign.description}</p>
+      <p>{campaign.description}</p>
 
-  <div className="campaign-card-meta">
-    <span>{getCampaignRecommendedPostCount(campaign)} posts</span>
-    <span>{getConfidenceLabel(campaign.date_confidence)}</span>
-  </div>
+      <div className="campaign-card-meta">
+        <span>{getCampaignRecommendedPostCount(campaign)} posts</span>
+        <span>{getConfidenceLabel(campaign.date_confidence)}</span>
+      </div>
 
-    <button
-    type="button"
-    className="campaign-card-create-button"
-    onClick={(event) => {
-      event.stopPropagation();
-      handleCreateCampaign(campaign);
-    }}
-  >
-    Create posts
-  </button>
-                    );
-                  })}
+      <button
+        type="button"
+        className="campaign-card-create-button"
+        onClick={(event) => {
+          event.stopPropagation();
+          handleCreateCampaign(campaign);
+        }}
+      >
+        Create posts
+      </button>
+    </article>
+  );
+})}
                 </div>
               </div>
 
