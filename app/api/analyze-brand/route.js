@@ -229,6 +229,70 @@ function normalizeWebsiteContentStrategy(value) {
 function normalizeWebsiteProductSelectionHint(value) {
   return String(value || "").trim().slice(0, 500);
 }
+function normalizeShortText(value, maxLength = 500) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
+function normalizeCampaignCategory(value) {
+  const normalizedValue = String(value || "").toLowerCase().trim();
+
+  const allowedCategories = [
+    "gift_campaign",
+    "seasonal_campaign",
+    "sales_campaign",
+    "local_event",
+    "educational_theme",
+    "awareness_theme",
+    "product_discovery",
+    "trust_building",
+    "engagement_theme",
+    "booking_push",
+    "limited_time_offer",
+    "community_moment",
+    "custom_campaign",
+  ];
+
+  if (allowedCategories.includes(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return "custom_campaign";
+}
+
+function normalizeRecommendedAngles(value) {
+  const rawAngles = Array.isArray(value) ? value : [];
+
+  return rawAngles
+    .map((angle) => String(angle || "").toLowerCase().trim())
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
+function normalizeCampaignBlueprint(rawOpportunity) {
+  const recommendedAngles = normalizeRecommendedAngles(
+    rawOpportunity?.recommended_angles || rawOpportunity?.campaign_angles
+  );
+
+  return {
+    campaign_category: normalizeCampaignCategory(
+      rawOpportunity?.campaign_category
+    ),
+    campaign_goal: normalizeShortText(rawOpportunity?.campaign_goal, 700),
+    target_customer_need: normalizeShortText(
+      rawOpportunity?.target_customer_need,
+      700
+    ),
+    recommended_angles: recommendedAngles,
+    product_selection_guidance: normalizeShortText(
+      rawOpportunity?.product_selection_guidance ||
+        rawOpportunity?.website_product_selection_hint,
+      700
+    ),
+    tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
+    cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
+    image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
+  };
+}
 function normalizeWebsiteProductMode(rawValue) {
   const rawMode = rawValue || {};
 
