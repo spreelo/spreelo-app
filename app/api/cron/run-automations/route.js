@@ -811,8 +811,8 @@ async function getBrandProfileForRule(supabase, rule) {
   const { data, error } = await supabase
     .from("brand_profiles")
     .select(
-      "id, business_name, website_url, brand_description, industry, target_audience"
-    )
+  "id, business_name, website_url, website_product_source_url, brand_description, industry, target_audience"
+)
     .eq("id", rule.brand_profile_id)
     .eq("user_id", rule.user_id)
     .maybeSingle();
