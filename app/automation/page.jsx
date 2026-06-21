@@ -1602,27 +1602,45 @@ function getFutureCampaignDaysBeforeEvent(count, daysUntilEvent) {
     return [0];
   }
 
+  const preferredByCount = {
+    2: [7, 0],
+    3: [14, 7, 0],
+    4: [21, 14, 7, 0],
+    5: [28, 21, 14, 7, 0],
+    6: [35, 28, 21, 14, 7, 0],
+    7: [42, 35, 28, 21, 14, 7, 0],
+  };
+
+  const preferredDays =
+    preferredByCount[Math.min(postCount, 7)] ||
+    getDefaultCampaignDaysBeforeEvent(postCount);
+
+  const futurePreferredDays = preferredDays.filter(
+    (daysBeforeEvent) => daysBeforeEvent <= safeDaysUntilEvent
+  );
+
+  if (futurePreferredDays.length >= postCount) {
+    return futurePreferredDays.slice(0, postCount);
+  }
+
   const availableDaysBeforeEvent = Array.from({
     length: safeDaysUntilEvent + 1,
   }).map((_, index) => safeDaysUntilEvent - index);
 
-  if (postCount >= availableDaysBeforeEvent.length) {
-    return [
-      ...availableDaysBeforeEvent,
-      ...Array.from(
-        { length: postCount - availableDaysBeforeEvent.length },
-        () => 0
-      ),
-    ];
+  const combinedDays = Array.from(
+    new Set([...futurePreferredDays, ...availableDaysBeforeEvent, 0])
+  )
+    .filter((daysBeforeEvent) => daysBeforeEvent <= safeDaysUntilEvent)
+    .sort((a, b) => b - a);
+
+  if (combinedDays.length >= postCount) {
+    return combinedDays.slice(0, postCount);
   }
 
-  return Array.from({ length: postCount }).map((_, index) => {
-    const availableIndex = Math.round(
-      (index * (availableDaysBeforeEvent.length - 1)) / (postCount - 1)
-    );
-
-    return availableDaysBeforeEvent[availableIndex];
-  });
+  return [
+    ...combinedDays,
+    ...Array.from({ length: postCount - combinedDays.length }, () => 0),
+  ];
 }
 
 function getCampaignSearchText(campaign) {
