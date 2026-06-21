@@ -4956,21 +4956,16 @@ setRules((currentRules) =>
 
 <div>
   <span>
-    {planCreationMode === "campaign"
-      ? "Planned posts"
-      : scheduleType === "weekly"
+    {scheduleType === "weekly" && planCreationMode !== "campaign"
       ? "Posts per week"
-      : "Planned posts"}
+      : "Posts"}
   </span>
   <strong>
-    {planCreationMode === "campaign"
-      ? `${slots.length} posts`
-      : scheduleType === "weekly"
+    {scheduleType === "weekly" && planCreationMode !== "campaign"
       ? `${slots.length} posts`
       : `${slots.length} post${slots.length === 1 ? "" : "s"}`}
   </strong>
 </div>
-
                 <div>
                   <span>Start</span>
                   <strong>
