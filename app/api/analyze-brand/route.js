@@ -717,8 +717,8 @@ async function replaceBrandCampaignOpportunities({
   const { data, error } = await supabase
     .from("brand_campaign_opportunities")
     .insert(rows)
-    .select(
-      "id, title, event_date, event_year, slug, website_content_fit, website_content_strategy, website_product_selection_hint"
+        .select(
+      "id, title, event_date, event_year, slug, website_content_fit, website_content_strategy, website_product_selection_hint, campaign_category, campaign_goal, target_customer_need, recommended_angles"
     );
 
   if (error) {
