@@ -3128,6 +3128,15 @@ campaignSummary: buildCampaignSummary(
   postPlanItem,
   nextIndex
 ),
+campaignPhase: postPlanItem.campaign_phase || "",
+marketingAngle: postPlanItem.marketing_angle || "",
+customerStage: postPlanItem.customer_stage || "",
+ctaStrength: postPlanItem.cta_strength || "",
+campaignPostIndex: postPlanItem.campaign_post_index || nextIndex + 1,
+campaignPostCount: postPlanItem.campaign_post_count || nextTotal,
+campaignGoal: postPlanItem.campaign_goal || "",
+targetCustomerNeed: postPlanItem.target_customer_need || "",
+strategyNotes: postPlanItem.strategy_notes || "",
 dateLocked: false,
 timeZone: selectedTimeZone,
     });
