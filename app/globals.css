@@ -9620,3 +9620,103 @@ textarea.input:focus,
     width: 100% !important;
   }
 }
+@media (max-width: 900px) {
+  .automation-page .planner-post-table,
+  .automation-page .planner-post-row,
+  .automation-page .planner-post-mainline,
+  .automation-page .planner-post-date,
+  .automation-page .planner-post-time,
+  .automation-page .custom-picker-field,
+  .automation-page .custom-picker-anchor {
+    overflow: visible !important;
+  }
+
+  .automation-page .planner-post-row {
+    position: relative !important;
+    z-index: 1 !important;
+  }
+
+  .automation-page .planner-post-row:has(.custom-time-popover),
+  .automation-page .planner-post-row:has(.custom-calendar-popover) {
+    z-index: 250 !important;
+  }
+
+  .automation-page .custom-time-popover,
+  .automation-page .custom-calendar-popover {
+    z-index: 9999 !important;
+  }
+
+  .automation-page .planner-post-mainline {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 10px 12px !important;
+    padding: 14px !important;
+  }
+
+  .automation-page .planner-post-title {
+    min-width: 0 !important;
+    padding-top: 1px !important;
+  }
+
+  .automation-page .planner-post-title strong {
+    display: block !important;
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+  }
+
+  .automation-page .planner-post-title span {
+    display: -webkit-box !important;
+    margin-top: 4px !important;
+    font-size: 11.5px !important;
+    line-height: 1.35 !important;
+    white-space: normal !important;
+    overflow: hidden !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+  }
+
+  .automation-page .planner-post-date,
+  .automation-page .planner-post-time,
+  .automation-page .planner-post-format,
+  .automation-page .planner-post-actions {
+    grid-column: 2 !important;
+    width: 100% !important;
+  }
+
+  .automation-page .planner-post-date {
+    margin-top: 4px !important;
+  }
+
+  .automation-page .locked-campaign-date,
+  .automation-page .planner-post-date .custom-picker-button,
+  .automation-page .planner-post-time .custom-picker-button {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .automation-page .planner-post-index {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 999px !important;
+    background: #ffffff !important;
+    color: #6d28d9 !important;
+    border: 1px solid rgba(124, 58, 237, 0.22) !important;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05) !important;
+    font-size: 13px !important;
+    font-weight: 950 !important;
+  }
+
+  .automation-page .planner-post-row:nth-child(1) .planner-post-index,
+  .automation-page .planner-post-row:nth-child(2) .planner-post-index,
+  .automation-page .planner-post-row:nth-child(3) .planner-post-index,
+  .automation-page .planner-post-row:nth-child(4) .planner-post-index,
+  .automation-page .planner-post-row:nth-child(5) .planner-post-index,
+  .automation-page .planner-post-row:nth-child(6) .planner-post-index,
+  .automation-page .planner-post-row:nth-child(7) .planner-post-index {
+    background: #ffffff !important;
+    color: #6d28d9 !important;
+    border-color: rgba(124, 58, 237, 0.22) !important;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05) !important;
+  }
+}
