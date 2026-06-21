@@ -1488,6 +1488,14 @@ function getCustomerStageDotClass(value) {
   return "neutral";
 }
 
+function getCtaStrengthLabel(value) {
+  if (value === "soft") return "Soft CTA";
+  if (value === "medium") return "Medium CTA";
+  if (value === "strong") return "Strong CTA";
+
+  return "CTA";
+}
+
 function normalizeStrategyValue(value) {
   return String(value || "").toLowerCase().trim();
 }
