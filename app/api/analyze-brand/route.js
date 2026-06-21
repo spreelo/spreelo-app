@@ -872,6 +872,28 @@ Rules:
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 - The final post in post_plan should normally have days_before_event 0 when event_date exists.
 - Earlier post_plan items should prepare the audience before the event.
+- Every campaign opportunity must include a strategic campaign blueprint using campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, tone_guidance, cta_guidance and image_guidance.
+- The campaign blueprint should explain how this campaign should move the audience from interest to action.
+- recommended_angles should contain the best marketing angles for the recommended_post_count.
+- Use these standard marketing angles when possible: awareness, engagement, product_discovery, product_push, trust, offer, urgency.
+- Use "main" only when the campaign has 1 post and the single post must combine multiple roles.
+- Each post_plan item must include campaign_phase, marketing_angle, customer_stage and cta_strength.
+- For customer_stage, use:
+  - "cold" for early awareness, inspiration or engagement posts.
+  - "warm" for product discovery, product push, education or trust-building posts.
+  - "ready_to_buy" for offer, urgency, last chance, booking or buying-focused posts.
+- For cta_strength, use:
+  - "soft" for awareness and engagement.
+  - "medium" for product discovery, product push, education and trust.
+  - "strong" for offer, urgency, booking push and last chance.
+- If recommended_post_count is 1, make the post_plan a strong allround post with marketing_angle "main", customer_stage "warm" and cta_strength "medium".
+- If recommended_post_count is 2, prefer awareness → urgency.
+- If recommended_post_count is 3, prefer awareness → product_push → urgency.
+- If recommended_post_count is 4, prefer awareness → product_discovery → trust → urgency.
+- If recommended_post_count is 5, prefer awareness → engagement → product_push → trust → urgency.
+- If recommended_post_count is 6 or more, prefer awareness → engagement → product_discovery → product_push → trust → urgency, adding offer when useful.
+- Do not make every post a reminder. Each post should have a distinct role in the campaign sequence.
+- Do not make early posts too salesy. Do not make final posts too vague.
 - recommended_post_count must be between 1 and 10.
 - relevance_score, sales_score and engagement_score must be between 1 and 5.
 - For each campaign opportunity, classify website_content_fit:
