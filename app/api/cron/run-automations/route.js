@@ -2706,7 +2706,7 @@ async function prepareWebsiteContentForRule({
 
   summary.website_content_rules += 1;
 
-  const websiteUrl = normalizeWebsiteUrl(brandProfile?.website_url);
+ const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
 
   if (!websiteUrl) {
     throw new Error("This automation requires a website URL in Brand profile");
