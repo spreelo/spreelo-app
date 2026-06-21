@@ -689,10 +689,20 @@ async function replaceBrandCampaignOpportunities({
     campaign_angles: opportunity.campaign_angles,
     post_plan: opportunity.post_plan,
 
-    date_confidence: opportunity.date_confidence,
+       date_confidence: opportunity.date_confidence,
     website_content_fit: opportunity.website_content_fit,
     website_content_strategy: opportunity.website_content_strategy,
     website_product_selection_hint: opportunity.website_product_selection_hint,
+
+    campaign_category: opportunity.campaign_category,
+    campaign_goal: opportunity.campaign_goal,
+    target_customer_need: opportunity.target_customer_need,
+    recommended_angles: opportunity.recommended_angles,
+    product_selection_guidance: opportunity.product_selection_guidance,
+    tone_guidance: opportunity.tone_guidance,
+    cta_guidance: opportunity.cta_guidance,
+    image_guidance: opportunity.image_guidance,
+    campaign_blueprint: opportunity.campaign_blueprint,
 
     is_ai_generated: true,
     is_hidden: false,
