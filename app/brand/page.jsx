@@ -975,19 +975,53 @@ setAnalyzing(true);
               {mainButtonLabel}
             </button>
 
-            {analyzing && (
-              <div className="brand-profile-analyzing-card">
-                <div className="brand-profile-spinner" />
+           {analyzing && (
+  <div className="brand-profile-analysis-card">
+    <div className="brand-profile-analysis-header">
+      <div>
+        <strong>Analyzing your brand</strong>
+        <p>
+          This usually takes 1–2 minutes. Please keep this page open while
+          Spreelo reads your website and prepares your campaign calendar.
+        </p>
+      </div>
 
-                <div>
-                  <strong>{analyzingSteps[currentAnalyzingStep]}</strong>
-                  <p>
-                    Spreelo is still working. Larger websites and campaign calendars can take a little longer, so please keep this page open.
-                  </p>
-                </div>
-              </div>
-            )}
+      <span>{Math.round(analysisProgress)}%</span>
+    </div>
 
+    <div className="brand-profile-progress-track">
+      <div
+        className="brand-profile-progress-fill"
+        style={{ width: `${Math.min(analysisProgress, 95)}%` }}
+      />
+    </div>
+
+    <div className="brand-profile-analysis-current">
+      <strong>{getCurrentAnalysisStage(analysisProgress).title}</strong>
+      <p>{getCurrentAnalysisStage(analysisProgress).description}</p>
+    </div>
+
+    <div className="brand-profile-analysis-steps">
+      {analysisProgressStages.map((stage) => {
+        const isDone = analysisProgress >= stage.progress;
+        const isCurrent =
+          getCurrentAnalysisStage(analysisProgress).title === stage.title;
+
+        return (
+          <div
+            key={stage.title}
+            className={`brand-profile-analysis-step ${
+              isDone ? "done" : ""
+            } ${isCurrent ? "current" : ""}`}
+          >
+            <span>{isDone ? "✓" : "○"}</span>
+            <strong>{stage.title}</strong>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
             {message && <p className="brand-profile-message">{message}</p>}
 
             <p className="brand-profile-disclaimer">
