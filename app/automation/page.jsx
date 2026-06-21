@@ -3689,9 +3689,20 @@ ${slot.campaignSummary}`
         }),
         approval_required: approvalRequired,
         is_active: true,
-        content_type_id: slot.contentTypeId,
+               content_type_id: slot.contentTypeId,
         content_type_label: slot.contentTypeLabel,
         uses_website_content: Boolean(slot.usesWebsiteContent),
+
+        campaign_phase: slot.campaignPhase || null,
+        marketing_angle: slot.marketingAngle || null,
+        customer_stage: slot.customerStage || null,
+        cta_strength: slot.ctaStrength || null,
+        campaign_post_index: slot.campaignPostIndex || null,
+        campaign_post_count: slot.campaignPostCount || null,
+        campaign_goal: slot.campaignGoal || null,
+        target_customer_need: slot.targetCustomerNeed || null,
+        strategy_notes: slot.strategyNotes || null,
+
         updated_at: new Date().toISOString(),
       };
     });
