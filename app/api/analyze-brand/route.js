@@ -360,6 +360,27 @@ function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
     website_product_selection_hint: normalizeWebsiteProductSelectionHint(
       rawOpportunity?.website_product_selection_hint
     ),
+
+    campaign_category: normalizeCampaignCategory(
+      rawOpportunity?.campaign_category
+    ),
+    campaign_goal: normalizeShortText(rawOpportunity?.campaign_goal, 700),
+    target_customer_need: normalizeShortText(
+      rawOpportunity?.target_customer_need,
+      700
+    ),
+    recommended_angles: normalizeRecommendedAngles(
+      rawOpportunity?.recommended_angles || rawOpportunity?.campaign_angles
+    ),
+    product_selection_guidance: normalizeShortText(
+      rawOpportunity?.product_selection_guidance ||
+        rawOpportunity?.website_product_selection_hint,
+      700
+    ),
+    tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
+    cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
+    image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
+    campaign_blueprint: normalizeCampaignBlueprint(rawOpportunity),
   };
 }
 
