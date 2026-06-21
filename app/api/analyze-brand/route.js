@@ -953,14 +953,62 @@ Rules:
 - When choosing between a generic seasonal campaign and a strong commercial occasion for ecommerce or retail, prefer the stronger commercial occasion.
 - Do not invent specific services, offers, products or locations not supported by the website or description.
 - Also decide if "Sell something from my website" should be available for this brand.
-- Set website_product_mode.available to true only if the website clearly appears to contain at least one concrete website item that can safely be used as a website-based post with a real website image.
-- A suitable website item must normally have a clear title/name, its own dedicated product/listing/menu item/event/course/treatment/offer page or URL, and a relevant non-logo image connected to that exact item.
-- Good examples: ecommerce product pages, real estate listings, menu items, event pages, course pages, bookable treatments with dedicated pages, or concrete offers with a clear individual page and a safe relevant image.
-- Bad examples: generic service websites, artist pages, portfolio pages, spiritual service websites, consultant websites, informational websites, generic homepage text, logos, hero banners, about pages, blog posts, navigation links, vague services, broad service descriptions or offers without a concrete item page and safe item image.
-- Service-only websites should normally return website_product_mode.available = false unless they have clear individual bookable offers with their own dedicated pages and relevant non-logo images.
-- Artist, consultant, spiritual service, informational and portfolio websites should normally return website_product_mode.available = false.
-- If website_product_mode.available is false, campaign opportunities should not use website_content_strategy "product" or "service". Use "support" or "none" instead.
+
+Website product mode rule:
+- Set website_product_mode.available to true only when the provided website content gives clear evidence of stable, individual products, services, listings, menu items, treatments, courses, events or offers that can reasonably be selected and promoted as specific website items.
+- A suitable website item should normally have at least several of these signals:
+  1. a clear individual item name/title,
+  2. a product/service/listing/menu/course/treatment/event/offer card or detail page,
+  3. a price, booking, order, buy, add-to-cart, request-quote, reservation or similar conversion signal,
+  4. a category/listing structure where individual items can be identified,
+  5. a relevant item image or item-specific presentation,
+  6. enough item-specific description to write a concrete post about that exact item.
+
+Strong evidence for website_product_mode.available = true:
+- ecommerce stores with product cards or product pages,
+- restaurants or cafés with specific menu items and prices,
+- salons, clinics or service businesses with specific treatments/services and descriptions,
+- real estate, vehicle, rental or job/listing sites with individual listings,
+- course, event or booking businesses with specific bookable items,
+- product catalogs where individual products can be clearly identified from the website content.
+
+Set website_product_mode.available to false when the website is mainly:
+- a store chain website,
+- a store locator,
+- an informational or brochure website,
+- a brand page,
+- a portfolio,
+- a blog/news site,
+- a weekly offers or campaign leaflet page,
+- a grocery/retail chain page with general assortment, weekly offers or store information,
+- a website that only mentions products, services, categories, discounts, offers or assortment in broad terms without clear individual website items.
+
+Important:
+- Do not set website_product_mode.available to true only because the business sells products in the real world.
+- Do not set it to true only because the website mentions words like products, services, assortment, offers, weekly deals, discounts, food, shop, store, campaign, catalog or categories.
+- Set it to true only if the website itself provides enough structured item-level information for Spreelo to select a specific product/service/listing/menu item/treatment/course/event/offer for a post.
+- If the site mainly contains temporary weekly offers, flyers, campaign pages or store-chain information without stable individual item pages, set website_product_mode.available to false.
 - If unsure, set website_product_mode.available to false.
+
+Examples:
+- Online clothing store with product cards, product names, images and prices: true.
+- Toy store ecommerce website with individual product pages: true.
+- Restaurant website with named dishes and prices: true.
+- Salon website with specific bookable treatments and descriptions: true.
+- Car dealer with individual car listings: true.
+- Local grocery chain website with store finder, weekly leaflet, general offers and no stable individual product pages: false.
+- Chain store website that mainly promotes stores, opening hours, weekly offers and general assortment: false.
+- Consultant website with only general “we help companies” text: false.
+- Spiritual service, artist, portfolio or informational website without clear individual bookable offers/items: false.
+- Brand page with no individual products, services or listings: false.
+
+Reason requirement:
+- website_product_mode.reason must clearly explain the main evidence for true or false.
+- For false, mention what is missing, for example: no stable individual product pages, no item-level listings, only store locator, only weekly offers, only general assortment or only informational content.
+
+Campaign rule:
+- If website_product_mode.available is false, campaign opportunities must not use website_content_strategy "product" or "service". Use "support" or "none" instead.
+- If website_product_mode.available is true, campaign opportunities may use "product" or "service" only when the campaign clearly fits items that exist on the website.
 - Do not search the whole website. Base this check only on the provided page title, meta description and visible website text.
 `.trim(),
       },
