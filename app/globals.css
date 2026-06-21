@@ -10538,3 +10538,213 @@ textarea.input:focus,
     font-size: 25px !important;
   }
 }
+/* Mobile UX cleanup: calendar, dashboard review cards, schedule cards */
+
+@media (max-width: 900px) {
+  /* Calendar: make the top stats compact on mobile */
+  .campaign-calendar-page .campaign-calendar-hero {
+    gap: 12px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-hero-card {
+    min-height: auto !important;
+    padding: 14px 16px !important;
+    border-radius: 18px !important;
+    display: grid !important;
+    grid-template-columns: auto 1fr !important;
+    align-items: center !important;
+    gap: 10px 12px !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-hero-card strong {
+    grid-row: 1 / span 2 !important;
+    font-size: 32px !important;
+    line-height: 1 !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-hero-card span {
+    margin: 0 !important;
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-hero-card p {
+    margin: 0 !important;
+    font-size: 11.5px !important;
+    line-height: 1.35 !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-stat-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-stat-grid > div {
+    min-height: auto !important;
+    padding: 10px 8px !important;
+    border-radius: 14px !important;
+    text-align: center !important;
+    box-shadow: none !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-stat-grid span {
+    margin: 0 0 5px !important;
+    font-size: 9.5px !important;
+    line-height: 1.2 !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-stat-grid strong {
+    font-size: 22px !important;
+    line-height: 1 !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-stat-grid p {
+    display: none !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-main {
+    padding: 14px !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-section-heading {
+    margin-bottom: 12px !important;
+  }
+
+  .campaign-calendar-page .campaign-calendar-section-heading h3 {
+    font-size: 21px !important;
+    line-height: 1.1 !important;
+  }
+
+  .campaign-calendar-page .campaign-card {
+    padding: 14px !important;
+    border-radius: 18px !important;
+  }
+
+  .campaign-calendar-page .campaign-card p {
+    min-height: 0 !important;
+    -webkit-line-clamp: 2 !important;
+  }
+
+  .campaign-calendar-page .campaign-card-create-button {
+    width: 100% !important;
+    min-height: 42px !important;
+    margin-top: 12px !important;
+  }
+
+  /* Dashboard: stop pending approval thumbnails from overlapping text */
+  .dashboard-page .dashboard-pending-card {
+    grid-template-columns: 22px minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 10px !important;
+    padding: 13px !important;
+  }
+
+  .dashboard-page .dashboard-pending-thumb,
+  .dashboard-page .dashboard-pending-placeholder {
+    display: none !important;
+  }
+
+  .dashboard-page .dashboard-pending-card h4,
+  .dashboard-page .dashboard-pending-card p,
+  .dashboard-page .dashboard-pending-card small {
+    grid-column: 2 !important;
+    min-width: 0 !important;
+  }
+
+  .dashboard-page .dashboard-pending-card p {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  .dashboard-page .dashboard-pending-review-button {
+    grid-column: 2 !important;
+    justify-self: flex-start !important;
+    margin-top: 6px !important;
+  }
+
+  /* Automation: cleaner mobile schedule cards */
+  .automation-page .planner-post-mainline {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    padding: 16px !important;
+  }
+
+  .automation-page .planner-post-index {
+    display: none !important;
+  }
+
+  .automation-page .planner-post-title {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  .automation-page .planner-post-title-row {
+    align-items: center !important;
+    gap: 9px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .automation-page .strategy-stage-dot {
+    width: 10px !important;
+    height: 10px !important;
+    box-shadow: 0 0 0 4px rgba(17, 24, 39, 0.05) !important;
+  }
+
+  .automation-page .planner-post-title strong {
+    font-size: 18px !important;
+    line-height: 1.18 !important;
+  }
+
+  .automation-page .planner-post-title > span {
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    color: #64748b !important;
+    -webkit-line-clamp: 2 !important;
+  }
+
+  .automation-page .planner-post-date,
+  .automation-page .planner-post-time,
+  .automation-page .planner-post-format,
+  .automation-page .planner-post-actions {
+    grid-column: 1 !important;
+    width: 100% !important;
+  }
+
+  .automation-page .locked-campaign-date,
+  .automation-page .planner-post-date .custom-picker-button,
+  .automation-page .planner-post-time .custom-picker-button {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .automation-page .planner-post-format {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .automation-page .planner-post-actions {
+    justify-content: flex-start !important;
+    min-width: 0 !important;
+    gap: 14px !important;
+  }
+
+  .automation-page .planner-post-actions button:first-child {
+    min-width: 76px !important;
+    height: 44px !important;
+    font-size: 14px !important;
+  }
+
+  .automation-page .planner-post-actions button:not(:first-child) {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    font-size: 18px !important;
+  }
+}
