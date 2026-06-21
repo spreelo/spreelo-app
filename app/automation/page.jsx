@@ -2217,6 +2217,23 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
 
   return [
     visibleOpening,
+    `This is post ${postPlanItem?.campaign_post_index || index + 1} of ${
+      postPlanItem?.campaign_post_count || "the campaign sequence"
+    }.`,
+    `Campaign phase: ${postPlanItem?.campaign_phase || "campaign_post"}.`,
+    `Marketing angle: ${postPlanItem?.marketing_angle || "main"}.`,
+    `Customer stage: ${postPlanItem?.customer_stage || "warm"}.`,
+    `CTA strength: ${postPlanItem?.cta_strength || "medium"}.`,
+    postPlanItem?.campaign_goal
+      ? `Campaign goal: ${postPlanItem.campaign_goal}.`
+      : "",
+    postPlanItem?.target_customer_need
+      ? `Target customer need: ${postPlanItem.target_customer_need}.`
+      : "",
+    postPlanItem?.strategy_notes
+      ? `Strategic instruction: ${postPlanItem.strategy_notes}`
+      : "",
+    postPlanItem?.timing_note ? `Timing note: ${postPlanItem.timing_note}` : "",
     `Post role: ${postRole}.`,
     `Post purpose: ${postPurpose}.`,
     `Campaign: ${campaignTitle}.`,
