@@ -1627,22 +1627,28 @@ export async function POST(request) {
     let finalWebsiteUrl = websiteUrl;
 
     if (websiteUrl) {
-      const website = await fetchWebsiteHtml(websiteUrl);
-      finalWebsiteUrl = website.url;
+  const website = await fetchWebsiteHtml(websiteUrl);
+  finalWebsiteUrl = website.url;
 
-      analysis = await analyzeWebsiteWithOpenAI({
-        openai,
-        businessName,
-        websiteUrl: website.url,
-        html: website.html,
-        brandDescription,
-        contentMarket,
-        countryCode,
-        contentLanguage: requestedContentLanguage,
-        currentDate,
-        campaignCalendarYear,
-      });
-    } else {
+  const productSourceCandidates = await fetchProductSourceCandidates({
+    websiteUrl: website.url,
+    html: website.html,
+  });
+
+  analysis = await analyzeWebsiteWithOpenAI({
+    openai,
+    businessName,
+    websiteUrl: website.url,
+    html: website.html,
+    productSourceCandidates,
+    brandDescription,
+    contentMarket,
+    countryCode,
+    contentLanguage: requestedContentLanguage,
+    currentDate,
+    campaignCalendarYear,
+  });
+} else {
       analysis = await analyzeDescriptionWithOpenAI({
         openai,
         businessName,
