@@ -2020,10 +2020,6 @@ function createCampaignSlotsFromOpportunity({
   const recommendedCount = getCampaignRecommendedPostCount(campaign);
   const postPlan = buildCampaignPostPlan(campaign, recommendedCount);
 
-  const defaultDaysBeforeEvent = getDefaultCampaignDaysBeforeEvent(
-    postPlan.length
-  );
-
   const hasFixedCampaignDate = Boolean(campaign?.event_date);
 
  if (hasFixedCampaignDate) {
