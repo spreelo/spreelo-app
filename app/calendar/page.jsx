@@ -475,19 +475,16 @@ export default function Calendar() {
     <span>{getConfidenceLabel(campaign.date_confidence)}</span>
   </div>
 
-  {isSelected && (
     <button
-      type="button"
-      className="campaign-card-create-button"
-      onClick={(event) => {
-        event.stopPropagation();
-        handleCreateCampaign(campaign);
-      }}
-    >
-      Create posts
-    </button>
-  )}
-</article>
+    type="button"
+    className="campaign-card-create-button"
+    onClick={(event) => {
+      event.stopPropagation();
+      handleCreateCampaign(campaign);
+    }}
+  >
+    Create posts
+  </button>
                     );
                   })}
                 </div>
