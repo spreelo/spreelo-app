@@ -4982,11 +4982,6 @@ setRules((currentRules) =>
                 </div>
 
                 <div>
-                  <span>Total posts</span>
-                  <strong>{slots.length}</strong>
-                </div>
-
-                <div>
                   <span>Credits</span>
                   <strong>{plannedCredits}</strong>
                 </div>
