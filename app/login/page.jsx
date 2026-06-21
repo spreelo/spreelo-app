@@ -142,7 +142,11 @@ setLoading(false);
       return;
     }
 
-    await redirectAfterLogin(data?.user);
+    if (typeof window !== "undefined") {
+  localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
+}
+
+await redirectAfterLogin(data?.user);
   }
 
   function handleChangeEmail() {
