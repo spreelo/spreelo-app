@@ -111,24 +111,52 @@ setIsConnectingFacebook(false);
       return;
     }
 
-    const { data, error } = await supabase
-      .from("social_connections")
-      .select(
-        "id, platform, page_id, page_name, status, created_at, updated_at, token_expires_at, brand_profile_id"
-      )
-      .eq("user_id", user.id)
-      .eq("brand_profile_id", selectedBrand.id)
-      .eq("platform", "facebook")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+ const { data: connectedConnection, error: connectedConnectionError } =
+  await supabase
+    .from("social_connections")
+    .select(
+      "id, platform, page_id, page_name, status, created_at, updated_at, token_expires_at, brand_profile_id"
+    )
+    .eq("user_id", user.id)
+    .eq("brand_profile_id", selectedBrand.id)
+    .eq("platform", "facebook")
+    .eq("status", "connected")
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
 
-    if (error) {
-      setMessage(error.message);
-      setFacebookConnection(null);
-    } else {
-      setFacebookConnection(data || null);
-    }
+if (connectedConnectionError) {
+  setMessage(connectedConnectionError.message);
+  setFacebookConnection(null);
+  setLoading(false);
+  return;
+}
+
+if (connectedConnection) {
+  setFacebookConnection(connectedConnection);
+  setLoading(false);
+  return;
+}
+
+const { data: latestConnection, error: latestConnectionError } = await supabase
+  .from("social_connections")
+  .select(
+    "id, platform, page_id, page_name, status, created_at, updated_at, token_expires_at, brand_profile_id"
+  )
+  .eq("user_id", user.id)
+  .eq("brand_profile_id", selectedBrand.id)
+  .eq("platform", "facebook")
+  .order("updated_at", { ascending: false, nullsFirst: false })
+  .order("created_at", { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+if (latestConnectionError) {
+  setMessage(latestConnectionError.message);
+  setFacebookConnection(null);
+} else {
+  setFacebookConnection(latestConnection || null);
+}
 
     setLoading(false);
   }
