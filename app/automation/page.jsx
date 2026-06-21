@@ -2463,12 +2463,71 @@ async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
   setCtaType("Learn more");
   setPlanStartDate(campaignSlots[0]?.startDate || campaignStartDate);
   setDefaultPublishTime(campaignPublishTime);
-  setSlots(campaignSlots);
+    setSlots(campaignSlots);
   setExpandedInstructionSlotIds([]);
   setSavedPlanSummary(null);
   setMessage("");
 }
-  async function loadRules() {
+
+async function loadConnectedPlatformsForBrand(userId, brandProfileId) {
+  if (!userId || !brandProfileId) {
+    setConnectedPlatforms([]);
+    setPlatform("");
+    return;
+  }
+
+  setLoadingConnectedPlatforms(true);
+
+  const { data, error } = await supabase
+    .from("social_connections")
+    .select("platform, status")
+    .eq("user_id", userId)
+    .eq("brand_profile_id", brandProfileId)
+    .eq("status", "connected");
+
+  if (error) {
+    console.error("Could not load connected platforms:", error);
+    setConnectedPlatforms([]);
+    setPlatform("");
+    setLoadingConnectedPlatforms(false);
+    return;
+  }
+
+  const uniquePlatforms = Array.from(
+    new Set(
+      (data || []).map((item) =>
+        String(item.platform || "").toLowerCase()
+      )
+    )
+  )
+    .filter(Boolean)
+    .map((value) => ({
+      value,
+      label: formatConnectedPlatformLabel(value),
+    }));
+
+  setConnectedPlatforms(uniquePlatforms);
+
+  setPlatform((currentValue) => {
+    const currentValueLower = String(currentValue || "").toLowerCase();
+
+    const currentStillExists = uniquePlatforms.some(
+      (item) =>
+        item.value === currentValueLower ||
+        item.label.toLowerCase() === currentValueLower
+    );
+
+    if (currentStillExists) {
+      return currentValue;
+    }
+
+    return uniquePlatforms[0]?.label || "";
+  });
+
+  setLoadingConnectedPlatforms(false);
+}
+
+async function loadRules() {
     setLoading(true);
 
     const {
