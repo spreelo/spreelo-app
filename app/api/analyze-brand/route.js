@@ -844,6 +844,9 @@ async function saveBrandProfile({
         ? new Date().toISOString()
         : null,
       website_product_mode_reason: websiteProductMode?.reason || "",
+      website_product_source_url: websiteProductMode?.available
+  ? websiteProductMode?.source_url || websiteUrl || ""
+  : "",
       updated_at: new Date().toISOString(),
     })
     .eq("id", brandProfileId)
