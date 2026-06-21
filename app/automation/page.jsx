@@ -2414,6 +2414,15 @@ campaignSummary: buildCampaignSummary(
   enhancedPostPlanItem,
   index
 ),
+campaignPhase: enhancedPostPlanItem.campaign_phase || "",
+marketingAngle: enhancedPostPlanItem.marketing_angle || "",
+customerStage: enhancedPostPlanItem.customer_stage || "",
+ctaStrength: enhancedPostPlanItem.cta_strength || "",
+campaignPostIndex: enhancedPostPlanItem.campaign_post_index || index + 1,
+campaignPostCount: enhancedPostPlanItem.campaign_post_count || postPlan.length,
+campaignGoal: enhancedPostPlanItem.campaign_goal || "",
+targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
+strategyNotes: enhancedPostPlanItem.strategy_notes || "",
 dateLocked: true,
 timeZone,
     });
