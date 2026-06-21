@@ -4228,11 +4228,68 @@ setRules((currentRules) =>
             <div className="planner-post-mainline">
               <div className="planner-post-index">{index + 1}</div>
 
-              <div className="planner-post-title">
-                <strong>{displayLabel}</strong>
+                    <div className="planner-post-title">
+                <div className="planner-post-title-row">
+                  {slot.isCampaignSlot && (
+                    <span
+                      className={`strategy-stage-dot ${getCustomerStageDotClass(
+                        slot.customerStage
+                      )}`}
+                      title={getCustomerStageLabel(slot.customerStage)}
+                    />
+                  )}
+
+                  <strong>
+                    {slot.isCampaignSlot && slot.marketingAngle
+                      ? getCampaignAngleLabel(slot.marketingAngle)
+                      : displayLabel}
+                  </strong>
+
+                  {hasStrategyInfo && (
+                    <button
+                      type="button"
+                      className="strategy-info-button"
+                      aria-label="Show campaign strategy"
+                    >
+                      i
+                      <span className="strategy-info-popover">
+                        <span className="strategy-info-title">
+                          Strategy for this post
+                        </span>
+
+                        <span>
+                          <strong>Audience:</strong>{" "}
+                          {getCustomerStageLabel(slot.customerStage)}
+                        </span>
+
+                        <span>
+                          <strong>Angle:</strong>{" "}
+                          {getCampaignAngleLabel(slot.marketingAngle)}
+                        </span>
+
+                        <span>
+                          <strong>CTA:</strong>{" "}
+                          {getCtaStrengthLabel(slot.ctaStrength)}
+                        </span>
+
+                        {slot.campaignPhase && (
+                          <span>
+                            <strong>Phase:</strong> {slot.campaignPhase}
+                          </span>
+                        )}
+
+                        {slot.strategyNotes && (
+                          <span className="strategy-info-note">
+                            {slot.strategyNotes}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
                 <span>{displayDescription}</span>
               </div>
-
               <div className="planner-post-date">
                 {slot.dateLocked ? (
                   <div className="locked-campaign-date">
