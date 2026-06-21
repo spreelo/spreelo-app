@@ -1783,50 +1783,17 @@ function getCampaignDateLabel(campaign) {
 }
 
 function buildFallbackCampaignPlan(count) {
-  const templates = [
-    {
-      role: "Awareness post",
-      purpose: "Introduce the campaign and explain why it matters to the audience.",
-    },
-    {
-      role: "Education post",
-      purpose: "Share useful information connected to the campaign topic.",
-    },
-    {
-      role: "Value post",
-      purpose: "Explain the value, benefit or reason to act before the campaign date.",
-    },
-    {
-      role: "Trust post",
-      purpose: "Build trust with an example, reassurance or helpful explanation.",
-    },
-    {
-      role: "Engagement post",
-      purpose: "Encourage the audience to react, comment or think about the campaign topic.",
-    },
-    {
-      role: "Reminder post",
-      purpose: "Remind the audience that the campaign date is getting closer.",
-    },
-    {
-      role: "Final campaign reminder",
-      purpose: "Create a final reminder connected to the campaign date.",
-    },
-  ];
+  const safeCount = Math.min(Math.max(Math.round(Number(count) || 1), 1), 7);
 
-  return Array.from({ length: count }).map((_, index) => {
-    const isLast = index === count - 1;
-    const template =
-      templates[index] ||
-      templates[templates.length - 2] ||
-      templates[0];
+  return Array.from({ length: safeCount }).map((_, index) => {
+    const strategy = getStrategicCampaignStep(safeCount, index);
 
     return {
-      role: isLast ? "Final campaign reminder" : template.role,
-      purpose: isLast
-        ? "Create a final reminder connected to the campaign date."
-        : template.purpose,
-      days_before_event: isLast ? 0 : Math.max((count - 1 - index) * 3, 1),
+      role: getCampaignAngleLabel(strategy.marketing_angle),
+      purpose: getCampaignStrategyPurpose(strategy.marketing_angle),
+      days_before_event:
+        getDefaultCampaignDaysBeforeEvent(safeCount)[index] ?? 0,
+      ...strategy,
     };
   });
 }
