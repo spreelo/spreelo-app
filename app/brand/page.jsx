@@ -377,8 +377,8 @@ export default function BrandProfile() {
   }
 
   async function analyzeBrand() {
-    setMessage("");
-    setCurrentAnalyzingStep(0);
+ setMessage("");
+setAnalysisProgress(0);
 
     const trimmedBusinessName = businessName.trim();
     const trimmedDescription = brandDescription.trim();
