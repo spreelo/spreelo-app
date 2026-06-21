@@ -1448,6 +1448,315 @@ function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
 
+function getCampaignAngleLabel(value) {
+  const labels = {
+    main: "Main campaign post",
+    awareness: "Inspiration",
+    engagement: "Engagement",
+    product_discovery: "Product idea",
+    product_push: "Product push",
+    trust: "Trust",
+    offer: "Offer",
+    urgency: "Last chance",
+  };
+
+  return labels[value] || "Campaign post";
+}
+
+function getCustomerStageLabel(value) {
+  if (value === "cold") return "Build interest";
+  if (value === "warm") return "Create confidence";
+  if (value === "ready_to_buy") return "Drive action";
+
+  return "Campaign strategy";
+}
+
+function getCustomerStageDotClass(value) {
+  if (value === "cold") return "cold";
+  if (value === "warm") return "warm";
+  if (value === "ready_to_buy") return "ready";
+
+  return "neutral";
+}
+
+function normalizeStrategyValue(value) {
+  return String(value || "").toLowerCase().trim();
+}
+
+function getStrategicCampaignSequence(count) {
+  const safeCount = Math.min(Math.max(Math.round(Number(count) || 1), 1), 7);
+
+  const sequences = {
+    1: [
+      {
+        campaign_phase: "main",
+        marketing_angle: "main",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+    ],
+    2: [
+      {
+        campaign_phase: "early",
+        marketing_angle: "awareness",
+        customer_stage: "cold",
+        cta_strength: "soft",
+      },
+      {
+        campaign_phase: "late",
+        marketing_angle: "urgency",
+        customer_stage: "ready_to_buy",
+        cta_strength: "strong",
+      },
+    ],
+    3: [
+      {
+        campaign_phase: "early",
+        marketing_angle: "awareness",
+        customer_stage: "cold",
+        cta_strength: "soft",
+      },
+      {
+        campaign_phase: "middle",
+        marketing_angle: "product_push",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "late",
+        marketing_angle: "urgency",
+        customer_stage: "ready_to_buy",
+        cta_strength: "strong",
+      },
+    ],
+    4: [
+      {
+        campaign_phase: "early",
+        marketing_angle: "awareness",
+        customer_stage: "cold",
+        cta_strength: "soft",
+      },
+      {
+        campaign_phase: "middle",
+        marketing_angle: "product_discovery",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "middle_late",
+        marketing_angle: "trust",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "late",
+        marketing_angle: "urgency",
+        customer_stage: "ready_to_buy",
+        cta_strength: "strong",
+      },
+    ],
+    5: [
+      {
+        campaign_phase: "early",
+        marketing_angle: "awareness",
+        customer_stage: "cold",
+        cta_strength: "soft",
+      },
+      {
+        campaign_phase: "early_middle",
+        marketing_angle: "engagement",
+        customer_stage: "cold",
+        cta_strength: "soft",
+      },
+      {
+        campaign_phase: "middle",
+        marketing_angle: "product_push",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "middle_late",
+        marketing_angle: "trust",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "late",
+        marketing_angle: "urgency",
+        customer_stage: "ready_to_buy",
+        cta_strength: "strong",
+      },
+    ],
+    6: [
+      {
+        campaign_phase: "early",
+        marketing_angle: "awareness",
+        customer_stage: "cold",
+        cta_strength: "soft",
+      },
+      {
+        campaign_phase: "early_middle",
+        marketing_angle: "engagement",
+        customer_stage: "cold",
+        cta_strength: "soft",
+      },
+      {
+        campaign_phase: "middle",
+        marketing_angle: "product_discovery",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "middle_late",
+        marketing_angle: "product_push",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "late",
+        marketing_angle: "trust",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "last_chance",
+        marketing_angle: "urgency",
+        customer_stage: "ready_to_buy",
+        cta_strength: "strong",
+      },
+    ],
+    7: [
+      {
+        campaign_phase: "early",
+        marketing_angle: "awareness",
+        customer_stage: "cold",
+        cta_strength: "soft",
+      },
+      {
+        campaign_phase: "early_middle",
+        marketing_angle: "engagement",
+        customer_stage: "cold",
+        cta_strength: "soft",
+      },
+      {
+        campaign_phase: "middle",
+        marketing_angle: "product_discovery",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "middle_late",
+        marketing_angle: "product_push",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "late",
+        marketing_angle: "trust",
+        customer_stage: "warm",
+        cta_strength: "medium",
+      },
+      {
+        campaign_phase: "offer",
+        marketing_angle: "offer",
+        customer_stage: "ready_to_buy",
+        cta_strength: "strong",
+      },
+      {
+        campaign_phase: "last_chance",
+        marketing_angle: "urgency",
+        customer_stage: "ready_to_buy",
+        cta_strength: "strong",
+      },
+    ],
+  };
+
+  return sequences[safeCount] || sequences[3];
+}
+
+function getStrategicCampaignStep(count, index, postPlanItem = {}) {
+  const sequence = getStrategicCampaignSequence(count);
+  const fallbackStep = sequence[index] || sequence[sequence.length - 1];
+
+  return {
+    campaign_phase:
+      normalizeStrategyValue(postPlanItem?.campaign_phase) ||
+      fallbackStep.campaign_phase,
+    marketing_angle:
+      normalizeStrategyValue(postPlanItem?.marketing_angle) ||
+      fallbackStep.marketing_angle,
+    customer_stage:
+      normalizeStrategyValue(postPlanItem?.customer_stage) ||
+      fallbackStep.customer_stage,
+    cta_strength:
+      normalizeStrategyValue(postPlanItem?.cta_strength) ||
+      fallbackStep.cta_strength,
+  };
+}
+
+function getCampaignStrategyPurpose(marketingAngle) {
+  const purposes = {
+    main:
+      "Combine campaign relevance, audience need and a clear next step in one strong post.",
+    awareness:
+      "Introduce the campaign and make the audience understand why it matters.",
+    engagement:
+      "Encourage the audience to react, comment, choose or recognize themselves in the campaign.",
+    product_discovery:
+      "Help the audience discover relevant products, services, ideas or options connected to the campaign.",
+    product_push:
+      "Recommend or highlight a relevant product, service or offer connected to the campaign.",
+    trust:
+      "Build confidence with reassurance, useful explanation, proof, examples or quality signals.",
+    offer:
+      "Give the audience a clear buying reason connected to the campaign.",
+    urgency:
+      "Create a timely reason to act now because the campaign date or opportunity is close.",
+  };
+
+  return (
+    purposes[marketingAngle] ||
+    "Create a useful campaign-related social media post."
+  );
+}
+
+function getCampaignStrategyInstruction(postPlanItem) {
+  const marketingAngle = postPlanItem?.marketing_angle || "main";
+  const ctaStrength = postPlanItem?.cta_strength || "medium";
+
+  const angleInstructions = {
+    main:
+      "This is the only post in the campaign. Combine inspiration, relevance, product/service value and a natural call to action.",
+    awareness:
+      "Do not sell too hard. Focus on recognition, timing, need, emotion or inspiration.",
+    engagement:
+      "Make the post easy to react to. Use a simple question, choice, comparison or relatable situation.",
+    product_discovery:
+      "Help the audience explore suitable options connected to the campaign.",
+    product_push:
+      "Make the product, service or offer more concrete and explain why it fits the campaign context.",
+    trust:
+      "Reduce doubt and build confidence. Do not invent reviews or claims.",
+    offer:
+      "Connect the offer to the audience need and campaign timing. Do not invent discounts.",
+    urgency:
+      "Make the timing matter and give the audience a clear reason to act now.",
+  };
+
+  const ctaInstructions = {
+    soft: "Use a soft CTA that invites interest, comments or exploration.",
+    medium: "Use a clear but natural CTA.",
+    strong: "Use a stronger CTA that encourages action now.",
+  };
+
+  return [
+    angleInstructions[marketingAngle] || angleInstructions.main,
+    ctaInstructions[ctaStrength] || ctaInstructions.medium,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function getCampaignDateLabel(campaign) {
   if (campaign?.event_date) {
     return campaign.event_date;
