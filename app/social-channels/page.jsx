@@ -243,8 +243,21 @@ setIsConnectingFacebook(false);
                 another Facebook Page.
               </p>
 
-            <a className="primary-button social-connect-button" href={connectUrl}>
-  Connect Facebook
+<a
+  className={`primary-button social-connect-button ${
+    isConnectingFacebook ? "loading" : ""
+  }`}
+  href={connectUrl}
+  aria-busy={isConnectingFacebook}
+  onClick={() => {
+    setIsConnectingFacebook(true);
+  }}
+>
+  {isConnectingFacebook ? (
+    <span className="social-connect-spinner" aria-label="Connecting Facebook" />
+  ) : (
+    "Connect Facebook"
+  )}
 </a>
             </>
           )}
