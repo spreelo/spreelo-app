@@ -316,27 +316,32 @@ useEffect(() => {
   }
 
   const startedAt = Date.now();
-  const expectedDurationMs = 100000; // cirka 1 minut och 40 sekunder
+  const expectedDurationMs = 150000; // cirka 2 minuter och 30 sekunder
 
-  setAnalysisProgress(4);
+  setAnalysisProgress(3);
 
   const interval = setInterval(() => {
     const elapsedMs = Date.now() - startedAt;
-    const ratio = Math.min(elapsedMs / expectedDurationMs, 1);
+    const ratio = elapsedMs / expectedDurationMs;
 
     let nextProgress;
 
     if (ratio < 1) {
-      // Smooth progress from 4% to 97% over about 1:40.
-      nextProgress = 4 + ratio * 93;
+      // Smooth progress from 3% to 91% over about 2:30.
+      // It does not reach the final-looking area too early.
+      const easedRatio = 1 - Math.pow(1 - ratio, 1.35);
+      nextProgress = 3 + easedRatio * 88;
     } else {
-      // If the analysis takes longer, keep moving very slowly instead of freezing.
+      // After the expected time, keep moving slowly instead of freezing.
       const extraSeconds = (elapsedMs - expectedDurationMs) / 1000;
-      nextProgress = Math.min(99.4, 97 + extraSeconds * 0.08);
+      nextProgress = Math.min(98.8, 91 + extraSeconds * 0.06);
     }
 
-    setAnalysisProgress(nextProgress);
-  }, 500);
+    setAnalysisProgress((currentProgress) => {
+      // Never go backwards.
+      return Math.max(currentProgress, nextProgress);
+    });
+  }, 700);
 
   return () => clearInterval(interval);
 }, [analyzing]);
