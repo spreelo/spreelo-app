@@ -999,7 +999,7 @@ setAnalyzing(true);
     <div className="brand-profile-progress-track">
       <div
         className="brand-profile-progress-fill"
-        style={{ width: `${Math.min(analysisProgress, 95)}%` }}
+        style={{ width: `${Math.min(analysisProgress, 99.4)}%` }}
       />
     </div>
 
