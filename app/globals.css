@@ -9940,117 +9940,7 @@ textarea.input:focus,
     min-width: 0 !important;
   }
 }
-.planner-post-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.strategy-stage-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  flex: 0 0 auto;
-  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.06);
-}
-
-.strategy-stage-dot.cold {
-  background: #3b82f6;
-}
-
-.strategy-stage-dot.warm {
-  background: #f4b740;
-}
-
-.strategy-stage-dot.ready {
-  background: #22c55e;
-}
-
-.strategy-stage-dot.neutral {
-  background: #9ca3af;
-}
-
-.strategy-info-button {
-  position: relative;
-  width: 19px;
-  height: 19px;
-  border-radius: 999px;
-  border: 1px solid rgba(17, 24, 39, 0.14);
-  background: rgba(255, 255, 255, 0.8);
-  color: #6b7280;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: help;
-}
-
-.strategy-info-button:hover {
-  background: #111827;
-  color: #ffffff;
-  border-color: #111827;
-}
-
-.strategy-info-popover {
-  position: absolute;
-  left: 50%;
-  top: calc(100% + 10px);
-  transform: translateX(-50%);
-  z-index: 50;
-  width: 280px;
-  display: none;
-  flex-direction: column;
-  gap: 7px;
-  padding: 13px 14px;
-  border-radius: 14px;
-  background: #111827;
-  color: #ffffff;
-  box-shadow: 0 18px 45px rgba(17, 24, 39, 0.22);
-  text-align: left;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.strategy-info-button:hover .strategy-info-popover,
-.strategy-info-button:focus .strategy-info-popover,
-.strategy-info-button:focus-within .strategy-info-popover {
-  display: flex;
-}
-
-.strategy-info-popover::before {
-  content: "";
-  position: absolute;
-  top: -6px;
-  left: 50%;
-  width: 12px;
-  height: 12px;
-  background: #111827;
-  transform: translateX(-50%) rotate(45deg);
-}
-
-.strategy-info-title {
-  font-size: 12px;
-  font-weight: 800;
-  color: #ffffff;
-  padding-bottom: 3px;
-}
-
-.strategy-info-popover span {
-  color: rgba(255, 255, 255, 0.82);
-}
-
-.strategy-info-popover strong {
-  color: #ffffff;
-}
-
-.strategy-info-note {
-  margin-top: 4px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-}
-/* Campaign strategy dots + info popover */
+/* Campaign strategy dots + desktop-only info popover */
 
 .planner-post-title-row {
   display: flex !important;
@@ -10102,13 +9992,6 @@ textarea.input:focus,
   padding: 0 !important;
 }
 
-.strategy-info-button:hover,
-.strategy-info-button:focus {
-  background: #111827 !important;
-  color: #ffffff !important;
-  border-color: #111827 !important;
-}
-
 .strategy-info-popover {
   position: absolute !important;
   left: 50% !important;
@@ -10117,6 +10000,9 @@ textarea.input:focus,
   z-index: 9999 !important;
   width: 280px !important;
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
   flex-direction: column !important;
   gap: 7px !important;
   padding: 13px 14px !important;
@@ -10130,17 +10016,40 @@ textarea.input:focus,
   white-space: normal !important;
 }
 
+/* Desktop only */
 @media (hover: hover) and (pointer: fine) {
-  .strategy-info-button:hover .strategy-info-popover,
-  .strategy-info-button:focus .strategy-info-popover,
-  .strategy-info-button:focus-within .strategy-info-popover {
+  .strategy-info-button:hover {
+    background: #111827 !important;
+    color: #ffffff !important;
+    border-color: #111827 !important;
+  }
+
+  .strategy-info-button:hover .strategy-info-popover {
     display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
   }
 }
 
-@media (hover: none), (pointer: coarse) {
+/* Mobile/tablet: force hidden, always */
+@media (hover: none), (pointer: coarse), (max-width: 900px) {
+  .strategy-info-button,
+  .strategy-info-button:focus,
+  .strategy-info-button:focus-within {
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #6b7280 !important;
+    border-color: rgba(17, 24, 39, 0.14) !important;
+  }
+
+  .strategy-info-button:hover .strategy-info-popover,
+  .strategy-info-button:focus .strategy-info-popover,
+  .strategy-info-button:focus-within .strategy-info-popover,
   .strategy-info-popover {
     display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
   }
 }
 
