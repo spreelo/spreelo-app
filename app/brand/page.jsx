@@ -998,7 +998,7 @@ setAnalyzing(true);
         </p>
       </div>
 
-      <span>{Math.round(analysisProgress)}%</span>
+      <span>{Math.min(99, Math.floor(analysisProgress))}%</span>
     </div>
 
     <div className="brand-profile-progress-track">
