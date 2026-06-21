@@ -2129,71 +2129,53 @@ function buildCampaignPostPlanItem({
 }) {
   const campaignTitle = campaign?.title || "Campaign";
   const hasFixedDate = Boolean(campaign?.event_date);
+  const strategy = getStrategicCampaignStep(total, index, postPlanItem);
+
+  const aiRoleIsUseful =
+    postPlanItem?.role && !/^campaign post/i.test(postPlanItem.role);
+
+  const role = aiRoleIsUseful
+    ? postPlanItem.role
+    : getCampaignAngleLabel(strategy.marketing_angle);
+
+  const purpose =
+    postPlanItem?.purpose || getCampaignStrategyPurpose(strategy.marketing_angle);
+
+  let timingNote =
+    "This campaign has a flexible date. Focus on the post role and make it different from the other campaign posts.";
 
   if (hasFixedDate) {
-    let role = "Campaign reminder";
-    let purpose = `Lift up ${campaignTitle} and make the audience understand why it matters now.`;
-
     if (daysBeforeEvent === 0) {
-      role = "Campaign day post";
-      purpose = `Celebrate or highlight ${campaignTitle} on the day itself. Make it feel current, warm and relevant.`;
+      timingNote = `This post is scheduled for ${campaignTitle} itself. Make it feel timely and relevant today.`;
     } else if (daysBeforeEvent === 1) {
-      role = "Final reminder";
-      purpose = `Remind the audience that ${campaignTitle} is tomorrow and give them a clear reason to act or engage.`;
+      timingNote = `This post is scheduled the day before ${campaignTitle}. It can work as a final reminder.`;
     } else if (daysBeforeEvent <= 3) {
-      role = "Urgency reminder";
-      purpose = `Create urgency because ${campaignTitle} is very close. Make the post useful, timely and action-oriented.`;
+      timingNote = `This post is scheduled close to ${campaignTitle}. Make the timing feel important without exaggerating.`;
     } else if (daysBeforeEvent <= 7) {
-      role = "One-week reminder";
-      purpose = `Remind the audience that ${campaignTitle} is coming soon and connect it to a useful idea, product, service or action.`;
-    } else if (index === 0) {
-      role = "Early campaign teaser";
-      purpose = `Introduce ${campaignTitle} early and start building interest without being too salesy.`;
+      timingNote = `This post is scheduled about a week before ${campaignTitle}. Connect the campaign to a useful idea, product, service or action.`;
+    } else {
+      timingNote = `This post is scheduled early in the campaign. Build interest before the campaign date gets close.`;
     }
-
-    return {
-      ...postPlanItem,
-      role,
-      purpose,
-      days_before_event: daysBeforeEvent,
-    };
   }
-
-  const flexibleRoles = [
-    {
-      role: "Campaign introduction",
-      purpose: `Introduce ${campaignTitle} and explain why it is relevant to the audience.`,
-    },
-    {
-      role: "Value explanation",
-      purpose: `Explain the value, idea or benefit behind ${campaignTitle}. Make it useful and easy to understand.`,
-    },
-    {
-      role: "Inspiration or example",
-      purpose: `Give inspiration, an example or a concrete angle connected to ${campaignTitle}.`,
-    },
-    {
-      role: "Participation reminder",
-      purpose: `Encourage the audience to engage, participate, comment, share, book, visit or take the next step.`,
-    },
-    {
-      role: "Final campaign push",
-      purpose: `Create a final push for ${campaignTitle} with a clear and natural call to action.`,
-    },
-  ];
-
-  const fallbackRole =
-    flexibleRoles[index] ||
-    flexibleRoles[flexibleRoles.length - 1] ||
-    flexibleRoles[0];
 
   return {
     ...postPlanItem,
-    role: fallbackRole.role,
-    purpose: fallbackRole.purpose,
-    days_before_event: null,
+    role,
+    purpose,
+    campaign_phase: strategy.campaign_phase,
+    marketing_angle: strategy.marketing_angle,
+    customer_stage: strategy.customer_stage,
+    cta_strength: strategy.cta_strength,
+    campaign_post_index: index + 1,
+    campaign_post_count: total,
+    campaign_goal: campaign?.campaign_goal || "",
+    target_customer_need: campaign?.target_customer_need || "",
+    strategy_notes: getCampaignStrategyInstruction(strategy),
+    timing_note: timingNote,
+    days_before_event: hasFixedDate ? daysBeforeEvent : null,
   };
 }
+
 function buildCampaignPrompt(campaign, postPlanItem, index) {
   const campaignTitle = campaign?.title || "Campaign";
   const campaignDate = getCampaignDateLabel(campaign);
