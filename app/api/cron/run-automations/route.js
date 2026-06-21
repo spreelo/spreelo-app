@@ -437,6 +437,8 @@ ${websiteItemText}
     : ""
 }
 
+${campaignStrategyText}
+
 Platform: ${rule.platform || "Instagram"}
 ${getLanguageInstruction(rule.language)}
 Tone: ${rule.tone || "Professional"}
