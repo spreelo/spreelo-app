@@ -418,6 +418,7 @@ Important website item rules:
 function buildAutomationPrompt(rule) {
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
   const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
+  const campaignStrategyText = formatCampaignStrategyForPrompt(rule);
 
   return `
 Create a ready-to-publish social media post.
