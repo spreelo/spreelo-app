@@ -974,6 +974,7 @@ async function analyzeWebsiteWithOpenAI({
   businessName,
   websiteUrl,
   html,
+  productSourceCandidates,
   brandDescription,
   contentMarket,
   countryCode,
