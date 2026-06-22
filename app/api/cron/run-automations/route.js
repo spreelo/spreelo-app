@@ -486,6 +486,15 @@ Critical brand relevance rules:
 - If the strategy says marketing_angle "urgency", make timing matter without exaggerating or using fake scarcity.
 - Match CTA strength to the strategy: soft means gentle, medium means clear, strong means action-focused.
 
+Website factual grounding rules:
+- Do not claim that the website contains information about a specific topic, service, product, guide, offer, article or page unless that exact information was provided in the Brand profile or Selected website item.
+- Do not write phrases like "read more on our website", "learn more on our website", "see more details on our website", "book this service", "explore this service" or similar unless the website content clearly supports that exact claim.
+- Do not imply that a specific service exists unless the Brand profile or Selected website item clearly says the business offers that service.
+- If the post uses a general seasonal, educational or awareness angle that is not directly found on the website, keep the CTA general and safe.
+- For product-based businesses, use safe CTAs such as "see our current selection", "explore available products", "contact us for guidance" or "get help choosing the right option" when that fits the brand.
+- For service businesses, use safe CTAs such as "contact us to discuss your needs" or "get in touch to learn what fits your situation" unless a specific bookable service was provided.
+- Never invent services, guides, articles, guarantees, discounts, availability, booking pages or website pages that were not provided.
+- It is okay to use a relevant seasonal or educational angle, but do not present it as something the website specifically explains unless it actually does.
 
 Output rules:
 - Return only the final post text.
