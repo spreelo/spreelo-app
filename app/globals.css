@@ -10895,3 +10895,19 @@ textarea.input:focus,
     text-align: left !important;
   }
 }
+@media (max-width: 900px) {
+  .spreelo-mobile-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 400 !important;
+    display: grid !important;
+    width: 100% !important;
+  }
+
+  .spreelo-content,
+  .content {
+    padding-top: 86px !important;
+  }
+}
