@@ -1246,25 +1246,17 @@ Rules:
   - Allergy-related pet owner campaign for a business that only sells portraits: weak / none.
   - Educational awareness campaign with no clear product match: medium / support or weak / none.
   - Father's Day for a toy store: strong / product, with website_product_selection_hint focused on board games, family games, building sets, puzzles, outdoor play, hobby kits or products children and parents can enjoy together.
-  Market and language detection rules:
-- If Selected market/country is provided, use it.
-- If Selected market/country is not provided, infer the most likely campaign market from the website URL, domain, currency, delivery area, visible language, contact details, local words and business context.
-- If Country code is not provided, infer the most likely ISO country code. Use "GLOBAL" only when the business appears clearly international or when no reliable country can be inferred.
-- If Preferred content language is provided, write user-facing fields in that language.
-- If Preferred content language is not provided, write all user-facing fields in the main language of the website.
-- The main website language is more important than the country list in the app.
-- Do not default to English just because the market is not in a predefined list.
-- For example, if the website is written in Uzbek, use Uzbek for content_language and write profile/campaign fields in Uzbek.
-- For example, if the website is written in Thai, use Thai for content_language and write profile/campaign fields in Thai.
-- For example, if the website is written in Romanian, use Romanian for content_language and write profile/campaign fields in Romanian.
-- market_setup.content_language must match the language used for profile.industry, profile.target_audience and campaign opportunity user-facing text.
 - Market and language detection rules:
   - If Selected market/country is provided, use it.
-  - If Selected market/country is not provided, infer the most likely campaign market from the business description.
+  - If Selected market/country is not provided, infer the most likely campaign market from the website URL, domain, currency, delivery area, visible language, contact details, local words and business context.
   - If Country code is not provided, infer the most likely ISO country code. Use "GLOBAL" only when the business appears clearly international or when no reliable country can be inferred.
   - If Preferred content language is provided, write user-facing fields in that language.
-  - If Preferred content language is not provided, write all user-facing fields in the main language of the business description.
+  - If Preferred content language is not provided, write all user-facing fields in the main language of the website.
+  - The main website language is more important than the country list in the app.
   - Do not default to English just because the market is not in a predefined list.
+  - For example, if the website is written in Uzbek, use Uzbek for content_language and write profile/campaign fields in Uzbek.
+  - For example, if the website is written in Thai, use Thai for content_language and write profile/campaign fields in Thai.
+  - For example, if the website is written in Romanian, use Romanian for content_language and write profile/campaign fields in Romanian.
   - market_setup.content_language must match the language used for profile.industry, profile.target_audience and campaign opportunity user-facing text.
 - The selected market/country is used mainly for campaign calendar relevance, holidays, cultural timing and content language.
 - Do not automatically restrict the target audience geographically to the selected market unless the website or description clearly says the business only serves that country or local area.
