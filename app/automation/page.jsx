@@ -3128,12 +3128,17 @@ publishTime = getRecommendedTimeForDate(startDate, selectedTimeZone);
           )
         );
 
-      const lastSlot = sortedSlots[sortedSlots.length - 1];
-      const fallbackStartDate =
-        lastSlot?.startDate ||
-        campaignOpportunity.start_date ||
-        planStartDate ||
-        getDateInputValueInTimeZone(new Date(), selectedTimeZone);
+const lastSlot = sortedSlots[sortedSlots.length - 1];
+
+const safeCampaignStartDate = getSafeCampaignStartDate(
+  campaignOpportunity,
+  selectedTimeZone
+);
+
+const fallbackStartDate =
+  lastSlot?.startDate ||
+  planStartDate ||
+  safeCampaignStartDate;
 
       const smartSchedule = buildSmartSlotSchedule({
         startDate: fallbackStartDate,
