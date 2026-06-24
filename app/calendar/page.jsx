@@ -282,6 +282,9 @@ export default function Calendar() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
+  const todayDateString = getTodayDateString();
+  const calendarYearNotice = getCalendarYearNotice(todayDateString);
+
   const selectedCampaign = useMemo(() => {
     return (
       campaigns.find((campaign) => campaign.id === selectedCampaignId) ||
@@ -363,10 +366,9 @@ export default function Calendar() {
       }
 
       const todayDateString = getTodayDateString();
-const calendarYearsToShow = getCalendarYearsToShow(todayDateString);
+      const calendarYearsToShow = getCalendarYearsToShow(todayDateString);
 
-const { data, error } = await supabase
-  
+      const { data, error } = await supabase
         .from("brand_campaign_opportunities")
         .select(
           "id, title, slug, description, country_code, market, language, industry, event_type, event_date, event_year, start_date, end_date, relevance_reason, relevance_score, sales_score, engagement_score, recommended_post_count, prompt_context, campaign_angles, post_plan, date_confidence, is_ai_generated, is_hidden, is_active, is_archived, generated_at, created_at, updated_at"
@@ -386,10 +388,10 @@ const { data, error } = await supabase
         return;
       }
 
-      const todayDateString = getTodayDateString();
-
       const upcomingCampaigns = (data || [])
-        .filter((campaign) => isUpcomingCampaign(campaign, todayDateString))
+        .filter((campaign) =>
+          isUpcomingCampaign(campaign, todayDateString, calendarYearsToShow)
+        )
         .sort(
           (firstCampaign, secondCampaign) =>
             getSortDate(firstCampaign) - getSortDate(secondCampaign)
@@ -448,6 +450,13 @@ const { data, error } = await supabase
 
         {message && <p className="campaign-calendar-message">{message}</p>}
 
+        <section className="campaign-calendar-year-note">
+          <div>
+            <p className="dashboard-eyebrow">Calendar update</p>
+            <strong>{calendarYearNotice}</strong>
+          </div>
+        </section>
+
         {campaigns.length === 0 ? (
           <section className="campaign-calendar-empty">
             <div>
@@ -495,50 +504,52 @@ const { data, error } = await supabase
                 </div>
 
                 <div className="campaign-card-grid">
-               {campaigns.map((campaign) => {
-  const isSelected = selectedCampaign?.id === campaign.id;
+                  {campaigns.map((campaign) => {
+                    const isSelected = selectedCampaign?.id === campaign.id;
 
-  return (
-    <article
-      key={campaign.id}
-      className={`campaign-card ${isSelected ? "active" : ""}`}
-      role="button"
-      tabIndex={0}
-      onClick={() => setSelectedCampaignId(campaign.id)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          setSelectedCampaignId(campaign.id);
-        }
-      }}
-    >
-      <div className="campaign-card-top">
-        <span>{getEventTypeLabel(campaign.event_type)}</span>
-        <strong>{getCampaignDateLabel(campaign)}</strong>
-      </div>
+                    return (
+                      <article
+                        key={campaign.id}
+                        className={`campaign-card ${isSelected ? "active" : ""}`}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedCampaignId(campaign.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedCampaignId(campaign.id);
+                          }
+                        }}
+                      >
+                        <div className="campaign-card-top">
+                          <span>{getEventTypeLabel(campaign.event_type)}</span>
+                          <strong>{getCampaignDateLabel(campaign)}</strong>
+                        </div>
 
-      <h4>{campaign.title}</h4>
+                        <h4>{campaign.title}</h4>
 
-      <p>{campaign.description}</p>
+                        <p>{campaign.description}</p>
 
-      <div className="campaign-card-meta">
-        <span>{getCampaignRecommendedPostCount(campaign)} posts</span>
-        <span>{getConfidenceLabel(campaign.date_confidence)}</span>
-      </div>
+                        <div className="campaign-card-meta">
+                          <span>
+                            {getCampaignRecommendedPostCount(campaign)} posts
+                          </span>
+                          <span>{getConfidenceLabel(campaign.date_confidence)}</span>
+                        </div>
 
-      <button
-        type="button"
-        className="campaign-card-create-button"
-        onClick={(event) => {
-          event.stopPropagation();
-          handleCreateCampaign(campaign);
-        }}
-      >
-        Create posts
-      </button>
-    </article>
-  );
-})}
+                        <button
+                          type="button"
+                          className="campaign-card-create-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleCreateCampaign(campaign);
+                          }}
+                        >
+                          Create posts
+                        </button>
+                      </article>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -612,44 +623,45 @@ const { data, error } = await supabase
                       )}
 
                     <div className="campaign-detail-section">
-  <h4>Recommended post plan</h4>
+                      <h4>Recommended post plan</h4>
 
-  <p className="campaign-post-plan-note">
-    Spreelo recommends{" "}
-    {getCampaignRecommendedPostCount(selectedCampaign)} posts for this campaign.
-  </p>
+                      <p className="campaign-post-plan-note">
+                        Spreelo recommends{" "}
+                        {getCampaignRecommendedPostCount(selectedCampaign)} posts
+                        for this campaign.
+                      </p>
 
-  <div className="campaign-post-plan">
-    {buildCampaignPostPlan(
-      selectedCampaign,
-      getCampaignRecommendedPostCount(selectedCampaign)
-    ).map((post, index) => (
-      <div key={`${post.role || "campaign-post"}-${index}`}>
-        <span>{index + 1}</span>
-        <div>
-          <strong>{post.role || `Post ${index + 1}`}</strong>
-          <p>{post.purpose || "Create a useful campaign post."}</p>
+                      <div className="campaign-post-plan">
+                        {buildCampaignPostPlan(
+                          selectedCampaign,
+                          getCampaignRecommendedPostCount(selectedCampaign)
+                        ).map((post, index) => (
+                          <div key={`${post.role || "campaign-post"}-${index}`}>
+                            <span>{index + 1}</span>
+                            <div>
+                              <strong>{post.role || `Post ${index + 1}`}</strong>
+                              <p>{post.purpose || "Create a useful campaign post."}</p>
 
-          {typeof post.days_before_event === "number" && (
-            <small>
-              {post.days_before_event === 0
-                ? "Publish on campaign date"
-                : `${post.days_before_event} days before`}
-            </small>
-          )}
-        </div>
-      </div>
-    ))}
-  </div>
-</div>
+                              {typeof post.days_before_event === "number" && (
+                                <small>
+                                  {post.days_before_event === 0
+                                    ? "Publish on campaign date"
+                                    : `${post.days_before_event} days before`}
+                                </small>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
-<button
-  type="button"
-  className="campaign-create-button"
-  onClick={() => handleCreateCampaign(selectedCampaign)}
->
-  Create posts
-</button>
+                    <button
+                      type="button"
+                      className="campaign-create-button"
+                      onClick={() => handleCreateCampaign(selectedCampaign)}
+                    >
+                      Create posts
+                    </button>
 
                     <p className="campaign-calendar-disclaimer">
                       Campaign dates are suggested by AI and may vary by market,
