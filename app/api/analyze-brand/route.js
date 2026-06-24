@@ -1726,12 +1726,18 @@ export async function POST(request) {
     const websiteUrl = normalizeWebsiteUrl(body?.websiteUrl);
     const brandDescription = String(body?.brandDescription || "").trim();
 
-    const contentMarket = String(body?.contentMarket || "").trim();
-    const countryCode = String(body?.countryCode || "").trim().toUpperCase();
-    const requestedContentLanguage = String(
-      body?.contentLanguage || ""
-    ).trim();
+  const requestedMarketSetup = inferMarketSetup({
+  websiteUrl,
+  brandDescription,
+  contentMarket: body?.contentMarket,
+  countryCode: body?.countryCode,
+  contentLanguage: body?.contentLanguage,
+});
 
+const contentMarket = requestedMarketSetup.contentMarket;
+const countryCode = requestedMarketSetup.countryCode;
+const requestedContentLanguage = requestedMarketSetup.contentLanguage;
+    
     if (!brandProfileId) {
       return Response.json(
         {
