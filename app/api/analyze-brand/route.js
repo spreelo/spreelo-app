@@ -1430,6 +1430,7 @@ Return JSON only in this exact shape:
     "target_audience": "Clear description of the likely customers/audience, written in the most suitable content language",
     "detected_language": "Detected main language"
   },
+  "campaign_opportunities": [
     {
       "title": "Campaign or theme day name",
       "slug": "simple-url-safe-slug",
