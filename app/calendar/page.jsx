@@ -130,14 +130,22 @@ function getCalendarYearNotice(todayDateString) {
   return `Your ${nextYear} campaign calendar will be added automatically on December 1.`;
 }
 
-function isUpcomingCampaign(campaign, todayDateString) {
+function isUpcomingCampaign(campaign, todayDateString, visibleYears = []) {
   if (!campaign) return false;
 
   const currentYear = Number(todayDateString.slice(0, 4));
   const campaignYear = Number(campaign.event_year);
 
-  if (Number.isFinite(campaignYear) && campaignYear !== currentYear) {
+  if (
+    Number.isFinite(campaignYear) &&
+    visibleYears.length > 0 &&
+    !visibleYears.includes(campaignYear)
+  ) {
     return false;
+  }
+
+  if (Number.isFinite(campaignYear) && campaignYear > currentYear) {
+    return true;
   }
 
   if (campaign.event_date) {
@@ -153,7 +161,7 @@ function isUpcomingCampaign(campaign, todayDateString) {
   }
 
   if (Number.isFinite(campaignYear)) {
-    return campaignYear === currentYear;
+    return visibleYears.includes(campaignYear);
   }
 
   return true;
