@@ -86,7 +86,48 @@ function getSortDate(campaign) {
 }
 
 function getTodayDateString() {
-  return new Date().toISOString().slice(0, 10);
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getCalendarYearsToShow(todayDateString) {
+  const currentYear = Number(todayDateString.slice(0, 4));
+  const monthDay = todayDateString.slice(5);
+
+  if (!Number.isFinite(currentYear)) {
+    return [new Date().getFullYear()];
+  }
+
+  if (monthDay >= "12-01") {
+    return [currentYear, currentYear + 1];
+  }
+
+  return [currentYear];
+}
+
+function getNextCalendarYear(todayDateString) {
+  const currentYear = Number(todayDateString.slice(0, 4));
+
+  if (!Number.isFinite(currentYear)) {
+    return new Date().getFullYear() + 1;
+  }
+
+  return currentYear + 1;
+}
+
+function getCalendarYearNotice(todayDateString) {
+  const nextYear = getNextCalendarYear(todayDateString);
+  const monthDay = todayDateString.slice(5);
+
+  if (monthDay >= "12-01") {
+    return `Your ${nextYear} campaign calendar is ready. You can plan next year’s posts while keeping the remaining campaigns for this year.`;
+  }
+
+  return `Your ${nextYear} campaign calendar will be added automatically on December 1.`;
 }
 
 function isUpcomingCampaign(campaign, todayDateString) {
