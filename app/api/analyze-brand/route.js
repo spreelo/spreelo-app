@@ -1418,13 +1418,18 @@ ${campaignCalendarYear}
 
 Return JSON only in this exact shape:
 {
+  "market_setup": {
+    "content_market": "The most likely campaign market for this business, for example Sweden, Germany, Uzbekistan, United States, International / Global or another suitable market",
+    "country_code": "ISO country code such as SE, DE, UZ, US, or GLOBAL if the market is international or unclear",
+    "content_language": "The main language used in the business description, for example Swedish, German, Uzbek, English, Spanish, Arabic or another detected language",
+    "reason": "Short explanation of why this market and language were selected"
+  },
   "profile": {
     "business_name": "Business name",
     "industry": "Short but clear description of what the business does, written in the most suitable content language",
     "target_audience": "Clear description of the likely customers/audience, written in the most suitable content language",
     "detected_language": "Detected main language"
   },
-  "campaign_opportunities": [
     {
       "title": "Campaign or theme day name",
       "slug": "simple-url-safe-slug",
