@@ -1256,11 +1256,12 @@ Rules:
   - Product names, imported brand names, model names, technical specifications and ecommerce category labels are weaker language signals than the store/interface language.
   - If the website interface is written in a local language but many product names or technical product descriptions are in English, choose the local interface language as content_language.
   - Only choose English when English is clearly the main language of the store/interface itself, not just because many products, brands or technical terms are written in English.
-  - If the website is mainly written in a local or non-English language, use that language even if it is not common internationally and even if the app dropdown does not contain that market or language.
-  - The main website language is more important than the country list in the app.
-  - Do not default to English just because the market is not in a predefined list.
-  - market_setup.content_language must be the detected language name, for example the actual main language used by the business website.
-  - market_setup.content_language must match the language used for profile.industry, profile.target_audience and campaign opportunity user-facing text.
+  - If Preferred content language is not provided, detect the main customer-facing website language and write all user-facing fields in that language.
+  - The customer-facing website language means the language used to communicate with visitors through navigation, menus, headings, banners, body text, buttons, service descriptions, product descriptions, booking text, delivery text, contact text, footer text, legal/customer information and general instructions.
+  - Give strongest weight to the language used in the website's own interface, explanations, headings and customer instructions.
+  - Give weaker weight to imported product names, brand names, model names, technical specifications, URLs, metadata, scripts, SEO snippets, short English brand words, isolated English phrases and generic ecommerce/platform terms.
+  - If the website mainly communicates with visitors in a local or non-English language but contains many English product names, technical terms, brand names or imported phrases, choose the local/non-English customer-facing website language as content_language.
+  - Only choose English when English is clearly the main language the website uses to communicate with visitors, not just because parts of the website contain English words.
 - The selected market/country is used mainly for campaign calendar relevance, holidays, cultural timing and content language.
 - Do not automatically restrict the target audience geographically to the selected market unless the website or description clearly says the business only serves that country or local area.
 - If the business appears remote, online, global or international, describe the target audience without limiting it to the selected market.
