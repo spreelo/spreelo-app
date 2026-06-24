@@ -788,11 +788,10 @@ try {
               <div>
                 <span>2</span>
                 <div>
-                  <strong>Market & language</strong>
-                  <p>
-                    Choose where the brand creates content and in which
-                    language.
-                  </p>
+             <strong>Campaign settings</strong>
+<p>
+  Spreelo selects market and language automatically after the analysis.
+</p>
                 </div>
               </div>
 
