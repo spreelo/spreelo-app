@@ -100,11 +100,12 @@ function inferMarketSetup({
       contentLanguage: "English",
     },
     {
-      match: [".ie", "/ie/", "://ie.", "ireland", "eur"],
-      contentMarket: "Ireland",
-      countryCode: "IE",
-      contentLanguage: "English",
-    },
+   {
+  match: [".ie", "/ie/", "://ie.", "ireland"],
+  contentMarket: "Ireland",
+  countryCode: "IE",
+  contentLanguage: "English",
+},
 
     {
       match: [
