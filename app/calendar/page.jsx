@@ -362,9 +362,11 @@ export default function Calendar() {
         localStorage.setItem(getBrandStorageKey(user.id), brandToLoad.id);
       }
 
-      const currentYear = new Date().getFullYear();
+      const todayDateString = getTodayDateString();
+const calendarYearsToShow = getCalendarYearsToShow(todayDateString);
 
-      const { data, error } = await supabase
+const { data, error } = await supabase
+  
         .from("brand_campaign_opportunities")
         .select(
           "id, title, slug, description, country_code, market, language, industry, event_type, event_date, event_year, start_date, end_date, relevance_reason, relevance_score, sales_score, engagement_score, recommended_post_count, prompt_context, campaign_angles, post_plan, date_confidence, is_ai_generated, is_hidden, is_active, is_archived, generated_at, created_at, updated_at"
