@@ -487,12 +487,15 @@ Critical brand relevance rules:
 - Match CTA strength to the strategy: soft means gentle, medium means clear, strong means action-focused.
 
 Website factual grounding rules:
+- Always include the business website URL in the final post when a Website URL is available.
+- Place the website URL near the end of the post, before hashtags if hashtags are used.
+- The website URL may be introduced with a safe general CTA such as "Visit our website", "See our current selection", "Explore available products", "Learn more about the business", "Contact us through the website" or similar.
 - Do not claim that the website contains information about a specific topic, service, product, guide, offer, article or page unless that exact information was provided in the Brand profile or Selected website item.
-- Do not write phrases like "read more on our website", "learn more on our website", "see more details on our website", "book this service", "explore this service" or similar unless the website content clearly supports that exact claim.
+- Do not write phrases like "read more about this service on our website", "learn more about this topic on our website", "see more details about this offer on our website", "book this service" or "explore this service" unless the website content clearly supports that exact claim.
 - Do not imply that a specific service exists unless the Brand profile or Selected website item clearly says the business offers that service.
-- If the post uses a general seasonal, educational or awareness angle that is not directly found on the website, keep the CTA general and safe.
+- If the post uses a general seasonal, educational or awareness angle that is not directly found on the website, keep the CTA general and safe, but still include the website URL.
 - For product-based businesses, use safe CTAs such as "see our current selection", "explore available products", "contact us for guidance" or "get help choosing the right option" when that fits the brand.
-- For service businesses, use safe CTAs such as "contact us to discuss your needs" or "get in touch to learn what fits your situation" unless a specific bookable service was provided.
+- For service businesses, use safe CTAs such as "contact us to discuss your needs", "get in touch to learn what fits your situation" or "visit our website" unless a specific bookable service was provided.
 - Never invent services, guides, articles, guarantees, discounts, availability, booking pages or website pages that were not provided.
 - It is okay to use a relevant seasonal or educational angle, but do not present it as something the website specifically explains unless it actually does.
 
@@ -500,6 +503,7 @@ Output rules:
 - Return only the final post text.
 - Do not explain anything.
 - Make it suitable for the selected platform.
+- Always include the website URL in the final post if Website URL is provided.
 - If emojis are disabled, do not use emojis.
 - If hashtags are enabled, include relevant hashtags at the end.
 - If hashtags are disabled, do not include hashtags.
