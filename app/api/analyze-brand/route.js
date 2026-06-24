@@ -744,6 +744,74 @@ function normalizeMarketSetup(rawValue, fallbackLanguage = "") {
   };
 }
 
+async function detectWebsiteLanguageWithOpenAI({
+  openai,
+  websiteUrl,
+  html,
+}) {
+  const title = extractPageTitle(html);
+  const description = extractMetaDescription(html);
+  const visibleText = truncateText(stripHtmlToText(html), 12000);
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          "You detect the main customer-facing language of a website. Return strict JSON only.",
+      },
+      {
+        role: "user",
+        content: `
+Detect the main customer-facing website language.
+
+Website URL:
+${websiteUrl}
+
+Page title:
+${title || "Not found"}
+
+Meta description:
+${description || "Not found"}
+
+Visible website text:
+${visibleText}
+
+Return JSON only in this exact shape:
+{
+  "language": "Detected language name, for example Swedish, Lao, Armenian, Uzbek, English, Spanish, Arabic or another language",
+  "confidence": "high | medium | low",
+  "reason": "Short explanation of the strongest evidence"
+}
+
+Rules:
+- Detect the language the website mainly uses to communicate with visitors.
+- This must work for any language in the world, not only common dropdown languages.
+- Give strongest weight to navigation, menus, headings, banners, body text, buttons, service descriptions, booking text, delivery text, contact text, footer text, legal/customer information and general customer instructions.
+- Give weaker weight to imported product names, brand names, model names, technical specifications, URLs, metadata, scripts, SEO snippets, isolated English phrases and generic platform/ecommerce terms.
+- Do not choose English only because the website contains English product names, technical terms, model names, brand names or imported phrases.
+- If the website mainly communicates with visitors in a local or non-English language, choose that language.
+- Only choose English when English is clearly the main language the website uses to communicate with visitors.
+- Return the language name in English, for example "Lao", "Armenian", "Uzbek", "Swedish", "English".
+`.trim(),
+      },
+    ],
+    temperature: 0,
+  });
+
+  const content = completion.choices?.[0]?.message?.content || "";
+  const parsed = safeJsonParse(content);
+
+  const language = String(parsed?.language || "").trim();
+
+  return {
+    language: language.slice(0, 80),
+    confidence: String(parsed?.confidence || "medium").trim().slice(0, 20),
+    reason: String(parsed?.reason || "").trim().slice(0, 500),
+  };
+}
+
 async function fetchWebsiteHtml(websiteUrl) {
   const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
 
