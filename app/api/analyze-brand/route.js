@@ -1774,9 +1774,10 @@ const requestedContentLanguage = requestedMarketSetup.contentLanguage;
     const currentDate = now.toISOString().slice(0, 10);
     const campaignCalendarYear = now.getUTCFullYear();
 
-    let analysis;
-    let finalWebsiteUrl = websiteUrl;
-
+let analysis;
+let finalWebsiteUrl = websiteUrl;
+let detectedWebsiteContentLanguage = "";
+    
     if (websiteUrl) {
   const website = await fetchWebsiteHtml(websiteUrl);
   finalWebsiteUrl = website.url;
