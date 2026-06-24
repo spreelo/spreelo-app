@@ -1251,16 +1251,13 @@ Rules:
   - If Selected market/country is not provided, infer the most likely campaign market from the website URL, domain, currency, delivery area, visible language, contact details, local words and business context.
   - If Country code is not provided, infer the most likely ISO country code. Use "GLOBAL" only when the business appears clearly international or when no reliable country can be inferred.
   - If Preferred content language is provided, write user-facing fields in that language.
-  - If Preferred content language is not provided, detect the main customer-facing language from the visible website text and write all user-facing fields in that language.
+  - If Preferred content language is not provided, detect the main customer-facing language from the visible website text and write all user-facing fields in that same detected language.
   - Customer-facing body text, menus, product names, category names, buttons, prices, delivery text and contact text are stronger language signals than technical metadata, scripts, SEO snippets, short English brand words or isolated English phrases.
   - Do not choose English only because the website contains English technical words, product labels, URLs, scripts, metadata, ecommerce terms or a few English phrases.
-  - If the website is mainly written in a local language, use that local language even if the app dropdown does not contain that market or language.
+  - If the website is mainly written in a local or non-English language, use that language even if it is not common internationally and even if the app dropdown does not contain that market or language.
   - The main website language is more important than the country list in the app.
   - Do not default to English just because the market is not in a predefined list.
-  - For example, if the website is written in Uzbek, use Uzbek for content_language and write profile/campaign fields in Uzbek.
-  - For example, if the website is written in Lao, use Lao for content_language and write profile/campaign fields in Lao.
-  - For example, if the website is written in Thai, use Thai for content_language and write profile/campaign fields in Thai.
-  - For example, if the website is written in Romanian, use Romanian for content_language and write profile/campaign fields in Romanian.
+  - market_setup.content_language must be the detected language name, for example the actual main language used by the business website.
   - market_setup.content_language must match the language used for profile.industry, profile.target_audience and campaign opportunity user-facing text.
 - The selected market/country is used mainly for campaign calendar relevance, holidays, cultural timing and content language.
 - Do not automatically restrict the target audience geographically to the selected market unless the website or description clearly says the business only serves that country or local area.
