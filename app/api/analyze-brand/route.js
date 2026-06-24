@@ -1347,23 +1347,27 @@ Campaign rule:
     throw new Error("Could not parse OpenAI response");
   }
 
-  return {
-    profile: {
-      business_name: String(
-        parsed.profile.business_name || businessName || ""
-      ).trim(),
-      industry: String(parsed.profile.industry || "").trim(),
-      target_audience: String(parsed.profile.target_audience || "").trim(),
-      detected_language: String(parsed.profile.detected_language || "").trim(),
-    },
-   website_product_mode: normalizeWebsiteProductMode(
-  parsed.website_product_mode,
-  websiteUrl
-),
-    campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
-      ? parsed.campaign_opportunities
-      : [],
-  };
+return {
+  market_setup: normalizeMarketSetup(
+    parsed.market_setup,
+    parsed.profile.detected_language
+  ),
+  profile: {
+    business_name: String(
+      parsed.profile.business_name || businessName || ""
+    ).trim(),
+    industry: String(parsed.profile.industry || "").trim(),
+    target_audience: String(parsed.profile.target_audience || "").trim(),
+    detected_language: String(parsed.profile.detected_language || "").trim(),
+  },
+  website_product_mode: normalizeWebsiteProductMode(
+    parsed.website_product_mode,
+    websiteUrl
+  ),
+  campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
+    ? parsed.campaign_opportunities
+    : [],
+};
 }
 
 async function analyzeDescriptionWithOpenAI({
