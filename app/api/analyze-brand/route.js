@@ -697,17 +697,51 @@ function getDefaultLanguage(contentLanguage, detectedLanguage) {
     return requestedLanguage;
   }
 
-  const detected = String(detectedLanguage || "").toLowerCase();
+  const detected = String(detectedLanguage || "").trim();
 
-  if (detected.includes("swedish") || detected.includes("svenska")) {
-    return "Swedish";
+  if (detected) {
+    return detected;
   }
 
-  if (detected.includes("english")) {
-    return "English";
-  }
+  return "English";
+}
 
-  return detectedLanguage || "English";
+function normalizeMarketSetup(rawValue, fallbackLanguage = "") {
+  const rawSetup = rawValue || {};
+
+  return {
+    contentMarket: String(
+      rawSetup.content_market ||
+        rawSetup.contentMarket ||
+        rawSetup.market ||
+        ""
+    )
+      .trim()
+      .slice(0, 120),
+
+    countryCode: String(
+      rawSetup.country_code ||
+        rawSetup.countryCode ||
+        ""
+    )
+      .trim()
+      .toUpperCase()
+      .slice(0, 20),
+
+    contentLanguage: String(
+      rawSetup.content_language ||
+        rawSetup.contentLanguage ||
+        rawSetup.language ||
+        fallbackLanguage ||
+        ""
+    )
+      .trim()
+      .slice(0, 80),
+
+    reason: String(rawSetup.reason || "")
+      .trim()
+      .slice(0, 500),
+  };
 }
 
 async function fetchWebsiteHtml(websiteUrl) {
