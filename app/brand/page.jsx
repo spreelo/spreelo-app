@@ -346,18 +346,17 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, [analyzing]);
   
-  function handleMarketChange(event) {
-    const nextMarket = event.target.value;
-    const selectedMarket = marketOptions.find(
-      (market) => market.label === nextMarket
-    );
+ function handleMarketChange(event) {
+  const nextMarket = event.target.value;
+  const selectedMarket = marketOptions.find(
+    (market) => market.label === nextMarket
+  );
 
-    setContentMarket(nextMarket);
-    setCountryCode(selectedMarket?.countryCode || "");
-    setContentLanguage(selectedMarket?.language || contentLanguage || "English");
-    setShowGeneratedFields(false);
-    setMessage("");
-  }
+  setContentMarket(nextMarket);
+  setCountryCode(selectedMarket?.countryCode || "");
+  setContentLanguage(selectedMarket?.language || contentLanguage || "English");
+  setMessage("");
+}
 
   function handleNoWebsiteChange(event) {
     const checked = event.target.checked;
