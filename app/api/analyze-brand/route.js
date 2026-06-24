@@ -1758,26 +1758,6 @@ const requestedContentLanguage = requestedMarketSetup.contentLanguage;
       );
     }
 
-    if (!contentMarket || !countryCode) {
-      return Response.json(
-        {
-          ok: false,
-          error: "Choose the market/country this brand targets.",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!requestedContentLanguage) {
-      return Response.json(
-        {
-          ok: false,
-          error: "Choose the content language for this brand.",
-        },
-        { status: 400 }
-      );
-    }
-
     if (!websiteUrl && !brandDescription) {
       return Response.json(
         {
