@@ -429,15 +429,15 @@ setAnalyzing(true);
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          brandProfileId,
-          businessName: trimmedBusinessName,
-          websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
-          brandDescription: hasNoWebsite ? trimmedDescription : "",
-          contentMarket,
-          countryCode,
-          contentLanguage,
-        }),
+     body: JSON.stringify({
+  brandProfileId,
+  businessName: trimmedBusinessName,
+  websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
+  brandDescription: hasNoWebsite ? trimmedDescription : "",
+  contentMarket: showGeneratedFields ? contentMarket : "",
+  countryCode: showGeneratedFields ? countryCode : "",
+  contentLanguage: showGeneratedFields ? contentLanguage : "",
+}),
       });
 
       const result = await response.json();
