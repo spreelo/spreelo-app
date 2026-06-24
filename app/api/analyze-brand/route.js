@@ -1094,7 +1094,7 @@ Return JSON only in this exact shape:
   "market_setup": {
     "content_market": "The most likely campaign market for this business, for example Sweden, Germany, Uzbekistan, United States, International / Global or another suitable market",
     "country_code": "ISO country code such as SE, DE, UZ, US, or GLOBAL if the market is international or unclear",
-    "content_language": "The main language used on the website, for example Swedish, German, Uzbek, English, Spanish, Arabic or another detected language",
+    "content_language": "The main language used in the business description, for example Swedish, German, Uzbek, English, Spanish, Arabic or another detected language",
     "reason": "Short explanation of why this market and language were selected"
   },
   "profile": {
@@ -1103,11 +1103,6 @@ Return JSON only in this exact shape:
     "target_audience": "Clear description of the likely customers/audience, written in the most suitable content language",
     "detected_language": "Detected main language"
   },
-"website_product_mode": {
-  "available": true,
-  "reason": "Short internal explanation. True only if the provided website content or checked candidate source pages clearly contain stable individual items suitable for website-based posts.",
-  "source_url": "The exact URL where the best product/service/listing/menu/treatment/course/event/offer items were found. Empty string when available is false."
-},
   "campaign_opportunities": [
     {
       "title": "Campaign or theme day name",
@@ -1120,7 +1115,7 @@ Return JSON only in this exact shape:
       "date_confidence": "high | medium | low",
       "website_content_fit": "strong | medium | weak",
       "website_content_strategy": "product | service | support | none",
-           "website_product_selection_hint": "Short instruction for what type of website product, service or offer should be selected for this campaign. Use an empty string when website_content_strategy is none.",
+      "website_product_selection_hint": "Short instruction for what type of website product, service or offer should be selected for this campaign. Use an empty string when website_content_strategy is none.",
       "campaign_category": "gift_campaign | seasonal_campaign | sales_campaign | local_event | educational_theme | awareness_theme | product_discovery | trust_building | engagement_theme | booking_push | limited_time_offer | community_moment | custom_campaign",
       "campaign_goal": "What this campaign should achieve for the business",
       "target_customer_need": "The customer need, situation, problem, desire or buying intent this campaign is built around",
