@@ -1838,10 +1838,12 @@ const finalCountryCode =
   "GLOBAL";
 
 const finalContentLanguage = getDefaultLanguage(
-  requestedContentLanguage || detectedMarketSetup.contentLanguage,
+  requestedContentLanguage ||
+    detectedWebsiteContentLanguage ||
+    detectedMarketSetup.contentLanguage,
   profile.detected_language
 );
-
+    
        const savedProfile = await saveBrandProfile({
       supabase,
       userId: user.id,
