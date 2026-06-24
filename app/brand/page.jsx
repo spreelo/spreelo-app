@@ -963,11 +963,11 @@ try {
           onChange={handleMarketChange}
           disabled={analyzing || saving || deletingBrand}
         >
-          {marketOptions.map((market) => (
-            <option key={market.countryCode} value={market.label}>
-              {market.label}
-            </option>
-          ))}
+        {visibleMarketOptions.map((market) => (
+  <option key={`${market.countryCode}-${market.label}`} value={market.label}>
+    {market.label}
+  </option>
+))}
         </select>
 
         <p className="brand-profile-field-help">
