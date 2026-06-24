@@ -2429,9 +2429,7 @@ timeZone,
   });
 }
 
-  const fallbackStartDate =
-    campaign?.start_date ||
-    getDateInputValueInTimeZone(new Date(), timeZone);
+const fallbackStartDate = getSafeCampaignStartDate(campaign, timeZone);
 
   const smartSchedule = buildSmartSlotSchedule({
     startDate: fallbackStartDate,
