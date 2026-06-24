@@ -898,55 +898,66 @@ try {
               )}
             </div>
 
-            <div className="brand-profile-form-section market">
-              <div className="brand-profile-section-title">
-                <div>
-                  <h4>Market setup</h4>
-                  <p>
-                    Used for campaign ideas, theme days, seasonal timing and
-                    language.
-                  </p>
-                </div>
-              </div>
+           {showGeneratedFields && (
+  <div className="brand-profile-form-section market">
+    <div className="brand-profile-section-title">
+      <div>
+        <h4>Campaign settings</h4>
+        <p>
+          Spreelo selected these based on your website or business description.
+          You can change them if needed.
+        </p>
+      </div>
 
-              <div className="brand-profile-two-col">
-                <div>
-                  <label>Content market</label>
-                  <select
-                    className="input"
-                    value={contentMarket}
-                    onChange={handleMarketChange}
-                    disabled={analyzing || saving || deletingBrand}
-                  >
-                    {marketOptions.map((market) => (
-                      <option key={market.countryCode} value={market.label}>
-                        {market.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+      <span>Auto-selected</span>
+    </div>
 
-                <div>
-                  <label>Content language</label>
-                  <select
-                    className="input"
-                    value={contentLanguage}
-                    onChange={(event) => {
-                      setContentLanguage(event.target.value);
-                      setShowGeneratedFields(false);
-                      setMessage("");
-                    }}
-                    disabled={analyzing || saving || deletingBrand}
-                  >
-                    {languageOptions.map((language) => (
-                      <option key={language} value={language}>
-                        {language}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
+    <div className="brand-profile-two-col">
+      <div>
+        <label>Campaign market</label>
+        <select
+          className="input"
+          value={contentMarket}
+          onChange={handleMarketChange}
+          disabled={analyzing || saving || deletingBrand}
+        >
+          {marketOptions.map((market) => (
+            <option key={market.countryCode} value={market.label}>
+              {market.label}
+            </option>
+          ))}
+        </select>
+
+        <p className="brand-profile-field-help">
+          Used for holidays, seasonal timing and campaign ideas.
+        </p>
+      </div>
+
+      <div>
+        <label>Post language</label>
+        <select
+          className="input"
+          value={contentLanguage}
+          onChange={(event) => {
+            setContentLanguage(event.target.value);
+            setMessage("");
+          }}
+          disabled={analyzing || saving || deletingBrand}
+        >
+          {languageOptions.map((language) => (
+            <option key={language} value={language}>
+              {language}
+            </option>
+          ))}
+        </select>
+
+        <p className="brand-profile-field-help">
+          Used for captions, campaign ideas and generated posts.
+        </p>
+      </div>
+    </div>
+  </div>
+)}
 
             {showGeneratedFields && (
               <div className="brand-profile-form-section ai-profile">
