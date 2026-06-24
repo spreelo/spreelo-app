@@ -28,6 +28,184 @@ function normalizeWebsiteUrl(value) {
   return `https://${trimmedValue}`;
 }
 
+function inferMarketSetup({
+  websiteUrl,
+  brandDescription,
+  contentMarket,
+  countryCode,
+  contentLanguage,
+}) {
+  const providedMarket = String(contentMarket || "").trim();
+  const providedCountryCode = String(countryCode || "").trim().toUpperCase();
+  const providedLanguage = String(contentLanguage || "").trim();
+
+  if (providedMarket && providedCountryCode && providedLanguage) {
+    return {
+      contentMarket: providedMarket,
+      countryCode: providedCountryCode,
+      contentLanguage: providedLanguage,
+    };
+  }
+
+  const combinedText = `${websiteUrl || ""} ${
+    brandDescription || ""
+  }`.toLowerCase();
+
+  const marketRules = [
+    {
+      match: [
+        ".se",
+        "/se/",
+        "sweden",
+        "sverige",
+        "svenska",
+        "sek",
+        "stockholm",
+        "göteborg",
+        "goteborg",
+        "malmö",
+        "malmo",
+      ],
+      contentMarket: "Sweden",
+      countryCode: "SE",
+      contentLanguage: "Swedish",
+    },
+    {
+      match: [
+        ".dk",
+        "/dk/",
+        "denmark",
+        "danmark",
+        "dansk",
+        "dkk",
+        "københavn",
+        "copenhagen",
+      ],
+      contentMarket: "Denmark",
+      countryCode: "DK",
+      contentLanguage: "Danish",
+    },
+    {
+      match: [".no", "/no/", "norway", "norge", "norsk", "nok", "oslo"],
+      contentMarket: "Norway",
+      countryCode: "NO",
+      contentLanguage: "Norwegian",
+    },
+    {
+      match: [".fi", "/fi/", "finland", "finnish", "suomi", "helsinki"],
+      contentMarket: "Finland",
+      countryCode: "FI",
+      contentLanguage: "Finnish",
+    },
+    {
+      match: [
+        ".de",
+        "/de/",
+        "germany",
+        "deutschland",
+        "deutsch",
+        "berlin",
+      ],
+      contentMarket: "Germany",
+      countryCode: "DE",
+      contentLanguage: "German",
+    },
+    {
+      match: [".nl", "/nl/", "netherlands", "nederland", "dutch", "amsterdam"],
+      contentMarket: "Netherlands",
+      countryCode: "NL",
+      contentLanguage: "Dutch",
+    },
+    {
+      match: [".fr", "/fr/", "france", "français", "french", "paris"],
+      contentMarket: "France",
+      countryCode: "FR",
+      contentLanguage: "French",
+    },
+    {
+      match: [".es", "/es/", "spain", "españa", "spanish", "madrid"],
+      contentMarket: "Spain",
+      countryCode: "ES",
+      contentLanguage: "Spanish",
+    },
+    {
+      match: [".it", "/it/", "italy", "italia", "italian", "rome", "milano"],
+      contentMarket: "Italy",
+      countryCode: "IT",
+      contentLanguage: "Italian",
+    },
+    {
+      match: [
+        ".co.uk",
+        ".uk",
+        "/uk/",
+        "united kingdom",
+        "great britain",
+        "britain",
+        "gbp",
+        "£",
+      ],
+      contentMarket: "United Kingdom",
+      countryCode: "GB",
+      contentLanguage: "English",
+    },
+    {
+      match: [".com.au", "/au/", "australia", "aud", "sydney", "melbourne"],
+      contentMarket: "Australia",
+      countryCode: "AU",
+      contentLanguage: "English",
+    },
+    {
+      match: [".ca", "/ca/", "canada", "cad", "toronto", "vancouver"],
+      contentMarket: "Canada",
+      countryCode: "CA",
+      contentLanguage: "English",
+    },
+    {
+      match: [".ae", "/ae/", "dubai", "abu dhabi", "uae", "united arab emirates"],
+      contentMarket: "United Arab Emirates",
+      countryCode: "AE",
+      contentLanguage: "English",
+    },
+    {
+      match: [".in", "/in/", "india", "hindi", "mumbai", "delhi"],
+      contentMarket: "India",
+      countryCode: "IN",
+      contentLanguage: "English",
+    },
+    {
+      match: [
+        ".com",
+        "global",
+        "international",
+        "worldwide",
+        "shipping worldwide",
+      ],
+      contentMarket: "International / Global",
+      countryCode: "GLOBAL",
+      contentLanguage: "English",
+    },
+  ];
+
+  const matchedRule = marketRules.find((rule) =>
+    rule.match.some((signal) => combinedText.includes(signal))
+  );
+
+  if (matchedRule) {
+    return {
+      contentMarket: matchedRule.contentMarket,
+      countryCode: matchedRule.countryCode,
+      contentLanguage: matchedRule.contentLanguage,
+    };
+  }
+
+  return {
+    contentMarket: "International / Global",
+    countryCode: "GLOBAL",
+    contentLanguage: "English",
+  };
+}
+
 function resolveUrl(value, baseUrl) {
   try {
     return new URL(value, baseUrl).toString();
