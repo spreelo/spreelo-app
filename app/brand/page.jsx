@@ -400,16 +400,6 @@ setAnalysisProgress(0);
       return;
     }
 
-    if (!contentMarket || !countryCode) {
-      setMessage("Choose the market/country this brand targets.");
-      return;
-    }
-
-    if (!contentLanguage) {
-      setMessage("Choose the content language for this brand.");
-      return;
-    }
-
     if (!hasNoWebsite && !normalizedWebsiteUrl) {
       setMessage("Add a website URL, or select that you do not have a website.");
       return;
