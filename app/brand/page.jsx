@@ -986,11 +986,11 @@ try {
           }}
           disabled={analyzing || saving || deletingBrand}
         >
-          {languageOptions.map((language) => (
-            <option key={language} value={language}>
-              {language}
-            </option>
-          ))}
+        {visibleLanguageOptions.map((language) => (
+  <option key={language} value={language}>
+    {language}
+  </option>
+))}
         </select>
 
         <p className="brand-profile-field-help">
