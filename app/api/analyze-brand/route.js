@@ -1251,9 +1251,11 @@ Rules:
   - If Selected market/country is not provided, infer the most likely campaign market from the website URL, domain, currency, delivery area, visible language, contact details, local words and business context.
   - If Country code is not provided, infer the most likely ISO country code. Use "GLOBAL" only when the business appears clearly international or when no reliable country can be inferred.
   - If Preferred content language is provided, write user-facing fields in that language.
-  - If Preferred content language is not provided, detect the main customer-facing language from the visible website text and write all user-facing fields in that same detected language.
-  - Customer-facing body text, menus, product names, category names, buttons, prices, delivery text and contact text are stronger language signals than technical metadata, scripts, SEO snippets, short English brand words or isolated English phrases.
-  - Do not choose English only because the website contains English technical words, product labels, URLs, scripts, metadata, ecommerce terms or a few English phrases.
+  - If Preferred content language is not provided, detect the main customer-facing store/interface language and write all user-facing fields in that language.
+  - The store/interface language means the language used in navigation, menus, headings, banners, buttons, checkout-related text, delivery text, contact text, footer text and general customer instructions.
+  - Product names, imported brand names, model names, technical specifications and ecommerce category labels are weaker language signals than the store/interface language.
+  - If the website interface is written in a local language but many product names or technical product descriptions are in English, choose the local interface language as content_language.
+  - Only choose English when English is clearly the main language of the store/interface itself, not just because many products, brands or technical terms are written in English.
   - If the website is mainly written in a local or non-English language, use that language even if it is not common internationally and even if the app dropdown does not contain that market or language.
   - The main website language is more important than the country list in the app.
   - Do not default to English just because the market is not in a predefined list.
