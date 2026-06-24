@@ -1097,11 +1097,16 @@ Return JSON only in this exact shape:
     "content_language": "The main language used in the business description, for example Swedish, German, Uzbek, English, Spanish, Arabic or another detected language",
     "reason": "Short explanation of why this market and language were selected"
   },
-  "profile": {
+    "profile": {
     "business_name": "Business name",
     "industry": "Short but clear description of what the business does, written in the most suitable content language",
     "target_audience": "Clear description of the likely customers/audience, written in the most suitable content language",
     "detected_language": "Detected main language"
+  },
+  "website_product_mode": {
+    "available": true,
+    "reason": "Short internal explanation. True only if the provided website content or checked candidate source pages clearly contain stable individual items suitable for website-based posts.",
+    "source_url": "The exact URL where the best product/service/listing/menu/treatment/course/event/offer items were found. Empty string when available is false."
   },
   "campaign_opportunities": [
     {
