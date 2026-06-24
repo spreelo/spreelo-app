@@ -169,6 +169,33 @@ export default function BrandProfile() {
 
   const shouldAnalyze = shouldAnalyzeWebsite || shouldAnalyzeDescription;
 
+  const visibleMarketOptions = useMemo(() => {
+  const existingMarket = marketOptions.some(
+    (market) => market.label === contentMarket
+  );
+
+  if (!contentMarket || existingMarket) {
+    return marketOptions;
+  }
+
+  return [
+    {
+      label: contentMarket,
+      countryCode: countryCode || "AUTO",
+      language: contentLanguage || "",
+    },
+    ...marketOptions,
+  ];
+}, [contentMarket, countryCode, contentLanguage]);
+
+const visibleLanguageOptions = useMemo(() => {
+  if (!contentLanguage || languageOptions.includes(contentLanguage)) {
+    return languageOptions;
+  }
+
+  return [contentLanguage, ...languageOptions];
+}, [contentLanguage]);
+
  const isBrandProfileReady = useMemo(() => {
   const hasBusinessName = Boolean(businessName.trim());
   const hasBusinessInput = hasNoWebsite
