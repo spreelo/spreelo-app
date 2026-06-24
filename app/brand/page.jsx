@@ -440,7 +440,18 @@ setAnalyzing(true);
 }),
       });
 
-      const result = await response.json();
+     const responseText = await response.text();
+
+let result = null;
+
+try {
+  result = JSON.parse(responseText);
+} catch {
+  throw new Error(
+    responseText?.slice(0, 180) ||
+      "The server returned an invalid response while analyzing the brand."
+  );
+}
 
       if (!response.ok || !result?.ok) {
         throw new Error(result?.error || "Could not analyze brand.");
