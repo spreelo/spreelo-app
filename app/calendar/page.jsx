@@ -376,7 +376,7 @@ const { data, error } = await supabase
         .eq("is_active", true)
         .eq("is_hidden", false)
         .eq("is_archived", false)
-        .eq("event_year", currentYear)
+        .in("event_year", calendarYearsToShow)
         .order("event_year", { ascending: true })
         .order("event_date", { ascending: true, nullsFirst: false });
 
