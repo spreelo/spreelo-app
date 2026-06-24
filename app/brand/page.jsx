@@ -393,13 +393,12 @@ useEffect(() => {
   
  function handleMarketChange(event) {
   const nextMarket = event.target.value;
-  const selectedMarket = marketOptions.find(
+  const selectedMarket = visibleMarketOptions.find(
     (market) => market.label === nextMarket
   );
 
   setContentMarket(nextMarket);
-  setCountryCode(selectedMarket?.countryCode || "");
-  setContentLanguage(selectedMarket?.language || contentLanguage || "English");
+  setCountryCode(selectedMarket?.countryCode || countryCode || "");
   setMessage("");
 }
 
