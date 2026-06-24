@@ -1736,11 +1736,23 @@ const requestedContentLanguage = requestedMarketSetup.contentLanguage;
       });
     }
 
-    const profile = analysis.profile;
-    const finalContentLanguage = getDefaultLanguage(
-      requestedContentLanguage,
-      profile.detected_language
-    );
+  const profile = analysis.profile;
+const detectedMarketSetup = analysis.market_setup || {};
+
+const finalContentMarket =
+  detectedMarketSetup.contentMarket ||
+  contentMarket ||
+  "International / Global";
+
+const finalCountryCode =
+  detectedMarketSetup.countryCode ||
+  countryCode ||
+  "GLOBAL";
+
+const finalContentLanguage = getDefaultLanguage(
+  requestedContentLanguage || detectedMarketSetup.contentLanguage,
+  profile.detected_language
+);
 
        const savedProfile = await saveBrandProfile({
       supabase,
