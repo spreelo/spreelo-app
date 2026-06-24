@@ -151,32 +151,32 @@ export default function BrandProfile() {
 
   const shouldAnalyze = shouldAnalyzeWebsite || shouldAnalyzeDescription;
 
-  const isBrandProfileReady = useMemo(() => {
+ const isBrandProfileReady = useMemo(() => {
   const hasBusinessName = Boolean(businessName.trim());
-  const hasMarketSetup = Boolean(contentMarket && countryCode && contentLanguage);
   const hasBusinessInput = hasNoWebsite
     ? Boolean(brandDescription.trim())
     : Boolean(normalizedWebsiteUrl);
   const hasAiProfile = Boolean(industry.trim() && targetAudience.trim());
+  const hasMarketSetup = Boolean(contentMarket && countryCode && contentLanguage);
 
   return (
     hasBusinessName &&
-    hasMarketSetup &&
     hasBusinessInput &&
     hasAiProfile &&
+    hasMarketSetup &&
     showGeneratedFields &&
     !shouldAnalyze
   );
 }, [
   businessName,
-  contentMarket,
-  countryCode,
-  contentLanguage,
   hasNoWebsite,
   brandDescription,
   normalizedWebsiteUrl,
   industry,
   targetAudience,
+  contentMarket,
+  countryCode,
+  contentLanguage,
   showGeneratedFields,
   shouldAnalyze,
 ]);
