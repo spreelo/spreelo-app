@@ -2786,11 +2786,11 @@ async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
 
   const campaignTimeZone = selectedTimeZone || timeZone || DEFAULT_TIME_ZONE;
 
-  const campaignStartDate =
-    campaign.event_date ||
-    campaign.start_date ||
-    getDateInputValueInTimeZone(new Date(), campaignTimeZone);
-
+ const campaignStartDate = getSafeCampaignStartDate(
+  campaign,
+  campaignTimeZone
+);
+    
   const campaignPublishTime = getRecommendedTimeForDate(
     campaignStartDate,
     campaignTimeZone
