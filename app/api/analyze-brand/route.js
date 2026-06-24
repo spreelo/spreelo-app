@@ -1778,9 +1778,19 @@ let analysis;
 let finalWebsiteUrl = websiteUrl;
 let detectedWebsiteContentLanguage = "";
     
-    if (websiteUrl) {
+if (websiteUrl) {
   const website = await fetchWebsiteHtml(websiteUrl);
   finalWebsiteUrl = website.url;
+
+  if (!requestedContentLanguage) {
+    const languageDetection = await detectWebsiteLanguageWithOpenAI({
+      openai,
+      websiteUrl: website.url,
+      html: website.html,
+    });
+
+    detectedWebsiteContentLanguage = languageDetection.language || "";
+  }
 
   const productSourceCandidates = await fetchProductSourceCandidates({
     websiteUrl: website.url,
@@ -1796,7 +1806,8 @@ let detectedWebsiteContentLanguage = "";
     brandDescription,
     contentMarket,
     countryCode,
-    contentLanguage: requestedContentLanguage,
+    contentLanguage:
+      requestedContentLanguage || detectedWebsiteContentLanguage,
     currentDate,
     campaignCalendarYear,
   });
