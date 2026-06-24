@@ -818,11 +818,10 @@ try {
             </div>
 
             <div className="brand-profile-note-card">
-              <strong>Recommended default</strong>
-              <p>
-                Use International / Global unless the brand clearly targets a
-                specific local market.
-              </p>
+            <strong>Automatic setup</strong>
+<p>
+  Spreelo will suggest the campaign market and post language based on the website or business description.
+</p>
             </div>
           </aside>
 
