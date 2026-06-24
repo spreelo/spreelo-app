@@ -474,6 +474,27 @@ function addDaysToDateString(dateString, daysToAdd) {
   )}-${padNumber(date.getUTCDate())}`;
 }
 
+function getLaterDateString(dateStringA, dateStringB) {
+  const firstDate = String(dateStringA || "").trim();
+  const secondDate = String(dateStringB || "").trim();
+
+  if (!firstDate) return secondDate;
+  if (!secondDate) return firstDate;
+
+  return firstDate >= secondDate ? firstDate : secondDate;
+}
+
+function getSafeCampaignStartDate(campaign, timeZone = DEFAULT_TIME_ZONE) {
+  const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
+
+  const campaignStartDate =
+    campaign?.event_date ||
+    campaign?.start_date ||
+    todayDateString;
+
+  return getLaterDateString(campaignStartDate, todayDateString);
+}
+
 function getDatePartsFromDateString(dateString) {
   const [yearValue, monthValue, dayValue] = String(dateString || "").split("-");
   const year = Number(yearValue);
