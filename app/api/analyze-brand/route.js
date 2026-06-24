@@ -1873,6 +1873,11 @@ const requestedContentLanguage = requestedMarketSetup.contentLanguage;
         : `Description analyzed, brand profile saved and ${savedOpportunities.length} campaign opportunities created.`,
     });
   } catch (error) {
+    console.error("Analyze brand failed:", {
+      message: error?.message,
+      stack: error?.stack,
+    });
+
     return Response.json(
       {
         ok: false,
