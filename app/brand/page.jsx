@@ -302,8 +302,9 @@ export default function BrandProfile() {
     if (analyzing) return "Analyzing...";
 
     if (shouldAnalyzeWebsite) return "Analyze brand & create campaign calendar";
-    if (shouldAnalyzeDescription)
+    if (shouldAnalyzeDescription) {
       return "Analyze description & create campaign calendar";
+    }
 
     return "Save brand profile";
   }, [saving, analyzing, shouldAnalyzeWebsite, shouldAnalyzeDescription]);
@@ -544,7 +545,8 @@ export default function BrandProfile() {
       "Spreelo is still analyzing this brand. Please wait a little and try again."
     );
   }
-    async function analyzeBrand() {
+
+  async function analyzeBrand() {
     setMessage("");
     setAnalysisProgress(0);
 
@@ -615,9 +617,7 @@ export default function BrandProfile() {
         throw new Error("Spreelo could not create an analysis job.");
       }
 
-      setAnalysisProgress(
-        normalizeProgress(startResult.job?.progress, 6)
-      );
+      setAnalysisProgress(normalizeProgress(startResult.job?.progress, 6));
 
       const runRequest = fetch("/api/analyze-brand/run", {
         method: "POST",
@@ -1228,7 +1228,9 @@ export default function BrandProfile() {
                 </div>
 
                 <div className="brand-profile-analysis-current">
-                  <strong>{getCurrentAnalysisStage(analysisProgress).title}</strong>
+                  <strong>
+                    {getCurrentAnalysisStage(analysisProgress).title}
+                  </strong>
                   <p>{getCurrentAnalysisStage(analysisProgress).description}</p>
                 </div>
 
