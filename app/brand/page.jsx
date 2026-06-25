@@ -66,29 +66,41 @@ const analysisProgressStages = [
   {
     progress: 8,
     title: "Reading website content",
-    description: "Spreelo is fetching the website or reading your business description.",
+    description:
+      "Spreelo is fetching the website or reading your business description.",
   },
   {
     progress: 28,
     title: "Understanding your business",
-    description: "Spreelo is identifying industry, audience, market and language.",
+    description:
+      "Spreelo is identifying industry, audience, market and language.",
   },
   {
     progress: 48,
     title: "Checking products and services",
-    description: "Spreelo is deciding if website products or services can be safely used.",
+    description:
+      "Spreelo is deciding if website products or services can be safely used.",
   },
   {
     progress: 70,
     title: "Building campaign opportunities",
-    description: "Spreelo is preparing relevant seasonal and campaign ideas.",
+    description:
+      "Spreelo is preparing relevant seasonal and campaign ideas.",
   },
   {
     progress: 88,
     title: "Preparing content strategy",
-    description: "Spreelo is shaping the brand profile and content direction.",
+    description:
+      "Spreelo is shaping the brand profile and content direction.",
   },
 ];
+
+const ANALYSIS_STATUS_POLL_INTERVAL_MS = 2000;
+const ANALYSIS_STATUS_MAX_POLLS = 180;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function getCurrentAnalysisStage(progress) {
   const currentStage =
@@ -120,6 +132,62 @@ function normalizeWebsiteUrl(value) {
   return `https://${trimmedValue}`;
 }
 
+function normalizeProgress(value, fallback = 0) {
+  const parsed = Number(value);
+
+  if (Number.isNaN(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(100, Math.max(0, parsed));
+}
+
+function getFriendlyAnalysisError(value) {
+  const cleanError = String(value || "");
+
+  if (
+    cleanError.includes("FUNCTION_INVOCATION_TIMEOUT") ||
+    cleanError.toLowerCase().includes("timeout") ||
+    cleanError.toLowerCase().includes("aborted")
+  ) {
+    return "Spreelo could not finish the website analysis in time. Please try again. If it still takes too long, add a short business description instead.";
+  }
+
+  if (
+    cleanError.toLowerCase().includes("json") ||
+    cleanError.toLowerCase().includes("parse") ||
+    cleanError.toLowerCase().includes("openai response") ||
+    cleanError.toLowerCase().includes("analysis result")
+  ) {
+    return "Spreelo could not read the analysis result correctly. Please try again.";
+  }
+
+  if (
+    cleanError.toLowerCase().includes("website returned") ||
+    cleanError.toLowerCase().includes("website did not return html") ||
+    cleanError.toLowerCase().includes("fetch failed") ||
+    cleanError.toLowerCase().includes("website url") ||
+    cleanError.toLowerCase().includes("website is required")
+  ) {
+    return "Spreelo could not read this website right now. Please check the website URL or add a short business description instead.";
+  }
+
+  return (
+    cleanError ||
+    "Spreelo could not analyze this website right now. Please try again, or add a short business description instead."
+  );
+}
+
+async function readApiJson(response) {
+  const responseText = await response.text();
+
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    throw new Error(getFriendlyAnalysisError(responseText));
+  }
+}
+
 export default function BrandProfile() {
   const [brandProfileId, setBrandProfileId] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -128,7 +196,7 @@ export default function BrandProfile() {
   const [brandDescription, setBrandDescription] = useState("");
   const [industry, setIndustry] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
-    const [contentMarket, setContentMarket] = useState("International / Global");
+  const [contentMarket, setContentMarket] = useState("International / Global");
   const [countryCode, setCountryCode] = useState("GLOBAL");
   const [contentLanguage, setContentLanguage] = useState("English");
   const [contentSettingsTouched, setContentSettingsTouched] = useState(false);
@@ -171,61 +239,63 @@ export default function BrandProfile() {
   const shouldAnalyze = shouldAnalyzeWebsite || shouldAnalyzeDescription;
 
   const visibleMarketOptions = useMemo(() => {
-  const existingMarket = marketOptions.some(
-    (market) => market.label === contentMarket
-  );
+    const existingMarket = marketOptions.some(
+      (market) => market.label === contentMarket
+    );
 
-  if (!contentMarket || existingMarket) {
-    return marketOptions;
-  }
+    if (!contentMarket || existingMarket) {
+      return marketOptions;
+    }
 
-  return [
-    {
-      label: contentMarket,
-      countryCode: countryCode || "AUTO",
-      language: contentLanguage || "",
-    },
-    ...marketOptions,
-  ];
-}, [contentMarket, countryCode, contentLanguage]);
+    return [
+      {
+        label: contentMarket,
+        countryCode: countryCode || "AUTO",
+        language: contentLanguage || "",
+      },
+      ...marketOptions,
+    ];
+  }, [contentMarket, countryCode, contentLanguage]);
 
-const visibleLanguageOptions = useMemo(() => {
-  if (!contentLanguage || languageOptions.includes(contentLanguage)) {
-    return languageOptions;
-  }
+  const visibleLanguageOptions = useMemo(() => {
+    if (!contentLanguage || languageOptions.includes(contentLanguage)) {
+      return languageOptions;
+    }
 
-  return [contentLanguage, ...languageOptions];
-}, [contentLanguage]);
+    return [contentLanguage, ...languageOptions];
+  }, [contentLanguage]);
 
- const isBrandProfileReady = useMemo(() => {
-  const hasBusinessName = Boolean(businessName.trim());
-  const hasBusinessInput = hasNoWebsite
-    ? Boolean(brandDescription.trim())
-    : Boolean(normalizedWebsiteUrl);
-  const hasAiProfile = Boolean(industry.trim() && targetAudience.trim());
-  const hasMarketSetup = Boolean(contentMarket && countryCode && contentLanguage);
+  const isBrandProfileReady = useMemo(() => {
+    const hasBusinessName = Boolean(businessName.trim());
+    const hasBusinessInput = hasNoWebsite
+      ? Boolean(brandDescription.trim())
+      : Boolean(normalizedWebsiteUrl);
+    const hasAiProfile = Boolean(industry.trim() && targetAudience.trim());
+    const hasMarketSetup = Boolean(
+      contentMarket && countryCode && contentLanguage
+    );
 
-  return (
-    hasBusinessName &&
-    hasBusinessInput &&
-    hasAiProfile &&
-    hasMarketSetup &&
-    showGeneratedFields &&
-    !shouldAnalyze
-  );
-}, [
-  businessName,
-  hasNoWebsite,
-  brandDescription,
-  normalizedWebsiteUrl,
-  industry,
-  targetAudience,
-  contentMarket,
-  countryCode,
-  contentLanguage,
-  showGeneratedFields,
-  shouldAnalyze,
-]);
+    return (
+      hasBusinessName &&
+      hasBusinessInput &&
+      hasAiProfile &&
+      hasMarketSetup &&
+      showGeneratedFields &&
+      !shouldAnalyze
+    );
+  }, [
+    businessName,
+    hasNoWebsite,
+    brandDescription,
+    normalizedWebsiteUrl,
+    industry,
+    targetAudience,
+    contentMarket,
+    countryCode,
+    contentLanguage,
+    showGeneratedFields,
+    shouldAnalyze,
+  ]);
 
   const mainButtonLabel = useMemo(() => {
     if (saving) return "Saving...";
@@ -330,7 +400,7 @@ const visibleLanguageOptions = useMemo(() => {
       const loadedCountryCode = data.country_code || "GLOBAL";
       const loadedContentLanguage = data.content_language || "English";
 
-           setContentMarket(loadedMarket);
+      setContentMarket(loadedMarket);
       setCountryCode(loadedCountryCode);
       setContentLanguage(loadedContentLanguage);
       setContentSettingsTouched(false);
@@ -356,56 +426,19 @@ const visibleLanguageOptions = useMemo(() => {
     loadProfile();
   }, []);
 
-useEffect(() => {
-  if (!analyzing) {
-    setAnalysisProgress(0);
-    return;
+  function handleMarketChange(event) {
+    const nextMarket = event.target.value;
+    const selectedMarket = visibleMarketOptions.find(
+      (market) => market.label === nextMarket
+    );
+
+    setContentMarket(nextMarket);
+    setCountryCode(selectedMarket?.countryCode || countryCode || "");
+    setContentSettingsTouched(true);
+    setMessage("");
   }
 
-  const startedAt = Date.now();
-  const expectedDurationMs = 150000; // cirka 2 minuter och 30 sekunder
-
-  setAnalysisProgress(3);
-
-  const interval = setInterval(() => {
-    const elapsedMs = Date.now() - startedAt;
-    const ratio = elapsedMs / expectedDurationMs;
-
-    let nextProgress;
-
-    if (ratio < 1) {
-      // Smooth progress from 3% to 91% over about 2:30.
-      // It does not reach the final-looking area too early.
-      const easedRatio = 1 - Math.pow(1 - ratio, 1.35);
-      nextProgress = 3 + easedRatio * 88;
-    } else {
-      // After the expected time, keep moving slowly instead of freezing.
-      const extraSeconds = (elapsedMs - expectedDurationMs) / 1000;
-      nextProgress = Math.min(98.8, 91 + extraSeconds * 0.06);
-    }
-
-    setAnalysisProgress((currentProgress) => {
-      // Never go backwards.
-      return Math.max(currentProgress, nextProgress);
-    });
-  }, 700);
-
-  return () => clearInterval(interval);
-}, [analyzing]);
-
-   function handleMarketChange(event) {
-  const nextMarket = event.target.value;
-  const selectedMarket = visibleMarketOptions.find(
-    (market) => market.label === nextMarket
-  );
-
-  setContentMarket(nextMarket);
-  setCountryCode(selectedMarket?.countryCode || countryCode || "");
-  setContentSettingsTouched(true);
-  setMessage("");
-}
-
-    function handleNoWebsiteChange(event) {
+  function handleNoWebsiteChange(event) {
     const checked = event.target.checked;
 
     setHasNoWebsite(checked);
@@ -435,9 +468,85 @@ useEffect(() => {
     await saveProfile();
   }
 
-  async function analyzeBrand() {
- setMessage("");
-setAnalysisProgress(0);
+  async function pollAnalysisStatus({ accessToken, jobId, runRequest }) {
+    let runFinished = false;
+    let runResult = null;
+
+    runRequest
+      .then((result) => {
+        runFinished = true;
+        runResult = result;
+      })
+      .catch((error) => {
+        runFinished = true;
+        runResult = {
+          ok: false,
+          error: error?.message || "Could not run analysis.",
+        };
+      });
+
+    for (let pollCount = 0; pollCount < ANALYSIS_STATUS_MAX_POLLS; pollCount++) {
+      await sleep(
+        pollCount === 0 ? 1000 : ANALYSIS_STATUS_POLL_INTERVAL_MS
+      );
+
+      const statusResponse = await fetch(
+        `/api/analyze-brand/status?jobId=${encodeURIComponent(jobId)}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const statusResult = await readApiJson(statusResponse);
+
+      if (!statusResponse.ok || !statusResult?.ok) {
+        throw new Error(
+          getFriendlyAnalysisError(
+            statusResult?.error ||
+              "Spreelo could not read the analysis status right now."
+          )
+        );
+      }
+
+      const job = statusResult.job || {};
+      const jobProgress = normalizeProgress(job.progress, analysisProgress);
+
+      setAnalysisProgress((currentProgress) =>
+        Math.max(currentProgress, jobProgress)
+      );
+
+      if (job.status === "completed") {
+        setAnalysisProgress(100);
+        return job;
+      }
+
+      if (job.status === "failed") {
+        throw new Error(
+          getFriendlyAnalysisError(
+            job.error_message || "Spreelo could not finish the analysis."
+          )
+        );
+      }
+
+      if (runFinished && runResult && runResult.ok === false) {
+        throw new Error(
+          getFriendlyAnalysisError(
+            runResult.error || "Spreelo could not finish the analysis."
+          )
+        );
+      }
+    }
+
+    throw new Error(
+      "Spreelo is still analyzing this brand. Please wait a little and try again."
+    );
+  }
+    async function analyzeBrand() {
+    setMessage("");
+    setAnalysisProgress(0);
 
     const trimmedBusinessName = businessName.trim();
     const trimmedDescription = brandDescription.trim();
@@ -458,7 +567,7 @@ setAnalysisProgress(0);
     }
 
     setAnalysisProgress(4);
-setAnalyzing(true);
+    setAnalyzing(true);
 
     try {
       const {
@@ -470,108 +579,108 @@ setAnalyzing(true);
         return;
       }
 
-      const response = await fetch("/api/analyze-brand", {
+      const analysisPayload = {
+        brandProfileId,
+        businessName: trimmedBusinessName,
+        websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
+        brandDescription: hasNoWebsite ? trimmedDescription : "",
+        contentMarket: contentSettingsTouched ? contentMarket : "",
+        countryCode: contentSettingsTouched ? countryCode : "",
+        contentLanguage: contentSettingsTouched ? contentLanguage : "",
+      };
+
+      const startResponse = await fetch("/api/analyze-brand/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-       body: JSON.stringify({
-  brandProfileId,
-  businessName: trimmedBusinessName,
-  websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
-  brandDescription: hasNoWebsite ? trimmedDescription : "",
-  contentMarket: contentSettingsTouched ? contentMarket : "",
-  countryCode: contentSettingsTouched ? countryCode : "",
-  contentLanguage: contentSettingsTouched ? contentLanguage : "",
-}),
+        body: JSON.stringify(analysisPayload),
       });
 
-     const responseText = await response.text();
+      const startResult = await readApiJson(startResponse);
 
-let result = null;
+      if (!startResponse.ok || !startResult?.ok) {
+        throw new Error(
+          getFriendlyAnalysisError(
+            startResult?.error ||
+              "Spreelo could not start the brand analysis right now."
+          )
+        );
+      }
 
-try {
-  result = JSON.parse(responseText);
-} catch {
-  const cleanResponseText = String(responseText || "");
+      const jobId = String(startResult.job_id || startResult.job?.id || "");
 
-  if (
-    cleanResponseText.includes("FUNCTION_INVOCATION_TIMEOUT") ||
-    cleanResponseText.toLowerCase().includes("timeout")
-  ) {
-    throw new Error(
-      "Spreelo could not finish the website analysis in time. Please try again. If it still takes too long, add a short business description instead."
-    );
-  }
+      if (!jobId) {
+        throw new Error("Spreelo could not create an analysis job.");
+      }
 
-  if (
-    cleanResponseText.toLowerCase().includes("json") ||
-    cleanResponseText.toLowerCase().includes("parse")
-  ) {
-    throw new Error(
-      "Spreelo could not read the analysis result correctly. Please try again."
-    );
-  }
+      setAnalysisProgress(
+        normalizeProgress(startResult.job?.progress, 6)
+      );
 
-  throw new Error(
-    "Spreelo could not analyze this website right now. Please try again, or add a short business description instead."
-  );
-}
-      
-     if (!response.ok || !result?.ok) {
-  const cleanError = String(result?.error || "");
+      const runRequest = fetch("/api/analyze-brand/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          jobId,
+        }),
+      }).then(async (runResponse) => {
+        const runResult = await readApiJson(runResponse);
 
-  if (
-    cleanError.includes("FUNCTION_INVOCATION_TIMEOUT") ||
-    cleanError.toLowerCase().includes("timeout")
-  ) {
-    throw new Error(
-      "Spreelo could not finish the website analysis in time. Please try again. If it still takes too long, add a short business description instead."
-    );
-  }
+        return {
+          ...runResult,
+          ok: Boolean(runResponse.ok && runResult?.ok),
+          httpOk: runResponse.ok,
+        };
+      });
 
-  if (
-    cleanError.toLowerCase().includes("json") ||
-    cleanError.toLowerCase().includes("parse") ||
-    cleanError.toLowerCase().includes("openai response")
-  ) {
-    throw new Error(
-      "Spreelo could not read the analysis result correctly. Please try again."
-    );
-  }
+      const completedJob = await pollAnalysisStatus({
+        accessToken: session.access_token,
+        jobId,
+        runRequest,
+      });
 
-  throw new Error(
-    cleanError ||
-      "Spreelo could not analyze this website right now. Please try again, or add a short business description instead."
-  );
-}
-      
+      const result = completedJob.result || {};
       const profile = result.profile || {};
 
       const finalWebsiteUrl =
-        profile.website_url || result.website_url || normalizedWebsiteUrl;
+        profile.website_url ||
+        result.website_url ||
+        (hasNoWebsite ? "" : normalizedWebsiteUrl);
 
       setBusinessName(profile.business_name || trimmedBusinessName);
       setWebsiteUrl(finalWebsiteUrl);
       setBrandDescription(profile.brand_description || trimmedDescription);
       setIndustry(profile.industry || "");
       setTargetAudience(profile.target_audience || "");
-          setContentMarket(profile.content_market || contentMarket);
-      setCountryCode(profile.country_code || countryCode);
-      setContentLanguage(profile.content_language || contentLanguage);
+
+      setContentMarket(
+        result.content_market || profile.content_market || contentMarket
+      );
+      setCountryCode(result.country_code || profile.country_code || countryCode);
+      setContentLanguage(
+        result.content_language || profile.content_language || contentLanguage
+      );
       setContentSettingsTouched(false);
       setShowGeneratedFields(true);
+
       setLastAnalyzedWebsiteUrl(
         hasNoWebsite ? "" : normalizeWebsiteUrl(finalWebsiteUrl)
       );
       setLastAnalyzedBrandDescription(hasNoWebsite ? trimmedDescription : "");
 
       setMessage(
-        result.message ||
-          (hasNoWebsite
-            ? "Brand description analyzed, saved and campaign calendar created."
-            : "Website analyzed, saved and campaign calendar created.")
+        hasNoWebsite
+          ? `Brand description analyzed, saved and ${
+              result.campaign_opportunities_count || 0
+            } campaign opportunities created.`
+          : `Website analyzed, saved and ${
+              result.campaign_opportunities_count || 0
+            } campaign opportunities created.`
       );
     } catch (error) {
       setMessage(error.message || "Could not analyze brand.");
@@ -838,25 +947,25 @@ try {
             <p className="dashboard-eyebrow">Brand profile</p>
             <h2>Teach Spreelo about your brand</h2>
             <span>
-  Set your business context, market and language. Spreelo uses this
-  to create better regular posts, campaign ideas and content plans.
-</span>
+              Set your business context, market and language. Spreelo uses this
+              to create better regular posts, campaign ideas and content plans.
+            </span>
           </div>
 
-         <div
-  className={`brand-profile-hero-badge ${
-    isBrandProfileReady ? "ready" : "needs-setup"
-  }`}
->
-  <strong>
-    {isBrandProfileReady ? "AI setup ready" : "Setup needed"}
-  </strong>
-  <span>
-    {isBrandProfileReady
-      ? "You can now create content with Content Creator or choose campaign ideas in Calendar."
-      : "Complete and save your brand profile before creating content."}
-  </span>
-</div>
+          <div
+            className={`brand-profile-hero-badge ${
+              isBrandProfileReady ? "ready" : "needs-setup"
+            }`}
+          >
+            <strong>
+              {isBrandProfileReady ? "AI setup ready" : "Setup needed"}
+            </strong>
+            <span>
+              {isBrandProfileReady
+                ? "You can now create content with Content Creator or choose campaign ideas in Calendar."
+                : "Complete and save your brand profile before creating content."}
+            </span>
+          </div>
         </header>
 
         <section className="brand-profile-layout">
@@ -864,7 +973,7 @@ try {
             <div className="brand-profile-guide-icon">✦</div>
 
             <p className="dashboard-eyebrow">Setup flow</p>
-           <h3>From brand info to content ideas</h3>
+            <h3>From brand info to content ideas</h3>
 
             <div className="brand-profile-step-list">
               <div>
@@ -878,20 +987,22 @@ try {
               <div>
                 <span>2</span>
                 <div>
-             <strong>Campaign settings</strong>
-<p>
-  Spreelo selects market and language automatically after the analysis.
-</p>
+                  <strong>Campaign settings</strong>
+                  <p>
+                    Spreelo selects market and language automatically after the
+                    analysis.
+                  </p>
                 </div>
               </div>
 
               <div>
                 <span>3</span>
                 <div>
-                <strong>AI analysis</strong>
-<p>
-  Spreelo analyzes the brand and prepares better content ideas.
-</p>
+                  <strong>AI analysis</strong>
+                  <p>
+                    Spreelo analyzes the brand and prepares better content
+                    ideas.
+                  </p>
                 </div>
               </div>
 
@@ -899,19 +1010,20 @@ try {
                 <span>4</span>
                 <div>
                   <strong>Create content</strong>
-<p>
-  Use Content Creator for regular posts or Calendar for
-  campaign-based plans.
-</p>
+                  <p>
+                    Use Content Creator for regular posts or Calendar for
+                    campaign-based plans.
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="brand-profile-note-card">
-            <strong>Automatic setup</strong>
-<p>
-  Spreelo will suggest the campaign market and post language based on the website or business description.
-</p>
+              <strong>Automatic setup</strong>
+              <p>
+                Spreelo will suggest the campaign market and post language based
+                on the website or business description.
+              </p>
             </div>
           </aside>
 
@@ -945,7 +1057,7 @@ try {
                 className="input"
                 placeholder="Example: https://www.yourbusiness.com"
                 value={websiteUrl}
-                               onChange={(event) => {
+                onChange={(event) => {
                   setWebsiteUrl(event.target.value);
                   setHasNoWebsite(false);
                   setShowGeneratedFields(false);
@@ -974,7 +1086,7 @@ try {
                     className="input prompt-textarea"
                     placeholder="Describe what your business does, what you offer, who your customers are, what style or tone you want, and what Spreelo should know before creating posts."
                     value={brandDescription}
-                                     onChange={(event) => {
+                    onChange={(event) => {
                       setBrandDescription(event.target.value);
                       setShowGeneratedFields(false);
                       setContentSettingsTouched(false);
@@ -988,67 +1100,70 @@ try {
               )}
             </div>
 
-           {showGeneratedFields && (
-  <div className="brand-profile-form-section market">
-    <div className="brand-profile-section-title">
-      <div>
-        <h4>Campaign settings</h4>
-        <p>
-          Spreelo selected these based on your website or business description.
-          You can change them if needed.
-        </p>
-      </div>
+            {showGeneratedFields && (
+              <div className="brand-profile-form-section market">
+                <div className="brand-profile-section-title">
+                  <div>
+                    <h4>Campaign settings</h4>
+                    <p>
+                      Spreelo selected these based on your website or business
+                      description. You can change them if needed.
+                    </p>
+                  </div>
 
-      <span>Auto-selected</span>
-    </div>
+                  <span>Auto-selected</span>
+                </div>
 
-    <div className="brand-profile-two-col">
-      <div>
-        <label>Campaign market</label>
-        <select
-          className="input"
-          value={contentMarket}
-          onChange={handleMarketChange}
-          disabled={analyzing || saving || deletingBrand}
-        >
-        {visibleMarketOptions.map((market) => (
-  <option key={`${market.countryCode}-${market.label}`} value={market.label}>
-    {market.label}
-  </option>
-))}
-        </select>
+                <div className="brand-profile-two-col">
+                  <div>
+                    <label>Campaign market</label>
+                    <select
+                      className="input"
+                      value={contentMarket}
+                      onChange={handleMarketChange}
+                      disabled={analyzing || saving || deletingBrand}
+                    >
+                      {visibleMarketOptions.map((market) => (
+                        <option
+                          key={`${market.countryCode}-${market.label}`}
+                          value={market.label}
+                        >
+                          {market.label}
+                        </option>
+                      ))}
+                    </select>
 
-        <p className="brand-profile-field-help">
-          Used for holidays, seasonal timing and campaign ideas.
-        </p>
-      </div>
+                    <p className="brand-profile-field-help">
+                      Used for holidays, seasonal timing and campaign ideas.
+                    </p>
+                  </div>
 
-      <div>
-        <label>Post language</label>
-        <select
-          className="input"
-          value={contentLanguage}
-                  onChange={(event) => {
-            setContentLanguage(event.target.value);
-            setContentSettingsTouched(true);
-            setMessage("");
-          }}
-          disabled={analyzing || saving || deletingBrand}
-        >
-        {visibleLanguageOptions.map((language) => (
-  <option key={language} value={language}>
-    {language}
-  </option>
-))}
-        </select>
+                  <div>
+                    <label>Post language</label>
+                    <select
+                      className="input"
+                      value={contentLanguage}
+                      onChange={(event) => {
+                        setContentLanguage(event.target.value);
+                        setContentSettingsTouched(true);
+                        setMessage("");
+                      }}
+                      disabled={analyzing || saving || deletingBrand}
+                    >
+                      {visibleLanguageOptions.map((language) => (
+                        <option key={language} value={language}>
+                          {language}
+                        </option>
+                      ))}
+                    </select>
 
-        <p className="brand-profile-field-help">
-          Used for captions, campaign ideas and generated posts.
-        </p>
-      </div>
-    </div>
-  </div>
-)}
+                    <p className="brand-profile-field-help">
+                      Used for captions, campaign ideas and generated posts.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {showGeneratedFields && (
               <div className="brand-profile-form-section ai-profile">
@@ -1090,53 +1205,56 @@ try {
               {mainButtonLabel}
             </button>
 
-           {analyzing && (
-  <div className="brand-profile-analysis-card">
-    <div className="brand-profile-analysis-header">
-      <div>
-        <strong>Analyzing your brand</strong>
-        <p>
-         This usually takes 1–3 minutes. Please keep this page open while
-Spreelo reads your website and prepares your campaign calendar.
-        </p>
-      </div>
+            {analyzing && (
+              <div className="brand-profile-analysis-card">
+                <div className="brand-profile-analysis-header">
+                  <div>
+                    <strong>Analyzing your brand</strong>
+                    <p>
+                      This usually takes 1–3 minutes. Please keep this page open
+                      while Spreelo reads your website and prepares your campaign
+                      calendar.
+                    </p>
+                  </div>
 
-      <span>{Math.min(99, Math.floor(analysisProgress))}%</span>
-    </div>
+                  <span>{Math.min(99, Math.floor(analysisProgress))}%</span>
+                </div>
 
-    <div className="brand-profile-progress-track">
-      <div
-        className="brand-profile-progress-fill"
-        style={{ width: `${Math.min(analysisProgress, 98.8)}%` }}
-      />
-    </div>
+                <div className="brand-profile-progress-track">
+                  <div
+                    className="brand-profile-progress-fill"
+                    style={{ width: `${Math.min(analysisProgress, 98.8)}%` }}
+                  />
+                </div>
 
-    <div className="brand-profile-analysis-current">
-      <strong>{getCurrentAnalysisStage(analysisProgress).title}</strong>
-      <p>{getCurrentAnalysisStage(analysisProgress).description}</p>
-    </div>
+                <div className="brand-profile-analysis-current">
+                  <strong>{getCurrentAnalysisStage(analysisProgress).title}</strong>
+                  <p>{getCurrentAnalysisStage(analysisProgress).description}</p>
+                </div>
 
-    <div className="brand-profile-analysis-steps">
-      {analysisProgressStages.map((stage) => {
-        const isDone = analysisProgress >= stage.progress;
-        const isCurrent =
-          getCurrentAnalysisStage(analysisProgress).title === stage.title;
+                <div className="brand-profile-analysis-steps">
+                  {analysisProgressStages.map((stage) => {
+                    const isDone = analysisProgress >= stage.progress;
+                    const isCurrent =
+                      getCurrentAnalysisStage(analysisProgress).title ===
+                      stage.title;
 
-        return (
-          <div
-            key={stage.title}
-            className={`brand-profile-analysis-step ${
-              isDone ? "done" : ""
-            } ${isCurrent ? "current" : ""}`}
-          >
-            <span>{isDone ? "✓" : "○"}</span>
-            <strong>{stage.title}</strong>
-          </div>
-        );
-      })}
-    </div>
-  </div>
-)}
+                    return (
+                      <div
+                        key={stage.title}
+                        className={`brand-profile-analysis-step ${
+                          isDone ? "done" : ""
+                        } ${isCurrent ? "current" : ""}`}
+                      >
+                        <span>{isDone ? "✓" : "○"}</span>
+                        <strong>{stage.title}</strong>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {message && <p className="brand-profile-message">{message}</p>}
 
             <p className="brand-profile-disclaimer">
