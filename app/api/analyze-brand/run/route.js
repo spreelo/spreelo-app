@@ -1,11 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
-import { runBrandAnalysisJob } from "../brandAnalysisEngine";
+import { runBrandAnalysisJob } from "../brandAnalysisEngine.js";
 import {
   getCustomerFriendlyAnalysisError,
   readBrandAnalysisJob,
   updateBrandAnalysisJob,
   verifyBrandAnalysisOwnership,
-} from "../jobHelpers";
+} from "../jobHelpers.js";
 
 export const dynamic = "force-dynamic";
 
