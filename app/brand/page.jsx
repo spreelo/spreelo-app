@@ -580,10 +580,22 @@ export default function BrandProfile() {
       setMessage("Describe your business first.");
       return;
     }
-    const displayStartedAt = Date.now();
+        const displayStartedAt = Date.now();
 
     setAnalysisProgress(1);
     setAnalyzing(true);
+
+    const progressInterval = setInterval(() => {
+      setAnalysisProgress((currentProgress) => {
+        const smoothProgress = getSmoothAnalysisProgress(displayStartedAt);
+
+        if (currentProgress >= 100) {
+          return currentProgress;
+        }
+
+        return Math.max(currentProgress, smoothProgress);
+      });
+    }, 500);
 
     try {
       const {
