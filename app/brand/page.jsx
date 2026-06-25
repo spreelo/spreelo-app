@@ -634,7 +634,7 @@ export default function BrandProfile() {
         throw new Error("Spreelo could not create an analysis job.");
       }
 
-      setAnalysisProgress(normalizeProgress(startResult.job?.progress, 6));
+            setAnalysisProgress(getSmoothAnalysisProgress(displayStartedAt));
 
       const runRequest = fetch("/api/analyze-brand/run", {
         method: "POST",
