@@ -330,9 +330,10 @@ const visibleLanguageOptions = useMemo(() => {
       const loadedCountryCode = data.country_code || "GLOBAL";
       const loadedContentLanguage = data.content_language || "English";
 
-      setContentMarket(loadedMarket);
+           setContentMarket(loadedMarket);
       setCountryCode(loadedCountryCode);
       setContentLanguage(loadedContentLanguage);
+      setContentSettingsTouched(false);
 
       setLastAnalyzedWebsiteUrl(normalizeWebsiteUrl(loadedWebsiteUrl));
       setLastAnalyzedBrandDescription(loadedBrandDescription.trim());
