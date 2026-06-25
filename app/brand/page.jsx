@@ -528,8 +528,14 @@ export default function BrandProfile() {
       setAnalysisProgress((currentProgress) =>
         Math.max(currentProgress, smoothProgress)
       );
-      
-      if (job.status === "completed") {
+            if (job.status === "completed") {
+        const remainingMs =
+          ANALYSIS_DISPLAY_DURATION_MS - (Date.now() - displayStartedAt);
+
+        if (remainingMs > 0) {
+          await sleep(remainingMs);
+        }
+
         setAnalysisProgress(100);
         return job;
       }
