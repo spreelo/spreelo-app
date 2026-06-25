@@ -583,8 +583,9 @@ export default function BrandProfile() {
       setMessage("Describe your business first.");
       return;
     }
+    const displayStartedAt = Date.now();
 
-    setAnalysisProgress(4);
+    setAnalysisProgress(1);
     setAnalyzing(true);
 
     try {
