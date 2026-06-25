@@ -474,7 +474,12 @@ export default function BrandProfile() {
     await saveProfile();
   }
 
-  async function pollAnalysisStatus({ accessToken, jobId, runRequest }) {
+    async function pollAnalysisStatus({
+    accessToken,
+    jobId,
+    runRequest,
+    displayStartedAt,
+  }) {
     let runFinished = false;
     let runResult = null;
 
