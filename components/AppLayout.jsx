@@ -2,47 +2,48 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useUiText } from "../lib/i18n/useUiText";
 
 const navItems = [
   {
     id: "dashboard",
-    label: "Dashboard",
+    labelKey: "layout.nav.dashboard",
     href: "/",
     icon: "/icons/sidebar/dashboard.png",
   },
   {
     id: "create",
-    label: "Content",
+    labelKey: "layout.nav.content",
     href: "/create",
     icon: "/icons/sidebar/content.png",
   },
   {
     id: "automation",
-    label: "Content Creator",
+    labelKey: "layout.nav.automation",
     href: "/automation",
     icon: "/icons/sidebar/automation.png",
   },
   {
     id: "calendar",
-    label: "Calendar",
+    labelKey: "layout.nav.calendar",
     href: "/calendar",
     icon: "/icons/sidebar/calendar.png",
   },
   {
     id: "brand",
-    label: "Brand profile",
+    labelKey: "layout.nav.brand",
     href: "/brand",
     icon: "/icons/sidebar/brand-profile.png",
   },
   {
     id: "social-channels",
-    label: "Social channels",
+    labelKey: "layout.nav.socialChannels",
     href: "/social-channels",
     icon: "/icons/sidebar/social-channels.png",
   },
   {
     id: "settings",
-    label: "Settings",
+    labelKey: "layout.nav.settings",
     href: "/settings",
     icon: "/icons/sidebar/settings.png",
   },
@@ -53,6 +54,7 @@ function getBrandStorageKey(userId) {
 }
 
 export default function AppLayout({ active, children }) {
+  const { t } = useUiText(["layout"]);
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [brandProfiles, setBrandProfiles] = useState([]);
@@ -158,7 +160,7 @@ export default function AppLayout({ active, children }) {
     if (!user?.id || creatingBrand) return;
 
     const brandName = window.prompt(
-      "What should this brand or business be called?"
+      t("layout.createBrandPrompt")
     );
 
     const trimmedBrandName = String(brandName || "").trim();
@@ -187,7 +189,7 @@ export default function AppLayout({ active, children }) {
 
     if (error) {
       console.error("Could not create brand:", error);
-      alert(error.message || "Could not create brand.");
+      alert(error.message || t("layout.createBrandError"));
       setCreatingBrand(false);
       return;
     }
@@ -222,7 +224,7 @@ export default function AppLayout({ active, children }) {
             />
           </div>
 
-          <p className="login-message">Loading your workspace...</p>
+          <p className="login-message">{t("layout.loadingWorkspace")}</p>
         </section>
       </main>
     );
@@ -240,11 +242,11 @@ export default function AppLayout({ active, children }) {
         </a>
 
         <div className="spreelo-mobile-brand">
-          <span>Current brand</span>
+          <span>{t("common.currentBrand")}</span>
           <strong>
             {loadingBrands
-              ? "Loading..."
-              : currentBrand?.business_name || "No brand"}
+              ? t("common.loading")
+              : currentBrand?.business_name || t("common.noBrand")}
           </strong>
         </div>
 
@@ -254,7 +256,7 @@ export default function AppLayout({ active, children }) {
             mobileMenuOpen ? "open" : ""
           }`}
           onClick={() => setMobileMenuOpen((current) => !current)}
-          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-label={mobileMenuOpen ? t("layout.closeMenu") : t("layout.openMenu")}
         >
           <span />
           <span />
@@ -266,7 +268,7 @@ export default function AppLayout({ active, children }) {
         <button
           type="button"
           className="spreelo-mobile-menu-backdrop"
-          aria-label="Close menu"
+          aria-label={t("layout.closeMenu")}
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
@@ -285,10 +287,10 @@ export default function AppLayout({ active, children }) {
         </div>
 
         <div className="current-brand-card">
-          <label>Current brand</label>
+          <label>{t("common.currentBrand")}</label>
 
           {loadingBrands ? (
-            <div className="current-brand-loading">Loading brands...</div>
+            <div className="current-brand-loading">{t("layout.loadingBrands")}</div>
           ) : brandProfiles.length > 0 ? (
             <div className="current-brand-select-wrap">
               <span className="current-brand-business-icon">▦</span>
@@ -300,13 +302,13 @@ export default function AppLayout({ active, children }) {
               >
                 {brandProfiles.map((brand) => (
                   <option key={brand.id} value={brand.id}>
-                    {brand.business_name || "Unnamed brand"}
+                    {brand.business_name || t("common.unnamedBrand")}
                   </option>
                 ))}
               </select>
             </div>
           ) : (
-            <div className="current-brand-loading">No brand yet</div>
+            <div className="current-brand-loading">{t("layout.noBrandYet")}</div>
           )}
 
           <button
@@ -315,7 +317,7 @@ export default function AppLayout({ active, children }) {
             onClick={handleCreateBrand}
             disabled={creatingBrand}
           >
-            {creatingBrand ? "Creating..." : "Add new brand"}
+            {creatingBrand ? t("layout.creating") : t("layout.addNewBrand")}
           </button>
         </div>
 
@@ -328,7 +330,7 @@ export default function AppLayout({ active, children }) {
               onClick={() => setMobileMenuOpen(false)}
             >
               <img src={item.icon} alt="" className="sidebar-menu-icon" />
-              <span>{item.label}</span>
+              <span>{t(item.labelKey)}</span>
             </a>
           ))}
         </nav>
@@ -338,8 +340,8 @@ export default function AppLayout({ active, children }) {
             <div className="sidebar-plan-icon">✦</div>
 
             <div>
-              <strong>Plan: Pro</strong>
-              <span>Upgrade for more credits & features</span>
+              <strong>{t("layout.planPro")}</strong>
+              <span>{t("layout.upgradeText")}</span>
             </div>
 
             <span className="sidebar-plan-arrow">›</span>
@@ -351,7 +353,7 @@ export default function AppLayout({ active, children }) {
             onClick={handleLogout}
           >
             <span>⇱</span>
-            Log out
+            {t("layout.logout")}
           </button>
         </div>
       </aside>
