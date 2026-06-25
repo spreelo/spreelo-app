@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
@@ -10,6 +11,8 @@ function getBrandStorageKey(userId) {
 const SAVED_LOGIN_EMAIL_KEY = "spreelo_last_login_email";
 
 export default function LoginPage() {
+  const { t, locale } = useUiText(["login"]);
+
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
@@ -18,16 +21,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-useEffect(() => {
-  if (typeof window === "undefined") return;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-  const savedEmail = localStorage.getItem(SAVED_LOGIN_EMAIL_KEY);
+    const savedEmail = localStorage.getItem(SAVED_LOGIN_EMAIL_KEY);
 
-  if (savedEmail) {
-    setEmail(savedEmail);
-  }
-}, []);
-  
+    if (savedEmail) {
+      setEmail(savedEmail);
+    }
+  }, []);
+
   function normalizeEmail(value) {
     return String(value || "").trim().toLowerCase();
   }
@@ -36,9 +39,16 @@ useEffect(() => {
     return String(value || "").replace(/\D/g, "").slice(0, 6);
   }
 
+  function buildLocalizedPath(path) {
+    if (!locale || locale === "en") return path;
+
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}lang=${encodeURIComponent(locale)}`;
+  }
+
   async function redirectAfterLogin(loggedInUser) {
     if (!loggedInUser?.id) {
-      window.location.href = "/login";
+      window.location.href = buildLocalizedPath("/login");
       return;
     }
 
@@ -49,7 +59,7 @@ useEffect(() => {
       .limit(1);
 
     if (error) {
-      setMessage(error.message || "Could not check your workspace.");
+      setMessage(error.message || t("login.errorCheckWorkspace"));
       setVerifying(false);
       return;
     }
@@ -66,7 +76,7 @@ useEffect(() => {
       return;
     }
 
-    window.location.href = "/onboarding";
+    window.location.href = buildLocalizedPath("/onboarding");
   }
 
   async function handleSendCode(event) {
@@ -77,7 +87,7 @@ useEffect(() => {
     const normalizedEmail = normalizeEmail(email);
 
     if (!normalizedEmail) {
-      setMessage("Enter your email address first.");
+      setMessage(t("login.errorEmailRequired"));
       return;
     }
 
@@ -92,21 +102,21 @@ useEffect(() => {
     });
 
     if (error) {
-      setMessage(error.message || "Could not send sign-in code.");
+      setMessage(error.message || t("login.errorSendCode"));
       setLoading(false);
       return;
     }
 
-   setEmail(normalizedEmail);
+    setEmail(normalizedEmail);
 
-if (typeof window !== "undefined") {
-  localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
-}
+    if (typeof window !== "undefined") {
+      localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
+    }
 
-setCodeSent(true);
-setOtpCode("");
-setMessage("We sent a 6-digit sign-in code to your email.");
-setLoading(false);
+    setCodeSent(true);
+    setOtpCode("");
+    setMessage(t("login.codeSentMessage"));
+    setLoading(false);
   }
 
   async function handleVerifyCode(event) {
@@ -118,12 +128,12 @@ setLoading(false);
     const normalizedCode = normalizeOtp(otpCode);
 
     if (!normalizedEmail) {
-      setMessage("Enter your email address first.");
+      setMessage(t("login.errorEmailRequired"));
       return;
     }
 
     if (normalizedCode.length !== 6) {
-      setMessage("Enter the 6-digit code from your email.");
+      setMessage(t("login.errorCodeRequired"));
       return;
     }
 
@@ -137,16 +147,16 @@ setLoading(false);
     });
 
     if (error) {
-      setMessage(error.message || "The code was not accepted.");
+      setMessage(error.message || t("login.errorCodeRejected"));
       setVerifying(false);
       return;
     }
 
     if (typeof window !== "undefined") {
-  localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
-}
+      localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
+    }
 
-await redirectAfterLogin(data?.user);
+    await redirectAfterLogin(data?.user);
   }
 
   function handleChangeEmail() {
@@ -169,29 +179,26 @@ await redirectAfterLogin(data?.user);
         </div>
 
         <div className="login-content">
-          <p className="eyebrow">Login</p>
-          <h2>Sign in to your workspace</h2>
+          <p className="eyebrow">{t("login.eyebrow")}</p>
+          <h2>{t("login.title")}</h2>
 
           {!codeSent ? (
-            <p>
-              Enter your email and Spreelo will send you a secure 6-digit
-              sign-in code.
-            </p>
+            <p>{t("login.description")}</p>
           ) : (
             <p>
-              Enter the 6-digit code we sent to <strong>{email}</strong>.
+              {t("login.codeSentPrefix")} <strong>{email}</strong>.
             </p>
           )}
         </div>
 
         {!codeSent ? (
           <form onSubmit={handleSendCode} className="login-form">
-            <label>Email address</label>
+            <label>{t("login.emailAddress")}</label>
             <input
               className="input"
               type="email"
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder={t("login.emailPlaceholder")}
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value);
@@ -206,12 +213,12 @@ await redirectAfterLogin(data?.user);
               type="submit"
               disabled={loading || verifying}
             >
-              {loading ? "Sending..." : "Send sign-in code"}
+              {loading ? t("login.sending") : t("login.sendCode")}
             </button>
           </form>
         ) : (
           <form onSubmit={handleVerifyCode} className="login-form">
-            <label>Sign-in code</label>
+            <label>{t("login.signInCode")}</label>
             <input
               className="input otp-input"
               type="text"
@@ -232,7 +239,7 @@ await redirectAfterLogin(data?.user);
               type="submit"
               disabled={loading || verifying}
             >
-              {verifying ? "Signing in..." : "Sign in"}
+              {verifying ? t("login.signingIn") : t("login.signIn")}
             </button>
 
             <button
@@ -241,7 +248,7 @@ await redirectAfterLogin(data?.user);
               onClick={handleSendCode}
               disabled={loading || verifying}
             >
-              {loading ? "Sending..." : "Send a new code"}
+              {loading ? t("login.sending") : t("login.sendNewCode")}
             </button>
 
             <button
@@ -250,7 +257,7 @@ await redirectAfterLogin(data?.user);
               onClick={handleChangeEmail}
               disabled={loading || verifying}
             >
-              Use another email
+              {t("login.useAnotherEmail")}
             </button>
           </form>
         )}
@@ -259,11 +266,8 @@ await redirectAfterLogin(data?.user);
 
         {codeSent && (
           <div className="login-help-box">
-            <strong>Didn’t receive the code?</strong>
-            <p>
-              Check your spam or junk folder. The code can sometimes take up to
-              a minute to arrive.
-            </p>
+            <strong>{t("login.codeHelpTitle")}</strong>
+            <p>{t("login.codeHelpText")}</p>
           </div>
         )}
       </section>
