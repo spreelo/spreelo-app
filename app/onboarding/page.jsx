@@ -47,62 +47,25 @@ const languageOptions = [
   "Other",
 ];
 
-const analysisProgressStages = [
-  {
-    progress: 8,
-    titleKey: "onboarding.analysis.readingWebsite.title",
-    descriptionKey: "onboarding.analysis.readingWebsite.description",
-  },
-  {
-    progress: 28,
-    titleKey: "onboarding.analysis.understandingBusiness.title",
-    descriptionKey: "onboarding.analysis.understandingBusiness.description",
-  },
-  {
-    progress: 48,
-    titleKey: "onboarding.analysis.checkingProducts.title",
-    descriptionKey: "onboarding.analysis.checkingProducts.description",
-  },
-  {
-    progress: 70,
-    titleKey: "onboarding.analysis.buildingOpportunities.title",
-    descriptionKey: "onboarding.analysis.buildingOpportunities.description",
-  },
-  {
-    progress: 88,
-    titleKey: "onboarding.analysis.preparingStrategy.title",
-    descriptionKey: "onboarding.analysis.preparingStrategy.description",
-  },
+const onboardingAnalyzingStepKeys = [
+  "onboarding.step.creatingProfile",
+  "onboarding.step.fetchingWebsite",
+  "onboarding.step.readingBusiness",
+  "onboarding.step.detectingMarket",
+  "onboarding.step.preparingProfile",
+  "onboarding.step.findingOpportunities",
+  "onboarding.step.buildingCalendar",
+  "onboarding.step.savingWorkspace",
+  "onboarding.step.stillWorking",
+  "onboarding.step.almostThere",
+  "onboarding.step.largeWebsite",
+  "onboarding.step.keepOpen",
 ];
 
-const ANALYSIS_DISPLAY_DURATION_MS = 210000; // 3.5 minutes
+const longOnboardingStepStartIndex = 8;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function getCurrentAnalysisStage(progress) {
-  const currentStage =
-    [...analysisProgressStages]
-      .reverse()
-      .find((stage) => progress >= stage.progress) || analysisProgressStages[0];
-
-  return currentStage;
-}
-
-function getSmoothAnalysisProgress(startedAt) {
-  if (!startedAt) {
-    return 1;
-  }
-
-  const elapsedMs = Date.now() - startedAt;
-  const ratio = elapsedMs / ANALYSIS_DISPLAY_DURATION_MS;
-
-  if (ratio >= 1) {
-    return 99;
-  }
-
-  return Math.max(1, Math.min(99, ratio * 99));
 }
 
 function getBrandStorageKey(userId) {
@@ -139,35 +102,17 @@ async function readJsonResponse(response) {
   }
 }
 
-async function pollAnalysisStatus({
-  accessToken,
-  jobId,
-  runRequest,
-  displayStartedAt,
-}) {
-  let runFinished = false;
-  let runResult = null;
+async function pollAnalysisStatus({ accessToken, jobId, runRequest }) {
+  let runError = null;
 
-  runRequest
-    .then((result) => {
-      runFinished = true;
-      runResult = result;
-    })
-    .catch((error) => {
-      runFinished = true;
-      runResult = {
-        ok: false,
-        error: error?.message || "Could not run analysis.",
-      };
-    });
+  runRequest.catch((error) => {
+    runError = error;
+  });
 
   for (let pollCount = 0; pollCount < ANALYSIS_STATUS_MAX_POLLS; pollCount += 1) {
-    await sleep(pollCount === 0 ? 1000 : ANALYSIS_STATUS_POLL_INTERVAL_MS);
-
     const statusResponse = await fetch(
       `/api/analyze-brand/status?jobId=${encodeURIComponent(jobId)}`,
       {
-        method: "GET",
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -183,13 +128,6 @@ async function pollAnalysisStatus({
     const job = statusResult.job;
 
     if (job?.status === "completed") {
-      const remainingMs =
-        ANALYSIS_DISPLAY_DURATION_MS - (Date.now() - displayStartedAt);
-
-      if (remainingMs > 0) {
-        await sleep(remainingMs);
-      }
-
       return job;
     }
 
@@ -197,9 +135,11 @@ async function pollAnalysisStatus({
       throw new Error(job?.error_message || "Could not analyze brand.");
     }
 
-    if (runFinished && runResult && !runResult.ok) {
-      throw new Error(runResult.error || "Could not run analysis.");
+    if (runError) {
+      throw runError;
     }
+
+    await sleep(ANALYSIS_STATUS_POLL_INTERVAL_MS);
   }
 
   throw new Error("Brand analysis took too long. Please try again.");
@@ -216,15 +156,14 @@ export default function OnboardingPage() {
   const [hasNoWebsite, setHasNoWebsite] = useState(false);
   const [brandDescription, setBrandDescription] = useState("");
 
-  const [contentMarket, setContentMarket] = useState("International / Global");
-  const [countryCode, setCountryCode] = useState("GLOBAL");
-  const [contentLanguage, setContentLanguage] = useState("English");
-  const [contentSettingsTouched, setContentSettingsTouched] = useState(false);
+  const [contentMarket, setContentMarket] = useState("");
+  const [countryCode, setCountryCode] = useState("");
+  const [contentLanguage, setContentLanguage] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [message, setMessage] = useState("");
-  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [currentAnalyzingStep, setCurrentAnalyzingStep] = useState(0);
 
   const normalizedWebsiteUrl = useMemo(() => {
     return normalizeWebsiteUrl(websiteUrl);
@@ -295,6 +234,24 @@ export default function OnboardingPage() {
     checkUserAndBrand();
   }, []);
 
+  useEffect(() => {
+    if (!loading) {
+      setCurrentAnalyzingStep(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setCurrentAnalyzingStep((currentStep) => {
+        if (currentStep >= onboardingAnalyzingStepKeys.length - 1) {
+          return longOnboardingStepStartIndex;
+        }
+
+        return currentStep + 1;
+      });
+    }, 4500);
+
+    return () => clearInterval(interval);
+  }, [loading]);
 
   function handleMarketChange(event) {
     const selectedMarket = event.target.value;
@@ -305,7 +262,6 @@ export default function OnboardingPage() {
     setContentMarket(selectedMarket);
     setCountryCode(selectedOption?.countryCode || "OTHER");
     setContentLanguage(selectedOption?.language || "English");
-    setContentSettingsTouched(true);
     setMessage("");
   }
 
@@ -348,15 +304,6 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (!contentMarket || !countryCode) {
-      setMessage(t("onboarding.errorMarket"));
-      return;
-    }
-
-    if (!contentLanguage) {
-      setMessage(t("onboarding.errorLanguage"));
-      return;
-    }
 
     if (!hasNoWebsite && !normalizedWebsiteUrl) {
       setMessage(t("onboarding.errorWebsite"));
@@ -368,23 +315,9 @@ export default function OnboardingPage() {
       return;
     }
 
-    const displayStartedAt = Date.now();
-
     setLoading(true);
-    setAnalysisProgress(1);
+    setCurrentAnalyzingStep(0);
     setMessage("");
-
-    const progressInterval = setInterval(() => {
-      setAnalysisProgress((currentProgress) => {
-        const smoothProgress = getSmoothAnalysisProgress(displayStartedAt);
-
-        if (currentProgress >= 100) {
-          return currentProgress;
-        }
-
-        return Math.max(currentProgress, smoothProgress);
-      });
-    }, 500);
 
     try {
       const alreadyHasBrand = await continueWithExistingBrand(user.id);
@@ -445,25 +378,17 @@ export default function OnboardingPage() {
           businessName: trimmedBusinessName,
           websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
           brandDescription: hasNoWebsite ? trimmedDescription : "",
-          contentMarket: contentSettingsTouched ? contentMarket : "",
-          countryCode: contentSettingsTouched ? countryCode : "",
-          contentLanguage: contentSettingsTouched ? contentLanguage : "",
+          contentMarket,
+          countryCode,
+          contentLanguage,
         }),
       });
 
       const startResult = await readJsonResponse(startResponse);
 
-      if (!startResponse.ok || !startResult?.ok) {
+      if (!startResponse.ok || !startResult?.ok || !startResult?.jobId) {
         throw new Error(startResult?.error || t("onboarding.errorAnalyzeBrand"));
       }
-
-      const jobId = String(startResult.jobId || startResult.job_id || startResult.job?.id || "");
-
-      if (!jobId) {
-        throw new Error(t("onboarding.errorAnalyzeBrand"));
-      }
-
-      setAnalysisProgress(getSmoothAnalysisProgress(displayStartedAt));
 
       const runRequest = fetch("/api/analyze-brand/run", {
         method: "POST",
@@ -472,47 +397,29 @@ export default function OnboardingPage() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          jobId,
+          jobId: startResult.jobId,
         }),
       }).then(async (runResponse) => {
         const runResult = await readJsonResponse(runResponse);
 
-        return {
-          ...runResult,
-          ok: Boolean(runResponse.ok && runResult?.ok),
-          httpOk: runResponse.ok,
-          error: runResult?.error || t("onboarding.errorAnalyzeBrand"),
-        };
+        if (!runResponse.ok || !runResult?.ok) {
+          throw new Error(runResult?.error || t("onboarding.errorAnalyzeBrand"));
+        }
+
+        return runResult;
       });
 
-      const completedJob = await pollAnalysisStatus({
+      await pollAnalysisStatus({
         accessToken: session.access_token,
-        jobId,
+        jobId: startResult.jobId,
         runRequest,
-        displayStartedAt,
       });
 
-      const result = completedJob.result || {};
-      const profile = result.profile || {};
-
-      setContentMarket(
-        result.content_market || profile.content_market || contentMarket
-      );
-      setCountryCode(result.country_code || profile.country_code || countryCode);
-      setContentLanguage(
-        result.content_language || profile.content_language || contentLanguage
-      );
-      setContentSettingsTouched(false);
-      setAnalysisProgress(100);
       setMessage(t("onboarding.ready"));
-
-      await sleep(500);
       window.location.href = "/social-channels";
     } catch (error) {
       setMessage(error.message || t("onboarding.errorGeneric"));
       setLoading(false);
-    } finally {
-      clearInterval(progressInterval);
     }
   }
 
@@ -609,43 +516,6 @@ export default function OnboardingPage() {
             <span>{t("onboarding.noWebsite")}</span>
           </label>
 
-          <div className="onboarding-market-grid">
-            <div>
-              <label>{t("onboarding.contentMarket")}</label>
-              <select
-                className="input"
-                value={contentMarket}
-                onChange={handleMarketChange}
-                disabled={loading || loggingOut}
-              >
-                {marketOptions.map((option) => (
-                  <option key={option.countryCode} value={option.label}>
-                    {t(`onboarding.market.${option.countryCode}`)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label>{t("onboarding.contentLanguage")}</label>
-              <select
-                className="input"
-                value={contentLanguage}
-                onChange={(event) => {
-                  setContentLanguage(event.target.value);
-                  setContentSettingsTouched(true);
-                  setMessage("");
-                }}
-                disabled={loading || loggingOut}
-              >
-                {languageOptions.map((language) => (
-                  <option key={language} value={language}>
-                    {t(`onboarding.language.${language}`)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
 
           {hasNoWebsite && (
             <>
@@ -675,49 +545,14 @@ export default function OnboardingPage() {
         </form>
 
         {loading ? (
-          <div className="brand-profile-analysis-card onboarding-analysis-card">
-            <div className="brand-profile-analysis-header">
-              <div>
-                <strong>{t("onboarding.analysis.title")}</strong>
-                <p>{t("onboarding.analysis.description")}</p>
-              </div>
+          <div className="brand-profile-analyzing-card onboarding-analyzing-card">
+            <div className="brand-profile-spinner" />
 
-              <span>{Math.min(99, Math.floor(analysisProgress))}%</span>
-            </div>
-
-            <div className="brand-profile-progress-track">
-              <div
-                className="brand-profile-progress-fill"
-                style={{ width: `${Math.min(analysisProgress, 98.8)}%` }}
-              />
-            </div>
-
-            <div className="brand-profile-analysis-current">
+            <div>
               <strong>
-                {t(getCurrentAnalysisStage(analysisProgress).titleKey)}
+                {t(onboardingAnalyzingStepKeys[currentAnalyzingStep])}
               </strong>
-              <p>{t(getCurrentAnalysisStage(analysisProgress).descriptionKey)}</p>
-            </div>
-
-            <div className="brand-profile-analysis-steps">
-              {analysisProgressStages.map((stage) => {
-                const isDone = analysisProgress >= stage.progress;
-                const isCurrent =
-                  getCurrentAnalysisStage(analysisProgress).titleKey ===
-                  stage.titleKey;
-
-                return (
-                  <div
-                    key={stage.titleKey}
-                    className={`brand-profile-analysis-step ${
-                      isDone ? "done" : ""
-                    } ${isCurrent ? "current" : ""}`}
-                  >
-                    <span>{isDone ? "✓" : "○"}</span>
-                    <strong>{t(stage.titleKey)}</strong>
-                  </div>
-                );
-              })}
+              <p>{t("onboarding.loaderText")}</p>
             </div>
           </div>
         ) : (
