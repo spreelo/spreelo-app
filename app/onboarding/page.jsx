@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
+
+const ANALYSIS_STATUS_POLL_INTERVAL_MS = 2000;
+const ANALYSIS_STATUS_MAX_POLLS = 180;
 
 const marketOptions = [
   {
@@ -43,22 +47,26 @@ const languageOptions = [
   "Other",
 ];
 
-const onboardingAnalyzingSteps = [
-  "Creating your brand profile...",
-  "Fetching your website content...",
-  "Reading your business information...",
-  "Detecting market and language...",
-  "Preparing your AI profile...",
-  "Finding relevant content opportunities...",
-  "Building your campaign calendar...",
-  "Saving everything to your workspace...",
-  "Still working — some websites take a little longer to analyze.",
-  "Almost there — Spreelo is preparing your brand setup.",
-  "This can take up to a minute for larger websites.",
-  "Still processing — please keep this page open.",
+const onboardingAnalyzingStepKeys = [
+  "onboarding.step.creatingProfile",
+  "onboarding.step.fetchingWebsite",
+  "onboarding.step.readingBusiness",
+  "onboarding.step.detectingMarket",
+  "onboarding.step.preparingProfile",
+  "onboarding.step.findingOpportunities",
+  "onboarding.step.buildingCalendar",
+  "onboarding.step.savingWorkspace",
+  "onboarding.step.stillWorking",
+  "onboarding.step.almostThere",
+  "onboarding.step.largeWebsite",
+  "onboarding.step.keepOpen",
 ];
 
 const longOnboardingStepStartIndex = 8;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
@@ -86,7 +94,60 @@ function isDuplicateDefaultBrandError(error) {
   );
 }
 
+async function readJsonResponse(response) {
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
+}
+
+async function pollAnalysisStatus({ accessToken, jobId, runRequest }) {
+  let runError = null;
+
+  runRequest.catch((error) => {
+    runError = error;
+  });
+
+  for (let pollCount = 0; pollCount < ANALYSIS_STATUS_MAX_POLLS; pollCount += 1) {
+    const statusResponse = await fetch(
+      `/api/analyze-brand/status?jobId=${encodeURIComponent(jobId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    const statusResult = await readJsonResponse(statusResponse);
+
+    if (!statusResponse.ok || !statusResult?.ok) {
+      throw new Error(statusResult?.error || "Could not read analysis status.");
+    }
+
+    const job = statusResult.job;
+
+    if (job?.status === "completed") {
+      return job;
+    }
+
+    if (job?.status === "failed") {
+      throw new Error(job?.error_message || "Could not analyze brand.");
+    }
+
+    if (runError) {
+      throw runError;
+    }
+
+    await sleep(ANALYSIS_STATUS_POLL_INTERVAL_MS);
+  }
+
+  throw new Error("Brand analysis took too long. Please try again.");
+}
+
 export default function OnboardingPage() {
+  const { t } = useUiText(["onboarding"]);
+
   const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(true);
 
@@ -165,7 +226,7 @@ export default function OnboardingPage() {
 
         setChecking(false);
       } catch (error) {
-        setMessage(error.message || "Could not prepare your workspace.");
+        setMessage(error.message || t("onboarding.errorPrepareWorkspace"));
         setChecking(false);
       }
     }
@@ -181,7 +242,7 @@ export default function OnboardingPage() {
 
     const interval = setInterval(() => {
       setCurrentAnalyzingStep((currentStep) => {
-        if (currentStep >= onboardingAnalyzingSteps.length - 1) {
+        if (currentStep >= onboardingAnalyzingStepKeys.length - 1) {
           return longOnboardingStepStartIndex;
         }
 
@@ -225,7 +286,7 @@ export default function OnboardingPage() {
 
       window.location.href = "/login";
     } catch (error) {
-      setMessage(error.message || "Could not log out.");
+      setMessage(error.message || t("onboarding.errorLogout"));
       setLoggingOut(false);
     }
   }
@@ -239,29 +300,27 @@ export default function OnboardingPage() {
     const trimmedDescription = brandDescription.trim();
 
     if (!trimmedBusinessName) {
-      setMessage("Add your business name first.");
+      setMessage(t("onboarding.errorBusinessName"));
       return;
     }
 
     if (!contentMarket || !countryCode) {
-      setMessage("Choose the market/country this brand targets.");
+      setMessage(t("onboarding.errorMarket"));
       return;
     }
 
     if (!contentLanguage) {
-      setMessage("Choose the content language for this brand.");
+      setMessage(t("onboarding.errorLanguage"));
       return;
     }
 
     if (!hasNoWebsite && !normalizedWebsiteUrl) {
-      setMessage(
-        "Add your website URL, or select that you do not have a website."
-      );
+      setMessage(t("onboarding.errorWebsite"));
       return;
     }
 
     if (hasNoWebsite && !trimmedDescription) {
-      setMessage("Describe your business first.");
+      setMessage(t("onboarding.errorDescription"));
       return;
     }
 
@@ -303,9 +362,7 @@ export default function OnboardingPage() {
           }
         }
 
-        throw new Error(
-          createError.message || "Could not create brand profile."
-        );
+        throw new Error(createError.message || t("onboarding.errorCreateBrand"));
       }
 
       saveCurrentBrand(user.id, createdBrand.id);
@@ -319,7 +376,7 @@ export default function OnboardingPage() {
         return;
       }
 
-      const response = await fetch("/api/analyze-brand", {
+      const startResponse = await fetch("/api/analyze-brand/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -336,16 +393,41 @@ export default function OnboardingPage() {
         }),
       });
 
-      const result = await response.json();
+      const startResult = await readJsonResponse(startResponse);
 
-      if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Could not analyze brand.");
+      if (!startResponse.ok || !startResult?.ok || !startResult?.jobId) {
+        throw new Error(startResult?.error || t("onboarding.errorAnalyzeBrand"));
       }
 
-      setMessage("Your brand profile is ready.");
+      const runRequest = fetch("/api/analyze-brand/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          jobId: startResult.jobId,
+        }),
+      }).then(async (runResponse) => {
+        const runResult = await readJsonResponse(runResponse);
+
+        if (!runResponse.ok || !runResult?.ok) {
+          throw new Error(runResult?.error || t("onboarding.errorAnalyzeBrand"));
+        }
+
+        return runResult;
+      });
+
+      await pollAnalysisStatus({
+        accessToken: session.access_token,
+        jobId: startResult.jobId,
+        runRequest,
+      });
+
+      setMessage(t("onboarding.ready"));
       window.location.href = "/social-channels";
     } catch (error) {
-      setMessage(error.message || "Something went wrong.");
+      setMessage(error.message || t("onboarding.errorGeneric"));
       setLoading(false);
     }
   }
@@ -362,7 +444,7 @@ export default function OnboardingPage() {
             />
           </div>
 
-          <p className="login-message">Preparing your workspace...</p>
+          <p className="login-message">{t("onboarding.checkingWorkspace")}</p>
         </section>
       </main>
     );
@@ -386,26 +468,22 @@ export default function OnboardingPage() {
             onClick={handleLogout}
             disabled={loading || loggingOut}
           >
-            {loggingOut ? "Logging out..." : "Log out"}
+            {loggingOut ? t("onboarding.loggingOut") : t("onboarding.logout")}
           </button>
         </div>
 
         <div className="login-content">
-          <p className="eyebrow">Step 1 of 3</p>
-          <h2>Set up your business</h2>
-          <p>
-            Add your website or describe your business. Spreelo will prepare
-            your brand profile, content ideas and campaign calendar
-            automatically.
-          </p>
+          <p className="eyebrow">{t("onboarding.step")}</p>
+          <h2>{t("onboarding.title")}</h2>
+          <p>{t("onboarding.description")}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="login-form">
-          <label>Business name</label>
+          <label>{t("onboarding.businessName")}</label>
           <input
             className="input"
             type="text"
-            placeholder="Example: Luna Studio"
+            placeholder={t("onboarding.businessNamePlaceholder")}
             value={businessName}
             onChange={(event) => {
               setBusinessName(event.target.value);
@@ -415,11 +493,11 @@ export default function OnboardingPage() {
             disabled={loading || loggingOut}
           />
 
-          <label>Website URL</label>
+          <label>{t("onboarding.websiteUrl")}</label>
           <input
             className="input"
             type="text"
-            placeholder="example.com"
+            placeholder={t("onboarding.websiteUrlPlaceholder")}
             value={websiteUrl}
             onChange={(event) => {
               setWebsiteUrl(event.target.value);
@@ -444,12 +522,12 @@ export default function OnboardingPage() {
                 }
               }}
             />
-            <span>I don’t have a website</span>
+            <span>{t("onboarding.noWebsite")}</span>
           </label>
 
           <div className="onboarding-market-grid">
             <div>
-              <label>Content market</label>
+              <label>{t("onboarding.contentMarket")}</label>
               <select
                 className="input"
                 value={contentMarket}
@@ -458,14 +536,14 @@ export default function OnboardingPage() {
               >
                 {marketOptions.map((option) => (
                   <option key={option.countryCode} value={option.label}>
-                    {option.label}
+                    {t(`onboarding.market.${option.countryCode}`)}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label>Content language</label>
+              <label>{t("onboarding.contentLanguage")}</label>
               <select
                 className="input"
                 value={contentLanguage}
@@ -477,7 +555,7 @@ export default function OnboardingPage() {
               >
                 {languageOptions.map((language) => (
                   <option key={language} value={language}>
-                    {language}
+                    {t(`onboarding.language.${language}`)}
                   </option>
                 ))}
               </select>
@@ -486,11 +564,11 @@ export default function OnboardingPage() {
 
           {hasNoWebsite && (
             <>
-              <label>Describe your business</label>
+              <label>{t("onboarding.describeBusiness")}</label>
               <textarea
                 className="input"
                 rows={5}
-                placeholder="Tell Spreelo what your business does, who your customers are and what you offer."
+                placeholder={t("onboarding.describeBusinessPlaceholder")}
                 value={brandDescription}
                 onChange={(event) => {
                   setBrandDescription(event.target.value);
@@ -507,7 +585,7 @@ export default function OnboardingPage() {
             type="submit"
             disabled={loading || loggingOut}
           >
-            {loading ? "Setting up..." : "Continue"}
+            {loading ? t("onboarding.settingUp") : t("onboarding.continue")}
           </button>
         </form>
 
@@ -517,13 +595,9 @@ export default function OnboardingPage() {
 
             <div>
               <strong>
-                {onboardingAnalyzingSteps[currentAnalyzingStep]}
+                {t(onboardingAnalyzingStepKeys[currentAnalyzingStep])}
               </strong>
-              <p>
-                Spreelo is still working. Larger websites and campaign
-                calendars can take a little longer, so please keep this page
-                open.
-              </p>
+              <p>{t("onboarding.loaderText")}</p>
             </div>
           </div>
         ) : (
