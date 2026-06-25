@@ -514,11 +514,11 @@ try {
       setBrandDescription(profile.brand_description || trimmedDescription);
       setIndustry(profile.industry || "");
       setTargetAudience(profile.target_audience || "");
-      setContentMarket(profile.content_market || contentMarket);
+          setContentMarket(profile.content_market || contentMarket);
       setCountryCode(profile.country_code || countryCode);
       setContentLanguage(profile.content_language || contentLanguage);
+      setContentSettingsTouched(false);
       setShowGeneratedFields(true);
-
       setLastAnalyzedWebsiteUrl(
         hasNoWebsite ? "" : normalizeWebsiteUrl(finalWebsiteUrl)
       );
