@@ -1737,10 +1737,31 @@ Rules:
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
-  const parsed = safeJsonParse(content);
+  const parsed = await parseOpenAIJsonWithRepair({
+    openai,
+    content,
+    contextLabel: "description brand analysis response",
+    expectedShapeDescription: `
+{
+  "market_setup": {
+    "content_market": "",
+    "country_code": "",
+    "content_language": "",
+    "reason": ""
+  },
+  "profile": {
+    "business_name": "",
+    "industry": "",
+    "target_audience": "",
+    "detected_language": ""
+  },
+  "campaign_opportunities": []
+}
+`.trim(),
+  });
 
   if (!parsed?.profile) {
-    throw new Error("Could not parse OpenAI response");
+    throw new Error("Spreelo could not read the analysis result correctly.");
   }
 
   return {
