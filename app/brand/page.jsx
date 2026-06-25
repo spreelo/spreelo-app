@@ -404,12 +404,13 @@ useEffect(() => {
   setMessage("");
 }
 
-  function handleNoWebsiteChange(event) {
+    function handleNoWebsiteChange(event) {
     const checked = event.target.checked;
 
     setHasNoWebsite(checked);
     setMessage("");
     setShowGeneratedFields(false);
+    setContentSettingsTouched(false);
 
     if (checked) {
       setWebsiteUrl("");
