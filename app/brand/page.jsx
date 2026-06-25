@@ -476,14 +476,14 @@ setAnalyzing(true);
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-     body: JSON.stringify({
+       body: JSON.stringify({
   brandProfileId,
   businessName: trimmedBusinessName,
   websiteUrl: hasNoWebsite ? "" : normalizedWebsiteUrl,
   brandDescription: hasNoWebsite ? trimmedDescription : "",
-  contentMarket: showGeneratedFields ? contentMarket : "",
-  countryCode: showGeneratedFields ? countryCode : "",
-  contentLanguage: showGeneratedFields ? contentLanguage : "",
+  contentMarket: contentSettingsTouched ? contentMarket : "",
+  countryCode: contentSettingsTouched ? countryCode : "",
+  contentLanguage: contentSettingsTouched ? contentLanguage : "",
 }),
       });
 
