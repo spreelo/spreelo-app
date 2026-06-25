@@ -193,6 +193,21 @@ async function readApiJson(response) {
   }
 }
 
+function getSmoothAnalysisProgress(startedAt) {
+  if (!startedAt) {
+    return 1;
+  }
+
+  const elapsedMs = Date.now() - startedAt;
+  const ratio = elapsedMs / ANALYSIS_DISPLAY_DURATION_MS;
+
+  if (ratio >= 1) {
+    return 99;
+  }
+
+  return Math.max(1, Math.min(99, ratio * 99));
+}
+
 export default function BrandProfile() {
   const [brandProfileId, setBrandProfileId] = useState("");
   const [businessName, setBusinessName] = useState("");
