@@ -133,16 +133,20 @@ function normalizeWebsiteUrl(value) {
   return `https://${trimmedValue}`;
 }
 
-function normalizeProgress(value, fallback = 0) {
-  const parsed = Number(value);
-
-  if (Number.isNaN(parsed)) {
-    return fallback;
+function getSmoothAnalysisProgress(startedAt) {
+  if (!startedAt) {
+    return 1;
   }
 
-  return Math.min(100, Math.max(0, parsed));
-}
+  const elapsedMs = Date.now() - startedAt;
+  const ratio = elapsedMs / ANALYSIS_DISPLAY_DURATION_MS;
 
+  if (ratio >= 1) {
+    return 99;
+  }
+
+  return Math.max(1, Math.min(99, ratio * 99));
+}
 function getFriendlyAnalysisError(value) {
   const cleanError = String(value || "");
 
