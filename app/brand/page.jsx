@@ -392,8 +392,8 @@ useEffect(() => {
 
   return () => clearInterval(interval);
 }, [analyzing]);
-  
- function handleMarketChange(event) {
+
+   function handleMarketChange(event) {
   const nextMarket = event.target.value;
   const selectedMarket = visibleMarketOptions.find(
     (market) => market.label === nextMarket
@@ -401,6 +401,7 @@ useEffect(() => {
 
   setContentMarket(nextMarket);
   setCountryCode(selectedMarket?.countryCode || countryCode || "");
+  setContentSettingsTouched(true);
   setMessage("");
 }
 
