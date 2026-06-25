@@ -34,19 +34,47 @@ function parseNamespaces(value) {
   return Array.from(new Set(["common", ...namespaces]));
 }
 
-function getMissingLabels(defaultLabels, translatedLabels) {
-  return Object.entries(defaultLabels).reduce((missingLabels, [key, value]) => {
+function shouldRetranslateLabel({ defaultValue, translatedValue, locale }) {
+  if (translatedValue === null || translatedValue === undefined) {
+    return true;
+  }
+
+  const translatedText = String(translatedValue).trim();
+  const defaultText = String(defaultValue || "").trim();
+
+  if (!translatedText) {
+    return true;
+  }
+
+  if (locale === DEFAULT_UI_LOCALE) {
+    return false;
+  }
+
+  // Repair old language packs that were created while the UI was still falling
+  // back to English. This is what can make one language, such as Swedish, stay
+  // English even though newer languages work.
+  if (defaultText && translatedText === defaultText) {
+    return true;
+  }
+
+  return false;
+}
+
+function getLabelsNeedingTranslation(defaultLabels, translatedLabels, locale) {
+  return Object.entries(defaultLabels).reduce((labelsNeedingTranslation, [key, value]) => {
     const translatedValue = translatedLabels?.[key];
 
     if (
-      translatedValue === null ||
-      translatedValue === undefined ||
-      String(translatedValue).trim() === ""
+      shouldRetranslateLabel({
+        defaultValue: value,
+        translatedValue,
+        locale,
+      })
     ) {
-      missingLabels[key] = value;
+      labelsNeedingTranslation[key] = value;
     }
 
-    return missingLabels;
+    return labelsNeedingTranslation;
   }, {});
 }
 
@@ -163,7 +191,11 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
   }
 
   const existingLabels = existingPack?.labels || {};
-  const missingLabels = getMissingLabels(defaultLabels, existingLabels);
+  const missingLabels = getLabelsNeedingTranslation(
+    defaultLabels,
+    existingLabels,
+    locale
+  );
 
   if (Object.keys(missingLabels).length === 0) {
     return existingLabels;
