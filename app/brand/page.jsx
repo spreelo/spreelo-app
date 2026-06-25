@@ -519,10 +519,34 @@ try {
   );
 }
       
-      if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Could not analyze brand.");
-      }
+     if (!response.ok || !result?.ok) {
+  const cleanError = String(result?.error || "");
 
+  if (
+    cleanError.includes("FUNCTION_INVOCATION_TIMEOUT") ||
+    cleanError.toLowerCase().includes("timeout")
+  ) {
+    throw new Error(
+      "Spreelo could not finish the website analysis in time. Please try again. If it still takes too long, add a short business description instead."
+    );
+  }
+
+  if (
+    cleanError.toLowerCase().includes("json") ||
+    cleanError.toLowerCase().includes("parse") ||
+    cleanError.toLowerCase().includes("openai response")
+  ) {
+    throw new Error(
+      "Spreelo could not read the analysis result correctly. Please try again."
+    );
+  }
+
+  throw new Error(
+    cleanError ||
+      "Spreelo could not analyze this website right now. Please try again, or add a short business description instead."
+  );
+}
+      
       const profile = result.profile || {};
 
       const finalWebsiteUrl =
