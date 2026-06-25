@@ -711,7 +711,8 @@ export default function BrandProfile() {
       );
     } catch (error) {
       setMessage(error.message || "Could not analyze brand.");
-    } finally {
+       } finally {
+      clearInterval(progressInterval);
       setAnalyzing(false);
     }
   }
