@@ -97,6 +97,7 @@ const analysisProgressStages = [
 
 const ANALYSIS_STATUS_POLL_INTERVAL_MS = 2000;
 const ANALYSIS_STATUS_MAX_POLLS = 180;
+const ANALYSIS_DISPLAY_DURATION_MS = 210000; // 3.5 minutes
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
