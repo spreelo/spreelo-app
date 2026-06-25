@@ -985,8 +985,9 @@ try {
         <select
           className="input"
           value={contentLanguage}
-          onChange={(event) => {
+                  onChange={(event) => {
             setContentLanguage(event.target.value);
+            setContentSettingsTouched(true);
             setMessage("");
           }}
           disabled={analyzing || saving || deletingBrand}
