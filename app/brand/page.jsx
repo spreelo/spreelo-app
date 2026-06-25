@@ -900,10 +900,11 @@ try {
                 className="input"
                 placeholder="Example: https://www.yourbusiness.com"
                 value={websiteUrl}
-                onChange={(event) => {
+                               onChange={(event) => {
                   setWebsiteUrl(event.target.value);
                   setHasNoWebsite(false);
                   setShowGeneratedFields(false);
+                  setContentSettingsTouched(false);
                   setIndustry("");
                   setTargetAudience("");
                   setMessage("");
