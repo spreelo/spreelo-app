@@ -882,10 +882,21 @@ Rules:
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
-  const parsed = safeJsonParse(content);
+  const parsed = await parseOpenAIJsonWithRepair({
+    openai,
+    content,
+    contextLabel: "website language detection response",
+    expectedShapeDescription: `
+{
+  "language": "Detected language name",
+  "confidence": "high | medium | low",
+  "reason": "Short explanation"
+}
+`.trim(),
+  });
 
   const language = String(parsed?.language || "").trim();
-
+  
   return {
     language: language.slice(0, 80),
     confidence: String(parsed?.confidence || "medium").trim().slice(0, 20),
