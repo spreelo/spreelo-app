@@ -379,6 +379,87 @@ function safeJsonParse(value) {
   }
 }
 
+async function repairJsonWithOpenAI({
+  openai,
+  rawContent,
+  expectedShapeDescription,
+  contextLabel = "OpenAI JSON response",
+}) {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          "You repair invalid JSON. Return valid JSON only. Do not use markdown. Do not explain anything.",
+      },
+      {
+        role: "user",
+        content: `
+The following ${contextLabel} was supposed to be valid JSON, but it may be malformed, truncated, wrapped in markdown, contain comments, contain trailing commas, or contain text outside the JSON.
+
+Repair it into valid JSON.
+
+Expected JSON shape:
+${expectedShapeDescription}
+
+Important rules:
+- Return JSON only.
+- Do not add markdown.
+- Do not add explanations.
+- Preserve the original meaning as much as possible.
+- If a field is missing, use a safe empty value such as "", false, null or [] depending on the expected shape.
+- Do not invent detailed business facts that are not present in the original response.
+
+Original response:
+${truncateText(rawContent, 60000)}
+`.trim(),
+      },
+    ],
+    temperature: 0,
+  });
+
+  const repairedContent = completion.choices?.[0]?.message?.content || "";
+
+  return safeJsonParse(repairedContent);
+}
+
+async function parseOpenAIJsonWithRepair({
+  openai,
+  content,
+  expectedShapeDescription,
+  contextLabel,
+}) {
+  const parsed = safeJsonParse(content);
+
+  if (parsed) {
+    return parsed;
+  }
+
+  console.warn("OpenAI JSON parse failed. Trying JSON repair.", {
+    contextLabel,
+    preview: truncateText(content, 500),
+  });
+
+  const repairedParsed = await repairJsonWithOpenAI({
+    openai,
+    rawContent: content,
+    expectedShapeDescription,
+    contextLabel,
+  });
+
+  if (repairedParsed) {
+    return repairedParsed;
+  }
+
+  console.error("OpenAI JSON repair failed.", {
+    contextLabel,
+    preview: truncateText(content, 500),
+  });
+
+  return null;
+}
+
 function slugify(value) {
   return String(value || "")
     .toLowerCase()
