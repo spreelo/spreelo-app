@@ -655,10 +655,11 @@ export default function BrandProfile() {
         };
       });
 
-      const completedJob = await pollAnalysisStatus({
+           const completedJob = await pollAnalysisStatus({
         accessToken: session.access_token,
         jobId,
         runRequest,
+        displayStartedAt,
       });
 
       const result = completedJob.result || {};
