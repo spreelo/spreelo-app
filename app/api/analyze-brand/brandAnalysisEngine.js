@@ -280,3 +280,192 @@ export function createOpenAIClient() {
     apiKey: openaiApiKey,
   });
 }
+function safeDecodeUrlPart(value) {
+  try {
+    return decodeURIComponent(String(value || ""));
+  } catch {
+    return String(value || "");
+  }
+}
+
+function getPathSegments(value) {
+  try {
+    const url = new URL(value);
+
+    return safeDecodeUrlPart(url.pathname)
+      .split("/")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function hasBlockedFileExtension(pathname) {
+  return /\.(jpg|jpeg|png|gif|webp|svg|ico|css|js|json|xml|pdf|zip|rar|7z|mp4|mov|avi|mp3|wav|woff|woff2|ttf|eot)$/i.test(
+    pathname
+  );
+}
+
+function isLikelyTechnicalPage(cleanUrl) {
+  try {
+    const url = new URL(cleanUrl);
+    const pathname = safeDecodeUrlPart(url.pathname).toLowerCase();
+
+    if (!pathname || pathname === "/") {
+      return true;
+    }
+
+    if (hasBlockedFileExtension(pathname)) {
+      return true;
+    }
+
+    const technicalRoutePatterns = [
+      "/wp-admin",
+      "/wp-login",
+      "/admin",
+      "/login",
+      "/signin",
+      "/sign-in",
+      "/account",
+      "/cart",
+      "/checkout",
+      "/sitemap",
+      "/robots",
+      "/feed",
+      "/rss",
+      "/cdn-cgi",
+    ];
+
+    return technicalRoutePatterns.some(
+      (pattern) =>
+        pathname === pattern ||
+        pathname.startsWith(`${pattern}/`) ||
+        pathname.includes(`${pattern}/`)
+    );
+  } catch {
+    return true;
+  }
+}
+
+function countPatternMatches(value, pattern) {
+  const matches = String(value || "").match(pattern);
+
+  return matches ? matches.length : 0;
+}
+
+export function extractProductSourceLinks(html, pageUrl) {
+  const links = [];
+  const seen = new Set();
+
+  const linkRegex =
+    /<a\b([^>]*)href=["']([^"']+)["']([^>]*)>([\s\S]*?)<\/a>/gi;
+
+  let match;
+  let linkIndex = 0;
+
+  while ((match = linkRegex.exec(String(html || ""))) !== null) {
+    const beforeHrefAttributes = match[1] || "";
+    const href = match[2] || "";
+    const afterHrefAttributes = match[3] || "";
+    const rawInnerHtml = match[4] || "";
+
+    const resolvedUrl = resolveUrl(href, pageUrl);
+
+    if (!resolvedUrl || !isHttpUrl(resolvedUrl)) {
+      continue;
+    }
+
+    if (!isSameRootDomainOrSubdomain(resolvedUrl, pageUrl)) {
+      continue;
+    }
+
+    const cleanUrl = resolvedUrl.split("#")[0];
+
+    if (seen.has(cleanUrl)) {
+      continue;
+    }
+
+    seen.add(cleanUrl);
+
+    if (isLikelyTechnicalPage(cleanUrl)) {
+      continue;
+    }
+
+    const urlText = safeDecodeUrlPart(cleanUrl);
+    const attributesText = `${beforeHrefAttributes} ${afterHrefAttributes}`;
+    const linkText = stripHtmlToText(`${attributesText} ${rawInnerHtml}`);
+    const combinedRaw = `${urlText} ${attributesText} ${rawInnerHtml} ${linkText}`;
+
+    const pathSegments = getPathSegments(cleanUrl);
+    const candidateHost = getHostnameWithoutWww(cleanUrl);
+    const pageHost = getHostnameWithoutWww(pageUrl);
+
+    let score = 0;
+
+    if (pathSegments.length >= 1 && pathSegments.length <= 4) {
+      score += 4;
+    }
+
+    if (pathSegments.length >= 2 && pathSegments.length <= 5) {
+      score += 3;
+    }
+
+    if (candidateHost && pageHost && candidateHost !== pageHost) {
+      score += 8;
+    }
+
+    if (/<img\b/i.test(rawInnerHtml)) {
+      score += 8;
+    }
+
+    if (/\p{Sc}/u.test(combinedRaw)) {
+      score += 10;
+    }
+
+    if (
+      /\b\d+([.,]\d{2})?\b/.test(combinedRaw) &&
+      /\p{Sc}|price|amount|sale|sku|data-price|data-product|product-id|itemprop/i.test(
+        combinedRaw
+      )
+    ) {
+      score += 8;
+    }
+
+    if (
+      /schema\.org|Product|Offer|AggregateOffer|itemprop|data-product|product-id|variant-id|sku/i.test(
+        combinedRaw
+      )
+    ) {
+      score += 10;
+    }
+
+    if (linkText.length >= 2 && linkText.length <= 180) {
+      score += 2;
+    }
+
+    if (linkIndex < 30) {
+      score += Math.max(0, 6 - Math.floor(linkIndex / 5));
+    }
+
+    if (pathSegments.length > 6) {
+      score -= 6;
+    }
+
+    if (countPatternMatches(cleanUrl, /\?/g) > 1) {
+      score -= 4;
+    }
+
+    if (score > 0) {
+      links.push({
+        url: cleanUrl,
+        text: linkText,
+        score,
+      });
+    }
+
+    linkIndex += 1;
+  }
+
+  return links.sort((a, b) => b.score - a.score);
+}
