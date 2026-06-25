@@ -522,13 +522,13 @@ export default function BrandProfile() {
         );
       }
 
-      const job = statusResult.job || {};
-      const jobProgress = normalizeProgress(job.progress, analysisProgress);
+          const job = statusResult.job || {};
+      const smoothProgress = getSmoothAnalysisProgress(displayStartedAt);
 
       setAnalysisProgress((currentProgress) =>
-        Math.max(currentProgress, jobProgress)
+        Math.max(currentProgress, smoothProgress)
       );
-
+      
       if (job.status === "completed") {
         setAnalysisProgress(100);
         return job;
