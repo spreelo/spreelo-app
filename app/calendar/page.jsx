@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
 
-function formatDate(value) {
+function formatDate(value, locale = "en") {
   if (!value) return "";
 
   try {
-    return new Intl.DateTimeFormat("en", {
+    return new Intl.DateTimeFormat(locale || "en", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -22,7 +23,7 @@ function formatDate(value) {
   }
 }
 
-function getCampaignDateLabel(campaign) {
+function getCampaignDateLabel(campaign, t, locale = "en") {
   const eventType = String(campaign?.event_type || "").toLowerCase();
 
   const isFullYearFlexibleCampaign =
@@ -33,28 +34,35 @@ function getCampaignDateLabel(campaign) {
     ["custom_campaign", "campaign", "seasonal"].includes(eventType);
 
   if (campaign.event_date) {
-    return formatDate(campaign.event_date);
+    return formatDate(campaign.event_date, locale);
   }
 
   if (isFullYearFlexibleCampaign && campaign.event_year) {
-    return `Flexible campaign · ${campaign.event_year}`;
+    return t("calendar.flexibleCampaignWithYear", {
+      year: campaign.event_year,
+    });
   }
 
   if (campaign.start_date && campaign.end_date) {
-    return `${formatDate(campaign.start_date)} – ${formatDate(
-      campaign.end_date
-    )}`;
+    return t("calendar.dateRange", {
+      startDate: formatDate(campaign.start_date, locale),
+      endDate: formatDate(campaign.end_date, locale),
+    });
   }
 
   if (campaign.start_date) {
-    return `From ${formatDate(campaign.start_date)}`;
+    return t("calendar.fromDate", {
+      date: formatDate(campaign.start_date, locale),
+    });
   }
 
   if (campaign.event_year) {
-    return `Flexible campaign · ${campaign.event_year}`;
+    return t("calendar.flexibleCampaignWithYear", {
+      year: campaign.event_year,
+    });
   }
 
-  return "Flexible campaign";
+  return t("calendar.flexibleCampaign");
 }
 
 function getEventTypeLabel(value) {
@@ -63,13 +71,13 @@ function getEventTypeLabel(value) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function getConfidenceLabel(value) {
+function getConfidenceLabel(value, t) {
   const confidence = String(value || "medium").toLowerCase();
 
-  if (confidence === "high") return "High confidence";
-  if (confidence === "low") return "Low confidence";
+  if (confidence === "high") return t("calendar.highConfidence");
+  if (confidence === "low") return t("calendar.lowConfidence");
 
-  return "Medium confidence";
+  return t("calendar.mediumConfidence");
 }
 
 function getSortDate(campaign) {
@@ -119,15 +127,19 @@ function getNextCalendarYear(todayDateString) {
   return currentYear + 1;
 }
 
-function getCalendarYearNotice(todayDateString) {
+function getCalendarYearNotice(todayDateString, t) {
   const nextYear = getNextCalendarYear(todayDateString);
   const monthDay = todayDateString.slice(5);
 
   if (monthDay >= "12-01") {
-    return `Your ${nextYear} campaign calendar is ready. You can plan next year’s posts while keeping the remaining campaigns for this year.`;
+    return t("calendar.nextYearReady", {
+      year: nextYear,
+    });
   }
 
-  return `Your ${nextYear} campaign calendar will be added automatically on December 1.`;
+  return t("calendar.nextYearLater", {
+    year: nextYear,
+  });
 }
 
 function isUpcomingCampaign(campaign, todayDateString, visibleYears = []) {
@@ -177,35 +189,35 @@ function getCampaignRecommendedPostCount(campaign, fallbackCount = 3) {
   return Math.min(Math.max(Math.round(count), 1), 7);
 }
 
-function buildFallbackCampaignPlan(count) {
+function buildFallbackCampaignPlan(count, t) {
   const templates = [
     {
-      role: "Awareness post",
-      purpose: "Introduce the campaign and explain why it matters to the audience.",
+      role: t("calendar.fallback.awarenessRole"),
+      purpose: t("calendar.fallback.awarenessPurpose"),
     },
     {
-      role: "Education post",
-      purpose: "Share useful information connected to the campaign topic.",
+      role: t("calendar.fallback.educationRole"),
+      purpose: t("calendar.fallback.educationPurpose"),
     },
     {
-      role: "Value post",
-      purpose: "Explain the value, benefit or reason to act before the campaign date.",
+      role: t("calendar.fallback.valueRole"),
+      purpose: t("calendar.fallback.valuePurpose"),
     },
     {
-      role: "Trust post",
-      purpose: "Build trust with an example, reassurance or helpful explanation.",
+      role: t("calendar.fallback.trustRole"),
+      purpose: t("calendar.fallback.trustPurpose"),
     },
     {
-      role: "Engagement post",
-      purpose: "Encourage the audience to react, comment or think about the campaign topic.",
+      role: t("calendar.fallback.engagementRole"),
+      purpose: t("calendar.fallback.engagementPurpose"),
     },
     {
-      role: "Reminder post",
-      purpose: "Remind the audience that the campaign date is getting closer.",
+      role: t("calendar.fallback.reminderRole"),
+      purpose: t("calendar.fallback.reminderPurpose"),
     },
     {
-      role: "Final campaign reminder",
-      purpose: "Create a final reminder connected to the campaign date.",
+      role: t("calendar.fallback.finalReminderRole"),
+      purpose: t("calendar.fallback.finalReminderPurpose"),
     },
   ];
 
@@ -217,16 +229,16 @@ function buildFallbackCampaignPlan(count) {
       templates[0];
 
     return {
-      role: isLast ? "Final campaign reminder" : template.role,
+      role: isLast ? t("calendar.fallback.finalReminderRole") : template.role,
       purpose: isLast
-        ? "Create a final reminder connected to the campaign date."
+        ? t("calendar.fallback.finalReminderPurpose")
         : template.purpose,
       days_before_event: isLast ? 0 : Math.max((count - 1 - index) * 3, 1),
     };
   });
 }
 
-function buildCampaignPostPlan(campaign, recommendedCount) {
+function buildCampaignPostPlan(campaign, recommendedCount, t) {
   const rawPostPlan = Array.isArray(campaign?.post_plan)
     ? campaign.post_plan
     : [];
@@ -240,7 +252,7 @@ function buildCampaignPostPlan(campaign, recommendedCount) {
     return bDays - aDays;
   });
 
-  const fallbackPostPlan = buildFallbackCampaignPlan(recommendedCount);
+  const fallbackPostPlan = buildFallbackCampaignPlan(recommendedCount, t);
 
   const mergedPlan = Array.from({ length: recommendedCount }).map((_, index) => {
     const fallbackPost = fallbackPostPlan[index] || {};
@@ -274,6 +286,7 @@ function buildCampaignPostPlan(campaign, recommendedCount) {
 }
 
 export default function Calendar() {
+  const { t, locale } = useUiText(["calendar"]);
   const [user, setUser] = useState(null);
   const [brandProfileId, setBrandProfileId] = useState("");
   const [brandName, setBrandName] = useState("");
@@ -283,7 +296,7 @@ export default function Calendar() {
   const [message, setMessage] = useState("");
 
   const todayDateString = getTodayDateString();
-  const calendarYearNotice = getCalendarYearNotice(todayDateString);
+  const calendarYearNotice = getCalendarYearNotice(todayDateString, t);
 
   const selectedCampaign = useMemo(() => {
     return (
@@ -353,13 +366,13 @@ export default function Calendar() {
         : fallbackBrand;
 
       if (!brandToLoad?.id) {
-        setMessage("No brand profile found. Create a brand profile first.");
+        setMessage(t("calendar.noBrandProfile"));
         setLoading(false);
         return;
       }
 
       setBrandProfileId(brandToLoad.id);
-      setBrandName(brandToLoad.business_name || "Current brand");
+      setBrandName(brandToLoad.business_name || t("common.currentBrand"));
 
       if (typeof window !== "undefined") {
         localStorage.setItem(getBrandStorageKey(user.id), brandToLoad.id);
@@ -420,8 +433,8 @@ export default function Calendar() {
     return (
       <AppLayout active="calendar">
         <section className="empty-card">
-          <h3>Loading campaign calendar...</h3>
-          <p>Please wait while Spreelo loads your campaign opportunities.</p>
+          <h3>{t("calendar.loadingTitle")}</h3>
+          <p>{t("calendar.loadingText")}</p>
         </section>
       </AppLayout>
     );
@@ -432,19 +445,15 @@ export default function Calendar() {
       <div className="campaign-calendar-page">
         <header className="campaign-calendar-hero">
           <div>
-            <p className="dashboard-eyebrow">Campaign calendar</p>
-            <h2>Campaign opportunities for {brandName}</h2>
-            <span>
-              Spreelo suggests useful upcoming campaign moments based on your
-              brand, market and content language. Choose one to create a focused
-              content plan.
-            </span>
+            <p className="dashboard-eyebrow">{t("calendar.eyebrow")}</p>
+            <h2>{t("calendar.heroTitle", { brandName })}</h2>
+            <span>{t("calendar.heroText")}</span>
           </div>
 
           <div className="campaign-calendar-hero-card">
             <strong>{campaignStats.total}</strong>
-            <span>Upcoming AI campaign opportunities</span>
-            <p>No posts are created until you choose a campaign.</p>
+            <span>{t("calendar.heroCardLabel")}</span>
+            <p>{t("calendar.heroCardNote")}</p>
           </div>
         </header>
 
@@ -452,7 +461,7 @@ export default function Calendar() {
 
         <section className="campaign-calendar-year-note">
           <div>
-            <p className="dashboard-eyebrow">Calendar update</p>
+            <p className="dashboard-eyebrow">{t("calendar.updateEyebrow")}</p>
             <strong>{calendarYearNotice}</strong>
           </div>
         </section>
@@ -460,35 +469,32 @@ export default function Calendar() {
         {campaigns.length === 0 ? (
           <section className="campaign-calendar-empty">
             <div>
-              <p className="dashboard-eyebrow">No upcoming campaigns</p>
-              <h3>Create a new campaign calendar</h3>
-              <p>
-                There are no upcoming campaign opportunities for this brand. Go
-                to Brand Profile and generate or refresh the campaign calendar.
-              </p>
+              <p className="dashboard-eyebrow">{t("calendar.noUpcomingEyebrow")}</p>
+              <h3>{t("calendar.noUpcomingTitle")}</h3>
+              <p>{t("calendar.noUpcomingText")}</p>
             </div>
 
-            <a href="/brand">Generate campaign calendar</a>
+            <a href="/brand">{t("calendar.generateCalendar")}</a>
           </section>
         ) : (
           <>
             <section className="campaign-calendar-stat-grid">
               <div>
-                <span>Upcoming opportunities</span>
+                <span>{t("calendar.statUpcoming")}</span>
                 <strong>{campaignStats.total}</strong>
-                <p>Upcoming campaigns for the current brand.</p>
+                <p>{t("calendar.statUpcomingText")}</p>
               </div>
 
               <div>
-                <span>Upcoming fixed dates</span>
+                <span>{t("calendar.statFixedDates")}</span>
                 <strong>{campaignStats.fixedDate}</strong>
-                <p>Campaigns tied to a specific future date.</p>
+                <p>{t("calendar.statFixedDatesText")}</p>
               </div>
 
               <div>
-                <span>Upcoming flexible campaigns</span>
+                <span>{t("calendar.statFlexible")}</span>
                 <strong>{campaignStats.flexible}</strong>
-                <p>Useful upcoming campaigns without a strict date.</p>
+                <p>{t("calendar.statFlexibleText")}</p>
               </div>
             </section>
 
@@ -496,8 +502,8 @@ export default function Calendar() {
               <div className="campaign-calendar-main">
                 <div className="campaign-calendar-section-heading">
                   <div>
-                    <p className="dashboard-eyebrow">Opportunities</p>
-                    <h3>Choose a campaign to build from</h3>
+                    <p className="dashboard-eyebrow">{t("calendar.opportunitiesEyebrow")}</p>
+                    <h3>{t("calendar.chooseCampaignTitle")}</h3>
                   </div>
 
                   <span>{brandName}</span>
@@ -523,7 +529,7 @@ export default function Calendar() {
                       >
                         <div className="campaign-card-top">
                           <span>{getEventTypeLabel(campaign.event_type)}</span>
-                          <strong>{getCampaignDateLabel(campaign)}</strong>
+                          <strong>{getCampaignDateLabel(campaign, t, locale)}</strong>
                         </div>
 
                         <h4>{campaign.title}</h4>
@@ -532,9 +538,9 @@ export default function Calendar() {
 
                         <div className="campaign-card-meta">
                           <span>
-                            {getCampaignRecommendedPostCount(campaign)} posts
+                            {getCampaignRecommendedPostCount(campaign)} {t("common.posts")}
                           </span>
-                          <span>{getConfidenceLabel(campaign.date_confidence)}</span>
+                          <span>{getConfidenceLabel(campaign.date_confidence, t)}</span>
                         </div>
 
                         <button
@@ -545,7 +551,7 @@ export default function Calendar() {
                             handleCreateCampaign(campaign);
                           }}
                         >
-                          Create posts
+                          {t("common.createPosts")}
                         </button>
                       </article>
                     );
@@ -558,7 +564,7 @@ export default function Calendar() {
                   <div className="campaign-detail-card">
                     <div className="campaign-detail-header">
                       <div>
-                        <p className="dashboard-eyebrow">Selected campaign</p>
+                        <p className="dashboard-eyebrow">{t("calendar.selectedCampaign")}</p>
                         <h3>{selectedCampaign.title}</h3>
                       </div>
 
@@ -566,25 +572,25 @@ export default function Calendar() {
                     </div>
 
                     <div className="campaign-detail-date">
-                      <strong>{getCampaignDateLabel(selectedCampaign)}</strong>
+                      <strong>{getCampaignDateLabel(selectedCampaign, t, locale)}</strong>
                       <span>
-                        {getConfidenceLabel(selectedCampaign.date_confidence)}
+                        {getConfidenceLabel(selectedCampaign.date_confidence, t)}
                       </span>
                     </div>
 
                     <div className="campaign-detail-score-grid">
                       <div>
-                        <span>Relevance</span>
+                        <span>{t("calendar.relevance")}</span>
                         <strong>{selectedCampaign.relevance_score || 3}/5</strong>
                       </div>
 
                       <div>
-                        <span>Sales</span>
+                        <span>{t("calendar.sales")}</span>
                         <strong>{selectedCampaign.sales_score || 3}/5</strong>
                       </div>
 
                       <div>
-                        <span>Engagement</span>
+                        <span>{t("calendar.engagement")}</span>
                         <strong>
                           {selectedCampaign.engagement_score || 3}/5
                         </strong>
@@ -592,25 +598,25 @@ export default function Calendar() {
                     </div>
 
                     <div className="campaign-detail-section">
-                      <h4>Why it fits</h4>
+                      <h4>{t("calendar.whyItFits")}</h4>
                       <p>
                         {selectedCampaign.relevance_reason ||
-                          "This campaign can be useful for this brand."}
+                          t("calendar.whyItFitsFallback")}
                       </p>
                     </div>
 
                     <div className="campaign-detail-section">
-                      <h4>Campaign instruction</h4>
+                      <h4>{t("calendar.campaignInstruction")}</h4>
                       <p>
                         {selectedCampaign.prompt_context ||
-                          "Create posts connected to this campaign opportunity."}
+                          t("calendar.campaignInstructionFallback")}
                       </p>
                     </div>
 
                     {Array.isArray(selectedCampaign.campaign_angles) &&
                       selectedCampaign.campaign_angles.length > 0 && (
                         <div className="campaign-detail-section">
-                          <h4>Suggested angles</h4>
+                          <h4>{t("calendar.suggestedAngles")}</h4>
 
                           <div className="campaign-angle-list">
                             {selectedCampaign.campaign_angles
@@ -623,30 +629,33 @@ export default function Calendar() {
                       )}
 
                     <div className="campaign-detail-section">
-                      <h4>Recommended post plan</h4>
+                      <h4>{t("calendar.recommendedPostPlan")}</h4>
 
                       <p className="campaign-post-plan-note">
-                        Spreelo recommends{" "}
-                        {getCampaignRecommendedPostCount(selectedCampaign)} posts
-                        for this campaign.
+                        {t("calendar.recommendedPostPlanNote", {
+                          count: getCampaignRecommendedPostCount(selectedCampaign),
+                        })}
                       </p>
 
                       <div className="campaign-post-plan">
                         {buildCampaignPostPlan(
                           selectedCampaign,
-                          getCampaignRecommendedPostCount(selectedCampaign)
+                          getCampaignRecommendedPostCount(selectedCampaign),
+                          t
                         ).map((post, index) => (
                           <div key={`${post.role || "campaign-post"}-${index}`}>
                             <span>{index + 1}</span>
                             <div>
-                              <strong>{post.role || `Post ${index + 1}`}</strong>
-                              <p>{post.purpose || "Create a useful campaign post."}</p>
+                              <strong>{post.role || t("common.post", { number: index + 1 })}</strong>
+                              <p>{post.purpose || t("calendar.postPurposeFallback")}</p>
 
                               {typeof post.days_before_event === "number" && (
                                 <small>
                                   {post.days_before_event === 0
-                                    ? "Publish on campaign date"
-                                    : `${post.days_before_event} days before`}
+                                    ? t("common.publishOnCampaignDate")
+                                    : t("common.daysBefore", {
+                                        days: post.days_before_event,
+                                      })}
                                 </small>
                               )}
                             </div>
@@ -660,13 +669,11 @@ export default function Calendar() {
                       className="campaign-create-button"
                       onClick={() => handleCreateCampaign(selectedCampaign)}
                     >
-                      Create posts
+                      {t("common.createPosts")}
                     </button>
 
                     <p className="campaign-calendar-disclaimer">
-                      Campaign dates are suggested by AI and may vary by market,
-                      region or year. You can adjust the schedule before saving
-                      the final automation.
+                      {t("calendar.disclaimer")}
                     </p>
                   </div>
                 )}
