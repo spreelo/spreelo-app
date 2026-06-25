@@ -494,12 +494,31 @@ let result = null;
 try {
   result = JSON.parse(responseText);
 } catch {
+  const cleanResponseText = String(responseText || "");
+
+  if (
+    cleanResponseText.includes("FUNCTION_INVOCATION_TIMEOUT") ||
+    cleanResponseText.toLowerCase().includes("timeout")
+  ) {
+    throw new Error(
+      "Spreelo could not finish the website analysis in time. Please try again. If it still takes too long, add a short business description instead."
+    );
+  }
+
+  if (
+    cleanResponseText.toLowerCase().includes("json") ||
+    cleanResponseText.toLowerCase().includes("parse")
+  ) {
+    throw new Error(
+      "Spreelo could not read the analysis result correctly. Please try again."
+    );
+  }
+
   throw new Error(
-    responseText?.slice(0, 180) ||
-      "The server returned an invalid response while analyzing the brand."
+    "Spreelo could not analyze this website right now. Please try again, or add a short business description instead."
   );
 }
-
+      
       if (!response.ok || !result?.ok) {
         throw new Error(result?.error || "Could not analyze brand.");
       }
