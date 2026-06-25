@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { runBrandAnalysisJob } from "../brandAnalysisEngine";
 import {
   getCustomerFriendlyAnalysisError,
   readBrandAnalysisJob,
@@ -128,52 +129,23 @@ export async function POST(request) {
       brandProfileId: job.brand_profile_id,
     });
 
-    await updateBrandAnalysisJob({
+    const completedJob = await runBrandAnalysisJob({
       supabase,
       userId: user.id,
-      jobId,
-      status: "running",
-      step: "starting",
-      progress: 5,
-      errorMessage: "",
-      internalError: "",
-      startedAt: new Date().toISOString(),
-    });
-
-    /*
-      Nästa del:
-      Här kopplar vi in den riktiga analysmotorn.
-
-      Planerat flöde:
-      - reading_website / 15
-      - detecting_language / 25
-      - finding_products / 40
-      - creating_profile / 65
-      - creating_campaigns / 85
-      - saving / 95
-      - completed / 100
-
-      Just nu är denna route förberedd för job/status-flödet.
-      Själva analysmotorn kopplas in i nästa steg via brandAnalysisEngine.js.
-    */
-
-    const waitingJob = await updateBrandAnalysisJob({
-      supabase,
-      userId: user.id,
-      jobId,
-      status: "pending",
-      step: "waiting_for_analysis_engine",
-      progress: 10,
-      result: {
-        message:
-          "Analysis job was started. The analysis engine will be connected in the next implementation step.",
-      },
+      job,
+      updateJob: async (updates) =>
+        updateBrandAnalysisJob({
+          supabase,
+          userId: user.id,
+          jobId,
+          ...updates,
+        }),
     });
 
     return Response.json({
       ok: true,
-      job: waitingJob,
-      message: "Brand analysis job runner is ready.",
+      job: completedJob,
+      message: "Brand analysis completed.",
     });
   } catch (error) {
     console.error("Run brand analysis failed:", {
