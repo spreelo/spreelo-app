@@ -930,9 +930,10 @@ try {
                     className="input prompt-textarea"
                     placeholder="Describe what your business does, what you offer, who your customers are, what style or tone you want, and what Spreelo should know before creating posts."
                     value={brandDescription}
-                    onChange={(event) => {
+                                     onChange={(event) => {
                       setBrandDescription(event.target.value);
                       setShowGeneratedFields(false);
+                      setContentSettingsTouched(false);
                       setIndustry("");
                       setTargetAudience("");
                       setMessage("");
