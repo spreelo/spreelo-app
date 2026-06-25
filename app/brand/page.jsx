@@ -537,12 +537,9 @@ export default function BrandProfile() {
         );
       }
 
-          const job = statusResult.job || {};
-      const smoothProgress = getSmoothAnalysisProgress(displayStartedAt);
+      const job = statusResult.job || {};
 
-      setAnalysisProgress((currentProgress) =>
-        Math.max(currentProgress, smoothProgress)
-      );
+      
             if (job.status === "completed") {
         const remainingMs =
           ANALYSIS_DISPLAY_DURATION_MS - (Date.now() - displayStartedAt);
