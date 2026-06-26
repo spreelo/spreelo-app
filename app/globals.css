@@ -10911,3 +10911,104 @@ textarea.input:focus,
     padding-top: 86px !important;
   }
 }
+
+/* Step 31: mobile campaign planner cleanup */
+@media (max-width: 760px) {
+  .planner-schedule-card {
+    padding: 18px 14px;
+    border-radius: 22px;
+  }
+
+  .planner-schedule-header {
+    gap: 14px;
+  }
+
+  .planner-post-table {
+    gap: 12px;
+  }
+
+  .planner-post-row {
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .planner-post-mainline {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    gap: 10px 12px !important;
+    align-items: start !important;
+    padding: 14px !important;
+    min-height: 0 !important;
+  }
+
+  .planner-post-index {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 999px !important;
+    font-size: 15px !important;
+  }
+
+  .planner-post-title,
+  .planner-post-date,
+  .planner-post-time,
+  .planner-post-format,
+  .planner-post-actions {
+    grid-column: 2 !important;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .planner-post-title strong {
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .planner-post-title span {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: initial !important;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .planner-post-date .custom-picker-button,
+  .planner-post-time .custom-picker-button,
+  .locked-campaign-date {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .locked-campaign-date {
+    min-height: 52px;
+    padding: 10px 12px;
+  }
+
+  .planner-post-format {
+    max-width: 100% !important;
+    width: fit-content;
+    white-space: normal;
+  }
+
+  .planner-post-actions {
+    justify-content: flex-start !important;
+    flex-wrap: wrap;
+  }
+
+  .planner-post-actions button:first-child {
+    min-width: 92px;
+  }
+
+  .planner-post-expanded {
+    grid-template-columns: 1fr !important;
+    margin: 0 12px 12px 12px !important;
+    padding: 14px !important;
+  }
+
+  .planner-add-post-bottom {
+    width: 100%;
+    justify-content: center;
+  }
+}
