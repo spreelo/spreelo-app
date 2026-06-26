@@ -1145,7 +1145,7 @@ Return JSON only in this exact shape:
         {
           "role": "Campaign post role",
           "days_before_event": 14,
-          "timing_anchor": "before_start | start | middle | end | event",
+          "timing_anchor": "before_start | start | middle | end | event | relationship_event | deadline_before_event | conversion_before_deadline",
           "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main",
           "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency | main",
           "customer_stage": "cold | warm | ready_to_buy",
@@ -1192,6 +1192,11 @@ Campaign timing:
 - Do not rely on named holiday-specific rules. Apply the same timing logic to any gift day, seasonal period, shopping moment, booking window, event period, local tradition or industry campaign.
 - The post_plan order must be chronological and strategically progressive: early value/inspiration first, engagement/trust in the middle, conversion before the deadline, and final relationship or closing content at the end when appropriate.
 - Avoid clustering most posts in the final few days unless the campaign is explicitly a short flash sale or same-day/instant-action event.
+- For gift campaigns, holiday campaigns, physical products, personalized products, handmade products, printed products, shipped products, booking services or anything with lead time, separate the cultural/event date from the realistic customer action deadline.
+- For these lead-time campaigns, use the final event date mainly for relationship, greeting, thank-you, celebration or brand warmth, not hard selling.
+- For these lead-time campaigns, place the final sales/order/booking reminder 7 to 14 days before the event date unless same-day action is clearly realistic.
+- For these lead-time campaigns with 6 posts, prefer timing similar to 30, 21, 16, 12, 8 and 0 days before the event date, adjusted to the real lead time and market. The 0-day post should be a greeting/relationship post.
+- For these lead-time campaigns with 5 posts, prefer timing similar to 28, 21, 14, 8 and 0 days before the event date. The 0-day post should be a greeting/relationship post.
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 
 Campaign strategy:
@@ -1210,8 +1215,8 @@ Campaign strategy:
 - If recommended_post_count is 2, prefer awareness → urgency.
 - If recommended_post_count is 3, prefer awareness → product_push → urgency.
 - If recommended_post_count is 4, prefer awareness → product_discovery → trust → urgency.
-- If recommended_post_count is 5, prefer awareness → engagement → product_push → trust → urgency.
-- If recommended_post_count is 6 or more, prefer awareness → engagement → product_discovery → product_push → trust → urgency, adding offer when useful.
+- If recommended_post_count is 5, prefer awareness → engagement → product_push → trust → urgency for simple campaigns, but awareness → engagement → trust → deadline → relationship_event for lead-time campaigns.
+- If recommended_post_count is 6 or more, prefer awareness → engagement → product_discovery → product_push → deadline → relationship_event for lead-time campaigns. For simple same-day campaigns, urgency may be the final post.
 
 Website product mode:
 - Set website_product_mode.available to true only when the provided website content or checked candidate pages give clear evidence of stable individual products, services, listings, menu items, treatments, courses, events, rentals, vehicles, rooms, packages, offers or bookable items.
@@ -1394,7 +1399,7 @@ Return JSON only in this exact shape:
         {
           "role": "Campaign post role",
           "days_before_event": 14,
-          "timing_anchor": "before_start | start | middle | end | event",
+          "timing_anchor": "before_start | start | middle | end | event | relationship_event | deadline_before_event | conversion_before_deadline",
           "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main",
           "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency | main",
           "customer_stage": "cold | warm | ready_to_buy",
@@ -1441,6 +1446,11 @@ Campaign timing:
 - Do not rely on named holiday-specific rules. Apply the same timing logic to any gift day, seasonal period, shopping moment, booking window, event period, local tradition or industry campaign.
 - The post_plan order must be chronological and strategically progressive: early value/inspiration first, engagement/trust in the middle, conversion before the deadline, and final relationship or closing content at the end when appropriate.
 - Avoid clustering most posts in the final few days unless the campaign is explicitly a short flash sale or same-day/instant-action event.
+- For gift campaigns, holiday campaigns, physical products, personalized products, handmade products, printed products, shipped products, booking services or anything with lead time, separate the cultural/event date from the realistic customer action deadline.
+- For these lead-time campaigns, use the final event date mainly for relationship, greeting, thank-you, celebration or brand warmth, not hard selling.
+- For these lead-time campaigns, place the final sales/order/booking reminder 7 to 14 days before the event date unless same-day action is clearly realistic.
+- For these lead-time campaigns with 6 posts, prefer timing similar to 30, 21, 16, 12, 8 and 0 days before the event date, adjusted to the real lead time and market. The 0-day post should be a greeting/relationship post.
+- For these lead-time campaigns with 5 posts, prefer timing similar to 28, 21, 14, 8 and 0 days before the event date. The 0-day post should be a greeting/relationship post.
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 
 Campaign strategy:
