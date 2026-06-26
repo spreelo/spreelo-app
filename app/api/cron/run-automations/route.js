@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import crypto from "crypto";
 import {
+  detectLikelyUiLocaleFromText,
   getServerTranslations,
   resolveBestServerLocale,
 } from "../../../../lib/i18n/serverUiText.js";
@@ -2041,12 +2042,10 @@ async function extractProductDataFromProductPage({
   extractProductPriceFromHtml(html);
 
 if (!price) {
-  console.error("Product page candidate rejected because no clear price was found", {
+  console.log("Product page candidate has no clear price; continuing because many service/catalog pages hide prices", {
     productUrl,
     title,
   });
-
-  return null;
 }
 
 const imageUrl = extractBestProductImageFromHtml(html, productUrl);
@@ -2068,7 +2067,10 @@ const imageUrl = extractBestProductImageFromHtml(html, productUrl);
   }
 
   if (!normalizedItem.image_url) {
-    return null;
+    console.log("Product page candidate has no usable image", {
+      productUrl,
+      title,
+    });
   }
 
   return {
@@ -2589,20 +2591,18 @@ async function findWebsiteProductWithWebSearch({
         });
 
         if (!websiteItem?.image_url) {
-          console.error("Product researcher candidate had no usable product image", {
+          console.log("Product researcher candidate had no usable product image; keeping it as text-only fallback", {
             ruleId: rule?.id,
             productUrl: webSearchProduct.url,
             title: webSearchProduct.title,
             attempt,
           });
-
-          continue;
         }
 
         const normalizedUrl = normalizeComparableValue(websiteItem.url);
         const normalizedImageUrl = normalizeComparableValue(websiteItem.image_url);
 
-        if (seenUrls.has(normalizedUrl) || seenImages.has(normalizedImageUrl)) {
+        if (seenUrls.has(normalizedUrl) || (normalizedImageUrl && seenImages.has(normalizedImageUrl))) {
           console.error("Product researcher duplicate candidate skipped", {
             ruleId: rule?.id,
             productUrl: websiteItem.url,
@@ -2615,7 +2615,9 @@ async function findWebsiteProductWithWebSearch({
         }
 
         seenUrls.add(normalizedUrl);
-        seenImages.add(normalizedImageUrl);
+        if (normalizedImageUrl) {
+          seenImages.add(normalizedImageUrl);
+        }
         verifiedItems.push(websiteItem);
 
         console.log("Product researcher verified website product", {
@@ -2928,14 +2930,24 @@ async function uploadGeneratedImageToStorage({
   };
 }
 
-async function getUserEmail(supabase, userId) {
+async function getUserAuthProfile(supabase, userId) {
   const { data, error } = await supabase.auth.admin.getUserById(userId);
 
   if (error || !data?.user?.email) {
     return null;
   }
 
-  return data.user.email;
+  const metadata = data.user.user_metadata || {};
+
+  return {
+    email: data.user.email,
+    appLanguage:
+      metadata.app_language ||
+      metadata.appLanguage ||
+      metadata.ui_language ||
+      metadata.locale ||
+      null,
+  };
 }
 
 async function sendApprovalEmail({
@@ -2946,9 +2958,18 @@ async function sendApprovalEmail({
   postContent,
   approvalToken,
   imageUrl,
+  userAppLanguage,
 }) {
+  const detectedPostLocale = detectLikelyUiLocaleFromText(postContent);
   const locale = resolveBestServerLocale({
-    languageCandidates: [rule?.language, rule?.brand_profile?.content_language],
+    languageCandidates: [
+      userAppLanguage,
+      rule?.app_language,
+      rule?.ui_language,
+      rule?.language,
+      rule?.brand_profile?.content_language,
+      detectedPostLocale,
+    ],
   });
   const { t } = await getServerTranslations({
     supabaseAdmin: supabase,
@@ -3631,20 +3652,21 @@ product_research_model_used: rule.uses_website_content
             summary.emails_failed += 1;
           } else {
             try {
-              const userEmail = await getUserEmail(supabase, rule.user_id);
+              const userProfile = await getUserAuthProfile(supabase, rule.user_id);
 
-              if (!userEmail) {
+              if (!userProfile?.email) {
                 summary.warnings += 1;
                 summary.emails_failed += 1;
               } else {
                 await sendApprovalEmail({
                   supabase,
                   resendApiKey,
-                  to: userEmail,
+                  to: userProfile.email,
                   rule: ruleWithBrandProfile,
                   postContent: generatedContent,
                   approvalToken,
                   imageUrl,
+                  userAppLanguage: userProfile.appLanguage,
                 });
 
                 summary.emails_sent += 1;
