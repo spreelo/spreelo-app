@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
 
 const DEFAULT_TIME_ZONE = "Europe/Stockholm";
 const AUTO_PLAN_IMAGE_COUNT = 2;
@@ -2510,6 +2511,33 @@ function formatConnectedPlatformLabel(platformValue) {
 }
 
 export default function AutomationPage() {
+  const { t } = useUiText(["automation"]);
+
+  function translateContentTypeLabel(type) {
+    return t(`automation.contentType.${type.id}.label`);
+  }
+
+  function translateContentTypeShortLabel(type) {
+    return t(`automation.contentType.${type.id}.shortLabel`);
+  }
+
+  function translateContentTypeDescription(type) {
+    return t(`automation.contentType.${type.id}.description`);
+  }
+
+  function translateAutoPlanGoalLabel(goalId) {
+    if (!goalId) return t("automation.chooseGoal");
+    return t(`automation.goal.${goalId}.label`);
+  }
+
+  function translatePlanMode(value) {
+    return t(`automation.planMode.${value || "manual"}`);
+  }
+
+  function translateScheduleType(value) {
+    return value === "weekly" ? t("automation.weekly") : t("automation.once");
+  }
+
   const initialStartDate = getDateInputValueInTimeZone(
     new Date(),
     DEFAULT_TIME_ZONE
@@ -3653,37 +3681,31 @@ const { error } = await supabase
     const invalidDateSlot = slots.find((slot) => !slot.startDate);
 
     if (invalidDateSlot) {
-      setMessage("Every planned post needs a start date.");
+      setMessage(t("automation.errorStartDate"));
       return;
     }
 
     const invalidTimeSlot = slots.find((slot) => !slot.publishTime);
 
     if (invalidTimeSlot) {
-      setMessage("Every planned post needs a publishing time.");
+      setMessage(t("automation.errorPublishTime"));
       return;
     }
 
     const invalidSlot = slots.find((slot) => !slot.prompt.trim());
 
     if (invalidSlot) {
-      setMessage(
-        "Every planned post needs its own prompt. Choose a content type or write a manual prompt."
-      );
+      setMessage(t("automation.errorPrompt"));
       return;
     }
 
        if (creditBalance && plannedCredits > creditBalance.credits_remaining) {
-      setMessage(
-        `This plan needs ${plannedCredits} credits, but you only have ${creditBalance.credits_remaining} credits remaining.`
-      );
+      setMessage(t("automation.errorCredits", { credits: plannedCredits, remaining: creditBalance.credits_remaining }));
       return;
     }
 
     if (!platform) {
-      setMessage(
-        "Connect a social channel before saving this content plan."
-      );
+      setMessage(t("automation.errorConnectChannel"));
       return;
     }
 
@@ -3702,7 +3724,7 @@ const { error } = await supabase
   currentBrandId || (await getCurrentBrandIdForUser(user));
 
 if (!selectedBrandId) {
-  setMessage("Choose or create a brand before saving an automation plan.");
+  setMessage(t("automation.errorChooseBrand"));
   setSaving(false);
   return;
 }
@@ -3806,14 +3828,14 @@ ${slot.campaignSummary}`
       setMessage("");
 
       setSavedPlanSummary({
-        name: planName.trim() || "Content plan",
+        name: planName.trim() || t("automation.contentPlan"),
         totalPosts: rows.length,
         scheduleType,
         postsPerWeek: scheduleType === "weekly" ? rows.length : null,
         firstPostLabel,
         publishingMode: approvalRequired
-          ? "Review before publishing"
-          : "Publish automatically",
+          ? t("automation.reviewBeforePublishing")
+          : t("automation.publishAutomatically"),
         credits: plannedCredits,
         method: formatPlanMode(planCreationMode),
       });
@@ -3876,12 +3898,12 @@ setRules((currentRules) =>
     <h2>
       {campaignOpportunity
         ? `Create campaign: ${campaignOpportunity.title}`
-        : "Create your social content"}
+        : t("automation.heroTitle")}
     </h2>
     <p>
       {campaignOpportunity
-        ? "Spreelo has prepared a focused campaign plan from your campaign calendar."
-        : "Plan and create posts for your social channels."}
+        ? t("automation.heroCampaignText")
+        : t("automation.heroText")}
     </p>
   </div>
 
@@ -3890,26 +3912,26 @@ setRules((currentRules) =>
   className="learn-more-button"
   onClick={() => setShowLearnMoreModal(true)}
 >
-  ⓘ Learn more
+  ⓘ {t("automation.learnMore")}
 </button>
 </header>
 
 {campaignOpportunity && (
   <section className="campaign-mode-banner">
     <div>
-      <p className="dashboard-eyebrow">Campaign mode</p>
+      <p className="dashboard-eyebrow">{t("automation.campaignMode")}</p>
       <h3>{campaignOpportunity.title}</h3>
       <span>
         {campaignOpportunity.description ||
-          "This plan is connected to a selected campaign opportunity."}
+          t("automation.campaignDescriptionFallback")}
       </span>
     </div>
 
       <div className="campaign-mode-meta">
-      <span>Campaign date</span>
+      <span>{t("automation.campaignDate")}</span>
       <strong>{getCampaignDateLabel(campaignOpportunity)}</strong>
 
-      <span>Recommended plan</span>
+      <span>{t("automation.recommendedPlan")}</span>
       <strong>
         {getCampaignRecommendedPostCount(campaignOpportunity, slots.length)} posts
       </strong>
@@ -3925,12 +3947,12 @@ setRules((currentRules) =>
     <span>1</span>
     <div>
       <strong>
-        {planCreationMode === "campaign" ? "Campaign goal" : "Choose goal"}
+        {planCreationMode === "campaign" ? t("automation.campaignGoal") : t("automation.chooseGoal")}
       </strong>
       <small>
         {planCreationMode === "campaign"
-          ? "This plan is based on your selected campaign."
-          : "What is your main objective?"}
+          ? t("automation.campaignGoalHelp")
+          : t("automation.mainObjective")}
       </small>
     </div>
   </div>
@@ -3938,7 +3960,7 @@ setRules((currentRules) =>
   {planCreationMode === "campaign" ? (
     <div className="planner-campaign-count-box">
       <strong>🎯</strong>
-      <span>Focused campaign from calendar</span>
+      <span>{t("automation.focusedCampaignFromCalendar")}</span>
     </div>
   ) : (
    <select
@@ -3951,12 +3973,12 @@ setRules((currentRules) =>
 >
  <option value="" disabled>
   {planCreationMode === "manual"
-    ? "Not used for manual prompt"
-    : "Choose a goal to build your plan"}
+    ? t("automation.notUsedForManual")
+    : t("automation.chooseGoalToBuild")}
 </option>
       {autoPlanGoals.map((goal) => (
         <option key={goal.id} value={goal.id}>
-          {goal.label}
+          {translateAutoPlanGoalLabel(goal.id)}
         </option>
       ))}
     </select>
@@ -3964,8 +3986,8 @@ setRules((currentRules) =>
 
   <p>
     {planCreationMode === "campaign"
-      ? "Spreelo keeps this plan connected to the campaign opportunity."
-      : "Spreelo tailors the content mix to match the goal you choose."}
+      ? t("automation.campaignConnectedText")
+      : t("automation.goalTailorText")}
   </p>
 </div>
 
@@ -3975,13 +3997,13 @@ setRules((currentRules) =>
                   <div>
                     <strong>
                       {planCreationMode === "campaign"
-                        ? "Campaign posts"
-                        : "Posts per week"}
+                        ? t("automation.campaignPosts")
+                        : t("automation.postsPerWeek")}
                     </strong>
                     <small>
                       {planCreationMode === "campaign"
-                        ? "How many posts are included in this campaign?"
-                        : "How often should Spreelo post?"}
+                        ? t("automation.howManyCampaignPosts")
+                        : t("automation.howOftenPost")}
                     </small>
                   </div>
                 </div>
@@ -3989,7 +4011,7 @@ setRules((currentRules) =>
                 {planCreationMode === "campaign" ? (
                   <div className="planner-campaign-count-box">
                     <strong>{slots.length}</strong>
-                    <span>planned campaign posts</span>
+                    <span>{t("automation.plannedCampaignPosts")}</span>
                   </div>
                 ) : (
                   <div className="planner-segmented-buttons">
@@ -4018,8 +4040,8 @@ setRules((currentRules) =>
                  {planCreationMode === "campaign"
   ? `${slots.length} posts are prepared for this campaign.`
   : planCreationMode === "manual"
-  ? "Manual posts are added one by one."
-  : "Recommended for steady growth and consistent visibility."}
+  ? t("automation.manualPostsAdded")
+  : t("automation.recommendedGrowth")}
                 </p>
               </div>
 
@@ -4027,8 +4049,8 @@ setRules((currentRules) =>
                 <div className="setup-step-title">
                   <span>3</span>
                   <div>
-                    <strong>Start date & time</strong>
-                    <small>When should we start?</small>
+                    <strong>{t("automation.startDateTime")}</strong>
+                    <small>{t("automation.whenStart")}</small>
                   </div>
                 </div>
 
@@ -4053,7 +4075,7 @@ setRules((currentRules) =>
                   />
                 </div>
 
-                <p>Spreelo builds the schedule from this date and time.</p>
+                <p>{t("automation.scheduleFromDateTime")}</p>
               </div>
             </section>
 
@@ -4062,10 +4084,9 @@ setRules((currentRules) =>
     <div className="planner-included-card">
       <div className="planner-section-heading compact">
         <div>
-          <h3>Campaign posts</h3>
+          <h3>{t("automation.campaignPosts")}</h3>
           <p>
-            Spreelo has created a campaign-specific sequence based on the
-            selected opportunity.
+            {t("automation.campaignSequenceText")}
           </p>
         </div>
       </div>
@@ -4073,12 +4094,12 @@ setRules((currentRules) =>
       <div className="planner-included-grid">
         <div className="planner-included-type">
           <span>🎯</span>
-          <strong>Campaign plan</strong>
+          <strong>{t("automation.campaignPlan")}</strong>
         </div>
 
         <div className="planner-included-type">
           <span>{slots.length}</span>
-          <strong>Planned posts</strong>
+          <strong>{t("automation.plannedPosts")}</strong>
         </div>
       </div>
     </div>
@@ -4097,9 +4118,9 @@ setRules((currentRules) =>
           {planCreationMode === "auto" ? "✓" : ""}
         </span>
         <div className="mode-big-icon">✦</div>
-        <strong>Auto-plan</strong>
-        <p>AI creates the optimal plan for your goal.</p>
-        <small>Recommended</small>
+        <strong>{t("automation.autoPlan")}</strong>
+        <p>{t("automation.autoPlanText")}</p>
+        <small>{t("automation.recommended")}</small>
       </button>
 
       <button
@@ -4113,8 +4134,8 @@ setRules((currentRules) =>
           {planCreationMode === "select" ? "✓" : ""}
         </span>
         <div className="mode-big-icon neutral">▦</div>
-        <strong>Choose content types</strong>
-        <p>Pick the post types you want to include.</p>
+        <strong>{t("automation.chooseContentTypes")}</strong>
+        <p>{t("automation.chooseContentTypesText")}</p>
       </button>
 
       <button
@@ -4128,8 +4149,8 @@ setRules((currentRules) =>
           {planCreationMode === "manual" ? "✓" : ""}
         </span>
         <div className="mode-big-icon neutral">✎</div>
-        <strong>Manual prompt</strong>
-        <p>Guide the AI with a few words about what you want.</p>
+        <strong>{t("automation.manualPrompt")}</strong>
+        <p>{t("automation.manualPromptText")}</p>
       </button>
     </div>
 
@@ -4137,16 +4158,15 @@ setRules((currentRules) =>
       <div className="planner-content-picker">
         <div className="planner-section-heading">
           <div>
-         <h3>Choose {autoPlanPostCount} post types</h3>
+         <h3>{t("automation.choosePostTypes", { count: autoPlanPostCount })}</h3>
 <p>
-  Click a post type to add it to your plan. You can choose the same
-  type more than once.
+  {t("automation.choosePostTypesText")}
 </p>
           </div>
 
           <span>
   {Math.min(selectedContentTypeIds.length, autoPlanPostCount)}/
-  {autoPlanPostCount} selected
+  {autoPlanPostCount} {t("automation.selected")}
 </span>
         </div>
 
@@ -4164,8 +4184,8 @@ setRules((currentRules) =>
                 onClick={() => toggleContentType(type.id)}
               >
                 <span>{getContentTypeIcon(type.id)}</span>
-                <strong>{type.shortLabel || type.label}</strong>
-                <p>{type.description}</p>
+                <strong>{translateContentTypeShortLabel(type)}</strong>
+                <p>{translateContentTypeDescription(type)}</p>
               </button>
             );
           })}
@@ -4178,7 +4198,7 @@ setRules((currentRules) =>
       complete this plan.
     </span>
   ) : (
-    <span>Your plan is ready. Review the schedule below.</span>
+    <span>{t("automation.planReadyReview")}</span>
   )}
 </div>
       </div>
@@ -4189,15 +4209,14 @@ setRules((currentRules) =>
             {planCreationMode === "manual" && !planWasSaved && (
   <section className="planner-manual-intro-card">
     <div>
-      <h3>Manual prompt</h3>
+      <h3>{t("automation.manualPrompt")}</h3>
       <p>
-        Add one or more manual posts. Each post can have its own instructions
-        and optional image direction.
+        {t("automation.manualIntroText")}
       </p>
     </div>
 
     <button type="button" className="add-plan-button" onClick={addManualSlot}>
-      + Add manual post
+      {t("automation.addManualPost")}
     </button>
   </section>
 )}
@@ -4208,41 +4227,40 @@ setRules((currentRules) =>
     <div className="campaign-saved-icon">✓</div>
 
     <div>
-      <p className="dashboard-eyebrow">Campaign scheduled</p>
-      <h3>{savedPlanSummary.name} is ready</h3>
+      <p className="dashboard-eyebrow">{t("automation.campaignScheduled")}</p>
+      <h3>{t("automation.savedPlanReady", { name: savedPlanSummary.name })}</h3>
       <p>
-        Spreelo has saved this campaign as content plan. The planned posts
-        are now scheduled and will follow the publishing mode you selected.
+        {t("automation.savedPlanText")}
       </p>
 
       <div className="campaign-saved-grid">
         <div>
-          <span>Planned posts</span>
+          <span>{t("automation.plannedPosts")}</span>
           <strong>{savedPlanSummary.totalPosts}</strong>
         </div>
 
         <div>
-          <span>First post</span>
+          <span>{t("automation.firstPost")}</span>
           <strong>{savedPlanSummary.firstPostLabel}</strong>
         </div>
 
         <div>
-          <span>Publishing mode</span>
+          <span>{t("automation.publishingMode")}</span>
           <strong>{savedPlanSummary.publishingMode}</strong>
         </div>
 
         <div>
-          <span>Credits</span>
+          <span>{t("automation.credits")}</span>
           <strong>{savedPlanSummary.credits}</strong>
         </div>
       </div>
 
       <div className="campaign-saved-actions">
         <button type="button" onClick={() => setShowSavedRules(true)}>
-          View content plans
+          {t("automation.viewContentPlans")}
         </button>
 
-        <a href="/">Go to dashboard</a>
+        <a href="/">{t("automation.goToDashboard")}</a>
       </div>
     </div>
   </section>
@@ -4250,13 +4268,13 @@ setRules((currentRules) =>
   <section className="planner-schedule-card">
     <div className="planner-schedule-header">
       <div>
-        <h3>Posts & schedule</h3>
+        <h3>{t("automation.postsSchedule")}</h3>
         <span>{slots.length} posts planned</span>
       </div>
 
        <div className="planner-schedule-actions">
         <a className="view-calendar-button" href="/calendar">
-          View calendar
+          {t("automation.viewCalendar")}
         </a>
       </div>
     </div>
@@ -4308,32 +4326,32 @@ setRules((currentRules) =>
                     <button
                       type="button"
                       className="strategy-info-button"
-                      aria-label="Show campaign strategy"
+                      aria-label={t("automation.showCampaignStrategy")}
                     >
                       i
                       <span className="strategy-info-popover">
                         <span className="strategy-info-title">
-                          Strategy for this post
+                          {t("automation.strategyForThisPost")}
                         </span>
 
                         <span>
-                          <strong>Audience:</strong>{" "}
+                          <strong>{t("automation.audience")}:</strong>{" "}
                           {getCustomerStageLabel(slot.customerStage)}
                         </span>
 
                         <span>
-                          <strong>Angle:</strong>{" "}
+                          <strong>{t("automation.angle")}:</strong>{" "}
                           {getCampaignAngleLabel(slot.marketingAngle)}
                         </span>
 
                         <span>
-                          <strong>CTA:</strong>{" "}
+                          <strong>{t("automation.cta")}:</strong>{" "}
                           {getCtaStrengthLabel(slot.ctaStrength)}
                         </span>
 
                         {slot.campaignPhase && (
                           <span>
-                            <strong>Phase:</strong> {slot.campaignPhase}
+                            <strong>{t("automation.phase")}:</strong> {slot.campaignPhase}
                           </span>
                         )}
 
@@ -4353,7 +4371,7 @@ setRules((currentRules) =>
                 {slot.dateLocked ? (
                   <div className="locked-campaign-date">
                     <strong>{formatStartDateLabel(slot.startDate, timeZone)}</strong>
-                    <span>Locked campaign date</span>
+                    <span>{t("automation.lockedCampaignDate")}</span>
 
                     <button
                       type="button"
@@ -4414,8 +4432,8 @@ setRules((currentRules) =>
 
               <button
   type="button"
-  title="Remove"
-  aria-label="Remove post"
+  title={t("automation.remove")}
+  aria-label={t("automation.removePost")}
   className="planner-post-delete-button"
   onClick={() => removeSlot(slot.id)}
 >
@@ -4429,7 +4447,7 @@ setRules((currentRules) =>
               (!slot.isCampaignSlot && slot.contentTypeId === "manual_prompt")) && (
               <div className="planner-post-expanded">
                 <div className="planner-post-expanded-copy">
-                  <label>{slot.isCampaignSlot ? "Post idea" : "Instructions"}</label>
+                  <label>{slot.isCampaignSlot ? t("automation.postIdea") : t("automation.instructions")}</label>
 
                   <textarea
                     className="input prompt-textarea"
@@ -4450,7 +4468,7 @@ setRules((currentRules) =>
 
                   {slot.generateImage && (
                     <>
-                      <label>Image direction</label>
+                      <label>{t("automation.imageDirection")}</label>
                       <textarea
                         className="input prompt-textarea"
                         value={slot.imagePrompt}
@@ -4514,10 +4532,10 @@ setRules((currentRules) =>
       onClick={addSlot}
     >
       {planCreationMode === "campaign"
-        ? "Add another campaign post"
+        ? t("automation.addAnotherCampaignPost")
         : planCreationMode === "manual"
-        ? "Add another manual post"
-        : "Add another post"}
+        ? t("automation.addAnotherManualPost")
+        : t("automation.addAnotherPost")}
     </button>
   </section>
 )}
@@ -4585,7 +4603,7 @@ setRules((currentRules) =>
   </label>
 
   <label className="planner-setting-field">
-    <span>Publishing mode</span>
+    <span>{t("automation.publishingMode")}</span>
     <select
       value={approvalRequired ? "review" : "auto"}
       onChange={(event) =>
@@ -4693,11 +4711,11 @@ setRules((currentRules) =>
 )}
             <section className="planner-save-card">
               <div>
-  <h3>{savedPlanSummary ? "Plan saved" : "Step 4: Save plan"}</h3>
+  <h3>{savedPlanSummary ? t("automation.planSaved") : t("automation.stepSavePlan")}</h3>
   <p>
     {savedPlanSummary
-      ? "Your automation plan is ready. Create another plan when you want."
-      : "Give your plan a name so you can find it later."}
+      ? t("automation.automationPlanReady")
+      : t("automation.planNameHelp")}
   </p>
 </div>
          {savedPlanSummary ? (
@@ -4707,7 +4725,7 @@ setRules((currentRules) =>
       className="planner-create-another-button"
       onClick={startAnotherPlan}
     >
-      Create another plan
+      {t("automation.createAnotherPlan")}
     </button>
   </div>
 ) : (
@@ -4725,7 +4743,7 @@ setRules((currentRules) =>
       onClick={savePlan}
       disabled={saving || !hasEnoughCredits}
     >
-      {saving ? "Saving..." : "Save content plan"}
+      {saving ? t("automation.saving") : t("automation.saveContentPlan")}
     </button>
   </>
 )}
@@ -4763,17 +4781,17 @@ setRules((currentRules) =>
                       </div>
 
                       <div>
-                        <span>First post</span>
+                        <span>{t("automation.firstPost")}</span>
                         <strong>{savedPlanSummary.firstPostLabel}</strong>
                       </div>
 
                       <div>
-                        <span>Publishing mode</span>
+                        <span>{t("automation.publishingMode")}</span>
                         <strong>{savedPlanSummary.publishingMode}</strong>
                       </div>
 
                       <div>
-                        <span>Credits</span>
+                        <span>{t("automation.credits")}</span>
                         <strong>
                           {savedPlanSummary.credits} credits used when generated
                         </strong>
@@ -4785,10 +4803,10 @@ setRules((currentRules) =>
                         type="button"
                         onClick={() => setShowSavedRules(true)}
                       >
-                        View content plans
+                        {t("automation.viewContentPlans")}
                       </button>
 
-                      <a href="/">Go to dashboard</a>
+                      <a href="/">{t("automation.goToDashboard")}</a>
                     </div>
                   </div>
                 </div>
@@ -4934,7 +4952,7 @@ setRules((currentRules) =>
                             onClick={() => deleteSingleRule(rule.id)}
                             disabled={deletingRules}
                           >
-                            {isConfirmingDelete ? "Confirm" : "Delete"}
+                            {isConfirmingDelete ? t("automation.confirm") : t("automation.delete")}
                           </button>
                         </article>
                       );
@@ -4960,29 +4978,29 @@ setRules((currentRules) =>
               <div className="planner-sidebar-title planner-summary-title">
                 <span>▤</span>
                 <div>
-                  <h3>Plan summary</h3>
-                  <p>Ready to create</p>
+                  <h3>{t("automation.planSummary")}</h3>
+                  <p>{t("automation.readyToCreate")}</p>
                 </div>
               </div>
 
               <div className="planner-summary-list premium">
                 {planCreationMode === "auto" && (
                   <div>
-                    <span>Goal</span>
-                    <strong>{getAutoPlanGoalLabel(autoPlanGoal)}</strong>
+                    <span>{t("automation.goal")}</span>
+                    <strong>{translateAutoPlanGoalLabel(autoPlanGoal)}</strong>
                   </div>
                 )}
 
                 <div>
-                  <span>Method</span>
-                  <strong>{formatPlanMode(planCreationMode)}</strong>
+                  <span>{t("automation.method")}</span>
+                  <strong>{translatePlanMode(planCreationMode)}</strong>
                 </div>
 
 <div>
   <span>
     {scheduleType === "weekly" && planCreationMode !== "campaign"
-      ? "Posts per week"
-      : "Posts"}
+      ? t("automation.postsPerWeek")
+      : t("common.posts")}
   </span>
   <strong>
     {scheduleType === "weekly" && planCreationMode !== "campaign"
@@ -4991,7 +5009,7 @@ setRules((currentRules) =>
   </strong>
 </div>
                 <div>
-                  <span>Start</span>
+                  <span>{t("automation.start")}</span>
                   <strong>
                     {formatStartDateLabel(planStartDate, timeZone)},{" "}
                     {defaultPublishTime}
@@ -4999,14 +5017,14 @@ setRules((currentRules) =>
                 </div>
 
                 <div>
-                  <span>Time period</span>
+                  <span>{t("automation.timePeriod")}</span>
                   <strong>
-                    {scheduleType === "weekly" ? "Weekly" : "Once"}
+                    {translateScheduleType(scheduleType)}
                   </strong>
                 </div>
 
                 <div>
-                  <span>Credits</span>
+                  <span>{t("automation.credits")}</span>
                   <strong>{plannedCredits}</strong>
                 </div>
               </div>
@@ -5014,8 +5032,8 @@ setRules((currentRules) =>
               <div className="planner-summary-status">
                 <span>✓</span>
                 <div>
-                  <strong>Plan is ready</strong>
-                  <p>You can adjust posts or save the content plan.</p>
+                  <strong>{t("automation.planIsReady")}</strong>
+                  <p>{t("automation.planReadyText")}</p>
                 </div>
               </div>
 
@@ -5030,14 +5048,14 @@ setRules((currentRules) =>
             <section className="planner-credits-card">
               <div className="planner-sidebar-title">
                 <span>ⓘ</span>
-                <h3>Credits</h3>
+                <h3>{t("automation.credits")}</h3>
               </div>
 
               {creditBalance ? (
                 <>
                   <div className="planner-credit-number">
                     <strong>{creditsRemaining}</strong>
-                    <span>/ {monthlyCreditLimit || "—"} credits left</span>
+                    <span>/ {monthlyCreditLimit || "—"} {t("automation.creditsLeft")}</span>
                   </div>
 
                   <div className="planner-credit-progress">
@@ -5061,20 +5079,19 @@ setRules((currentRules) =>
                   <div className="planner-credit-wave" />
 
                   <div className="planner-credit-help">
-                    <strong>Need more credits?</strong>
-                    <p>Upgrade your plan for more posts and features.</p>
+                    <strong>{t("automation.needMoreCredits")}</strong>
+                    <p>{t("automation.upgradeText")}</p>
                   </div>
 
                   <button type="button" className="planner-upgrade-button">
-                    Upgrade plan
+                    {t("automation.upgradePlan")}
                   </button>
                 </>
               ) : (
                 <div className="summary-note">
-                  <strong>No credit balance found</strong>
+                  <strong>{t("automation.noCreditBalance")}</strong>
                   <p>
-                    Credits will appear here when the account has an active
-                    balance.
+                    {t("automation.noCreditBalanceText")}
                   </p>
                 </div>
               )}
@@ -5093,11 +5110,10 @@ setRules((currentRules) =>
             >
               <div className="add-post-modal-header">
                 <div>
-                  <p>Add planned post</p>
-                  <h3>Choose content type</h3>
+                  <p>{t("automation.addPlannedPost")}</p>
+                  <h3>{t("automation.chooseContentType")}</h3>
                   <span>
-                    Select what this new post should be about before it is added
-                    to the plan.
+                    {t("automation.chooseContentTypeText")}
                   </span>
                 </div>
 
@@ -5117,8 +5133,8 @@ setRules((currentRules) =>
                     className="add-post-type-card"
                     onClick={() => addSlotFromContentType(type.id)}
                   >
-                    <strong>{type.label}</strong>
-                    <p>{type.description}</p>
+                    <strong>{translateContentTypeLabel(type)}</strong>
+                    <p>{translateContentTypeDescription(type)}</p>
                   </button>
                 ))}
               </div>
@@ -5137,12 +5153,12 @@ setRules((currentRules) =>
       <div className="learn-more-modal-header">
         <div>
           <p>
-            {campaignOpportunity ? "Campaign plan help" : "Content Creator help"}
+            {campaignOpportunity ? t("automation.campaignPlanHelp") : t("automation.contentCreatorHelp")}
           </p>
           <h3>
             {campaignOpportunity
-              ? "About this campaign plan"
-              : "How Content Creator works"}
+              ? t("automation.aboutCampaignPlan")
+              : t("automation.howContentCreatorWorks")}
           </h3>
         </div>
 
@@ -5157,8 +5173,7 @@ setRules((currentRules) =>
       {campaignOpportunity ? (
         <div className="learn-more-modal-content">
           <p>
-            Spreelo creates a focused content plan from the selected campaign in
-            your campaign calendar.
+            {t("automation.campaignHelpIntro")}
           </p>
 
           <div className="learn-more-steps">
@@ -5166,8 +5181,7 @@ setRules((currentRules) =>
               <span>1</span>
               <strong>Campaign date</strong>
               <p>
-                The campaign date controls when the planned posts should be
-                published.
+                {t("automation.campaignDateHelp")}
               </p>
             </div>
 
@@ -5175,25 +5189,23 @@ setRules((currentRules) =>
               <span>2</span>
               <strong>Recommended plan</strong>
               <p>
-                Spreelo uses the recommended number of posts to prepare the full
-                campaign sequence.
+                {t("automation.recommendedPlanHelp")}
               </p>
             </div>
 
             <div>
               <span>3</span>
-              <strong>Edit before saving</strong>
+              <strong>{t("automation.editBeforeSaving")}</strong>
               <p>
-                You can edit, add, remove and adjust posts before saving the
-                final content plan.
+                {t("automation.editBeforeSavingHelp")}
               </p>
             </div>
 
             <div>
               <span>4</span>
-              <strong>Nothing is published yet</strong>
+              <strong>{t("automation.nothingPublishedYet")}</strong>
               <p>
-                Posts are only scheduled after you click Save content plan.
+                {t("automation.nothingPublishedYetHelp")}
               </p>
             </div>
           </div>
@@ -5201,8 +5213,7 @@ setRules((currentRules) =>
       ) : (
         <div className="learn-more-modal-content">
           <p>
-            Spreelo helps you create a complete social content plan in a few
-            simple steps.
+            {t("automation.creatorHelpIntro")}
           </p>
 
           <div className="learn-more-steps">
@@ -5210,33 +5221,31 @@ setRules((currentRules) =>
               <span>1</span>
               <strong>Choose a goal</strong>
               <p>
-                Pick what you want your content to achieve, such as awareness,
-                trust, engagement or sales.
+                {t("automation.chooseGoalHelpModal")}
               </p>
             </div>
 
             <div>
               <span>2</span>
-              <strong>Choose post amount</strong>
+              <strong>{t("automation.choosePostAmount")}</strong>
               <p>
-                Select how many posts Spreelo should prepare for your plan.
+                {t("automation.choosePostAmountHelp")}
               </p>
             </div>
 
             <div>
               <span>3</span>
-              <strong>Review the schedule</strong>
+              <strong>{t("automation.reviewSchedule")}</strong>
               <p>
-                Adjust dates, times, images and instructions before saving.
+                {t("automation.reviewScheduleHelp")}
               </p>
             </div>
 
             <div>
               <span>4</span>
-              <strong>Save the plan</strong>
+              <strong>{t("automation.saveThePlan")}</strong>
               <p>
-                Saved posts are added to your content plan and follow your
-                publishing settings.
+                {t("automation.saveThePlanHelp")}
               </p>
             </div>
           </div>
@@ -5248,7 +5257,7 @@ setRules((currentRules) =>
         className="primary-button full"
         onClick={() => setShowLearnMoreModal(false)}
       >
-        Got it
+        {t("automation.gotIt")}
       </button>
     </div>
   </div>
