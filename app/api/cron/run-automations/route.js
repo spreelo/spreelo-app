@@ -1,6 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import crypto from "crypto";
+import {
+  getServerTranslations,
+  resolveBestServerLocale,
+} from "../../../../lib/i18n/serverUiText.js";
 
 export const dynamic = "force-dynamic";
 
@@ -696,18 +700,20 @@ website_web_search_fallback_used: 0,
 }
 
 function buildApprovalEmailHtml({
+  locale,
+  t,
   rule,
   postContent,
   approveUrl,
   imageUrl,
 }) {
-  const platform = escapeHtml(rule.platform || "Social media");
-  const postType = escapeHtml(rule.post_type || "Post");
+  const platformLabel = rule.platform || "Social media";
+  const postTypeLabel = rule.post_type || "Post";
   const safeImageUrl = imageUrl ? escapeHtml(imageUrl) : "";
 
   return `
 <!doctype html>
-<html>
+<html lang="${escapeHtml(locale || "en")}">
   <body style="margin:0;padding:0;background:#f5f3ee;font-family:Arial,sans-serif;color:#111827;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f3ee;padding:32px 16px;">
       <tr>
@@ -716,16 +722,20 @@ function buildApprovalEmailHtml({
             <tr>
               <td style="padding:28px 28px 18px;">
                 <p style="margin:0 0 8px;color:#6b7280;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">
-                  Spreelo approval
+                  ${escapeHtml(t("emails.approval.eyebrow"))}
                 </p>
 
                 <h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;color:#111827;">
-                  Your post is ready to review
+                  ${escapeHtml(t("emails.approval.title"))}
                 </h1>
 
                 <p style="margin:0;color:#4b5563;font-size:15px;line-height:1.6;">
-                  Spreelo has generated a new ${platform} ${postType.toLowerCase()} for you.
-                  Review the content below and approve it if it looks good.
+                  ${escapeHtml(
+                    t("emails.approval.intro", {
+                      platform: platformLabel,
+                      postType: String(postTypeLabel).toLowerCase(),
+                    })
+                  )}
                 </p>
               </td>
             </tr>
@@ -737,7 +747,7 @@ function buildApprovalEmailHtml({
               <td style="padding:0 28px 20px;">
                 <img
                   src="${safeImageUrl}"
-                  alt="Generated post image"
+                  alt="${escapeHtml(t("emails.approval.imageAlt"))}"
                   style="display:block;width:100%;max-width:584px;border-radius:14px;border:1px solid #e5e7eb;"
                 />
               </td>
@@ -752,7 +762,7 @@ function buildApprovalEmailHtml({
                   <tr>
                     <td style="padding:18px 20px;">
                       <p style="margin:0 0 10px;color:#6b7280;font-size:13px;font-weight:700;">
-                        Generated post
+                        ${escapeHtml(t("emails.approval.generatedPost"))}
                       </p>
 
                       <div style="font-size:15px;line-height:1.7;color:#111827;">
@@ -767,18 +777,18 @@ function buildApprovalEmailHtml({
             <tr>
               <td align="center" style="padding:4px 28px 28px;">
                 <a href="${approveUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:999px;">
-                  Approve post
+                  ${escapeHtml(t("emails.approval.button"))}
                 </a>
 
                 <p style="margin:18px 0 0;color:#6b7280;font-size:13px;line-height:1.5;">
-                  After approval, Spreelo will publish this post automatically within a few minutes.
+                  ${escapeHtml(t("emails.approval.afterApproval"))}
                 </p>
               </td>
             </tr>
           </table>
 
           <p style="margin:18px 0 0;color:#9ca3af;font-size:12px;">
-            You received this email because you have an active Spreelo automation.
+            ${escapeHtml(t("emails.approval.footer"))}
           </p>
         </td>
       </tr>
@@ -789,24 +799,29 @@ function buildApprovalEmailHtml({
 }
 
 function buildApprovalEmailText({
+  t,
   rule,
   postContent,
   approveUrl,
   imageUrl,
 }) {
+  const platformLabel = rule.platform || "Social media";
+  const postTypeLabel = rule.post_type || "Post";
+
   return `
-Your Spreelo post is ready to review.
+${t("emails.approval.textTitle")}
 
-Platform: ${rule.platform || "Social media"}
-Post type: ${rule.post_type || "Post"}
+${t("emails.approval.textPlatform", { platform: platformLabel })}
+${t("emails.approval.textPostType", { postType: postTypeLabel })}
 
-${imageUrl ? `Image: ${imageUrl}\n` : ""}Generated post:
+${imageUrl ? `${t("emails.approval.textImage", { imageUrl })}
+` : ""}${t("emails.approval.textGeneratedPost")}
 ${postContent}
 
-Approve post:
+${t("emails.approval.textApprovePost")}
 ${approveUrl}
 
-After approval, Spreelo will publish this post automatically within a few minutes.
+${t("emails.approval.afterApproval")}
 `.trim();
 }
 
@@ -833,7 +848,7 @@ async function getBrandProfileForRule(supabase, rule) {
   const { data, error } = await supabase
     .from("brand_profiles")
     .select(
-  "id, business_name, website_url, website_product_source_url, brand_description, industry, target_audience"
+  "id, business_name, website_url, website_product_source_url, brand_description, industry, target_audience, content_language"
 )
     .eq("id", rule.brand_profile_id)
     .eq("user_id", rule.user_id)
@@ -2924,6 +2939,7 @@ async function getUserEmail(supabase, userId) {
 }
 
 async function sendApprovalEmail({
+  supabase,
   resendApiKey,
   to,
   rule,
@@ -2931,7 +2947,15 @@ async function sendApprovalEmail({
   approvalToken,
   imageUrl,
 }) {
-  const approveUrl = `${APP_URL}/api/approve-post?token=${approvalToken}`;
+  const locale = resolveBestServerLocale({
+    languageCandidates: [rule?.language, rule?.brand_profile?.content_language],
+  });
+  const { t } = await getServerTranslations({
+    supabaseAdmin: supabase,
+    locale,
+    namespaces: ["emails"],
+  });
+  const approveUrl = `${APP_URL}/api/approve-post?token=${approvalToken}&lang=${locale}`;
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -2942,14 +2966,17 @@ async function sendApprovalEmail({
     body: JSON.stringify({
       from: RESEND_FROM_EMAIL,
       to,
-      subject: "Your Spreelo post is ready to approve",
+      subject: t("emails.approval.subject"),
       html: buildApprovalEmailHtml({
+        locale,
+        t,
         rule,
         postContent,
         approveUrl,
         imageUrl,
       }),
       text: buildApprovalEmailText({
+        t,
         rule,
         postContent,
         approveUrl,
@@ -3611,9 +3638,10 @@ product_research_model_used: rule.uses_website_content
                 summary.emails_failed += 1;
               } else {
                 await sendApprovalEmail({
+                  supabase,
                   resendApiKey,
                   to: userEmail,
-                  rule,
+                  rule: ruleWithBrandProfile,
                   postContent: generatedContent,
                   approvalToken,
                   imageUrl,
