@@ -1999,8 +1999,12 @@ function getCampaignPlanTimingAnchor(postPlanItem, index = 0, total = 1) {
     .trim()
     .toLowerCase();
 
+  if (/relationship|soft|community|gratitude|event|day|huvuddatum|relations/.test(explicitAnchor)) {
+    return "relationship_event";
+  }
+
   if (/end|last|final|deadline|slut|sista/.test(explicitAnchor)) {
-    return "end";
+    return "deadline";
   }
 
   if (/middle|during|mid|under|mitt/.test(explicitAnchor)) {
@@ -2011,27 +2015,13 @@ function getCampaignPlanTimingAnchor(postPlanItem, index = 0, total = 1) {
     return "start";
   }
 
-  const text = [
-    postPlanItem?.campaign_phase,
-    postPlanItem?.marketing_angle,
-    postPlanItem?.role,
-    postPlanItem?.purpose,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+  const intent = getCampaignPostIntent(postPlanItem, index, total);
 
-  if (/last[_\s-]?chance|final|sista|slutlig|deadline|urgency|urgent|late|middle_late|end/.test(text)) {
-    return "end";
-  }
-
-  if (/middle|during|engagement|trust|consideration|under kampanj/.test(text)) {
-    return "middle";
-  }
-
-  if (index === total - 1 && total > 1) {
-    return "end";
-  }
+  if (intent === "event") return "relationship_event";
+  if (intent === "deadline") return "deadline";
+  if (intent === "conversion") return "conversion";
+  if (intent === "trust") return "trust";
+  if (intent === "engagement") return "engagement";
 
   return "start";
 }
@@ -2165,7 +2155,9 @@ function getCampaignLeadTimeProfile(campaign) {
     return {
       isLeadTimeSensitive: true,
       deadlineLeadDays: 12,
-      earlyPrepMaxDays: 10,
+      conversionLeadDays: 20,
+      trustLeadDays: 27,
+      engagementLeadDays: 33,
     };
   }
 
@@ -2173,14 +2165,18 @@ function getCampaignLeadTimeProfile(campaign) {
     return {
       isLeadTimeSensitive: true,
       deadlineLeadDays: 8,
-      earlyPrepMaxDays: 10,
+      conversionLeadDays: 14,
+      trustLeadDays: 21,
+      engagementLeadDays: 27,
     };
   }
 
   return {
     isLeadTimeSensitive: false,
     deadlineLeadDays: 2,
-    earlyPrepMaxDays: 7,
+    conversionLeadDays: 6,
+    trustLeadDays: 12,
+    engagementLeadDays: 18,
   };
 }
 
@@ -2191,9 +2187,6 @@ function getCampaignPostIntent(postPlanItem, index, total) {
     return "deadline";
   }
 
-  // Product push / order / booking should be treated as conversion even if the text
-  // also contains words like celebrate. Otherwise lead-time sensitive campaigns can
-  // accidentally push sales on the final event day.
   if (/offer|sale|discount|deal|buy|order|shop|book|product[_\s-]?push|product push|ready[_\s-]?to[_\s-]?buy|conversion|köp|beställ|boka|köptryck/.test(text)) {
     return "conversion";
   }
@@ -2206,7 +2199,7 @@ function getCampaignPostIntent(postPlanItem, index, total) {
     return "engagement";
   }
 
-  if (/event|day of|main day|celebrate|community|relationship|brand|thank|gratitude|hälsning|fira/.test(text)) {
+  if (/event|day of|main day|celebrate|community|relationship|brand|thank|gratitude|hälsning|fira|julafton|själva dagen/.test(text)) {
     return "event";
   }
 
@@ -2215,24 +2208,127 @@ function getCampaignPostIntent(postPlanItem, index, total) {
   }
 
   if (index === 0) return "inspiration";
-  if (index === total - 1) return "deadline";
+  if (index === total - 1) return "event";
 
   return "middle";
 }
 
-function getSpreadPositionDate({
+function getPreferredCampaignIntentSequence(total, leadTimeProfile) {
+  const count = Math.max(Math.min(Math.round(Number(total) || 1), 7), 1);
+
+  if (count === 1) return ["main"];
+  if (count === 2) return leadTimeProfile.isLeadTimeSensitive ? ["inspiration", "deadline"] : ["inspiration", "event"];
+  if (count === 3) return leadTimeProfile.isLeadTimeSensitive ? ["inspiration", "conversion", "event"] : ["inspiration", "deadline", "event"];
+  if (count === 4) return leadTimeProfile.isLeadTimeSensitive ? ["inspiration", "trust", "deadline", "event"] : ["inspiration", "engagement", "deadline", "event"];
+  if (count === 5) return leadTimeProfile.isLeadTimeSensitive ? ["inspiration", "engagement", "trust", "deadline", "event"] : ["inspiration", "engagement", "conversion", "deadline", "event"];
+
+  return leadTimeProfile.isLeadTimeSensitive
+    ? ["inspiration", "engagement", "trust", "conversion", "deadline", "event"].slice(0, count)
+    : ["inspiration", "engagement", "trust", "conversion", "deadline", "event"].slice(0, count);
+}
+
+function normalizeCampaignPlanForTiming(campaign, postPlan) {
+  const total = postPlan.length;
+  const leadTimeProfile = getCampaignLeadTimeProfile(campaign);
+  const desiredIntents = getPreferredCampaignIntentSequence(total, leadTimeProfile);
+  const unusedItems = postPlan.map((item, index) => ({ item, originalIndex: index }));
+
+  return desiredIntents.map((desiredIntent, index) => {
+    let matchIndex = unusedItems.findIndex(({ item, originalIndex }) => {
+      const itemIntent = getCampaignPostIntent(item, originalIndex, total);
+      if (desiredIntent === "event") return itemIntent === "event";
+      if (desiredIntent === "deadline") return itemIntent === "deadline";
+      if (desiredIntent === "conversion") return itemIntent === "conversion";
+      if (desiredIntent === "trust") return itemIntent === "trust";
+      if (desiredIntent === "engagement") return itemIntent === "engagement";
+      if (desiredIntent === "inspiration") return itemIntent === "inspiration";
+      return false;
+    });
+
+    if (matchIndex === -1) {
+      matchIndex = 0;
+    }
+
+    const [matched] = unusedItems.splice(matchIndex, 1);
+    const strategy = getStrategicCampaignStep(total, index, matched?.item || {});
+
+    return {
+      ...(matched?.item || {}),
+      intended_intent: desiredIntent,
+      timing_anchor:
+        desiredIntent === "event"
+          ? "relationship_event"
+          : desiredIntent === "deadline"
+          ? "deadline_before_event"
+          : desiredIntent,
+      marketing_angle:
+        desiredIntent === "event"
+          ? "brand"
+          : desiredIntent === "deadline"
+          ? "last_chance"
+          : desiredIntent === "conversion"
+          ? "product_push"
+          : desiredIntent === "trust"
+          ? "trust"
+          : desiredIntent === "engagement"
+          ? "engagement"
+          : desiredIntent === "inspiration"
+          ? "inspiration"
+          : strategy.marketing_angle,
+      campaign_phase:
+        desiredIntent === "event"
+          ? "relationship_event"
+          : desiredIntent === "deadline"
+          ? "last_chance"
+          : strategy.campaign_phase,
+    };
+  });
+}
+
+function getCampaignTargetDateForIntent({
+  intent,
   safePeriodStartDate,
   safePeriodEndDate,
+  purchaseDeadlineDate,
+  leadTimeProfile,
   periodLengthDays,
   index,
   total,
 }) {
-  if (total <= 1) return safePeriodStartDate;
+  const daysBeforeEnd = (days) => addDaysToDateString(safePeriodEndDate, -Math.min(days, Math.max(periodLengthDays, 0)));
+  const daysAfterStart = (ratio) => addDaysToDateString(safePeriodStartDate, Math.max(0, Math.round(periodLengthDays * ratio)));
 
-  const spreadRatio = index / Math.max(total - 1, 1);
-  const offset = Math.round(periodLengthDays * spreadRatio);
+  if (intent === "event") {
+    return safePeriodEndDate;
+  }
 
-  return addDaysToDateString(safePeriodStartDate, offset);
+  if (intent === "deadline") {
+    return purchaseDeadlineDate;
+  }
+
+  if (intent === "conversion") {
+    return leadTimeProfile.isLeadTimeSensitive
+      ? daysBeforeEnd(leadTimeProfile.conversionLeadDays)
+      : daysBeforeEnd(leadTimeProfile.conversionLeadDays);
+  }
+
+  if (intent === "trust") {
+    return leadTimeProfile.isLeadTimeSensitive
+      ? daysBeforeEnd(leadTimeProfile.trustLeadDays)
+      : daysAfterStart(0.45);
+  }
+
+  if (intent === "engagement") {
+    return leadTimeProfile.isLeadTimeSensitive
+      ? daysBeforeEnd(leadTimeProfile.engagementLeadDays)
+      : daysAfterStart(0.28);
+  }
+
+  if (intent === "inspiration") {
+    return safePeriodStartDate;
+  }
+
+  return daysAfterStart(total <= 1 ? 0 : index / Math.max(total - 1, 1));
 }
 
 function buildDateRangeCampaignSchedule({
@@ -2259,123 +2355,32 @@ function buildDateRangeCampaignSchedule({
     safePeriodStartDate,
     addDaysToDateString(safePeriodEndDate, -deadlineOffset)
   );
-  const conversionWindowStartDate = getLaterDateString(
-    safePeriodStartDate,
-    addDaysToDateString(purchaseDeadlineDate, -Math.min(7, Math.max(periodLengthDays - 1, 0)))
-  );
-  const trustWindowDate = addDaysToDateString(
-    safePeriodStartDate,
-    Math.max(
-      0,
-      Math.floor((getDaysBetweenDateStrings(safePeriodStartDate, conversionWindowStartDate) || 0) * 0.55)
-    )
-  );
-  const engagementWindowDate = addDaysToDateString(
-    safePeriodStartDate,
-    Math.max(
-      0,
-      Math.floor((getDaysBetweenDateStrings(safePeriodStartDate, purchaseDeadlineDate) || 0) * 0.28)
-    )
-  );
+  const normalizedPostPlan = normalizeCampaignPlanForTiming(campaign, postPlan);
   const usedDates = new Set();
-  const total = postPlan.length;
+  const total = normalizedPostPlan.length;
 
-  const clampToCampaignWindow = (dateString, maxDate = safePeriodEndDate) => {
-    if (!dateString) return safePeriodStartDate;
-    if (dateString < todayDateString) return todayDateString;
-    if (dateString < safePeriodStartDate) return safePeriodStartDate;
-    if (dateString > maxDate) return maxDate;
-    return dateString;
-  };
-
-  const getAiSuggestedDateFromEnd = (postPlanItem) => {
-    const rawDaysBeforeEnd = Number(postPlanItem?.days_before_event);
-
-    if (!Number.isFinite(rawDaysBeforeEnd)) {
-      return "";
-    }
-
-    return addDaysToDateString(
-      safePeriodEndDate,
-      -Math.max(Math.round(rawDaysBeforeEnd), 0)
-    );
-  };
-
-  const scheduledItems = postPlan.map((postPlanItem, index) => {
-    const timingAnchor = getCampaignPlanTimingAnchor(postPlanItem, index, total);
-    const intent = getCampaignPostIntent(postPlanItem, index, total);
-    const aiSuggestedDate = getAiSuggestedDateFromEnd(postPlanItem);
-
-    let targetDate = getSpreadPositionDate({
+  const scheduledItems = normalizedPostPlan.map((postPlanItem, index) => {
+    const intent = postPlanItem.intended_intent || getCampaignPostIntent(postPlanItem, index, total);
+    const isFinalRelationshipPost = intent === "event";
+    const maxDate = isFinalRelationshipPost ? safePeriodEndDate : purchaseDeadlineDate;
+    const minDate = safePeriodStartDate;
+    const targetDate = getCampaignTargetDateForIntent({
+      intent,
       safePeriodStartDate,
       safePeriodEndDate,
+      purchaseDeadlineDate,
+      leadTimeProfile,
       periodLengthDays,
       index,
       total,
     });
-    let resolvedTimingAnchor = timingAnchor;
-    let maxDate = safePeriodEndDate;
-    let preferBackward = false;
-
-    if (intent === "deadline") {
-      targetDate = purchaseDeadlineDate;
-      maxDate = purchaseDeadlineDate;
-      preferBackward = true;
-      resolvedTimingAnchor = leadTimeProfile.isLeadTimeSensitive
-        ? "deadline_before_event"
-        : "deadline";
-    } else if (intent === "conversion") {
-      targetDate = conversionWindowStartDate;
-      maxDate = purchaseDeadlineDate;
-      preferBackward = false;
-      resolvedTimingAnchor = leadTimeProfile.isLeadTimeSensitive
-        ? "conversion_before_deadline"
-        : "conversion";
-    } else if (intent === "trust") {
-      targetDate = trustWindowDate;
-      maxDate = purchaseDeadlineDate;
-      resolvedTimingAnchor = "trust";
-    } else if (intent === "engagement") {
-      targetDate = engagementWindowDate;
-      maxDate = purchaseDeadlineDate;
-      resolvedTimingAnchor = "engagement";
-    } else if (intent === "inspiration") {
-      targetDate = aiSuggestedDate || safePeriodStartDate;
-      maxDate = purchaseDeadlineDate;
-      resolvedTimingAnchor = "inspiration";
-    } else if (intent === "event") {
-      targetDate = safePeriodEndDate;
-      maxDate = safePeriodEndDate;
-      preferBackward = true;
-      resolvedTimingAnchor = leadTimeProfile.isLeadTimeSensitive
-        ? "relationship_event"
-        : "event";
-    } else if (timingAnchor === "end") {
-      targetDate = leadTimeProfile.isLeadTimeSensitive
-        ? purchaseDeadlineDate
-        : addDaysToDateString(safePeriodEndDate, -Math.min(index === total - 1 ? 0 : 2, periodLengthDays));
-      maxDate = leadTimeProfile.isLeadTimeSensitive ? purchaseDeadlineDate : safePeriodEndDate;
-      preferBackward = true;
-      resolvedTimingAnchor = leadTimeProfile.isLeadTimeSensitive ? "deadline_before_event" : "end";
-    } else if (timingAnchor === "middle") {
-      const middleOffset = Math.max(Math.floor(periodLengthDays / 2), 0);
-      targetDate = addDaysToDateString(safePeriodStartDate, middleOffset);
-      maxDate = purchaseDeadlineDate;
-      resolvedTimingAnchor = "middle";
-    } else if (timingAnchor === "start") {
-      targetDate = aiSuggestedDate || safePeriodStartDate;
-      maxDate = purchaseDeadlineDate;
-      resolvedTimingAnchor = "start";
-    }
-
-    targetDate = clampToCampaignWindow(targetDate, maxDate);
 
     const scheduledDate = getUniqueDateNearTarget({
       targetDate,
       usedDates,
-      minDate: todayDateString,
-      maxDate: getLaterDateString(maxDate, todayDateString),
-      preferBackward,
+      minDate,
+      maxDate: getLaterDateString(maxDate, minDate),
+      preferBackward: intent === "deadline" || intent === "event",
     });
 
     usedDates.add(scheduledDate);
@@ -2385,12 +2390,21 @@ function buildDateRangeCampaignSchedule({
       0
     );
 
+    const timingAnchor =
+      intent === "event"
+        ? "relationship_event"
+        : intent === "deadline"
+        ? "deadline_before_event"
+        : intent === "conversion"
+        ? "conversion_before_deadline"
+        : intent;
+
     return {
       startDate: scheduledDate,
       weekday: getWeekdayFromDateString(scheduledDate, timeZone),
       publishTime: getRecommendedTimeForDate(scheduledDate, timeZone),
       daysBeforeEvent: daysBeforeCampaignEnd,
-      timingAnchor: resolvedTimingAnchor,
+      timingAnchor,
       originalIndex: index,
       postPlanItem,
       intent,
@@ -2682,14 +2696,18 @@ function buildCampaignPostPlanItem({
       timingNote = `This post is scheduled early in the campaign. Build interest before the campaign date gets close.`;
     }
   } else if (hasDateRange) {
-    if (resolvedTimingAnchor === "end") {
-      timingNote = `This post is scheduled near the end of the campaign period for ${campaignTitle}. Use it as a last chance or final action post.`;
-    } else if (resolvedTimingAnchor === "middle") {
-      timingNote = `This post is scheduled during the campaign period for ${campaignTitle}. Build interest, trust or product/service consideration.`;
-    } else if (typeof daysBeforeEvent === "number" && daysBeforeEvent > 0) {
-      timingNote = `This post is scheduled ${daysBeforeEvent} days before the campaign period starts. Build early interest without sounding like a final reminder.`;
+    if (resolvedTimingAnchor === "relationship_event") {
+      timingNote = `This post is scheduled for the main/final campaign date for ${campaignTitle}. Make it softer, emotional and relationship-building rather than a hard sales push.`;
+    } else if (resolvedTimingAnchor === "deadline_before_event") {
+      timingNote = `This post is scheduled before the final campaign date because the audience may need time to order, book, decide, receive delivery or prepare. Make it a clear final reminder.`;
+    } else if (resolvedTimingAnchor === "conversion_before_deadline") {
+      timingNote = `This post is scheduled while the audience still has time to act. Make the product, service or next step concrete.`;
+    } else if (resolvedTimingAnchor === "trust") {
+      timingNote = `This post is scheduled before the active buying window. Build reassurance, proof and confidence.`;
+    } else if (resolvedTimingAnchor === "engagement") {
+      timingNote = `This post is scheduled early or mid campaign. Warm up the audience through recognition, comments or reflection.`;
     } else {
-      timingNote = `This post is scheduled at the start of the campaign period for ${campaignTitle}. Introduce the campaign clearly.`;
+      timingNote = `This post is scheduled early in the campaign period for ${campaignTitle}. Introduce the need, idea or opportunity clearly.`;
     }
   }
 
@@ -2750,13 +2768,17 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
       ? `This is the final reminder before ${campaignTitle}. Mention that ${campaignTitle} is tomorrow.`
       : `This post is ${daysBeforeEvent} days before ${campaignTitle}. Use that timing as the main angle.`
     : campaign?.start_date && campaign?.end_date
-    ? postPlanItem?.timing_anchor === "end"
-      ? `This is the final or last-chance post near the end of the campaign period for ${campaignTitle}.`
-      : postPlanItem?.timing_anchor === "middle"
-      ? `This is a mid-campaign post for ${campaignTitle}. Build interest, trust or product/service consideration.`
-      : typeof daysBeforeEvent === "number" && daysBeforeEvent > 0
-      ? `This post is ${daysBeforeEvent} days before the campaign period starts. Use that timing as the main angle.`
-      : `This is the campaign-start post for ${campaignTitle}. Introduce the campaign clearly.`
+    ? postPlanItem?.timing_anchor === "relationship_event"
+      ? `This is the soft main/final date post for ${campaignTitle}. Focus on emotion, relationship and brand warmth rather than hard selling.`
+      : postPlanItem?.timing_anchor === "deadline_before_event"
+      ? `This is the final realistic action reminder before the main/final campaign date for ${campaignTitle}.`
+      : postPlanItem?.timing_anchor === "conversion_before_deadline"
+      ? `This is a product/service decision post while the audience still has time to act.`
+      : postPlanItem?.timing_anchor === "trust"
+      ? `This is a trust-building post before the buying decision window.`
+      : postPlanItem?.timing_anchor === "engagement"
+      ? `This is an engagement post early or mid campaign to warm up the audience.`
+      : `This is an early campaign post for ${campaignTitle}. Introduce the idea clearly.`
     : `This is a flexible-date campaign post. Do not mention days left. Focus on this specific role: ${postRole}.`;
 
   return [
@@ -2822,14 +2844,18 @@ function buildCampaignSummary(campaign, postPlanItem, index) {
       timingText = ` Scheduled ${daysBeforeEvent} days before ${campaignTitle}.`;
     }
   } else if (campaign?.start_date && campaign?.end_date) {
-    if (postPlanItem?.timing_anchor === "end") {
-      timingText = " Scheduled near the end of the campaign period.";
-    } else if (postPlanItem?.timing_anchor === "middle") {
-      timingText = " Scheduled during the campaign period.";
-    } else if (typeof daysBeforeEvent === "number" && daysBeforeEvent > 0) {
-      timingText = ` Scheduled ${daysBeforeEvent} days before the campaign starts.`;
+    if (postPlanItem?.timing_anchor === "relationship_event") {
+      timingText = " Scheduled as a soft main/final date post.";
+    } else if (postPlanItem?.timing_anchor === "deadline_before_event") {
+      timingText = " Scheduled before the final date while action is still realistic.";
+    } else if (postPlanItem?.timing_anchor === "conversion_before_deadline") {
+      timingText = " Scheduled in the active decision window.";
+    } else if (postPlanItem?.timing_anchor === "trust") {
+      timingText = " Scheduled before the buying decision window.";
+    } else if (postPlanItem?.timing_anchor === "engagement") {
+      timingText = " Scheduled early or mid campaign to warm up the audience.";
     } else {
-      timingText = " Scheduled at the start of the campaign period.";
+      timingText = " Scheduled early in the campaign period.";
     }
   }
 
