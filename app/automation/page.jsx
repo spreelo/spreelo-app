@@ -2124,6 +2124,114 @@ function getEventCampaignDaysBeforeEvent({
   });
 }
 
+function clampNumberValue(value, min, max) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return min;
+  }
+
+  return Math.min(Math.max(numericValue, min), max);
+}
+
+function getCampaignStrategicText(campaign, postPlanItem = null) {
+  return [
+    campaign?.title,
+    campaign?.description,
+    campaign?.prompt_context,
+    campaign?.campaign_category,
+    campaign?.event_type,
+    campaign?.campaign_goal,
+    campaign?.target_customer_need,
+    campaign?.product_selection_guidance,
+    campaign?.website_product_selection_hint,
+    campaign?.website_content_strategy,
+    postPlanItem?.role,
+    postPlanItem?.purpose,
+    postPlanItem?.marketing_angle,
+    postPlanItem?.campaign_phase,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function getCampaignLeadTimeProfile(campaign) {
+  const text = getCampaignStrategicText(campaign);
+  const hasDeliveryOrProductionSignals = /custom|personal|personalized|personalised|made[\s-]?to[\s-]?order|bespoke|tailor|tailored|print|printed|portrait|engraved|engraving|production|produce|delivery|deliver|shipping|ship|order in time|pre[\s-]?order|lead time|appointment|booking|bookable|reservation|limited seats|limited availability|consultation|quote|install|installation|service area|kurs|bokning|beställ|leverans|personlig|anpassad|skräddarsydd|tryck|porträtt|gravyr|produktion/.test(text);
+  const hasFastCommerceSignals = /instant|digital download|same[\s-]?day|pickup|pick[\s-]?up|walk[\s-]?in|in stock|ready[\s-]?made|available now|retail|restaurant|cafe|menu|drop[\s-]?in/.test(text);
+
+  if (hasDeliveryOrProductionSignals && !hasFastCommerceSignals) {
+    return {
+      isLeadTimeSensitive: true,
+      deadlineLeadDays: 10,
+      earlyPrepMaxDays: 14,
+    };
+  }
+
+  if (hasDeliveryOrProductionSignals) {
+    return {
+      isLeadTimeSensitive: true,
+      deadlineLeadDays: 7,
+      earlyPrepMaxDays: 14,
+    };
+  }
+
+  return {
+    isLeadTimeSensitive: false,
+    deadlineLeadDays: 2,
+    earlyPrepMaxDays: 10,
+  };
+}
+
+function getCampaignPostIntent(postPlanItem, index, total) {
+  const text = getCampaignStrategicText(null, postPlanItem);
+
+  if (/last[_\s-]?chance|final|deadline|urgent|urgency|sista|slutlig|last call|act now/.test(text)) {
+    return "deadline";
+  }
+
+  if (/event|day of|main day|celebrate|community|relationship|brand|thank|gratitude|hälsning|fira/.test(text)) {
+    return "event";
+  }
+
+  if (/offer|sale|discount|deal|buy|order|shop|book|product[_\s-]?push|ready[_\s-]?to[_\s-]?buy|conversion|köp|beställ|boka/.test(text)) {
+    return "conversion";
+  }
+
+  if (/trust|proof|review|testimonial|process|quality|faq|guide|confidence|trygg|förtroende/.test(text)) {
+    return "trust";
+  }
+
+  if (/engagement|question|comment|share|save|poll|react|conversation|kommentera|fråga/.test(text)) {
+    return "engagement";
+  }
+
+  if (/product[_\s-]?discovery|product[_\s-]?idea|discover|inspiration|awareness|idea|tips|guide|inspir/.test(text)) {
+    return "inspiration";
+  }
+
+  if (index === 0) return "inspiration";
+  if (index === total - 1) return "deadline";
+
+  return "middle";
+}
+
+function getSpreadPositionDate({
+  safePeriodStartDate,
+  safePeriodEndDate,
+  periodLengthDays,
+  index,
+  total,
+}) {
+  if (total <= 1) return safePeriodStartDate;
+
+  const spreadRatio = index / Math.max(total - 1, 1);
+  const offset = Math.round(periodLengthDays * spreadRatio);
+
+  return addDaysToDateString(safePeriodStartDate, offset);
+}
+
 function buildDateRangeCampaignSchedule({
   campaign,
   postPlan,
@@ -2139,42 +2247,105 @@ function buildDateRangeCampaignSchedule({
     0
   );
 
+  const leadTimeProfile = getCampaignLeadTimeProfile(campaign);
+  const purchaseDeadlineDate = getLaterDateString(
+    safePeriodStartDate,
+    addDaysToDateString(
+      safePeriodEndDate,
+      -Math.min(leadTimeProfile.deadlineLeadDays, Math.max(periodLengthDays - 1, 0))
+    )
+  );
+  const conversionWindowStartDate = getLaterDateString(
+    safePeriodStartDate,
+    addDaysToDateString(purchaseDeadlineDate, -Math.min(7, Math.max(periodLengthDays - 1, 0)))
+  );
   const usedDates = new Set();
   const total = postPlan.length;
 
-  return postPlan.map((postPlanItem, index) => {
+  const scheduledItems = postPlan.map((postPlanItem, index) => {
     const timingAnchor = getCampaignPlanTimingAnchor(postPlanItem, index, total);
+    const intent = getCampaignPostIntent(postPlanItem, index, total);
     const rawDaysBeforeStart = Number(postPlanItem?.days_before_event);
     const hasDaysBeforeStart = Number.isFinite(rawDaysBeforeStart);
-    let targetDate = safePeriodStartDate;
-    let daysBeforeStart = hasDaysBeforeStart
-      ? Math.max(Math.round(rawDaysBeforeStart), 0)
+    const clampedDaysBeforeStart = hasDaysBeforeStart
+      ? Math.round(
+          clampNumberValue(
+            rawDaysBeforeStart,
+            0,
+            leadTimeProfile.earlyPrepMaxDays
+          )
+        )
       : null;
 
-    if (timingAnchor === "end") {
-      const isLastPost = index === total - 1;
-      const endOffset = isLastPost ? 0 : Math.min(2, periodLengthDays);
-      targetDate = addDaysToDateString(safePeriodEndDate, -endOffset);
-      daysBeforeStart = null;
+    let targetDate = getSpreadPositionDate({
+      safePeriodStartDate,
+      safePeriodEndDate,
+      periodLengthDays,
+      index,
+      total,
+    });
+    let daysBeforeStart = null;
+    let resolvedTimingAnchor = timingAnchor;
+
+    if (intent === "deadline") {
+      targetDate = leadTimeProfile.isLeadTimeSensitive
+        ? purchaseDeadlineDate
+        : addDaysToDateString(safePeriodEndDate, -Math.min(1, periodLengthDays));
+      resolvedTimingAnchor = "deadline";
+    } else if (intent === "conversion") {
+      targetDate = conversionWindowStartDate;
+      resolvedTimingAnchor = "conversion";
+    } else if (intent === "trust") {
+      const trustOffset = Math.max(
+        0,
+        Math.floor(getDaysBetweenDateStrings(safePeriodStartDate, conversionWindowStartDate) * 0.7)
+      );
+      targetDate = addDaysToDateString(safePeriodStartDate, trustOffset);
+      resolvedTimingAnchor = "middle";
+    } else if (intent === "engagement") {
+      const engagementOffset = Math.max(
+        0,
+        Math.floor(getDaysBetweenDateStrings(safePeriodStartDate, purchaseDeadlineDate) * 0.35)
+      );
+      targetDate = addDaysToDateString(safePeriodStartDate, engagementOffset);
+      resolvedTimingAnchor = "middle";
+    } else if (intent === "event") {
+      targetDate = safePeriodEndDate;
+      resolvedTimingAnchor = "end";
+    } else if (timingAnchor === "end") {
+      targetDate = leadTimeProfile.isLeadTimeSensitive
+        ? safePeriodEndDate
+        : addDaysToDateString(safePeriodEndDate, -Math.min(index === total - 1 ? 0 : 2, periodLengthDays));
+      resolvedTimingAnchor = "end";
     } else if (timingAnchor === "middle") {
       const middleOffset = Math.max(Math.floor(periodLengthDays / 2), 0);
       targetDate = addDaysToDateString(safePeriodStartDate, middleOffset);
-      daysBeforeStart = null;
-    } else if (daysBeforeStart && daysBeforeStart > 0) {
-      targetDate = addDaysToDateString(periodStartDate, -daysBeforeStart);
-    } else {
-      targetDate = safePeriodStartDate;
-      daysBeforeStart = 0;
+      resolvedTimingAnchor = "middle";
+    } else if (timingAnchor === "start" && clampedDaysBeforeStart && clampedDaysBeforeStart > 0) {
+      targetDate = addDaysToDateString(periodStartDate, -clampedDaysBeforeStart);
+      daysBeforeStart = clampedDaysBeforeStart;
+      resolvedTimingAnchor = "before_start";
+    } else if (timingAnchor === "start" || intent === "inspiration") {
+      targetDate = index === 0
+        ? addDaysToDateString(periodStartDate, -(clampedDaysBeforeStart || Math.min(7, leadTimeProfile.earlyPrepMaxDays)))
+        : safePeriodStartDate;
+      daysBeforeStart = getDaysBetweenDateStrings(targetDate, periodStartDate);
+      if (daysBeforeStart < 0) daysBeforeStart = 0;
+      resolvedTimingAnchor = daysBeforeStart > 0 ? "before_start" : "start";
     }
 
     targetDate = getClampedFutureDateString(targetDate, timeZone);
+
+    const maxDate = intent === "deadline" || intent === "conversion" || intent === "trust"
+      ? purchaseDeadlineDate
+      : safePeriodEndDate;
 
     const scheduledDate = getUniqueDateNearTarget({
       targetDate,
       usedDates,
       minDate: todayDateString,
-      maxDate: timingAnchor === "start" && daysBeforeStart > 0 ? safePeriodEndDate : safePeriodEndDate,
-      preferBackward: timingAnchor === "end",
+      maxDate: getLaterDateString(maxDate, todayDateString),
+      preferBackward: ["deadline", "conversion", "end"].includes(resolvedTimingAnchor),
     });
 
     usedDates.add(scheduledDate);
@@ -2184,8 +2355,15 @@ function buildDateRangeCampaignSchedule({
       weekday: getWeekdayFromDateString(scheduledDate, timeZone),
       publishTime: getRecommendedTimeForDate(scheduledDate, timeZone),
       daysBeforeEvent: daysBeforeStart,
-      timingAnchor,
+      timingAnchor: resolvedTimingAnchor,
+      originalIndex: index,
+      postPlanItem,
     };
+  });
+
+  return scheduledItems.sort((a, b) => {
+    if (a.startDate === b.startDate) return a.originalIndex - b.originalIndex;
+    return a.startDate < b.startDate ? -1 : 1;
   });
 }
 
@@ -2727,8 +2905,8 @@ function createCampaignSlotsFromOpportunity({
       timeZone,
     });
 
-    return postPlan.map((postPlanItem, index) => {
-      const schedule = rangeSchedule[index] || {};
+    return rangeSchedule.map((schedule, index) => {
+      const postPlanItem = schedule.postPlanItem || postPlan[index] || {};
       const startDate = schedule.startDate || getSafeCampaignStartDate(campaign, timeZone);
       const enhancedPostPlanItem = buildCampaignPostPlanItem({
         campaign,
