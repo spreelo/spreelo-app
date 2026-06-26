@@ -13,6 +13,7 @@ export default function Settings() {
   const { t, locale, setLocale } = useUiText(["settings"]);
 
   const [currentUserEmail, setCurrentUserEmail] = useState("");
+  const [savingLanguage, setSavingLanguage] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
@@ -33,6 +34,26 @@ export default function Settings() {
 
     loadUser();
   }, []);
+
+  async function handleLanguageChange(nextLocale) {
+    if (!nextLocale || savingLanguage) return;
+
+    setSavingLanguage(true);
+    setLocale(nextLocale);
+
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          app_language: nextLocale,
+        },
+      });
+    } catch {
+      // The local UI language has already changed. Server-side email language will
+      // fall back to brand/content language if user metadata cannot be updated.
+    } finally {
+      setSavingLanguage(false);
+    }
+  }
 
   async function handleDeleteAccount() {
     if (deletingAccount) return;
@@ -118,10 +139,9 @@ export default function Settings() {
             className="input"
             value={recommendedLocale}
             onChange={(event) => {
-              if (event.target.value) {
-                setLocale(event.target.value);
-              }
+              handleLanguageChange(event.target.value);
             }}
+            disabled={savingLanguage}
           >
             {!recommendedLocale && (
               <option value="">{getUiLanguageName(locale)}</option>
