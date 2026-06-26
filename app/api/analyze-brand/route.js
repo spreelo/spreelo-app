@@ -1415,6 +1415,16 @@ Rules:
 - Do not create campaign opportunities for previous or future calendar years.
 - Every event_date, start_date and end_date must be inside Calendar year ${campaignCalendarYear}. If an opportunity cannot be placed inside this year, omit it.
 - Only include opportunities that are genuinely useful for this business, industry and selected market.
+
+- Before finalizing campaign_opportunities, build a broad internal candidate pool of relevant local market moments, shopping periods, gift days, seasonal periods, school/work/life moments, industry moments and business-specific evergreen campaigns. Then select only the strongest opportunities for this exact business.
+- Do not choose campaigns because they are generally popular. Choose them only when there is a clear customer reason to buy, book, visit, remember, compare, prepare, celebrate, gift, upgrade, replace, learn or engage with this specific business.
+- Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
+- Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. Giftable products should strongly consider local gift days. Ecommerce and retail should strongly consider major local shopping periods. Restaurants and food businesses should consider relevant food and dining moments. Beauty and fashion should consider party, season, wedding, graduation and self-care moments. Service and bookable businesses should consider seasonal preparation and booking windows.
+- Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or software. A pet-related day belongs to pet brands, not unrelated retailers unless their product range genuinely fits.
+- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are supported by the provided website/description.
+- If a custom campaign title implies a feature, offer or program that may not exist, rename it to a safer generic strategy or omit it. Prefer grounded titles like "Product guide", "Seasonal upgrade", "Gift guide", "Buying advice" or "Category inspiration" over unsupported named features.
+- The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
+- For broad ecommerce, retail and product-based businesses, returning only around 10 opportunities is usually under-generated unless the year has already passed or the business is unusually narrow. Prefer 15-20 strong opportunities when enough relevant moments exist.
 - For ecommerce, fashion, beauty, gifts, retail and product-based businesses, actively include relevant gift days, shopping days and seasonal buying moments when they fit the brand.
 - Do not exclude Mother's Day, Father's Day or Valentine's Day just because they are broad holidays. For ecommerce, fashion, beauty, gifts and retail brands, these are often strong sales opportunities when connected naturally to gifts, outfits, shoes, accessories, beauty, personal style or products.
 - For fashion ecommerce specifically, prioritize campaigns around outfit inspiration, gift buying, partywear, seasonal wardrobe updates, shoes, sneakers, accessories, sustainable fashion, school/graduation, weddings, festivals and major shopping days.
@@ -1544,8 +1554,9 @@ Examples:
 - Restaurant website with named dishes and prices: true.
 - Salon website with specific bookable treatments and descriptions: true.
 - Car dealer with individual car listings: true.
-- Local grocery chain website with store finder, weekly leaflet, general offers and no stable individual product pages: false.
-- Chain store website that mainly promotes stores, opening hours, weekly offers and general assortment: false.
+- Local grocery chain website with stable product pages, product listings, orderable groceries or reusable item-level offers: true.
+- Chain store website with online assortment, product/category pages, ecommerce flow or reusable product/offer pages: true.
+- Pure store finder or chain information site with no realistic product/listing/menu/service item pages: false.
 - Consultant website with only general “we help companies” text: false.
 - Spiritual service, artist, portfolio or informational website without clear individual bookable offers/items: false.
 - Brand page with no individual products, services or listings: false.
@@ -1742,6 +1753,16 @@ Rules:
 - Do not create campaign opportunities for previous or future calendar years.
 - Every event_date, start_date and end_date must be inside Calendar year ${campaignCalendarYear}. If an opportunity cannot be placed inside this year, omit it.
 - Only include opportunities that are genuinely useful for this business, industry and selected market.
+
+- Before finalizing campaign_opportunities, build a broad internal candidate pool of relevant local market moments, shopping periods, gift days, seasonal periods, school/work/life moments, industry moments and business-specific evergreen campaigns. Then select only the strongest opportunities for this exact business.
+- Do not choose campaigns because they are generally popular. Choose them only when there is a clear customer reason to buy, book, visit, remember, compare, prepare, celebrate, gift, upgrade, replace, learn or engage with this specific business.
+- Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
+- Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. Giftable products should strongly consider local gift days. Ecommerce and retail should strongly consider major local shopping periods. Restaurants and food businesses should consider relevant food and dining moments. Beauty and fashion should consider party, season, wedding, graduation and self-care moments. Service and bookable businesses should consider seasonal preparation and booking windows.
+- Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or software. A pet-related day belongs to pet brands, not unrelated retailers unless their product range genuinely fits.
+- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are supported by the provided website/description.
+- If a custom campaign title implies a feature, offer or program that may not exist, rename it to a safer generic strategy or omit it. Prefer grounded titles like "Product guide", "Seasonal upgrade", "Gift guide", "Buying advice" or "Category inspiration" over unsupported named features.
+- The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
+- For broad ecommerce, retail and product-based businesses, returning only around 10 opportunities is usually under-generated unless the year has already passed or the business is unusually narrow. Prefer 15-20 strong opportunities when enough relevant moments exist.
 - For ecommerce, fashion, beauty, gifts, retail and product-based businesses, actively include relevant gift days, shopping days and seasonal buying moments when they fit the brand.
 - Do not exclude Mother's Day, Father's Day or Valentine's Day just because they are broad holidays. For ecommerce, fashion, beauty, gifts and retail brands, these are often strong sales opportunities when connected naturally to gifts, outfits, shoes, accessories, beauty, personal style or products.
 - For fashion ecommerce specifically, prioritize campaigns around outfit inspiration, gift buying, partywear, seasonal wardrobe updates, shoes, sneakers, accessories, sustainable fashion, school/graduation, weddings, festivals and major shopping days.
