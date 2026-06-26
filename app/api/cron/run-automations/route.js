@@ -2820,31 +2820,15 @@ if (Array.isArray(webSearchItems) && webSearchItems.length) {
 
   summary.website_web_search_fallback_used += 1;
 
-  console.error("No verified website product found. Using safe text-only campaign fallback.", {
+  console.error("No verified website product found. Refusing to create a website-product post without a real verified website item.", {
     ruleId: rule.id,
     brandProfileId: rule.brand_profile_id,
     websiteUrl,
   });
 
-  const fallbackItem = createSafeWebsiteCampaignFallbackItem({
-    brandProfile,
-    rule,
-    websiteUrl,
-  });
-
-  if (!fallbackItem) {
-    throw new Error("Could not create safe website campaign fallback item");
-  }
-
-  summary.website_items_found += 1;
-  summary.website_content_success += 1;
-
-  return {
-    websiteItem: fallbackItem,
-    websiteSourceUrl: websiteUrl,
-    websiteCycleNumber: 1,
-    useWebsiteImage: false,
-  };
+  throw new Error(
+    "No verified matching website product could be found for this product-based post. Spreelo will not create a generic AI fallback for a post that requires a real website product."
+  );
 }
 
 async function saveWebsiteContentHistory({
