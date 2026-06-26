@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../components/AppLayout";
 import { supabase } from "../lib/supabaseClient";
+import { useUiText } from "../lib/i18n/useUiText";
 
 const PENDING_PREVIEW_LIMIT = 3;
 
@@ -10,8 +11,8 @@ function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
 
-function formatDate(value) {
-  if (!value) return "Not set";
+function formatDate(value, t) {
+  if (!value) return t("dashboard.notSet");
 
   return new Intl.DateTimeFormat("sv-SE", {
     dateStyle: "medium",
@@ -19,8 +20,8 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-function formatShortDate(value) {
-  if (!value) return "Not set";
+function formatShortDate(value, t) {
+  if (!value) return t("dashboard.notSet");
 
   return new Intl.DateTimeFormat("sv-SE", {
     month: "short",
@@ -30,46 +31,47 @@ function formatShortDate(value) {
   }).format(new Date(value));
 }
 
-function formatCampaignDate(campaign) {
-  if (!campaign) return "Date not set";
+function formatCampaignDate(campaign, t) {
+  if (!campaign) return t("dashboard.dateNotSet");
 
   if (campaign.start_date && campaign.end_date) {
-    return `${formatShortDate(campaign.start_date)} – ${formatShortDate(
-      campaign.end_date
+    return `${formatShortDate(campaign.start_date, t)} – ${formatShortDate(
+      campaign.end_date,
+      t
     )}`;
   }
 
-  return formatShortDate(campaign.event_date || campaign.start_date);
+  return formatShortDate(campaign.event_date || campaign.start_date, t);
 }
 
-function formatStatus(status) {
-  if (!status) return "Draft";
+function formatStatus(status, t) {
+  if (!status) return t("dashboard.status.draft");
 
   const labels = {
-    draft: "Draft",
-    pending_approval: "Pending approval",
-    approved: "Approved",
-    scheduled: "Scheduled",
-    published: "Published",
-    failed: "Failed",
+    draft: t("dashboard.status.draft"),
+    pending_approval: t("dashboard.status.pendingApproval"),
+    approved: t("dashboard.status.approved"),
+    scheduled: t("dashboard.status.scheduled"),
+    published: t("dashboard.status.published"),
+    failed: t("dashboard.status.failed"),
   };
 
   return labels[status] || status;
 }
 
-function formatScheduleType(value) {
-  if (value === "once") return "One time";
-  if (value === "weekly") return "Weekly";
+function formatScheduleType(value, t) {
+  if (value === "once") return t("dashboard.schedule.once");
+  if (value === "weekly") return t("dashboard.schedule.weekly");
 
-  return "Scheduled";
+  return t("dashboard.schedule.scheduled");
 }
 
-function formatPlanName(rule) {
+function formatPlanName(rule, t) {
   if (rule?.name) return rule.name;
   if (rule?.content_type_label) return rule.content_type_label;
   if (rule?.post_type) return rule.post_type;
 
-  return "Content plan";
+  return t("dashboard.contentPlan");
 }
 
 function getCurrentMonthStart() {
@@ -194,7 +196,7 @@ export default function Home() {
     try {
       selectedBrand = await getCurrentBrand(user);
     } catch (error) {
-      setMessage(error.message || "Could not load selected brand.");
+      setMessage(error.message || t("dashboard.errorLoadBrand"));
     }
 
     if (!selectedBrand?.id) {
@@ -359,7 +361,7 @@ export default function Home() {
       : 0;
 
   const nextAutomation = upcomingRules[0] || null;
-  const currentBrandName = brandProfile?.business_name || "Current brand";
+  const currentBrandName = brandProfile?.business_name || t("dashboard.currentBrand");
 
   function togglePendingPostSelection(postId) {
     setDeleteConfirmActive(false);
@@ -416,7 +418,7 @@ export default function Home() {
       .in("id", idsToDelete);
 
     if (error) {
-      setMessage(error.message || "Could not delete selected posts.");
+      setMessage(error.message || t("dashboard.errorDeletePosts"));
       setBulkActionLoading(false);
       return;
     }
@@ -428,28 +430,25 @@ export default function Home() {
     setSelectedPendingPostIds([]);
     setDeleteConfirmActive(false);
     setBulkActionLoading(false);
-    setMessage(`${idsToDelete.length} selected post(s) deleted.`);
+    setMessage(t("dashboard.deletedPosts", { count: idsToDelete.length }));
   }
     return (
     <AppLayout active="dashboard">
       <div className="dashboard-page">
         <header className="dashboard-hero">
           <div>
-            <p className="dashboard-eyebrow">Dashboard</p>
-            <h2>{currentBrandName} overview</h2>
-            <span>
-              See what Spreelo is creating for this brand, what needs review and
-              what is coming next.
-            </span>
+            <p className="dashboard-eyebrow">{t("dashboard.eyebrow")}</p>
+            <h2>{t("dashboard.title", { brandName: currentBrandName })}</h2>
+            <span>{t("dashboard.subtitle")}</span>
           </div>
 
           <div className="dashboard-hero-actions">
             <a className="dashboard-secondary-action" href="/calendar">
-              Your calendar
+              {t("dashboard.yourCalendar")}
             </a>
 
             <a className="dashboard-primary-action" href="/automation">
-              New content plan
+              {t("dashboard.newContentPlan")}
             </a>
           </div>
         </header>
@@ -459,36 +458,36 @@ export default function Home() {
         {!loading && !currentBrandId ? (
           <section className="dashboard-card">
             <div className="dashboard-empty">
-              <h4>No brand selected</h4>
-              <p>Create or choose a brand from the sidebar to see its dashboard.</p>
-              <a href="/brand">Open brand profile</a>
+              <h4>{t("dashboard.noBrandTitle")}</h4>
+              <p>{t("dashboard.noBrandText")}</p>
+              <a href="/brand">{t("dashboard.openBrandProfile")}</a>
             </div>
           </section>
         ) : (
           <>
             <section className="dashboard-stat-grid">
               <div className="dashboard-stat-card">
-                <span>Planned posts</span>
+                <span>{t("dashboard.stat.plannedPosts")}</span>
                 <strong>{activeRules.length + scheduledPosts.length}</strong>
-                <p>Upcoming content plans and scheduled content.</p>
+                <p>{t("dashboard.stat.plannedPostsText")}</p>
               </div>
 
               <div className="dashboard-stat-card">
-                <span>Pending approval</span>
+                <span>{t("dashboard.stat.pendingApproval")}</span>
                 <strong>{pendingApprovalPosts.length}</strong>
-                <p>Posts waiting for review.</p>
+                <p>{t("dashboard.stat.pendingApprovalText")}</p>
               </div>
 
               <div className="dashboard-stat-card">
-                <span>Published this month</span>
+                <span>{t("dashboard.stat.publishedThisMonth")}</span>
                 <strong>{publishedThisMonthCount}</strong>
-                <p>Published posts in the current month.</p>
+                <p>{t("dashboard.stat.publishedThisMonthText")}</p>
               </div>
 
               <div className="dashboard-stat-card">
-                <span>Active content plans</span>
+                <span>{t("dashboard.stat.activePlans")}</span>
                 <strong>{activeRules.length}</strong>
-                <p>Saved plans currently active for this brand.</p>
+                <p>{t("dashboard.stat.activePlansText")}</p>
               </div>
             </section>
 
@@ -497,26 +496,23 @@ export default function Home() {
                 <section className="dashboard-card">
                   <div className="dashboard-card-header">
                     <div>
-                      <p>Upcoming</p>
-                      <h3>Next planned posts</h3>
+                      <p>{t("dashboard.upcomingEyebrow")}</p>
+                      <h3>{t("dashboard.nextPlannedPosts")}</h3>
                     </div>
 
-                    <a href="/calendar">Your calendar</a>
+                    <a href="/calendar">{t("dashboard.yourCalendar")}</a>
                   </div>
 
                   {loading ? (
                     <div className="dashboard-empty">
-                      <h4>Loading upcoming posts...</h4>
-                      <p>Please wait while Spreelo loads your plan.</p>
+                      <h4>{t("dashboard.loadingUpcomingTitle")}</h4>
+                      <p>{t("dashboard.loadingUpcomingText")}</p>
                     </div>
                   ) : upcomingRules.length === 0 ? (
                     <div className="dashboard-empty">
-                      <h4>No upcoming content plans for {currentBrandName}</h4>
-                      <p>
-                        Create a content plan for this brand and Spreelo will
-                        show the next planned posts here.
-                      </p>
-                      <a href="/automation">Create content plan</a>
+                      <h4>{t("dashboard.noUpcomingTitle", { brandName: currentBrandName })}</h4>
+                      <p>{t("dashboard.noUpcomingText")}</p>
+                      <a href="/automation">{t("dashboard.createContentPlan")}</a>
                     </div>
                   ) : (
                     <div className="dashboard-upcoming-list">
@@ -526,28 +522,28 @@ export default function Home() {
                           key={rule.id}
                         >
                           <div className="dashboard-upcoming-date">
-                            <strong>{formatShortDate(rule.next_run_at)}</strong>
-                            <span>{formatScheduleType(rule.schedule_type)}</span>
+                            <strong>{formatShortDate(rule.next_run_at, t)}</strong>
+                            <span>{formatScheduleType(rule.schedule_type, t)}</span>
                           </div>
 
                           <div className="dashboard-upcoming-content">
-                            <h4>{formatPlanName(rule)}</h4>
+                            <h4>{formatPlanName(rule, t)}</h4>
                             <p>
-                              {rule.platform || "Platform not set"} ·{" "}
+                              {rule.platform || t("dashboard.platformNotSet")} ·{" "}
                               {rule.content_type_label ||
                                 rule.post_type ||
-                                "Post"}{" "}
+                                t("dashboard.post")}{" "}
                               ·{" "}
                               {rule.generate_image
-                                ? "Text + image"
-                                : "Text only"}
+                                ? t("dashboard.textImage")
+                                : t("dashboard.textOnly")}
                             </p>
                           </div>
 
                           <div className="dashboard-upcoming-mode">
                             {rule.approval_required
-                              ? "Review first"
-                              : "Auto publish"}
+                              ? t("dashboard.reviewFirst")
+                              : t("dashboard.autoPublish")}
                           </div>
                         </article>
                       ))}
@@ -561,8 +557,8 @@ export default function Home() {
                 >
                   <div className="saved-header">
                     <div>
-                      <p>Review</p>
-                      <h3>Pending approval</h3>
+                      <p>{t("dashboard.reviewEyebrow")}</p>
+                      <h3>{t("dashboard.pendingApproval")}</h3>
                     </div>
 
                     <button
@@ -575,7 +571,7 @@ export default function Home() {
                         pendingApprovalPosts.length <= PENDING_PREVIEW_LIMIT
                       }
                     >
-                      {showAllPendingPosts ? "Show less" : "Show all"}
+                      {showAllPendingPosts ? t("dashboard.showLess") : t("dashboard.showAll")}
                     </button>
                   </div>
 
@@ -593,13 +589,11 @@ export default function Home() {
                             }
                           }}
                         />
-                        Select visible
+                        {t("dashboard.selectVisible")}
                       </label>
 
                       <span>
-                        {selectedPendingCount} selected · showing{" "}
-                        {visiblePendingApprovalPosts.length} of{" "}
-                        {pendingApprovalPosts.length}
+                        {t("dashboard.selectedShowing", { selected: selectedPendingCount, visible: visiblePendingApprovalPosts.length, total: pendingApprovalPosts.length })}
                       </span>
 
                       {selectedPendingCount > 0 && (
@@ -609,7 +603,7 @@ export default function Home() {
                           onClick={clearSelectedPendingPosts}
                           disabled={bulkActionLoading}
                         >
-                          Clear
+                          {t("dashboard.clear")}
                         </button>
                       )}
 
@@ -621,18 +615,16 @@ export default function Home() {
                           disabled={bulkActionLoading}
                         >
                           {bulkActionLoading
-                            ? "Deleting..."
+                            ? t("dashboard.deleting")
                             : deleteConfirmActive
-                              ? `Confirm delete ${selectedPendingCount}`
-                              : "Delete selected"}
+                              ? t("dashboard.confirmDelete", { count: selectedPendingCount })
+                              : t("dashboard.deleteSelected")}
                         </button>
                       )}
 
                       {deleteConfirmActive && selectedPendingCount > 0 && (
                         <span className="delete-confirm-note">
-                          Click confirm to delete {selectedPendingCount}{" "}
-                          selected post
-                          {selectedPendingCount === 1 ? "" : "s"}.
+                          {t("dashboard.confirmDeleteNote", { count: selectedPendingCount })}
                         </span>
                       )}
                     </div>
@@ -640,16 +632,13 @@ export default function Home() {
 
                   {loading ? (
                     <div className="dashboard-empty">
-                      <h4>Loading review queue...</h4>
-                      <p>Please wait while Spreelo loads your content.</p>
+                      <h4>{t("dashboard.loadingReviewTitle")}</h4>
+                      <p>{t("dashboard.loadingReviewText")}</p>
                     </div>
                   ) : pendingApprovalPosts.length === 0 ? (
                     <div className="dashboard-empty success">
-                      <h4>No posts waiting for approval</h4>
-                      <p>
-                        You are all caught up for {currentBrandName}. New posts
-                        will appear here when they need review.
-                      </p>
+                      <h4>{t("dashboard.noApprovalTitle")}</h4>
+                      <p>{t("dashboard.noApprovalText", { brandName: currentBrandName })}</p>
                     </div>
                   ) : (
                     <>
@@ -679,7 +668,7 @@ export default function Home() {
                               <img
                                 className="dashboard-pending-thumb"
                                 src={post.image_url}
-                                alt="Generated post image"
+                                alt={t("dashboard.generatedImageAlt")}
                               />
                             ) : (
                               <div className="dashboard-pending-placeholder">
@@ -689,15 +678,15 @@ export default function Home() {
 
                             <div>
                               <h4>
-                                {post.platform || "Platform not set"} ·{" "}
-                                {post.post_type || "Post"}
+                                {post.platform || t("dashboard.platformNotSet")} ·{" "}
+                                {post.post_type || t("dashboard.post")}
                               </h4>
 
                               <p>
                                 {(
                                   post.content ||
                                   post.idea ||
-                                  "No preview available"
+                                  t("dashboard.noPreview")
                                 )
                                   .split("\n")
                                   .slice(0, 2)
@@ -705,11 +694,11 @@ export default function Home() {
                               </p>
 
                               <small>
-                                Created {formatDate(post.created_at)} ·{" "}
+                                {t("dashboard.created", { date: formatDate(post.created_at, t) })} ·{" "}
                                 {post.source_label ||
                                   (post.source === "automation"
-                                    ? "Generated by content plan"
-                                    : "Manual draft")}
+                                    ? t("dashboard.generatedByPlan")
+                                    : t("dashboard.manualDraft"))}
                               </small>
                             </div>
 
@@ -717,7 +706,7 @@ export default function Home() {
                               className="dashboard-pending-review-button"
                               href={`/posts/${post.id}`}
                             >
-                              Review
+                              {t("dashboard.review")}
                             </a>
                           </article>
                         ))}
@@ -731,10 +720,11 @@ export default function Home() {
                             className="show-more-rules"
                             onClick={() => setShowAllPendingPosts(true)}
                           >
-                            Show{" "}
-                            {pendingApprovalPosts.length -
-                              PENDING_PREVIEW_LIMIT}{" "}
-                            more pending posts
+                            {t("dashboard.showMorePending", {
+                              count:
+                                pendingApprovalPosts.length -
+                                PENDING_PREVIEW_LIMIT,
+                            })}
                           </button>
                         )}
 
@@ -749,7 +739,7 @@ export default function Home() {
                               clearSelectedPendingPosts();
                             }}
                           >
-                            Show less
+                            {t("dashboard.showLess")}
                           </button>
                         )}
                     </>
@@ -762,8 +752,8 @@ export default function Home() {
                   <div className="dashboard-side-title">
                     <span>▣</span>
                     <div>
-                      <h3>Credits usage</h3>
-                      <p>Your current credit balance.</p>
+                      <h3>{t("dashboard.creditsUsage")}</h3>
+                      <p>{t("dashboard.creditsBalanceText")}</p>
                     </div>
                   </div>
 
@@ -771,24 +761,19 @@ export default function Home() {
                     <>
                       <div className="dashboard-credit-number">
                         <strong>{creditsRemaining}</strong>
-                        <span>/ {monthlyCreditLimit || "—"} left</span>
+                        <span>{t("dashboard.creditsLeft", { limit: monthlyCreditLimit || "—" })}</span>
                       </div>
 
                       <div className="dashboard-credit-bar">
                         <div style={{ width: `${creditUsagePercent}%` }} />
                       </div>
 
-                      <p className="dashboard-side-note">
-                        Credits are used when posts are generated, not when a
-                        plan is saved.
-                      </p>
+                      <p className="dashboard-side-note">{t("dashboard.creditsUsageText")}</p>
                     </>
                   ) : (
                     <div className="dashboard-mini-empty">
-                      <strong>No credit balance found</strong>
-                      <p>
-                        Credits will appear here when the account has a balance.
-                      </p>
+                      <strong>{t("dashboard.noCreditsTitle")}</strong>
+                      <p>{t("dashboard.noCreditsText")}</p>
                     </div>
                   )}
                 </section>
@@ -797,8 +782,8 @@ export default function Home() {
                   <div className="dashboard-side-title">
                     <span>✓</span>
                     <div>
-                      <h3>Brand profile</h3>
-                      <p>Helps Spreelo create better posts.</p>
+                      <h3>{t("dashboard.brandProfile")}</h3>
+                      <p>{t("dashboard.brandProfileText")}</p>
                     </div>
                   </div>
 
@@ -807,7 +792,7 @@ export default function Home() {
                       <strong>{brandCompleteness.percent}%</strong>
                       <span>
                         {brandCompleteness.completed}/{brandCompleteness.total}{" "}
-                        completed
+                        {t("dashboard.completed")}
                       </span>
                     </div>
 
@@ -818,12 +803,12 @@ export default function Home() {
 
                   <p className="dashboard-side-note">
                     {brandCompleteness.percent === 100
-                      ? "This brand profile has the core fields completed."
-                      : "Complete this brand profile to improve future content."}
+                      ? t("dashboard.brandComplete")
+                      : t("dashboard.brandIncomplete")}
                   </p>
 
                   <a className="dashboard-side-link" href="/brand">
-                    Edit brand profile
+                    {t("dashboard.editBrandProfile")}
                   </a>
                 </section>
 
@@ -831,8 +816,8 @@ export default function Home() {
                   <div className="dashboard-side-title">
                     <span>◇</span>
                     <div>
-                      <h3>Suggested campaign</h3>
-                      <p>Recommended next campaign idea.</p>
+                      <h3>{t("dashboard.suggestedCampaign")}</h3>
+                      <p>{t("dashboard.suggestedCampaignText")}</p>
                     </div>
                   </div>
 
@@ -843,8 +828,7 @@ export default function Home() {
                       </strong>
 
                       <p className="dashboard-side-note">
-                        {formatCampaignDate(suggestedCampaign)} · Recommended:{" "}
-                        {suggestedCampaign.recommended_post_count || 3} posts
+                        {formatCampaignDate(suggestedCampaign, t)} · {t("dashboard.recommendedPosts", { count: suggestedCampaign.recommended_post_count || 3 })}
                       </p>
 
                       {suggestedCampaign.description && (
@@ -857,21 +841,19 @@ export default function Home() {
   className="dashboard-side-link"
   href={`/automation?campaignOpportunityId=${suggestedCampaign.id}&brandProfileId=${currentBrandId}`}
 >
-  Create campaign plan
+  {t("dashboard.createCampaignPlan")}
 </a>
                     </>
                   ) : (
                     <>
                       <strong className="dashboard-next-title">
-                        No suggested campaign yet
+                        {t("dashboard.noSuggestedCampaign")}
                       </strong>
 
-                      <p className="dashboard-side-note">
-                        Open Calendar to review campaign ideas for this brand.
-                      </p>
+                      <p className="dashboard-side-note">{t("dashboard.openCalendarText")}</p>
 
                       <a className="dashboard-side-link" href="/calendar">
-                        Open calendar
+                        {t("dashboard.openCalendar")}
                       </a>
                     </>
                   )}
@@ -882,20 +864,20 @@ export default function Home() {
                     <div className="dashboard-side-title">
                       <span>⌁</span>
                       <div>
-                        <h3>Next content plan</h3>
-                        <p>{formatDate(nextAutomation.next_run_at)}</p>
+                        <h3>{t("dashboard.nextContentPlan")}</h3>
+                        <p>{formatDate(nextAutomation.next_run_at, t)}</p>
                       </div>
                     </div>
 
                     <strong className="dashboard-next-title">
-                      {formatPlanName(nextAutomation)}
+                      {formatPlanName(nextAutomation, t)}
                     </strong>
 
                     <p className="dashboard-side-note">
-                      {nextAutomation.platform || "Platform not set"} ·{" "}
+                      {nextAutomation.platform || t("dashboard.platformNotSet")} ·{" "}
                       {nextAutomation.approval_required
-                        ? "Review before publishing"
-                        : "Publishes automatically"}
+                        ? t("dashboard.reviewBeforePublishing")
+                        : t("dashboard.publishesAutomatically")}
                     </p>
                   </section>
                 )}
