@@ -3,8 +3,24 @@
 import { useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
+
+const platformOptions = ["Instagram", "Facebook", "LinkedIn"];
+const toneOptions = ["Friendly", "Professional", "Sales-focused", "Premium"];
+const languageOptions = ["English", "Swedish"];
+const postTypeOptions = ["Offer", "News", "Educational", "Reminder"];
+const lengthOptions = ["Short", "Medium", "Long"];
+const ctaTypeOptions = [
+  "Learn more",
+  "Visit website",
+  "Contact us",
+  "Book now",
+  "Shop now",
+];
 
 export default function CreatePost() {
+  const { t } = useUiText(["create"]);
+
   const [idea, setIdea] = useState("");
   const [platform, setPlatform] = useState("Instagram");
   const [tone, setTone] = useState("Friendly");
@@ -26,7 +42,7 @@ export default function CreatePost() {
     setGeneratedPost("");
 
     if (!idea.trim()) {
-      setMessage("Write a short idea first, then Spreelo can generate a post.");
+      setMessage(t("create.errorIdeaRequired"));
       return;
     }
 
@@ -65,14 +81,14 @@ export default function CreatePost() {
       const data = await response.json();
 
       if (!response.ok) {
-        setMessage(data.error || "Could not generate post.");
+        setMessage(data.error || t("create.errorGenerate"));
         setGenerating(false);
         return;
       }
 
       setGeneratedPost(data.content || "");
     } catch (error) {
-      setMessage(error.message || "Something went wrong.");
+      setMessage(error.message || t("create.errorGeneric"));
     }
 
     setGenerating(false);
@@ -82,7 +98,7 @@ export default function CreatePost() {
     setMessage("");
 
     if (!generatedPost.trim()) {
-      setMessage("Generate a post before saving.");
+      setMessage(t("create.errorSaveBeforeGenerate"));
       return;
     }
 
@@ -117,7 +133,7 @@ export default function CreatePost() {
     if (error) {
       setMessage(error.message);
     } else {
-      setMessage("Draft saved.");
+      setMessage(t("create.draftSaved"));
     }
 
     setSaving(false);
@@ -127,118 +143,124 @@ export default function CreatePost() {
     <AppLayout active="create">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Create post</p>
-          <h2>Generate social media content</h2>
+          <p className="eyebrow">{t("create.eyebrow")}</p>
+          <h2>{t("create.title")}</h2>
         </div>
       </header>
 
       <section className="hero-card">
         <div>
-          <p className="eyebrow">AI assistant</p>
-          <h3>Build a better post draft</h3>
-          <p>
-            Choose platform, tone, language, length and call to action. Spreelo
-            uses your brand profile to create a more useful AI-generated draft.
-          </p>
+          <p className="eyebrow">{t("create.assistantEyebrow")}</p>
+          <h3>{t("create.assistantTitle")}</h3>
+          <p>{t("create.assistantText")}</p>
         </div>
 
         <div className="prompt-box">
           <div className="form-grid">
             <div>
-              <label>Platform</label>
+              <label>{t("create.platform")}</label>
               <select
                 className="input"
                 value={platform}
                 onChange={(event) => setPlatform(event.target.value)}
               >
-                <option>Instagram</option>
-                <option>Facebook</option>
-                <option>LinkedIn</option>
+                {platformOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {t(`create.platform.${option}`)}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label>Tone</label>
+              <label>{t("create.tone")}</label>
               <select
                 className="input"
                 value={tone}
                 onChange={(event) => setTone(event.target.value)}
               >
-                <option>Friendly</option>
-                <option>Professional</option>
-                <option>Sales-focused</option>
-                <option>Premium</option>
+                {toneOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {t(`create.tone.${option}`)}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label>Language</label>
+              <label>{t("create.language")}</label>
               <select
                 className="input"
                 value={language}
                 onChange={(event) => setLanguage(event.target.value)}
               >
-                <option>English</option>
-                <option>Swedish</option>
+                {languageOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {t(`create.language.${option}`)}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label>Post type</label>
+              <label>{t("create.postType")}</label>
               <select
                 className="input"
                 value={postType}
                 onChange={(event) => setPostType(event.target.value)}
               >
-                <option>Offer</option>
-                <option>News</option>
-                <option>Educational</option>
-                <option>Reminder</option>
+                {postTypeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {t(`create.postType.${option}`)}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label>Length</label>
+              <label>{t("create.length")}</label>
               <select
                 className="input"
                 value={length}
                 onChange={(event) => setLength(event.target.value)}
               >
-                <option>Short</option>
-                <option>Medium</option>
-                <option>Long</option>
+                {lengthOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {t(`create.length.${option}`)}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label>CTA type</label>
+              <label>{t("create.ctaType")}</label>
               <select
                 className="input"
                 value={ctaType}
                 onChange={(event) => setCtaType(event.target.value)}
               >
-                <option>Learn more</option>
-                <option>Visit website</option>
-                <option>Contact us</option>
-                <option>Book now</option>
-                <option>Shop now</option>
+                {ctaTypeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {t(`create.ctaType.${option}`)}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          <label>Website URL</label>
+          <label>{t("create.websiteUrl")}</label>
           <input
             className="input"
             value={websiteUrl}
             onChange={(event) => setWebsiteUrl(event.target.value)}
-            placeholder="Example: https://www.yourwebsite.com"
+            placeholder={t("create.websiteUrlPlaceholder")}
           />
 
-          <label>Post idea</label>
+          <label>{t("create.postIdea")}</label>
           <textarea
             value={idea}
             onChange={(event) => setIdea(event.target.value)}
-            placeholder="Example: We want to promote our new lunch menu this week..."
+            placeholder={t("create.postIdeaPlaceholder")}
           />
 
           <div className="toggle-row">
@@ -248,7 +270,7 @@ export default function CreatePost() {
                 checked={includeEmojis}
                 onChange={(event) => setIncludeEmojis(event.target.checked)}
               />
-              Include emojis
+              {t("create.includeEmojis")}
             </label>
 
             <label>
@@ -257,7 +279,7 @@ export default function CreatePost() {
                 checked={includeHashtags}
                 onChange={(event) => setIncludeHashtags(event.target.checked)}
               />
-              Include hashtags
+              {t("create.includeHashtags")}
             </label>
           </div>
 
@@ -266,7 +288,7 @@ export default function CreatePost() {
             onClick={generateDraft}
             disabled={generating}
           >
-            {generating ? "Generating..." : "Generate AI draft"}
+            {generating ? t("create.generating") : t("create.generateDraft")}
           </button>
 
           {message && <p className="login-message">{message}</p>}
@@ -277,8 +299,8 @@ export default function CreatePost() {
         <section className="result-card">
           <div className="result-header">
             <div>
-              <p className="eyebrow">Generated draft</p>
-              <h3>Your post</h3>
+              <p className="eyebrow">{t("create.generatedEyebrow")}</p>
+              <h3>{t("create.yourPost")}</h3>
             </div>
 
             <div className="button-row">
@@ -286,7 +308,7 @@ export default function CreatePost() {
                 className="secondary-button"
                 onClick={() => navigator.clipboard.writeText(generatedPost)}
               >
-                Copy text
+                {t("create.copyText")}
               </button>
 
               <button
@@ -294,14 +316,15 @@ export default function CreatePost() {
                 onClick={saveDraft}
                 disabled={saving}
               >
-                {saving ? "Saving..." : "Save draft"}
+                {saving ? t("create.saving") : t("create.saveDraft")}
               </button>
             </div>
           </div>
 
           <div className="post-preview">
-            {generatedPost.split("\n").map((line, index) => (
-              <p key={index}>{line || "\u00A0"}</p>
+            {generatedPost.split("
+").map((line, index) => (
+              <p key={index}>{line || " "}</p>
             ))}
           </div>
         </section>
