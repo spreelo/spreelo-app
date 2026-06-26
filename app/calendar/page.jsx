@@ -238,6 +238,121 @@ function buildFallbackCampaignPlan(count, t) {
   });
 }
 
+
+function addDaysToDateString(dateString, daysToAdd) {
+  const date = new Date(`${dateString}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return dateString;
+  }
+
+  date.setDate(date.getDate() + daysToAdd);
+  return date.toISOString().slice(0, 10);
+}
+
+function getCampaignStrategicText(campaign, postPlanItem = null) {
+  return [
+    campaign?.title,
+    campaign?.description,
+    campaign?.prompt_context,
+    campaign?.campaign_category,
+    campaign?.event_type,
+    campaign?.campaign_goal,
+    campaign?.target_customer_need,
+    campaign?.product_selection_guidance,
+    campaign?.website_product_selection_hint,
+    campaign?.website_content_strategy,
+    postPlanItem?.role,
+    postPlanItem?.purpose,
+    postPlanItem?.marketing_angle,
+    postPlanItem?.campaign_phase,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function getCampaignLeadTimeProfile(campaign) {
+  const text = getCampaignStrategicText(campaign);
+  const hasDeliveryOrProductionSignals = /custom|personal|personalized|personalised|made[\s-]?to[\s-]?order|bespoke|tailor|tailored|print|printed|portrait|engraved|engraving|production|produce|delivery|deliver|shipping|ship|order in time|pre[\s-]?order|lead time|appointment|booking|bookable|reservation|consultation|quote|install|installation|kurs|bokning|beställ|leverans|personlig|personliga|anpassad|skräddarsydd|tryck|porträtt|gravyr|produktion|leveranstid|beställningstid/.test(text);
+  const hasFastCommerceSignals = /instant|digital download|same[\s-]?day|pickup|pick[\s-]?up|walk[\s-]?in|in stock|ready[\s-]?made|available now|retail|restaurant|cafe|menu|drop[\s-]?in/.test(text);
+
+  return {
+    isLeadTimeSensitive: hasDeliveryOrProductionSignals && !hasFastCommerceSignals,
+  };
+}
+
+function isCustomerActionDeadlineSensitiveCampaign(campaign) {
+  const text = getCampaignStrategicText(campaign);
+  return /gift|gifts|present|presents|gåva|gåvor|presenter|order|orders|booking|bookings|appointment|reservation|delivery|shipping|ship|printed|print|portrait|custom|personal|personalized|personalised|made[\s-]?to[\s-]?order|bespoke|handmade|limited availability|limited capacity|beställ|bokning|leverans|tryck|porträtt|personlig|personliga|anpassad|skräddarsydd/.test(text);
+}
+
+function shouldUseEventGreetingPost(campaign, count) {
+  const safeCount = Math.max(Math.round(Number(count) || 1), 1);
+  return Boolean(campaign?.event_date) && safeCount >= 4;
+}
+
+function getBestPracticeDaysBeforeEvent(campaign, count) {
+  const safeCount = Math.max(Math.min(Math.round(Number(count) || 1), 7), 1);
+  const leadTimeProfile = getCampaignLeadTimeProfile(campaign);
+  const isActionDeadlineSensitive =
+    leadTimeProfile.isLeadTimeSensitive ||
+    isCustomerActionDeadlineSensitiveCampaign(campaign);
+  const includeEventGreeting = shouldUseEventGreetingPost(campaign, safeCount);
+
+  if (isActionDeadlineSensitive) {
+    if (includeEventGreeting) {
+      const patterns = {
+        4: [21, 14, 8, 0],
+        5: [28, 21, 14, 8, 0],
+        6: [30, 21, 16, 12, 8, 0],
+        7: [35, 28, 21, 16, 12, 8, 0],
+      };
+      return patterns[safeCount] || patterns[5];
+    }
+
+    const patterns = {
+      1: [8],
+      2: [14, 8],
+      3: [21, 14, 8],
+    };
+    return patterns[safeCount] || patterns[3];
+  }
+
+  if (includeEventGreeting) {
+    const patterns = {
+      4: [14, 10, 4, 0],
+      5: [21, 14, 7, 3, 0],
+      6: [21, 14, 10, 7, 3, 0],
+      7: [28, 21, 14, 10, 7, 3, 0],
+    };
+    return patterns[safeCount] || patterns[5];
+  }
+
+  const patterns = {
+    1: [2],
+    2: [7, 2],
+    3: [14, 7, 3],
+  };
+  return patterns[safeCount] || patterns[3];
+}
+
+function getBestPracticeTimingAnchor(index, total) {
+  if (shouldUseEventGreetingPost({ event_date: true }, total) && index === total - 1) {
+    return "relationship_event";
+  }
+
+  if (index === total - 1 || index === total - 2) {
+    return "deadline_before_event";
+  }
+
+  if (index >= Math.max(1, total - 3)) {
+    return "conversion_before_deadline";
+  }
+
+  return "start";
+}
+
 function buildCampaignPostPlan(campaign, recommendedCount, t) {
   const rawPostPlan = Array.isArray(campaign?.post_plan)
     ? campaign.post_plan
@@ -275,13 +390,32 @@ function buildCampaignPostPlan(campaign, recommendedCount, t) {
     };
   });
 
-  return mergedPlan.sort((a, b) => {
+  const sortedMergedPlan = mergedPlan.sort((a, b) => {
     const aDays =
       typeof a?.days_before_event === "number" ? a.days_before_event : 0;
     const bDays =
       typeof b?.days_before_event === "number" ? b.days_before_event : 0;
 
     return bDays - aDays;
+  });
+
+  if (!campaign?.event_date) {
+    return sortedMergedPlan;
+  }
+
+  const bestPracticeDays = getBestPracticeDaysBeforeEvent(
+    campaign,
+    recommendedCount
+  );
+
+  return sortedMergedPlan.map((post, index) => {
+    const daysBeforeEvent = bestPracticeDays[index] ?? 0;
+    return {
+      ...post,
+      days_before_event: daysBeforeEvent,
+      timing_anchor:
+        post.timing_anchor || getBestPracticeTimingAnchor(index, recommendedCount),
+    };
   });
 }
 
@@ -353,54 +487,79 @@ function getCampaignPlanTimingAnchor(postPlanItem, index = 0, total = 1) {
   return "start";
 }
 
-function getCampaignPostTimingLabel(campaign, post, index, total, t) {
+function getSafeUiLabel(t, key, fallback, variables = {}) {
+  const value = t(key, variables);
+
+  if (!value || value === key || value.includes(".")) {
+    return fallback;
+  }
+
+  return value;
+}
+
+function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "en") {
   const daysBeforeEvent =
     typeof post?.days_before_event === "number" ? post.days_before_event : null;
 
   if (campaign?.event_date && typeof daysBeforeEvent === "number") {
+    const publishDate = addDaysToDateString(campaign.event_date, -daysBeforeEvent);
+    const publishDateLabel = formatDate(publishDate, locale);
     const timingAnchor = getCampaignPlanTimingAnchor(post, index, total);
 
     if (daysBeforeEvent === 0) {
-      return timingAnchor === "relationship_event"
-        ? t("calendar.publishEventGreeting")
-        : t("common.publishOnCampaignDate");
+      const greetingLabel = getSafeUiLabel(
+        t,
+        "calendar.publishEventGreeting",
+        locale === "sv" ? "högtidsdagen som hälsning" : "main date as a greeting"
+      );
+
+      return `${publishDateLabel} · ${greetingLabel}`;
     }
+
+    const daysLabel = getSafeUiLabel(
+      t,
+      "common.daysBefore",
+      locale === "sv" ? `${daysBeforeEvent} dagar innan` : `${daysBeforeEvent} days before`,
+      { days: daysBeforeEvent }
+    );
 
     if (timingAnchor === "deadline_before_event") {
-      return t("common.daysBeforeDeadline", { days: daysBeforeEvent });
+      return `${publishDateLabel} · ${daysLabel} · ${
+        locale === "sv" ? "sista beställningspåminnelse" : "final order reminder"
+      }`;
     }
 
-    if (timingAnchor === "conversion_before_deadline") {
-      return t("common.daysBeforeDecisionWindow", { days: daysBeforeEvent });
-    }
-
-    return t("common.daysBefore", { days: daysBeforeEvent });
+    return `${publishDateLabel} · ${daysLabel}`;
   }
 
   if (campaign?.start_date && campaign?.end_date) {
     const timingAnchor = getCampaignPlanTimingAnchor(post, index, total);
 
     if (timingAnchor === "relationship_event") {
-      return t("calendar.publishSoftFinalDate");
+      return getSafeUiLabel(
+        t,
+        "calendar.publishSoftFinalDate",
+        locale === "sv"
+          ? "Publicera på slutdatumet som mjuk relationspost"
+          : "Publish on the final date as a softer relationship post"
+      );
     }
 
     if (timingAnchor === "deadline_before_event") {
-      return t("calendar.publishBeforeDeadline");
+      return getSafeUiLabel(
+        t,
+        "calendar.publishBeforeDeadline",
+        locale === "sv"
+          ? "Publicera före den realistiska deadline som gäller"
+          : "Publish before the realistic deadline"
+      );
     }
 
-    if (timingAnchor === "conversion_before_deadline") {
-      return t("calendar.publishDecisionWindow");
-    }
-
-    if (timingAnchor === "trust") {
-      return t("calendar.publishTrustBeforeDecision");
-    }
-
-    if (timingAnchor === "engagement" || timingAnchor === "middle") {
-      return t("calendar.publishWarmupCampaign");
-    }
-
-    return t("calendar.publishEarlyCampaign");
+    return getSafeUiLabel(
+      t,
+      "calendar.publishWarmupCampaign",
+      locale === "sv" ? "Publicera som uppvärmning" : "Publish as a warm-up post"
+    );
   }
 
   return "";
@@ -784,7 +943,8 @@ export default function Calendar() {
                                 post,
                                 index,
                                 selectedCampaignPostPlan.length,
-                                t
+                                t,
+                                locale
                               ) && (
                                 <small>
                                   {getCampaignPostTimingLabel(
@@ -792,7 +952,8 @@ export default function Calendar() {
                                     post,
                                     index,
                                     selectedCampaignPostPlan.length,
-                                    t
+                                    t,
+                                    locale
                                   )}
                                 </small>
                               )}
