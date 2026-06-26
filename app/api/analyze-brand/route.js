@@ -1299,6 +1299,7 @@ Return JSON only in this exact shape:
         {
           "role": "Campaign post role, for example Awareness, Product idea, Trust builder or Final reminder",
           "days_before_event": 14,
+          "timing_anchor": "before_start | start | middle | end | event",
           "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main",
           "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency | main",
           "customer_stage": "cold | warm | ready_to_buy",
@@ -1337,9 +1338,13 @@ Rules:
 - Include seasonal campaigns if exact date is uncertain.
 - For exact dated events, event_date must be YYYY-MM-DD.
 - For date ranges or seasons, use start_date and end_date.
+- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the campaign start when useful, and use timing_anchor to say where the post belongs: before_start, start, middle or end.
+- For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" so they are scheduled near the end of the period, not the day after the first post.
+- For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 - The final post in post_plan should normally have days_before_event 0 when event_date exists.
 - Earlier post_plan items should prepare the audience before the event.
+- Every post_plan item should include timing_anchor. For exact event_date campaigns use "event" or "before_start". For start_date/end_date campaigns use "before_start", "start", "middle" or "end" to control when the post should be scheduled.
 - Every campaign opportunity must include a strategic campaign blueprint using campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, tone_guidance, cta_guidance and image_guidance.
 - The campaign blueprint should explain how this campaign should move the audience from interest to action.
 - recommended_angles should contain the best marketing angles for the recommended_post_count.
@@ -1646,6 +1651,7 @@ Return JSON only in this exact shape:
             {
           "role": "Campaign post role, for example Awareness, Product idea, Trust builder or Final reminder",
           "days_before_event": 14,
+          "timing_anchor": "before_start | start | middle | end | event",
           "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main",
           "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency | main",
           "customer_stage": "cold | warm | ready_to_buy",
@@ -1684,9 +1690,13 @@ Rules:
 - Include seasonal campaigns if exact date is uncertain.
 - For exact dated events, event_date must be YYYY-MM-DD.
 - For date ranges or seasons, use start_date and end_date.
+- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the campaign start when useful, and use timing_anchor to say where the post belongs: before_start, start, middle or end.
+- For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" so they are scheduled near the end of the period, not the day after the first post.
+- For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 - The final post in post_plan should normally have days_before_event 0 when event_date exists.
 - Earlier post_plan items should prepare the audience before the event.
+- Every post_plan item should include timing_anchor. For exact event_date campaigns use "event" or "before_start". For start_date/end_date campaigns use "before_start", "start", "middle" or "end" to control when the post should be scheduled.
 - recommended_post_count must be between 1 and 10.
 - relevance_score, sales_score and engagement_score must be between 1 and 5.
 - For each campaign opportunity, classify website_content_fit:
