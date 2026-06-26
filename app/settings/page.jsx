@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
 
 export default function Settings() {
+  const { t } = useUiText(["settings"]);
+
   const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -26,18 +29,16 @@ export default function Settings() {
     if (deletingAccount) return;
 
     if (confirmText !== "DELETE") {
-      setDeleteMessage("Type DELETE to confirm account deletion.");
+      setDeleteMessage(t("settings.errorTypeDelete"));
       return;
     }
 
-    const confirmed = window.confirm(
-      "This will permanently delete your Spreelo account, all brands, posts, content plans, campaign data and social connections. This cannot be undone."
-    );
+    const confirmed = window.confirm(t("settings.deleteConfirmDialog"));
 
     if (!confirmed) return;
 
     setDeletingAccount(true);
-    setDeleteMessage("Deleting your account...");
+    setDeleteMessage(t("settings.deletingMessage"));
 
     try {
       const {
@@ -59,14 +60,14 @@ export default function Settings() {
       const result = await response.json();
 
       if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Could not delete account.");
+        throw new Error(result?.error || t("settings.errorDeleteAccount"));
       }
 
       await supabase.auth.signOut();
 
       window.location.href = "/login";
     } catch (error) {
-      setDeleteMessage(error.message || "Could not delete account.");
+      setDeleteMessage(error.message || t("settings.errorDeleteAccount"));
       setDeletingAccount(false);
     }
   }
@@ -75,44 +76,46 @@ export default function Settings() {
     <AppLayout active="settings">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Settings</p>
-          <h2>Manage your Spreelo workspace</h2>
+          <p className="eyebrow">{t("settings.eyebrow")}</p>
+          <h2>{t("settings.title")}</h2>
         </div>
       </header>
 
       <section className="hero-card">
         <div>
-          <p className="eyebrow">Account</p>
-          <h3>Your account</h3>
-          <p>Manage your Spreelo account and account data.</p>
+          <p className="eyebrow">{t("settings.accountEyebrow")}</p>
+          <h3>{t("settings.accountTitle")}</h3>
+          <p>{t("settings.accountText")}</p>
         </div>
 
         <div className="prompt-box">
-          <label>Signed in as</label>
-          <div className="input">{currentUserEmail || "Signed in user"}</div>
+          <label>{t("settings.signedInAs")}</label>
+          <div className="input">
+            {currentUserEmail || t("settings.signedInUserFallback")}
+          </div>
         </div>
       </section>
 
       <section className="settings-danger-zone">
         <div>
-          <p className="eyebrow danger-eyebrow">Danger zone</p>
-          <h3>Delete account</h3>
-          <p>
-            Permanently delete your Spreelo account, all brands, posts, content
-            plans, campaign data, social connections and account settings.
+          <p className="eyebrow danger-eyebrow">
+            {t("settings.dangerEyebrow")}
           </p>
+          <h3>{t("settings.deleteTitle")}</h3>
+          <p>{t("settings.deleteText")}</p>
           <p className="danger-warning">
-            This cannot be undone. Type <strong>DELETE</strong> to confirm.
+            {t("settings.deleteWarningBefore")} <strong>DELETE</strong>{" "}
+            {t("settings.deleteWarningAfter")}
           </p>
         </div>
 
         <div className="settings-danger-box">
-          <label>Confirmation</label>
+          <label>{t("settings.confirmation")}</label>
           <input
             className="input"
             value={confirmText}
             onChange={(event) => setConfirmText(event.target.value)}
-            placeholder="Type DELETE"
+            placeholder={t("settings.confirmPlaceholder")}
             disabled={deletingAccount}
           />
 
@@ -122,7 +125,9 @@ export default function Settings() {
             onClick={handleDeleteAccount}
             disabled={deletingAccount}
           >
-            {deletingAccount ? "Deleting account..." : "Delete my account"}
+            {deletingAccount
+              ? t("settings.deletingAccount")
+              : t("settings.deleteButton")}
           </button>
 
           {deleteMessage && (
