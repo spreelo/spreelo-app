@@ -233,7 +233,6 @@ export default function AppLayout({ active, children }) {
 
   return (
     <main className="app-shell spreelo-shell">
-      <LanguageSuggestionBanner />
       <header className="spreelo-mobile-header">
         <a href="/" className="spreelo-mobile-logo">
           <img
@@ -360,7 +359,10 @@ export default function AppLayout({ active, children }) {
         </div>
       </aside>
 
-      <section className="content spreelo-content">{children}</section>
+      <section className="content spreelo-content">
+        {active !== "settings" && <LanguageSuggestionBanner />}
+        {children}
+      </section>
     </main>
   );
 }
