@@ -133,6 +133,7 @@ export default function Home() {
   const [deleteConfirmActive, setDeleteConfirmActive] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [showAllPendingPosts, setShowAllPendingPosts] = useState(false);
+  const { t } = useUiText(["dashboard"]);
 
   useEffect(() => {
     loadDashboard();
