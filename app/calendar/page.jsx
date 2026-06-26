@@ -266,6 +266,8 @@ function getCampaignStrategicText(campaign, postPlanItem = null) {
     postPlanItem?.purpose,
     postPlanItem?.marketing_angle,
     postPlanItem?.campaign_phase,
+    postPlanItem?.timing_anchor,
+    postPlanItem?.schedule_reason,
   ]
     .filter(Boolean)
     .join(" ")
@@ -274,17 +276,39 @@ function getCampaignStrategicText(campaign, postPlanItem = null) {
 
 function getCampaignLeadTimeProfile(campaign) {
   const text = getCampaignStrategicText(campaign);
-  const hasDeliveryOrProductionSignals = /custom|personal|personalized|personalised|made[\s-]?to[\s-]?order|bespoke|tailor|tailored|print|printed|portrait|engraved|engraving|production|produce|delivery|deliver|shipping|ship|order in time|pre[\s-]?order|lead time|appointment|booking|bookable|reservation|consultation|quote|install|installation|kurs|bokning|beställ|leverans|personlig|personliga|anpassad|skräddarsydd|tryck|porträtt|gravyr|produktion|leveranstid|beställningstid/.test(text);
-  const hasFastCommerceSignals = /instant|digital download|same[\s-]?day|pickup|pick[\s-]?up|walk[\s-]?in|in stock|ready[\s-]?made|available now|retail|restaurant|cafe|menu|drop[\s-]?in/.test(text);
+  const hasLongLeadTimeSignals = /custom|personal|personalized|personalised|made[\s-]?to[\s-]?order|bespoke|tailor|tailored|print|printed|portrait|engraved|engraving|production|produce|delivery|deliver|shipping|ship|order in time|pre[\s-]?order|lead time|appointment|booking|bookable|reservation|limited seats|limited availability|limited capacity|consultation|quote|install|installation|service area|gift|gifts|present|presents|kurs|bokning|beställ|leverans|personlig|personliga|anpassad|skräddarsydd|tryck|porträtt|gravyr|produktion|leveranstid|beställningstid|gåva|gåvor|presenter/.test(text);
+  const hasFastActionSignals = /instant|digital download|same[\s-]?day|pickup|pick[\s-]?up|walk[\s-]?in|in stock|ready[\s-]?made|available now|retail|restaurant|cafe|menu|drop[\s-]?in|flash sale|limited[\s-]?time|today only/.test(text);
+
+  if (hasLongLeadTimeSignals && !hasFastActionSignals) {
+    return {
+      isLeadTimeSensitive: true,
+      deadlineLeadDays: 10,
+      conversionLeadDays: 16,
+      trustLeadDays: 23,
+      engagementLeadDays: 30,
+      inspirationLeadDays: 38,
+    };
+  }
+
+  if (hasLongLeadTimeSignals) {
+    return {
+      isLeadTimeSensitive: true,
+      deadlineLeadDays: 5,
+      conversionLeadDays: 10,
+      trustLeadDays: 16,
+      engagementLeadDays: 22,
+      inspirationLeadDays: 28,
+    };
+  }
 
   return {
-    isLeadTimeSensitive: hasDeliveryOrProductionSignals && !hasFastCommerceSignals,
+    isLeadTimeSensitive: false,
+    deadlineLeadDays: 1,
+    conversionLeadDays: 3,
+    trustLeadDays: 6,
+    engagementLeadDays: 9,
+    inspirationLeadDays: 14,
   };
-}
-
-function isCustomerActionDeadlineSensitiveCampaign(campaign) {
-  const text = getCampaignStrategicText(campaign);
-  return /gift|gifts|present|presents|gåva|gåvor|presenter|order|orders|booking|bookings|appointment|reservation|delivery|shipping|ship|printed|print|portrait|custom|personal|personalized|personalised|made[\s-]?to[\s-]?order|bespoke|handmade|limited availability|limited capacity|beställ|bokning|leverans|tryck|porträtt|personlig|personliga|anpassad|skräddarsydd/.test(text);
 }
 
 function shouldUseEventGreetingPost(campaign, count) {
@@ -292,65 +316,42 @@ function shouldUseEventGreetingPost(campaign, count) {
   return Boolean(campaign?.event_date) && safeCount >= 4;
 }
 
-function getBestPracticeDaysBeforeEvent(campaign, count) {
-  const safeCount = Math.max(Math.min(Math.round(Number(count) || 1), 7), 1);
+function getFallbackDaysBeforeEventForAnchor(campaign, post, index, total) {
   const leadTimeProfile = getCampaignLeadTimeProfile(campaign);
-  const isActionDeadlineSensitive =
-    leadTimeProfile.isLeadTimeSensitive ||
-    isCustomerActionDeadlineSensitiveCampaign(campaign);
-  const includeEventGreeting = shouldUseEventGreetingPost(campaign, safeCount);
+  const anchor = String(post?.timing_anchor || "").toLowerCase();
+  const text = getCampaignStrategicText(campaign, post);
 
-  if (isActionDeadlineSensitive) {
-    if (includeEventGreeting) {
-      const patterns = {
-        4: [21, 14, 8, 0],
-        5: [28, 21, 14, 8, 0],
-        6: [30, 21, 16, 12, 8, 0],
-        7: [35, 28, 21, 16, 12, 8, 0],
-      };
-      return patterns[safeCount] || patterns[5];
-    }
-
-    const patterns = {
-      1: [8],
-      2: [14, 8],
-      3: [21, 14, 8],
-    };
-    return patterns[safeCount] || patterns[3];
+  if (
+    shouldUseEventGreetingPost(campaign, total) &&
+    /relationship|event|main day|day of|celebrate|thank|gratitude|hälsning|fira|relations/.test(`${anchor} ${text}`)
+  ) {
+    return 0;
   }
 
-  if (includeEventGreeting) {
-    const patterns = {
-      4: [14, 10, 4, 0],
-      5: [21, 14, 7, 3, 0],
-      6: [21, 14, 10, 7, 3, 0],
-      7: [28, 21, 14, 10, 7, 3, 0],
-    };
-    return patterns[safeCount] || patterns[5];
+  if (/deadline|last|final|slut|sista|urgency/.test(`${anchor} ${text}`)) {
+    return leadTimeProfile.deadlineLeadDays;
   }
 
-  const patterns = {
-    1: [2],
-    2: [7, 2],
-    3: [14, 7, 3],
-  };
-  return patterns[safeCount] || patterns[3];
-}
-
-function getBestPracticeTimingAnchor(index, total) {
-  if (shouldUseEventGreetingPost({ event_date: true }, total) && index === total - 1) {
-    return "relationship_event";
+  if (/conversion|product|buy|order|book|offer|sale|köp|beställ|boka/.test(`${anchor} ${text}`)) {
+    return leadTimeProfile.conversionLeadDays;
   }
 
-  if (index === total - 1 || index === total - 2) {
-    return "deadline_before_event";
+  if (/trust|proof|review|process|quality|trygg|förtroende/.test(`${anchor} ${text}`)) {
+    return leadTimeProfile.trustLeadDays;
   }
 
-  if (index >= Math.max(1, total - 3)) {
-    return "conversion_before_deadline";
+  if (/engagement|comment|react|question|kommentera|fråga/.test(`${anchor} ${text}`)) {
+    return leadTimeProfile.engagementLeadDays;
   }
 
-  return "start";
+  if (index === 0) return leadTimeProfile.inspirationLeadDays;
+  if (index === total - 1) return leadTimeProfile.deadlineLeadDays;
+
+  const progress = total <= 1 ? 0.5 : index / Math.max(total - 1, 1);
+  return Math.max(
+    leadTimeProfile.deadlineLeadDays,
+    Math.round(leadTimeProfile.inspirationLeadDays * (1 - progress))
+  );
 }
 
 function buildCampaignPostPlan(campaign, recommendedCount, t) {
@@ -358,39 +359,37 @@ function buildCampaignPostPlan(campaign, recommendedCount, t) {
     ? campaign.post_plan
     : [];
 
-  const sortedRawPostPlan = [...rawPostPlan].sort((a, b) => {
-    const aDays =
-      typeof a?.days_before_event === "number" ? a.days_before_event : 0;
-    const bDays =
-      typeof b?.days_before_event === "number" ? b.days_before_event : 0;
-
-    return bDays - aDays;
-  });
-
   const fallbackPostPlan = buildFallbackCampaignPlan(recommendedCount, t);
 
   const mergedPlan = Array.from({ length: recommendedCount }).map((_, index) => {
     const fallbackPost = fallbackPostPlan[index] || {};
-    const aiPost = sortedRawPostPlan[index] || {};
+    const aiPost = rawPostPlan[index] || {};
 
     const role =
       aiPost.role && !/^campaign post/i.test(aiPost.role)
         ? aiPost.role
         : fallbackPost.role;
 
+    const daysBeforeEvent =
+      typeof aiPost.days_before_event === "number" && aiPost.days_before_event >= 0
+        ? Math.min(Math.round(aiPost.days_before_event), 365)
+        : getFallbackDaysBeforeEventForAnchor(campaign, aiPost, index, recommendedCount);
+
     return {
       ...fallbackPost,
       ...aiPost,
       role,
       purpose: aiPost.purpose || fallbackPost.purpose,
-      days_before_event:
-        typeof aiPost.days_before_event === "number"
-          ? aiPost.days_before_event
-          : fallbackPost.days_before_event,
+      days_before_event: daysBeforeEvent,
+      timing_anchor: aiPost.timing_anchor || fallbackPost.timing_anchor || "start",
     };
   });
 
-  const sortedMergedPlan = mergedPlan.sort((a, b) => {
+  if (!campaign?.event_date) {
+    return mergedPlan;
+  }
+
+  return mergedPlan.sort((a, b) => {
     const aDays =
       typeof a?.days_before_event === "number" ? a.days_before_event : 0;
     const bDays =
@@ -398,27 +397,7 @@ function buildCampaignPostPlan(campaign, recommendedCount, t) {
 
     return bDays - aDays;
   });
-
-  if (!campaign?.event_date) {
-    return sortedMergedPlan;
-  }
-
-  const bestPracticeDays = getBestPracticeDaysBeforeEvent(
-    campaign,
-    recommendedCount
-  );
-
-  return sortedMergedPlan.map((post, index) => {
-    const daysBeforeEvent = bestPracticeDays[index] ?? 0;
-    return {
-      ...post,
-      days_before_event: daysBeforeEvent,
-      timing_anchor:
-        post.timing_anchor || getBestPracticeTimingAnchor(index, recommendedCount),
-    };
-  });
 }
-
 
 function getCampaignPlanTimingAnchor(postPlanItem, index = 0, total = 1) {
   const explicitAnchor = String(
