@@ -5,6 +5,7 @@ import {
   detectLikelyUiLocaleFromText,
   getServerTranslations,
   resolveBestServerLocale,
+  resolveUiLocaleFromLanguageName,
 } from "../../../../lib/i18n/serverUiText.js";
 
 export const dynamic = "force-dynamic";
@@ -1069,13 +1070,21 @@ function extractImageCandidates(html, pageUrl) {
   const imageRegex = /<img\b[^>]*>/gi;
   const srcRegex = /\bsrc=["']([^"']+)["']/i;
   const dataSrcRegex = /\bdata-src=["']([^"']+)["']/i;
+  const dataOriginalRegex = /\bdata-original=["']([^"']+)["']/i;
+  const dataLazyRegex = /\bdata-lazy=["']([^"']+)["']/i;
+  const dataImgZoomRegex = /\bdata-img-zoom-url=["']([^"']+)["']/i;
   const srcsetRegex = /\bsrcset=["']([^"']+)["']/i;
   const altRegex = /\balt=["']([^"']*)["']/i;
 
   const matches = String(html || "").match(imageRegex) || [];
 
   for (const tag of matches) {
-    const srcMatch = tag.match(srcRegex) || tag.match(dataSrcRegex);
+    const srcMatch =
+      tag.match(srcRegex) ||
+      tag.match(dataSrcRegex) ||
+      tag.match(dataOriginalRegex) ||
+      tag.match(dataLazyRegex) ||
+      tag.match(dataImgZoomRegex);
     const srcsetMatch = tag.match(srcsetRegex);
     const altMatch = tag.match(altRegex);
 
@@ -1090,6 +1099,18 @@ function extractImageCandidates(html, pageUrl) {
       alt: altMatch?.[1] || "",
       source: "img",
       score: 0,
+    });
+  }
+
+  const backgroundImageRegex = /url\((['"]?)(https?:[^)'"]+)\1\)/gi;
+  let backgroundMatch;
+
+  while ((backgroundMatch = backgroundImageRegex.exec(String(html || ""))) !== null) {
+    addCandidate({
+      url: backgroundMatch[2],
+      alt: "Background image",
+      source: "background-image",
+      score: -4,
     });
   }
 
@@ -1979,7 +2000,7 @@ function extractProductPriceFromHtml(html) {
   }
 
   const text = stripHtmlToText(html);
-  const priceMatch = text.match(/(?:\d{1,3}(?:[ .]\d{3})*|\d+)(?:[,.]\d{1,2})?\s?(?:kr|sek|:-)/i);
+  const priceMatch = text.match(/(?:\d{1,3}(?:[ .]\d{3})*|\d+)(?:[,.]\d{1,2})?\s?(?:kr|sek|uzs|сум|:-)/i);
 
   return priceMatch?.[0] ? priceMatch[0].trim() : "";
 }
@@ -2961,16 +2982,23 @@ async function sendApprovalEmail({
   userAppLanguage,
 }) {
   const detectedPostLocale = detectLikelyUiLocaleFromText(postContent);
-  const locale = resolveBestServerLocale({
+  const userLocale = resolveUiLocaleFromLanguageName(userAppLanguage);
+  const ruleLocale = resolveBestServerLocale({
     languageCandidates: [
-      userAppLanguage,
       rule?.app_language,
       rule?.ui_language,
       rule?.language,
       rule?.brand_profile?.content_language,
-      detectedPostLocale,
     ],
   });
+
+  // Prefer the user's explicitly saved app language when it exists.
+  // If that is missing/English but the post is clearly in another supported script/language,
+  // use the post language so approval emails do not remain in English for non-English brands.
+  const locale =
+    userLocale && userLocale !== "en"
+      ? userLocale
+      : detectedPostLocale || userLocale || (ruleLocale !== "en" ? ruleLocale : "en");
   const { t } = await getServerTranslations({
     supabaseAdmin: supabase,
     locale,
@@ -3517,6 +3545,8 @@ product_research_model_used: rule.uses_website_content
         let imageStoragePath = null;
         let finalImagePrompt = wantsImage ? rule.image_prompt || null : null;
 
+        const isWebsiteBasedPost = Boolean(rule.uses_website_content || websiteItem || websiteSourceUrl);
+
         if (wantsImage && websiteItem?.image_url && useWebsiteImage) {
           imageUrl = websiteItem.image_url;
           finalImagePrompt =
@@ -3544,7 +3574,7 @@ product_research_model_used: rule.uses_website_content
   normalizeComparableValue(websiteItem.image_url)
 );
           summary.website_image_used += 1;
-       } else if (wantsImage && rule.uses_website_content) {
+       } else if (wantsImage && isWebsiteBasedPost) {
   summary.website_image_missing_ai_fallback += 1;
 
   finalImagePrompt =
@@ -3665,7 +3695,7 @@ product_research_model_used: rule.uses_website_content
                   rule: ruleWithBrandProfile,
                   postContent: generatedContent,
                   approvalToken,
-                  imageUrl,
+                  imageUrl: isWebsiteBasedPost && !websiteItem?.image_url ? null : imageUrl,
                   userAppLanguage: userProfile.appLanguage,
                 });
 
