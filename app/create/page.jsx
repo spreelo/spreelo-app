@@ -322,8 +322,7 @@ export default function CreatePost() {
           </div>
 
           <div className="post-preview">
-            {generatedPost.split("
-").map((line, index) => (
+            {generatedPost.split("\n").map((line, index) => (
               <p key={index}>{line || " "}</p>
             ))}
           </div>
