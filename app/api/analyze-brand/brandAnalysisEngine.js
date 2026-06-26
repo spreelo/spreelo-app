@@ -1145,6 +1145,7 @@ Return JSON only in this exact shape:
         {
           "role": "Campaign post role",
           "days_before_event": 14,
+          "scheduled_date": "YYYY-MM-DD or null, especially for date range campaigns",
           "publish_time": "HH:MM in local time, chosen for this exact weekday, audience, post role and campaign type",
           "timing_anchor": "before_start | start | middle | end | event | relationship_event | deadline_before_event | conversion_before_deadline",
           "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main | relationship_event",
@@ -1173,11 +1174,14 @@ Global rules:
 - Include local holidays, local gift days, cultural moments, religious/cultural seasons, national shopping moments, school seasons, tourism seasons, weather seasons, industry moments and commercial periods only when they are useful and suitable for that business.
 - Do not force internationally famous commercial days if they are not relevant in the selected market.
 - Do not include political, sensitive or divisive events unless clearly safe and directly suitable for business marketing.
-- Prefer fewer highly relevant campaign opportunities over many weak ones.
+- Quality matters, but do not under-generate the calendar. A useful business calendar should feel rich enough for a marketing team to choose from.
+- Avoid weak filler, but for businesses with clear seasonal, commercial, gift, retail, service, booking or product potential, you must normally return many strong opportunities rather than only a few obvious ones.
 
 Campaign quantity:
-- Return 15 to 20 campaign opportunities when the brand is ecommerce, retail, food, restaurant, beauty, fashion, gifts, local services, bookings, events, tourism, product-based or service-based with strong seasonal/commercial potential.
-- Return 10 to 20 campaign opportunities for other businesses.
+- Return 15 to 20 campaign opportunities when the brand is ecommerce, retail, food, restaurant, beauty, fashion, gifts, local services, bookings, events, tourism, product-based, service-based or has strong seasonal/commercial potential.
+- For giftable, personalized, physical, visual or home/lifestyle products, include a strong mix of gift moments, seasonal moments, shopping moments, customer-life moments and industry-specific moments across the calendar year.
+- Return 12 to 20 campaign opportunities for most other businesses.
+- Return fewer than 10 only when the business is genuinely narrow, low-frequency, sensitive or has very limited safe marketing angles.
 - Never return more than 20.
 
 Campaign timing:
@@ -1186,8 +1190,10 @@ Campaign timing:
 - If an opportunity cannot be placed inside this year, omit it.
 - For exact dated events, event_date must be YYYY-MM-DD.
 - For date ranges or seasons, use start_date and end_date.
-- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the main campaign date, final event date, or campaign end date. For date ranges, timing_anchor must explain where the post belongs: start, middle, conversion_window, deadline_before_event, relationship_event or end.
-- For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" so they are scheduled near the end of the period, not the day after the first post.
+- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the main campaign date, final event date, or campaign end date. For date ranges, timing_anchor must explain where the post belongs: before_start, start, middle, conversion_window, deadline_before_event, relationship_event or end.
+- For date ranges/seasons, each post_plan item should include scheduled_date as YYYY-MM-DD whenever a specific date is strategically best. scheduled_date must be inside the campaign period, or shortly before start_date only when timing_anchor is before_start.
+- For date ranges/seasons, do not spread posts with mechanical equal intervals. Create a natural marketing rhythm: launch, early interest, proof/trust, decision window, deadline/closing or relationship close.
+- For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" or "deadline_before_event" so they are scheduled near the real action deadline, not randomly in the middle.
 - For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
 - For date ranges/seasons, distinguish the marketing period from the customer action deadline. The campaign may end on a cultural, seasonal or business moment, but conversion-focused posts must be placed when customers can still realistically act.
 - If the business offer requires production time, personalization, delivery, booking, reservation, installation, consultation, limited capacity or any other lead time, place product_push, offer and urgency posts before the realistic purchase/action deadline. The final day of the period should then be used for softer relationship, celebration, reminder, educational or brand-building content unless same-day action is realistic.
@@ -1211,7 +1217,8 @@ Campaign strategy:
 - relevance_score, sales_score and engagement_score must be between 1 and 5.
 - The final post in post_plan should normally have days_before_event 0 only when it is appropriate to publish on the main date. If customers need lead time to buy, book or receive delivery, do not make the final date a hard sales push; use it for softer relationship-building content.
 - Earlier post_plan items should prepare the audience before the event.
-- Every post_plan item should include timing_anchor. For exact event_date campaigns use "event" or "before_start". For start_date/end_date campaigns use "before_start", "start", "middle" or "end" to control when the post should be scheduled.
+- Every post_plan item should include timing_anchor. For exact event_date campaigns use "event", "relationship_event", "deadline_before_event", "conversion_before_deadline" or "before_start". For start_date/end_date campaigns use "before_start", "start", "middle", "conversion_window", "deadline_before_event", "relationship_event" or "end" to control when the post should be scheduled.
+- For every post_plan item, write a role that sounds customer-facing and strategic, not generic. Avoid vague internal labels like "Campaign post" or "Warm-up post".
 - Do not make every post a reminder.
 - Do not make early posts too salesy.
 - Do not make final posts too vague.
@@ -1402,6 +1409,7 @@ Return JSON only in this exact shape:
         {
           "role": "Campaign post role",
           "days_before_event": 14,
+          "scheduled_date": "YYYY-MM-DD or null, especially for date range campaigns",
           "publish_time": "HH:MM in local time, chosen for this exact weekday, audience, post role and campaign type",
           "timing_anchor": "before_start | start | middle | end | event | relationship_event | deadline_before_event | conversion_before_deadline",
           "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main | relationship_event",
@@ -1430,11 +1438,13 @@ Global rules:
 - Include local holidays, local gift days, cultural moments, religious/cultural seasons, national shopping moments, school seasons, tourism seasons, weather seasons, industry moments and commercial periods only when they are useful and suitable for that business.
 - Do not force internationally famous commercial days if they are not relevant in the selected market.
 - Do not include political, sensitive or divisive events unless clearly safe and directly suitable for business marketing.
-- Prefer fewer highly relevant campaign opportunities over many weak ones.
+- Quality matters, but do not under-generate the calendar. A useful business calendar should feel rich enough for a marketing team to choose from.
+- Avoid weak filler, but for businesses with clear seasonal, commercial, gift, retail, service, booking or product potential, you must normally return many strong opportunities rather than only a few obvious ones.
 
 Campaign quantity:
 - Return 15 to 20 campaign opportunities when the brand has strong seasonal/commercial potential.
-- Return 10 to 20 campaign opportunities for other businesses.
+- Return 12 to 20 campaign opportunities for most other businesses.
+- Return fewer than 10 only when the business is genuinely narrow, low-frequency, sensitive or has very limited safe marketing angles.
 - Never return more than 20.
 
 Campaign timing:
@@ -1443,8 +1453,10 @@ Campaign timing:
 - If an opportunity cannot be placed inside this year, omit it.
 - For exact dated events, event_date must be YYYY-MM-DD.
 - For date ranges or seasons, use start_date and end_date.
-- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the main campaign date, final event date, or campaign end date. For date ranges, timing_anchor must explain where the post belongs: start, middle, conversion_window, deadline_before_event, relationship_event or end.
-- For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" so they are scheduled near the end of the period, not the day after the first post.
+- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the main campaign date, final event date, or campaign end date. For date ranges, timing_anchor must explain where the post belongs: before_start, start, middle, conversion_window, deadline_before_event, relationship_event or end.
+- For date ranges/seasons, each post_plan item should include scheduled_date as YYYY-MM-DD whenever a specific date is strategically best. scheduled_date must be inside the campaign period, or shortly before start_date only when timing_anchor is before_start.
+- For date ranges/seasons, do not spread posts with mechanical equal intervals. Create a natural marketing rhythm: launch, early interest, proof/trust, decision window, deadline/closing or relationship close.
+- For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" or "deadline_before_event" so they are scheduled near the real action deadline, not randomly in the middle.
 - For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
 - For date ranges/seasons, distinguish the marketing period from the customer action deadline. The campaign may end on a cultural, seasonal or business moment, but conversion-focused posts must be placed when customers can still realistically act.
 - If the business offer requires production time, personalization, delivery, booking, reservation, installation, consultation, limited capacity or any other lead time, place product_push, offer and urgency posts before the realistic purchase/action deadline. The final day of the period should then be used for softer relationship, celebration, reminder, educational or brand-building content unless same-day action is realistic.
