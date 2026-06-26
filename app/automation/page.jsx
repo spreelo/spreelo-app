@@ -1338,6 +1338,7 @@ function DatePickerField({
   setOpenPickerId,
   timeZone,
   compact = false,
+  weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
 }) {
   const [visibleMonth, setVisibleMonth] = useState(() =>
     getMonthStartDateString(value)
@@ -1386,13 +1387,9 @@ function DatePickerField({
             </div>
 
             <div className="custom-calendar-weekdays">
-              <span>Mon</span>
-              <span>Tue</span>
-              <span>Wed</span>
-              <span>Thu</span>
-              <span>Fri</span>
-              <span>Sat</span>
-              <span>Sun</span>
+              {weekdayLabels.map((weekdayLabel) => (
+                <span key={weekdayLabel}>{weekdayLabel}</span>
+              ))}
             </div>
 
             <div className="custom-calendar-grid">
@@ -2538,6 +2535,16 @@ export default function AutomationPage() {
     return value === "weekly" ? t("automation.weekly") : t("automation.once");
   }
 
+  const weekdayLabels = [
+    t("automation.weekday.short.monday"),
+    t("automation.weekday.short.tuesday"),
+    t("automation.weekday.short.wednesday"),
+    t("automation.weekday.short.thursday"),
+    t("automation.weekday.short.friday"),
+    t("automation.weekday.short.saturday"),
+    t("automation.weekday.short.sunday"),
+  ];
+
   const initialStartDate = getDateInputValueInTimeZone(
     new Date(),
     DEFAULT_TIME_ZONE
@@ -2808,7 +2815,7 @@ async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
   }
 
   if (!campaign) {
-    setMessage("Could not find this campaign opportunity for the selected brand.");
+    setMessage(t("automation.errorCampaignNotFound"));
     return;
   }
 
@@ -2934,7 +2941,7 @@ try {
   setCurrentBrandId(selectedBrandId);
   await loadConnectedPlatformsForBrand(user.id, selectedBrandId);
 } catch (error) {
-  setMessage(error.message || "Could not load selected brand.");
+  setMessage(error.message || t("automation.errorLoadBrand"));
   setRules([]);
   setLoading(false);
   return;
@@ -3084,7 +3091,7 @@ const { data, error } = await supabase
 
 function addCampaignSlot() {
   if (!campaignOpportunity) {
-    setMessage("No campaign opportunity is loaded.");
+    setMessage(t("automation.errorNoCampaignLoaded"));
     return;
   }
 
@@ -3373,7 +3380,7 @@ function addSlot() {
 
   function removeSlot(slotId) {
   if (slots.length === 1) {
-    setMessage("You need at least one planned post.");
+    setMessage(t("automation.errorNeedOnePost"));
     return;
   }
 
@@ -3533,7 +3540,7 @@ function toggleContentType(typeId) {
 
   if (selectedContentTypeIds.length >= autoPlanPostCount) {
     setMessage(
-      `You have already selected ${autoPlanPostCount} posts. Remove a post below or change posts per week.`
+      t("automation.errorAlreadySelectedPosts", { count: autoPlanPostCount })
     );
     return;
   }
@@ -3674,7 +3681,7 @@ const { error } = await supabase
     setSavedPlanSummary(null);
 
     if (!slots.length) {
-  setMessage("Choose a goal before saving a content plan.");
+  setMessage(t("automation.errorChooseGoalBeforeSaving"));
   return;
 }
 
@@ -4063,6 +4070,7 @@ setRules((currentRules) =>
                     setOpenPickerId={setOpenPickerId}
                     timeZone={timeZone}
                     compact
+                    weekdayLabels={weekdayLabels}
                   />
 
                   <TimePickerField
@@ -4193,9 +4201,7 @@ setRules((currentRules) =>
         <div className="content-picker-progress-note">
   {selectedContentTypeIds.length < autoPlanPostCount ? (
     <span>
-      Choose {autoPlanPostCount - selectedContentTypeIds.length} more post
-      {autoPlanPostCount - selectedContentTypeIds.length === 1 ? "" : "s"} to
-      complete this plan.
+      {t("automation.chooseMorePosts", { count: autoPlanPostCount - selectedContentTypeIds.length })}
     </span>
   ) : (
     <span>{t("automation.planReadyReview")}</span>
@@ -4392,6 +4398,7 @@ setRules((currentRules) =>
                     setOpenPickerId={setOpenPickerId}
                     timeZone={timeZone}
                     compact
+                    weekdayLabels={weekdayLabels}
                   />
                 )}
               </div>
@@ -4419,12 +4426,12 @@ setRules((currentRules) =>
                   type="button"
                   onClick={() => toggleSlotInstructions(slot.id)}
                 >
-                  {instructionsAreExpanded ? "Hide" : "Edit"}
+                  {instructionsAreExpanded ? t("automation.hide") : t("automation.edit")}
                 </button>
 
                 <button
                   type="button"
-                  title="Duplicate"
+                  title={t("automation.duplicate")}
                   onClick={() => duplicateSlot(slot.id)}
                 >
                   ⧉
@@ -4461,8 +4468,8 @@ setRules((currentRules) =>
                     }
                     placeholder={
   slot.isCampaignSlot
-    ? "Describe what this campaign post should be about"
-    : "Tell Spreelo what this post should be about."
+    ? t("automation.placeholderCampaignPost")
+    : t("automation.placeholderPostInstructions")
 }
                   />
 
@@ -4475,7 +4482,7 @@ setRules((currentRules) =>
                         onChange={(event) =>
                           updateSlot(slot.id, "imagePrompt", event.target.value)
                         }
-                        placeholder="Optional: describe what the image should show."
+                        placeholder={t("automation.placeholderImageDirection")}
                       />
                     </>
                   )}
@@ -4491,8 +4498,8 @@ setRules((currentRules) =>
                       }
                     />
                     {slot.usesWebsiteContent
-                      ? "Website image / AI fallback"
-                      : "AI image"}
+                      ? t("automation.websiteImageFallback")
+                      : t("automation.aiImage")}
                   </label>
 
                   <label>
@@ -4503,7 +4510,7 @@ setRules((currentRules) =>
                         updateSlot(slot.id, "includeEmojis", event.target.checked)
                       }
                     />
-                    Emojis
+                    {t("automation.emojis")}
                   </label>
 
                   <label>
@@ -4514,7 +4521,7 @@ setRules((currentRules) =>
                         updateSlot(slot.id, "includeHashtags", event.target.checked)
                       }
                     />
-                    Hashtags
+                    {t("automation.hashtags")}
                   </label>
 
                   <span>{getSlotCreditLabel(slot)}</span>
@@ -4543,25 +4550,22 @@ setRules((currentRules) =>
                         <section className="planner-settings-card">
               <div className="planner-section-heading">
                 <div>
-                  <h3>Settings</h3>
-                  <p>
-                    These settings apply to all planned posts. You can keep the
-                    recommended defaults.
-                  </p>
+                  <h3>{t("automation.settings")}</h3>
+                  <p>{t("automation.settingsHelp")}</p>
                 </div>
 
-                <span>Recommended</span>
+                <span>{t("automation.recommended")}</span>
               </div>
 
             <div className="planner-settings-grid simple">
   {loadingConnectedPlatforms ? (
     <div className="planner-setting-field planner-setting-connect-box">
-      <span>Platform</span>
-      <div className="input">Loading connected channels...</div>
+      <span>{t("automation.platform")}</span>
+      <div className="input">{t("automation.loadingConnectedChannels")}</div>
     </div>
   ) : connectedPlatforms.length > 0 ? (
     <label className="planner-setting-field">
-      <span>Platform</span>
+      <span>{t("automation.platform")}</span>
       <select
         value={platform}
         onChange={(event) => setPlatform(event.target.value)}
@@ -4575,30 +4579,27 @@ setRules((currentRules) =>
     </label>
   ) : (
     <div className="planner-setting-field planner-setting-connect-box">
-      <span>Platform</span>
+      <span>{t("automation.platform")}</span>
 
       <div className="planner-connect-first-card">
-        <strong>Connect a social channel first</strong>
-        <p>
-          You need to connect a publishing channel for this brand before saving
-          this plan.
-        </p>
+        <strong>{t("automation.connectSocialChannelFirst")}</strong>
+        <p>{t("automation.connectSocialChannelFirstText")}</p>
 
         <a href="/social-channels" className="planner-connect-first-link">
-          Go to Social channels
+          {t("automation.goToSocialChannels")}
         </a>
       </div>
     </div>
   )}
 
   <label className="planner-setting-field">
-    <span>Language</span>
+    <span>{t("automation.language")}</span>
     <select
       value={language}
       onChange={(event) => setLanguage(event.target.value)}
     >
-      <option value="Auto">Auto-detect</option>
-      <option value="English">English</option>
+      <option value="Auto">{t("automation.autoDetect")}</option>
+      <option value="English">{t("automation.languageEnglish")}</option>
     </select>
   </label>
 
@@ -4610,19 +4611,19 @@ setRules((currentRules) =>
         setApprovalRequired(event.target.value === "review")
       }
     >
-      <option value="review">Review before publishing</option>
-      <option value="auto">Publish automatically</option>
+      <option value="review">{t("automation.reviewBeforePublishing")}</option>
+      <option value="auto">{t("automation.publishAutomatically")}</option>
     </select>
   </label>
 
   <label className="planner-setting-field">
-    <span>Repeat</span>
+    <span>{t("automation.repeat")}</span>
     <select
       value={scheduleType}
       onChange={(event) => setScheduleType(event.target.value)}
     >
-      <option value="weekly">Weekly</option>
-      <option value="once">One time</option>
+      <option value="weekly">{t("automation.weekly")}</option>
+      <option value="once">{t("automation.oneTime")}</option>
     </select>
   </label>
 </div>
@@ -4633,66 +4634,66 @@ setRules((currentRules) =>
     className="planner-advanced-toggle"
     onClick={() => setShowAdvancedSettings((current) => !current)}
   >
-    {showAdvancedSettings ? "Hide advanced settings" : "Advanced settings"}
+    {showAdvancedSettings ? t("automation.hideAdvancedSettings") : t("automation.advancedSettings")}
   </button>
 </div>
 
 {showAdvancedSettings && (
   <div className="planner-settings-grid advanced">
     <label className="planner-setting-field">
-      <span>Tone</span>
+      <span>{t("automation.tone")}</span>
       <select
         value={tone}
         onChange={(event) => setTone(event.target.value)}
       >
-        <option>Friendly</option>
-        <option>Professional</option>
-        <option>Sales-focused</option>
-        <option>Premium</option>
+        <option value="Friendly">{t("automation.tone.Friendly")}</option>
+        <option value="Professional">{t("automation.tone.Professional")}</option>
+        <option value="Sales-focused">{t("automation.tone.Sales-focused")}</option>
+        <option value="Premium">{t("automation.tone.Premium")}</option>
       </select>
     </label>
 
     <label className="planner-setting-field">
-      <span>Post type</span>
+      <span>{t("automation.postType")}</span>
       <select
         value={postType}
         onChange={(event) => setPostType(event.target.value)}
       >
-        <option>Offer</option>
-        <option>News</option>
-        <option>Educational</option>
-        <option>Reminder</option>
+        <option value="Offer">{t("automation.postType.Offer")}</option>
+        <option value="News">{t("automation.postType.News")}</option>
+        <option value="Educational">{t("automation.postType.Educational")}</option>
+        <option value="Reminder">{t("automation.postType.Reminder")}</option>
       </select>
     </label>
 
     <label className="planner-setting-field">
-      <span>Length</span>
+      <span>{t("automation.length")}</span>
       <select
         value={length}
         onChange={(event) => setLength(event.target.value)}
       >
-        <option>Short</option>
-        <option>Medium</option>
-        <option>Long</option>
+        <option value="Short">{t("automation.length.Short")}</option>
+        <option value="Medium">{t("automation.length.Medium")}</option>
+        <option value="Long">{t("automation.length.Long")}</option>
       </select>
     </label>
 
     <label className="planner-setting-field">
-      <span>CTA style</span>
+      <span>{t("automation.ctaStyle")}</span>
       <select
         value={ctaType}
         onChange={(event) => setCtaType(event.target.value)}
       >
-        <option>Learn more</option>
-        <option>Visit website</option>
-        <option>Contact us</option>
-        <option>Book now</option>
-        <option>Shop now</option>
+        <option value="Learn more">{t("automation.cta.Learn more")}</option>
+        <option value="Visit website">{t("automation.cta.Visit website")}</option>
+        <option value="Contact us">{t("automation.cta.Contact us")}</option>
+        <option value="Book now">{t("automation.cta.Book now")}</option>
+        <option value="Shop now">{t("automation.cta.Shop now")}</option>
       </select>
     </label>
 
     <label className="planner-setting-field">
-      <span>Timezone</span>
+      <span>{t("automation.timezone")}</span>
       <select
         value={timeZone}
         onChange={(event) => setTimeZone(event.target.value)}
@@ -4734,7 +4735,7 @@ setRules((currentRules) =>
       className="planner-save-input"
       value={planName}
       onChange={(event) => setPlanName(event.target.value)}
-      placeholder="e.g., Weekly awareness plan"
+      placeholder={t("automation.planNamePlaceholderShort")}
     />
 
     <button
@@ -4757,7 +4758,7 @@ setRules((currentRules) =>
                   <div className="planner-save-success-content">
                     <div className="planner-save-success-header">
                       <div>
-                        <p>Your content plan is saved</p>
+                        <p>{t("automation.yourContentPlanSaved")}</p>
                         <h4>{savedPlanSummary.name}</h4>
                       </div>
 
@@ -4768,15 +4769,13 @@ setRules((currentRules) =>
                       <div>
                         <span>
                           {savedPlanSummary.scheduleType === "weekly"
-                            ? "Posts per week"
-                            : "Planned posts"}
+                            ? t("automation.postsPerWeek")
+                            : t("automation.plannedPosts")}
                         </span>
                         <strong>
                           {savedPlanSummary.scheduleType === "weekly"
-                            ? `${savedPlanSummary.postsPerWeek} posts`
-                            : `${savedPlanSummary.totalPosts} post${
-                                savedPlanSummary.totalPosts === 1 ? "" : "s"
-                              }`}
+                            ? t("automation.postCount", { count: savedPlanSummary.postsPerWeek })
+                            : t("automation.postCount", { count: savedPlanSummary.totalPosts })}
                         </strong>
                       </div>
 
@@ -4793,7 +4792,7 @@ setRules((currentRules) =>
                       <div>
                         <span>{t("automation.credits")}</span>
                         <strong>
-                          {savedPlanSummary.credits} credits used when generated
+                          {savedPlanSummary.credits} {t("automation.creditsUsedWhenGenerated")}
                         </strong>
                       </div>
                     </div>
@@ -4815,8 +4814,8 @@ setRules((currentRules) =>
             <section className="saved-card saved-card-compact">
               <div className="saved-header">
                 <div>
-                  <p>Saved plans</p>
-                  <h3>Content plans</h3>
+                  <p>{t("automation.savedPlans")}</p>
+                  <h3>{t("automation.contentPlans")}</h3>
                 </div>
 
                 <div className="row-actions">
@@ -4825,25 +4824,22 @@ setRules((currentRules) =>
                     className="secondary-button small-button"
                     onClick={() => setShowSavedRules((current) => !current)}
                   >
-                    {showSavedRules ? "Hide" : "Show all"}
+                    {showSavedRules ? t("automation.hide") : t("automation.showAll")}
                   </button>
                 </div>
               </div>
 
               {loading ? (
                 <div className="automation-empty">
-                  <h4>Loading content plans...</h4>
-                  <p>Please wait while Spreelo loads your saved plans.</p>
+                  <h4>{t("automation.loadingContentPlans")}</h4>
+                  <p>{t("automation.loadingContentPlansText")}</p>
                 </div>
               ) : rules.length === 0 ? (
                 <div className="automation-empty">
                   <div className="folder-icon">📁</div>
                   <div>
-                    <h4>No content plans yet</h4>
-                    <p>
-                      Add your first content plan above. Each planned post will
-                      be saved as its own automation rule.
-                    </p>
+                    <h4>{t("automation.noContentPlansYet")}</h4>
+                    <p>{t("automation.noContentPlansText")}</p>
                   </div>
                 </div>
               ) : (
@@ -4855,13 +4851,13 @@ setRules((currentRules) =>
                         checked={allVisibleRulesSelected}
                         onChange={toggleSelectVisibleRules}
                       />
-                      Select visible
+                      {t("automation.selectVisible")}
                     </label>
 
                     <span>
-                      {selectedRuleIds.length} selected
+                      {t("automation.selectedRulesCount", { count: selectedRuleIds.length })}
                       {!showSavedRules && rules.length > 3
-                        ? ` · showing ${visibleRules.length} of ${rules.length}`
+                        ? ` · ${t("automation.showingRulesCount", { visible: visibleRules.length, total: rules.length })}`
                         : ""}
                     </span>
 
@@ -4873,7 +4869,7 @@ setRules((currentRules) =>
                           onClick={clearSelectedRules}
                           disabled={deletingRules}
                         >
-                          Clear
+                          {t("automation.clear")}
                         </button>
 
                         <button
@@ -4883,17 +4879,17 @@ setRules((currentRules) =>
                           disabled={deletingRules}
                         >
                           {deletingRules
-                            ? "Deleting..."
+                            ? t("automation.deleting")
                             : confirmingBulkDelete
-                            ? `Confirm delete ${selectedRuleIds.length}`
-                            : `Delete selected (${selectedRuleIds.length})`}
+                            ? t("automation.confirmDeleteCount", { count: selectedRuleIds.length })
+                            : t("automation.deleteSelectedCount", { count: selectedRuleIds.length })}
                         </button>
                       </>
                     )}
 
                     {confirmingBulkDelete && (
                       <span className="delete-confirm-note">
-                        Click confirm to permanently delete selected rules.
+                        {t("automation.confirmDeleteSelectedRules")}
                       </span>
                     )}
                   </div>
@@ -4931,17 +4927,17 @@ setRules((currentRules) =>
                               {rule.platform} ·{" "}
                               {rule.content_type_label || rule.post_type} ·{" "}
                               {rule.uses_website_content
-                                ? "Website content"
+                                ? t("automation.websiteContent")
                                 : rule.generate_image
-                                ? "Text + image"
-                                : "Text only"}{" "}
+                                ? t("automation.textImage")
+                                : t("automation.textOnly")}{" "}
                               ·{" "}
                               {rule.approval_required
-                                ? "Review first"
-                                : "Auto publish"}
+                                ? t("automation.reviewFirst")
+                                : t("automation.autoPublish")}
                             </p>
                             <small>
-                              Next run:{" "}
+                              {t("automation.nextRun")}: {" "}
                               {formatDateTime(rule.next_run_at, ruleTimeZone)}
                             </small>
                           </div>
@@ -4964,7 +4960,7 @@ setRules((currentRules) =>
                         className="show-more-rules"
                         onClick={() => setShowSavedRules(true)}
                       >
-                        Show {rules.length - 3} more saved rules
+                        {t("automation.showMoreSavedRules", { count: rules.length - 3 })}
                       </button>
                     )}
                   </div>
@@ -5003,9 +4999,7 @@ setRules((currentRules) =>
       : t("common.posts")}
   </span>
   <strong>
-    {scheduleType === "weekly" && planCreationMode !== "campaign"
-      ? `${slots.length} posts`
-      : `${slots.length} post${slots.length === 1 ? "" : "s"}`}
+    {t("automation.postCount", { count: slots.length })}
   </strong>
 </div>
                 <div>
@@ -5039,8 +5033,7 @@ setRules((currentRules) =>
 
               {creditBalance && !hasEnoughCredits && (
                 <div className="planner-sidebar-warning">
-                  This plan needs {plannedCredits} credits, but you only have{" "}
-                  {creditBalance.credits_remaining} credits remaining.
+                  {t("automation.sidebarCreditWarning", { credits: plannedCredits, remaining: creditBalance.credits_remaining })}
                 </div>
               )}
             </section>
@@ -5069,9 +5062,9 @@ setRules((currentRules) =>
                   <div className="planner-credit-included">
                     <span className="planner-credit-included-icon">✓</span>
                     <span>
-                      Credits included in{" "}
+                      {t("automation.creditsIncludedIn")} 
                       {creditBalance.subscription_status === "trialing"
-                        ? "Starter trial"
+                        ? t("automation.starterTrial")
                         : subscriptionPlanLabel}
                     </span>
                   </div>
@@ -5179,7 +5172,7 @@ setRules((currentRules) =>
           <div className="learn-more-steps">
             <div>
               <span>1</span>
-              <strong>Campaign date</strong>
+              <strong>{t("automation.campaignDate")}</strong>
               <p>
                 {t("automation.campaignDateHelp")}
               </p>
@@ -5187,7 +5180,7 @@ setRules((currentRules) =>
 
             <div>
               <span>2</span>
-              <strong>Recommended plan</strong>
+              <strong>{t("automation.recommendedPlan")}</strong>
               <p>
                 {t("automation.recommendedPlanHelp")}
               </p>
@@ -5219,7 +5212,7 @@ setRules((currentRules) =>
           <div className="learn-more-steps">
             <div>
               <span>1</span>
-              <strong>Choose a goal</strong>
+              <strong>{t("automation.chooseGoal")}</strong>
               <p>
                 {t("automation.chooseGoalHelpModal")}
               </p>
