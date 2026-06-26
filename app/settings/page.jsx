@@ -142,7 +142,7 @@ export default function Settings() {
 
             {SUPPORTED_UI_LOCALES.map((item) => (
               <option key={item.locale} value={item.locale}>
-                {item.language}
+                {item.nativeName || item.language}
               </option>
             ))}
           </select>
