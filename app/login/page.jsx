@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
+import { SUPPORTED_UI_LOCALES } from "../../lib/i18n/defaultLabels";
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
@@ -11,7 +12,7 @@ function getBrandStorageKey(userId) {
 const SAVED_LOGIN_EMAIL_KEY = "spreelo_last_login_email";
 
 export default function LoginPage() {
-  const { t, locale } = useUiText(["login"]);
+  const { t, locale, setLocale } = useUiText(["login"]);
 
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -176,6 +177,33 @@ export default function LoginPage() {
             alt="Spreelo"
             className="spreelo-logo-image"
           />
+        </div>
+
+        <div className="login-form">
+          <label>{t("login.appLanguage")}</label>
+          <select
+            className="input"
+            value={
+              SUPPORTED_UI_LOCALES.some((item) => item.locale === locale)
+                ? locale
+                : ""
+            }
+            onChange={(event) => {
+              if (event.target.value) {
+                setLocale(event.target.value);
+              }
+            }}
+          >
+            {!SUPPORTED_UI_LOCALES.some((item) => item.locale === locale) && (
+              <option value="">{locale}</option>
+            )}
+
+            {SUPPORTED_UI_LOCALES.map((item) => (
+              <option key={item.locale} value={item.locale}>
+                {item.language}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="login-content">
