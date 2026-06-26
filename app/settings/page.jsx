@@ -4,14 +4,36 @@ import { useEffect, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
+import {
+  SUPPORTED_UI_LOCALES,
+  getUiLanguageName,
+  normalizeUiLocale,
+} from "../../lib/i18n/defaultLabels";
 
 export default function Settings() {
-  const { t } = useUiText(["settings"]);
+  const { t, locale, setLocale } = useUiText(["settings"]);
 
   const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
+  const [customLocale, setCustomLocale] = useState("");
+
+  const recommendedLocale = SUPPORTED_UI_LOCALES.some(
+    (item) => item.locale === locale
+  )
+    ? locale
+    : "";
+
+  function handleCustomLanguageSubmit(event) {
+    event.preventDefault();
+
+    if (!customLocale.trim()) return;
+
+    const normalizedLocale = normalizeUiLocale(customLocale);
+    setLocale(normalizedLocale);
+    setCustomLocale("");
+  }
 
   useEffect(() => {
     async function loadUser() {
@@ -94,6 +116,51 @@ export default function Settings() {
             {currentUserEmail || t("settings.signedInUserFallback")}
           </div>
         </div>
+      </section>
+
+      <section className="hero-card">
+        <div>
+          <p className="eyebrow">{t("settings.languageEyebrow")}</p>
+          <h3>{t("settings.languageTitle")}</h3>
+          <p>{t("settings.languageText")}</p>
+        </div>
+
+        <form className="prompt-box" onSubmit={handleCustomLanguageSubmit}>
+          <label>{t("settings.appLanguage")}</label>
+          <select
+            className="input"
+            value={recommendedLocale}
+            onChange={(event) => {
+              if (event.target.value) {
+                setLocale(event.target.value);
+              }
+            }}
+          >
+            {!recommendedLocale && (
+              <option value="">{getUiLanguageName(locale)}</option>
+            )}
+
+            {SUPPORTED_UI_LOCALES.map((item) => (
+              <option key={item.locale} value={item.locale}>
+                {item.language}
+              </option>
+            ))}
+          </select>
+
+          <label>{t("settings.customLanguageCode")}</label>
+          <input
+            className="input"
+            value={customLocale}
+            onChange={(event) => setCustomLocale(event.target.value)}
+            placeholder={t("settings.customLanguagePlaceholder")}
+          />
+
+          <button className="secondary-button full" type="submit">
+            {t("settings.useLanguageCode")}
+          </button>
+
+          <p>{t("settings.appLanguageHelp")}</p>
+        </form>
       </section>
 
       <section className="settings-danger-zone">
