@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../../lib/supabaseClient";;
 import { useUiText } from "../../lib/i18n/useUiText";
 import { SUPPORTED_UI_LOCALES } from "../../lib/i18n/defaultLabels";
 import LanguageSuggestionBanner from "../../components/LanguageSuggestionBanner";
