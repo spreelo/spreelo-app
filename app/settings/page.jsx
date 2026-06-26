@@ -7,7 +7,6 @@ import { useUiText } from "../../lib/i18n/useUiText";
 import {
   SUPPORTED_UI_LOCALES,
   getUiLanguageName,
-  normalizeUiLocale,
 } from "../../lib/i18n/defaultLabels";
 
 export default function Settings() {
@@ -17,23 +16,11 @@ export default function Settings() {
   const [confirmText, setConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
-  const [customLocale, setCustomLocale] = useState("");
-
   const recommendedLocale = SUPPORTED_UI_LOCALES.some(
     (item) => item.locale === locale
   )
     ? locale
     : "";
-
-  function handleCustomLanguageSubmit(event) {
-    event.preventDefault();
-
-    if (!customLocale.trim()) return;
-
-    const normalizedLocale = normalizeUiLocale(customLocale);
-    setLocale(normalizedLocale);
-    setCustomLocale("");
-  }
 
   useEffect(() => {
     async function loadUser() {
@@ -125,7 +112,7 @@ export default function Settings() {
           <p>{t("settings.languageText")}</p>
         </div>
 
-        <form className="prompt-box" onSubmit={handleCustomLanguageSubmit}>
+        <div className="prompt-box">
           <label>{t("settings.appLanguage")}</label>
           <select
             className="input"
@@ -147,20 +134,9 @@ export default function Settings() {
             ))}
           </select>
 
-          <label>{t("settings.customLanguageCode")}</label>
-          <input
-            className="input"
-            value={customLocale}
-            onChange={(event) => setCustomLocale(event.target.value)}
-            placeholder={t("settings.customLanguagePlaceholder")}
-          />
-
-          <button className="secondary-button full" type="submit">
-            {t("settings.useLanguageCode")}
-          </button>
 
           <p>{t("settings.appLanguageHelp")}</p>
-        </form>
+        </div>
       </section>
 
       <section className="settings-danger-zone">
