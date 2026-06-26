@@ -11012,3 +11012,113 @@ textarea.input:focus,
     justify-content: center;
   }
 }
+
+/* Step 32: stable mobile campaign schedule cards */
+@media (max-width: 760px) {
+  .automation-page .planner-schedule-card {
+    overflow: visible !important;
+  }
+
+  .automation-page .planner-post-table {
+    display: grid !important;
+    gap: 14px !important;
+    border: 0 !important;
+  }
+
+  .automation-page .planner-post-row {
+    display: block !important;
+    padding: 16px !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 22px !important;
+    background: #ffffff !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .automation-page .planner-post-mainline {
+    display: grid !important;
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    gap: 12px !important;
+    align-items: start !important;
+    min-width: 0 !important;
+  }
+
+  .automation-page .planner-post-title {
+    min-width: 0 !important;
+  }
+
+  .automation-page .planner-post-title-row {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  .automation-page .planner-post-title span:not(.strategy-stage-dot):not(.strategy-info-popover):not(.strategy-info-title):not(.strategy-info-note) {
+    display: block !important;
+    margin-top: 4px !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+  }
+
+  .automation-page .planner-post-date,
+  .automation-page .planner-post-time,
+  .automation-page .planner-post-format,
+  .automation-page .planner-post-actions {
+    display: flex !important;
+    width: 100% !important;
+    margin-top: 12px !important;
+    margin-left: 0 !important;
+    min-width: 0 !important;
+  }
+
+  .automation-page .planner-post-date,
+  .automation-page .planner-post-time,
+  .automation-page .planner-post-format {
+    align-items: center !important;
+  }
+
+  .automation-page .planner-post-date::before,
+  .automation-page .planner-post-time::before,
+  .automation-page .planner-post-format::before {
+    display: block !important;
+    width: 78px !important;
+    flex: 0 0 78px !important;
+    color: #667085 !important;
+    font-size: 11px !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.06em !important;
+    text-transform: uppercase !important;
+  }
+
+  .automation-page .planner-post-date::before {
+    content: "Date";
+  }
+
+  .automation-page .planner-post-time::before {
+    content: "Time";
+  }
+
+  .automation-page .planner-post-format::before {
+    content: "Format";
+  }
+
+  .automation-page .locked-campaign-date,
+  .automation-page .planner-post-date .custom-picker-button,
+  .automation-page .planner-post-time .custom-picker-button,
+  .automation-page .planner-post-format {
+    flex: 1 1 auto !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .automation-page .planner-post-actions {
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding-left: 0 !important;
+  }
+
+  .automation-page .planner-post-actions button {
+    min-height: 40px !important;
+  }
+}
