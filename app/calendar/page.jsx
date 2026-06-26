@@ -285,6 +285,85 @@ function buildCampaignPostPlan(campaign, recommendedCount, t) {
   });
 }
 
+
+function getCampaignPlanTimingAnchor(postPlanItem, index = 0, total = 1) {
+  const explicitAnchor = String(
+    postPlanItem?.timing_anchor ||
+      postPlanItem?.schedule_anchor ||
+      postPlanItem?.anchor ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (/end|last|final|deadline|slut|sista/.test(explicitAnchor)) {
+    return "end";
+  }
+
+  if (/middle|during|mid|under|mitt/.test(explicitAnchor)) {
+    return "middle";
+  }
+
+  if (/before|pre|start|begin|launch|början|innan/.test(explicitAnchor)) {
+    return "start";
+  }
+
+  const text = [
+    postPlanItem?.campaign_phase,
+    postPlanItem?.marketing_angle,
+    postPlanItem?.role,
+    postPlanItem?.purpose,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/last[_\s-]?chance|final|sista|slutlig|deadline|urgency|urgent|late|middle_late|end/.test(text)) {
+    return "end";
+  }
+
+  if (/middle|during|engagement|trust|consideration|under kampanj/.test(text)) {
+    return "middle";
+  }
+
+  if (index === total - 1 && total > 1) {
+    return "end";
+  }
+
+  return "start";
+}
+
+function getCampaignPostTimingLabel(campaign, post, index, total, t) {
+  const daysBeforeEvent =
+    typeof post?.days_before_event === "number" ? post.days_before_event : null;
+
+  if (campaign?.event_date && typeof daysBeforeEvent === "number") {
+    return daysBeforeEvent === 0
+      ? t("common.publishOnCampaignDate")
+      : t("common.daysBefore", { days: daysBeforeEvent });
+  }
+
+  if (campaign?.start_date && campaign?.end_date) {
+    const timingAnchor = getCampaignPlanTimingAnchor(post, index, total);
+
+    if (timingAnchor === "end") {
+      return t("calendar.publishNearCampaignEnd");
+    }
+
+    if (timingAnchor === "middle") {
+      return t("calendar.publishDuringCampaign");
+    }
+
+    if (typeof daysBeforeEvent === "number" && daysBeforeEvent > 0) {
+      return t("calendar.daysBeforeCampaignStart", { days: daysBeforeEvent });
+    }
+
+    return t("calendar.publishAtCampaignStart");
+  }
+
+  return "";
+}
+
 export default function Calendar() {
   const { t, locale } = useUiText(["calendar"]);
   const [user, setUser] = useState(null);
@@ -305,6 +384,18 @@ export default function Calendar() {
       null
     );
   }, [campaigns, selectedCampaignId]);
+
+  const selectedCampaignPostPlan = useMemo(() => {
+    if (!selectedCampaign) {
+      return [];
+    }
+
+    return buildCampaignPostPlan(
+      selectedCampaign,
+      getCampaignRecommendedPostCount(selectedCampaign),
+      t
+    );
+  }, [selectedCampaign, t]);
 
   const campaignStats = useMemo(() => {
     const total = campaigns.length;
@@ -638,24 +729,28 @@ export default function Calendar() {
                       </p>
 
                       <div className="campaign-post-plan">
-                        {buildCampaignPostPlan(
-                          selectedCampaign,
-                          getCampaignRecommendedPostCount(selectedCampaign),
-                          t
-                        ).map((post, index) => (
+                        {selectedCampaignPostPlan.map((post, index) => (
                           <div key={`${post.role || "campaign-post"}-${index}`}>
                             <span>{index + 1}</span>
                             <div>
                               <strong>{post.role || t("common.post", { number: index + 1 })}</strong>
                               <p>{post.purpose || t("calendar.postPurposeFallback")}</p>
 
-                              {typeof post.days_before_event === "number" && (
+                              {getCampaignPostTimingLabel(
+                                selectedCampaign,
+                                post,
+                                index,
+                                selectedCampaignPostPlan.length,
+                                t
+                              ) && (
                                 <small>
-                                  {post.days_before_event === 0
-                                    ? t("common.publishOnCampaignDate")
-                                    : t("common.daysBefore", {
-                                        days: post.days_before_event,
-                                      })}
+                                  {getCampaignPostTimingLabel(
+                                    selectedCampaign,
+                                    post,
+                                    index,
+                                    selectedCampaignPostPlan.length,
+                                    t
+                                  )}
                                 </small>
                               )}
                             </div>
