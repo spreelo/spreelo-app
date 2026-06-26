@@ -961,8 +961,8 @@ function createSlotFromContentType(type, index = 0, options = {}) {
   });
 }
 
-function shouldAutoPlanGenerateImage(index, imageCount = AUTO_PLAN_IMAGE_COUNT) {
-  return index < imageCount;
+function shouldAutoPlanGenerateImage() {
+  return true;
 }
 
 function createRecommendedSlots(options = {}) {
@@ -3103,9 +3103,7 @@ function createCampaignSlotsFromOpportunity({
         publishTime: getCampaignPublishTime(schedule.publishTime || getRecommendedCampaignPublishTime(schedule.intent, schedule.timingAnchor), sameDayIndex),
         prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
-        generateImage:
-          index < 2 ||
-          shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
+        generateImage: true,
         contentTypeId: "manual_prompt",
         contentTypeLabel: campaign?.title || "Campaign post",
         usesWebsiteContent: shouldUseWebsiteContentForCampaign(
@@ -3168,9 +3166,7 @@ function createCampaignSlotsFromOpportunity({
         publishTime: schedule.publishTime || getRecommendedTimeForDate(startDate, timeZone),
         prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
-        generateImage:
-          index < 2 ||
-          shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
+        generateImage: true,
         contentTypeId: "manual_prompt",
         contentTypeLabel: campaign?.title || "Campaign post",
         usesWebsiteContent: shouldUseWebsiteContentForCampaign(
@@ -3239,9 +3235,7 @@ function createCampaignSlotsFromOpportunity({
       publishTime: schedule.publishTime,
       prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
       imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
-      generateImage:
-        index < 2 ||
-        shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
+      generateImage: true,
       contentTypeId: "manual_prompt",
       contentTypeLabel: campaign?.title || "Campaign post",
       usesWebsiteContent: shouldUseWebsiteContentForCampaign(
