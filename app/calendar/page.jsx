@@ -358,9 +358,23 @@ function getCampaignPostTimingLabel(campaign, post, index, total, t) {
     typeof post?.days_before_event === "number" ? post.days_before_event : null;
 
   if (campaign?.event_date && typeof daysBeforeEvent === "number") {
-    return daysBeforeEvent === 0
-      ? t("common.publishOnCampaignDate")
-      : t("common.daysBefore", { days: daysBeforeEvent });
+    const timingAnchor = getCampaignPlanTimingAnchor(post, index, total);
+
+    if (daysBeforeEvent === 0) {
+      return timingAnchor === "relationship_event"
+        ? t("calendar.publishEventGreeting")
+        : t("common.publishOnCampaignDate");
+    }
+
+    if (timingAnchor === "deadline_before_event") {
+      return t("common.daysBeforeDeadline", { days: daysBeforeEvent });
+    }
+
+    if (timingAnchor === "conversion_before_deadline") {
+      return t("common.daysBeforeDecisionWindow", { days: daysBeforeEvent });
+    }
+
+    return t("common.daysBefore", { days: daysBeforeEvent });
   }
 
   if (campaign?.start_date && campaign?.end_date) {
