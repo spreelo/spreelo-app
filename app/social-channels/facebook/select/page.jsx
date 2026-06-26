@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import AppLayout from "../../../../components/AppLayout";
 import { supabase } from "../../../../lib/supabaseClient";
+import { useUiText } from "../../../../lib/i18n/useUiText";
 
 export default function SelectFacebookPage() {
+  const { t } = useUiText(["social"]);
+
   const [pages, setPages] = useState([]);
   const [selectedBrand, setSelectedBrand] = useState(null);
   const [sessionId, setSessionId] = useState("");
@@ -19,7 +22,7 @@ export default function SelectFacebookPage() {
     setSessionId(currentSessionId);
 
     if (!currentSessionId) {
-      setMessage("Missing Facebook selection session.");
+      setMessage(t("social.errorMissingSelectionSession"));
       setLoading(false);
       return;
     }
@@ -58,7 +61,7 @@ export default function SelectFacebookPage() {
     const data = await response.json();
 
     if (!response.ok) {
-      setMessage(data?.error || "Could not load Facebook pages.");
+      setMessage(data?.error || t("social.errorLoadFacebookPages"));
       setPages([]);
       setSelectedBrand(null);
       setLoading(false);
@@ -98,7 +101,7 @@ export default function SelectFacebookPage() {
     const data = await response.json();
 
     if (!response.ok) {
-      setMessage(data?.error || "Could not connect selected Facebook page.");
+      setMessage(data?.error || t("social.errorConnectSelectedPage"));
       setSavingPageId("");
       return;
     }
@@ -113,27 +116,25 @@ export default function SelectFacebookPage() {
           <div className="facebook-select-hero-copy">
             <div className="facebook-select-badge">
               <span className="facebook-logo-mark">f</span>
-              <span>Facebook</span>
+              <span>{t("social.facebookEyebrow")}</span>
             </div>
 
-            <h2>Choose Facebook Page</h2>
+            <h2>{t("social.pickerTitle")}</h2>
 
             {selectedBrand?.business_name ? (
               <p>
-                Connect the Facebook Page that Spreelo should publish to for{" "}
-                <strong>{selectedBrand.business_name}</strong>.
+                {t("social.pickerHeroTextForBrand", {
+                  brandName: selectedBrand.business_name,
+                })}
               </p>
             ) : (
-              <p>
-                Choose which Facebook Page Spreelo should use for this selected
-                brand.
-              </p>
+              <p>{t("social.pickerHeroTextFallback")}</p>
             )}
           </div>
 
           {selectedBrand?.business_name && (
             <div className="facebook-selected-brand-card">
-              <span>Selected brand</span>
+              <span>{t("social.selectedBrand")}</span>
               <strong>{selectedBrand.business_name}</strong>
             </div>
           )}
@@ -147,21 +148,14 @@ export default function SelectFacebookPage() {
               <span>f</span>
             </div>
 
-            <p className="eyebrow">Connect Facebook</p>
-            <h3>Select the page Spreelo should publish to</h3>
+            <p className="eyebrow">{t("social.connectFacebook")}</p>
+            <h3>{t("social.pickerInfoTitle")}</h3>
 
-            <p>
-              Choose the Facebook Page that belongs to the selected brand.
-              Spreelo will only publish this brand&apos;s approved posts to the
-              connected page.
-            </p>
+            <p>{t("social.pickerInfoText")}</p>
 
             <div className="facebook-select-note">
-              <strong>Important</strong>
-              <span>
-                If this Facebook Page was connected to another brand before,
-                Spreelo will move the connection to this selected brand.
-              </span>
+              <strong>{t("social.important")}</strong>
+              <span>{t("social.moveConnectionNotice")}</span>
             </div>
           </div>
 
@@ -169,33 +163,30 @@ export default function SelectFacebookPage() {
             {loading ? (
               <div className="facebook-loading-box">
                 <span className="facebook-select-spinner" />
-                <strong>Loading Facebook Pages</strong>
-                <p>Please wait while Spreelo loads your available pages.</p>
+                <strong>{t("social.loadingFacebookPages")}</strong>
+                <p>{t("social.loadingFacebookPagesText")}</p>
               </div>
             ) : pages.length === 0 ? (
               <>
                 <div className="facebook-picker-header">
-                  <span>No pages found</span>
-                  <h3>No Facebook Pages available</h3>
-                  <p>
-                    Spreelo could not find any Facebook Pages connected to your
-                    Facebook account.
-                  </p>
+                  <span>{t("social.noPagesFoundEyebrow")}</span>
+                  <h3>{t("social.noPagesFoundTitle")}</h3>
+                  <p>{t("social.noPagesFoundText")}</p>
                 </div>
 
                 <a className="facebook-cancel-button" href="/social-channels">
-                  Back to social channels
+                  {t("social.backToSocialChannels")}
                 </a>
               </>
             ) : (
               <>
                 <div className="facebook-picker-header">
-                  <span>Available pages</span>
-                  <h3>Choose a Facebook Page</h3>
+                  <span>{t("social.availablePages")}</span>
+                  <h3>{t("social.chooseFacebookPage")}</h3>
                   <p>
-                    Pick the page that should receive posts for{" "}
+                    {t("social.pickPageForBrandPrefix")} {" "}
                     <strong>
-                      {selectedBrand?.business_name || "this brand"}
+                      {selectedBrand?.business_name || t("social.thisBrand")}
                     </strong>
                     .
                   </p>
@@ -222,8 +213,8 @@ export default function SelectFacebookPage() {
                           <strong>{page.name}</strong>
                           <small>
                             {isSaving
-                              ? "Connecting page..."
-                              : "Available to connect"}
+                              ? t("social.connectingPage")
+                              : t("social.availableToConnect")}
                           </small>
                         </span>
 
@@ -231,7 +222,7 @@ export default function SelectFacebookPage() {
                           {isSaving ? (
                             <span className="facebook-select-spinner small" />
                           ) : (
-                            "Connect"
+                            t("social.connect")
                           )}
                         </span>
                       </button>
@@ -240,7 +231,7 @@ export default function SelectFacebookPage() {
                 </div>
 
                 <a className="facebook-cancel-button" href="/social-channels">
-                  Cancel
+                  {t("social.cancel")}
                 </a>
               </>
             )}
