@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useUiText } from "../lib/i18n/useUiText";
+import LanguageSuggestionBanner from "./LanguageSuggestionBanner";
 
 const navItems = [
   {
@@ -232,6 +233,7 @@ export default function AppLayout({ active, children }) {
 
   return (
     <main className="app-shell spreelo-shell">
+      <LanguageSuggestionBanner />
       <header className="spreelo-mobile-header">
         <a href="/" className="spreelo-mobile-logo">
           <img
