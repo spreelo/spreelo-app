@@ -618,10 +618,95 @@ function normalizeCampaignBlueprint(rawOpportunity) {
     image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
   };
 }
-function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "") {
+function hasProductBasedWebsiteEvidence(evidenceText) {
+  const lower = String(evidenceText || "").toLowerCase();
+
+  if (!lower.trim()) {
+    return false;
+  }
+
+  let score = 0;
+
+  const commerceSignals = [
+    "add to cart",
+    "add-to-cart",
+    "buy now",
+    "shop now",
+    "order now",
+    "lägg i varukorg",
+    "lagg i varukorg",
+    "köp nu",
+    "kop nu",
+    "beställ nu",
+    "bestall nu",
+    "varukorg",
+    "kundvagn",
+    "checkout",
+    "kassa",
+    "product",
+    "products",
+    "produkt",
+    "produkter",
+    "webshop",
+    "butik",
+    "e-handel",
+    "ecommerce",
+    "online store",
+    "sortiment",
+    "category",
+    "kategori",
+    "sku",
+    "schema.org/product",
+    "@type product",
+    "product:",
+    "offer",
+    "offers",
+    "price",
+    "pris",
+    "kr",
+    "sek",
+  ];
+
+  const strongSignals = [
+    "add to cart",
+    "add-to-cart",
+    "lägg i varukorg",
+    "lagg i varukorg",
+    "varukorg",
+    "kundvagn",
+    "checkout",
+    "schema.org/product",
+    "@type product",
+    "sku",
+  ];
+
+  for (const signal of commerceSignals) {
+    if (lower.includes(signal)) {
+      score += strongSignals.includes(signal) ? 3 : 1;
+    }
+  }
+
+  const hasMoneySignal = /(?:\d{1,3}(?:[ .]\d{3})*|\d+)(?:[,.]\d{1,2})?\s?(?:kr|sek|usd|eur|£|\$|:-)/i.test(lower);
+  if (hasMoneySignal) {
+    score += 2;
+  }
+
+  const productLikePathCount = (lower.match(/\/(?:produkt|produkter|product|products|p|shop|store|butik|kategori|category|collection|collections)\b/g) || []).length;
+  if (productLikePathCount >= 2) {
+    score += 2;
+  }
+
+  const isMostlyNonSellable = /(portfolio|blog|news|nyheter|press|privacy|cookie|terms|villkor)/.test(lower) && score < 4;
+
+  return score >= 4 && !isMostlyNonSellable;
+}
+
+function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "", evidenceText = "") {
   const rawMode = rawValue || {};
 
-  const available = Boolean(rawMode.available);
+  const evidenceSuggestsProductBasedWebsite = hasProductBasedWebsiteEvidence(evidenceText);
+
+  const available = Boolean(rawMode.available) || evidenceSuggestsProductBasedWebsite;
 
   const reason = String(rawMode.reason || "")
     .trim()
@@ -637,7 +722,9 @@ function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "") {
     reason:
       reason ||
       (available
-        ? "The website appears to contain sellable items that can be used for website-based posts."
+        ? evidenceSuggestsProductBasedWebsite
+          ? "The website appears to be product-based/ecommerce. Product pages are verified again when a product post is generated."
+          : "The website appears to contain sellable items that can be used for website-based posts."
         : "No clear sellable website item was found during brand analysis."),
     source_url: available
       ? normalizedSourceUrl || normalizeWebsiteUrl(fallbackWebsiteUrl)
@@ -1197,6 +1284,14 @@ async function analyzeWebsiteWithOpenAI({
   const visibleText = truncateText(stripHtmlToText(html), WEBSITE_MAX_TEXT_CHARS);
   const productSourceCandidateText =
   formatProductSourceCandidatesForPrompt(productSourceCandidates);
+  const productModeEvidenceText = [
+    title,
+    description,
+    visibleText,
+    productSourceCandidateText,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini",
@@ -1435,40 +1530,13 @@ Rules:
 - Also decide if "Sell something from my website" should be available for this brand.
 
 Website product mode rule:
-- Set website_product_mode.available to true only when the provided website content gives clear evidence of stable, individual products, services, listings, menu items, treatments, courses, events or offers that can reasonably be selected and promoted as specific website items.
-- A suitable website item should normally have at least several of these signals:
-  1. a clear individual item name/title,
-  2. a product/service/listing/menu/course/treatment/event/offer card or detail page,
-  3. a price, booking, order, buy, add-to-cart, request-quote, reservation or similar conversion signal,
-  4. a category/listing structure where individual items can be identified,
-  5. a relevant item image or item-specific presentation,
-  6. enough item-specific description to write a concrete post about that exact item.
-
-Strong evidence for website_product_mode.available = true:
-- ecommerce stores with product cards or product pages,
-- restaurants or cafés with specific menu items and prices,
-- salons, clinics or service businesses with specific treatments/services and descriptions,
-- real estate, vehicle, rental or job/listing sites with individual listings,
-- course, event or booking businesses with specific bookable items,
-- product catalogs where individual products can be clearly identified from the website content.
-
-Set website_product_mode.available to false when the website is mainly:
-- a store chain website,
-- a store locator,
-- an informational or brochure website,
-- a brand page,
-- a portfolio,
-- a blog/news site,
-- a weekly offers or campaign leaflet page,
-- a grocery/retail chain page with general assortment, weekly offers or store information,
-- a website that only mentions products, services, categories, discounts, offers or assortment in broad terms without clear individual website items.
-
-Important:
-- Do not set website_product_mode.available to true only because the business sells products in the real world.
-- Do not set it to true only because the website mentions words like products, services, assortment, offers, weekly deals, discounts, food, shop, store, campaign, catalog or categories.
-- Set it to true only if the website itself provides enough structured item-level information for Spreelo to select a specific product/service/listing/menu item/treatment/course/event/offer for a post.
-- If the site mainly contains temporary weekly offers, flyers, campaign pages or store-chain information without stable individual item pages, set website_product_mode.available to false.
-- If unsure, set website_product_mode.available to false.
+- website_product_mode.available means Spreelo is allowed to use the website product/service research flow for this brand. It does not mean the first brand-analysis scrape already found the final product to post.
+- Set website_product_mode.available to true when the website appears product-based, ecommerce, retail, catalog-based, service-menu-based, bookable, listing-based, restaurant/menu-based, course/event-based or otherwise likely to contain concrete sellable/selectable website items.
+- For obvious ecommerce, online stores, product catalogs, retail chains with online assortment, electronics stores, fashion stores, pet stores, toy stores, gift stores, grocery/supermarket sites with product/offer pages, or similar product-led businesses, prefer true even if the first fetched page mostly shows categories, campaign areas or navigation.
+- Large stores and retail chains must NOT be set to false just because they are large, have many categories, use campaign pages, or require deeper product discovery. Spreelo verifies concrete product pages later when a product post is generated.
+- True is appropriate when the provided content shows several commerce/category/product signals such as product/category navigation, shop/store/webshop wording, buy/order/cart/checkout wording, product cards/pages, prices, offers, SKU/Product/Offer structured data, product images, catalog sections or item listings.
+- Set website_product_mode.available to false only when the website is mainly informational, brochure-only, portfolio/blog/news-only, a pure store locator, or does not appear to provide any realistic website items for Spreelo to research.
+- If the site appears product-based/ecommerce but item-level evidence is incomplete in this first analysis, set available true and explain that product pages must be verified during post generation.
 
 Examples:
 - Online clothing store with product cards, product names, images and prices: true.
@@ -1495,9 +1563,10 @@ Reason requirement:
 - For false, mention what is missing, for example: no stable individual product pages, no item-level listings, only store locator, only weekly offers, only general assortment or only informational content.
 
 Campaign rule:
-- If website_product_mode.available is false, campaign opportunities must not use website_content_strategy "product" or "service". Use "support" or "none" instead.
-- If website_product_mode.available is true, campaign opportunities may use "product" or "service" only when the campaign clearly fits items that exist on the website.
-- Do not search beyond the provided website content. Base this check only on the provided page title, meta description, visible website text and the extra product/source candidate pages included in this prompt.
+- If website_product_mode.available is true and the business is product-based/ecommerce/retail/catalog-based, campaign opportunities may use website_content_strategy "product" when the campaign naturally benefits from selecting a website product.
+- Do not make every post a website product post. Keep the campaign role separate from the content source: inspiration/trust/relationship posts may be general campaign visuals, while product discovery/product push/offer/last chance posts should use website products when relevant.
+- If website_product_mode.available is false, campaign opportunities should normally use "support" or "none" unless the provided content clearly supports a service/listing/menu item.
+- Do not invent product details. Concrete product pages are verified later during product-post generation.
 `.trim(),
       },
     ],
@@ -1552,7 +1621,8 @@ return {
   },
   website_product_mode: normalizeWebsiteProductMode(
     parsed.website_product_mode,
-    websiteUrl
+    websiteUrl,
+    productModeEvidenceText
   ),
   campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
     ? parsed.campaign_opportunities
