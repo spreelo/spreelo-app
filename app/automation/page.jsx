@@ -706,6 +706,44 @@ function getRecommendedTimeForDate(dateString, timeZone = DEFAULT_TIME_ZONE) {
   return getRecommendedTimeForWeekday(weekday);
 }
 
+function getRecommendedCampaignPublishTime(intent, timingAnchor) {
+  const normalizedIntent = String(intent || "").toLowerCase();
+  const normalizedAnchor = String(timingAnchor || "").toLowerCase();
+
+  if (normalizedAnchor === "relationship_event" || normalizedIntent === "event") {
+    return "09:00";
+  }
+
+  if (normalizedAnchor === "deadline_before_event" || normalizedIntent === "deadline") {
+    return "18:30";
+  }
+
+  if (normalizedIntent === "engagement") {
+    return "19:00";
+  }
+
+  if (normalizedIntent === "conversion" || normalizedAnchor === "conversion_before_deadline") {
+    return "12:00";
+  }
+
+  if (normalizedIntent === "trust") {
+    return "10:00";
+  }
+
+  if (normalizedIntent === "inspiration") {
+    return "11:30";
+  }
+
+  return "10:00";
+}
+
+function getCampaignPublishTime(baseTime = "09:00", sameDayIndex = 0) {
+  const offsets = [0, 120, 240, -90, 360, 480];
+  const offset = offsets[sameDayIndex] ?? sameDayIndex * 120;
+
+  return addMinutesToTimeString(baseTime, offset);
+}
+
 
 function addMinutesToTimeString(timeString, minutesToAdd) {
   const [hourValue, minuteValue] = String(timeString || "09:00").split(":");
@@ -2199,7 +2237,7 @@ function getCampaignPostIntent(postPlanItem, index, total) {
     return "engagement";
   }
 
-  if (/event|day of|main day|celebrate|community|relationship|brand|thank|gratitude|hälsning|fira|julafton|själva dagen/.test(text)) {
+  if (/event|day of|main day|celebrate|community|relationship|brand|thank|gratitude|hälsning|fira|själva dagen/.test(text)) {
     return "event";
   }
 
@@ -2213,24 +2251,82 @@ function getCampaignPostIntent(postPlanItem, index, total) {
   return "middle";
 }
 
-function getPreferredCampaignIntentSequence(total, leadTimeProfile) {
+function isCustomerActionDeadlineSensitiveCampaign(campaign) {
+  const text = getCampaignStrategicText(campaign);
+  return /gift|gifts|present|presents|gåva|gåvor|presenter|order|orders|booking|bookings|appointment|reservation|delivery|shipping|ship|printed|print|portrait|custom|personal|personalized|personalised|made[\s-]?to[\s-]?order|bespoke|handmade|limited availability|limited capacity|beställ|bokning|leverans|tryck|porträtt|personlig|personliga|anpassad|skräddarsydd/.test(text);
+}
+
+function shouldUseEventGreetingPost(campaign, count) {
+  const safeCount = Math.max(Math.round(Number(count) || 1), 1);
+  return Boolean(campaign?.event_date) && safeCount >= 4;
+}
+
+function getBestPracticeDaysBeforeEvent(campaign, count) {
+  const safeCount = Math.max(Math.min(Math.round(Number(count) || 1), 7), 1);
+  const leadTimeProfile = getCampaignLeadTimeProfile(campaign);
+  const isActionDeadlineSensitive =
+    leadTimeProfile.isLeadTimeSensitive ||
+    isCustomerActionDeadlineSensitiveCampaign(campaign);
+  const includeEventGreeting = shouldUseEventGreetingPost(campaign, safeCount);
+
+  if (isActionDeadlineSensitive) {
+    if (includeEventGreeting) {
+      const patterns = {
+        4: [21, 14, 8, 0],
+        5: [28, 21, 14, 8, 0],
+        6: [30, 21, 16, 12, 8, 0],
+        7: [35, 28, 21, 16, 12, 8, 0],
+      };
+      return patterns[safeCount] || patterns[5];
+    }
+
+    const patterns = {
+      1: [8],
+      2: [14, 8],
+      3: [21, 14, 8],
+    };
+    return patterns[safeCount] || patterns[3];
+  }
+
+  if (includeEventGreeting) {
+    const patterns = {
+      4: [14, 10, 4, 0],
+      5: [21, 14, 7, 3, 0],
+      6: [21, 14, 10, 7, 3, 0],
+      7: [28, 21, 14, 10, 7, 3, 0],
+    };
+    return patterns[safeCount] || patterns[5];
+  }
+
+  const patterns = {
+    1: [2],
+    2: [7, 2],
+    3: [14, 7, 3],
+  };
+  return patterns[safeCount] || patterns[3];
+}
+
+function getPreferredCampaignIntentSequence(total, leadTimeProfile, campaign = null) {
   const count = Math.max(Math.min(Math.round(Number(total) || 1), 7), 1);
+  const includeEventGreeting = shouldUseEventGreetingPost(campaign, count);
 
   if (count === 1) return ["main"];
-  if (count === 2) return leadTimeProfile.isLeadTimeSensitive ? ["inspiration", "deadline"] : ["inspiration", "event"];
-  if (count === 3) return leadTimeProfile.isLeadTimeSensitive ? ["inspiration", "conversion", "event"] : ["inspiration", "deadline", "event"];
-  if (count === 4) return leadTimeProfile.isLeadTimeSensitive ? ["inspiration", "trust", "deadline", "event"] : ["inspiration", "engagement", "deadline", "event"];
-  if (count === 5) return leadTimeProfile.isLeadTimeSensitive ? ["inspiration", "engagement", "trust", "deadline", "event"] : ["inspiration", "engagement", "conversion", "deadline", "event"];
 
-  return leadTimeProfile.isLeadTimeSensitive
-    ? ["inspiration", "engagement", "trust", "conversion", "deadline", "event"].slice(0, count)
-    : ["inspiration", "engagement", "trust", "conversion", "deadline", "event"].slice(0, count);
+  if (!includeEventGreeting) {
+    if (count === 2) return ["inspiration", "deadline"];
+    return ["inspiration", "conversion", "deadline"];
+  }
+
+  if (count === 4) return ["inspiration", "conversion", "deadline", "event"];
+  if (count === 5) return ["inspiration", "engagement", "conversion", "deadline", "event"];
+
+  return ["inspiration", "engagement", "trust", "conversion", "deadline", "event"].slice(0, count);
 }
 
 function normalizeCampaignPlanForTiming(campaign, postPlan) {
   const total = postPlan.length;
   const leadTimeProfile = getCampaignLeadTimeProfile(campaign);
-  const desiredIntents = getPreferredCampaignIntentSequence(total, leadTimeProfile);
+  const desiredIntents = getPreferredCampaignIntentSequence(total, leadTimeProfile, campaign);
   const unusedItems = postPlan.map((item, index) => ({ item, originalIndex: index }));
 
   return desiredIntents.map((desiredIntent, index) => {
@@ -2337,24 +2433,37 @@ function buildFixedEventCampaignSchedule({
   postPlan,
   timeZone = DEFAULT_TIME_ZONE,
 }) {
-  const leadTimeProfile = getCampaignLeadTimeProfile(campaign);
-  const campaignStartLeadDays = leadTimeProfile.isLeadTimeSensitive
-    ? Math.max(35, leadTimeProfile.engagementLeadDays + 2)
-    : 21;
+  const normalizedPostPlan = normalizeCampaignPlanForTiming(campaign, postPlan);
+  const total = normalizedPostPlan.length;
+  const bestPracticeDays = getBestPracticeDaysBeforeEvent(campaign, total);
 
-  const suggestedStartDate = addDaysToDateString(
-    campaign.event_date,
-    -campaignStartLeadDays
-  );
+  return normalizedPostPlan.map((postPlanItem, index) => {
+    const daysBeforeEvent = bestPracticeDays[index] ?? 0;
+    const startDate = addDaysToDateString(campaign.event_date, -daysBeforeEvent);
+    const intent = postPlanItem.intended_intent || getCampaignPostIntent(postPlanItem, index, total);
+    const timingAnchor =
+      intent === "event"
+        ? "relationship_event"
+        : intent === "deadline"
+        ? "deadline_before_event"
+        : intent === "conversion"
+        ? "conversion_before_deadline"
+        : intent;
 
-  return buildDateRangeCampaignSchedule({
-    campaign: {
-      ...campaign,
-      start_date: suggestedStartDate,
-      end_date: campaign.event_date,
-    },
-    postPlan,
-    timeZone,
+    return {
+      startDate,
+      weekday: getWeekdayFromDateString(startDate, timeZone),
+      publishTime: getRecommendedCampaignPublishTime(intent, timingAnchor),
+      daysBeforeEvent,
+      timingAnchor,
+      originalIndex: index,
+      postPlanItem: {
+        ...postPlanItem,
+        days_before_event: daysBeforeEvent,
+        timing_anchor: timingAnchor,
+      },
+      intent,
+    };
   });
 }
 
@@ -2539,7 +2648,7 @@ function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
   const campaignText = getCampaignSearchText(campaign);
 
   const hasProductIntent =
-    /shop|store|ecommerce|e-commerce|product|products|gift|gifts|present|sale|discount|offer|black friday|christmas|valentine|mother|father|holiday|seasonal|collection|launch|buy|order/.test(
+    /shop|store|ecommerce|e-commerce|product|products|gift|gifts|present|sale|discount|offer|shopping|seasonal|collection|launch|buy|order/.test(
       campaignText
     );
 
@@ -2985,7 +3094,7 @@ function createCampaignSlotsFromOpportunity({
       return createSlot({
         startDate,
         weekday: schedule.weekday || getWeekdayFromDateString(startDate, timeZone),
-        publishTime: getCampaignPublishTimeForDate(startDate, timeZone, sameDayIndex),
+        publishTime: getCampaignPublishTime(schedule.publishTime || getRecommendedCampaignPublishTime(schedule.intent, schedule.timingAnchor), sameDayIndex),
         prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
         generateImage:
