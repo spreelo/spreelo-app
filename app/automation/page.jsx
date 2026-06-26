@@ -2263,9 +2263,9 @@ function normalizeCampaignPlanForTiming(campaign, postPlan) {
           : desiredIntent,
       marketing_angle:
         desiredIntent === "event"
-          ? "brand"
+          ? "main"
           : desiredIntent === "deadline"
-          ? "last_chance"
+          ? "urgency"
           : desiredIntent === "conversion"
           ? "product_push"
           : desiredIntent === "trust"
@@ -2273,7 +2273,7 @@ function normalizeCampaignPlanForTiming(campaign, postPlan) {
           : desiredIntent === "engagement"
           ? "engagement"
           : desiredIntent === "inspiration"
-          ? "inspiration"
+          ? "awareness"
           : strategy.marketing_angle,
       campaign_phase:
         desiredIntent === "event"
@@ -2329,6 +2329,33 @@ function getCampaignTargetDateForIntent({
   }
 
   return daysAfterStart(total <= 1 ? 0 : index / Math.max(total - 1, 1));
+}
+
+
+function buildFixedEventCampaignSchedule({
+  campaign,
+  postPlan,
+  timeZone = DEFAULT_TIME_ZONE,
+}) {
+  const leadTimeProfile = getCampaignLeadTimeProfile(campaign);
+  const campaignStartLeadDays = leadTimeProfile.isLeadTimeSensitive
+    ? Math.max(35, leadTimeProfile.engagementLeadDays + 2)
+    : 21;
+
+  const suggestedStartDate = addDaysToDateString(
+    campaign.event_date,
+    -campaignStartLeadDays
+  );
+
+  return buildDateRangeCampaignSchedule({
+    campaign: {
+      ...campaign,
+      start_date: suggestedStartDate,
+      end_date: campaign.event_date,
+    },
+    postPlan,
+    timeZone,
+  });
 }
 
 function buildDateRangeCampaignSchedule({
@@ -2605,15 +2632,23 @@ function getCampaignTimingInstruction(campaign, postPlanItemOrDaysBeforeEvent) {
       : null;
 
   if (campaign?.event_date && typeof daysBeforeEvent === "number") {
-    if (daysBeforeEvent === 0) {
-      return `This post is for the day itself. Clearly lift up that today is ${campaignTitle}. Make the day feel important, timely and worth noticing.`;
+    if (timingAnchor === "relationship_event" || daysBeforeEvent === 0) {
+      return `This post is for the main campaign date itself. If buying, booking or delivery may now be too late, make it a warm greeting, thank-you, celebration or relationship-building post rather than a hard sales push.`;
+    }
+
+    if (timingAnchor === "deadline_before_event") {
+      return `This post is the final realistic action reminder before ${campaignTitle}. Make the deadline clear without pretending customers can wait until the main date if ordering, booking or delivery needs lead time.`;
+    }
+
+    if (timingAnchor === "conversion_before_deadline") {
+      return `This post is placed while customers still have time to act before ${campaignTitle}. Make the product, service or next step concrete.`;
     }
 
     if (daysBeforeEvent === 1) {
-      return `This post is for the day before ${campaignTitle}. Mention that it is tomorrow and create a natural final reminder.`;
+      return `This post is for the day before ${campaignTitle}. Mention that it is tomorrow only if same-day action is realistic; otherwise keep it softer.`;
     }
 
-    return `This post is ${daysBeforeEvent} days before ${campaignTitle}. Mention the timing naturally, for example that ${campaignTitle} is coming soon or that there are ${daysBeforeEvent} days left.`;
+    return `This post is ${daysBeforeEvent} days before ${campaignTitle}. Mention the timing naturally and keep the message aligned with whether customers still have time to act.`;
   }
 
   if (hasDateRange) {
@@ -2762,10 +2797,16 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
   );
 
   const visibleOpening = campaign?.event_date
-    ? daysBeforeEvent === 0
+    ? postPlanItem?.timing_anchor === "relationship_event"
+      ? `This is the main-date relationship post for ${campaignTitle}. Make it a warm greeting, thank-you or brand-building post rather than hard selling.`
+      : postPlanItem?.timing_anchor === "deadline_before_event"
+      ? `This is the final realistic action reminder before ${campaignTitle}. Do not place the buying pressure on the main date if customers need lead time.`
+      : postPlanItem?.timing_anchor === "conversion_before_deadline"
+      ? `This post is placed while customers still have time to act before ${campaignTitle}. Make the offer, product or next step concrete.`
+      : daysBeforeEvent === 0
       ? `This is the campaign-day post for ${campaignTitle}. Clearly highlight that today is ${campaignTitle}.`
       : daysBeforeEvent === 1
-      ? `This is the final reminder before ${campaignTitle}. Mention that ${campaignTitle} is tomorrow.`
+      ? `This is the day before ${campaignTitle}. Mention that ${campaignTitle} is tomorrow only if that is useful and realistic.`
       : `This post is ${daysBeforeEvent} days before ${campaignTitle}. Use that timing as the main angle.`
     : campaign?.start_date && campaign?.end_date
     ? postPlanItem?.timing_anchor === "relationship_event"
@@ -2906,7 +2947,7 @@ function createCampaignSlotsFromOpportunity({
   const hasCampaignDateRange = Boolean(campaign?.start_date && campaign?.end_date);
 
   if (hasFixedCampaignDate) {
-    const eventDaysBefore = getEventCampaignDaysBeforeEvent({
+    const fixedSchedule = buildFixedEventCampaignSchedule({
       campaign,
       postPlan,
       timeZone,
@@ -2914,12 +2955,11 @@ function createCampaignSlotsFromOpportunity({
 
     const dateUseCounts = {};
 
-    return postPlan.map((postPlanItem, index) => {
-      const daysBeforeEvent = eventDaysBefore[index] ?? 0;
-      const startDate = addDaysToDateString(
-        campaign.event_date,
-        -daysBeforeEvent
-      );
+    return fixedSchedule.map((schedule, index) => {
+      const postPlanItem = schedule.postPlanItem || postPlan[index] || {};
+      const startDate = schedule.startDate || campaign.event_date;
+      const daysBeforeEvent =
+        typeof schedule.daysBeforeEvent === "number" ? schedule.daysBeforeEvent : 0;
 
       const sameDayIndex = dateUseCounts[startDate] || 0;
       dateUseCounts[startDate] = sameDayIndex + 1;
@@ -2928,23 +2968,23 @@ function createCampaignSlotsFromOpportunity({
         campaign,
         postPlanItem,
         index,
-        total: postPlan.length,
+        total: fixedSchedule.length,
         daysBeforeEvent,
-        timingAnchor: daysBeforeEvent === 0 ? "event" : "before_event",
+        timingAnchor: schedule.timingAnchor,
       });
 
       const contentSourceMode = getCampaignContentSourceMode(
         campaign,
         enhancedPostPlanItem,
         index,
-        postPlan.length
+        fixedSchedule.length
       );
 
       enhancedPostPlanItem.content_source_mode = contentSourceMode;
 
       return createSlot({
         startDate,
-        weekday: getWeekdayFromDateString(startDate, timeZone),
+        weekday: schedule.weekday || getWeekdayFromDateString(startDate, timeZone),
         publishTime: getCampaignPublishTimeForDate(startDate, timeZone, sameDayIndex),
         prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
@@ -2969,7 +3009,7 @@ function createCampaignSlotsFromOpportunity({
         customerStage: enhancedPostPlanItem.customer_stage || "",
         ctaStrength: enhancedPostPlanItem.cta_strength || "",
         campaignPostIndex: enhancedPostPlanItem.campaign_post_index || index + 1,
-        campaignPostCount: enhancedPostPlanItem.campaign_post_count || postPlan.length,
+        campaignPostCount: enhancedPostPlanItem.campaign_post_count || fixedSchedule.length,
         campaignGoal: enhancedPostPlanItem.campaign_goal || "",
         targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
         strategyNotes: enhancedPostPlanItem.strategy_notes || "",
