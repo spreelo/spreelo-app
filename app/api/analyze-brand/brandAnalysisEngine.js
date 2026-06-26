@@ -1184,7 +1184,7 @@ Campaign timing:
 - If an opportunity cannot be placed inside this year, omit it.
 - For exact dated events, event_date must be YYYY-MM-DD.
 - For date ranges or seasons, use start_date and end_date.
-- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the campaign start when useful, and use timing_anchor to say where the post belongs: before_start, start, middle or end.
+- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the main campaign date, final event date, or campaign end date. For date ranges, timing_anchor must explain where the post belongs: start, middle, conversion_window, deadline_before_event, relationship_event or end.
 - For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" so they are scheduled near the end of the period, not the day after the first post.
 - For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
 - For date ranges/seasons, distinguish the marketing period from the customer action deadline. The campaign may end on a cultural, seasonal or business moment, but conversion-focused posts must be placed when customers can still realistically act.
@@ -1200,7 +1200,7 @@ Campaign strategy:
 - Every campaign should move the audience from interest to action.
 - recommended_post_count must be between 1 and 10.
 - relevance_score, sales_score and engagement_score must be between 1 and 5.
-- The final post in post_plan should normally have days_before_event 0 when event_date exists.
+- The final post in post_plan should normally have days_before_event 0 only when it is appropriate to publish on the main date. If customers need lead time to buy, book or receive delivery, do not make the final date a hard sales push; use it for softer relationship-building content.
 - Earlier post_plan items should prepare the audience before the event.
 - Every post_plan item should include timing_anchor. For exact event_date campaigns use "event" or "before_start". For start_date/end_date campaigns use "before_start", "start", "middle" or "end" to control when the post should be scheduled.
 - Do not make every post a reminder.
@@ -1433,7 +1433,7 @@ Campaign timing:
 - If an opportunity cannot be placed inside this year, omit it.
 - For exact dated events, event_date must be YYYY-MM-DD.
 - For date ranges or seasons, use start_date and end_date.
-- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the campaign start when useful, and use timing_anchor to say where the post belongs: before_start, start, middle or end.
+- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the main campaign date, final event date, or campaign end date. For date ranges, timing_anchor must explain where the post belongs: start, middle, conversion_window, deadline_before_event, relationship_event or end.
 - For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" so they are scheduled near the end of the period, not the day after the first post.
 - For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
 - For date ranges/seasons, distinguish the marketing period from the customer action deadline. The campaign may end on a cultural, seasonal or business moment, but conversion-focused posts must be placed when customers can still realistically act.
