@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
 
 const marketOptions = [
   {
@@ -65,33 +66,28 @@ const languageOptions = [
 const analysisProgressStages = [
   {
     progress: 8,
-    title: "Reading website content",
-    description:
-      "Spreelo is fetching the website or reading your business description.",
+    titleKey: "brand.analysisStage.readingTitle",
+    descriptionKey: "brand.analysisStage.readingText",
   },
   {
     progress: 28,
-    title: "Understanding your business",
-    description:
-      "Spreelo is identifying industry, audience, market and language.",
+    titleKey: "brand.analysisStage.understandingTitle",
+    descriptionKey: "brand.analysisStage.understandingText",
   },
   {
     progress: 48,
-    title: "Checking products and services",
-    description:
-      "Spreelo is deciding if website products or services can be safely used.",
+    titleKey: "brand.analysisStage.checkingTitle",
+    descriptionKey: "brand.analysisStage.checkingText",
   },
   {
     progress: 70,
-    title: "Building campaign opportunities",
-    description:
-      "Spreelo is preparing relevant seasonal and campaign ideas.",
+    titleKey: "brand.analysisStage.campaignsTitle",
+    descriptionKey: "brand.analysisStage.campaignsText",
   },
   {
     progress: 88,
-    title: "Preparing content strategy",
-    description:
-      "Spreelo is shaping the brand profile and content direction.",
+    titleKey: "brand.analysisStage.strategyTitle",
+    descriptionKey: "brand.analysisStage.strategyText",
   },
 ];
 
@@ -194,6 +190,7 @@ async function readApiJson(response) {
 }
 
 export default function BrandProfile() {
+  const { t } = useUiText(["brand"]);
   const [brandProfileId, setBrandProfileId] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
@@ -303,16 +300,16 @@ export default function BrandProfile() {
   ]);
 
   const mainButtonLabel = useMemo(() => {
-    if (saving) return "Saving...";
-    if (analyzing) return "Analyzing...";
+    if (saving) return t("brand.saving");
+    if (analyzing) return t("brand.analyzing");
 
-    if (shouldAnalyzeWebsite) return "Analyze brand & create campaign calendar";
+    if (shouldAnalyzeWebsite) return t("brand.analyzeWebsiteButton");
     if (shouldAnalyzeDescription) {
-      return "Analyze description & create campaign calendar";
+      return t("brand.analyzeDescriptionButton");
     }
 
-    return "Save brand profile";
-  }, [saving, analyzing, shouldAnalyzeWebsite, shouldAnalyzeDescription]);
+    return t("brand.saveButton");
+  }, [t, saving, analyzing, shouldAnalyzeWebsite, shouldAnalyzeDescription]);
 
   useEffect(() => {
     async function loadProfile() {
@@ -360,7 +357,7 @@ export default function BrandProfile() {
         : fallbackBrand?.id || "";
 
       if (!brandIdToLoad) {
-        setMessage("No brand profile found. Create a brand from the sidebar.");
+        setMessage(t("brand.errorNoProfile"));
         setLoading(false);
         return;
       }
@@ -381,7 +378,7 @@ export default function BrandProfile() {
       }
 
       if (!data) {
-        setMessage("No brand profile found. Create a brand from the sidebar.");
+        setMessage(t("brand.errorNoProfile"));
         setLoading(false);
         return;
       }
@@ -492,7 +489,7 @@ export default function BrandProfile() {
         runFinished = true;
         runResult = {
           ok: false,
-          error: error?.message || "Could not run analysis.",
+          error: error?.message || t("brand.errorRunAnalysis"),
         };
       });
 
@@ -517,7 +514,7 @@ export default function BrandProfile() {
         throw new Error(
           getFriendlyAnalysisError(
             statusResult?.error ||
-              "Spreelo could not read the analysis status right now."
+              t("brand.errorReadStatus")
           )
         );
       }
@@ -540,7 +537,7 @@ export default function BrandProfile() {
       if (job.status === "failed") {
         throw new Error(
           getFriendlyAnalysisError(
-            job.error_message || "Spreelo could not finish the analysis."
+            job.error_message || t("brand.errorFinishAnalysis")
           )
         );
       }
@@ -548,14 +545,14 @@ export default function BrandProfile() {
       if (runFinished && runResult && runResult.ok === false) {
         throw new Error(
           getFriendlyAnalysisError(
-            runResult.error || "Spreelo could not finish the analysis."
+            runResult.error || t("brand.errorFinishAnalysis")
           )
         );
       }
     }
 
     throw new Error(
-      "Spreelo is still analyzing this brand. Please wait a little and try again."
+      t("brand.errorStillAnalyzing")
     );
   }
 
@@ -567,17 +564,17 @@ export default function BrandProfile() {
     const trimmedDescription = brandDescription.trim();
 
     if (!trimmedBusinessName) {
-      setMessage("Add your business name first.");
+      setMessage(t("brand.errorBusinessName"));
       return;
     }
 
     if (!hasNoWebsite && !normalizedWebsiteUrl) {
-      setMessage("Add a website URL, or select that you do not have a website.");
+      setMessage(t("brand.errorWebsite"));
       return;
     }
 
     if (hasNoWebsite && !trimmedDescription) {
-      setMessage("Describe your business first.");
+      setMessage(t("brand.errorDescription"));
       return;
     }
         const displayStartedAt = Date.now();
@@ -632,7 +629,7 @@ export default function BrandProfile() {
         throw new Error(
           getFriendlyAnalysisError(
             startResult?.error ||
-              "Spreelo could not start the brand analysis right now."
+              t("brand.errorStartAnalysis")
           )
         );
       }
@@ -640,7 +637,7 @@ export default function BrandProfile() {
       const jobId = String(startResult.job_id || startResult.job?.id || "");
 
       if (!jobId) {
-        throw new Error("Spreelo could not create an analysis job.");
+        throw new Error(t("brand.errorCreateJob"));
       }
 
             setAnalysisProgress(getSmoothAnalysisProgress(displayStartedAt));
@@ -702,15 +699,15 @@ export default function BrandProfile() {
 
       setMessage(
         hasNoWebsite
-          ? `Brand description analyzed, saved and ${
-              result.campaign_opportunities_count || 0
-            } campaign opportunities created.`
-          : `Website analyzed, saved and ${
-              result.campaign_opportunities_count || 0
-            } campaign opportunities created.`
+          ? t("brand.descriptionAnalyzed", {
+              count: result.campaign_opportunities_count || 0,
+            })
+          : t("brand.websiteAnalyzed", {
+              count: result.campaign_opportunities_count || 0,
+            })
       );
     } catch (error) {
-      setMessage(error.message || "Could not analyze brand.");
+      setMessage(error.message || t("brand.errorAnalyze"));
        } finally {
       clearInterval(progressInterval);
       setAnalyzing(false);
@@ -723,17 +720,17 @@ export default function BrandProfile() {
     const trimmedBusinessName = businessName.trim();
 
     if (!trimmedBusinessName) {
-      setMessage("Add your business name first.");
+      setMessage(t("brand.errorBusinessName"));
       return;
     }
 
     if (!contentMarket || !countryCode) {
-      setMessage("Choose the market/country this brand targets.");
+      setMessage(t("brand.errorMarket"));
       return;
     }
 
     if (!contentLanguage) {
-      setMessage("Choose the content language for this brand.");
+      setMessage(t("brand.errorLanguage"));
       return;
     }
 
@@ -762,7 +759,7 @@ export default function BrandProfile() {
       setMessage(error.message);
     } else {
       setWebsiteUrl(finalWebsiteUrl);
-      setMessage("Brand profile saved. AI setup is ready.");
+      setMessage(t("brand.saved"));
     }
 
     setSaving(false);
@@ -772,14 +769,12 @@ export default function BrandProfile() {
     setDeleteMessage("");
 
     if (!brandProfileId) {
-      setDeleteMessage("No brand selected.");
+      setDeleteMessage(t("brand.deleteErrorNoBrand"));
       return;
     }
 
     if (allBrands.length <= 1) {
-      setDeleteMessage(
-        "You cannot delete your last brand. Create another brand first."
-      );
+      setDeleteMessage(t("brand.deleteErrorLastBrand"));
       return;
     }
 
@@ -830,9 +825,7 @@ export default function BrandProfile() {
     if (!user || !brandProfileId || deletingBrand) return;
 
     if (allBrands.length <= 1) {
-      setDeleteMessage(
-        "You cannot delete your last brand. Create another brand first."
-      );
+      setDeleteMessage(t("brand.deleteErrorLastBrand"));
       return;
     }
 
@@ -854,7 +847,7 @@ export default function BrandProfile() {
         null;
 
       if (!nextBrand?.id) {
-        throw new Error("Could not find another brand to switch to.");
+        throw new Error(t("brand.deleteErrorSwitch"));
       }
 
       const { data: rulesToDelete, error: rulesLoadError } = await supabase
@@ -950,7 +943,7 @@ export default function BrandProfile() {
     } catch (error) {
       console.error("Could not delete brand:", error);
       setDeleteMessage(
-        error.message || "Could not delete brand. Please try again."
+        error.message || t("brand.deleteErrorGeneric")
       );
       setDeletingBrand(false);
     }
@@ -960,8 +953,8 @@ export default function BrandProfile() {
     return (
       <AppLayout active="brand">
         <section className="empty-card">
-          <h3>Loading brand profile...</h3>
-          <p>Please wait while Spreelo loads your business information.</p>
+          <h3>{t("brand.loadingTitle")}</h3>
+          <p>{t("brand.loadingText")}</p>
         </section>
       </AppLayout>
     );
@@ -972,12 +965,9 @@ export default function BrandProfile() {
       <div className="brand-profile-page">
         <header className="brand-profile-hero">
           <div>
-            <p className="dashboard-eyebrow">Brand profile</p>
-            <h2>Teach Spreelo about your brand</h2>
-            <span>
-              Set your business context, market and language. Spreelo uses this
-              to create better regular posts, campaign ideas and content plans.
-            </span>
+            <p className="dashboard-eyebrow">{t("brand.eyebrow")}</p>
+            <h2>{t("brand.heroTitle")}</h2>
+            <span>{t("brand.heroText")}</span>
           </div>
 
           <div
@@ -986,12 +976,12 @@ export default function BrandProfile() {
             }`}
           >
             <strong>
-              {isBrandProfileReady ? "AI setup ready" : "Setup needed"}
+              {isBrandProfileReady ? t("brand.readyBadge") : t("brand.setupNeededBadge")}
             </strong>
             <span>
               {isBrandProfileReady
-                ? "You can now create content with Content Creator or choose campaign ideas in Calendar."
-                : "Complete and save your brand profile before creating content."}
+                ? t("brand.readyBadgeText")
+                : t("brand.setupNeededBadgeText")}
             </span>
           </div>
         </header>
@@ -1000,78 +990,66 @@ export default function BrandProfile() {
           <aside className="brand-profile-guide-card">
             <div className="brand-profile-guide-icon">✦</div>
 
-            <p className="dashboard-eyebrow">Setup flow</p>
-            <h3>From brand info to content ideas</h3>
+            <p className="dashboard-eyebrow">{t("brand.setupFlowEyebrow")}</p>
+            <h3>{t("brand.setupFlowTitle")}</h3>
 
             <div className="brand-profile-step-list">
               <div>
                 <span>1</span>
                 <div>
-                  <strong>Business details</strong>
-                  <p>Add your website or describe the business manually.</p>
+                  <strong>{t("brand.stepBusinessTitle")}</strong>
+                  <p>{t("brand.stepBusinessText")}</p>
                 </div>
               </div>
 
               <div>
                 <span>2</span>
                 <div>
-                  <strong>Campaign settings</strong>
-                  <p>
-                    Spreelo selects market and language automatically after the
-                    analysis.
-                  </p>
+                  <strong>{t("brand.stepCampaignTitle")}</strong>
+                  <p>{t("brand.stepCampaignText")}</p>
                 </div>
               </div>
 
               <div>
                 <span>3</span>
                 <div>
-                  <strong>AI analysis</strong>
-                  <p>
-                    Spreelo analyzes the brand and prepares better content
-                    ideas.
-                  </p>
+                  <strong>{t("brand.stepAnalysisTitle")}</strong>
+                  <p>{t("brand.stepAnalysisText")}</p>
                 </div>
               </div>
 
               <div>
                 <span>4</span>
                 <div>
-                  <strong>Create content</strong>
-                  <p>
-                    Use Content Creator for regular posts or Calendar for
-                    campaign-based plans.
-                  </p>
+                  <strong>{t("brand.stepCreateTitle")}</strong>
+                  <p>{t("brand.stepCreateText")}</p>
                 </div>
               </div>
             </div>
 
             <div className="brand-profile-note-card">
-              <strong>Automatic setup</strong>
-              <p>
-                Spreelo will suggest the campaign market and post language based
-                on the website or business description.
-              </p>
+              <strong>{t("brand.automaticSetupTitle")}</strong>
+              <p>{t("brand.automaticSetupText")}</p>
             </div>
           </aside>
 
           <section className="brand-profile-form-card">
             <div className="brand-profile-form-header">
               <div>
-                <p className="dashboard-eyebrow">Business context</p>
-                <h3>Brand setup</h3>
+                <p className="dashboard-eyebrow">{t("brand.businessContext")}</p>
+                <h3>{t("brand.brandSetup")}</h3>
               </div>
 
-              <span>Current brand</span>
+              <span>{t("brand.currentBrand")}</span>
             </div>
 
             <div className="brand-profile-form-section">
-              <h4>Business details</h4>
+              <h4>{t("brand.businessDetails")}</h4>
 
-              <label>Business name</label>
+              <label>{t("brand.businessName")}</label>
               <input
                 className="input"
-                placeholder="Example: Your Company"
+                placeholder={t("brand.businessNamePlaceholder")}
                 value={businessName}
                 onChange={(event) => {
                   setBusinessName(event.target.value);
@@ -1080,10 +1058,10 @@ export default function BrandProfile() {
                 disabled={analyzing || saving || deletingBrand}
               />
 
-              <label>Website URL</label>
+              <label>{t("brand.websiteUrl")}</label>
               <input
                 className="input"
-                placeholder="Example: https://www.yourbusiness.com"
+                placeholder={t("brand.websiteUrlPlaceholder")}
                 value={websiteUrl}
                 onChange={(event) => {
                   setWebsiteUrl(event.target.value);
@@ -1104,15 +1082,15 @@ export default function BrandProfile() {
                   onChange={handleNoWebsiteChange}
                   disabled={analyzing || saving || deletingBrand}
                 />
-                <span>I do not have a website</span>
+                <span>{t("brand.noWebsite")}</span>
               </label>
 
               {hasNoWebsite && (
                 <>
-                  <label>Describe your business</label>
+                  <label>{t("brand.describeBusiness")}</label>
                   <textarea
                     className="input prompt-textarea"
-                    placeholder="Describe what your business does, what you offer, who your customers are, what style or tone you want, and what Spreelo should know before creating posts."
+                    placeholder={t("brand.describeBusinessPlaceholder")}
                     value={brandDescription}
                     onChange={(event) => {
                       setBrandDescription(event.target.value);
@@ -1132,19 +1110,16 @@ export default function BrandProfile() {
               <div className="brand-profile-form-section market">
                 <div className="brand-profile-section-title">
                   <div>
-                    <h4>Campaign settings</h4>
-                    <p>
-                      Spreelo selected these based on your website or business
-                      description. You can change them if needed.
-                    </p>
+                    <h4>{t("brand.campaignSettingsTitle")}</h4>
+                    <p>{t("brand.campaignSettingsText")}</p>
                   </div>
 
-                  <span>Auto-selected</span>
+                  <span>{t("brand.autoSelected")}</span>
                 </div>
 
                 <div className="brand-profile-two-col">
                   <div>
-                    <label>Campaign market</label>
+                    <label>{t("brand.campaignMarket")}</label>
                     <select
                       className="input"
                       value={contentMarket}
@@ -1156,18 +1131,18 @@ export default function BrandProfile() {
                           key={`${market.countryCode}-${market.label}`}
                           value={market.label}
                         >
-                          {market.label}
+                          {t(`brand.market.${market.countryCode}`)}
                         </option>
                       ))}
                     </select>
 
                     <p className="brand-profile-field-help">
-                      Used for holidays, seasonal timing and campaign ideas.
+                      {t("brand.campaignMarketHelp")}
                     </p>
                   </div>
 
                   <div>
-                    <label>Post language</label>
+                    <label>{t("brand.postLanguage")}</label>
                     <select
                       className="input"
                       value={contentLanguage}
@@ -1180,13 +1155,13 @@ export default function BrandProfile() {
                     >
                       {visibleLanguageOptions.map((language) => (
                         <option key={language} value={language}>
-                          {language}
+                          {t(`brand.language.${language}`)}
                         </option>
                       ))}
                     </select>
 
                     <p className="brand-profile-field-help">
-                      Used for captions, campaign ideas and generated posts.
+                      {t("brand.postLanguageHelp")}
                     </p>
                   </div>
                 </div>
@@ -1197,26 +1172,26 @@ export default function BrandProfile() {
               <div className="brand-profile-form-section ai-profile">
                 <div className="brand-profile-section-title">
                   <div>
-                    <h4>AI profile</h4>
-                    <p>You can adjust these fields before saving.</p>
+                    <h4>{t("brand.aiProfileTitle")}</h4>
+                    <p>{t("brand.aiProfileText")}</p>
                   </div>
 
-                  <span>Generated</span>
+                  <span>{t("brand.generated")}</span>
                 </div>
 
-                <label>Industry</label>
+                <label>{t("brand.industry")}</label>
                 <textarea
                   className="input prompt-textarea"
-                  placeholder="Example: Local service business helping homeowners with..."
+                  placeholder={t("brand.industryPlaceholder")}
                   value={industry}
                   onChange={(event) => setIndustry(event.target.value)}
                   disabled={analyzing || saving || deletingBrand}
                 />
 
-                <label>Target audience</label>
+                <label>{t("brand.targetAudience")}</label>
                 <textarea
                   className="input prompt-textarea"
-                  placeholder="Example: Customers who need..."
+                  placeholder={t("brand.targetAudiencePlaceholder")}
                   value={targetAudience}
                   onChange={(event) => setTargetAudience(event.target.value)}
                   disabled={analyzing || saving || deletingBrand}
@@ -1237,12 +1212,8 @@ export default function BrandProfile() {
               <div className="brand-profile-analysis-card">
                 <div className="brand-profile-analysis-header">
                   <div>
-                    <strong>Analyzing your brand</strong>
-                    <p>
-                      This usually takes 1–3 minutes. Please keep this page open
-                      while Spreelo reads your website and prepares your campaign
-                      calendar.
-                    </p>
+                    <strong>{t("brand.analysisTitle")}</strong>
+                    <p>{t("brand.analysisText")}</p>
                   </div>
 
                   <span>{Math.min(99, Math.floor(analysisProgress))}%</span>
@@ -1257,27 +1228,27 @@ export default function BrandProfile() {
 
                 <div className="brand-profile-analysis-current">
                   <strong>
-                    {getCurrentAnalysisStage(analysisProgress).title}
+                    {t(getCurrentAnalysisStage(analysisProgress).titleKey)}
                   </strong>
-                  <p>{getCurrentAnalysisStage(analysisProgress).description}</p>
+                  <p>{t(getCurrentAnalysisStage(analysisProgress).descriptionKey)}</p>
                 </div>
 
                 <div className="brand-profile-analysis-steps">
                   {analysisProgressStages.map((stage) => {
                     const isDone = analysisProgress >= stage.progress;
                     const isCurrent =
-                      getCurrentAnalysisStage(analysisProgress).title ===
-                      stage.title;
+                      getCurrentAnalysisStage(analysisProgress).titleKey ===
+                      stage.titleKey;
 
                     return (
                       <div
-                        key={stage.title}
+                        key={stage.titleKey}
                         className={`brand-profile-analysis-step ${
                           isDone ? "done" : ""
                         } ${isCurrent ? "current" : ""}`}
                       >
                         <span>{isDone ? "✓" : "○"}</span>
-                        <strong>{stage.title}</strong>
+                        <strong>{t(stage.titleKey)}</strong>
                       </div>
                     );
                   })}
@@ -1288,26 +1259,22 @@ export default function BrandProfile() {
             {message && <p className="brand-profile-message">{message}</p>}
 
             <p className="brand-profile-disclaimer">
-              Campaign dates are suggested by AI and may vary by market, region
-              or year. You can edit or move campaign dates later in the
-              calendar.
+              {t("brand.disclaimer")}
             </p>
           </section>
         </section>
 
         <section className="danger-zone-card">
           <div>
-            <p className="eyebrow danger-eyebrow">Danger zone</p>
-            <h3>Delete this brand</h3>
+            <p className="eyebrow danger-eyebrow">{t("brand.dangerEyebrow")}</p>
+            <h3>{t("brand.deleteTitle")}</h3>
             <p>
-              Permanently delete{" "}
-              <strong>{businessName || "this brand"}</strong>, including its
-              generated posts, saved plans, automation rules, website history,
-              campaign opportunities and social connection.
+              {t("brand.deleteTextBefore")}{" "}
+              <strong>{businessName || t("brand.thisBrand")}</strong>
+              {t("brand.deleteTextAfter")}
             </p>
             <p className="danger-zone-note">
-              This cannot be undone. You cannot delete your last remaining
-              brand.
+              {t("brand.deleteNote")}
             </p>
           </div>
 
@@ -1315,8 +1282,9 @@ export default function BrandProfile() {
             {deleteStep ? (
               <div className="delete-confirm-box">
                 <p>
-                  Are you sure you want to permanently delete{" "}
-                  <strong>{businessName || "this brand"}</strong>?
+                  {t("brand.deleteConfirmTextBefore")}{" "}
+                  <strong>{businessName || t("brand.thisBrand")}</strong>
+                  {t("brand.deleteConfirmTextAfter")}
                 </p>
 
                 <div className="delete-confirm-actions">
@@ -1326,7 +1294,7 @@ export default function BrandProfile() {
                     onClick={handleDeleteConfirm}
                     disabled={deletingBrand}
                   >
-                    {deletingBrand ? "Deleting..." : "Yes, delete permanently"}
+                    {deletingBrand ? t("brand.deleting") : t("brand.deleteConfirmButton")}
                   </button>
 
                   <button
@@ -1335,7 +1303,7 @@ export default function BrandProfile() {
                     onClick={handleDeleteCancel}
                     disabled={deletingBrand}
                   >
-                    Cancel
+                    {t("brand.cancel")}
                   </button>
                 </div>
               </div>
@@ -1346,7 +1314,7 @@ export default function BrandProfile() {
                 onClick={handleDeleteStart}
                 disabled={deletingBrand}
               >
-                Delete brand
+                {t("brand.deleteButton")}
               </button>
             )}
 
