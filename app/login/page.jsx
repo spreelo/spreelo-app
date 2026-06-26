@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { SUPPORTED_UI_LOCALES } from "../../lib/i18n/defaultLabels";
+import LanguageSuggestionBanner from "../../components/LanguageSuggestionBanner";
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
@@ -170,6 +171,8 @@ export default function LoginPage() {
 
   return (
     <main className="login-page">
+      <LanguageSuggestionBanner />
+
       <section className="login-card">
         <div className="brand login-brand">
           <img
