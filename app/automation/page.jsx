@@ -2718,11 +2718,11 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
   }
 
   if (sourceMode === "website_product") {
-    return `Use a relevant product from the brand website if available. Connect the product naturally to the campaign. Use only product details that clearly exist on the website. If no relevant product is found, fall back to a general campaign post.${productSelectionInstruction}`;
+    return `Use a relevant product from the brand website. Connect the product naturally to the campaign. Use only product details that clearly exist on the website. Do not invent product details, prices, stock, delivery promises or discounts. If no verified matching product can be found, the automation should stop with an error instead of silently creating a generic AI fallback.${productSelectionInstruction}`;
   }
 
   if (sourceMode === "website_service") {
-    return `Use a relevant service or offer from the brand website if available. Connect the service naturally to the campaign. Use only details that clearly exist on the website. If no relevant service is found, fall back to a general campaign post.${productSelectionInstruction}`;
+    return `Use a relevant service or offer from the brand website. Connect the service naturally to the campaign. Use only details that clearly exist on the website. If no verified matching website item can be found, the automation should stop with an error instead of silently creating a generic AI fallback.${productSelectionInstruction}`;
   }
 
   if (sourceMode === "mixed_campaign_and_website") {
