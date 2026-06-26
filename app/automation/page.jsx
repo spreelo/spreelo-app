@@ -706,6 +706,38 @@ function getRecommendedTimeForDate(dateString, timeZone = DEFAULT_TIME_ZONE) {
   return getRecommendedTimeForWeekday(weekday);
 }
 
+
+function addMinutesToTimeString(timeString, minutesToAdd) {
+  const [hourValue, minuteValue] = String(timeString || "09:00").split(":");
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    return "09:00";
+  }
+
+  const totalMinutes = Math.min(
+    Math.max(hour * 60 + minute + minutesToAdd, 7 * 60),
+    21 * 60
+  );
+
+  return `${padNumber(Math.floor(totalMinutes / 60))}:${padNumber(
+    totalMinutes % 60
+  )}`;
+}
+
+function getCampaignPublishTimeForDate(
+  dateString,
+  timeZone = DEFAULT_TIME_ZONE,
+  sameDayIndex = 0
+) {
+  const baseTime = getRecommendedTimeForDate(dateString, timeZone);
+  const offsets = [0, 240, 480, -120, 120, 360];
+  const offset = offsets[sameDayIndex] ?? sameDayIndex * 120;
+
+  return addMinutesToTimeString(baseTime, offset);
+}
+
 function buildSmartSlotSchedule({
   startDate,
   count,
@@ -1956,6 +1988,207 @@ function getFutureCampaignDaysBeforeEvent(count, daysUntilEvent) {
   ];
 }
 
+
+function getCampaignPlanTimingAnchor(postPlanItem, index = 0, total = 1) {
+  const explicitAnchor = String(
+    postPlanItem?.timing_anchor ||
+      postPlanItem?.schedule_anchor ||
+      postPlanItem?.anchor ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (/end|last|final|deadline|slut|sista/.test(explicitAnchor)) {
+    return "end";
+  }
+
+  if (/middle|during|mid|under|mitt/.test(explicitAnchor)) {
+    return "middle";
+  }
+
+  if (/before|pre|start|begin|launch|början|innan/.test(explicitAnchor)) {
+    return "start";
+  }
+
+  const text = [
+    postPlanItem?.campaign_phase,
+    postPlanItem?.marketing_angle,
+    postPlanItem?.role,
+    postPlanItem?.purpose,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/last[_\s-]?chance|final|sista|slutlig|deadline|urgency|urgent|late|middle_late|end/.test(text)) {
+    return "end";
+  }
+
+  if (/middle|during|engagement|trust|consideration|under kampanj/.test(text)) {
+    return "middle";
+  }
+
+  if (index === total - 1 && total > 1) {
+    return "end";
+  }
+
+  return "start";
+}
+
+function getClampedFutureDateString(dateString, timeZone = DEFAULT_TIME_ZONE) {
+  const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
+
+  if (!dateString) {
+    return todayDateString;
+  }
+
+  return dateString < todayDateString ? todayDateString : dateString;
+}
+
+function getUniqueDateNearTarget({
+  targetDate,
+  usedDates,
+  minDate,
+  maxDate,
+  preferBackward = false,
+}) {
+  const safeTarget = targetDate || minDate || maxDate;
+
+  if (!safeTarget) {
+    return "";
+  }
+
+  const lowerBound = minDate || safeTarget;
+  const upperBound = maxDate || safeTarget;
+
+  const clamp = (dateString) => {
+    if (lowerBound && dateString < lowerBound) return lowerBound;
+    if (upperBound && dateString > upperBound) return upperBound;
+    return dateString;
+  };
+
+  const first = clamp(safeTarget);
+
+  if (!usedDates.has(first)) {
+    return first;
+  }
+
+  for (let offset = 1; offset <= 45; offset += 1) {
+    const candidates = preferBackward
+      ? [addDaysToDateString(first, -offset), addDaysToDateString(first, offset)]
+      : [addDaysToDateString(first, offset), addDaysToDateString(first, -offset)];
+
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+
+      const clampedCandidate = clamp(candidate);
+
+      if (!usedDates.has(clampedCandidate)) {
+        return clampedCandidate;
+      }
+    }
+  }
+
+  return first;
+}
+
+function getEventCampaignDaysBeforeEvent({
+  campaign,
+  postPlan,
+  timeZone = DEFAULT_TIME_ZONE,
+}) {
+  const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
+  const daysUntilEvent = getDaysBetweenDateStrings(
+    todayDateString,
+    campaign?.event_date
+  );
+
+  const maxFutureDaysBeforeEvent = Math.max(
+    Math.floor(Number(daysUntilEvent) || 0),
+    0
+  );
+
+  const defaultDays = getFutureCampaignDaysBeforeEvent(
+    postPlan.length,
+    maxFutureDaysBeforeEvent
+  );
+
+  return postPlan.map((postPlanItem, index) => {
+    const rawDays = Number(postPlanItem?.days_before_event);
+    const preferredDays = Number.isFinite(rawDays)
+      ? Math.max(Math.round(rawDays), 0)
+      : defaultDays[index] ?? 0;
+
+    return Math.min(preferredDays, maxFutureDaysBeforeEvent);
+  });
+}
+
+function buildDateRangeCampaignSchedule({
+  campaign,
+  postPlan,
+  timeZone = DEFAULT_TIME_ZONE,
+}) {
+  const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
+  const periodStartDate = campaign?.start_date || campaign?.event_date || todayDateString;
+  const periodEndDate = campaign?.end_date || campaign?.event_date || periodStartDate;
+  const safePeriodStartDate = getClampedFutureDateString(periodStartDate, timeZone);
+  const safePeriodEndDate = getLaterDateString(periodEndDate, safePeriodStartDate);
+  const periodLengthDays = Math.max(
+    getDaysBetweenDateStrings(safePeriodStartDate, safePeriodEndDate) || 0,
+    0
+  );
+
+  const usedDates = new Set();
+  const total = postPlan.length;
+
+  return postPlan.map((postPlanItem, index) => {
+    const timingAnchor = getCampaignPlanTimingAnchor(postPlanItem, index, total);
+    const rawDaysBeforeStart = Number(postPlanItem?.days_before_event);
+    const hasDaysBeforeStart = Number.isFinite(rawDaysBeforeStart);
+    let targetDate = safePeriodStartDate;
+    let daysBeforeStart = hasDaysBeforeStart
+      ? Math.max(Math.round(rawDaysBeforeStart), 0)
+      : null;
+
+    if (timingAnchor === "end") {
+      const isLastPost = index === total - 1;
+      const endOffset = isLastPost ? 0 : Math.min(2, periodLengthDays);
+      targetDate = addDaysToDateString(safePeriodEndDate, -endOffset);
+      daysBeforeStart = null;
+    } else if (timingAnchor === "middle") {
+      const middleOffset = Math.max(Math.floor(periodLengthDays / 2), 0);
+      targetDate = addDaysToDateString(safePeriodStartDate, middleOffset);
+      daysBeforeStart = null;
+    } else if (daysBeforeStart && daysBeforeStart > 0) {
+      targetDate = addDaysToDateString(periodStartDate, -daysBeforeStart);
+    } else {
+      targetDate = safePeriodStartDate;
+      daysBeforeStart = 0;
+    }
+
+    targetDate = getClampedFutureDateString(targetDate, timeZone);
+
+    const scheduledDate = getUniqueDateNearTarget({
+      targetDate,
+      usedDates,
+      minDate: todayDateString,
+      maxDate: timingAnchor === "start" && daysBeforeStart > 0 ? safePeriodEndDate : safePeriodEndDate,
+      preferBackward: timingAnchor === "end",
+    });
+
+    usedDates.add(scheduledDate);
+
+    return {
+      startDate: scheduledDate,
+      weekday: getWeekdayFromDateString(scheduledDate, timeZone),
+      publishTime: getRecommendedTimeForDate(scheduledDate, timeZone),
+      daysBeforeEvent: daysBeforeStart,
+      timingAnchor,
+    };
+  });
+}
+
 function getCampaignSearchText(campaign) {
   return [
     campaign?.title,
@@ -2130,22 +2363,49 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
   return "Do not force a product or service into this post. Keep the focus on the campaign theme and the audience value.";
 }
 
-function getCampaignTimingInstruction(campaign, daysBeforeEvent) {
+function getCampaignTimingInstruction(campaign, postPlanItemOrDaysBeforeEvent) {
   const campaignTitle = campaign?.title || "the campaign";
+  const hasDateRange = Boolean(campaign?.start_date && campaign?.end_date);
+  const daysBeforeEvent =
+    typeof postPlanItemOrDaysBeforeEvent === "number"
+      ? postPlanItemOrDaysBeforeEvent
+      : typeof postPlanItemOrDaysBeforeEvent?.days_before_event === "number"
+      ? postPlanItemOrDaysBeforeEvent.days_before_event
+      : null;
+  const timingAnchor =
+    typeof postPlanItemOrDaysBeforeEvent === "object"
+      ? postPlanItemOrDaysBeforeEvent?.timing_anchor
+      : null;
 
-  if (!campaign?.event_date || typeof daysBeforeEvent !== "number") {
-    return `This campaign has a flexible date. Do not mention days left. Instead, give this post a clear campaign role and make it different from the other posts.`;
+  if (campaign?.event_date && typeof daysBeforeEvent === "number") {
+    if (daysBeforeEvent === 0) {
+      return `This post is for the day itself. Clearly lift up that today is ${campaignTitle}. Make the day feel important, timely and worth noticing.`;
+    }
+
+    if (daysBeforeEvent === 1) {
+      return `This post is for the day before ${campaignTitle}. Mention that it is tomorrow and create a natural final reminder.`;
+    }
+
+    return `This post is ${daysBeforeEvent} days before ${campaignTitle}. Mention the timing naturally, for example that ${campaignTitle} is coming soon or that there are ${daysBeforeEvent} days left.`;
   }
 
-  if (daysBeforeEvent === 0) {
-    return `This post is for the day itself. Clearly lift up that today is ${campaignTitle}. Make the day feel important, timely and worth noticing.`;
+  if (hasDateRange) {
+    if (timingAnchor === "end") {
+      return `This post is placed near the end of the campaign period. Make it work as a final reminder or last chance without inventing discounts or false urgency.`;
+    }
+
+    if (timingAnchor === "middle") {
+      return `This post is placed during the campaign period. Build interest, trust or product/service consideration connected to the campaign.`;
+    }
+
+    if (typeof daysBeforeEvent === "number" && daysBeforeEvent > 0) {
+      return `This post is ${daysBeforeEvent} days before the campaign period starts. Build early interest and prepare the audience.`;
+    }
+
+    return `This post is placed at the start of the campaign period. Introduce the campaign clearly and make the timing feel relevant.`;
   }
 
-  if (daysBeforeEvent === 1) {
-    return `This post is for the day before ${campaignTitle}. Mention that it is tomorrow and create a natural final reminder.`;
-  }
-
-  return `This post is ${daysBeforeEvent} days before ${campaignTitle}. Mention the timing naturally, for example that ${campaignTitle} is coming soon or that there are ${daysBeforeEvent} days left.`;
+  return `This campaign has a flexible date. Do not mention days left. Instead, give this post a clear campaign role and make it different from the other posts.`;
 }
 
 function buildCampaignPostPlanItem({
@@ -2154,9 +2414,13 @@ function buildCampaignPostPlanItem({
   index,
   total,
   daysBeforeEvent = null,
+  timingAnchor = null,
 }) {
   const campaignTitle = campaign?.title || "Campaign";
   const hasFixedDate = Boolean(campaign?.event_date);
+  const hasDateRange = Boolean(campaign?.start_date && campaign?.end_date);
+  const resolvedTimingAnchor =
+    timingAnchor || getCampaignPlanTimingAnchor(postPlanItem, index, total);
   const strategy = getStrategicCampaignStep(total, index, postPlanItem);
 
   const aiRoleIsUseful =
@@ -2184,6 +2448,16 @@ function buildCampaignPostPlanItem({
     } else {
       timingNote = `This post is scheduled early in the campaign. Build interest before the campaign date gets close.`;
     }
+  } else if (hasDateRange) {
+    if (resolvedTimingAnchor === "end") {
+      timingNote = `This post is scheduled near the end of the campaign period for ${campaignTitle}. Use it as a last chance or final action post.`;
+    } else if (resolvedTimingAnchor === "middle") {
+      timingNote = `This post is scheduled during the campaign period for ${campaignTitle}. Build interest, trust or product/service consideration.`;
+    } else if (typeof daysBeforeEvent === "number" && daysBeforeEvent > 0) {
+      timingNote = `This post is scheduled ${daysBeforeEvent} days before the campaign period starts. Build early interest without sounding like a final reminder.`;
+    } else {
+      timingNote = `This post is scheduled at the start of the campaign period for ${campaignTitle}. Introduce the campaign clearly.`;
+    }
   }
 
   return {
@@ -2200,7 +2474,8 @@ function buildCampaignPostPlanItem({
     target_customer_need: campaign?.target_customer_need || "",
     strategy_notes: getCampaignStrategyInstruction(strategy),
     timing_note: timingNote,
-    days_before_event: hasFixedDate ? daysBeforeEvent : null,
+    days_before_event: hasFixedDate || hasDateRange ? daysBeforeEvent : null,
+    timing_anchor: resolvedTimingAnchor,
   };
 }
 
@@ -2232,7 +2507,7 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
 
   const timingInstruction = getCampaignTimingInstruction(
     campaign,
-    daysBeforeEvent
+    postPlanItem
   );
 
   const visibleOpening = campaign?.event_date
@@ -2241,6 +2516,14 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
       : daysBeforeEvent === 1
       ? `This is the final reminder before ${campaignTitle}. Mention that ${campaignTitle} is tomorrow.`
       : `This post is ${daysBeforeEvent} days before ${campaignTitle}. Use that timing as the main angle.`
+    : campaign?.start_date && campaign?.end_date
+    ? postPlanItem?.timing_anchor === "end"
+      ? `This is the final or last-chance post near the end of the campaign period for ${campaignTitle}.`
+      : postPlanItem?.timing_anchor === "middle"
+      ? `This is a mid-campaign post for ${campaignTitle}. Build interest, trust or product/service consideration.`
+      : typeof daysBeforeEvent === "number" && daysBeforeEvent > 0
+      ? `This post is ${daysBeforeEvent} days before the campaign period starts. Use that timing as the main angle.`
+      : `This is the campaign-start post for ${campaignTitle}. Introduce the campaign clearly.`
     : `This is a flexible-date campaign post. Do not mention days left. Focus on this specific role: ${postRole}.`;
 
   return [
@@ -2305,6 +2588,16 @@ function buildCampaignSummary(campaign, postPlanItem, index) {
     } else {
       timingText = ` Scheduled ${daysBeforeEvent} days before ${campaignTitle}.`;
     }
+  } else if (campaign?.start_date && campaign?.end_date) {
+    if (postPlanItem?.timing_anchor === "end") {
+      timingText = " Scheduled near the end of the campaign period.";
+    } else if (postPlanItem?.timing_anchor === "middle") {
+      timingText = " Scheduled during the campaign period.";
+    } else if (typeof daysBeforeEvent === "number" && daysBeforeEvent > 0) {
+      timingText = ` Scheduled ${daysBeforeEvent} days before the campaign starts.`;
+    } else {
+      timingText = " Scheduled at the start of the campaign period.";
+    }
   }
 
   return `${angleLabel}: ${purpose} ${stageLabel}. CTA: ${ctaStrength}.${timingText}`;
@@ -2350,84 +2643,149 @@ function createCampaignSlotsFromOpportunity({
 }) {
   const recommendedCount = getCampaignRecommendedPostCount(campaign);
   const postPlan = buildCampaignPostPlan(campaign, recommendedCount);
-
   const hasFixedCampaignDate = Boolean(campaign?.event_date);
+  const hasCampaignDateRange = Boolean(campaign?.start_date && campaign?.end_date);
 
- if (hasFixedCampaignDate) {
-  const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
-  const daysUntilEvent = getDaysBetweenDateStrings(
-    todayDateString,
-    campaign.event_date
-  );
-
-  const futureDaysBeforeEvent = getFutureCampaignDaysBeforeEvent(
-    postPlan.length,
-    daysUntilEvent
-  );
-
-  return postPlan.map((postPlanItem, index) => {
-    const daysBeforeEvent = futureDaysBeforeEvent[index] ?? 0;
-
-    const startDate = addDaysToDateString(
-      campaign.event_date,
-      -daysBeforeEvent
-    );
-
-    const enhancedPostPlanItem = buildCampaignPostPlanItem({
+  if (hasFixedCampaignDate) {
+    const eventDaysBefore = getEventCampaignDaysBeforeEvent({
       campaign,
-      postPlanItem,
-      index,
-      total: postPlan.length,
-      daysBeforeEvent,
+      postPlan,
+      timeZone,
     });
 
-    const contentSourceMode = getCampaignContentSourceMode(
-      campaign,
-      enhancedPostPlanItem,
-      index,
-      postPlan.length
-    );
+    const dateUseCounts = {};
 
-    enhancedPostPlanItem.content_source_mode = contentSourceMode;
+    return postPlan.map((postPlanItem, index) => {
+      const daysBeforeEvent = eventDaysBefore[index] ?? 0;
+      const startDate = addDaysToDateString(
+        campaign.event_date,
+        -daysBeforeEvent
+      );
 
-    return createSlot({
-      startDate,
-      weekday: getWeekdayFromDateString(startDate, timeZone),
-      publishTime: defaultPublishTime,
-      prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
-      imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
-      generateImage:
-        index < 2 ||
-        shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
-      contentTypeId: "manual_prompt",
-      contentTypeLabel: campaign?.title || "Campaign post",
-      usesWebsiteContent: shouldUseWebsiteContentForCampaign(
-        contentSourceMode,
-        campaign
-      ),
-      isCampaignSlot: true,
-   campaignRole: enhancedPostPlanItem.role || "Campaign post",
-campaignSummary: buildCampaignSummary(
-  campaign,
-  enhancedPostPlanItem,
-  index
-),
-campaignPhase: enhancedPostPlanItem.campaign_phase || "",
-marketingAngle: enhancedPostPlanItem.marketing_angle || "",
-customerStage: enhancedPostPlanItem.customer_stage || "",
-ctaStrength: enhancedPostPlanItem.cta_strength || "",
-campaignPostIndex: enhancedPostPlanItem.campaign_post_index || index + 1,
-campaignPostCount: enhancedPostPlanItem.campaign_post_count || postPlan.length,
-campaignGoal: enhancedPostPlanItem.campaign_goal || "",
-targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
-strategyNotes: enhancedPostPlanItem.strategy_notes || "",
-dateLocked: true,
-timeZone,
+      const sameDayIndex = dateUseCounts[startDate] || 0;
+      dateUseCounts[startDate] = sameDayIndex + 1;
+
+      const enhancedPostPlanItem = buildCampaignPostPlanItem({
+        campaign,
+        postPlanItem,
+        index,
+        total: postPlan.length,
+        daysBeforeEvent,
+        timingAnchor: daysBeforeEvent === 0 ? "event" : "before_event",
+      });
+
+      const contentSourceMode = getCampaignContentSourceMode(
+        campaign,
+        enhancedPostPlanItem,
+        index,
+        postPlan.length
+      );
+
+      enhancedPostPlanItem.content_source_mode = contentSourceMode;
+
+      return createSlot({
+        startDate,
+        weekday: getWeekdayFromDateString(startDate, timeZone),
+        publishTime: getCampaignPublishTimeForDate(startDate, timeZone, sameDayIndex),
+        prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
+        imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
+        generateImage:
+          index < 2 ||
+          shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
+        contentTypeId: "manual_prompt",
+        contentTypeLabel: campaign?.title || "Campaign post",
+        usesWebsiteContent: shouldUseWebsiteContentForCampaign(
+          contentSourceMode,
+          campaign
+        ),
+        isCampaignSlot: true,
+        campaignRole: enhancedPostPlanItem.role || "Campaign post",
+        campaignSummary: buildCampaignSummary(
+          campaign,
+          enhancedPostPlanItem,
+          index
+        ),
+        campaignPhase: enhancedPostPlanItem.campaign_phase || "",
+        marketingAngle: enhancedPostPlanItem.marketing_angle || "",
+        customerStage: enhancedPostPlanItem.customer_stage || "",
+        ctaStrength: enhancedPostPlanItem.cta_strength || "",
+        campaignPostIndex: enhancedPostPlanItem.campaign_post_index || index + 1,
+        campaignPostCount: enhancedPostPlanItem.campaign_post_count || postPlan.length,
+        campaignGoal: enhancedPostPlanItem.campaign_goal || "",
+        targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
+        strategyNotes: enhancedPostPlanItem.strategy_notes || "",
+        dateLocked: true,
+        timeZone,
+      });
     });
-  });
-}
+  }
 
-const fallbackStartDate = getSafeCampaignStartDate(campaign, timeZone);
+  if (hasCampaignDateRange) {
+    const rangeSchedule = buildDateRangeCampaignSchedule({
+      campaign,
+      postPlan,
+      timeZone,
+    });
+
+    return postPlan.map((postPlanItem, index) => {
+      const schedule = rangeSchedule[index] || {};
+      const startDate = schedule.startDate || getSafeCampaignStartDate(campaign, timeZone);
+      const enhancedPostPlanItem = buildCampaignPostPlanItem({
+        campaign,
+        postPlanItem,
+        index,
+        total: postPlan.length,
+        daysBeforeEvent: schedule.daysBeforeEvent,
+        timingAnchor: schedule.timingAnchor,
+      });
+
+      const contentSourceMode = getCampaignContentSourceMode(
+        campaign,
+        enhancedPostPlanItem,
+        index,
+        postPlan.length
+      );
+
+      enhancedPostPlanItem.content_source_mode = contentSourceMode;
+
+      return createSlot({
+        startDate,
+        weekday: schedule.weekday || getWeekdayFromDateString(startDate, timeZone),
+        publishTime: schedule.publishTime || getRecommendedTimeForDate(startDate, timeZone),
+        prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
+        imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
+        generateImage:
+          index < 2 ||
+          shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
+        contentTypeId: "manual_prompt",
+        contentTypeLabel: campaign?.title || "Campaign post",
+        usesWebsiteContent: shouldUseWebsiteContentForCampaign(
+          contentSourceMode,
+          campaign
+        ),
+        isCampaignSlot: true,
+        campaignRole: enhancedPostPlanItem.role || "Campaign post",
+        campaignSummary: buildCampaignSummary(
+          campaign,
+          enhancedPostPlanItem,
+          index
+        ),
+        campaignPhase: enhancedPostPlanItem.campaign_phase || "",
+        marketingAngle: enhancedPostPlanItem.marketing_angle || "",
+        customerStage: enhancedPostPlanItem.customer_stage || "",
+        ctaStrength: enhancedPostPlanItem.cta_strength || "",
+        campaignPostIndex: enhancedPostPlanItem.campaign_post_index || index + 1,
+        campaignPostCount: enhancedPostPlanItem.campaign_post_count || postPlan.length,
+        campaignGoal: enhancedPostPlanItem.campaign_goal || "",
+        targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
+        strategyNotes: enhancedPostPlanItem.strategy_notes || "",
+        dateLocked: true,
+        timeZone,
+      });
+    });
+  }
+
+  const fallbackStartDate = getSafeCampaignStartDate(campaign, timeZone);
 
   const smartSchedule = buildSmartSlotSchedule({
     startDate: fallbackStartDate,
@@ -2449,6 +2807,7 @@ const fallbackStartDate = getSafeCampaignStartDate(campaign, timeZone);
       index,
       total: postPlan.length,
       daysBeforeEvent: null,
+      timingAnchor: null,
     });
 
     const contentSourceMode = getCampaignContentSourceMode(
@@ -2466,33 +2825,33 @@ const fallbackStartDate = getSafeCampaignStartDate(campaign, timeZone);
       publishTime: schedule.publishTime,
       prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
       imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
-    generateImage:
-  index < 2 ||
-  shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
-contentTypeId: "manual_prompt",
-contentTypeLabel: campaign?.title || "Campaign post",
-usesWebsiteContent: shouldUseWebsiteContentForCampaign(
-  contentSourceMode,
-  campaign
-),
-isCampaignSlot: true,
-campaignRole: enhancedPostPlanItem.role || "Campaign post",
-campaignSummary: buildCampaignSummary(
-  campaign,
-  enhancedPostPlanItem,
-  index
-),
-campaignPhase: enhancedPostPlanItem.campaign_phase || "",
-marketingAngle: enhancedPostPlanItem.marketing_angle || "",
-customerStage: enhancedPostPlanItem.customer_stage || "",
-ctaStrength: enhancedPostPlanItem.cta_strength || "",
-campaignPostIndex: enhancedPostPlanItem.campaign_post_index || index + 1,
-campaignPostCount: enhancedPostPlanItem.campaign_post_count || postPlan.length,
-campaignGoal: enhancedPostPlanItem.campaign_goal || "",
-targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
-strategyNotes: enhancedPostPlanItem.strategy_notes || "",
-dateLocked: true,
-timeZone,
+      generateImage:
+        index < 2 ||
+        shouldUseWebsiteContentForCampaign(contentSourceMode, campaign),
+      contentTypeId: "manual_prompt",
+      contentTypeLabel: campaign?.title || "Campaign post",
+      usesWebsiteContent: shouldUseWebsiteContentForCampaign(
+        contentSourceMode,
+        campaign
+      ),
+      isCampaignSlot: true,
+      campaignRole: enhancedPostPlanItem.role || "Campaign post",
+      campaignSummary: buildCampaignSummary(
+        campaign,
+        enhancedPostPlanItem,
+        index
+      ),
+      campaignPhase: enhancedPostPlanItem.campaign_phase || "",
+      marketingAngle: enhancedPostPlanItem.marketing_angle || "",
+      customerStage: enhancedPostPlanItem.customer_stage || "",
+      ctaStrength: enhancedPostPlanItem.cta_strength || "",
+      campaignPostIndex: enhancedPostPlanItem.campaign_post_index || index + 1,
+      campaignPostCount: enhancedPostPlanItem.campaign_post_count || postPlan.length,
+      campaignGoal: enhancedPostPlanItem.campaign_goal || "",
+      targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
+      strategyNotes: enhancedPostPlanItem.strategy_notes || "",
+      dateLocked: true,
+      timeZone,
     });
   });
 }
@@ -3106,6 +3465,7 @@ function addCampaignSlot() {
     let startDate = planStartDate;
     let publishTime = defaultPublishTime;
     let daysBeforeEvent = null;
+    let timingAnchor = null;
 
     if (hasFixedCampaignDate) {
       const usedDaysBeforeEvent = currentSlots
@@ -3154,6 +3514,25 @@ startDate = addDaysToDateString(
 
 publishTime = getRecommendedTimeForDate(startDate, selectedTimeZone);
       
+    } else if (campaignOpportunity.start_date && campaignOpportunity.end_date) {
+      const temporaryPostPlan = buildCampaignPostPlan(
+        campaignOpportunity,
+        nextTotal
+      );
+      const temporarySchedule = buildDateRangeCampaignSchedule({
+        campaign: campaignOpportunity,
+        postPlan: temporaryPostPlan,
+        timeZone: selectedTimeZone,
+      });
+      const usedDates = currentSlots.map((slot) => slot.startDate);
+      const nextSchedule =
+        temporarySchedule.find((item) => !usedDates.includes(item.startDate)) ||
+        temporarySchedule[temporarySchedule.length - 1];
+
+      startDate = nextSchedule?.startDate || planStartDate;
+      publishTime = nextSchedule?.publishTime || getRecommendedTimeForDate(startDate, selectedTimeZone);
+      daysBeforeEvent = nextSchedule?.daysBeforeEvent ?? null;
+      timingAnchor = nextSchedule?.timingAnchor || null;
     } else {
       const sortedSlots = currentSlots
         .slice()
@@ -3198,6 +3577,7 @@ const fallbackStartDate =
       index: nextIndex,
       total: nextTotal,
       daysBeforeEvent,
+      timingAnchor,
     });
 
     const contentSourceMode = getCampaignContentSourceMode(
