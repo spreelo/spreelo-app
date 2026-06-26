@@ -476,6 +476,123 @@ function getSafeUiLabel(t, key, fallback, variables = {}) {
   return value;
 }
 
+
+function isValidDateString(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+}
+
+function getDaysBetweenDateStrings(startDateString, endDateString) {
+  const startDate = new Date(`${startDateString}T00:00:00`);
+  const endDate = new Date(`${endDateString}T00:00:00`);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return 0;
+  }
+
+  return Math.round((endDate.getTime() - startDate.getTime()) / 86400000);
+}
+
+function clampDateString(dateString, minDate, maxDate) {
+  let result = dateString;
+
+  if (minDate && result < minDate) result = minDate;
+  if (maxDate && result > maxDate) result = maxDate;
+
+  return result;
+}
+
+function getDateRangePostPublishDate(campaign, post, index, total) {
+  const explicitDate =
+    post?.scheduled_date || post?.publish_date || post?.recommended_date;
+
+  if (isValidDateString(explicitDate)) {
+    return clampDateString(explicitDate, campaign.start_date, campaign.end_date);
+  }
+
+  const periodStart = campaign.start_date;
+  const periodEnd = campaign.end_date;
+  const periodLengthDays = Math.max(getDaysBetweenDateStrings(periodStart, periodEnd), 0);
+  const timingAnchor = getCampaignPlanTimingAnchor(post, index, total);
+  const daysBeforeEvent =
+    typeof post?.days_before_event === "number" ? Math.max(Math.round(post.days_before_event), 0) : null;
+
+  if (typeof daysBeforeEvent === "number") {
+    return clampDateString(addDaysToDateString(periodEnd, -daysBeforeEvent), periodStart, periodEnd);
+  }
+
+  if (timingAnchor === "relationship_event" || timingAnchor === "end") {
+    return periodEnd;
+  }
+
+  if (timingAnchor === "deadline_before_event") {
+    return clampDateString(addDaysToDateString(periodEnd, -7), periodStart, periodEnd);
+  }
+
+  if (timingAnchor === "conversion_before_deadline") {
+    return clampDateString(addDaysToDateString(periodEnd, -14), periodStart, periodEnd);
+  }
+
+  if (timingAnchor === "trust") {
+    return addDaysToDateString(periodStart, Math.round(periodLengthDays * 0.55));
+  }
+
+  if (timingAnchor === "engagement" || timingAnchor === "middle") {
+    return addDaysToDateString(periodStart, Math.round(periodLengthDays * 0.35));
+  }
+
+  if (timingAnchor === "before_start") {
+    return periodStart;
+  }
+
+  if (total <= 1) {
+    return periodStart;
+  }
+
+  return addDaysToDateString(
+    periodStart,
+    Math.round(periodLengthDays * (index / Math.max(total - 1, 1)))
+  );
+}
+
+function getTimingAnchorHumanLabel(timingAnchor, locale = "en") {
+  const labelsSv = {
+    relationship_event: "relationspost",
+    deadline_before_event: "sista realistiska påminnelse",
+    conversion_before_deadline: "köpfönster",
+    trust: "förtroende/process",
+    engagement: "engagemang",
+    middle: "mitt i kampanjen",
+    start: "kampanjstart",
+    before_start: "förberedande start",
+    end: "avslutning",
+  };
+
+  const labelsEn = {
+    relationship_event: "relationship post",
+    deadline_before_event: "final realistic reminder",
+    conversion_before_deadline: "buying window",
+    trust: "trust/process",
+    engagement: "engagement",
+    middle: "mid-campaign",
+    start: "campaign launch",
+    before_start: "pre-launch",
+    end: "closing post",
+  };
+
+  const labels = locale === "sv" ? labelsSv : labelsEn;
+  return labels[timingAnchor] || labels.start;
+}
+
+function getPostPlanTimeLabel(post) {
+  const time = post?.publish_time || post?.recommended_publish_time || post?.preferred_publish_time;
+
+  if (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || ""))) {
+    return time;
+  }
+
+  return "";
+}
+
 function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "en") {
   const daysBeforeEvent =
     typeof post?.days_before_event === "number" ? post.days_before_event : null;
@@ -485,6 +602,8 @@ function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "e
     const publishDateLabel = formatDate(publishDate, locale);
     const timingAnchor = getCampaignPlanTimingAnchor(post, index, total);
 
+    const timeLabel = getPostPlanTimeLabel(post);
+
     if (daysBeforeEvent === 0) {
       const greetingLabel = getSafeUiLabel(
         t,
@@ -492,7 +611,13 @@ function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "e
         locale === "sv" ? "högtidsdagen som hälsning" : "main date as a greeting"
       );
 
-      return `${publishDateLabel} · ${greetingLabel}`;
+      return [
+        publishDateLabel,
+        timeLabel ? `${locale === "sv" ? "kl" : "at"} ${timeLabel}` : "",
+        greetingLabel,
+      ]
+        .filter(Boolean)
+        .join(" · ");
     }
 
     const daysLabel = getSafeUiLabel(
@@ -503,42 +628,39 @@ function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "e
     );
 
     if (timingAnchor === "deadline_before_event") {
-      return `${publishDateLabel} · ${daysLabel} · ${
-        locale === "sv" ? "sista beställningspåminnelse" : "final order reminder"
-      }`;
+      return [
+        publishDateLabel,
+        timeLabel ? `${locale === "sv" ? "kl" : "at"} ${timeLabel}` : "",
+        daysLabel,
+        locale === "sv" ? "sista beställningspåminnelse" : "final order reminder",
+      ]
+        .filter(Boolean)
+        .join(" · ");
     }
 
-    return `${publishDateLabel} · ${daysLabel}`;
+    return [
+      publishDateLabel,
+      timeLabel ? `${locale === "sv" ? "kl" : "at"} ${timeLabel}` : "",
+      daysLabel,
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   if (campaign?.start_date && campaign?.end_date) {
     const timingAnchor = getCampaignPlanTimingAnchor(post, index, total);
+    const publishDate = getDateRangePostPublishDate(campaign, post, index, total);
+    const publishDateLabel = formatDate(publishDate, locale);
+    const timeLabel = getPostPlanTimeLabel(post);
+    const timingLabel = getTimingAnchorHumanLabel(timingAnchor, locale);
 
-    if (timingAnchor === "relationship_event") {
-      return getSafeUiLabel(
-        t,
-        "calendar.publishSoftFinalDate",
-        locale === "sv"
-          ? "Publicera på slutdatumet som mjuk relationspost"
-          : "Publish on the final date as a softer relationship post"
-      );
-    }
-
-    if (timingAnchor === "deadline_before_event") {
-      return getSafeUiLabel(
-        t,
-        "calendar.publishBeforeDeadline",
-        locale === "sv"
-          ? "Publicera före den realistiska deadline som gäller"
-          : "Publish before the realistic deadline"
-      );
-    }
-
-    return getSafeUiLabel(
-      t,
-      "calendar.publishWarmupCampaign",
-      locale === "sv" ? "Publicera som uppvärmning" : "Publish as a warm-up post"
-    );
+    return [
+      publishDateLabel,
+      timeLabel ? `${locale === "sv" ? "kl" : "at"} ${timeLabel}` : "",
+      timingLabel,
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   return "";
