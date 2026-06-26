@@ -296,16 +296,28 @@ function getCampaignPlanTimingAnchor(postPlanItem, index = 0, total = 1) {
     .trim()
     .toLowerCase();
 
-  if (/end|last|final|deadline|slut|sista/.test(explicitAnchor)) {
-    return "end";
+  if (/relationship|soft|community|gratitude|event|day|huvuddatum|relations/.test(explicitAnchor)) {
+    return "relationship_event";
+  }
+
+  if (/deadline|last|final|slut|sista/.test(explicitAnchor)) {
+    return "deadline_before_event";
+  }
+
+  if (/conversion|product|buy|order|book|köp|beställ|boka/.test(explicitAnchor)) {
+    return "conversion_before_deadline";
+  }
+
+  if (/trust|proof|trygg|förtroende/.test(explicitAnchor)) {
+    return "trust";
+  }
+
+  if (/engagement|comment|react|kommentera|fråga/.test(explicitAnchor)) {
+    return "engagement";
   }
 
   if (/middle|during|mid|under|mitt/.test(explicitAnchor)) {
     return "middle";
-  }
-
-  if (/before|pre|start|begin|launch|början|innan/.test(explicitAnchor)) {
-    return "start";
   }
 
   const text = [
@@ -318,16 +330,24 @@ function getCampaignPlanTimingAnchor(postPlanItem, index = 0, total = 1) {
     .join(" ")
     .toLowerCase();
 
-  if (/last[_\s-]?chance|final|sista|slutlig|deadline|urgency|urgent|late|middle_late|end/.test(text)) {
-    return "end";
+  if (/event|day of|main day|relationship|brand|thank|gratitude|hälsning|fira/.test(text)) {
+    return "relationship_event";
   }
 
-  if (/middle|during|engagement|trust|consideration|under kampanj/.test(text)) {
-    return "middle";
+  if (/last[_\s-]?chance|last call|final|deadline|urgency|urgent|sista|slutlig|act now/.test(text)) {
+    return "deadline_before_event";
   }
 
-  if (index === total - 1 && total > 1) {
-    return "end";
+  if (/product[_\s-]?push|offer|sale|discount|buy|order|shop|book|conversion|köp|beställ|boka|köptryck/.test(text)) {
+    return "conversion_before_deadline";
+  }
+
+  if (/trust|proof|review|process|quality|trygg|förtroende/.test(text)) {
+    return "trust";
+  }
+
+  if (/engagement|question|comment|share|save|poll|react|kommentera|fråga|reflektera/.test(text)) {
+    return "engagement";
   }
 
   return "start";
@@ -346,23 +366,32 @@ function getCampaignPostTimingLabel(campaign, post, index, total, t) {
   if (campaign?.start_date && campaign?.end_date) {
     const timingAnchor = getCampaignPlanTimingAnchor(post, index, total);
 
-    if (timingAnchor === "end") {
-      return t("calendar.publishNearCampaignEnd");
+    if (timingAnchor === "relationship_event") {
+      return t("calendar.publishSoftFinalDate");
     }
 
-    if (timingAnchor === "middle") {
-      return t("calendar.publishDuringCampaign");
+    if (timingAnchor === "deadline_before_event") {
+      return t("calendar.publishBeforeDeadline");
     }
 
-    if (typeof daysBeforeEvent === "number" && daysBeforeEvent > 0) {
-      return t("calendar.daysBeforeCampaignStart", { days: daysBeforeEvent });
+    if (timingAnchor === "conversion_before_deadline") {
+      return t("calendar.publishDecisionWindow");
     }
 
-    return t("calendar.publishAtCampaignStart");
+    if (timingAnchor === "trust") {
+      return t("calendar.publishTrustBeforeDecision");
+    }
+
+    if (timingAnchor === "engagement" || timingAnchor === "middle") {
+      return t("calendar.publishWarmupCampaign");
+    }
+
+    return t("calendar.publishEarlyCampaign");
   }
 
   return "";
 }
+
 
 export default function Calendar() {
   const { t, locale } = useUiText(["calendar"]);
