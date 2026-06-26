@@ -8,7 +8,6 @@ import {
   normalizeUiLocale,
 } from "../lib/i18n/defaultLabels";
 import {
-  APP_LANGUAGE_SOURCE_STORAGE_KEY,
   getBrowserMatchedOfficialLocale,
   useUiText,
 } from "../lib/i18n/useUiText";
@@ -190,7 +189,6 @@ export default function LanguageSuggestionBanner() {
     if (typeof window === "undefined") return;
 
     const nextBrowserLocale = getBrowserMatchedOfficialLocale();
-    const source = localStorage.getItem(APP_LANGUAGE_SOURCE_STORAGE_KEY) || "";
     const normalizedCurrentLocale = normalizeUiLocale(locale);
 
     setBrowserLocale(nextBrowserLocale);
@@ -206,11 +204,6 @@ export default function LanguageSuggestionBanner() {
     }
 
     if (!getSupportedUiLocale(nextBrowserLocale)) {
-      setVisible(false);
-      return;
-    }
-
-    if (source === "manual") {
       setVisible(false);
       return;
     }
@@ -237,14 +230,13 @@ export default function LanguageSuggestionBanner() {
   };
 
   function handleSwitchLanguage() {
-    setLocale(browserLocale, "manual");
+    setLocale(browserLocale, "suggestion");
     setVisible(false);
   }
 
   function handleKeepCurrent() {
     if (typeof window !== "undefined") {
       localStorage.setItem(getDismissKey(normalizedLocale, browserLocale), "1");
-      localStorage.setItem(APP_LANGUAGE_SOURCE_STORAGE_KEY, "manual");
     }
 
     setVisible(false);
