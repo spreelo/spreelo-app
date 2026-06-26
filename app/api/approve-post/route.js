@@ -1,13 +1,50 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  getDefaultNamespaceLabels,
+  interpolateUiText,
+} from "../../../lib/i18n/defaultLabels.js";
+import {
+  getServerTranslations,
+  resolveBestServerLocale,
+} from "../../../lib/i18n/serverUiText.js";
 
 export const dynamic = "force-dynamic";
 
-function createHtmlPage({ title, message, status = "success" }) {
+function createFallbackTranslator() {
+  const labels = {
+    ...getDefaultNamespaceLabels("common"),
+    ...getDefaultNamespaceLabels("approvePages"),
+  };
+
+  return {
+    locale: "en",
+    t(key, values = {}) {
+      return interpolateUiText(labels[key] || key, values);
+    },
+  };
+}
+
+async function getApproveTranslations({ supabase, locale }) {
+  if (!supabase) return createFallbackTranslator();
+
+  try {
+    return await getServerTranslations({
+      supabaseAdmin: supabase,
+      locale,
+      namespaces: ["approvePages"],
+    });
+  } catch (error) {
+    console.error("Could not load approve page translations", error);
+    return createFallbackTranslator();
+  }
+}
+
+function createHtmlPage({ title, message, status = "success", t, locale = "en" }) {
   const isSuccess = status === "success";
 
   return `
 <!doctype html>
-<html lang="en">
+<html lang="${locale}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -111,17 +148,17 @@ function createHtmlPage({ title, message, status = "success" }) {
         isSuccess
           ? `
             <div class="button-row">
-              <button type="button" onclick="window.close()">Close page</button>
-              <a href="https://app.spreelo.com">Open Spreelo</a>
+              <button type="button" onclick="window.close()">${t("approvePages.closePage")}</button>
+              <a href="https://app.spreelo.com">${t("approvePages.openSpreelo")}</a>
             </div>
 
             <p class="small-text">
-              You can safely close this page and continue with your next email.
+              ${t("approvePages.safeClose")}
             </p>
           `
           : `
             <div class="button-row">
-              <a href="https://app.spreelo.com">Open Spreelo</a>
+              <a href="https://app.spreelo.com">${t("approvePages.openSpreelo")}</a>
             </div>
           `
       }
@@ -131,93 +168,124 @@ function createHtmlPage({ title, message, status = "success" }) {
 `;
 }
 
+function htmlResponse({ title, message, status = "success", httpStatus = 200, t, locale }) {
+  return new Response(
+    createHtmlPage({
+      title,
+      message,
+      status,
+      t,
+      locale,
+    }),
+    {
+      status: httpStatus,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    }
+  );
+}
+
 export async function GET(request) {
+  const requestLocale = resolveBestServerLocale({ request });
+  let translator = createFallbackTranslator();
+
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceRoleKey) {
-      return new Response(
-        createHtmlPage({
-          title: "Configuration error",
-          message:
-            "Spreelo could not approve this post because the server is missing required configuration.",
-          status: "error",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        }
-      );
+      translator = await getApproveTranslations({ locale: requestLocale });
+
+      return htmlResponse({
+        title: translator.t("approvePages.configurationError.title"),
+        message: translator.t("approvePages.configurationError.message"),
+        status: "error",
+        httpStatus: 500,
+        t: translator.t,
+        locale: translator.locale,
+      });
     }
 
     const url = new URL(request.url);
     const token = url.searchParams.get("token");
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     if (!token) {
-      return new Response(
-        createHtmlPage({
-          title: "Invalid approval link",
-          message: "This approval link is missing a valid token.",
-          status: "error",
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        }
-      );
-    }
+      translator = await getApproveTranslations({
+        supabase,
+        locale: requestLocale,
+      });
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
+      return htmlResponse({
+        title: translator.t("approvePages.invalidLink.title"),
+        message: translator.t("approvePages.invalidLink.message"),
+        status: "error",
+        httpStatus: 400,
+        t: translator.t,
+        locale: translator.locale,
+      });
+    }
 
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, status, approval_token")
+      .select("id, status, approval_token, language, brand_profile_id")
       .eq("approval_token", token)
       .single();
 
+    let brandProfile = null;
+
+    if (post?.brand_profile_id) {
+      const { data: loadedBrandProfile } = await supabase
+        .from("brand_profiles")
+        .select("id, content_language")
+        .eq("id", post.brand_profile_id)
+        .maybeSingle();
+
+      brandProfile = loadedBrandProfile || null;
+    }
+
+    const postLocale = resolveBestServerLocale({
+      request,
+      languageCandidates: [post?.language, brandProfile?.content_language],
+    });
+
+    translator = await getApproveTranslations({
+      supabase,
+      locale: postLocale,
+    });
+
     if (postError || !post) {
-      return new Response(
-        createHtmlPage({
-          title: "Approval link not found",
-          message:
-            "This approval link is invalid, expired, or the post no longer exists.",
-          status: "error",
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        }
-      );
+      return htmlResponse({
+        title: translator.t("approvePages.notFound.title"),
+        message: translator.t("approvePages.notFound.message"),
+        status: "error",
+        httpStatus: 404,
+        t: translator.t,
+        locale: translator.locale,
+      });
     }
 
     if (post.status === "approved") {
-      return new Response(
-        createHtmlPage({
-          title: "Post already approved",
-          message:
-            "This post has already been approved in Spreelo. You can safely close this page.",
-          status: "success",
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        }
-      );
+      return htmlResponse({
+        title: translator.t("approvePages.alreadyApproved.title"),
+        message: translator.t("approvePages.alreadyApproved.message"),
+        status: "success",
+        httpStatus: 200,
+        t: translator.t,
+        locale: translator.locale,
+      });
     }
 
     if (post.status !== "pending_approval") {
-      return new Response(
-        createHtmlPage({
-          title: "Post cannot be approved",
-          message: `This post currently has status "${post.status}" and cannot be approved from this link.`,
-          status: "error",
+      return htmlResponse({
+        title: translator.t("approvePages.cannotApprove.title"),
+        message: translator.t("approvePages.cannotApprove.message", {
+          status: post.status,
         }),
-        {
-          status: 409,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        }
-      );
+        status: "error",
+        httpStatus: 409,
+        t: translator.t,
+        locale: translator.locale,
+      });
     }
 
     const approvedAt = new Date().toISOString();
@@ -232,44 +300,32 @@ export async function GET(request) {
       .eq("id", post.id);
 
     if (updateError) {
-      return new Response(
-        createHtmlPage({
-          title: "Approval failed",
-          message:
-            "Spreelo could not approve this post right now. Please try again later.",
-          status: "error",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        }
-      );
+      return htmlResponse({
+        title: translator.t("approvePages.failed.title"),
+        message: translator.t("approvePages.failed.message"),
+        status: "error",
+        httpStatus: 500,
+        t: translator.t,
+        locale: translator.locale,
+      });
     }
 
-    return new Response(
-      createHtmlPage({
-        title: "Post approved",
-        message:
-          "Your post has been approved successfully. Spreelo will publish it automatically within a few minutes.",
-        status: "success",
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      }
-    );
+    return htmlResponse({
+      title: translator.t("approvePages.approved.title"),
+      message: translator.t("approvePages.approved.message"),
+      status: "success",
+      httpStatus: 200,
+      t: translator.t,
+      locale: translator.locale,
+    });
   } catch (error) {
-    return new Response(
-      createHtmlPage({
-        title: "Unexpected error",
-        message:
-          error.message || "Something went wrong while approving this post.",
-        status: "error",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      }
-    );
+    return htmlResponse({
+      title: translator.t("approvePages.unexpected.title"),
+      message: error.message || translator.t("approvePages.unexpected.message"),
+      status: "error",
+      httpStatus: 500,
+      t: translator.t,
+      locale: translator.locale,
+    });
   }
 }
