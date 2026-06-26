@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
 
-function formatConnectionStatus(status) {
-  if (status === "connected") return "Connected";
-  if (status === "expired") return "Needs reconnect";
-  if (status === "error") return "Connection error";
-  if (status === "disconnected") return "Disconnected";
+function getConnectionStatusKey(status) {
+  if (status === "connected") return "social.status.connected";
+  if (status === "expired") return "social.status.expired";
+  if (status === "error") return "social.status.error";
+  if (status === "disconnected") return "social.status.disconnected";
 
-  return "Not connected";
+  return "social.status.notConnected";
 }
 
 function getStatusClass(status) {
@@ -26,12 +27,14 @@ function getBrandStorageKey(userId) {
 }
 
 export default function SocialChannelsPage() {
+  const { t } = useUiText(["social"]);
+
   const [facebookConnection, setFacebookConnection] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentBrand, setCurrentBrand] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-const [isConnectingFacebook, setIsConnectingFacebook] = useState(false);
+  const [isConnectingFacebook, setIsConnectingFacebook] = useState(false);
 
   useEffect(() => {
     loadConnections();
@@ -77,9 +80,9 @@ const [isConnectingFacebook, setIsConnectingFacebook] = useState(false);
   }
 
   async function loadConnections() {
-  setLoading(true);
-setMessage("");
-setIsConnectingFacebook(false);
+    setLoading(true);
+    setMessage("");
+    setIsConnectingFacebook(false);
 
     const {
       data: { user },
@@ -98,65 +101,66 @@ setIsConnectingFacebook(false);
       selectedBrand = await getCurrentBrandForUser(user);
       setCurrentBrand(selectedBrand);
     } catch (error) {
-      setMessage(error.message || "Could not load selected brand.");
+      setMessage(error.message || t("social.errorLoadBrand"));
       setFacebookConnection(null);
       setLoading(false);
       return;
     }
 
     if (!selectedBrand?.id) {
-      setMessage("Create or select a brand before connecting social channels.");
+      setMessage(t("social.errorNoBrand"));
       setFacebookConnection(null);
       setLoading(false);
       return;
     }
 
- const { data: connectedConnection, error: connectedConnectionError } =
-  await supabase
-    .from("social_connections")
-    .select(
-      "id, platform, page_id, page_name, status, created_at, updated_at, token_expires_at, brand_profile_id"
-    )
-    .eq("user_id", user.id)
-    .eq("brand_profile_id", selectedBrand.id)
-    .eq("platform", "facebook")
-    .eq("status", "connected")
-    .order("updated_at", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
+    const { data: connectedConnection, error: connectedConnectionError } =
+      await supabase
+        .from("social_connections")
+        .select(
+          "id, platform, page_id, page_name, status, created_at, updated_at, token_expires_at, brand_profile_id"
+        )
+        .eq("user_id", user.id)
+        .eq("brand_profile_id", selectedBrand.id)
+        .eq("platform", "facebook")
+        .eq("status", "connected")
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
 
-if (connectedConnectionError) {
-  setMessage(connectedConnectionError.message);
-  setFacebookConnection(null);
-  setLoading(false);
-  return;
-}
+    if (connectedConnectionError) {
+      setMessage(connectedConnectionError.message);
+      setFacebookConnection(null);
+      setLoading(false);
+      return;
+    }
 
-if (connectedConnection) {
-  setFacebookConnection(connectedConnection);
-  setLoading(false);
-  return;
-}
+    if (connectedConnection) {
+      setFacebookConnection(connectedConnection);
+      setLoading(false);
+      return;
+    }
 
-const { data: latestConnection, error: latestConnectionError } = await supabase
-  .from("social_connections")
-  .select(
-    "id, platform, page_id, page_name, status, created_at, updated_at, token_expires_at, brand_profile_id"
-  )
-  .eq("user_id", user.id)
-  .eq("brand_profile_id", selectedBrand.id)
-  .eq("platform", "facebook")
-  .order("updated_at", { ascending: false, nullsFirst: false })
-  .order("created_at", { ascending: false })
-  .limit(1)
-  .maybeSingle();
+    const { data: latestConnection, error: latestConnectionError } =
+      await supabase
+        .from("social_connections")
+        .select(
+          "id, platform, page_id, page_name, status, created_at, updated_at, token_expires_at, brand_profile_id"
+        )
+        .eq("user_id", user.id)
+        .eq("brand_profile_id", selectedBrand.id)
+        .eq("platform", "facebook")
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-if (latestConnectionError) {
-  setMessage(latestConnectionError.message);
-  setFacebookConnection(null);
-} else {
-  setFacebookConnection(latestConnection || null);
-}
+    if (latestConnectionError) {
+      setMessage(latestConnectionError.message);
+      setFacebookConnection(null);
+    } else {
+      setFacebookConnection(latestConnection || null);
+    }
 
     setLoading(false);
   }
@@ -164,9 +168,7 @@ if (latestConnectionError) {
   async function handleDisconnect() {
     if (!facebookConnection?.id) return;
 
-    const confirmed = window.confirm(
-      "Disconnect this Facebook page from this brand?"
-    );
+    const confirmed = window.confirm(t("social.disconnectConfirm"));
 
     if (!confirmed) return;
 
@@ -199,11 +201,12 @@ if (latestConnectionError) {
     <AppLayout active="social-channels">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Social channels</p>
-          <h2>Connect your publishing channels</h2>
+          <p className="eyebrow">{t("social.eyebrow")}</p>
+          <h2>{t("social.title")}</h2>
           {currentBrand?.business_name && (
             <p>
-              Current brand: <strong>{currentBrand.business_name}</strong>
+              {t("social.currentBrand")}{" "}
+              <strong>{currentBrand.business_name}</strong>
             </p>
           )}
         </div>
@@ -213,36 +216,33 @@ if (latestConnectionError) {
 
       <section className="hero-card">
         <div>
-          <p className="eyebrow">Facebook</p>
-          <h3>Facebook Page</h3>
-          <p>
-            Connect a Facebook Page for the selected brand. Spreelo will only
-            publish this brand&apos;s approved posts to this connected page.
-          </p>
+          <p className="eyebrow">{t("social.facebookEyebrow")}</p>
+          <h3>{t("social.facebookTitle")}</h3>
+          <p>{t("social.facebookDescription")}</p>
         </div>
 
-       <div className="prompt-box social-connect-box">
+        <div className="prompt-box social-connect-box">
           {loading ? (
-            <p className="login-message">Loading connection...</p>
+            <p className="login-message">{t("social.loadingConnection")}</p>
           ) : facebookConnection?.status === "connected" ? (
             <>
-              <label>Connected brand</label>
+              <label>{t("social.connectedBrand")}</label>
               <div className="input">
-                {currentBrand?.business_name || "Selected brand"}
+                {currentBrand?.business_name || t("social.selectedBrandFallback")}
               </div>
 
-              <label>Connected page</label>
+              <label>{t("social.connectedPage")}</label>
               <div className="input">
-                {facebookConnection.page_name || "Facebook Page"}
+                {facebookConnection.page_name || t("social.facebookPageFallback")}
               </div>
 
-              <label>Page ID</label>
+              <label>{t("social.pageId")}</label>
               <div className="input">
-                {facebookConnection.page_id || "No page ID found"}
+                {facebookConnection.page_id || t("social.noPageId")}
               </div>
 
               <div className={getStatusClass(facebookConnection.status)}>
-                {formatConnectionStatus(facebookConnection.status)}
+                {t(getConnectionStatusKey(facebookConnection.status))}
               </div>
 
               <button
@@ -250,48 +250,46 @@ if (latestConnectionError) {
                 className="secondary-button full"
                 onClick={handleDisconnect}
               >
-                Disconnect Facebook
+                {t("social.disconnectFacebook")}
               </button>
             </>
           ) : (
             <>
-              <label>Selected brand</label>
+              <label>{t("social.selectedBrand")}</label>
               <div className="input">
-                {currentBrand?.business_name || "No brand selected"}
+                {currentBrand?.business_name || t("social.noBrandSelected")}
               </div>
 
-              <label>Status</label>
+              <label>{t("social.statusLabel")}</label>
               <div className={getStatusClass(facebookConnection?.status)}>
-                {formatConnectionStatus(facebookConnection?.status)}
+                {t(getConnectionStatusKey(facebookConnection?.status))}
               </div>
 
-              <p>
-                Connect Facebook for this selected brand. If you have several
-                brands, switch Current brand in the sidebar before connecting
-                another Facebook Page.
-              </p>
+              <p>{t("social.connectHelp")}</p>
 
-<a
-  className={`primary-button social-connect-button ${
-    isConnectingFacebook ? "loading" : ""
-  }`}
-  href={connectUrl}
-  aria-busy={isConnectingFacebook}
-  onClick={() => {
-    setIsConnectingFacebook(true);
-  }}
->
-  {isConnectingFacebook ? (
-    <span className="social-connect-spinner" aria-label="Connecting Facebook" />
-  ) : (
-    "Connect Facebook"
-  )}
-</a>
+              <a
+                className={`primary-button social-connect-button ${
+                  isConnectingFacebook ? "loading" : ""
+                }`}
+                href={connectUrl}
+                aria-busy={isConnectingFacebook}
+                onClick={() => {
+                  setIsConnectingFacebook(true);
+                }}
+              >
+                {isConnectingFacebook ? (
+                  <span
+                    className="social-connect-spinner"
+                    aria-label={t("social.connectingFacebook")}
+                  />
+                ) : (
+                  t("social.connectFacebook")
+                )}
+              </a>
             </>
           )}
         </div>
       </section>
-
     </AppLayout>
   );
 }
