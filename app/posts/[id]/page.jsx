@@ -12,7 +12,7 @@ function formatDate(value, t) {
   return new Intl.DateTimeFormat("sv-SE", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));;
+  }).format(new Date(value));
 }
 
 function formatStatus(status, t) {
