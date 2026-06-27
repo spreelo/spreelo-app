@@ -4865,8 +4865,8 @@ setRules((currentRules) =>
           }
         }}
       >
-     <header className="planner-hero">
-  <div>
+     <header className="planner-hero planner-hero-final">
+  <div className="planner-hero-copy">
     <h2>
       {campaignOpportunity
         ? `Create campaign: ${campaignOpportunity.title}`
@@ -4879,13 +4879,29 @@ setRules((currentRules) =>
     </p>
   </div>
 
-<button
-  type="button"
-  className="learn-more-button"
-  onClick={() => setShowLearnMoreModal(true)}
->
-  ⓘ {t("automation.learnMore")}
-</button>
+  <div className="planner-hero-visual" aria-hidden="true">
+    <div className="planner-hero-orb" />
+    <div className="planner-hero-calendar">
+      <span />
+      <span className="checked">✓</span>
+      <span />
+      <span className="checked">✓</span>
+      <span />
+      <span className="checked">✓</span>
+      <span />
+      <span />
+      <span className="checked">✓</span>
+    </div>
+    <div className="planner-hero-mascot">✦</div>
+  </div>
+
+  <button
+    type="button"
+    className="learn-more-button planner-hero-learn"
+    onClick={() => setShowLearnMoreModal(true)}
+  >
+    ⓘ {t("automation.learnMore")}
+  </button>
 </header>
 
 {campaignOpportunity && (
@@ -4913,7 +4929,16 @@ setRules((currentRules) =>
 
 <div className="wizard-layout">
           <main className="wizard-main">
-            <section className="planner-setup-grid">
+            <section className="planner-builder-card planner-primary-builder">
+              <div className="planner-builder-header">
+                <div className="planner-builder-step-badge">1</div>
+                <div>
+                  <h3>{t("automation.chooseGoalAndSchedule")}</h3>
+                  <p>{t("automation.mainObjectiveSmart")}</p>
+                </div>
+              </div>
+
+              <div className="planner-setup-grid">
 <div className="planner-setup-card">
   <div className="setup-step-title">
     <span>1</span>
@@ -5049,6 +5074,7 @@ setRules((currentRules) =>
                 </div>
 
                 <p>{t("automation.scheduleFromDateTime")}</p>
+              </div>
               </div>
             </section>
 
@@ -5508,14 +5534,14 @@ setRules((currentRules) =>
   </section>
 )}
 
-                        <section className="planner-settings-card">
-              <div className="planner-section-heading">
+                        <section className="planner-settings-card planner-builder-card planner-settings-builder">
+              <div className="planner-builder-header">
+                <div className="planner-builder-step-badge">2</div>
                 <div>
                   <h3>{t("automation.settings")}</h3>
                   <p>{t("automation.settingsHelp")}</p>
                 </div>
-
-                <span>{t("automation.recommended")}</span>
+                <span className="planner-recommended-pill">{t("automation.recommended")}</span>
               </div>
 
             <div className="planner-settings-grid simple">
