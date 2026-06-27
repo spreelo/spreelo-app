@@ -54,13 +54,18 @@ export async function GET(request) {
     ].join(","),
   });
 
-  const instagramLoginUrl = `https://www.instagram.com/oauth/authorize?${params.toString()}`;
+  const instagramLoginUrl = `https://api.instagram.com/oauth/authorize?${params.toString()}`;
+
+  const debugParams = new URLSearchParams(params);
+  debugParams.set("state", "[hidden]");
 
   console.log("Instagram OAuth start:", {
+    authEndpoint: "https://api.instagram.com/oauth/authorize",
     redirectUri,
     redirectUriLength: redirectUri.length,
     redirectUriEncoded: params.get("redirect_uri"),
     requestUrl: request.url,
+    authorizationUrlWithoutState: `https://api.instagram.com/oauth/authorize?${debugParams.toString()}`,
   });
 
   const response = NextResponse.redirect(instagramLoginUrl);
