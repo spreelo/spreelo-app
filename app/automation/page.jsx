@@ -2594,6 +2594,61 @@ function getDaysBetweenDateStrings(startDateString, endDateString) {
   return Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
 }
 
+function getCampaignMainDateString(campaign) {
+  return campaign?.event_date || campaign?.end_date || campaign?.start_date || "";
+}
+
+function getVerifiedDaysBeforeCampaignMainDate(campaign, scheduledDate) {
+  const mainDate = getCampaignMainDateString(campaign);
+
+  if (!scheduledDate || !mainDate) return null;
+
+  const days = getDaysBetweenDateStrings(scheduledDate, mainDate);
+
+  if (typeof days !== "number" || Number.isNaN(days)) return null;
+
+  return Math.max(days, 0);
+}
+
+function getCampaignScheduleFacts(campaign, postPlanItem = {}) {
+  const scheduledDate =
+    postPlanItem?.scheduled_date ||
+    postPlanItem?.publish_date ||
+    postPlanItem?.recommended_date ||
+    "";
+  const mainDate = getCampaignMainDateString(campaign);
+  const verifiedDaysBefore = getVerifiedDaysBeforeCampaignMainDate(
+    campaign,
+    scheduledDate
+  );
+
+  return {
+    scheduledDate,
+    mainDate,
+    verifiedDaysBefore,
+  };
+}
+
+function getCampaignScheduleFactText(campaign, postPlanItem = {}) {
+  const { scheduledDate, mainDate, verifiedDaysBefore } =
+    getCampaignScheduleFacts(campaign, postPlanItem);
+
+  if (!scheduledDate || !mainDate) return "";
+
+  return [
+    `Scheduled post date: ${scheduledDate}.`,
+    `Main campaign date: ${mainDate}.`,
+    typeof verifiedDaysBefore === "number"
+      ? `Exact calendar distance to main campaign date: ${verifiedDaysBefore} days.`
+      : "",
+    "If the post or image mentions a countdown, days left or days remaining, it must use the exact calendar distance above. Do not use campaign sequence distance or distance to another post.",
+    "If there is any uncertainty about the exact countdown, do not include a day-countdown number in the post or image.",
+  ]
+    .filter(Boolean)
+    .join("
+");
+}
+
 function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
   const websiteContentFit = String(
     campaign?.website_content_fit || ""
@@ -2910,6 +2965,15 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
     campaign,
     postPlanItem
   );
+  const scheduleFactText = getCampaignScheduleFactText(
+    campaign,
+    postPlanItem
+  );
+  const scheduleFacts = getCampaignScheduleFacts(campaign, postPlanItem);
+  const verifiedDaysBeforeEvent =
+    typeof scheduleFacts.verifiedDaysBefore === "number"
+      ? scheduleFacts.verifiedDaysBefore
+      : daysBeforeEvent;
 
   const visibleOpening = campaign?.event_date
     ? postPlanItem?.timing_anchor === "relationship_event"
@@ -2918,11 +2982,13 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
       ? `This is the final realistic action reminder before ${campaignTitle}. Do not place the buying pressure on the main date if customers need lead time.`
       : postPlanItem?.timing_anchor === "conversion_before_deadline"
       ? `This post is placed while customers still have time to act before ${campaignTitle}. Make the offer, product or next step concrete.`
-      : daysBeforeEvent === 0
+      : verifiedDaysBeforeEvent === 0
       ? `This is the campaign-day post for ${campaignTitle}. Clearly highlight that today is ${campaignTitle}.`
-      : daysBeforeEvent === 1
+      : verifiedDaysBeforeEvent === 1
       ? `This is the day before ${campaignTitle}. Mention that ${campaignTitle} is tomorrow only if that is useful and realistic.`
-      : `This post is ${daysBeforeEvent} days before ${campaignTitle}. Use that timing as the main angle.`
+      : typeof verifiedDaysBeforeEvent === "number"
+      ? `This post is ${verifiedDaysBeforeEvent} days before ${campaignTitle}. Use that exact timing as the main angle.`
+      : `This is a campaign post before ${campaignTitle}. Do not mention an exact day-countdown unless the exact dates are provided.`
     : campaign?.start_date && campaign?.end_date
     ? postPlanItem?.timing_anchor === "relationship_event"
       ? `This is the soft main/final date post for ${campaignTitle}. Focus on emotion, relationship and brand warmth rather than hard selling.`
@@ -2960,6 +3026,7 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
     `Post purpose: ${postPurpose}.`,
     `Campaign: ${campaignTitle}.`,
     `Campaign timing: ${campaignDate}.`,
+    scheduleFactText,
     timingInstruction,
     `Campaign context: ${campaignContext}`,
     getCampaignSourceInstruction(sourceMode, campaign),
@@ -3027,6 +3094,10 @@ function buildCampaignImagePrompt(campaign, postPlanItem, index) {
   const marketingAngle = postPlanItem?.marketing_angle || "main";
   const customerStage = postPlanItem?.customer_stage || "warm";
   const ctaStrength = postPlanItem?.cta_strength || "medium";
+  const scheduleFactText = getCampaignScheduleFactText(
+    campaign,
+    postPlanItem
+  );
 
   return [
     `Create a high-quality social media image for the campaign "${campaignTitle}".`,
@@ -3038,6 +3109,9 @@ function buildCampaignImagePrompt(campaign, postPlanItem, index) {
     `Marketing angle: ${marketingAngle}.`,
     `Customer stage: ${customerStage}.`,
     `CTA strength: ${ctaStrength}.`,
+    scheduleFactText,
+    "Countdown accuracy rule: If the image includes readable countdown text such as '7 days left', 'dagar kvar' or similar, it must match the exact calendar distance from the scheduled post date to the main campaign date. Never base countdown text on the distance to another post in the sequence.",
+    "Safer visual rule: Prefer campaign visuals without exact day-countdown numbers unless the schedule facts above make the number completely certain.",
     campaign?.image_guidance ? `Campaign image guidance: ${campaign.image_guidance}.` : "",
     campaign?.tone_guidance ? `Tone guidance: ${campaign.tone_guidance}.` : "",
     campaign?.product_selection_guidance
@@ -3087,6 +3161,16 @@ function createCampaignSlotsFromOpportunity({
         daysBeforeEvent,
         timingAnchor: schedule.timingAnchor,
       });
+
+      enhancedPostPlanItem.scheduled_date = startDate;
+      enhancedPostPlanItem.campaign_main_date = campaign.event_date || null;
+      const verifiedFixedDaysBefore = getVerifiedDaysBeforeCampaignMainDate(
+        campaign,
+        startDate
+      );
+      if (typeof verifiedFixedDaysBefore === "number") {
+        enhancedPostPlanItem.days_before_event = verifiedFixedDaysBefore;
+      }
 
       const contentSourceMode = getCampaignContentSourceMode(
         campaign,
@@ -3150,6 +3234,16 @@ function createCampaignSlotsFromOpportunity({
         daysBeforeEvent: schedule.daysBeforeEvent,
         timingAnchor: schedule.timingAnchor,
       });
+
+      enhancedPostPlanItem.scheduled_date = startDate;
+      enhancedPostPlanItem.campaign_main_date = campaign.end_date || campaign.start_date || null;
+      const verifiedRangeDaysBefore = getVerifiedDaysBeforeCampaignMainDate(
+        campaign,
+        startDate
+      );
+      if (typeof verifiedRangeDaysBefore === "number") {
+        enhancedPostPlanItem.days_before_event = verifiedRangeDaysBefore;
+      }
 
       const contentSourceMode = getCampaignContentSourceMode(
         campaign,
