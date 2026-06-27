@@ -55,6 +55,14 @@ export async function GET(request) {
   });
 
   const instagramLoginUrl = `https://www.instagram.com/oauth/authorize?${params.toString()}`;
+
+  console.log("Instagram OAuth start:", {
+    redirectUri,
+    redirectUriLength: redirectUri.length,
+    redirectUriEncoded: params.get("redirect_uri"),
+    requestUrl: request.url,
+  });
+
   const response = NextResponse.redirect(instagramLoginUrl);
 
   response.cookies.set("spreelo_instagram_oauth_state", state, {

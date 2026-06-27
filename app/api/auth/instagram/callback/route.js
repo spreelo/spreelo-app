@@ -87,6 +87,17 @@ export async function GET(request) {
 
     const redirectUriForTokenExchange = decodedState.redirectUri || redirectUri;
 
+    console.log("Instagram OAuth callback:", {
+      envRedirectUri: redirectUri,
+      stateRedirectUri: decodedState.redirectUri,
+      tokenExchangeRedirectUri: redirectUriForTokenExchange,
+      envRedirectUriLength: redirectUri.length,
+      stateRedirectUriLength: decodedState.redirectUri?.length || 0,
+      tokenExchangeRedirectUriLength: redirectUriForTokenExchange.length,
+      callbackRequestUrl: request.url,
+      callbackOrigin: baseUrl,
+    });
+
     const shortTokenResult = await exchangeInstagramCodeForShortToken({
       code,
       appId,
@@ -131,7 +142,13 @@ export async function GET(request) {
 
     return response;
   } catch (callbackError) {
-    console.error("Instagram callback error:", callbackError);
+    console.error("Instagram callback error:", {
+      message: callbackError?.message,
+      name: callbackError?.name,
+      stack: callbackError?.stack,
+      envRedirectUri: redirectUri,
+      callbackRequestUrl: request.url,
+    });
 
     return NextResponse.redirect(
       `${baseUrl}/social-channels?error=instagram_callback_failed`
