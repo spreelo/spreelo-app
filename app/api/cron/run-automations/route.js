@@ -411,13 +411,15 @@ function formatWebsiteItemForPrompt(websiteItem) {
     return "No specific website item was selected.";
   }
 
+  const verifiedPrice = String(websiteItem.price || "").trim();
+
   return `
 Selected website item:
 Title: ${websiteItem.title || "Not provided"}
 Type: ${websiteItem.type || "Not provided"}
 URL: ${websiteItem.url || "Not provided"}
 Description: ${websiteItem.description || "Not provided"}
-Price: ${websiteItem.price || "Not provided"}
+Verified price: ${verifiedPrice || "Not provided"}
 Image URL: ${websiteItem.image_url || "Not provided"}
 
 Important website item rules:
@@ -425,10 +427,11 @@ Important website item rules:
 - Use only details that are present in the selected item information.
 - Use the selected item URL as the destination link when this post promotes the selected item.
 - Do not invent prices, discounts, guarantees, availability, dates, addresses, square meters, specifications or claims.
-- If a price is provided above, you may mention it in the post.
-- A visible price is not automatically an offer, sale, discount, deal, bargain, campaign price or limited-time promotion.
+- If a verified price is provided above, you may mention that exact price only.
+- If no verified price is provided above, do not mention any price at all.
+- Do not add generic price fallback text such as "see current price" or "se aktuellt pris".
+- A visible ordinary price is not automatically an offer, sale, discount, deal, bargain, campaign price or limited-time promotion.
 - Do not call the item an offer, deal, sale, discount, bargain, fynd, erbjudande, rabatt, rea or kampanjpris unless the selected item information explicitly says that the product is discounted or on sale.
-- If no price is provided above, do not mention a price.
 - If information is missing, write around the value and benefit instead of inventing facts.
 `.trim();
 }
@@ -457,38 +460,78 @@ function hasExplicitOfferSignal(websiteItem) {
   return /(rabatt|rea|kampanjpris|spara|nedsatt|erbjudande|utförsäljning|sale|discount|deal|offer|save\s+\d|%\s*off|clearance|was\s+|now\s+)/i.test(text);
 }
 
+
+function normalizePriceDigits(value) {
+  return String(value || "").replace(/[^0-9]/g, "");
+}
+
+function stripUnsupportedPriceClaims(postContent, websiteItem) {
+  let sanitized = String(postContent || "");
+  const verifiedPrice = String(websiteItem?.price || "").trim();
+  const verifiedDigits = normalizePriceDigits(verifiedPrice);
+
+  const pricePatterns = [
+    /\bPris\s*:\s*[^.!?\n]+[.!?]?/gi,
+    /\bPrice\s*:\s*[^.!?\n]+[.!?]?/gi,
+    /\bför endast\s+[^.!?\n]+[.!?]?/gi,
+    /\bonly\s+[^.!?\n]+[.!?]?/gi,
+    /\bför\s+\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})?\s*(?:kr|sek|:-)\b[.!?]?/gi,
+    /\b\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})?\s*(?:kr|sek|:-)\b[.!?]?/gi,
+  ];
+
+  for (const pattern of pricePatterns) {
+    sanitized = sanitized.replace(pattern, (match) => {
+      if (verifiedDigits && normalizePriceDigits(match) === verifiedDigits) {
+        return match;
+      }
+
+      return "";
+    });
+  }
+
+  return sanitized
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function sanitizeUnsupportedOfferLanguage(postContent, websiteItem) {
-  if (!postContent || hasExplicitOfferSignal(websiteItem)) {
+  if (!postContent) {
     return postContent;
   }
 
   let sanitized = String(postContent);
+  const explicitOfferSignal = hasExplicitOfferSignal(websiteItem);
 
-  const replacements = [
-    [/erbjudandet gäller just nu/gi, "produkten finns online"],
-    [/detta erbjudande gäller just nu/gi, "produkten finns online"],
-    [/erbjudandet/gi, "produkten"],
-    [/erbjudanden/gi, "produkter"],
-    [/erbjudande/gi, "produkt"],
-    [/kampanjpris/gi, "pris"],
-    [/rabatter/gi, "priser"],
-    [/rabatt/gi, "pris"],
-    [/\brea\b/gi, "shopping"],
-    [/\bfynda\b/gi, "hitta"],
-    [/\bfynd\b/gi, "produkt"],
-    [/\bdeal(s)?\b/gi, "product"],
-    [/\boffer(s)?\b/gi, "product"],
-    [/\bdiscount(s)?\b/gi, "price"],
-    [/\bsale\b/gi, "shopping"],
-    [/för endast\s+([^.!?\n]+)/gi, "Pris: $1"],
-    [/only\s+([^.!?\n]+)/gi, "Price: $1"],
-  ];
+  if (!explicitOfferSignal) {
+    const replacements = [
+      [/erbjudandet gäller just nu/gi, "produkten finns online"],
+      [/detta erbjudande gäller just nu/gi, "produkten finns online"],
+      [/erbjudandet/gi, "produkten"],
+      [/erbjudanden/gi, "produkter"],
+      [/erbjudande/gi, "produkt"],
+      [/kampanjpris/gi, "pris"],
+      [/rabatter/gi, "priser"],
+      [/rabatt/gi, "pris"],
+      [/\brea\b/gi, "shopping"],
+      [/\bfynda\b/gi, "hitta"],
+      [/\bfynd\b/gi, "produkt"],
+      [/\bdeal(s)?\b/gi, "product"],
+      [/\boffer(s)?\b/gi, "product"],
+      [/\bdiscount(s)?\b/gi, "price"],
+      [/\bsale\b/gi, "shopping"],
+    ];
 
-  for (const [pattern, replacement] of replacements) {
-    sanitized = sanitized.replace(pattern, replacement);
+    for (const [pattern, replacement] of replacements) {
+      sanitized = sanitized.replace(pattern, replacement);
+    }
   }
 
-  return sanitized;
+  if (websiteItem?.url) {
+    sanitized = stripUnsupportedPriceClaims(sanitized, websiteItem);
+  }
+
+  return sanitized.trim();
 }
 
 function buildAutomationPrompt(rule) {
@@ -2123,7 +2166,6 @@ async function extractProductDataFromProductPage({
     truncateText(stripHtmlToText(html), 700);
 
  const price =
-  String(webSearchProduct?.price || "").trim() ||
   getProductPriceFromJsonLd(product) ||
   extractProductPriceFromHtml(html);
 
