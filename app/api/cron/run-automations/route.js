@@ -3579,11 +3579,9 @@ let useWebsiteImage = false;
           continue;
         }
 
-    const approvalRequired = Boolean(rule.approval_required);
-const approvalToken = approvalRequired
-  ? crypto.randomBytes(32).toString("hex")
-  : null;
-const postStatus = approvalRequired ? "pending_approval" : "approved";
+    const approvalRequired = true;
+const approvalToken = crypto.randomBytes(32).toString("hex");
+const postStatus = "pending_approval";
 const wantsImage = Boolean(rule.generate_image);
 
 const { data: post, error: postError } = await supabase
@@ -3616,9 +3614,9 @@ const { data: post, error: postError } = await supabase
             automation_rule_id: rule.id,
 
         status: postStatus,
-approval_required: approvalRequired,
+approval_required: true,
 approval_token: approvalToken,
-approved_at: approvalRequired ? null : nowIso,
+approved_at: null,
 scheduled_for: nowIso,
             image_status: wantsImage ? "generating" : "none",
             image_prompt: wantsImage ? rule.image_prompt || null : null,
