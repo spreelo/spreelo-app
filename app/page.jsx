@@ -541,11 +541,6 @@ export default function Home() {
                             </p>
                           </div>
 
-                          <div className="dashboard-upcoming-mode">
-                            {rule.approval_required
-                              ? t("dashboard.reviewFirst")
-                              : t("dashboard.autoPublish")}
-                          </div>
                         </article>
                       ))}
                     </div>
@@ -875,10 +870,7 @@ export default function Home() {
                     </strong>
 
                     <p className="dashboard-side-note">
-                      {nextAutomation.platform || t("dashboard.platformNotSet")} ·{" "}
-                      {nextAutomation.approval_required
-                        ? t("dashboard.reviewBeforePublishing")
-                        : t("dashboard.publishesAutomatically")}
+                      {nextAutomation.platform || t("dashboard.platformNotSet")}
                     </p>
                   </section>
                 )}
