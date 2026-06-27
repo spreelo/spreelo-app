@@ -3437,7 +3437,7 @@ function formatConnectedPlatformLabel(platformValue) {
 }
 
 export default function AutomationPage() {
-  const { t } = useUiText(["automation"]);
+  const { t, locale } = useUiText(["automation"]);
 
   function translateContentTypeLabel(type) {
     return t(`automation.contentType.${type.id}.label`);
@@ -3451,13 +3451,128 @@ export default function AutomationPage() {
     return t(`automation.contentType.${type.id}.description`);
   }
 
+  const plannerLocaleIsSwedish = String(locale || "").toLowerCase().startsWith("sv");
+
+  const plannerGoalCopy = {
+    sell_more: {
+      label: plannerLocaleIsSwedish ? "Sälj mer" : "Sell more",
+      description: plannerLocaleIsSwedish
+        ? "Fokus på produkter, köpinspiration och tydligare uppmaningar som driver försäljning."
+        : "Product posts, buying inspiration and clearer calls to action that drive sales.",
+    },
+    get_followers: {
+      label: plannerLocaleIsSwedish ? "Nå fler kunder" : "Reach more customers",
+      description: plannerLocaleIsSwedish
+        ? "Delbart och lätt innehåll som skapar igenkänning, synlighet och engagemang."
+        : "Shareable, easy content that builds recognition, visibility and engagement.",
+    },
+    build_trust: {
+      label: plannerLocaleIsSwedish ? "Bygg förtroende" : "Build trust",
+      description: plannerLocaleIsSwedish
+        ? "Visar expertis, svarar på frågor och ger kunderna fler skäl att välja dig."
+        : "Shows expertise, answers questions and gives customers more reasons to choose you.",
+    },
+    educate_customers: {
+      label: plannerLocaleIsSwedish ? "Ge tips & råd" : "Give tips & advice",
+      description: plannerLocaleIsSwedish
+        ? "Lärande inlägg som hjälper kunderna och gör företaget relevant."
+        : "Helpful educational posts that guide customers and make the business relevant.",
+    },
+    stay_visible: {
+      label: plannerLocaleIsSwedish ? "Håll kontot aktivt" : "Keep the account active",
+      description: plannerLocaleIsSwedish
+        ? "En trygg blandning som håller företaget synligt när kunden inte vill välja själv."
+        : "A safe content mix that keeps the business visible when the customer does not want to choose manually.",
+    },
+  };
+
+  const plannerUiCopy = {
+    planSummary: plannerLocaleIsSwedish ? "Din plan" : "Your plan",
+    readyToCreate: plannerLocaleIsSwedish ? "Redo att skapa" : "Ready to create",
+    spreeloChoosesLanguage: plannerLocaleIsSwedish ? "Spreelo väljer automatiskt" : "Spreelo chooses automatically",
+    platformHelp: plannerLocaleIsSwedish ? "Här kommer dina inlägg publiceras." : "This is where your posts will be published.",
+    languageHelpSmart: plannerLocaleIsSwedish ? "Spreelo kan välja språk utifrån din varumärkesanalys." : "Spreelo can choose the language from your brand analysis.",
+    repeatHelpSmart: plannerLocaleIsSwedish ? "Bestämmer hur ofta planen skapas och upprepas." : "Controls how often the plan is created and repeated.",
+    timezoneHelpSmart: plannerLocaleIsSwedish ? "Används för att planera inlägg i rätt lokal tid." : "Used to schedule posts in the correct local time.",
+    planIncludesText: plannerLocaleIsSwedish
+      ? "Inläggstyper väljs automatiskt för att matcha ditt mål."
+      : "Post types are chosen automatically to match your goal.",
+  };
+
+  const previewCardCopy = {
+    product_focus: {
+      label: plannerLocaleIsSwedish ? "Produktfokus" : "Product focus",
+      description: plannerLocaleIsSwedish ? "Framhäver relevanta produkter eller tjänster." : "Highlights relevant products or services.",
+    },
+    offers: {
+      label: plannerLocaleIsSwedish ? "Kampanjer & erbjudanden" : "Campaigns & offers",
+      description: plannerLocaleIsSwedish ? "Använder köptillfällen endast när det passar." : "Uses buying moments only when they fit.",
+    },
+    tips_advice: {
+      label: plannerLocaleIsSwedish ? "Tips & råd" : "Tips & advice",
+      description: plannerLocaleIsSwedish ? "Hjälpsamma inlägg som bygger värde och förtroende." : "Helpful posts that build value and trust.",
+    },
+    customer_inspiration: {
+      label: plannerLocaleIsSwedish ? "Kundinspiration" : "Customer inspiration",
+      description: plannerLocaleIsSwedish ? "Visar exempel, användningsfall och skäl att välja företaget." : "Shows examples, use cases and reasons to choose the business.",
+    },
+    faq: {
+      label: plannerLocaleIsSwedish ? "FAQ / Frågor" : "FAQ / Questions",
+      description: plannerLocaleIsSwedish ? "Besvarar vanliga frågor innan kunder behöver fråga." : "Answers common questions before customers need to ask.",
+    },
+    reminders: {
+      label: plannerLocaleIsSwedish ? "Påminnelser" : "Reminders",
+      description: plannerLocaleIsSwedish ? "Håller företaget synligt vid viktiga tillfällen." : "Keeps the business visible around important moments.",
+    },
+    common_mistakes: {
+      label: plannerLocaleIsSwedish ? "Vanliga misstag" : "Common mistakes",
+      description: plannerLocaleIsSwedish ? "Visar expertis genom att hjälpa kunder undvika problem." : "Shows expertise by helping customers avoid problems.",
+    },
+    mini_guide: {
+      label: plannerLocaleIsSwedish ? "Mini-guide" : "Mini-guide",
+      description: plannerLocaleIsSwedish ? "Lär ut något användbart i ett kort format." : "Teaches something useful in a short format.",
+    },
+    checklist: {
+      label: plannerLocaleIsSwedish ? "Checklista" : "Checklist",
+      description: plannerLocaleIsSwedish ? "Skapar tydliga steg och saker att komma ihåg." : "Creates clear steps and things to remember.",
+    },
+    seasonal: {
+      label: plannerLocaleIsSwedish ? "Säsongsinnehåll" : "Seasonal content",
+      description: plannerLocaleIsSwedish ? "Kopplar företaget till aktuell tid och kundbehov." : "Connects the business to current timing and needs.",
+    },
+    local_relevance: {
+      label: plannerLocaleIsSwedish ? "Lokal relevans" : "Local relevance",
+      description: plannerLocaleIsSwedish ? "Gör innehållet närmare och mer relevant lokalt." : "Makes the content feel more locally relevant.",
+    },
+    problem_solution: {
+      label: plannerLocaleIsSwedish ? "Problem → lösning" : "Problem → solution",
+      description: plannerLocaleIsSwedish ? "Utgår från ett kundbehov och visar hur företaget hjälper." : "Starts from a customer need and shows how the business helps.",
+    },
+    custom_prompt: {
+      label: plannerLocaleIsSwedish ? "Egen idé" : "Custom idea",
+      description: plannerLocaleIsSwedish ? "Använder din egen instruktion som grund." : "Uses your own instruction as the base.",
+    },
+    content_mix: {
+      label: plannerLocaleIsSwedish ? "Innehållsmix" : "Content mix",
+      description: plannerLocaleIsSwedish ? "Ger variation så planen inte känns upprepande." : "Adds variety so the plan does not feel repetitive.",
+    },
+  };
+
   function translateAutoPlanGoalLabel(goalId) {
     if (!goalId) return t("automation.chooseGoal");
-    return t(`automation.planGoal.${goalId}.label`);
+    return plannerGoalCopy[goalId]?.label || t(`automation.planGoal.${goalId}.label`);
+  }
+
+  function translateAutoPlanGoalDescription(goalId) {
+    return plannerGoalCopy[goalId]?.description || "";
+  }
+
+  function safePlannerText(key) {
+    return plannerUiCopy[key] || t(`automation.${key}`);
   }
 
   function getLanguageDisplayLabel(value) {
-    return value === "Auto" ? t("automation.spreeloChoosesLanguage") : value;
+    return value === "Auto" ? safePlannerText("spreeloChoosesLanguage") : value;
   }
 
   function getPlatformIconLabel(value) {
@@ -3477,11 +3592,11 @@ export default function AutomationPage() {
     return value === "weekly" ? t("automation.weekly") : t("automation.once");
   }
   function translatePreviewCardLabel(cardId) {
-    return t(`automation.previewCard.${cardId}.label`);
+    return previewCardCopy[cardId]?.label || t(`automation.previewCard.${cardId}.label`);
   }
 
   function translatePreviewCardDescription(cardId) {
-    return t(`automation.previewCard.${cardId}.description`);
+    return previewCardCopy[cardId]?.description || t(`automation.previewCard.${cardId}.description`);
   }
 
   function getCustomerSlotLabel(slot) {
@@ -4957,7 +5072,7 @@ setRules((currentRules) =>
     <span>1</span>
     <div>
       <strong>
-        {planCreationMode === "campaign" ? t("automation.campaignGoal") : t("automation.chooseGoalAndSchedule")}
+        {planCreationMode === "campaign" ? t("automation.campaignGoal") : t("automation.goal")}
       </strong>
       <small>
         {planCreationMode === "campaign"
@@ -4997,7 +5112,7 @@ setRules((currentRules) =>
   <p>
     {planCreationMode === "campaign"
       ? t("automation.campaignConnectedText")
-      : t("automation.goalTailorText")}
+      : translateAutoPlanGoalDescription(autoPlanGoal)}
   </p>
 </div>
 
@@ -5588,7 +5703,7 @@ setRules((currentRules) =>
         <span className="social-dot linkedin">in</span>
         <span className="social-dot tiktok">♪</span>
       </div>
-      <p>{t("automation.platformHelp")}</p>
+      <p>{safePlannerText("platformHelp")}</p>
     </label>
   ) : (
     <div className="planner-setting-field planner-setting-connect-box">
@@ -5617,10 +5732,11 @@ setRules((currentRules) =>
       value={language}
       onChange={(event) => setLanguage(event.target.value)}
     >
-      <option value="Auto">{t("automation.spreeloChoosesLanguage")}</option>
-      <option value="English">{t("automation.languageEnglish")}</option>
+      <option value="Auto">{safePlannerText("spreeloChoosesLanguage")}</option>
+      <option value="Svenska">Svenska</option>
+      <option value="English">English</option>
     </select>
-    <p>{t("automation.languageHelpSmart")}</p>
+    <p>{safePlannerText("languageHelpSmart")}</p>
   </label>
 
 
@@ -5636,7 +5752,7 @@ setRules((currentRules) =>
       <option value="weekly">{t("automation.weekly")}</option>
       <option value="once">{t("automation.oneTime")}</option>
     </select>
-    <p>{t("automation.repeatHelpSmart")}</p>
+    <p>{safePlannerText("repeatHelpSmart")}</p>
   </label>
 </div>
 
@@ -5667,7 +5783,7 @@ setRules((currentRules) =>
           </option>
         ))}
       </select>
-      <p>{t("automation.timezoneHelpSmart")}</p>
+      <p>{safePlannerText("timezoneHelpSmart")}</p>
     </label>
   </div>
 )}
@@ -5679,7 +5795,7 @@ setRules((currentRules) =>
                   <div className="planner-section-heading compact">
                     <div>
                       <h3>{t("automation.planIncludesTitle")}</h3>
-                      <p>{t("automation.planIncludesText", { goal: translateAutoPlanGoalLabel(autoPlanGoal) })}</p>
+                      <p>{safePlannerText("planIncludesText")}</p>
                     </div>
                   </div>
 
@@ -5953,8 +6069,8 @@ setRules((currentRules) =>
               <div className="planner-sidebar-title planner-summary-title">
                 <span>▤</span>
                 <div>
-                  <h3>{t("automation.planSummaryV2")}</h3>
-                  <p>{t("automation.readyToCreate")}</p>
+                  <h3>{safePlannerText("planSummary")}</h3>
+                  <p>{safePlannerText("readyToCreate")}</p>
                 </div>
               </div>
 
