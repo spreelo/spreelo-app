@@ -1226,7 +1226,7 @@ Return JSON only in this exact shape:
       "campaign_goal": "What this campaign should achieve for the business",
       "target_customer_need": "The customer need, situation, problem, desire or buying intent this campaign is built around",
       "recommended_angles": ["awareness", "engagement", "product_discovery", "product_push", "trust", "offer", "urgency"],
-      "product_selection_guidance": "Strategic guidance for what products, services or offers fit this campaign and what to avoid",
+      "product_selection_guidance": "Strategic guidance for what products, services, categories or verified offers fit this campaign and what to avoid",
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
@@ -1279,8 +1279,8 @@ Campaign selection quality gate:
 - Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
 - Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. For example: giftable products should strongly consider local gift days; ecommerce/retail should strongly consider major local shopping periods; restaurants/food should consider relevant food and dining moments; beauty/fashion should consider party, season, wedding, graduation and self-care moments; service/bookable businesses should consider seasonal preparation and booking windows.
 - Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or B2B software. A pet-related day belongs to pet brands, not to unrelated retailers unless their product range genuinely fits.
-- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are supported by the provided website/description.
-- If a custom campaign title implies a feature, offer or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
+- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
+- If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
 - The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
 - For broad ecommerce, retail and product-based businesses, returning only around 10 opportunities is usually under-generated unless the year has already passed or the business is unusually narrow. Prefer 15-20 strong opportunities when enough relevant moments exist.
 
@@ -1314,6 +1314,7 @@ Campaign timing:
 - Each post_plan item must include publish_time in HH:MM local time. Choose the time based on weekday, audience behavior, campaign role, business category and whether the post is inspiration, engagement, trust, product discovery, product push, urgency or relationship-building.
 - Each post_plan item must include schedule_reason explaining why that specific date offset and time is the best strategic choice.
 - The code may validate or clamp impossible dates, but the AI plan should be the source of truth for the campaign sequence.
+- Use date_confidence as relevance strength, not proof that the campaign exists on the website: high = strong fit for this business/market, medium = plausible fit, low = weak or uncertain fit.
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 
 Campaign strategy:
@@ -1359,7 +1360,7 @@ Website content strategy:
 - If website_content_strategy is "none", website_product_selection_hint must be an empty string.
 
 Accuracy:
-- Do not invent specific services, products, offers, locations, dates or facts not supported by the website, description or general market knowledge.
+- Do not invent specific services, products, offers, discounts, sales, delivery promises, locations, dates or facts not supported by the website, description or general market knowledge.
 - Do not search beyond the provided content.
 - Do not create finished social media posts.
 `.trim(),
@@ -1503,7 +1504,7 @@ Return JSON only in this exact shape:
       "campaign_goal": "What this campaign should achieve for the business",
       "target_customer_need": "The customer need, situation, problem, desire or buying intent this campaign is built around",
       "recommended_angles": ["awareness", "engagement", "product_discovery", "product_push", "trust", "offer", "urgency"],
-      "product_selection_guidance": "Strategic guidance for what offers, categories or services fit this campaign and what to avoid",
+      "product_selection_guidance": "Strategic guidance for what products, categories, services or verified offers fit this campaign and what to avoid",
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
@@ -1556,8 +1557,8 @@ Campaign selection quality gate:
 - Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
 - Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. For example: giftable products should strongly consider local gift days; ecommerce/retail should strongly consider major local shopping periods; restaurants/food should consider relevant food and dining moments; beauty/fashion should consider party, season, wedding, graduation and self-care moments; service/bookable businesses should consider seasonal preparation and booking windows.
 - Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or B2B software. A pet-related day belongs to pet brands, not to unrelated retailers unless their product range genuinely fits.
-- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are supported by the provided website/description.
-- If a custom campaign title implies a feature, offer or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
+- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
+- If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
 - The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
 - For broad ecommerce, retail and product-based businesses, returning only around 10 opportunities is usually under-generated unless the year has already passed or the business is unusually narrow. Prefer 15-20 strong opportunities when enough relevant moments exist.
 
@@ -1590,6 +1591,7 @@ Campaign timing:
 - Each post_plan item must include publish_time in HH:MM local time. Choose the time based on weekday, audience behavior, campaign role, business category and whether the post is inspiration, engagement, trust, product discovery, product push, urgency or relationship-building.
 - Each post_plan item must include schedule_reason explaining why that specific date offset and time is the best strategic choice.
 - The code may validate or clamp impossible dates, but the AI plan should be the source of truth for the campaign sequence.
+- Use date_confidence as relevance strength, not proof that the campaign exists on the website: high = strong fit for this business/market, medium = plausible fit, low = weak or uncertain fit.
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 
 Campaign strategy:
