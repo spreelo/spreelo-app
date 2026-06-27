@@ -423,17 +423,81 @@ Image URL: ${websiteItem.image_url || "Not provided"}
 Important website item rules:
 - Base this post on the selected website item above.
 - Use only details that are present in the selected item information.
+- Use the selected item URL as the destination link when this post promotes the selected item.
 - Do not invent prices, discounts, guarantees, availability, dates, addresses, square meters, specifications or claims.
 - If a price is provided above, you may mention it in the post.
+- A visible price is not automatically an offer, sale, discount, deal, bargain, campaign price or limited-time promotion.
+- Do not call the item an offer, deal, sale, discount, bargain, fynd, erbjudande, rabatt, rea or kampanjpris unless the selected item information explicitly says that the product is discounted or on sale.
 - If no price is provided above, do not mention a price.
 - If information is missing, write around the value and benefit instead of inventing facts.
 `.trim();
+}
+
+function getPostDestinationUrl(rule) {
+  return (
+    rule?.website_item?.url ||
+    rule?.brand_profile?.website_url ||
+    rule?.website_url ||
+    ""
+  );
+}
+
+function hasExplicitOfferSignal(websiteItem) {
+  const text = [
+    websiteItem?.title,
+    websiteItem?.description,
+    websiteItem?.reason,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (!text) return false;
+
+  return /(rabatt|rea|kampanjpris|spara|nedsatt|erbjudande|utförsäljning|sale|discount|deal|offer|save\s+\d|%\s*off|clearance|was\s+|now\s+)/i.test(text);
+}
+
+function sanitizeUnsupportedOfferLanguage(postContent, websiteItem) {
+  if (!postContent || hasExplicitOfferSignal(websiteItem)) {
+    return postContent;
+  }
+
+  let sanitized = String(postContent);
+
+  const replacements = [
+    [/erbjudandet gäller just nu/gi, "produkten finns online"],
+    [/detta erbjudande gäller just nu/gi, "produkten finns online"],
+    [/erbjudandet/gi, "produkten"],
+    [/erbjudanden/gi, "produkter"],
+    [/erbjudande/gi, "produkt"],
+    [/kampanjpris/gi, "pris"],
+    [/rabatter/gi, "priser"],
+    [/rabatt/gi, "pris"],
+    [/rea/gi, "shopping"],
+    [/fynda/gi, "hitta"],
+    [/fynd/gi, "produkt"],
+    [/deal(s)?/gi, "product"],
+    [/offer(s)?/gi, "product"],
+    [/discount(s)?/gi, "price"],
+    [/sale/gi, "shopping"],
+    [/för endast\s+([^.!?
+]+)/gi, "Pris: $1"],
+    [/only\s+([^.!?
+]+)/gi, "Price: $1"],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    sanitized = sanitized.replace(pattern, replacement);
+  }
+
+  return sanitized;
 }
 
 function buildAutomationPrompt(rule) {
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
   const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
   const campaignStrategyText = formatCampaignStrategyForPrompt(rule);
+  const destinationUrl = getPostDestinationUrl(rule);
 
   return `
 Create a ready-to-publish social media post.
@@ -460,9 +524,7 @@ Tone: ${rule.tone || "Professional"}
 Post type: ${rule.post_type || "General post"}
 Length: ${rule.length || "Medium"}
 CTA type: ${rule.cta_type || "Soft CTA"}
-Website URL: ${
-    rule.brand_profile?.website_url || rule.website_url || "Not provided"
-  }
+Destination URL: ${destinationUrl || "Not provided"}
 
 Include emojis: ${rule.include_emojis ? "Yes" : "No"}
 Include hashtags: ${rule.include_hashtags ? "Yes" : "No"}
@@ -493,9 +555,10 @@ Critical brand relevance rules:
 - Match CTA strength to the strategy: soft means gentle, medium means clear, strong means action-focused.
 
 Website factual grounding rules:
-- Always include the business website URL in the final post when a Website URL is available.
-- Place the website URL near the end of the post, before hashtags if hashtags are used.
-- The website URL may be introduced with a safe general CTA such as "Visit our website", "See our current selection", "Explore available products", "Learn more about the business", "Contact us through the website" or similar.
+- Always include the Destination URL in the final post when a Destination URL is available.
+- If a selected website item is provided, the Destination URL should be the selected item URL, not just the homepage.
+- Place the Destination URL near the end of the post, before hashtags if hashtags are used.
+- The Destination URL may be introduced with a safe CTA such as "See the product", "View the product", "See our current selection", "Explore available products", "Visit our website", "Learn more about the business", "Contact us through the website" or similar.
 - Do not claim that the website contains information about a specific topic, service, product, guide, offer, article or page unless that exact information was provided in the Brand profile or Selected website item.
 - Do not write phrases like "read more about this service on our website", "learn more about this topic on our website", "see more details about this offer on our website", "book this service" or "explore this service" unless the website content clearly supports that exact claim.
 - Do not imply that a specific service exists unless the Brand profile or Selected website item clearly says the business offers that service.
@@ -503,13 +566,15 @@ Website factual grounding rules:
 - For product-based businesses, use safe CTAs such as "see our current selection", "explore available products", "contact us for guidance" or "get help choosing the right option" when that fits the brand.
 - For service businesses, use safe CTAs such as "contact us to discuss your needs", "get in touch to learn what fits your situation" or "visit our website" unless a specific bookable service was provided.
 - Never invent services, guides, articles, guarantees, discounts, availability, booking pages or website pages that were not provided.
+- A product price is not automatically an offer, sale, discount, deal, bargain, fynd, erbjudande, rabatt, rea or kampanjpris. Do not use those words unless the selected item information explicitly confirms a discount or sale.
+- For Black Friday, Cyber Monday, Black Week or similar shopping days, you may create buying urgency, but you must still not claim a discount, offer or campaign price unless it is visible in the selected item information.
 - It is okay to use a relevant seasonal or educational angle, but do not present it as something the website specifically explains unless it actually does.
 
 Output rules:
 - Return only the final post text.
 - Do not explain anything.
 - Make it suitable for the selected platform.
-- Always include the website URL in the final post if Website URL is provided.
+- Always include the Destination URL in the final post if Destination URL is provided.
 - If emojis are disabled, do not use emojis.
 - If hashtags are enabled, include relevant hashtags at the end.
 - If hashtags are disabled, do not include hashtags.
@@ -2473,6 +2538,8 @@ For fashion, home, decor or lifestyle businesses:
 For sales campaigns:
 - Prefer products with strong demand, high perceived value, gift potential, seasonal relevance or clear buying intent.
 - If discount information is not clearly visible, do not invent a discount.
+- A visible ordinary price is not proof of an offer, sale, deal, discount or campaign price.
+- Do not describe a product as an offer/deal/sale/discount unless the product page clearly says it is discounted or on sale.
 
 Output:
 Return strict JSON only.
@@ -3451,9 +3518,14 @@ let useWebsiteImage = false;
           website_item: websiteItem,
         };
 
-        const generatedContent = await generateAutomationPost(
+        const rawGeneratedContent = await generateAutomationPost(
           openai,
           ruleWithBrandProfile
+        );
+
+        const generatedContent = sanitizeUnsupportedOfferLanguage(
+          rawGeneratedContent,
+          websiteItem
         );
 
         if (!generatedContent) {
@@ -3484,6 +3556,7 @@ const { data: post, error: postError } = await supabase
             language: rule.language || null,
             post_type: rule.post_type || null,
             website_url:
+  websiteItem?.url ||
   websiteSourceUrl ||
   brandProfile?.website_product_source_url ||
   brandProfile?.website_url ||
