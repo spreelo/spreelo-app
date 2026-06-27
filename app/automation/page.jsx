@@ -2645,8 +2645,7 @@ function getCampaignScheduleFactText(campaign, postPlanItem = {}) {
     "If there is any uncertainty about the exact countdown, do not include a day-countdown number in the post or image.",
   ]
     .filter(Boolean)
-    .join("
-");
+    .join("\n");
 }
 
 function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
