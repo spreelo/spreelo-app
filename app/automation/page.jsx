@@ -279,9 +279,9 @@ const autoPlanGoals = [
   {
     id: "get_followers",
     icon: "📈",
-    label: "Get more followers",
+    label: "Reach more customers",
     description:
-      "Useful, save-worthy and share-friendly posts that make the account worth following.",
+      "Shareable, useful and visible posts that help more potential customers discover the business.",
   },
   {
     id: "build_trust",
@@ -293,16 +293,16 @@ const autoPlanGoals = [
   {
     id: "educate_customers",
     icon: "🎓",
-    label: "Educate customers",
+    label: "Give tips & advice",
     description:
-      "Helpful posts that teach customers what they should know before they buy.",
+      "Helpful posts that guide customers, answer questions and make it easier to choose.",
   },
   {
     id: "stay_visible",
     icon: "📅",
-    label: "Stay visible",
+    label: "Keep the account active",
     description:
-      "A balanced weekly mix that keeps the business active and consistent.",
+      "A balanced weekly mix that keeps the business visible, useful and consistent.",
   },
 ];
 
@@ -321,7 +321,7 @@ const autoPlanStrategies = {
     imageCount: 4,
   },
   get_followers: {
-    label: "Get more followers",
+    label: "Reach more customers",
     contentTypeIds: [
       "tips",
       "checklist",
@@ -347,7 +347,7 @@ const autoPlanStrategies = {
     imageCount: 3,
   },
   educate_customers: {
-    label: "Educate customers",
+    label: "Give tips & advice",
     contentTypeIds: [
       "tips",
       "mini_guide",
@@ -360,7 +360,7 @@ const autoPlanStrategies = {
     imageCount: 2,
   },
   stay_visible: {
-    label: "Stay visible",
+    label: "Keep the account active",
     contentTypeIds: [
       "problem_solution",
       "tips",
@@ -4781,12 +4781,12 @@ setRules((currentRules) =>
     <h2>
       {campaignOpportunity
         ? `Create campaign: ${campaignOpportunity.title}`
-        : t("automation.heroTitle")}
+        : t("automation.heroSmartTitle")}
     </h2>
     <p>
       {campaignOpportunity
         ? t("automation.heroCampaignText")
-        : t("automation.heroText")}
+        : t("automation.heroTextSmartPlan")}
     </p>
   </div>
 
@@ -4816,7 +4816,7 @@ setRules((currentRules) =>
 
       <span>{t("automation.recommendedPlan")}</span>
       <strong>
-        {getCampaignRecommendedPostCount(campaignOpportunity, slots.length)} posts
+        {t("automation.postCount", { count: getCampaignRecommendedPostCount(campaignOpportunity, slots.length) })}
       </strong>
     </div>
   </section>
@@ -4830,12 +4830,12 @@ setRules((currentRules) =>
     <span>1</span>
     <div>
       <strong>
-        {planCreationMode === "campaign" ? t("automation.campaignGoal") : t("automation.chooseGoal")}
+        {planCreationMode === "campaign" ? t("automation.campaignGoal") : t("automation.chooseGoalAndSchedule")}
       </strong>
       <small>
         {planCreationMode === "campaign"
           ? t("automation.campaignGoalHelp")
-          : t("automation.mainObjective")}
+          : t("automation.mainObjectiveSmart")}
       </small>
     </div>
   </div>
@@ -4921,10 +4921,10 @@ setRules((currentRules) =>
 
                 <p>
                  {planCreationMode === "campaign"
-  ? `${slots.length} posts are prepared for this campaign.`
+  ? t("automation.campaignPostsPrepared", { count: slots.length })
   : planCreationMode === "manual"
   ? t("automation.manualPostsAdded")
-  : t("automation.recommendedGrowth")}
+  : t("automation.recommendedGrowthSmart")}
                 </p>
               </div>
 
@@ -5146,8 +5146,8 @@ setRules((currentRules) =>
   <section className="planner-schedule-card">
     <div className="planner-schedule-header">
       <div>
-        <h3>{t("automation.postsSchedule")}</h3>
-        <span>{slots.length} {t("automation.postsPlannedLabel")}</span>
+        <h3>{t("automation.plannedFirstWeekTitle")}</h3>
+        <span>{t("automation.plannedFirstWeekText")}</span>
       </div>
 
        <div className="planner-schedule-actions">
@@ -5568,15 +5568,38 @@ setRules((currentRules) =>
   </div>
 )}
             </section>
+
+            {shouldShowPlannerDetails && !planWasSaved && (
+              <section className="planner-includes-preview-card">
+                <div className="planner-preview-panel">
+                  <div className="planner-section-heading compact">
+                    <div>
+                      <h3>{t("automation.planIncludesTitle")}</h3>
+                      <p>{t("automation.planIncludesText", { goal: translateAutoPlanGoalLabel(autoPlanGoal) })}</p>
+                    </div>
+                  </div>
+
+                  <div className="planner-includes-chip-grid">
+                    {includedContentTypes.slice(0, 7).map((type) => (
+                      <div className="planner-includes-chip" key={type.id}>
+                        <span>{getContentTypeIcon(type.id)}</span>
+                        <strong>{translateContentTypeShortLabel(type)}</strong>
+                        <small>{translateContentTypeDescription(type)}</small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
   </>
 )}
             <section className="planner-save-card">
               <div>
-  <h3>{savedPlanSummary ? t("automation.planSaved") : t("automation.stepSavePlan")}</h3>
+  <h3>{savedPlanSummary ? t("automation.planSaved") : t("automation.generatePlanTitle")}</h3>
   <p>
     {savedPlanSummary
       ? t("automation.automationPlanReady")
-      : t("automation.planNameHelp")}
+      : t("automation.generatePlanHelp")}
   </p>
 </div>
          {savedPlanSummary ? (
@@ -5604,7 +5627,7 @@ setRules((currentRules) =>
       onClick={savePlan}
       disabled={saving || !hasEnoughCredits}
     >
-      {saving ? t("automation.saving") : t("automation.saveContentPlan")}
+      {saving ? t("automation.saving") : t("automation.generatePostPlan")}
     </button>
   </>
 )}
@@ -5867,6 +5890,21 @@ setRules((currentRules) =>
                   <strong>
                     {translateScheduleType(scheduleType)}
                   </strong>
+                </div>
+
+                <div>
+                  <span>{t("automation.platform")}</span>
+                  <strong>{platform || t("automation.choosePlatform")}</strong>
+                </div>
+
+                <div>
+                  <span>{t("automation.language")}</span>
+                  <strong>{language === "Auto" ? t("automation.autoDetect") : language}</strong>
+                </div>
+
+                <div>
+                  <span>{t("automation.approval")}</span>
+                  <strong>{t("automation.approvalAlwaysRequired")}</strong>
                 </div>
 
                 <div>
