@@ -13005,3 +13005,55 @@ textarea.input:focus,
     width: 100%;
   }
 }
+
+/* Social channels multi-platform cards */
+.social-channel-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 20px !important;
+  align-items: stretch !important;
+}
+
+.social-channel-card {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 18px !important;
+}
+
+.social-channel-card-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+}
+
+.social-channel-title-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+}
+
+.social-channel-icon {
+  width: 42px !important;
+  height: 42px !important;
+  object-fit: contain !important;
+  border-radius: 12px !important;
+  flex: 0 0 auto !important;
+}
+
+.social-token-note {
+  margin: 0 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #64748b !important;
+}
+
+@media (max-width: 900px) {
+  .social-channel-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .social-channel-card-header {
+    flex-direction: column !important;
+  }
+}
