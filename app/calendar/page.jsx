@@ -65,8 +65,30 @@ function getCampaignDateLabel(campaign, t, locale = "en") {
   return t("calendar.flexibleCampaign");
 }
 
-function getEventTypeLabel(value) {
-  return String(value || "campaign")
+function getEventTypeLabel(value, t) {
+  const eventType = String(value || "campaign").toLowerCase().trim();
+
+  const labelKeyByType = {
+    seasonal: "calendar.eventType.seasonal",
+    shopping: "calendar.eventType.shopping",
+    industry_day: "calendar.eventType.industryDay",
+    local_event: "calendar.eventType.localEvent",
+    holiday: "calendar.eventType.holiday",
+    social_day: "calendar.eventType.socialDay",
+    awareness_day: "calendar.eventType.awarenessDay",
+    ecommerce: "calendar.eventType.ecommerce",
+    retail: "calendar.eventType.retail",
+    campaign: "calendar.eventType.campaign",
+    custom_campaign: "calendar.eventType.campaign",
+  };
+
+  const labelKey = labelKeyByType[eventType];
+
+  if (labelKey) {
+    return t(labelKey);
+  }
+
+  return eventType
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -74,10 +96,10 @@ function getEventTypeLabel(value) {
 function getConfidenceLabel(value, t) {
   const confidence = String(value || "medium").toLowerCase();
 
-  if (confidence === "high") return t("calendar.highConfidence");
-  if (confidence === "low") return t("calendar.lowConfidence");
+  if (confidence === "high") return t("calendar.highRelevance");
+  if (confidence === "low") return t("calendar.lowRelevance");
 
-  return t("calendar.mediumConfidence");
+  return t("calendar.mediumRelevance");
 }
 
 function getSortDate(campaign) {
@@ -969,7 +991,7 @@ export default function Calendar() {
                         }}
                       >
                         <div className="campaign-card-top">
-                          <span>{getEventTypeLabel(campaign.event_type)}</span>
+                          <span>{getEventTypeLabel(campaign.event_type, t)}</span>
                           <strong>{getCampaignDateLabel(campaign, t, locale)}</strong>
                         </div>
 
@@ -1009,7 +1031,7 @@ export default function Calendar() {
                         <h3>{selectedCampaign.title}</h3>
                       </div>
 
-                      <span>{getEventTypeLabel(selectedCampaign.event_type)}</span>
+                      <span>{getEventTypeLabel(selectedCampaign.event_type, t)}</span>
                     </div>
 
                     <div className="campaign-detail-date">
