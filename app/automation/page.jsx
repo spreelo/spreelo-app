@@ -1328,6 +1328,75 @@ function getContentTypeIcon(typeId) {
 
   return icons[typeId] || "✦";
 }
+
+function getContentPreviewCardId(typeId) {
+  const map = {
+    website_item: "product_focus",
+    problem_solution: "problem_solution",
+    tips: "tips_advice",
+    mistakes: "common_mistakes",
+    faq: "faq",
+    behind_scenes: "customer_inspiration",
+    checklist: "checklist",
+    service_focus: "product_focus",
+    case_example: "customer_inspiration",
+    myth_fact: "tips_advice",
+    local: "local_relevance",
+    seasonal: "seasonal",
+    comparison: "mini_guide",
+    mini_guide: "mini_guide",
+    manual_prompt: "custom_prompt",
+  };
+
+  return map[typeId] || "content_mix";
+}
+
+function getContentPreviewCardIcon(cardId) {
+  const icons = {
+    product_focus: "🛍️",
+    offers: "💝",
+    tips_advice: "💡",
+    customer_inspiration: "💬",
+    faq: "❓",
+    reminders: "🔔",
+    common_mistakes: "⚠️",
+    mini_guide: "📘",
+    checklist: "✅",
+    seasonal: "☀️",
+    local_relevance: "📍",
+    problem_solution: "⚡",
+    custom_prompt: "✎",
+    content_mix: "✦",
+  };
+
+  return icons[cardId] || "✦";
+}
+
+function getGoalBonusPreviewCardIds(goalId) {
+  if (goalId === "sell_more") return ["offers", "reminders"];
+  if (goalId === "get_followers") return ["customer_inspiration", "local_relevance"];
+  if (goalId === "build_trust") return ["customer_inspiration", "faq"];
+  if (goalId === "educate_customers") return ["tips_advice", "mini_guide"];
+  if (goalId === "stay_visible") return ["seasonal", "reminders"];
+
+  return [];
+}
+
+function getPlanPreviewCardsFromTypes(types = [], goalId = "") {
+  const ids = [];
+
+  for (const type of types) {
+    const cardId = getContentPreviewCardId(type?.id);
+    if (cardId && !ids.includes(cardId)) ids.push(cardId);
+  }
+
+  for (const cardId of getGoalBonusPreviewCardIds(goalId)) {
+    if (!ids.includes(cardId)) ids.push(cardId);
+  }
+
+  return ids.slice(0, 6).map((id) => ({ id, icon: getContentPreviewCardIcon(id) }));
+}
+
 function getSlotFormatLabel(slot) {
   if (slot.usesWebsiteContent && slot.generateImage) {
     return "Text + website image";
@@ -3394,6 +3463,26 @@ export default function AutomationPage() {
   function translateScheduleType(value) {
     return value === "weekly" ? t("automation.weekly") : t("automation.once");
   }
+  function translatePreviewCardLabel(cardId) {
+    return t(`automation.previewCard.${cardId}.label`);
+  }
+
+  function translatePreviewCardDescription(cardId) {
+    return t(`automation.previewCard.${cardId}.description`);
+  }
+
+  function getCustomerSlotLabel(slot) {
+    const cardId = getContentPreviewCardId(slot?.contentTypeId);
+    if (slot?.isCampaignSlot && slot.marketingAngle) return getCampaignAngleLabel(slot.marketingAngle);
+    return translatePreviewCardLabel(cardId);
+  }
+
+  function getCustomerSlotPurpose(slot) {
+    const cardId = getContentPreviewCardId(slot?.contentTypeId);
+    if (slot?.isCampaignSlot && slot.campaignSummary) return slot.campaignSummary;
+    return translatePreviewCardDescription(cardId);
+  }
+
 
   const weekdayLabels = [
     t("automation.weekday.short.monday"),
@@ -5161,8 +5250,8 @@ setRules((currentRules) =>
       {slots.map((slot, index) => {
         const instructionsAreExpanded =
           expandedInstructionSlotIds.includes(slot.id);
-        const displayLabel = getSlotDisplayLabel(slot);
-        const displayDescription = getSlotDisplayDescription(slot);
+        const displayLabel = getCustomerSlotLabel(slot);
+        const displayDescription = getCustomerSlotPurpose(slot);
         const formatLabel = getSlotFormatLabel(slot);
         const hasStrategyInfo =
           slot.isCampaignSlot &&
@@ -5499,7 +5588,7 @@ setRules((currentRules) =>
 </div>
 
 {showAdvancedSettings && (
-  <div className="planner-settings-grid advanced">
+  <div className="planner-settings-grid advanced compact-advanced-settings">
     <label className="planner-setting-field">
       <span>{t("automation.tone")}</span>
       <select
@@ -5510,45 +5599,6 @@ setRules((currentRules) =>
         <option value="Professional">{t("automation.tone.Professional")}</option>
         <option value="Sales-focused">{t("automation.tone.Sales-focused")}</option>
         <option value="Premium">{t("automation.tone.Premium")}</option>
-      </select>
-    </label>
-
-    <label className="planner-setting-field">
-      <span>{t("automation.postType")}</span>
-      <select
-        value={postType}
-        onChange={(event) => setPostType(event.target.value)}
-      >
-        <option value="Offer">{t("automation.postType.Offer")}</option>
-        <option value="News">{t("automation.postType.News")}</option>
-        <option value="Educational">{t("automation.postType.Educational")}</option>
-        <option value="Reminder">{t("automation.postType.Reminder")}</option>
-      </select>
-    </label>
-
-    <label className="planner-setting-field">
-      <span>{t("automation.length")}</span>
-      <select
-        value={length}
-        onChange={(event) => setLength(event.target.value)}
-      >
-        <option value="Short">{t("automation.length.Short")}</option>
-        <option value="Medium">{t("automation.length.Medium")}</option>
-        <option value="Long">{t("automation.length.Long")}</option>
-      </select>
-    </label>
-
-    <label className="planner-setting-field">
-      <span>{t("automation.ctaStyle")}</span>
-      <select
-        value={ctaType}
-        onChange={(event) => setCtaType(event.target.value)}
-      >
-        <option value="Learn more">{t("automation.cta.Learn more")}</option>
-        <option value="Visit website">{t("automation.cta.Visit website")}</option>
-        <option value="Contact us">{t("automation.cta.Contact us")}</option>
-        <option value="Book now">{t("automation.cta.Book now")}</option>
-        <option value="Shop now">{t("automation.cta.Shop now")}</option>
       </select>
     </label>
 
@@ -5580,11 +5630,11 @@ setRules((currentRules) =>
                   </div>
 
                   <div className="planner-includes-chip-grid">
-                    {includedContentTypes.slice(0, 7).map((type) => (
-                      <div className="planner-includes-chip" key={type.id}>
-                        <span>{getContentTypeIcon(type.id)}</span>
-                        <strong>{translateContentTypeShortLabel(type)}</strong>
-                        <small>{translateContentTypeDescription(type)}</small>
+                    {getPlanPreviewCardsFromTypes(includedContentTypes, autoPlanGoal).map((card) => (
+                      <div className={`planner-includes-chip preview-${card.id}`} key={card.id}>
+                        <span>{card.icon}</span>
+                        <strong>{translatePreviewCardLabel(card.id)}</strong>
+                        <small>{translatePreviewCardDescription(card.id)}</small>
                       </div>
                     ))}
                   </div>
@@ -5862,10 +5912,6 @@ setRules((currentRules) =>
                   </div>
                 )}
 
-                <div>
-                  <span>{t("automation.method")}</span>
-                  <strong>{translatePlanMode(planCreationMode)}</strong>
-                </div>
 
 <div>
   <span>
@@ -5885,12 +5931,6 @@ setRules((currentRules) =>
                   </strong>
                 </div>
 
-                <div>
-                  <span>{t("automation.timePeriod")}</span>
-                  <strong>
-                    {translateScheduleType(scheduleType)}
-                  </strong>
-                </div>
 
                 <div>
                   <span>{t("automation.platform")}</span>
@@ -5907,10 +5947,6 @@ setRules((currentRules) =>
                   <strong>{t("automation.approvalAlwaysRequired")}</strong>
                 </div>
 
-                <div>
-                  <span>{t("automation.credits")}</span>
-                  <strong>{plannedCredits}</strong>
-                </div>
               </div>
 
               <div className="planner-summary-status">
