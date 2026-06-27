@@ -1380,7 +1380,7 @@ Return JSON only in this exact shape:
       "campaign_goal": "What this campaign should achieve for the business",
       "target_customer_need": "The customer need, situation, problem, desire or buying intent this campaign is built around",
       "recommended_angles": ["awareness", "engagement", "product_discovery", "product_push", "trust", "offer", "urgency"],
-      "product_selection_guidance": "Strategic guidance for what products, services or offers fit this campaign and what to avoid",
+      "product_selection_guidance": "Strategic guidance for what products, services, categories or verified offers fit this campaign and what to avoid",
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
@@ -1421,21 +1421,22 @@ Rules:
 - Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
 - Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. Giftable products should strongly consider local gift days. Ecommerce and retail should strongly consider major local shopping periods. Restaurants and food businesses should consider relevant food and dining moments. Beauty and fashion should consider party, season, wedding, graduation and self-care moments. Service and bookable businesses should consider seasonal preparation and booking windows.
 - Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or software. A pet-related day belongs to pet brands, not unrelated retailers unless their product range genuinely fits.
-- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are supported by the provided website/description.
-- If a custom campaign title implies a feature, offer or program that may not exist, rename it to a safer generic strategy or omit it. Prefer grounded titles like "Product guide", "Seasonal upgrade", "Gift guide", "Buying advice" or "Category inspiration" over unsupported named features.
+- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
+- If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. Prefer grounded titles like "Product guide", "Seasonal upgrade", "Gift guide", "Buying advice" or "Category inspiration" over unsupported named features, launches, offers or sale claims.
 - The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
 - For broad ecommerce, retail and product-based businesses, returning only around 10 opportunities is usually under-generated unless the year has already passed or the business is unusually narrow. Prefer 15-20 strong opportunities when enough relevant moments exist.
 - For ecommerce, fashion, beauty, gifts, retail and product-based businesses, actively include relevant gift days, shopping days and seasonal buying moments when they fit the brand.
 - Do not exclude Mother's Day, Father's Day or Valentine's Day just because they are broad holidays. For ecommerce, fashion, beauty, gifts and retail brands, these are often strong sales opportunities when connected naturally to gifts, outfits, shoes, accessories, beauty, personal style or products.
 - For fashion ecommerce specifically, prioritize campaigns around outfit inspiration, gift buying, partywear, seasonal wardrobe updates, shoes, sneakers, accessories, sustainable fashion, school/graduation, weddings, festivals and major shopping days.
 - Always consider these commercial campaign moments when relevant to the brand and selected market: Valentine's Day, Mother's Day, Father's Day, graduation season, wedding season, festival season, back to school, Black Friday, Cyber Monday, Singles Day, Christmas gifts, New Year outfits, seasonal sales and wardrobe refreshes.
-- If the brand clearly sells products online, at least 50% of the campaign opportunities should have clear commercial usefulness, such as gifts, seasonal demand, shopping days, product categories, launches, offers or buying inspiration.
+- If the brand clearly sells products online, at least 50% of the campaign opportunities should have clear commercial usefulness, such as gifts, seasonal demand, shopping days, product categories, buying inspiration, gift guides, category inspiration or confirmed offers/sales when supported.
 - When a campaign is connected to a gift day such as Father's Day, Mother's Day or Valentine's Day, the campaign should explain what type of products or services are suitable for that occasion.
 - For ecommerce campaigns, do not use random products from the website. The selected product must naturally fit the campaign, the recipient, the buyer intent and the audience.
 - For a toy store on Father's Day, suitable product angles could include board games, family games, building sets, puzzles, outdoor play, hobby kits or products that children and parents can enjoy together. Do not promote unrelated baby toys or random toys just because they exist on the website.
 - For gift-day campaigns, think about who buys the gift, who receives it, and why the product makes sense for that occasion.
 - Prefer fewer highly relevant campaign opportunities over many weak ones.
 - Avoid forced or weak campaign ideas that do not clearly connect to what the business sells, offers or represents.
+- Important wording rule: Do not use words such as offer, offers, deal, deals, sale, discount, reduced price, campaign price, clearance, snabb leverans, erbjudande, erbjudanden, rabatt, rea, kampanjpris, nedsatt pris or utförsäljning unless the provided website/description explicitly supports that kind of promotion or the campaign is a widely recognized shopping period where a sale angle is normal. If not verified, describe it as buying inspiration, product guide, category inspiration, gift guide, seasonal guide or product focus instead.
 - Do not include irrelevant popular theme days just because they are well known, but do include broad commercial gift and shopping days when they naturally fit what the business sells.
 - A cafe can use food theme days. A hair salon should get hair/beauty/self-care/gift/seasonal opportunities instead.
 - Include industry-specific days when they are useful.
@@ -1446,6 +1447,7 @@ Rules:
 - For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the campaign start when useful, and use timing_anchor to say where the post belongs: before_start, start, middle or end.
 - For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" so they are scheduled near the end of the period, not the day after the first post.
 - For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
+- Use date_confidence as relevance strength, not proof that the campaign exists on the website: high = strong fit for this business/market, medium = plausible fit, low = weak or uncertain fit.
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 - The final post in post_plan should normally have days_before_event 0 when event_date exists.
 - Earlier post_plan items should prepare the audience before the event.
@@ -1453,13 +1455,13 @@ Rules:
 - Every campaign opportunity must include a strategic campaign blueprint using campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, tone_guidance, cta_guidance and image_guidance.
 - The campaign blueprint should explain how this campaign should move the audience from interest to action.
 - recommended_angles should contain the best marketing angles for the recommended_post_count.
-- Use these standard marketing angles when possible: awareness, engagement, product_discovery, product_push, trust, offer, urgency.
+- Use these standard marketing angles when possible: awareness, engagement, product_discovery, product_push, trust, offer, urgency. Use offer only when there is a verified offer/sale/discount or a widely recognized shopping period; otherwise use product_discovery or product_push.
 - Use "main" only when the campaign has 1 post and the single post must combine multiple roles.
 - Each post_plan item must include campaign_phase, marketing_angle, customer_stage and cta_strength.
 - For customer_stage, use:
   - "cold" for early awareness, inspiration or engagement posts.
   - "warm" for product discovery, product push, education or trust-building posts.
-  - "ready_to_buy" for offer, urgency, last chance, booking or buying-focused posts.
+  - "ready_to_buy" for verified offer, urgency, last chance, booking or buying-focused posts.
 - For cta_strength, use:
   - "soft" for awareness and engagement.
   - "medium" for product discovery, product push, education and trust.
@@ -1469,19 +1471,19 @@ Rules:
 - If recommended_post_count is 3, prefer awareness → product_push → urgency.
 - If recommended_post_count is 4, prefer awareness → product_discovery → trust → urgency.
 - If recommended_post_count is 5, prefer awareness → engagement → product_push → trust → urgency.
-- If recommended_post_count is 6 or more, prefer awareness → engagement → product_discovery → product_push → trust → urgency, adding offer when useful.
+- If recommended_post_count is 6 or more, prefer awareness → engagement → product_discovery → product_push → trust → urgency, adding offer only when a verified offer/sale angle is justified.
 - Do not make every post a reminder. Each post should have a distinct role in the campaign sequence.
 - Do not make early posts too salesy. Do not make final posts too vague.
 - Every campaign opportunity must include a strategic campaign blueprint using campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, tone_guidance, cta_guidance and image_guidance.
 - The campaign blueprint should explain how this campaign should move the audience from interest to action.
 - recommended_angles should contain the best marketing angles for the recommended_post_count.
-- Use these standard marketing angles when possible: awareness, engagement, product_discovery, product_push, trust, offer, urgency.
+- Use these standard marketing angles when possible: awareness, engagement, product_discovery, product_push, trust, offer, urgency. Use offer only when there is a verified offer/sale/discount or a widely recognized shopping period; otherwise use product_discovery or product_push.
 - Use "main" only when the campaign has 1 post and the single post must combine multiple roles.
 - Each post_plan item must include campaign_phase, marketing_angle, customer_stage and cta_strength.
 - For customer_stage, use:
   - "cold" for early awareness, inspiration or engagement posts.
   - "warm" for product discovery, product push, education or trust-building posts.
-  - "ready_to_buy" for offer, urgency, last chance, booking or buying-focused posts.
+  - "ready_to_buy" for verified offer, urgency, last chance, booking or buying-focused posts.
 - For cta_strength, use:
   - "soft" for awareness and engagement.
   - "medium" for product discovery, product push, education and trust.
@@ -1491,7 +1493,7 @@ Rules:
 - If recommended_post_count is 3, prefer awareness → product_push → urgency.
 - If recommended_post_count is 4, prefer awareness → product_discovery → trust → urgency.
 - If recommended_post_count is 5, prefer awareness → engagement → product_push → trust → urgency.
-- If recommended_post_count is 6 or more, prefer awareness → engagement → product_discovery → product_push → trust → urgency, adding offer when useful.
+- If recommended_post_count is 6 or more, prefer awareness → engagement → product_discovery → product_push → trust → urgency, adding offer only when a verified offer/sale angle is justified.
 - Do not make every post a reminder. Each post should have a distinct role in the campaign sequence.
 - Do not make early posts too salesy. Do not make final posts too vague.
 - recommended_post_count must be between 1 and 10.
@@ -1536,7 +1538,7 @@ Rules:
 - Keep prompt_context useful but concise.
 - Avoid political or sensitive events unless they are clearly suitable and low-risk for business marketing.
 - When choosing between a generic seasonal campaign and a strong commercial occasion for ecommerce or retail, prefer the stronger commercial occasion.
-- Do not invent specific services, offers, products or locations not supported by the website or description.
+- Do not invent specific services, offers, discounts, sales, delivery promises, products or locations not supported by the website or description.
 - Also decide if "Sell something from my website" should be available for this brand.
 
 Website product mode rule:
@@ -1718,7 +1720,7 @@ Return JSON only in this exact shape:
       "campaign_goal": "What this campaign should achieve for the business",
       "target_customer_need": "The customer need, situation, problem, desire or buying intent this campaign is built around",
       "recommended_angles": ["awareness", "engagement", "product_discovery", "product_push", "trust", "offer", "urgency"],
-      "product_selection_guidance": "Strategic guidance for what products, services or offers fit this campaign and what to avoid",
+      "product_selection_guidance": "Strategic guidance for what products, services, categories or verified offers fit this campaign and what to avoid",
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
@@ -1759,21 +1761,22 @@ Rules:
 - Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
 - Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. Giftable products should strongly consider local gift days. Ecommerce and retail should strongly consider major local shopping periods. Restaurants and food businesses should consider relevant food and dining moments. Beauty and fashion should consider party, season, wedding, graduation and self-care moments. Service and bookable businesses should consider seasonal preparation and booking windows.
 - Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or software. A pet-related day belongs to pet brands, not unrelated retailers unless their product range genuinely fits.
-- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are supported by the provided website/description.
-- If a custom campaign title implies a feature, offer or program that may not exist, rename it to a safer generic strategy or omit it. Prefer grounded titles like "Product guide", "Seasonal upgrade", "Gift guide", "Buying advice" or "Category inspiration" over unsupported named features.
+- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
+- If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. Prefer grounded titles like "Product guide", "Seasonal upgrade", "Gift guide", "Buying advice" or "Category inspiration" over unsupported named features, launches, offers or sale claims.
 - The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
 - For broad ecommerce, retail and product-based businesses, returning only around 10 opportunities is usually under-generated unless the year has already passed or the business is unusually narrow. Prefer 15-20 strong opportunities when enough relevant moments exist.
 - For ecommerce, fashion, beauty, gifts, retail and product-based businesses, actively include relevant gift days, shopping days and seasonal buying moments when they fit the brand.
 - Do not exclude Mother's Day, Father's Day or Valentine's Day just because they are broad holidays. For ecommerce, fashion, beauty, gifts and retail brands, these are often strong sales opportunities when connected naturally to gifts, outfits, shoes, accessories, beauty, personal style or products.
 - For fashion ecommerce specifically, prioritize campaigns around outfit inspiration, gift buying, partywear, seasonal wardrobe updates, shoes, sneakers, accessories, sustainable fashion, school/graduation, weddings, festivals and major shopping days.
 - Always consider these commercial campaign moments when relevant to the brand and selected market: Valentine's Day, Mother's Day, Father's Day, graduation season, wedding season, festival season, back to school, Black Friday, Cyber Monday, Singles Day, Christmas gifts, New Year outfits, seasonal sales and wardrobe refreshes.
-- If the brand clearly sells products online, at least 50% of the campaign opportunities should have clear commercial usefulness, such as gifts, seasonal demand, shopping days, product categories, launches, offers or buying inspiration.
+- If the brand clearly sells products online, at least 50% of the campaign opportunities should have clear commercial usefulness, such as gifts, seasonal demand, shopping days, product categories, buying inspiration, gift guides, category inspiration or confirmed offers/sales when supported.
 - When a campaign is connected to a gift day such as Father's Day, Mother's Day or Valentine's Day, the campaign should explain what type of products or services are suitable for that occasion.
 - For ecommerce campaigns, do not use random products from the website. The selected product must naturally fit the campaign, the recipient, the buyer intent and the audience.
 - For a toy store on Father's Day, suitable product angles could include board games, family games, building sets, puzzles, outdoor play, hobby kits or products that children and parents can enjoy together. Do not promote unrelated baby toys or random toys just because they exist on the website.
 - For gift-day campaigns, think about who buys the gift, who receives it, and why the product makes sense for that occasion.
 - Prefer fewer highly relevant campaign opportunities over many weak ones.
 - Avoid forced or weak campaign ideas that do not clearly connect to what the business sells, offers or represents.
+- Important wording rule: Do not use words such as offer, offers, deal, deals, sale, discount, reduced price, campaign price, clearance, snabb leverans, erbjudande, erbjudanden, rabatt, rea, kampanjpris, nedsatt pris or utförsäljning unless the provided website/description explicitly supports that kind of promotion or the campaign is a widely recognized shopping period where a sale angle is normal. If not verified, describe it as buying inspiration, product guide, category inspiration, gift guide, seasonal guide or product focus instead.
 - Do not include irrelevant popular theme days just because they are well known, but do include broad commercial gift and shopping days when they naturally fit what the business sells.
 - A cafe can use food theme days. A hair salon should get hair/beauty/self-care/gift/seasonal opportunities instead.
 - Include industry-specific days when they are useful.
@@ -1784,6 +1787,7 @@ Rules:
 - For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the campaign start when useful, and use timing_anchor to say where the post belongs: before_start, start, middle or end.
 - For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" so they are scheduled near the end of the period, not the day after the first post.
 - For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
+- Use date_confidence as relevance strength, not proof that the campaign exists on the website: high = strong fit for this business/market, medium = plausible fit, low = weak or uncertain fit.
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 - The final post in post_plan should normally have days_before_event 0 when event_date exists.
 - Earlier post_plan items should prepare the audience before the event.
@@ -1830,7 +1834,7 @@ Rules:
 - Keep prompt_context useful but concise.
 - Avoid political or sensitive events unless they are clearly suitable and low-risk for business marketing.
 - When choosing between a generic seasonal campaign and a strong commercial occasion for ecommerce or retail, prefer the stronger commercial occasion.
-- Do not invent specific services, offers, products or locations not supported by the description.
+- Do not invent specific services, offers, discounts, sales, delivery promises, products or locations not supported by the description.
 `.trim(),
       },
     ],
