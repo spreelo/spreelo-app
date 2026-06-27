@@ -473,17 +473,15 @@ function sanitizeUnsupportedOfferLanguage(postContent, websiteItem) {
     [/kampanjpris/gi, "pris"],
     [/rabatter/gi, "priser"],
     [/rabatt/gi, "pris"],
-    [/rea/gi, "shopping"],
-    [/fynda/gi, "hitta"],
-    [/fynd/gi, "produkt"],
-    [/deal(s)?/gi, "product"],
-    [/offer(s)?/gi, "product"],
-    [/discount(s)?/gi, "price"],
-    [/sale/gi, "shopping"],
-    [/för endast\s+([^.!?
-]+)/gi, "Pris: $1"],
-    [/only\s+([^.!?
-]+)/gi, "Price: $1"],
+    [/\brea\b/gi, "shopping"],
+    [/\bfynda\b/gi, "hitta"],
+    [/\bfynd\b/gi, "produkt"],
+    [/\bdeal(s)?\b/gi, "product"],
+    [/\boffer(s)?\b/gi, "product"],
+    [/\bdiscount(s)?\b/gi, "price"],
+    [/\bsale\b/gi, "shopping"],
+    [/för endast\s+([^.!?\n]+)/gi, "Pris: $1"],
+    [/only\s+([^.!?\n]+)/gi, "Price: $1"],
   ];
 
   for (const [pattern, replacement] of replacements) {
