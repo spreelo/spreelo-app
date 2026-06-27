@@ -370,8 +370,14 @@ function buildCampaignPostPlan(campaign, recommendedCount, t) {
         ? aiPost.role
         : fallbackPost.role;
 
+    const verifiedDaysBeforeEvent = getVerifiedDaysBeforeCampaignMainDate(
+      campaign,
+      aiPost
+    );
     const daysBeforeEvent =
-      typeof aiPost.days_before_event === "number" && aiPost.days_before_event >= 0
+      typeof verifiedDaysBeforeEvent === "number"
+        ? verifiedDaysBeforeEvent
+        : typeof aiPost.days_before_event === "number" && aiPost.days_before_event >= 0
         ? Math.min(Math.round(aiPost.days_before_event), 365)
         : getFallbackDaysBeforeEventForAnchor(campaign, aiPost, index, recommendedCount);
 
@@ -492,6 +498,28 @@ function getDaysBetweenDateStrings(startDateString, endDateString) {
   return Math.round((endDate.getTime() - startDate.getTime()) / 86400000);
 }
 
+function getCampaignMainDateString(campaign) {
+  return campaign?.event_date || campaign?.end_date || campaign?.start_date || "";
+}
+
+function getExplicitPostDate(post) {
+  const value = post?.scheduled_date || post?.publish_date || post?.recommended_date;
+  return isValidDateString(value) ? value : "";
+}
+
+function getVerifiedDaysBeforeCampaignMainDate(campaign, post) {
+  const explicitDate = getExplicitPostDate(post);
+  const mainDate = getCampaignMainDateString(campaign);
+
+  if (!explicitDate || !mainDate) return null;
+
+  const days = getDaysBetweenDateStrings(explicitDate, mainDate);
+
+  if (typeof days !== "number" || Number.isNaN(days)) return null;
+
+  return Math.max(days, 0);
+}
+
 function clampDateString(dateString, minDate, maxDate) {
   let result = dateString;
 
@@ -594,11 +622,20 @@ function getPostPlanTimeLabel(post) {
 }
 
 function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "en") {
+  const verifiedDaysBeforeEvent = getVerifiedDaysBeforeCampaignMainDate(
+    campaign,
+    post
+  );
   const daysBeforeEvent =
-    typeof post?.days_before_event === "number" ? post.days_before_event : null;
+    typeof verifiedDaysBeforeEvent === "number"
+      ? verifiedDaysBeforeEvent
+      : typeof post?.days_before_event === "number"
+      ? post.days_before_event
+      : null;
 
   if (campaign?.event_date && typeof daysBeforeEvent === "number") {
-    const publishDate = addDaysToDateString(campaign.event_date, -daysBeforeEvent);
+    const explicitPublishDate = getExplicitPostDate(post);
+    const publishDate = explicitPublishDate || addDaysToDateString(campaign.event_date, -daysBeforeEvent);
     const publishDateLabel = formatDate(publishDate, locale);
     const timingAnchor = getCampaignPlanTimingAnchor(post, index, total);
 
@@ -653,10 +690,20 @@ function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "e
     const publishDateLabel = formatDate(publishDate, locale);
     const timeLabel = getPostPlanTimeLabel(post);
     const timingLabel = getTimingAnchorHumanLabel(timingAnchor, locale);
+    const actualDaysBefore = Math.max(
+      getDaysBetweenDateStrings(publishDate, campaign.end_date) || 0,
+      0
+    );
+    const daysLabel = actualDaysBefore > 0
+      ? locale === "sv"
+        ? `${actualDaysBefore} dagar innan slutdatumet`
+        : `${actualDaysBefore} days before final date`
+      : "";
 
     return [
       publishDateLabel,
       timeLabel ? `${locale === "sv" ? "kl" : "at"} ${timeLabel}` : "",
+      daysLabel,
       timingLabel,
     ]
       .filter(Boolean)
