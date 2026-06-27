@@ -2975,14 +2975,14 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
       : daysBeforeEvent;
 
   const visibleOpening = campaign?.event_date
-    ? postPlanItem?.timing_anchor === "relationship_event"
+    ? verifiedDaysBeforeEvent === 0
+      ? `This is the campaign-day post for ${campaignTitle}. Clearly highlight that today is ${campaignTitle}. Do not say it is before ${campaignTitle}.`
+      : postPlanItem?.timing_anchor === "relationship_event"
       ? `This is the main-date relationship post for ${campaignTitle}. Make it a warm greeting, thank-you or brand-building post rather than hard selling.`
       : postPlanItem?.timing_anchor === "deadline_before_event"
       ? `This is the final realistic action reminder before ${campaignTitle}. Do not place the buying pressure on the main date if customers need lead time.`
       : postPlanItem?.timing_anchor === "conversion_before_deadline"
-      ? `This post is placed while customers still have time to act before ${campaignTitle}. Make the offer, product or next step concrete.`
-      : verifiedDaysBeforeEvent === 0
-      ? `This is the campaign-day post for ${campaignTitle}. Clearly highlight that today is ${campaignTitle}.`
+      ? `This post is placed while customers still have time to act before ${campaignTitle}. Make the product or next step concrete without inventing offers.`
       : verifiedDaysBeforeEvent === 1
       ? `This is the day before ${campaignTitle}. Mention that ${campaignTitle} is tomorrow only if that is useful and realistic.`
       : typeof verifiedDaysBeforeEvent === "number"
