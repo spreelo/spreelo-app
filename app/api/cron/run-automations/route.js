@@ -714,6 +714,8 @@ Image quality rules:
 - Avoid exaggerated, misleading or unrealistic visuals.
 - Do not include logos unless explicitly requested.
 - Do not include readable text in the image unless explicitly requested.
+- Do not include exact countdown numbers, "days left", "dagar kvar", date countdowns or time-left claims in AI-generated images unless the prompt explicitly provides a verified scheduled post date and verified main campaign date. If unsure, show the campaign theme without a countdown number.
+- If the post text contains a countdown, do not create a conflicting countdown in the image.
 - Do not include watermarks.
 - Do not add UI elements, buttons, mockups or app screens unless explicitly requested.
 - Do not use cartoon style unless explicitly requested.
