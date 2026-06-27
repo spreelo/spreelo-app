@@ -85,11 +85,13 @@ export async function GET(request) {
       );
     }
 
+    const redirectUriForTokenExchange = decodedState.redirectUri || redirectUri;
+
     const shortTokenResult = await exchangeInstagramCodeForShortToken({
       code,
       appId,
       appSecret,
-      redirectUri,
+      redirectUri: redirectUriForTokenExchange,
     });
 
     const longTokenResult = await exchangeInstagramShortTokenForLongToken({

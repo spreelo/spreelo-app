@@ -39,6 +39,7 @@ export async function GET(request) {
   const state = createSignedInstagramState({
     userId,
     brandProfileId,
+    redirectUri,
     secret: appSecret,
   });
 
