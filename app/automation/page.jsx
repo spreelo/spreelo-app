@@ -3453,7 +3453,20 @@ export default function AutomationPage() {
 
   function translateAutoPlanGoalLabel(goalId) {
     if (!goalId) return t("automation.chooseGoal");
-    return t(`automation.goal.${goalId}.label`);
+    return t(`automation.planGoal.${goalId}.label`);
+  }
+
+  function getLanguageDisplayLabel(value) {
+    return value === "Auto" ? t("automation.spreeloChoosesLanguage") : value;
+  }
+
+  function getPlatformIconLabel(value) {
+    const name = String(value || "").toLowerCase();
+    if (name.includes("instagram")) return "📸";
+    if (name.includes("linkedin")) return "in";
+    if (name.includes("tiktok")) return "♪";
+    if (name.includes("facebook")) return "f";
+    return "●";
   }
 
   function translatePlanMode(value) {
@@ -5547,12 +5560,18 @@ setRules((currentRules) =>
             <div className="planner-settings-grid simple">
   {loadingConnectedPlatforms ? (
     <div className="planner-setting-field planner-setting-connect-box">
-      <span>{t("automation.platform")}</span>
+      <div className="planner-setting-head">
+        <span className="planner-setting-icon">🌐</span>
+        <strong>{t("automation.platform")}</strong>
+      </div>
       <div className="input">{t("automation.loadingConnectedChannels")}</div>
     </div>
   ) : connectedPlatforms.length > 0 ? (
     <label className="planner-setting-field">
-      <span>{t("automation.platform")}</span>
+      <div className="planner-setting-head">
+        <span className="planner-setting-icon">🌐</span>
+        <strong>{t("automation.platform")}</strong>
+      </div>
       <select
         value={platform}
         onChange={(event) => setPlatform(event.target.value)}
@@ -5563,10 +5582,20 @@ setRules((currentRules) =>
           </option>
         ))}
       </select>
+      <div className="planner-social-icon-row" aria-label={t("automation.platform")}>
+        <span className="social-dot facebook">f</span>
+        <span className="social-dot instagram">◎</span>
+        <span className="social-dot linkedin">in</span>
+        <span className="social-dot tiktok">♪</span>
+      </div>
+      <p>{t("automation.platformHelp")}</p>
     </label>
   ) : (
     <div className="planner-setting-field planner-setting-connect-box">
-      <span>{t("automation.platform")}</span>
+      <div className="planner-setting-head">
+        <span className="planner-setting-icon">🌐</span>
+        <strong>{t("automation.platform")}</strong>
+      </div>
 
       <div className="planner-connect-first-card">
         <strong>{t("automation.connectSocialChannelFirst")}</strong>
@@ -5580,19 +5609,26 @@ setRules((currentRules) =>
   )}
 
   <label className="planner-setting-field">
-    <span>{t("automation.language")}</span>
+    <div className="planner-setting-head">
+      <span className="planner-setting-icon">✧</span>
+      <strong>{t("automation.language")}</strong>
+    </div>
     <select
       value={language}
       onChange={(event) => setLanguage(event.target.value)}
     >
-      <option value="Auto">{t("automation.autoDetect")}</option>
+      <option value="Auto">{t("automation.spreeloChoosesLanguage")}</option>
       <option value="English">{t("automation.languageEnglish")}</option>
     </select>
+    <p>{t("automation.languageHelpSmart")}</p>
   </label>
 
 
   <label className="planner-setting-field">
-    <span>{t("automation.repeat")}</span>
+    <div className="planner-setting-head">
+      <span className="planner-setting-icon">↻</span>
+      <strong>{t("automation.repeat")}</strong>
+    </div>
     <select
       value={scheduleType}
       onChange={(event) => setScheduleType(event.target.value)}
@@ -5600,6 +5636,7 @@ setRules((currentRules) =>
       <option value="weekly">{t("automation.weekly")}</option>
       <option value="once">{t("automation.oneTime")}</option>
     </select>
+    <p>{t("automation.repeatHelpSmart")}</p>
   </label>
 </div>
 
@@ -5616,20 +5653,10 @@ setRules((currentRules) =>
 {showAdvancedSettings && (
   <div className="planner-settings-grid advanced compact-advanced-settings">
     <label className="planner-setting-field">
-      <span>{t("automation.tone")}</span>
-      <select
-        value={tone}
-        onChange={(event) => setTone(event.target.value)}
-      >
-        <option value="Friendly">{t("automation.tone.Friendly")}</option>
-        <option value="Professional">{t("automation.tone.Professional")}</option>
-        <option value="Sales-focused">{t("automation.tone.Sales-focused")}</option>
-        <option value="Premium">{t("automation.tone.Premium")}</option>
-      </select>
-    </label>
-
-    <label className="planner-setting-field">
-      <span>{t("automation.timezone")}</span>
+      <div className="planner-setting-head">
+        <span className="planner-setting-icon">⏱</span>
+        <strong>{t("automation.timezone")}</strong>
+      </div>
       <select
         value={timeZone}
         onChange={(event) => setTimeZone(event.target.value)}
@@ -5640,6 +5667,7 @@ setRules((currentRules) =>
           </option>
         ))}
       </select>
+      <p>{t("automation.timezoneHelpSmart")}</p>
     </label>
   </div>
 )}
@@ -5925,52 +5953,92 @@ setRules((currentRules) =>
               <div className="planner-sidebar-title planner-summary-title">
                 <span>▤</span>
                 <div>
-                  <h3>{t("automation.planSummary")}</h3>
+                  <h3>{t("automation.planSummaryV2")}</h3>
                   <p>{t("automation.readyToCreate")}</p>
                 </div>
               </div>
 
               <div className="planner-summary-list premium">
                 {planCreationMode === "auto" && (
-                  <div>
-                    <span>{t("automation.goal")}</span>
-                    <strong>{translateAutoPlanGoalLabel(autoPlanGoal)}</strong>
+                  <div className="planner-summary-item">
+                    <span className="planner-summary-icon">◎</span>
+                    <div>
+                      <span>{t("automation.goal")}</span>
+                      <strong>{translateAutoPlanGoalLabel(autoPlanGoal)}</strong>
+                    </div>
                   </div>
                 )}
 
 
-<div>
-  <span>
-    {scheduleType === "weekly" && planCreationMode !== "campaign"
-      ? t("automation.postsPerWeek")
-      : t("common.posts")}
-  </span>
-  <strong>
-    {t("automation.postCount", { count: slots.length })}
-  </strong>
+<div className="planner-summary-item">
+  <span className="planner-summary-icon">▦</span>
+  <div>
+    <span>
+      {scheduleType === "weekly" && planCreationMode !== "campaign"
+        ? t("automation.postsPerWeek")
+        : t("common.posts")}
+    </span>
+    <strong>
+      {t("automation.postCount", { count: slots.length })}
+    </strong>
+  </div>
 </div>
-                <div>
-                  <span>{t("automation.start")}</span>
-                  <strong>
-                    {formatStartDateLabel(planStartDate, timeZone)},{" "}
-                    {defaultPublishTime}
-                  </strong>
+                <div className="planner-summary-item">
+                  <span className="planner-summary-icon">◷</span>
+                  <div>
+                    <span>{t("automation.start")}</span>
+                    <strong>
+                      {formatStartDateLabel(planStartDate, timeZone)},{" "}
+                      {defaultPublishTime}
+                    </strong>
+                  </div>
                 </div>
 
 
-                <div>
-                  <span>{t("automation.platform")}</span>
-                  <strong>{platform || t("automation.choosePlatform")}</strong>
+                <div className="planner-summary-item">
+                  <span className="planner-summary-icon">🌐</span>
+                  <div>
+                    <span>{t("automation.platform")}</span>
+                    <strong>{platform || t("automation.choosePlatform")}</strong>
+                    <div className="planner-social-icon-row mini">
+                      <span className="social-dot facebook">f</span>
+                      <span className="social-dot instagram">◎</span>
+                      <span className="social-dot linkedin">in</span>
+                      <span className="social-dot tiktok">♪</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <span>{t("automation.language")}</span>
-                  <strong>{language === "Auto" ? t("automation.autoDetect") : language}</strong>
+                <div className="planner-summary-item">
+                  <span className="planner-summary-icon">✧</span>
+                  <div>
+                    <span>{t("automation.language")}</span>
+                    <strong>{getLanguageDisplayLabel(language)}</strong>
+                  </div>
                 </div>
 
-                <div>
-                  <span>{t("automation.approval")}</span>
-                  <strong>{t("automation.approvalAlwaysRequired")}</strong>
+                <div className="planner-summary-item">
+                  <span className="planner-summary-icon">↻</span>
+                  <div>
+                    <span>{t("automation.repeat")}</span>
+                    <strong>{translateScheduleType(scheduleType)}</strong>
+                  </div>
+                </div>
+
+                <div className="planner-summary-item">
+                  <span className="planner-summary-icon">⏱</span>
+                  <div>
+                    <span>{t("automation.timezone")}</span>
+                    <strong>{timeZone}</strong>
+                  </div>
+                </div>
+
+                <div className="planner-summary-item">
+                  <span className="planner-summary-icon success">✓</span>
+                  <div>
+                    <span>{t("automation.approval")}</span>
+                    <strong>{t("automation.approvalAlwaysRequired")}</strong>
+                  </div>
                 </div>
 
               </div>
