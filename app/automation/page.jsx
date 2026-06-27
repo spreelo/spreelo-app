@@ -3451,7 +3451,6 @@ const [loadingConnectedPlatforms, setLoadingConnectedPlatforms] = useState(false
   const [postType, setPostType] = useState("Offer");
   const [length, setLength] = useState("Medium");
   const [ctaType, setCtaType] = useState("Learn more");
-  const [approvalRequired, setApprovalRequired] = useState(true);
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
   const [showSavedRules, setShowSavedRules] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
@@ -4663,7 +4662,7 @@ ${slot.campaignSummary}`
           startDate: slot.startDate,
           timeZone: selectedTimeZone,
         }),
-        approval_required: approvalRequired,
+        approval_required: true,
         is_active: true,
                content_type_id: slot.contentTypeId,
         content_type_label: slot.contentTypeLabel,
@@ -4721,9 +4720,6 @@ ${slot.campaignSummary}`
         scheduleType,
         postsPerWeek: scheduleType === "weekly" ? rows.length : null,
         firstPostLabel,
-        publishingMode: approvalRequired
-          ? t("automation.reviewBeforePublishing")
-          : t("automation.publishAutomatically"),
         credits: plannedCredits,
         method: formatPlanMode(planCreationMode),
       });
@@ -4755,7 +4751,6 @@ setRules((currentRules) =>
   setPostType("Offer");
   setLength("Medium");
   setCtaType("Learn more");
-  setApprovalRequired(true);
   setScheduleType("weekly");
   setShowAdvancedSettings(false);
 
@@ -5131,10 +5126,6 @@ setRules((currentRules) =>
           <strong>{savedPlanSummary.firstPostLabel}</strong>
         </div>
 
-        <div>
-          <span>{t("automation.publishingMode")}</span>
-          <strong>{savedPlanSummary.publishingMode}</strong>
-        </div>
 
         <div>
           <span>{t("automation.credits")}</span>
@@ -5484,18 +5475,6 @@ setRules((currentRules) =>
     </select>
   </label>
 
-  <label className="planner-setting-field">
-    <span>{t("automation.publishingMode")}</span>
-    <select
-      value={approvalRequired ? "review" : "auto"}
-      onChange={(event) =>
-        setApprovalRequired(event.target.value === "review")
-      }
-    >
-      <option value="review">{t("automation.reviewBeforePublishing")}</option>
-      <option value="auto">{t("automation.publishAutomatically")}</option>
-    </select>
-  </label>
 
   <label className="planner-setting-field">
     <span>{t("automation.repeat")}</span>
@@ -5665,10 +5644,6 @@ setRules((currentRules) =>
                         <strong>{savedPlanSummary.firstPostLabel}</strong>
                       </div>
 
-                      <div>
-                        <span>{t("automation.publishingMode")}</span>
-                        <strong>{savedPlanSummary.publishingMode}</strong>
-                      </div>
 
                       <div>
                         <span>{t("automation.credits")}</span>
@@ -5811,11 +5786,7 @@ setRules((currentRules) =>
                                 ? t("automation.websiteContent")
                                 : rule.generate_image
                                 ? t("automation.textImage")
-                                : t("automation.textOnly")}{" "}
-                              ·{" "}
-                              {rule.approval_required
-                                ? t("automation.reviewFirst")
-                                : t("automation.autoPublish")}
+                                : t("automation.textOnly")}
                             </p>
                             <small>
                               {t("automation.nextRun")}: {" "}
