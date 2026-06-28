@@ -361,6 +361,17 @@ export default function Home() {
       ? Math.min(100, Math.round((creditsRemaining / monthlyCreditLimit) * 100))
       : 0;
 
+  const dashboardContentPlans = useMemo(() => {
+    return rules
+      .slice()
+      .sort((a, b) => {
+        const dateA = new Date(a.next_run_at || a.run_date || a.created_at || 0);
+        const dateB = new Date(b.next_run_at || b.run_date || b.created_at || 0);
+        return dateA - dateB;
+      })
+      .slice(0, 4);
+  }, [rules]);
+
   const nextAutomation = upcomingRules[0] || null;
   const currentBrandName = brandProfile?.business_name || t("dashboard.currentBrand");
 
@@ -739,6 +750,50 @@ export default function Home() {
                           </button>
                         )}
                     </>
+                  )}
+                </section>
+
+                <section className="dashboard-card saved-card-compact dashboard-content-plans-card">
+                  <div className="saved-header">
+                    <div>
+                      <p>{t("dashboard.contentPlansEyebrow")}</p>
+                      <h3>{t("dashboard.contentPlansTitle")}</h3>
+                    </div>
+
+                    <a className="secondary-button" href="/automation">
+                      {t("dashboard.newContentPlan")}
+                    </a>
+                  </div>
+
+                  {loading ? (
+                    <div className="dashboard-empty">
+                      <h4>{t("dashboard.loadingContentPlansTitle")}</h4>
+                      <p>{t("dashboard.loadingUpcomingText")}</p>
+                    </div>
+                  ) : dashboardContentPlans.length === 0 ? (
+                    <div className="dashboard-empty">
+                      <h4>{t("dashboard.noContentPlansTitle")}</h4>
+                      <p>{t("dashboard.noContentPlansText")}</p>
+                      <a href="/automation">{t("dashboard.createContentPlan")}</a>
+                    </div>
+                  ) : (
+                    <div className="dashboard-plan-list">
+                      {dashboardContentPlans.map((rule) => (
+                          <article className="dashboard-plan-row" key={rule.id}>
+                            <div>
+                              <h4>{formatPlanName(rule, t)}</h4>
+                              <p>
+                                {rule.platform || t("dashboard.platformNotSet")} ·{" "}
+                                {rule.content_type_label || rule.post_type || t("dashboard.post")}
+                              </p>
+                            </div>
+
+                            <span>{formatScheduleType(rule.schedule_type, t)}</span>
+                            <strong>{formatDate(rule.next_run_at || rule.run_date, t)}</strong>
+                            <a href="/automation">{t("dashboard.manage")}</a>
+                          </article>
+                      ))}
+                    </div>
                   )}
                 </section>
               </main>

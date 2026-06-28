@@ -16090,3 +16090,201 @@ button[class*="Load"] {
 .brand-logo-upload-button:hover {
   box-shadow: 0 20px 42px rgba(11, 102, 228, 0.3) !important;
 }
+
+/* Step 85: cleaner planner flow, dashboard content plans and brand profile card fixes */
+.automation-page.planner-wizard-page .planner-settings-builder {
+  background:
+    linear-gradient(180deg, #f4f9ff 0%, #ffffff 100%) !important;
+  border-color: rgba(191, 219, 254, 0.74) !important;
+}
+
+.automation-page.planner-wizard-page .planner-settings-builder .planner-setting-field,
+.automation-page.planner-wizard-page .planner-settings-builder label.planner-setting-field {
+  background: #ffffff !important;
+  border-color: rgba(226, 232, 240, 0.96) !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-card {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 420px) !important;
+  align-items: center !important;
+  gap: 24px !important;
+  padding: 28px 32px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(226, 232, 240, 0.96) !important;
+  border-radius: 28px !important;
+  box-shadow: 0 18px 54px rgba(15, 23, 42, 0.055) !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-card > div:first-child {
+  display: block !important;
+  justify-self: start !important;
+  text-align: left !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-card h3 {
+  margin: 0 0 6px !important;
+  color: #111827 !important;
+  font-size: 1.35rem !important;
+  font-weight: 850 !important;
+  letter-spacing: -0.03em !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-card p {
+  margin: 0 !important;
+  color: #667085 !important;
+  font-size: 0.95rem !important;
+  font-weight: 520 !important;
+  line-height: 1.45 !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-input {
+  display: none !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-card .planner-save-button,
+.automation-page.planner-wizard-page .planner-save-card .planner-create-another-button {
+  justify-self: stretch !important;
+  width: 100% !important;
+  min-height: 58px !important;
+  border-radius: 16px !important;
+  background: linear-gradient(135deg, #1d72f3, #0057d9) !important;
+  color: #ffffff !important;
+  box-shadow: 0 18px 36px rgba(29, 114, 243, 0.22) !important;
+  font-size: 1.02rem !important;
+  font-weight: 850 !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-card::after {
+  grid-column: 2 !important;
+  justify-self: center !important;
+  content: "🔒 Du kan ändra eller pausa planen när som helst." !important;
+  margin-top: -10px !important;
+  color: #667085 !important;
+  font-size: 0.86rem !important;
+  font-weight: 600 !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-message,
+.automation-page.planner-wizard-page .planner-save-success {
+  grid-column: 1 / -1 !important;
+}
+
+.dashboard-content-plans-card {
+  margin-top: 18px !important;
+}
+
+.dashboard-plan-list {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-plan-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 120px 180px auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 64px;
+  padding: 14px 16px;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.dashboard-plan-row h4 {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 0.95rem;
+  font-weight: 760;
+}
+
+.dashboard-plan-row p,
+.dashboard-plan-row span,
+.dashboard-plan-row strong {
+  margin: 0;
+  color: #667085;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.dashboard-plan-row strong {
+  color: #344054;
+}
+
+.dashboard-plan-row a {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: #f4f9ff;
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.dashboard-side-card:has(.dashboard-brand-progress) {
+  overflow: hidden;
+}
+
+.dashboard-brand-progress {
+  display: grid !important;
+  gap: 12px !important;
+  padding: 14px !important;
+  border: 1px solid rgba(226, 232, 240, 0.96) !important;
+  border-radius: 18px !important;
+  background: #f8fbff !important;
+}
+
+.dashboard-brand-progress > div:first-child {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.dashboard-brand-progress strong {
+  font-size: 2.1rem !important;
+  line-height: 1 !important;
+  letter-spacing: -0.055em !important;
+  color: #111827 !important;
+}
+
+.dashboard-brand-progress span {
+  color: #667085 !important;
+  font-size: 0.84rem !important;
+  font-weight: 760 !important;
+  text-align: right !important;
+}
+
+.dashboard-brand-progress .dashboard-credit-bar {
+  width: 100% !important;
+  height: 9px !important;
+  background: #dbeafe !important;
+}
+
+@media (max-width: 900px) {
+  .automation-page.planner-wizard-page .planner-save-card {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    padding: 22px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-save-card::after {
+    grid-column: 1 !important;
+    margin-top: -4px !important;
+  }
+
+  .dashboard-plan-row {
+    grid-template-columns: 1fr !important;
+    align-items: start;
+  }
+
+  .dashboard-plan-row a {
+    justify-self: stretch;
+  }
+}
