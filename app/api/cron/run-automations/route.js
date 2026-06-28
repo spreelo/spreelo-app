@@ -7,6 +7,10 @@ import {
   resolveBestServerLocale,
   resolveUiLocaleFromLanguageName,
 } from "../../../../lib/i18n/serverUiText.js";
+import {
+  isConnectionAuthFailure,
+  markConnectionExpiredAndAlert,
+} from "../../../../lib/socialConnectionAlerts.js";
 
 export const dynamic = "force-dynamic";
 
@@ -413,7 +417,7 @@ function formatWebsiteItemForPrompt(websiteItem) {
     return "No specific website item was selected.";
   }
 
-  const verifiedPrice = String(websiteItem.price || "").trim();
+  const verifiedPrice = getTrustedWebsiteItemPrice(websiteItem);
 
   return `
 Selected website item:
@@ -429,7 +433,7 @@ Important website item rules:
 - Use only details that are present in the selected item information.
 - Use the selected item URL as the destination link when this post promotes the selected item.
 - Do not invent prices, discounts, guarantees, availability, dates, addresses, square meters, specifications or claims.
-- If a verified price is provided above, you may mention that exact price only, exactly as written. Do not convert currency and do not change the currency symbol/code.
+- If a verified price is provided above, you may mention that exact price only, exactly as written, inside a normal sentence. Do not put a price on its own separate line. Do not convert currency and do not change the currency symbol/code.
 - If no verified price is provided above, do not mention any price at all.
 - Never invent USD, EUR, SEK, kr or any other currency. A price must come from Verified price above.
 - Do not add generic price fallback text such as "see current price" or "se aktuellt pris".
@@ -524,6 +528,49 @@ function normalizeVerifiedPriceValue(value) {
   return match ? String(match[0] || "").trim() : "";
 }
 
+function getHostnameFromUrl(value) {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function isLikelyWrongUsdPriceForUrl(price, url) {
+  const priceText = String(price || "");
+
+  if (!/(?:\$|\busd\b)/i.test(priceText)) {
+    return false;
+  }
+
+  const host = getHostnameFromUrl(url);
+
+  if (!host) {
+    return false;
+  }
+
+  return /\.(?:se|dk|no|fi|de|fr|nl|be|es|it|pt|pl|cz|at|ch|eu|uz)$/i.test(host);
+}
+
+function getTrustedWebsiteItemPrice(websiteItem) {
+  const price = normalizeVerifiedPriceValue(websiteItem?.price);
+
+  if (!price) {
+    return "";
+  }
+
+  if (isLikelyWrongUsdPriceForUrl(price, websiteItem?.url || websiteItem?.website_url)) {
+    console.warn("Ignored suspicious website item price because currency does not match product URL", {
+      productUrl: websiteItem?.url || null,
+      rawPrice: truncateText(String(websiteItem?.price || ""), 80),
+    });
+
+    return "";
+  }
+
+  return price;
+}
+
 function isStandaloneUnsupportedPriceLine(line, verifiedDigits) {
   const text = String(line || "").trim();
 
@@ -543,7 +590,7 @@ function segmentContainsVerifiedPrice(segment, verifiedDigits) {
 
 function stripUnsupportedPriceClaims(postContent, websiteItem) {
   let sanitized = String(postContent || "");
-  const verifiedPrice = String(websiteItem?.price || "").trim();
+  const verifiedPrice = getTrustedWebsiteItemPrice(websiteItem);
   const verifiedDigits = normalizePriceDigits(verifiedPrice);
 
   const pricePatterns = [
@@ -716,7 +763,7 @@ Output rules:
 - Do not explain anything.
 - Make it suitable for the selected platform.
 - If the selected platform includes both Facebook and Instagram, write a strong core post that works on both. Avoid platform-specific wording such as "click the link" unless a Destination URL is actually included.
-- Never mention a price unless it was provided as Verified price for the selected website item.
+- Never mention a price unless it was provided as Verified price for the selected website item. If you mention it, write it naturally inside the text, never as a standalone line.
 - Always include the Destination URL in the final post if Destination URL is provided.
 - If emojis are disabled, do not use emojis.
 - If hashtags are enabled, include relevant hashtags at the end.
@@ -930,11 +977,6 @@ function buildApprovalEmailHtml({
   const platformLabel = rule.platform || "Social media";
   const postTypeLabel = rule.post_type || "Post";
   const safeImageUrl = imageUrl ? escapeHtml(imageUrl) : "";
-  const previewSections = buildPlatformApprovalPreviews({
-    platform: rule.platform,
-    postContent,
-  });
-
   return `
 <!doctype html>
 <html lang="${escapeHtml(locale || "en")}">
@@ -989,20 +1031,9 @@ function buildApprovalEmailHtml({
                         ${escapeHtml(t("emails.approval.generatedPost"))}
                       </p>
 
-                      ${previewSections
-                        .map(
-                          (preview) => `
-                            <div style="margin:0 0 16px;">
-                              <p style="margin:0 0 8px;color:#111827;font-size:13px;font-weight:700;">
-                                ${escapeHtml(preview.label)}
-                              </p>
-                              <div style="font-size:15px;line-height:1.7;color:#111827;">
-                                ${formatPostContentForHtml(preview.content)}
-                              </div>
-                            </div>
-                          `
-                        )
-                        .join("<hr style=\"border:none;border-top:1px solid #e5e7eb;margin:16px 0;\"")}
+                      <div style="font-size:15px;line-height:1.7;color:#111827;">
+                        ${formatPostContentForHtml(postContent)}
+                      </div>
                     </td>
                   </tr>
                 </table>
@@ -1051,9 +1082,7 @@ ${t("emails.approval.textPostType", { postType: postTypeLabel })}
 
 ${imageUrl ? `${t("emails.approval.textImage", { imageUrl })}
 ` : ""}${t("emails.approval.textGeneratedPost")}
-${buildPlatformApprovalPreviews({ platform: rule.platform, postContent })
-  .map((preview) => `${preview.label}:\n${preview.content}`)
-  .join("\n\n---\n\n")}
+${postContent}
 
 ${t("emails.approval.textApprovePost")}
 ${approveUrl}
@@ -1667,12 +1696,21 @@ function normalizeWebsiteItem(item, websiteUrl) {
   const type = String(item?.type || "website_item").trim();
   const url = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
   const imageUrl = item?.image_url ? resolveUrl(item.image_url, websiteUrl) : null;
-const price = normalizeVerifiedPriceValue(item?.price);
+let price = normalizeVerifiedPriceValue(item?.price);
   if (item?.price && !price) {
     console.warn("Ignored unverified website item price because it lacked a clear currency marker", {
       title: truncateText(title, 120),
       rawPrice: truncateText(String(item.price), 80),
     });
+  }
+
+  if (price && isLikelyWrongUsdPriceForUrl(price, url || websiteUrl)) {
+    console.warn("Ignored suspicious website item price because currency does not match product URL", {
+      title: truncateText(title, 120),
+      productUrl: url || websiteUrl,
+      rawPrice: truncateText(String(item.price), 80),
+    });
+    price = "";
   }
   if (!title || !description) {
     return null;
@@ -2261,21 +2299,6 @@ function extractProductPriceFromHtml(html) {
     return normalizeVerifiedPriceValue(visiblePrice);
   }
 
-  const metaPrice = getMetaContent(html, [
-    "product:price:amount",
-    "og:price:amount",
-    "twitter:data1",
-  ]);
-
-  const metaCurrency = getMetaContent(html, [
-    "product:price:currency",
-    "og:price:currency",
-  ]);
-
-  if (metaPrice) {
-    return normalizeVerifiedPriceValue(`${metaPrice}${metaCurrency ? ` ${metaCurrency}` : ""}`);
-  }
-
   return "";
 }
 
@@ -2331,9 +2354,7 @@ async function extractProductDataFromProductPage({
     String(metaDescription || "").trim() ||
     truncateText(stripHtmlToText(html), 700);
 
- const price =
-  extractProductPriceFromHtml(html) ||
-  getProductPriceFromJsonLd(product);
+ const price = extractProductPriceFromHtml(html);
 
 if (!price) {
   console.log("Product page candidate has no clear price; continuing because many service/catalog pages hide prices", {
@@ -3422,66 +3443,19 @@ function normalizeHashtagLine(value) {
 }
 
 function buildInstagramCaptionFromPostContent(content) {
-  const original = String(content || "").trim();
-
-  if (!original) {
-    return original;
-  }
-
-  const urls = extractUrlsFromText(original).map(cleanUrlForCaption);
-  const hashtagLine = normalizeHashtagLine(original);
-
-  let caption = original
-    .replace(/https?:\/\/\S+/gi, "")
-    .replace(/\b(se produkten|beställ direkt|köp här|läs mer|read more|shop now|order here)\s*(här|here)?\s*(👉|➡️)?\s*$/gim, "")
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  if (hashtagLine) {
-    caption = caption.replace(/(?:^|\s)(#[\p{L}\p{N}_]+\s*)+$/gu, "").trim();
-  }
-
-  const lines = caption
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  caption = lines.join("\n\n");
-
-  const firstUrl = urls[0] || "";
-
-  if (firstUrl) {
-    caption = `${caption}\n\nSe produkten på webbplatsen:\n${firstUrl}`.trim();
-  }
-
-  if (hashtagLine) {
-    caption = `${caption}\n\n${hashtagLine}`.trim();
-  }
-
-  return truncateText(caption, 2200);
+  return truncateText(String(content || "").trim(), 2200);
 }
+
 
 function buildPlatformApprovalPreviews({ platform, postContent }) {
-  const targets = getPublishTargets(platform);
-
-  if (!targets.length) {
-    return [
-      {
-        label: "Social media",
-        content: postContent,
-      },
-    ];
-  }
-
-  return targets.map((target) => ({
-    label: target === "instagram" ? "Instagram" : "Facebook",
-    content:
-      target === "instagram"
-        ? buildInstagramCaptionFromPostContent(postContent)
-        : postContent,
-  }));
+  return [
+    {
+      label: platform || "Social media",
+      content: postContent,
+    },
+  ];
 }
+
 
 function getMetaErrorMessage(result, fallbackMessage) {
   const metaMessage = result?.error?.message || fallbackMessage;
@@ -3707,6 +3681,7 @@ async function publishApprovedSocialPosts({
   supabase,
   nowIso,
   summary,
+  resendApiKey,
 }) {
   const { data: posts, error } = await supabase
     .from("posts")
@@ -3735,6 +3710,9 @@ async function publishApprovedSocialPosts({
 
   for (const post of approvedPosts) {
     const targets = getPublishTargets(post.platform);
+    let facebookConnectionForPost = null;
+    let instagramConnectionForPost = null;
+    let activePublishTarget = null;
 
     try {
       if (!post.content) {
@@ -3782,13 +3760,16 @@ async function publishApprovedSocialPosts({
       }
 
       if (targets.includes("facebook")) {
+        activePublishTarget = "facebook";
         summary.facebook_publish_checked += 1;
 
-        const facebookConnection = await getFacebookConnectionForBrand({
+        facebookConnectionForPost = await getFacebookConnectionForBrand({
           supabase,
           userId: post.user_id,
           brandProfileId: post.brand_profile_id,
         });
+
+        const facebookConnection = facebookConnectionForPost;
 
         console.log("Facebook publish: connection lookup", {
           postId: post.id,
@@ -3826,16 +3807,20 @@ async function publishApprovedSocialPosts({
         }
 
         summary.facebook_published += 1;
+        activePublishTarget = null;
       }
 
       if (targets.includes("instagram")) {
+        activePublishTarget = "instagram";
         summary.instagram_publish_checked += 1;
 
-        const instagramConnection = await getInstagramConnectionForBrand({
+        instagramConnectionForPost = await getInstagramConnectionForBrand({
           supabase,
           userId: post.user_id,
           brandProfileId: post.brand_profile_id,
         });
+
+        const instagramConnection = instagramConnectionForPost;
 
         console.log("Instagram publish: connection lookup", {
           postId: post.id,
@@ -3868,6 +3853,7 @@ async function publishApprovedSocialPosts({
         });
 
         summary.instagram_published += 1;
+        activePublishTarget = null;
       }
 
       const { error: updateError } = await supabase
@@ -3894,6 +3880,30 @@ async function publishApprovedSocialPosts({
         targets,
         message: error.message,
       });
+
+      if (isConnectionAuthFailure(error)) {
+        if (activePublishTarget === "facebook" && facebookConnectionForPost?.id) {
+          await markConnectionExpiredAndAlert({
+            supabase,
+            connectionId: facebookConnectionForPost.id,
+            platform: "facebook",
+            reason: error.message || "Facebook publishing failed because the connection is no longer valid.",
+            resendApiKey,
+            nowIso,
+          });
+        }
+
+        if (activePublishTarget === "instagram" && instagramConnectionForPost?.id) {
+          await markConnectionExpiredAndAlert({
+            supabase,
+            connectionId: instagramConnectionForPost.id,
+            platform: "instagram",
+            reason: error.message || "Instagram publishing failed because the connection is no longer valid.",
+            resendApiKey,
+            nowIso,
+          });
+        }
+      }
 
       await supabase
         .from("posts")
@@ -4015,6 +4025,7 @@ export async function GET(request) {
   supabase,
   nowIso,
   summary,
+  resendApiKey,
 });
 
     const rules = await getRulesToProcess({
