@@ -15878,7 +15878,7 @@ button[class*="Load"] {
   .spreelo-sidebar .spreelo-brand,
   .sidebar.spreelo-sidebar .spreelo-brand,
   .spreelo-sidebar .brand.spreelo-brand {
-    padding-left: 24px !important;
+    padding-left: 8px !important;
     padding-right: 14px !important;
   }
 
