@@ -11,6 +11,7 @@
     "@supabase/supabase-js": "latest",
     "next": "latest",
     "openai": "latest",
+    "sharp": "latest",
     "react": "latest",
     "react-dom": "latest"
   }

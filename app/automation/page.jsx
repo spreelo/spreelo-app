@@ -903,6 +903,10 @@ function createSlot(overrides = {}) {
       typeof overrides.includeHashtags === "boolean"
         ? overrides.includeHashtags
         : true,
+    includeLogo:
+      typeof overrides.includeLogo === "boolean"
+        ? overrides.includeLogo
+        : null,
 contentTypeId: overrides.contentTypeId || null,
 contentTypeLabel: overrides.contentTypeLabel || null,
 usesWebsiteContent: Boolean(overrides.usesWebsiteContent),
@@ -4140,7 +4144,7 @@ if (!selectedBrandId) {
 
 const { data: brandProfileData, error: brandProfileError } = await supabase
   .from("brand_profiles")
-  .select("id, website_product_mode_available")
+  .select("id, website_product_mode_available, logo_url, logo_enabled_by_default")
   .eq("id", selectedBrandId)
   .eq("user_id", user.id)
   .maybeSingle();
@@ -4150,6 +4154,19 @@ if (brandProfileError) {
   setCurrentBrandProfile(null);
 } else {
   setCurrentBrandProfile(brandProfileData || null);
+
+  setSlots((currentSlots) =>
+    currentSlots.map((slot) => {
+      if (typeof slot.includeLogo === "boolean") {
+        return slot;
+      }
+
+      return {
+        ...slot,
+        includeLogo: Boolean(brandProfileData?.logo_url) && brandProfileData?.logo_enabled_by_default !== false,
+      };
+    })
+  );
 
   const brandAllowsWebsiteProductMode = Boolean(
     brandProfileData?.website_product_mode_available
@@ -4978,6 +4995,10 @@ ${slot.campaignSummary}`
         image_prompt: slot.imagePrompt,
         include_emojis: slot.includeEmojis,
         include_hashtags: slot.includeHashtags,
+        include_logo:
+          typeof slot.includeLogo === "boolean"
+            ? slot.includeLogo
+            : Boolean(currentBrandProfile?.logo_url) && currentBrandProfile?.logo_enabled_by_default !== false,
         credit_cost: slot.generateImage ? 3 : 1,
         schedule_type: scheduleType,
         run_date: slot.startDate,
@@ -5732,6 +5753,23 @@ setRules((currentRules) =>
                       ? t("automation.websiteImageFallback")
                       : t("automation.aiImage")}
                   </label>
+
+                  {currentBrandProfile?.logo_url && (
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          typeof slot.includeLogo === "boolean"
+                            ? slot.includeLogo
+                            : currentBrandProfile.logo_enabled_by_default !== false
+                        }
+                        onChange={(event) =>
+                          updateSlot(slot.id, "includeLogo", event.target.checked)
+                        }
+                      />
+                      {t("automation.includeLogo")}
+                    </label>
+                  )}
 
                   <label>
                     <input

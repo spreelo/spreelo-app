@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import crypto from "crypto";
+import sharp from "sharp";
 import {
   detectLikelyUiLocaleFromText,
   getServerTranslations,
@@ -1118,7 +1119,7 @@ async function getBrandProfileForRule(supabase, rule) {
   const { data, error } = await supabase
     .from("brand_profiles")
     .select(
-  "id, business_name, website_url, website_product_source_url, brand_description, industry, target_audience, content_language"
+  "id, business_name, website_url, website_product_source_url, brand_description, industry, target_audience, content_language, logo_url, logo_storage_path, logo_enabled_by_default"
 )
     .eq("id", rule.brand_profile_id)
     .eq("user_id", rule.user_id)
@@ -3920,6 +3921,134 @@ async function uploadGeneratedImageToStorage({
   };
 }
 
+function shouldUseLogoForRule(rule, brandProfile) {
+  if (!brandProfile?.logo_url) {
+    return false;
+  }
+
+  if (typeof rule?.include_logo === "boolean") {
+    return rule.include_logo;
+  }
+
+  return brandProfile.logo_enabled_by_default !== false;
+}
+
+async function fetchImageBufferForOverlay(imageUrl) {
+  if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
+    throw new Error("Logo overlay skipped because image URL is missing or not public");
+  }
+
+  const response = await fetch(imageUrl, {
+    headers: {
+      "User-Agent": "Spreelo/1.0 image overlay",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Could not fetch image for logo overlay: ${response.status}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+async function applyLogoOverlayIfNeeded({
+  supabase,
+  userId,
+  postId,
+  imageUrl,
+  imageStoragePath,
+  brandProfile,
+  includeLogo,
+}) {
+  if (!includeLogo || !brandProfile?.logo_url || !imageUrl) {
+    return null;
+  }
+
+  try {
+    const [baseImageBuffer, logoBuffer] = await Promise.all([
+      fetchImageBufferForOverlay(imageUrl),
+      fetchImageBufferForOverlay(brandProfile.logo_url),
+    ]);
+
+    const baseImage = sharp(baseImageBuffer).rotate();
+    const baseMetadata = await baseImage.metadata();
+    const baseWidth = Number(baseMetadata.width || 0);
+    const baseHeight = Number(baseMetadata.height || 0);
+
+    if (!baseWidth || !baseHeight) {
+      throw new Error("Could not read base image dimensions for logo overlay");
+    }
+
+    const logoTargetWidth = Math.max(
+      72,
+      Math.min(Math.round(baseWidth * 0.16), 220)
+    );
+    const margin = Math.max(24, Math.round(baseWidth * 0.035));
+
+    const logoPng = await sharp(logoBuffer)
+      .rotate()
+      .resize({ width: logoTargetWidth, withoutEnlargement: true })
+      .png()
+      .toBuffer();
+
+    const logoMetadata = await sharp(logoPng).metadata();
+    const logoWidth = Number(logoMetadata.width || logoTargetWidth);
+    const logoHeight = Number(logoMetadata.height || Math.round(logoTargetWidth * 0.4));
+
+    const left = Math.max(margin, baseWidth - logoWidth - margin);
+    const top = Math.max(margin, baseHeight - logoHeight - margin);
+
+    const outputBuffer = await baseImage
+      .composite([
+        {
+          input: logoPng,
+          left,
+          top,
+        },
+      ])
+      .png()
+      .toBuffer();
+
+    const filePath = `${userId}/${postId}-with-logo.png`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("post-images")
+      .upload(filePath, outputBuffer, {
+        contentType: "image/png",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message || "Could not upload logo overlay image");
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("post-images")
+      .getPublicUrl(filePath);
+
+    console.log("Brand logo overlay applied", {
+      postId,
+      brandProfileId: brandProfile.id || null,
+      sourceImageStoragePath: imageStoragePath || null,
+      overlayStoragePath: filePath,
+    });
+
+    return {
+      imageUrl: publicUrlData?.publicUrl || null,
+      imageStoragePath: filePath,
+    };
+  } catch (error) {
+    console.error("Brand logo overlay failed", {
+      postId,
+      brandProfileId: brandProfile?.id || null,
+      message: error.message,
+    });
+
+    return null;
+  }
+}
+
 async function getUserAuthProfile(supabase, userId) {
   const { data, error } = await supabase.auth.admin.getUserById(userId);
 
@@ -4864,6 +4993,8 @@ scheduled_for: nowIso,
             image_prompt: wantsImage ? rule.image_prompt || null : null,
     text_model_used: POST_TEXT_MODEL,
 image_model_used: wantsImage ? IMAGE_MODEL : null,
+include_logo: shouldUseLogoForRule(rule, brandProfile),
+logo_url: shouldUseLogoForRule(rule, brandProfile) ? brandProfile?.logo_url || null : null,
 product_research_model_used: rule.uses_website_content
   ? PRODUCT_RESEARCH_MODEL
   : null,
@@ -4891,13 +5022,30 @@ product_research_model_used: rule.uses_website_content
           finalImagePrompt =
             "Website image selected because it appears connected to the selected website item.";
 
+          const logoOverlayResult = await applyLogoOverlayIfNeeded({
+            supabase,
+            userId: rule.user_id,
+            postId: post.id,
+            imageUrl,
+            imageStoragePath: null,
+            brandProfile,
+            includeLogo: shouldUseLogoForRule(rule, brandProfile),
+          });
+
+          if (logoOverlayResult?.imageUrl) {
+            imageUrl = logoOverlayResult.imageUrl;
+            imageStoragePath = logoOverlayResult.imageStoragePath || null;
+          }
+
           const { error: websiteImageUpdateError } = await supabase
             .from("posts")
             .update({
               image_url: imageUrl,
-              image_storage_path: null,
+              image_storage_path: imageStoragePath,
               image_status: "ready",
               image_prompt: finalImagePrompt,
+              include_logo: shouldUseLogoForRule(rule, brandProfile),
+              logo_url: shouldUseLogoForRule(rule, brandProfile) ? brandProfile?.logo_url || null : null,
               updated_at: nowIso,
             })
             .eq("id", post.id);
@@ -4955,6 +5103,21 @@ product_research_model_used: rule.uses_website_content
     imageStoragePath = uploadedImage.imageStoragePath;
     finalImagePrompt = imagePrompt;
 
+    const logoOverlayResult = await applyLogoOverlayIfNeeded({
+      supabase,
+      userId: rule.user_id,
+      postId: post.id,
+      imageUrl,
+      imageStoragePath,
+      brandProfile,
+      includeLogo: shouldUseLogoForRule(rule, brandProfile),
+    });
+
+    if (logoOverlayResult?.imageUrl) {
+      imageUrl = logoOverlayResult.imageUrl;
+      imageStoragePath = logoOverlayResult.imageStoragePath || imageStoragePath;
+    }
+
     const { error: imageUpdateError } = await supabase
       .from("posts")
       .update({
@@ -4962,6 +5125,8 @@ product_research_model_used: rule.uses_website_content
         image_storage_path: imageStoragePath,
         image_status: "ready",
         image_prompt: finalImagePrompt,
+        include_logo: shouldUseLogoForRule(rule, brandProfile),
+        logo_url: shouldUseLogoForRule(rule, brandProfile) ? brandProfile?.logo_url || null : null,
         updated_at: nowIso,
       })
       .eq("id", post.id);
