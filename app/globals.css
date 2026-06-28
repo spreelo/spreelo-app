@@ -13909,3 +13909,326 @@ textarea.input:focus,
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Step 70: responsive and summary polish after tablet/mobile review */
+:root {
+  --spreelo-ink: #263044;
+  --spreelo-ink-soft: #344154;
+  --spreelo-muted: #68778c;
+}
+
+/* Softer text weight in navigation and plan panel */
+.spreelo-nav a,
+.nav.spreelo-nav a {
+  font-size: 14px !important;
+  font-weight: 620 !important;
+  color: var(--spreelo-ink-soft) !important;
+}
+
+.spreelo-nav a.active,
+.nav.spreelo-nav a.active {
+  font-weight: 680 !important;
+}
+
+/* Keep desktop layout stable and prevent accidental right-side gaps */
+.planner-wizard-page .wizard-layout {
+  grid-template-columns: minmax(0, 1fr) 330px !important;
+  gap: 18px !important;
+  align-items: start !important;
+}
+
+.planner-wizard-page .planner-sidebar {
+  max-width: 330px !important;
+  min-width: 0 !important;
+}
+
+/* Button color/text visibility */
+.planner-wizard-page .planner-save-button,
+.planner-wizard-page .planner-create-another-button {
+  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%) !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
+  font-weight: 760 !important;
+}
+
+/* Right summary panel: same readable size for label/value, no heavy bold */
+.planner-wizard-page .planner-sidebar-title,
+.planner-wizard-page .planner-summary-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.planner-wizard-page .planner-sidebar-title > span,
+.planner-wizard-page .planner-summary-title > span {
+  align-self: center !important;
+  transform: none !important;
+  margin: 0 !important;
+}
+
+.planner-wizard-page .planner-sidebar-title h3,
+.planner-wizard-page .planner-summary-title h3 {
+  font-size: 20px !important;
+  line-height: 1.12 !important;
+  font-weight: 690 !important;
+  color: var(--spreelo-ink) !important;
+}
+
+.planner-wizard-page .planner-summary-list.premium div.planner-summary-item {
+  display: grid !important;
+  grid-template-columns: 28px minmax(0, 1fr) !important;
+  gap: 12px !important;
+  align-items: start !important;
+  padding: 14px 0 !important;
+}
+
+.planner-wizard-page .planner-summary-list.premium div.planner-summary-item > div {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+}
+
+.planner-wizard-page .planner-summary-icon {
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: start !important;
+  margin-top: 0 !important;
+}
+
+.planner-wizard-page .planner-summary-list.premium span:not(.planner-summary-icon) {
+  font-size: 14px !important;
+  line-height: 1.34 !important;
+  font-weight: 560 !important;
+  color: var(--spreelo-ink-soft) !important;
+}
+
+.planner-wizard-page .planner-summary-list.premium strong {
+  font-size: 14px !important;
+  line-height: 1.34 !important;
+  font-weight: 560 !important;
+  color: var(--spreelo-ink-soft) !important;
+  margin: 0 !important;
+}
+
+/* Social icons in all selected-platform displays must stay horizontal */
+.planner-wizard-page .platform-selected-icons,
+.planner-wizard-page .planner-social-icon-row,
+.planner-wizard-page .planner-social-icon-row.mini,
+.planner-wizard-page .planner-summary-item .planner-social-icon-row.mini {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  margin: 4px 0 0 !important;
+}
+
+.planner-wizard-page .platform-selected-icons img,
+.planner-wizard-page .planner-social-icon-row img,
+.planner-wizard-page .planner-social-icon-row.mini img,
+.planner-wizard-page .platform-icon-img {
+  display: inline-flex !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  max-width: 24px !important;
+  object-fit: contain !important;
+  flex: 0 0 auto !important;
+}
+
+/* Description text should not look like headings */
+.planner-wizard-page .planner-setup-card p,
+.planner-wizard-page .planner-setting-field p,
+.planner-wizard-page .planner-builder-header p,
+.planner-wizard-page .planner-section-heading p,
+.planner-wizard-page .planner-includes-chip small,
+.planner-wizard-page .planner-post-title span {
+  font-weight: 450 !important;
+}
+
+/* Includes section: less cramped and fewer ugly line breaks */
+.planner-wizard-page .planner-includes-chip-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.planner-wizard-page .planner-includes-chip {
+  min-height: 118px !important;
+  padding: 18px !important;
+  align-items: start !important;
+}
+
+.planner-wizard-page .planner-includes-chip strong {
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+  font-weight: 650 !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  hyphens: none !important;
+}
+
+/* Schedule rows: when copy wraps, preserve breathing room before separator */
+.planner-wizard-page .planner-post-mainline {
+  min-height: 88px !important;
+  padding-top: 16px !important;
+  padding-bottom: 16px !important;
+  row-gap: 10px !important;
+}
+
+.planner-wizard-page .planner-post-title span {
+  line-height: 1.45 !important;
+  padding-bottom: 2px !important;
+}
+
+/* Tablet: the side cards must not become narrow vertical strips */
+@media (max-width: 1160px) {
+  .planner-wizard-page .wizard-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .planner-wizard-page .planner-sidebar {
+    max-width: none !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) !important;
+    gap: 16px !important;
+  }
+
+  .planner-wizard-page .planner-summary-card,
+  .planner-wizard-page .planner-credits-card {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .planner-wizard-page .planner-summary-list.premium {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .planner-wizard-page .planner-summary-list.premium div.planner-summary-item {
+    border: 1px solid rgba(226, 232, 240, 0.95) !important;
+    border-radius: 16px !important;
+    padding: 12px !important;
+  }
+}
+
+/* Small tablet / mobile: stack fields, keep readable widths */
+@media (max-width: 760px) {
+  .spreelo-content,
+  .content.spreelo-content {
+    padding: 12px 10px 26px !important;
+  }
+
+  .planner-wizard-page .planner-hero {
+    min-height: auto !important;
+    padding: 22px !important;
+  }
+
+  .planner-wizard-page .planner-hero-copy h2 {
+    font-size: clamp(27px, 8vw, 34px) !important;
+    line-height: .96 !important;
+  }
+
+  .planner-wizard-page .planner-setup-grid,
+  .planner-wizard-page .planner-settings-grid.simple,
+  .planner-wizard-page .planner-sidebar,
+  .planner-wizard-page .planner-summary-list.premium {
+    grid-template-columns: 1fr !important;
+  }
+
+  .planner-wizard-page .planner-builder-card,
+  .planner-wizard-page .planner-settings-card,
+  .planner-wizard-page .planner-includes-preview-card,
+  .planner-wizard-page .planner-schedule-card,
+  .planner-wizard-page .saved-card,
+  .planner-wizard-page .planner-summary-card,
+  .planner-wizard-page .planner-credits-card {
+    padding: 18px !important;
+    border-radius: 22px !important;
+    overflow: hidden !important;
+  }
+
+  .planner-wizard-page .planner-date-time-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .planner-wizard-page .planner-save-card {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    text-align: left !important;
+  }
+
+  .planner-wizard-page .planner-save-button,
+  .planner-wizard-page .planner-create-another-button {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .planner-wizard-page .planner-includes-chip-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .planner-wizard-page .planner-includes-chip {
+    min-height: 0 !important;
+    grid-template-columns: 38px minmax(0, 1fr) !important;
+    text-align: left !important;
+  }
+
+  .planner-wizard-page .planner-post-mainline {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    gap: 10px 12px !important;
+    padding: 16px !important;
+  }
+
+  .planner-wizard-page .planner-post-title,
+  .planner-wizard-page .planner-post-date,
+  .planner-wizard-page .planner-post-time,
+  .planner-wizard-page .planner-post-format,
+  .planner-wizard-page .planner-post-actions {
+    grid-column: 2 !important;
+    width: 100% !important;
+  }
+
+  .planner-wizard-page .planner-post-date .custom-picker-button,
+  .planner-wizard-page .planner-post-time .custom-picker-button,
+  .planner-wizard-page .planner-post-format,
+  .planner-wizard-page .planner-post-actions button:first-child {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .planner-wizard-page .planner-post-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 40px 40px !important;
+    gap: 10px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .planner-wizard-page .planner-hero-copy h2 {
+    font-size: 25px !important;
+  }
+
+  .planner-wizard-page .planner-builder-header,
+  .planner-wizard-page .planner-section-heading,
+  .planner-wizard-page .planner-schedule-header {
+    align-items: flex-start !important;
+  }
+
+  .planner-wizard-page .planner-summary-list.premium div.planner-summary-item {
+    grid-template-columns: 26px minmax(0, 1fr) !important;
+  }
+}

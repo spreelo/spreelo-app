@@ -5969,7 +5969,7 @@ setRules((currentRules) =>
       className="planner-create-another-button"
       onClick={startAnotherPlan}
     >
-      {t("automation.createAnotherPlan")}
+      {plannerLocaleIsSwedish ? "Generera inlägg" : "Generate posts"}
     </button>
   </div>
 ) : (
