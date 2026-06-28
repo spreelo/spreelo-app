@@ -14928,3 +14928,122 @@ textarea.input:focus,
     padding: 16px 12px !important;
   }
 }
+
+/* Step 73: final compact mobile/tablet alignment fixes. */
+@media (max-width: 760px) {
+  /* The small hero help button must not cover the headline on mobile. */
+  .automation-page.planner-wizard-page .planner-hero-learn {
+    position: static !important;
+    grid-column: 1 / -1 !important;
+    justify-self: start !important;
+    align-self: start !important;
+    margin: 10px 0 0 !important;
+    z-index: 2 !important;
+    width: fit-content !important;
+    max-width: 100% !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-hero-final {
+    overflow: visible !important;
+  }
+
+  /* Planned schedule: remove the left index gutter on mobile so fields align evenly. */
+  .automation-page.planner-wizard-page .planner-schedule-card,
+  .automation-page.planner-wizard-page .planner-post-table,
+  .automation-page.planner-wizard-page .planner-post-row,
+  .automation-page.planner-wizard-page .planner-post-mainline,
+  .automation-page.planner-wizard-page .custom-picker-field,
+  .automation-page.planner-wizard-page .custom-picker-anchor {
+    overflow: visible !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-mainline {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 8px !important;
+    padding: 12px !important;
+    align-items: start !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-index {
+    display: none !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-title {
+    grid-column: 1 / -1 !important;
+    padding: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date {
+    grid-column: 1 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-time {
+    grid-column: 2 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-format,
+  .automation-page.planner-wizard-page .planner-post-actions {
+    grid-column: 1 / -1 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date .custom-picker-button,
+  .automation-page.planner-wizard-page .planner-post-time .custom-picker-button,
+  .automation-page.planner-wizard-page .planner-post-format,
+  .automation-page.planner-wizard-page .planner-post-actions button:first-child {
+    min-height: 36px !important;
+    height: 36px !important;
+  }
+
+  /* On narrow screens, open time dropdown upward so it is not clipped by the card bottom. */
+  .automation-page.planner-wizard-page .planner-post-time .custom-time-popover {
+    top: auto !important;
+    bottom: calc(100% + 8px) !important;
+    z-index: 9999 !important;
+    max-height: 190px !important;
+    overflow-y: auto !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date .custom-calendar-popover {
+    z-index: 9999 !important;
+  }
+
+  /* Give the right summary rows an inset so icons do not touch the card edge. */
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item,
+  .automation-page.planner-wizard-page .planner-summary-list.premium div.planner-summary-item {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    border-radius: 14px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-title {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  /* Tablet: keep schedule rows balanced and avoid too much left gutter. */
+  .automation-page.planner-wizard-page .planner-post-mainline {
+    grid-template-columns: 34px minmax(0, 1.15fr) minmax(156px, .85fr) minmax(100px, .48fr) minmax(150px, .7fr) auto !important;
+    gap: 10px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-schedule-card,
+  .automation-page.planner-wizard-page .planner-post-table,
+  .automation-page.planner-wizard-page .planner-post-row,
+  .automation-page.planner-wizard-page .custom-picker-anchor {
+    overflow: visible !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-time .custom-time-popover,
+  .automation-page.planner-wizard-page .planner-post-date .custom-calendar-popover {
+    z-index: 9999 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item,
+  .automation-page.planner-wizard-page .planner-summary-list.premium div.planner-summary-item {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    border-radius: 14px !important;
+  }
+}
