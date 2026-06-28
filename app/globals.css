@@ -14563,3 +14563,368 @@ textarea.input:focus,
     font-size: 19px !important;
   }
 }
+
+/* Step 72: compact responsive planner cleanup (mobile/tablet only). Desktop stays mostly as-is. */
+@media (max-width: 900px) {
+  /* Earlier planner overrides accidentally removed the mobile header offset. Keep the top visible. */
+  .spreelo-content,
+  .content,
+  .content.spreelo-content {
+    padding-top: 92px !important;
+  }
+
+  .automation-page.planner-wizard-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-main {
+    gap: 12px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-hero,
+  .automation-page.planner-wizard-page .planner-builder-card,
+  .automation-page.planner-wizard-page .planner-settings-card,
+  .automation-page.planner-wizard-page .planner-includes-preview-card,
+  .automation-page.planner-wizard-page .planner-schedule-card,
+  .automation-page.planner-wizard-page .saved-card,
+  .automation-page.planner-wizard-page .planner-summary-card,
+  .automation-page.planner-wizard-page .planner-credits-card {
+    padding: 16px !important;
+    border-radius: 20px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-builder-header,
+  .automation-page.planner-wizard-page .planner-section-heading,
+  .automation-page.planner-wizard-page .planner-schedule-header,
+  .automation-page.planner-wizard-page .saved-header {
+    align-items: flex-start !important;
+    text-align: left !important;
+    gap: 10px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-builder-header h3,
+  .automation-page.planner-wizard-page .planner-section-heading h3,
+  .automation-page.planner-wizard-page .planner-schedule-header h3,
+  .automation-page.planner-wizard-page .saved-header h3 {
+    text-align: left !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-builder-header p,
+  .automation-page.planner-wizard-page .planner-section-heading p,
+  .automation-page.planner-wizard-page .planner-schedule-header span,
+  .automation-page.planner-wizard-page .saved-header p {
+    text-align: left !important;
+    margin-left: 0 !important;
+  }
+
+  /* Platform icons in the platform field must never stack vertically. */
+  .automation-page.planner-wizard-page .platform-multiselect-button {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    min-height: 44px !important;
+  }
+
+  .automation-page.planner-wizard-page .platform-selected-icons {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .platform-selected-icons img.platform-icon-img {
+    flex: 0 0 24px !important;
+  }
+
+  /* Includes: compact list-style cards on tablet/mobile to reduce scrolling. */
+  .automation-page.planner-wizard-page .planner-includes-chip-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-includes-chip {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    column-gap: 10px !important;
+    row-gap: 2px !important;
+    min-height: 0 !important;
+    padding: 12px !important;
+    text-align: left !important;
+    align-items: center !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-includes-chip > span {
+    grid-row: 1 / 3 !important;
+    align-self: start !important;
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 16px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-includes-chip strong {
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    font-weight: 640 !important;
+    white-space: normal !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-includes-chip small {
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 1 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  /* Saved plans: less empty vertical space and checkbox aligned with date/title. */
+  .automation-page.planner-wizard-page .saved-header .row-actions {
+    display: none !important;
+  }
+
+  .automation-page.planner-wizard-page .saved-rule-list {
+    gap: 8px !important;
+  }
+
+  .automation-page.planner-wizard-page .saved-rule-card {
+    display: grid !important;
+    grid-template-columns: 22px minmax(0, 1fr) auto !important;
+    gap: 10px !important;
+    align-items: center !important;
+    padding: 12px !important;
+    border-radius: 16px !important;
+    min-height: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .saved-rule-card .image-check {
+    align-self: start !important;
+    margin-top: 2px !important;
+  }
+
+  .automation-page.planner-wizard-page .saved-rule-card h4 {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+    margin: 0 0 3px !important;
+  }
+
+  .automation-page.planner-wizard-page .saved-rule-card p,
+  .automation-page.planner-wizard-page .saved-rule-card small {
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+    margin: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .saved-rule-card .danger-button {
+    padding: 8px 12px !important;
+    min-height: 34px !important;
+    align-self: center !important;
+  }
+
+  /* Summary cards compact and consistently left aligned. */
+  .automation-page.planner-wizard-page .planner-summary-card,
+  .automation-page.planner-wizard-page .planner-credits-card {
+    min-height: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item,
+  .automation-page.planner-wizard-page .planner-summary-list.premium div.planner-summary-item {
+    padding: 10px 0 !important;
+    grid-template-columns: 26px minmax(0, 1fr) !important;
+    column-gap: 10px !important;
+    align-items: start !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-icon {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    align-self: start !important;
+    margin-top: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item span:not(.planner-summary-icon),
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item strong {
+    font-size: 13.5px !important;
+    line-height: 1.32 !important;
+    font-weight: 520 !important;
+    text-align: left !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .automation-page.planner-wizard-page .planner-hero {
+    padding: 18px !important;
+    min-height: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-hero-visual {
+    opacity: .72 !important;
+    transform: scale(.86) !important;
+    transform-origin: right center !important;
+  }
+
+  /* Planned schedule: compact mobile cards instead of tall form stacks. */
+  .automation-page.planner-wizard-page .planner-post-table {
+    gap: 8px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-row {
+    border-radius: 16px !important;
+    overflow: hidden !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-mainline {
+    display: grid !important;
+    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 8px !important;
+    padding: 12px !important;
+    min-height: 0 !important;
+    align-items: center !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-index {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 12px !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    align-self: start !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-title {
+    grid-column: 2 / 4 !important;
+    width: 100% !important;
+    padding-bottom: 0 !important;
+    min-width: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-title-row strong {
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-title > span {
+    font-size: 12px !important;
+    line-height: 1.28 !important;
+    -webkit-line-clamp: 2 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date {
+    grid-column: 2 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-time {
+    grid-column: 3 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date,
+  .automation-page.planner-wizard-page .planner-post-time {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date::before,
+  .automation-page.planner-wizard-page .planner-post-time::before,
+  .automation-page.planner-wizard-page .planner-post-format::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date .custom-picker-button,
+  .automation-page.planner-wizard-page .planner-post-time .custom-picker-button {
+    width: 100% !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-format {
+    grid-column: 2 / 4 !important;
+    width: 100% !important;
+    min-height: 36px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-actions {
+    grid-column: 2 / 4 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 36px 36px !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-actions button:first-child {
+    min-height: 36px !important;
+    height: 36px !important;
+    font-size: 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-actions button:not(:first-child) {
+    width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .spreelo-content,
+  .content,
+  .content.spreelo-content {
+    padding: 84px 8px 20px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-hero,
+  .automation-page.planner-wizard-page .planner-builder-card,
+  .automation-page.planner-wizard-page .planner-settings-card,
+  .automation-page.planner-wizard-page .planner-includes-preview-card,
+  .automation-page.planner-wizard-page .planner-schedule-card,
+  .automation-page.planner-wizard-page .saved-card,
+  .automation-page.planner-wizard-page .planner-summary-card,
+  .automation-page.planner-wizard-page .planner-credits-card {
+    padding: 14px !important;
+    border-radius: 18px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-includes-chip-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-includes-chip {
+    padding: 10px 12px !important;
+  }
+
+  .automation-page.planner-wizard-page .saved-rule-card {
+    grid-template-columns: 22px minmax(0, 1fr) !important;
+  }
+
+  .automation-page.planner-wizard-page .saved-rule-card .danger-button {
+    grid-column: 2 !important;
+    width: fit-content !important;
+    margin-top: 6px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-mainline {
+    grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1fr) !important;
+    padding: 10px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-save-card {
+    padding: 16px 12px !important;
+  }
+}

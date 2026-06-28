@@ -6057,15 +6057,6 @@ setRules((currentRules) =>
                   <h3>{t("automation.contentPlans")}</h3>
                 </div>
 
-                <div className="row-actions">
-                  <button
-                    type="button"
-                    className="secondary-button small-button"
-                    onClick={() => setShowSavedRules((current) => !current)}
-                  >
-                    {showSavedRules ? t("automation.hide") : t("automation.showAll")}
-                  </button>
-                </div>
               </div>
 
               {loading ? (
