@@ -48,7 +48,7 @@ a {
   width: 44px;
     height: 44px;
     border-radius: 14px;
-    background: linear-gradient(135deg, #7c3aed, #06b6d4);
+    background: linear-gradient(135deg, #2563eb, #06b6d4);
     display: grid;
     place-items: center;
     font-weight: 800;
@@ -104,7 +104,7 @@ a {
     letter-spacing: 0.12em;
     font-size: 12px;
     font-weight: 700;
-    color: #7c3aed;
+    color: #2563eb;
 }
 
 .topbar h2 {
@@ -653,7 +653,7 @@ select.input {
 .summary-note strong {
   display: block;
     margin-bottom: 5px;
-    color: #4f46e5;
+    color: #2563eb;
 }
 
 .summary-note p {
@@ -680,7 +680,7 @@ select.input {
 
 .saved-header p {
   margin: 0 0 5px;
-    color: #5b21b6;
+    color: #1e40af;
     text-transform: uppercase;
     letter-spacing: 0.12em;
     font-size: 11px;
@@ -773,7 +773,7 @@ select.input {
 }
 
 .saved-rule-card:hover {
-  border-color: rgba(124, 58, 237, 0.14);
+  border-color: rgba(37, 99, 235, 0.14);
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.03);
 }
 
@@ -838,9 +838,9 @@ select.input {
 }
 
 .show-more-rules {
-  border: 1px dashed rgba(124, 58, 237, 0.28);
+  border: 1px dashed rgba(37, 99, 235, 0.28);
     background: #fbfaff;
-    color: #5b21b6;
+    color: #1e40af;
     border-radius: 14px;
     padding: 12px;
     font-size: 13px;
@@ -1138,7 +1138,7 @@ select.input {
 
 .add-post-modal-header p {
   margin: 0 0 4px;
-    color: #4f46e5;
+    color: #2563eb;
     font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
@@ -1210,7 +1210,7 @@ select.input {
 
 .spreelo-shell {
   background:
-      radial-gradient(circle at top left, rgba(124, 58, 237, 0.08), transparent 34%),
+      radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 34%),
       #fbfaf8;
 }
 
@@ -1221,7 +1221,7 @@ select.input {
     min-height: 100vh;
     padding: 30px 18px;
     background:
-      radial-gradient(circle at 20% 0%, rgba(124, 58, 237, 0.34), transparent 28%),
+      radial-gradient(circle at 20% 0%, rgba(37, 99, 235, 0.34), transparent 28%),
       linear-gradient(180deg, #110c2d 0%, #0b1024 52%, #070b18 100%);
     color: #ffffff;
     gap: 34px;
@@ -1267,7 +1267,7 @@ select.input {
 }
 
 .spreelo-nav a.active {
-  background: linear-gradient(135deg, #5b21b6, #4f46e5);
+  background: linear-gradient(135deg, #1e40af, #2563eb);
     color: #ffffff;
     box-shadow: 0 16px 34px rgba(79, 70, 229, 0.3);
 }
@@ -1296,7 +1296,7 @@ select.input {
     display: grid;
     place-items: center;
     border-radius: 10px;
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    background: linear-gradient(135deg, #2563eb, #2563eb);
     font-size: 15px;
 }
 
@@ -1345,7 +1345,7 @@ select.input {
 .spreelo-content {
   padding: 34px 34px 44px;
     background:
-      radial-gradient(circle at 88% 6%, rgba(124, 58, 237, 0.08), transparent 30%),
+      radial-gradient(circle at 88% 6%, rgba(37, 99, 235, 0.08), transparent 30%),
       #fbfaf8;
 }
 
@@ -1431,7 +1431,7 @@ select.input {
     display: grid;
     place-items: center;
     border-radius: 999px;
-    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
     font-weight: 950;
     box-shadow: 0 12px 24px rgba(79, 70, 229, 0.26);
@@ -1490,7 +1490,7 @@ select.input {
 .planner-segmented-buttons button.active {
   border-color: #6d5dfc;
     background: #f3f0ff;
-    color: #4f46e5;
+    color: #2563eb;
     box-shadow: inset 0 0 0 1px rgba(109, 93, 252, 0.22);
 }
 
@@ -1547,8 +1547,8 @@ select.input {
 }
 
 .planner-mode-option.active .mode-radio {
-  background: #5b21b6;
-    border-color: #5b21b6;
+  background: #1e40af;
+    border-color: #1e40af;
 }
 
 .mode-big-icon {
@@ -1559,7 +1559,7 @@ select.input {
     margin: 8px auto 16px;
     border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 34px;
 }
 
@@ -1588,7 +1588,7 @@ select.input {
     padding: 7px 11px;
     border-radius: 999px;
     background: #eee7ff;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 12px;
     font-weight: 950;
 }
@@ -1629,7 +1629,7 @@ select.input {
   white-space: nowrap;
     border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     padding: 7px 10px;
     font-size: 12px;
     font-weight: 950;
@@ -1662,7 +1662,7 @@ select.input {
     place-items: center;
     border-radius: 11px;
     background: #f8fafc;
-    color: #5b21b6;
+    color: #1e40af;
     font-weight: 950;
     margin-bottom: 10px;
 }
@@ -1707,7 +1707,7 @@ select.input {
 }
 
 .planner-included-type span {
-  color: #5b21b6;
+  color: #1e40af;
     font-size: 24px;
     font-weight: 950;
     margin-bottom: 7px;
@@ -1779,7 +1779,7 @@ select.input {
     padding: 6px 10px;
     border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 12px;
     font-weight: 950;
 }
@@ -1810,7 +1810,7 @@ select.input {
 .view-calendar-button:hover {
   background: #f7f4ff;
   border-color: #c4b5fd;
-  color: #6d28d9;
+  color: #1d4ed8;
 }
 
 .planner-post-table {
@@ -1834,7 +1834,7 @@ select.input {
 }
 
 .planner-post-row:hover {
-  border-color: rgba(124, 58, 237, 0.16);
+  border-color: rgba(37, 99, 235, 0.16);
     box-shadow: 0 12px 26px rgba(15, 23, 42, 0.035);
 }
 
@@ -1859,7 +1859,7 @@ select.input {
     display: grid;
     place-items: center;
     border-radius: 999px;
-    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
     font-size: 13px;
     font-weight: 950;
@@ -1887,8 +1887,8 @@ select.input {
 }
 
 .planner-post-row:nth-child(6) .planner-post-index {
-  background: #7c3aed;
-    box-shadow: 0 10px 20px rgba(124, 58, 237, 0.16);
+  background: #2563eb;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.16);
 }
 
 .planner-post-title {
@@ -1926,7 +1926,7 @@ select.input {
 
 .planner-post-date .custom-picker-button:hover,
 .planner-post-time .custom-picker-button:hover {
-  border-color: rgba(124, 58, 237, 0.24);
+  border-color: rgba(37, 99, 235, 0.24);
     background: #fbfaff;
 }
 
@@ -1952,7 +1952,7 @@ select.input {
     place-items: center;
     border-radius: 7px;
     background: #ffffff;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 11px;
     font-weight: 950;
     box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.9);
@@ -1986,9 +1986,9 @@ select.input {
 }
 
 .planner-post-actions button:first-child:hover {
-  border-color: rgba(124, 58, 237, 0.22);
+  border-color: rgba(37, 99, 235, 0.22);
     background: #fbfaff;
-    color: #5b21b6;
+    color: #1e40af;
 }
 
 .planner-post-expanded {
@@ -1999,7 +1999,7 @@ select.input {
     padding: 16px;
     border-radius: 16px;
     background:
-      radial-gradient(circle at 92% 25%, rgba(124, 58, 237, 0.07), transparent 26%),
+      radial-gradient(circle at 92% 25%, rgba(37, 99, 235, 0.07), transparent 26%),
       rgba(255, 251, 235, 0.86);
     border: 1px solid rgba(251, 191, 36, 0.18);
 }
@@ -2053,7 +2053,7 @@ select.input {
     padding: 7px 10px;
     border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 12px;
     font-weight: 950;
 }
@@ -2068,7 +2068,7 @@ select.input {
     margin: 15px auto 0;
     border: 1px solid rgba(109, 93, 252, 0.28);
     background: #ffffff;
-    color: #5b21b6;
+    color: #1e40af;
     border-radius: 13px;
     padding: 11px 16px;
     font-size: 13px;
@@ -2219,7 +2219,7 @@ select.input {
   min-height: 50px;
     border: 0;
     border-radius: 13px;
-    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
     padding: 0 20px;
     font-size: 14px;
@@ -2403,7 +2403,7 @@ select.input {
 .planner-credit-progress div {
   height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #6d28d9 0%, #7c3aed 50%, #8b5cf6 100%);
+    background: linear-gradient(90deg, #1d4ed8 0%, #2563eb 50%, #60a5fa 100%);
 }
 
 .planner-credit-reset {
@@ -2502,10 +2502,10 @@ select.input {
 .planner-upgrade-button {
   width: 100%;
     height: 48px;
-    border: 1.5px solid rgba(124, 58, 237, 0.4);
+    border: 1.5px solid rgba(37, 99, 235, 0.4);
     border-radius: 14px;
     background: #ffffff;
-    color: #6d28d9;
+    color: #1d4ed8;
     font-size: 14px;
     font-weight: 900;
     cursor: pointer;
@@ -2541,7 +2541,7 @@ select.input {
 
 .planner-summary-title > span {
   background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
 }
 
 .planner-summary-title h3 {
@@ -2595,7 +2595,7 @@ select.input {
     padding: 13px;
     border-radius: 16px;
     background: linear-gradient(180deg, #f7f4ff 0%, #fdfcff 100%);
-    border: 1px solid rgba(124, 58, 237, 0.14);
+    border: 1px solid rgba(37, 99, 235, 0.14);
 }
 
 .planner-summary-status > span {
@@ -2605,7 +2605,7 @@ select.input {
     place-items: center;
     border-radius: 999px;
     background: rgba(109, 40, 217, 0.1);
-    color: #6d28d9;
+    color: #1d4ed8;
     font-size: 13px;
     font-weight: 950;
 }
@@ -2795,7 +2795,7 @@ select.input {
 
 .dashboard-eyebrow {
   margin: 0 0 8px;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 12px;
     font-weight: 950;
     letter-spacing: 0.12em;
@@ -2837,7 +2837,7 @@ select.input {
 }
 
 .dashboard-primary-action {
-  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
     box-shadow: 0 16px 30px rgba(79, 70, 229, 0.24);
 }
@@ -2864,7 +2864,7 @@ select.input {
     border: 1px solid rgba(226, 232, 240, 0.95);
     border-radius: 20px;
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.08), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 34%),
       #ffffff;
     padding: 20px;
     box-shadow: 0 16px 36px rgba(15, 23, 42, 0.035);
@@ -2927,7 +2927,7 @@ select.input {
 
 .dashboard-card-header p {
   margin: 0 0 5px;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 11px;
     font-weight: 950;
     letter-spacing: 0.12em;
@@ -2946,7 +2946,7 @@ select.input {
   flex: 0 0 auto;
     border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     padding: 8px 11px;
     font-size: 12px;
     font-weight: 950;
@@ -2986,7 +2986,7 @@ select.input {
     border-radius: 12px;
     background: #ffffff;
     border: 1px solid rgba(109, 93, 252, 0.28);
-    color: #5b21b6;
+    color: #1e40af;
     padding: 0 13px;
     font-size: 13px;
     font-weight: 950;
@@ -3012,7 +3012,7 @@ select.input {
 }
 
 .dashboard-upcoming-item:hover {
-  border-color: rgba(124, 58, 237, 0.18);
+  border-color: rgba(37, 99, 235, 0.18);
     box-shadow: 0 12px 26px rgba(15, 23, 42, 0.035);
 }
 
@@ -3031,7 +3031,7 @@ select.input {
   width: fit-content;
     border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     padding: 6px 9px;
     font-size: 11px;
     font-weight: 950;
@@ -3081,7 +3081,7 @@ select.input {
 
 .dashboard-side-card.highlighted {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.12), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 34%),
       linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
 }
 
@@ -3100,7 +3100,7 @@ select.input {
     place-items: center;
     border-radius: 11px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 14px;
     font-weight: 950;
 }
@@ -3151,7 +3151,7 @@ select.input {
 .dashboard-credit-bar div {
   height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #6d28d9 0%, #7c3aed 50%, #8b5cf6 100%);
+    background: linear-gradient(90deg, #1d4ed8 0%, #2563eb 50%, #60a5fa 100%);
 }
 
 .dashboard-side-note {
@@ -3216,7 +3216,7 @@ select.input {
     border-radius: 12px;
     border: 1px solid rgba(109, 93, 252, 0.28);
     background: #ffffff;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 13px;
     font-weight: 950;
 }
@@ -3247,11 +3247,11 @@ select.input {
 
 .dashboard-action-list a:hover {
   background: #f8fafc;
-    border-color: rgba(124, 58, 237, 0.18);
+    border-color: rgba(37, 99, 235, 0.18);
 }
 
 .dashboard-action-list strong {
-  color: #5b21b6;
+  color: #1e40af;
 }
 
 .dashboard-next-title {
@@ -3349,7 +3349,7 @@ select.input {
 }
 
 .current-brand-select:focus {
-  border-color: rgba(124, 92, 255, 0.9);
+  border-color: rgba(37, 99, 235, 0.9);
 }
 
 .current-brand-loading {
@@ -3369,7 +3369,7 @@ select.input {
     min-height: 36px;
     border: 0;
     border-radius: 12px;
-    background: rgba(124, 92, 255, 0.18);
+    background: rgba(37, 99, 235, 0.18);
     color: #ffffff;
     cursor: pointer;
     font-size: 13px;
@@ -3377,7 +3377,7 @@ select.input {
 }
 
 .current-brand-new:hover {
-  background: rgba(124, 92, 255, 0.28);
+  background: rgba(37, 99, 235, 0.28);
 }
 
 .current-brand-new:disabled {
@@ -3511,7 +3511,7 @@ select.input {
     border: 1px solid rgba(226, 232, 240, 0.95);
     border-radius: 20px;
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.12), transparent 36%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 36%),
       #ffffff;
     padding: 18px;
     box-shadow: 0 16px 36px rgba(15, 23, 42, 0.04);
@@ -3553,7 +3553,7 @@ select.input {
     padding: 24px;
     overflow: hidden;
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.13), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.13), transparent 34%),
       linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
 }
 
@@ -3564,7 +3564,7 @@ select.input {
     place-items: center;
     margin-bottom: 18px;
     border-radius: 18px;
-    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
     font-size: 22px;
     font-weight: 950;
@@ -3597,7 +3597,7 @@ select.input {
     place-items: center;
     border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 13px;
     font-weight: 950;
 }
@@ -3665,7 +3665,7 @@ select.input {
     white-space: nowrap;
     border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     padding: 8px 11px;
     font-size: 12px;
     font-weight: 950;
@@ -3681,7 +3681,7 @@ select.input {
 
 .brand-profile-form-section.market {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.08), transparent 32%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 32%),
       #ffffff;
 }
 
@@ -3764,7 +3764,7 @@ select.input {
     min-height: 52px;
     border: 0;
     border-radius: 15px;
-    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
     padding: 0 18px;
     font-size: 14px;
@@ -3847,9 +3847,9 @@ select.input {
     padding: 15px;
     border-radius: 16px;
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.12), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 34%),
       #f8f7ff;
-    border: 1px solid rgba(124, 58, 237, 0.16);
+    border: 1px solid rgba(37, 99, 235, 0.16);
     color: #111827;
 }
 
@@ -3873,8 +3873,8 @@ select.input {
   width: 34px;
     height: 34px;
     border-radius: 999px;
-    border: 3px solid rgba(124, 58, 237, 0.16);
-    border-top-color: #6d28d9;
+    border: 3px solid rgba(37, 99, 235, 0.16);
+    border-top-color: #1d4ed8;
     animation: brand-profile-spin 0.85s linear infinite;
 }
 
@@ -3918,7 +3918,7 @@ select.input {
     border: 1px solid rgba(226, 232, 240, 0.95);
     border-radius: 22px;
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.13), transparent 35%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.13), transparent 35%),
       #ffffff;
     padding: 20px;
     box-shadow: 0 16px 36px rgba(15, 23, 42, 0.04);
@@ -3989,7 +3989,7 @@ select.input {
     justify-content: center;
     min-height: 44px;
     border-radius: 13px;
-    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
     padding: 0 16px;
     font-size: 14px;
@@ -4009,7 +4009,7 @@ select.input {
     border: 1px solid rgba(226, 232, 240, 0.95);
     border-radius: 20px;
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.08), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 34%),
       #ffffff;
     padding: 20px;
     box-shadow: 0 16px 36px rgba(15, 23, 42, 0.035);
@@ -4076,7 +4076,7 @@ select.input {
   flex: 0 0 auto;
     border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     padding: 8px 11px;
     font-size: 12px;
     font-weight: 950;
@@ -4104,14 +4104,14 @@ select.input {
 
 .campaign-card:hover {
   transform: translateY(-1px);
-    border-color: rgba(124, 58, 237, 0.22);
+    border-color: rgba(37, 99, 235, 0.22);
     box-shadow: 0 12px 26px rgba(15, 23, 42, 0.035);
 }
 
 .campaign-card.active {
   border-color: rgba(109, 93, 252, 0.38);
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.09), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.09), transparent 34%),
       #fbfaff;
     box-shadow: 0 16px 34px rgba(79, 70, 229, 0.08);
 }
@@ -4127,7 +4127,7 @@ select.input {
 .campaign-card-top span {
   border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     padding: 6px 9px;
     font-size: 11px;
     font-weight: 950;
@@ -4205,7 +4205,7 @@ select.input {
   flex: 0 0 auto;
     border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     padding: 7px 10px;
     font-size: 11px;
     font-weight: 950;
@@ -4288,7 +4288,7 @@ select.input {
 .campaign-angle-list span {
   border-radius: 999px;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     padding: 7px 10px;
     font-size: 12px;
     font-weight: 900;
@@ -4316,7 +4316,7 @@ select.input {
     display: grid;
     place-items: center;
     border-radius: 999px;
-    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
     font-size: 12px;
     font-weight: 950;
@@ -4338,7 +4338,7 @@ select.input {
 }
 
 .campaign-post-plan small {
-  color: #5b21b6;
+  color: #1e40af;
     font-size: 11px;
     font-weight: 900;
 }
@@ -4348,7 +4348,7 @@ select.input {
     min-height: 48px;
     border: 0;
     border-radius: 14px;
-    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
     padding: 0 16px;
     font-size: 14px;
@@ -4418,9 +4418,9 @@ select.input {
     margin-bottom: 22px;
     padding: 22px;
     border-radius: 24px;
-    border: 1px solid rgba(124, 58, 237, 0.18);
+    border: 1px solid rgba(37, 99, 235, 0.18);
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.14), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.14), transparent 34%),
       #ffffff;
     box-shadow: 0 16px 40px rgba(15, 23, 42, 0.045);
 }
@@ -4446,7 +4446,7 @@ select.input {
     padding: 16px;
     border-radius: 18px;
     background: #f8f7ff;
-    border: 1px solid rgba(124, 58, 237, 0.14);
+    border: 1px solid rgba(37, 99, 235, 0.14);
 }
 
 .campaign-mode-meta strong {
@@ -4458,7 +4458,7 @@ select.input {
 }
 
 .campaign-mode-meta span {
-  color: #5b21b6;
+  color: #1e40af;
     font-size: 13px;
     font-weight: 950;
 }
@@ -4482,26 +4482,26 @@ select.input {
     padding: 11px 13px;
     border-radius: 14px;
     background: #f3f0ff;
-    color: #5b21b6;
-    border: 1px solid rgba(124, 58, 237, 0.16);
+    color: #1e40af;
+    border: 1px solid rgba(37, 99, 235, 0.16);
 }
 
 .planner-campaign-count-box strong {
-  color: #5b21b6;
+  color: #1e40af;
     font-size: 24px;
     font-weight: 950;
     line-height: 1;
 }
 
 .planner-campaign-count-box span {
-  color: #5b21b6;
+  color: #1e40af;
     font-size: 13px;
     font-weight: 900;
 }
 
 .locked-campaign-date {
   min-width: 170px;
-    border: 1px solid rgba(124, 58, 237, 0.16);
+    border: 1px solid rgba(37, 99, 235, 0.16);
     background: #f7f4ff;
     border-radius: 14px;
     padding: 8px 11px;
@@ -4518,7 +4518,7 @@ select.input {
 }
 
 .locked-campaign-date span {
-  color: #6d28d9;
+  color: #1d4ed8;
     font-size: 11px;
     font-weight: 800;
 }
@@ -4527,7 +4527,7 @@ select.input {
   margin-top: 5px;
     border: 0;
     background: transparent;
-    color: #6d28d9;
+    color: #1d4ed8;
     font-size: 11px;
     font-weight: 900;
     cursor: pointer;
@@ -4560,7 +4560,7 @@ select.input {
   display: grid;
     place-items: center;
     background: #f3f0ff;
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 18px;
     font-weight: 950;
 }
@@ -4580,7 +4580,7 @@ select.input {
     border-radius: 10px;
     border: 1px solid rgba(109, 93, 252, 0.28);
     background: #ffffff;
-    color: #5b21b6;
+    color: #1e40af;
     padding: 0 11px;
     font-size: 12px;
     font-weight: 950;
@@ -4744,7 +4744,7 @@ select.input {
 .planner-advanced-toggle {
   border: 1px solid rgba(109, 40, 217, 0.18);
     background: rgba(109, 40, 217, 0.06);
-    color: #5b21b6;
+    color: #1e40af;
     border-radius: 999px;
     padding: 10px 18px;
     font-size: 13px;
@@ -4767,7 +4767,7 @@ select.input {
     min-height: 58px;
     border: 0;
     border-radius: 18px;
-    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
     padding: 0 28px;
     font-size: 15px;
@@ -4787,8 +4787,8 @@ select.input {
 }
 
 .planner-post-row.type-problem_solution .planner-post-index {
-  background: #7c3aed;
-    box-shadow: 0 10px 20px rgba(124, 58, 237, 0.16);
+  background: #2563eb;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.16);
 }
 
 .planner-post-row.type-tips .planner-post-index {
@@ -4812,7 +4812,7 @@ select.input {
 }
 
 .planner-post-row.type-service_focus .planner-post-index {
-  background: #9333ea;
+  background: #2563eb;
     box-shadow: 0 10px 20px rgba(147, 51, 234, 0.16);
 }
 
@@ -4853,7 +4853,7 @@ select.input {
 
 .planner-post-row.type-manual_prompt .planner-post-index,
 .planner-post-row.type-custom .planner-post-index {
-  background: #6d28d9;
+  background: #1d4ed8;
     box-shadow: 0 10px 20px rgba(109, 40, 217, 0.16);
 }
 
@@ -4898,7 +4898,7 @@ select.input {
     padding: 12px 14px;
     border-radius: 14px;
     background: rgba(109, 40, 217, 0.06);
-    color: #5b21b6;
+    color: #1e40af;
     font-size: 13px;
     font-weight: 900;
 }
@@ -4972,7 +4972,7 @@ select.input {
 
 .spreelo-content {
   background:
-      radial-gradient(circle at 86% 4%, rgba(124, 58, 237, 0.09), transparent 30%),
+      radial-gradient(circle at 86% 4%, rgba(37, 99, 235, 0.09), transparent 30%),
       radial-gradient(circle at 14% 12%, rgba(236, 72, 153, 0.045), transparent 26%),
       linear-gradient(180deg, #fbfaff 0%, #f8fafc 48%, #fbfaf8 100%);
 }
@@ -5055,13 +5055,13 @@ select.input {
     width: 155px;
     height: 155px;
     border-radius: 999px;
-    background: rgba(124, 58, 237, 0.055);
+    background: rgba(37, 99, 235, 0.055);
     pointer-events: none;
 }
 
 .planner-setup-card:nth-child(1) {
   background:
-      radial-gradient(circle at 92% 82%, rgba(124, 58, 237, 0.10), transparent 32%),
+      radial-gradient(circle at 92% 82%, rgba(37, 99, 235, 0.10), transparent 32%),
       linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
 }
 
@@ -5084,7 +5084,7 @@ select.input {
 .setup-step-title > span {
   width: 38px;
     height: 38px;
-    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     font-size: 18px;
     box-shadow: 0 16px 30px rgba(79, 70, 229, 0.26);
 }
@@ -5129,7 +5129,7 @@ select.input {
 .custom-picker-button:hover,
 .planner-setting-field select:hover,
 .planner-save-input:hover {
-  border-color: rgba(124, 58, 237, 0.30);
+  border-color: rgba(37, 99, 235, 0.30);
 }
 
 .planner-select-control:focus,
@@ -5158,7 +5158,7 @@ select.input {
 .planner-segmented-buttons button.active {
   border-color: rgba(109, 40, 217, 0.68);
     background: linear-gradient(180deg, #f5f3ff 0%, #eee7ff 100%);
-    color: #5b21b6;
+    color: #1e40af;
     box-shadow:
       inset 0 0 0 1px rgba(109, 40, 217, 0.18),
       0 12px 26px rgba(109, 40, 217, 0.10);
@@ -5177,7 +5177,7 @@ select.input {
     border-radius: 22px;
     border-color: rgba(226, 232, 240, 0.96);
     background:
-      radial-gradient(circle at 50% 30%, rgba(124, 58, 237, 0.045), transparent 28%),
+      radial-gradient(circle at 50% 30%, rgba(37, 99, 235, 0.045), transparent 28%),
       #ffffff;
     transition:
       transform 0.18s ease,
@@ -5195,7 +5195,7 @@ select.input {
 .planner-mode-option.active {
   border-color: rgba(109, 40, 217, 0.72);
     background:
-      radial-gradient(circle at 50% 24%, rgba(124, 58, 237, 0.12), transparent 32%),
+      radial-gradient(circle at 50% 24%, rgba(37, 99, 235, 0.12), transparent 32%),
       linear-gradient(180deg, #ffffff 0%, #f7f4ff 100%);
     box-shadow:
       0 24px 58px rgba(79, 70, 229, 0.12),
@@ -5206,7 +5206,7 @@ select.input {
   width: 76px;
     height: 76px;
     background: linear-gradient(135deg, #f3f0ff, #eee7ff);
-    color: #6d28d9;
+    color: #1d4ed8;
 }
 
 .mode-big-icon.neutral {
@@ -5229,7 +5229,7 @@ select.input {
 }
 
 .planner-mode-option.active .mode-radio {
-  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
     border-color: transparent;
     box-shadow: 0 12px 24px rgba(79, 70, 229, 0.22);
 }
@@ -5275,7 +5275,7 @@ select.input {
 
 .add-plan-button,
 .planner-save-button {
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background: linear-gradient(135deg, #2563eb, #2563eb);
     color: #ffffff;
     box-shadow: 0 18px 36px rgba(79, 70, 229, 0.24);
 }
@@ -5317,7 +5317,7 @@ select.input {
 
 .planner-save-card {
   background:
-      radial-gradient(circle at 82% 50%, rgba(124, 58, 237, 0.08), transparent 28%),
+      radial-gradient(circle at 82% 50%, rgba(37, 99, 235, 0.08), transparent 28%),
       #ffffff;
 }
 
@@ -5328,7 +5328,7 @@ select.input {
 
 .planner-summary-card {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.09), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.09), transparent 34%),
       linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
 }
 
@@ -5337,18 +5337,18 @@ select.input {
 }
 
 .planner-credit-progress div {
-  background: linear-gradient(90deg, #7c3aed, #4f46e5, #8b5cf6);
+  background: linear-gradient(90deg, #2563eb, #2563eb, #60a5fa);
 }
 
 .campaign-mode-banner {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.13), transparent 35%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.13), transparent 35%),
       linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
 }
 
 .planner-manual-intro-card {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.10), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.10), transparent 34%),
       #ffffff;
 }
 
@@ -5366,7 +5366,7 @@ select.input {
   padding: 22px;
     border-radius: 28px;
     background:
-      radial-gradient(circle at 96% 8%, rgba(124, 58, 237, 0.055), transparent 30%),
+      radial-gradient(circle at 96% 8%, rgba(37, 99, 235, 0.055), transparent 30%),
       rgba(255, 255, 255, 0.94);
 }
 
@@ -5382,8 +5382,8 @@ select.input {
 
 .planner-schedule-header span {
   background: linear-gradient(180deg, #f5f3ff 0%, #eee7ff 100%);
-    color: #5b21b6;
-    border: 1px solid rgba(124, 58, 237, 0.10);
+    color: #1e40af;
+    border: 1px solid rgba(37, 99, 235, 0.10);
 }
 
 .planner-post-table {
@@ -5398,14 +5398,14 @@ select.input {
 }
 
 .planner-post-row:hover {
-  border-color: rgba(124, 58, 237, 0.22);
+  border-color: rgba(37, 99, 235, 0.22);
     box-shadow: 0 18px 38px rgba(15, 23, 42, 0.055);
     transform: translateY(-1px);
 }
 
 .planner-post-row.expanded {
   background:
-      radial-gradient(circle at 95% 24%, rgba(124, 58, 237, 0.06), transparent 26%),
+      radial-gradient(circle at 95% 24%, rgba(37, 99, 235, 0.06), transparent 26%),
       linear-gradient(180deg, #ffffff 0%, #fffaf5 100%);
     border-color: rgba(251, 146, 60, 0.24);
 }
@@ -5427,7 +5427,7 @@ select.input {
 }
 
 .planner-post-row:nth-child(1) .planner-post-index {
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background: linear-gradient(135deg, #2563eb, #2563eb);
 }
 
 .planner-post-row:nth-child(2) .planner-post-index {
@@ -5456,7 +5456,7 @@ select.input {
 }
 
 .planner-post-row:nth-child(7) .planner-post-index {
-  background: linear-gradient(135deg, #9333ea, #7c3aed);
+  background: linear-gradient(135deg, #2563eb, #2563eb);
     box-shadow: 0 14px 28px rgba(147, 51, 234, 0.18);
 }
 
@@ -5466,7 +5466,7 @@ select.input {
 
 .planner-post-row.type-manual_prompt .planner-post-index,
 .planner-post-row.type-custom .planner-post-index {
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background: linear-gradient(135deg, #2563eb, #2563eb);
 }
 
 .planner-post-title strong {
@@ -5509,7 +5509,7 @@ select.input {
 
 .planner-post-format span {
   background: #ffffff;
-    color: #6d28d9;
+    color: #1d4ed8;
 }
 
 .planner-post-row.type-website_item .planner-post-format,
@@ -5542,7 +5542,7 @@ select.input {
 
 .planner-post-actions button:first-child:hover {
   background: #f5f3ff;
-    color: #5b21b6;
+    color: #1e40af;
     border-color: rgba(109, 40, 217, 0.28);
 }
 
@@ -5555,7 +5555,7 @@ select.input {
     padding: 18px;
     border-radius: 20px;
     background:
-      radial-gradient(circle at 94% 24%, rgba(124, 58, 237, 0.07), transparent 28%),
+      radial-gradient(circle at 94% 24%, rgba(37, 99, 235, 0.07), transparent 28%),
       linear-gradient(180deg, #fffaf5 0%, #ffffff 100%);
     border: 1px solid rgba(251, 191, 36, 0.20);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -5593,8 +5593,8 @@ select.input {
 
 .planner-post-options > span {
   background: linear-gradient(180deg, #f5f3ff 0%, #eee7ff 100%);
-    color: #5b21b6;
-    border: 1px solid rgba(124, 58, 237, 0.12);
+    color: #1e40af;
+    border: 1px solid rgba(37, 99, 235, 0.12);
 }
 
 .planner-add-post-bottom {
@@ -5604,7 +5604,7 @@ select.input {
   border-radius: 999px !important;
   border: 1px dashed rgba(109, 40, 217, 0.22) !important;
   background: transparent !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
   box-shadow: none !important;
   font-size: 12px !important;
   font-weight: 850 !important;
@@ -5613,7 +5613,7 @@ select.input {
 .planner-add-post-bottom:hover {
   background: #f7f4ff !important;
   border-color: rgba(109, 40, 217, 0.34) !important;
-  color: #5b21b6 !important;
+  color: #1e40af !important;
   box-shadow: none !important;
   transform: none !important;
 }
@@ -5621,7 +5621,7 @@ select.input {
 .locked-campaign-date {
   border-radius: 15px;
     background: linear-gradient(180deg, #f7f4ff 0%, #ffffff 100%);
-    border-color: rgba(124, 58, 237, 0.18);
+    border-color: rgba(37, 99, 235, 0.18);
 }
 
 .locked-campaign-date strong {
@@ -5630,7 +5630,7 @@ select.input {
 
 .locked-campaign-date span,
 .unlock-campaign-date-button {
-  color: #6d28d9;
+  color: #1d4ed8;
 }
 
 .custom-calendar-popover,
@@ -5680,7 +5680,7 @@ select.input {
 .spreelo-content,
 .content {
   background:
-      radial-gradient(circle at 88% 4%, rgba(124, 58, 237, 0.085), transparent 30%),
+      radial-gradient(circle at 88% 4%, rgba(37, 99, 235, 0.085), transparent 30%),
       radial-gradient(circle at 8% 14%, rgba(236, 72, 153, 0.045), transparent 28%),
       linear-gradient(180deg, #fbfaff 0%, #f8fafc 46%, #fbfaf8 100%);
 }
@@ -5728,7 +5728,7 @@ select.input {
 .planner-section-heading > span,
 .dashboard-card-header p,
 .saved-header p {
-  color: #5b21b6;
+  color: #1e40af;
 }
 
 .dashboard-card,
@@ -5789,7 +5789,7 @@ select.input {
 .planner-settings-card,
 .planner-summary-card {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.055), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.055), transparent 34%),
       rgba(255, 255, 255, 0.94);
 }
 
@@ -5826,7 +5826,7 @@ select.input {
 .campaign-calendar-stat-grid > div {
   min-height: 142px;
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.09), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.09), transparent 34%),
       linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
 }
 
@@ -5856,7 +5856,7 @@ select.input {
 .brand-profile-guide-card,
 .campaign-calendar-hero-card {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.11), transparent 35%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.11), transparent 35%),
       linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
 }
 
@@ -5874,7 +5874,7 @@ select.input {
 .planner-sidebar-title span,
 .brand-profile-step-list span {
   background: linear-gradient(135deg, #f5f3ff, #eef2ff);
-    color: #5b21b6;
+    color: #1e40af;
 }
 
 .dashboard-primary-action,
@@ -5885,7 +5885,7 @@ select.input {
 .add-plan-button,
 .planner-create-another-button {
   border: 0;
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    background: linear-gradient(135deg, #2563eb, #2563eb);
     color: #ffffff;
     box-shadow: 0 18px 36px rgba(79, 70, 229, 0.24);
     transition:
@@ -5946,7 +5946,7 @@ select.input {
 .tiny-button:hover {
   background: #fbfaff;
     border-color: rgba(109, 40, 217, 0.24);
-    color: #5b21b6;
+    color: #1e40af;
     transform: translateY(-1px);
 }
 
@@ -5992,9 +5992,9 @@ textarea.input:focus,
 .planner-schedule-header span,
 .planner-post-options > span,
 .status-pill {
-  border: 1px solid rgba(124, 58, 237, 0.10);
+  border: 1px solid rgba(37, 99, 235, 0.10);
     background: linear-gradient(180deg, #f5f3ff 0%, #eee7ff 100%);
-    color: #5b21b6;
+    color: #1e40af;
 }
 
 .dashboard-upcoming-item,
@@ -6018,16 +6018,16 @@ textarea.input:focus,
 
 .dashboard-pending-placeholder {
   background: linear-gradient(135deg, #f5f3ff, #eef2ff);
-    color: #5b21b6;
+    color: #1e40af;
 }
 
 .brand-profile-guide-icon {
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background: linear-gradient(135deg, #2563eb, #2563eb);
 }
 
 .brand-profile-form-section.market {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.075), transparent 32%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.075), transparent 32%),
       rgba(255, 255, 255, 0.94);
 }
 
@@ -6040,7 +6040,7 @@ textarea.input:focus,
 .campaign-card.active {
   border-color: rgba(109, 40, 217, 0.42);
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.10), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.10), transparent 34%),
       #fbfaff;
 }
 
@@ -6087,13 +6087,13 @@ textarea.input:focus,
 
 .spreelo-sidebar {
   background:
-      radial-gradient(circle at 20% 0%, rgba(124, 58, 237, 0.38), transparent 30%),
+      radial-gradient(circle at 20% 0%, rgba(37, 99, 235, 0.38), transparent 30%),
       radial-gradient(circle at 80% 26%, rgba(79, 70, 229, 0.16), transparent 25%),
       linear-gradient(180deg, #110c2d 0%, #0b1024 54%, #070b18 100%);
 }
 
 .spreelo-nav a.active {
-  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
     box-shadow: 0 16px 34px rgba(79, 70, 229, 0.32);
 }
 
@@ -6105,7 +6105,7 @@ textarea.input:focus,
 
 .login-page {
   background:
-      radial-gradient(circle at 86% 4%, rgba(124, 58, 237, 0.10), transparent 30%),
+      radial-gradient(circle at 86% 4%, rgba(37, 99, 235, 0.10), transparent 30%),
       radial-gradient(circle at 10% 16%, rgba(236, 72, 153, 0.05), transparent 28%),
       linear-gradient(180deg, #fbfaff 0%, #f8fafc 52%, #fbfaf8 100%);
 }
@@ -6160,7 +6160,7 @@ body {
 .spreelo-shell,
 .app-shell {
   background:
-      radial-gradient(circle at 78% 0%, rgba(124, 58, 237, 0.10), transparent 32%),
+      radial-gradient(circle at 78% 0%, rgba(37, 99, 235, 0.10), transparent 32%),
       radial-gradient(circle at 8% 12%, rgba(236, 72, 153, 0.045), transparent 28%),
       linear-gradient(180deg, #fbfaff 0%, #f8fafc 52%, #fbfaf8 100%);
 }
@@ -6168,7 +6168,7 @@ body {
 .spreelo-content,
 .content {
   background:
-      radial-gradient(circle at 84% 2%, rgba(124, 58, 237, 0.10), transparent 32%),
+      radial-gradient(circle at 84% 2%, rgba(37, 99, 235, 0.10), transparent 32%),
       radial-gradient(circle at 8% 16%, rgba(236, 72, 153, 0.045), transparent 28%),
       linear-gradient(180deg, #fbfaff 0%, #f8fafc 52%, #fbfaf8 100%);
     padding: 34px 38px 46px;
@@ -6182,7 +6182,7 @@ body {
     min-height: 100vh;
     padding: 28px 20px;
     background:
-      radial-gradient(circle at 20% 0%, rgba(124, 58, 237, 0.11), transparent 34%),
+      radial-gradient(circle at 20% 0%, rgba(37, 99, 235, 0.11), transparent 34%),
       linear-gradient(180deg, #ffffff 0%, #fbfaff 42%, #f8fafc 100%);
     color: #111827;
     border-right: 1px solid rgba(226, 232, 240, 0.92);
@@ -6205,9 +6205,9 @@ body {
     border-radius: 16px;
     background:
       radial-gradient(circle at 28% 20%, rgba(255, 255, 255, 0.60), transparent 24%),
-      linear-gradient(135deg, #ff4fa3 0%, #7c3aed 48%, #3b82f6 100%);
+      linear-gradient(135deg, #ff4fa3 0%, #2563eb 48%, #3b82f6 100%);
     color: #ffffff;
-    box-shadow: 0 18px 34px rgba(124, 58, 237, 0.28);
+    box-shadow: 0 18px 34px rgba(37, 99, 235, 0.28);
 }
 
 .spreelo-brand h1,
@@ -6251,16 +6251,16 @@ body {
 }
 
 .current-brand-select:focus {
-  border-color: rgba(124, 58, 237, 0.62);
-    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.10);
+  border-color: rgba(37, 99, 235, 0.62);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10);
 }
 
 .current-brand-new {
   min-height: 40px;
     border-radius: 13px;
     background: linear-gradient(135deg, #f5f3ff, #eee7ff);
-    color: #5b21b6;
-    border: 1px solid rgba(124, 58, 237, 0.12);
+    color: #1e40af;
+    border: 1px solid rgba(37, 99, 235, 0.12);
     font-weight: 950;
 }
 
@@ -6295,14 +6295,14 @@ body {
 .spreelo-nav a:hover,
 .nav a:hover {
   background: #ffffff;
-    color: #5b21b6;
+    color: #1e40af;
     box-shadow: 0 14px 30px rgba(15, 23, 42, 0.055);
     transform: translateY(-1px);
 }
 
 .spreelo-nav a.active,
 .nav a.active {
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background: linear-gradient(135deg, #2563eb, #2563eb);
     color: #ffffff;
     box-shadow: 0 18px 36px rgba(79, 70, 229, 0.28);
 }
@@ -6321,14 +6321,14 @@ body {
     padding: 15px;
     border-radius: 18px;
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.10), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.10), transparent 34%),
       #ffffff;
     border: 1px solid rgba(226, 232, 240, 0.96);
     box-shadow: 0 18px 42px rgba(15, 23, 42, 0.055);
 }
 
 .sidebar-plan-icon {
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background: linear-gradient(135deg, #2563eb, #2563eb);
     color: #ffffff;
 }
 
@@ -6341,7 +6341,7 @@ body {
 }
 
 .sidebar-plan-arrow {
-  color: #7c3aed !important;
+  color: #2563eb !important;
 }
 
 .sidebar-user-email,
@@ -6362,7 +6362,7 @@ body {
 .spreelo-sidebar-footer button:hover,
 .sidebar-footer button:hover {
   background: #f8fafc;
-    color: #5b21b6;
+    color: #1e40af;
 }
 
 .dashboard-hero,
@@ -6376,7 +6376,7 @@ body {
 .danger-eyebrow,
 .saved-header p,
 .dashboard-card-header p {
-  color: #6d28d9;
+  color: #1d4ed8;
     font-size: 12px;
     font-weight: 950;
     letter-spacing: 0.14em;
@@ -6428,7 +6428,7 @@ body {
   border: 1px solid rgba(226, 232, 240, 0.96);
     border-radius: 28px;
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.055), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.055), transparent 34%),
       rgba(255, 255, 255, 0.94);
     box-shadow:
       0 28px 78px rgba(15, 23, 42, 0.060),
@@ -6453,7 +6453,7 @@ body {
 .saved-rule-card:hover,
 .campaign-card:hover,
 .planner-post-row:hover {
-  border-color: rgba(124, 58, 237, 0.24);
+  border-color: rgba(37, 99, 235, 0.24);
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.060);
     transform: translateY(-1px);
 }
@@ -6468,7 +6468,7 @@ body {
 .primary-button {
   border: 0;
     border-radius: 15px;
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    background: linear-gradient(135deg, #2563eb, #2563eb);
     color: #ffffff;
     box-shadow: 0 20px 38px rgba(79, 70, 229, 0.26);
     font-weight: 950;
@@ -6526,8 +6526,8 @@ body {
 .tiny-button:hover,
 .learn-more-button:hover {
   background: #fbfaff;
-    border-color: rgba(124, 58, 237, 0.25);
-    color: #5b21b6;
+    border-color: rgba(37, 99, 235, 0.25);
+    color: #1e40af;
     transform: translateY(-1px);
 }
 
@@ -6556,7 +6556,7 @@ textarea.input,
 textarea.input:hover,
 .prompt-textarea:hover,
 .large-textarea:hover {
-  border-color: rgba(124, 58, 237, 0.28);
+  border-color: rgba(37, 99, 235, 0.28);
 }
 
 .input:focus,
@@ -6569,8 +6569,8 @@ textarea.input:focus,
 .prompt-textarea:focus,
 .large-textarea:focus {
   outline: none;
-    border-color: rgba(124, 58, 237, 0.68);
-    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.10);
+    border-color: rgba(37, 99, 235, 0.68);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10);
 }
 
 .dashboard-card-header a,
@@ -6587,10 +6587,10 @@ textarea.input:focus,
 .planner-post-options > span,
 .status-pill,
 .planner-summary-status > span {
-  border: 1px solid rgba(124, 58, 237, 0.12);
+  border: 1px solid rgba(37, 99, 235, 0.12);
     border-radius: 999px;
     background: linear-gradient(180deg, #f5f3ff 0%, #eee7ff 100%);
-    color: #5b21b6;
+    color: #1e40af;
 }
 
 .dashboard-stat-grid {
@@ -6637,13 +6637,13 @@ textarea.input:focus,
 }
 
 .campaign-card.active {
-  border-color: rgba(124, 58, 237, 0.45);
+  border-color: rgba(37, 99, 235, 0.45);
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.13), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.13), transparent 34%),
       #fbfaff;
     box-shadow:
       0 24px 58px rgba(79, 70, 229, 0.10),
-      inset 0 0 0 1px rgba(124, 58, 237, 0.10);
+      inset 0 0 0 1px rgba(37, 99, 235, 0.10);
 }
 
 .campaign-card h4 {
@@ -6660,7 +6660,7 @@ textarea.input:focus,
 }
 
 .brand-profile-guide-icon {
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background: linear-gradient(135deg, #2563eb, #2563eb);
     color: #ffffff;
 }
 
@@ -6674,7 +6674,7 @@ textarea.input:focus,
 
 .brand-profile-form-section.market {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.07), transparent 32%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.07), transparent 32%),
       #ffffff;
 }
 
@@ -6714,18 +6714,18 @@ textarea.input:focus,
 .brand-profile-hero-badge,
 .campaign-calendar-hero-card {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.14), transparent 35%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.14), transparent 35%),
       linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
 }
 
 .dashboard-credit-bar div,
 .planner-credit-progress div {
-  background: linear-gradient(90deg, #7c3aed, #4f46e5, #8b5cf6);
+  background: linear-gradient(90deg, #2563eb, #2563eb, #60a5fa);
 }
 
 .login-page {
   background:
-      radial-gradient(circle at 84% 4%, rgba(124, 58, 237, 0.12), transparent 30%),
+      radial-gradient(circle at 84% 4%, rgba(37, 99, 235, 0.12), transparent 30%),
       radial-gradient(circle at 12% 16%, rgba(236, 72, 153, 0.06), transparent 28%),
       linear-gradient(180deg, #fbfaff 0%, #f8fafc 52%, #fbfaf8 100%);
 }
@@ -6831,9 +6831,9 @@ textarea.input:focus,
     border-radius: 13px !important;
     background:
       radial-gradient(circle at 30% 20%, rgba(255,255,255,.75), transparent 24%),
-      linear-gradient(135deg, #ff4f9f 0%, #8b5cf6 48%, #3b82f6 100%) !important;
+      linear-gradient(135deg, #ff4f9f 0%, #60a5fa 48%, #3b82f6 100%) !important;
     color: #ffffff !important;
-    box-shadow: 0 12px 26px rgba(124, 58, 237, 0.28) !important;
+    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.28) !important;
 }
 
 .spreelo-brand h1,
@@ -6892,7 +6892,7 @@ textarea.input:focus,
 
 .current-brand-new:hover {
   background: #f7f4ff !important;
-    color: #6d28d9 !important;
+    color: #1d4ed8 !important;
 }
 
 .spreelo-nav,
@@ -6916,7 +6916,7 @@ textarea.input:focus,
 .spreelo-nav a:hover,
 .nav a:hover {
   background: #f7f4ff !important;
-    color: #6d28d9 !important;
+    color: #1d4ed8 !important;
     transform: none !important;
     box-shadow: none !important;
 }
@@ -6924,9 +6924,9 @@ textarea.input:focus,
 .spreelo-nav a.active,
 .nav a.active {
   background: #ffffff !important;
-    color: #6d28d9 !important;
+    color: #1d4ed8 !important;
     border: 1px solid #a78bfa !important;
-    box-shadow: 0 10px 24px rgba(124, 58, 237, 0.10) !important;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.10) !important;
 }
 
 .sidebar-plan-card {
@@ -6938,7 +6938,7 @@ textarea.input:focus,
 }
 
 .sidebar-plan-card strong {
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
     font-size: 22px !important;
 }
 
@@ -7070,7 +7070,7 @@ textarea.input:focus,
 }
 
 .planner-setup-card:nth-child(1) .setup-step-title > span {
-  background: #6d28d9 !important;
+  background: #1d4ed8 !important;
 }
 
 .planner-setup-card:nth-child(2) .setup-step-title > span {
@@ -7123,8 +7123,8 @@ textarea.input:focus,
 
 .planner-segmented-buttons button.active {
   background: #f5f0ff !important;
-    border-color: #8b5cf6 !important;
-    color: #6d28d9 !important;
+    border-color: #60a5fa !important;
+    color: #1d4ed8 !important;
 }
 
 .planner-mode-card {
@@ -7146,7 +7146,7 @@ textarea.input:focus,
 }
 
 .planner-mode-option.active {
-  border: 2px solid #8b5cf6 !important;
+  border: 2px solid #60a5fa !important;
     background: linear-gradient(180deg, #ffffff 0%, #fbf8ff 100%) !important;
     box-shadow: none !important;
 }
@@ -7157,7 +7157,7 @@ textarea.input:focus,
     margin: 14px auto 16px !important;
     border-radius: 999px !important;
     background: #f3f0ff !important;
-    color: #6d28d9 !important;
+    color: #1d4ed8 !important;
     font-size: 28px !important;
 }
 
@@ -7179,8 +7179,8 @@ textarea.input:focus,
 }
 
 .planner-mode-option.active .mode-radio {
-  background: #6d28d9 !important;
-    border-color: #6d28d9 !important;
+  background: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
 }
 
 .planner-schedule-card {
@@ -7200,7 +7200,7 @@ textarea.input:focus,
 
 .planner-schedule-header span {
   background: #f1eaff !important;
-    color: #6d28d9 !important;
+    color: #1d4ed8 !important;
     border: 0 !important;
 }
 
@@ -7248,7 +7248,7 @@ textarea.input:focus,
 }
 
 .planner-post-row:nth-child(1) .planner-post-index {
-  background: linear-gradient(135deg, #6d28d9, #4f46e5) !important;
+  background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
 }
 
 .planner-post-row:nth-child(2) .planner-post-index {
@@ -7304,7 +7304,7 @@ textarea.input:focus,
   margin-top: 16px !important;
     border-radius: 999px !important;
     background: #ffffff !important;
-    color: #6d28d9 !important;
+    color: #1d4ed8 !important;
     border: 1px solid #ddd2ff !important;
     box-shadow: none !important;
 }
@@ -7325,7 +7325,7 @@ textarea.input:focus,
 .planner-save-button {
   height: 54px !important;
     border-radius: 12px !important;
-    background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
+    background: linear-gradient(135deg, #2563eb, #2563eb) !important;
     box-shadow: 0 14px 28px rgba(79, 70, 229, 0.24) !important;
 }
 
@@ -7356,7 +7356,7 @@ textarea.input:focus,
 
 .planner-credit-progress div,
 .dashboard-credit-bar div {
-  background: linear-gradient(90deg, #7c3aed, #8b5cf6) !important;
+  background: linear-gradient(90deg, #2563eb, #60a5fa) !important;
 }
 
 .dashboard-stat-card {
@@ -7716,8 +7716,8 @@ textarea.input:focus,
     --sp-muted: #667085;
     --sp-muted-light: #94a3b8;
 
-    --sp-primary: #7c3aed;
-    --sp-primary-dark: #5b21b6;
+    --sp-primary: #2563eb;
+    --sp-primary-dark: #1e40af;
     --sp-primary-soft: #f3edff;
     --sp-primary-soft-2: #faf7ff;
     --sp-primary-border: #c4b5fd;
@@ -7811,7 +7811,7 @@ small,
 .primary-button {
   background: linear-gradient(135deg, var(--sp-primary), var(--sp-primary-dark)) !important;
     color: #ffffff !important;
-    box-shadow: 0 16px 34px rgba(124, 58, 237, 0.20) !important;
+    box-shadow: 0 16px 34px rgba(37, 99, 235, 0.20) !important;
 }
 
 .dashboard-secondary-action,
@@ -7860,7 +7860,7 @@ textarea.input:focus,
 .prompt-textarea:focus,
 .large-textarea:focus {
   border-color: var(--sp-primary) !important;
-    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.10) !important;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10) !important;
 }
 
 .status-pill,
@@ -7873,16 +7873,16 @@ textarea.input:focus,
 .planner-summary-status,
 .planner-post-options > span {
   background: var(--sp-primary-soft) !important;
-    border-color: rgba(124, 58, 237, 0.14) !important;
+    border-color: rgba(37, 99, 235, 0.14) !important;
     color: var(--sp-primary-dark) !important;
 }
 
 .spreelo-nav a.active,
 .nav a.active {
   color: var(--sp-primary) !important;
-    border-color: rgba(124, 58, 237, 0.42) !important;
+    border-color: rgba(37, 99, 235, 0.42) !important;
     background: #ffffff !important;
-    box-shadow: 0 12px 30px rgba(124, 58, 237, 0.10) !important;
+    box-shadow: 0 12px 30px rgba(37, 99, 235, 0.10) !important;
 }
 
 .spreelo-nav a,
@@ -7896,13 +7896,13 @@ textarea.input:focus,
 .campaign-calendar-hero-card,
 .brand-profile-guide-card {
   background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.06), transparent 34%),
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.06), transparent 34%),
       var(--sp-surface) !important;
 }
 
 .planner-setup-card:nth-child(1) {
   background:
-      radial-gradient(circle at 92% 82%, rgba(124, 58, 237, 0.07), transparent 34%),
+      radial-gradient(circle at 92% 82%, rgba(37, 99, 235, 0.07), transparent 34%),
       #ffffff !important;
     border-color: rgba(196, 181, 253, 0.55) !important;
 }
@@ -7928,10 +7928,10 @@ textarea.input:focus,
 
 .planner-mode-option.active {
   background:
-      radial-gradient(circle at 50% 20%, rgba(124, 58, 237, 0.07), transparent 34%),
+      radial-gradient(circle at 50% 20%, rgba(37, 99, 235, 0.07), transparent 34%),
       #ffffff !important;
     border-color: var(--sp-primary) !important;
-    box-shadow: 0 16px 36px rgba(124, 58, 237, 0.10) !important;
+    box-shadow: 0 16px 36px rgba(37, 99, 235, 0.10) !important;
 }
 
 .planner-content-chip {
@@ -7947,7 +7947,7 @@ textarea.input:focus,
 
 .planner-credit-progress div,
 .dashboard-credit-bar div {
-  background: linear-gradient(90deg, var(--sp-primary), #8b5cf6) !important;
+  background: linear-gradient(90deg, var(--sp-primary), #60a5fa) !important;
 }
 
 .planner-credit-included,
@@ -8006,7 +8006,7 @@ textarea.input:focus,
     --sp-text-soft: #344054;
     --sp-muted: #667085;
 
-    --sp-primary: #6d28d9;
+    --sp-primary: #1d4ed8;
     --sp-primary-dark: #4c1d95;
     --sp-primary-soft: #f3efff;
     --sp-primary-border: #d8c9ff;
@@ -8374,7 +8374,7 @@ textarea.input:focus,
 .onboarding-checkbox input {
   width: 16px !important;
     height: 16px !important;
-    accent-color: #7c3aed !important;
+    accent-color: #2563eb !important;
 }
 
 .login-form textarea.input {
@@ -8594,15 +8594,15 @@ textarea.input:focus,
 .spreelo-nav a:hover,
 .nav.spreelo-nav a:hover {
   background: #f7f3ff !important;
-    color: #6d28d9 !important;
+    color: #1d4ed8 !important;
 }
 
 .spreelo-nav a.active,
 .nav.spreelo-nav a.active {
   background: #f4efff !important;
-    color: #6d28d9 !important;
+    color: #1d4ed8 !important;
     border: 1px solid #e3d6ff !important;
-    box-shadow: 0 14px 30px rgba(124, 58, 237, 0.08) !important;
+    box-shadow: 0 14px 30px rgba(37, 99, 235, 0.08) !important;
 }
 
 .sidebar-menu-icon {
@@ -8639,7 +8639,7 @@ textarea.input:focus,
     height: 40px !important;
     border-radius: 13px !important;
     background: #efe7ff !important;
-    color: #6d28d9 !important;
+    color: #1d4ed8 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -8649,7 +8649,7 @@ textarea.input:focus,
 .sidebar-plan-card strong {
   display: block !important;
     margin: 0 0 3px !important;
-    color: #6d28d9 !important;
+    color: #1d4ed8 !important;
     font-size: 18px !important;
     line-height: 1.15 !important;
     font-weight: 800 !important;
@@ -8912,7 +8912,7 @@ textarea.input:focus,
 
 .campaign-mode-meta strong:last-child {
   margin-bottom: 0 !important;
-  color: #5b21b6 !important;
+  color: #1e40af !important;
 }
 /* ===== Campaign calendar recommended post plan note ===== */
 
@@ -8958,7 +8958,7 @@ textarea.input:focus,
 
 .learn-more-modal-header p {
   margin: 0 0 6px !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
   font-size: 11px !important;
   font-weight: 950 !important;
   letter-spacing: 0.1em !important;
@@ -9020,7 +9020,7 @@ textarea.input:focus,
   place-items: center !important;
   border-radius: 999px !important;
   background: #f3f0ff !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
   font-size: 13px !important;
   font-weight: 950 !important;
   grid-row: span 2 !important;
@@ -9120,7 +9120,7 @@ textarea.input:focus,
   border-radius: 12px !important;
   background: #f5f3ff !important;
   border: 1px solid rgba(109, 40, 217, 0.14) !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
   font-size: 12px !important;
   font-weight: 850 !important;
   letter-spacing: -0.01em !important;
@@ -9128,9 +9128,9 @@ textarea.input:focus,
 }
 
 .current-brand-new:hover {
-  background: #ede9fe !important;
+  background: #dbeafe !important;
   border-color: rgba(109, 40, 217, 0.24) !important;
-  color: #5b21b6 !important;
+  color: #1e40af !important;
 }
 
 .spreelo-nav {
@@ -9182,9 +9182,9 @@ textarea.input:focus,
 }
 
 .onboarding-logout-button {
-  border: 1px solid rgba(124, 58, 237, 0.16);
-  background: rgba(124, 58, 237, 0.06);
-  color: #5b21b6;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  background: rgba(37, 99, 235, 0.06);
+  color: #1e40af;
   border-radius: 999px;
   padding: 8px 14px;
   font-size: 13px;
@@ -9194,7 +9194,7 @@ textarea.input:focus,
 }
 
 .onboarding-logout-button:hover:not(:disabled) {
-  background: rgba(124, 58, 237, 0.1);
+  background: rgba(37, 99, 235, 0.1);
   transform: translateY(-1px);
   box-shadow: 0 10px 24px rgba(91, 33, 182, 0.12);
 }
@@ -9213,7 +9213,7 @@ textarea.input:focus,
 .login-text-button {
   border: 0;
   background: transparent;
-  color: #6d28d9;
+  color: #1d4ed8;
   font-weight: 800;
   cursor: pointer;
   padding: 4px 8px;
@@ -9311,7 +9311,7 @@ textarea.input:focus,
   padding: 0 18px;
   border: 0;
   border-radius: 13px;
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background: linear-gradient(135deg, #2563eb, #2563eb);
   color: #ffffff;
   font-size: 14px;
   font-weight: 950;
@@ -9705,8 +9705,8 @@ textarea.input:focus,
     height: 28px !important;
     border-radius: 999px !important;
     background: #ffffff !important;
-    color: #6d28d9 !important;
-    border: 1px solid rgba(124, 58, 237, 0.22) !important;
+    color: #1d4ed8 !important;
+    border: 1px solid rgba(37, 99, 235, 0.22) !important;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05) !important;
     font-size: 13px !important;
     font-weight: 950 !important;
@@ -9720,8 +9720,8 @@ textarea.input:focus,
   .automation-page .planner-post-row:nth-child(6) .planner-post-index,
   .automation-page .planner-post-row:nth-child(7) .planner-post-index {
     background: #ffffff !important;
-    color: #6d28d9 !important;
-    border-color: rgba(124, 58, 237, 0.22) !important;
+    color: #1d4ed8 !important;
+    border-color: rgba(37, 99, 235, 0.22) !important;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05) !important;
   }
 }
@@ -9758,7 +9758,7 @@ textarea.input:focus,
   min-height: 38px;
   padding: 0 14px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  background: linear-gradient(135deg, #2563eb, #1e40af);
   color: #ffffff;
   text-decoration: none;
   font-weight: 800;
@@ -9792,8 +9792,8 @@ textarea.input:focus,
   margin-top: 4px;
   padding: 0 16px;
   border-radius: 13px;
-  border: 1px solid rgba(124, 58, 237, 0.22);
-  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  background: linear-gradient(135deg, #2563eb, #1e40af);
   color: #ffffff;
   text-decoration: none;
   font-size: 13px;
@@ -9822,11 +9822,11 @@ textarea.input:focus,
   height: 42px !important;
   border-radius: 999px !important;
   background: #ffffff !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
   border: 2px solid rgba(109, 40, 217, 0.24) !important;
   box-shadow:
     0 10px 22px rgba(15, 23, 42, 0.055),
-    inset 0 0 0 6px rgba(124, 58, 237, 0.045) !important;
+    inset 0 0 0 6px rgba(37, 99, 235, 0.045) !important;
   font-size: 16px !important;
   font-weight: 950 !important;
 }
@@ -9855,11 +9855,11 @@ textarea.input:focus,
 .planner-post-row.type-manual_prompt .planner-post-index,
 .planner-post-row.type-custom .planner-post-index {
   background: #ffffff !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
   border: 2px solid rgba(109, 40, 217, 0.24) !important;
   box-shadow:
     0 10px 22px rgba(15, 23, 42, 0.055),
-    inset 0 0 0 6px rgba(124, 58, 237, 0.045) !important;
+    inset 0 0 0 6px rgba(37, 99, 235, 0.045) !important;
 }
 
 .planner-post-format {
@@ -9898,7 +9898,7 @@ textarea.input:focus,
 
 .planner-post-actions button:not(:first-child):hover {
   background: #f8fafc !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
 }
 
 .planner-post-delete-button:hover {
@@ -9919,7 +9919,7 @@ textarea.input:focus,
     font-size: 14px !important;
     box-shadow:
       0 8px 18px rgba(15, 23, 42, 0.05),
-      inset 0 0 0 5px rgba(124, 58, 237, 0.045) !important;
+      inset 0 0 0 5px rgba(37, 99, 235, 0.045) !important;
   }
 
   .planner-post-date,
@@ -10755,9 +10755,9 @@ textarea.input:focus,
   padding: 18px !important;
   border-radius: 20px !important;
   background:
-    radial-gradient(circle at top right, rgba(124, 58, 237, 0.1), transparent 34%),
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.1), transparent 34%),
     #ffffff !important;
-  border: 1px solid rgba(124, 58, 237, 0.16) !important;
+  border: 1px solid rgba(37, 99, 235, 0.16) !important;
   box-shadow: 0 18px 44px rgba(15, 23, 42, 0.055) !important;
 }
 
@@ -10790,7 +10790,7 @@ textarea.input:focus,
   flex: 0 0 auto !important;
   min-width: 54px !important;
   text-align: right !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
   font-size: 22px !important;
   line-height: 1 !important;
   font-weight: 950 !important;
@@ -10808,7 +10808,7 @@ textarea.input:focus,
 .brand-profile-progress-fill {
   height: 100% !important;
   border-radius: inherit !important;
-  background: linear-gradient(90deg, #7c3aed, #4f46e5, #8b5cf6) !important;
+  background: linear-gradient(90deg, #2563eb, #2563eb, #60a5fa) !important;
   transition: width 0.9s ease !important;
 }
 
@@ -10878,7 +10878,7 @@ textarea.input:focus,
 
 .brand-profile-analysis-step.current span {
   background: #eee7ff !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
 }
 
 .brand-profile-analysis-step.current strong {
@@ -11376,10 +11376,10 @@ textarea.input:focus,
   overflow: hidden;
   min-height: 190px;
   padding: 42px 48px;
-  border: 1px solid rgba(124, 58, 237, 0.12);
+  border: 1px solid rgba(37, 99, 235, 0.12);
   background:
     radial-gradient(circle at 76% 42%, rgba(255, 180, 120, 0.34), transparent 19%),
-    radial-gradient(circle at 88% 32%, rgba(124, 58, 237, 0.20), transparent 22%),
+    radial-gradient(circle at 88% 32%, rgba(37, 99, 235, 0.20), transparent 22%),
     linear-gradient(135deg, #ffffff 0%, #fff8f0 45%, #f7f2ff 100%);
 }
 
@@ -11398,9 +11398,9 @@ textarea.input:focus,
   color: rgba(109, 40, 217, 0.62);
   background:
     linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.48)),
-    repeating-linear-gradient(90deg, rgba(124,58,237,0.18) 0 1px, transparent 1px 42px),
-    repeating-linear-gradient(0deg, rgba(124,58,237,0.16) 0 1px, transparent 1px 34px);
-  box-shadow: 0 24px 60px rgba(124, 58, 237, 0.16);
+    repeating-linear-gradient(90deg, rgba(37,99,235,0.18) 0 1px, transparent 1px 42px),
+    repeating-linear-gradient(0deg, rgba(37,99,235,0.16) 0 1px, transparent 1px 34px);
+  box-shadow: 0 24px 60px rgba(37, 99, 235, 0.16);
   transform: rotate(1deg);
 }
 
@@ -11513,8 +11513,8 @@ textarea.input:focus,
   display: grid;
   place-items: center;
   border-radius: 14px;
-  background: rgba(124, 58, 237, 0.11);
-  color: #6d28d9;
+  background: rgba(37, 99, 235, 0.11);
+  color: #1d4ed8;
   font-weight: 900;
 }
 
@@ -11574,7 +11574,7 @@ textarea.input:focus,
 .automation-page.planner-wizard-page {
   background:
     radial-gradient(circle at 76% 4%, rgba(236, 72, 153, 0.08), transparent 26%),
-    radial-gradient(circle at 15% 18%, rgba(124, 58, 237, 0.08), transparent 28%),
+    radial-gradient(circle at 15% 18%, rgba(37, 99, 235, 0.08), transparent 28%),
     #f7f8fc;
 }
 
@@ -11622,12 +11622,12 @@ textarea.input:focus,
   display: grid;
   place-items: center;
   font-size: 58px;
-  color: rgba(124, 58, 237, 0.68);
+  color: rgba(37, 99, 235, 0.68);
   background:
     linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.7)),
-    repeating-linear-gradient(90deg, transparent 0 34px, rgba(124,58,237,0.08) 35px 36px),
-    repeating-linear-gradient(0deg, transparent 0 27px, rgba(124,58,237,0.08) 28px 29px);
-  box-shadow: 0 22px 54px rgba(124, 58, 237, 0.18);
+    repeating-linear-gradient(90deg, transparent 0 34px, rgba(37,99,235,0.08) 35px 36px),
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(37,99,235,0.08) 28px 29px);
+  box-shadow: 0 22px 54px rgba(37, 99, 235, 0.18);
   opacity: 1;
 }
 
@@ -11675,8 +11675,8 @@ textarea.input:focus,
 .automation-page.planner-wizard-page .planner-section-heading > span,
 .automation-page.planner-wizard-page .planner-settings-card .planner-section-heading > span {
   background: #f7f2ff;
-  color: #6d28d9;
-  border-color: rgba(124, 58, 237, 0.2);
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.2);
 }
 
 .automation-page.planner-wizard-page .planner-settings-grid.simple {
@@ -11733,7 +11733,7 @@ textarea.input:focus,
   min-height: 62px;
   border-radius: 18px;
   font-size: 1.04rem;
-  background: linear-gradient(135deg, #8b5cf6, #5b21b6);
+  background: linear-gradient(135deg, #60a5fa, #1e40af);
 }
 
 .automation-page.planner-wizard-page .planner-save-card::after {
@@ -11763,7 +11763,7 @@ textarea.input:focus,
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
 }
 
-.automation-page.planner-wizard-page .planner-includes-chip.preview-product_focus span { background: #f3e8ff; }
+.automation-page.planner-wizard-page .planner-includes-chip.preview-product_focus span { background: #eff6ff; }
 .automation-page.planner-wizard-page .planner-includes-chip.preview-offers span { background: #ffe4ef; }
 .automation-page.planner-wizard-page .planner-includes-chip.preview-tips_advice span { background: #fff3d6; }
 .automation-page.planner-wizard-page .planner-includes-chip.preview-customer_inspiration span { background: #dcfce7; }
@@ -11803,8 +11803,8 @@ textarea.input:focus,
 
 .automation-page.planner-wizard-page .planner-post-format {
   background: #f8f5ff;
-  color: #5b21b6;
-  border: 1px solid rgba(124,58,237,0.16);
+  color: #1e40af;
+  border: 1px solid rgba(37,99,235,0.16);
   justify-content: center;
 }
 
@@ -11822,8 +11822,8 @@ textarea.input:focus,
 
 .automation-page.planner-wizard-page .planner-summary-title span {
   border-radius: 18px;
-  background: #f3e8ff;
-  color: #6d28d9;
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 .automation-page.planner-wizard-page .planner-summary-list.premium div {
@@ -11980,7 +11980,7 @@ textarea.input:focus,
   gap: 10px !important;
   border-radius: 24px !important;
   background: rgba(255,255,255,0.84) !important;
-  box-shadow: 0 26px 54px rgba(124, 58, 237, 0.16) !important;
+  box-shadow: 0 26px 54px rgba(37, 99, 235, 0.16) !important;
 }
 
 .automation-page.planner-wizard-page .planner-hero-calendar::before {
@@ -11996,10 +11996,10 @@ textarea.input:focus,
 
 .automation-page.planner-wizard-page .planner-hero-calendar span {
   border-radius: 8px !important;
-  background: rgba(124, 58, 237, 0.08) !important;
+  background: rgba(37, 99, 235, 0.08) !important;
   display: grid !important;
   place-items: center !important;
-  color: #7c3aed !important;
+  color: #2563eb !important;
   font-weight: 950 !important;
 }
 
@@ -12011,11 +12011,11 @@ textarea.input:focus,
   height: 126px !important;
   border-radius: 56% 56% 50% 50% !important;
   background: linear-gradient(180deg, #ffffff, #efe7ff) !important;
-  color: #8b5cf6 !important;
+  color: #60a5fa !important;
   display: grid !important;
   place-items: center !important;
   font-size: 38px !important;
-  box-shadow: 0 20px 44px rgba(124, 58, 237, 0.16) !important;
+  box-shadow: 0 20px 44px rgba(37, 99, 235, 0.16) !important;
 }
 
 .automation-page.planner-wizard-page .planner-hero-learn {
@@ -12050,7 +12050,7 @@ textarea.input:focus,
   height: 42px !important;
   flex: 0 0 auto !important;
   border-radius: 999px !important;
-  background: linear-gradient(135deg, #7c3aed, #5b21b6) !important;
+  background: linear-gradient(135deg, #2563eb, #1e40af) !important;
   color: #fff !important;
   display: grid !important;
   place-items: center !important;
@@ -12118,7 +12118,7 @@ textarea.input:focus,
   padding: 13px 14px !important;
   border-radius: 16px !important;
   background: #f5f0ff !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
   font-weight: 750 !important;
 }
 
@@ -12129,7 +12129,7 @@ textarea.input:focus,
 
 .automation-page.planner-wizard-page .planner-segmented-buttons button.active {
   color: #fff !important;
-  background: linear-gradient(135deg, #8b5cf6, #5b21b6) !important;
+  background: linear-gradient(135deg, #60a5fa, #1e40af) !important;
   border-color: transparent !important;
   box-shadow: 0 14px 28px rgba(91, 33, 182, 0.22) !important;
 }
@@ -12145,8 +12145,8 @@ textarea.input:focus,
   align-self: start !important;
   border-radius: 999px !important;
   background: #f8f5ff !important;
-  color: #6d28d9 !important;
-  border: 1px solid rgba(124, 58, 237, 0.16) !important;
+  color: #1d4ed8 !important;
+  border: 1px solid rgba(37, 99, 235, 0.16) !important;
   padding: 7px 12px !important;
   font-size: 0.78rem !important;
   font-weight: 900 !important;
@@ -12175,7 +12175,7 @@ textarea.input:focus,
   min-height: 48px !important;
   border-radius: 16px !important;
   border: 1px solid rgba(216, 180, 254, 0.65) !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
   background: #fff !important;
   font-weight: 850 !important;
 }
@@ -12285,15 +12285,15 @@ textarea.input:focus,
   height: 36px !important;
   border-radius: 999px !important;
   font-size: 1rem !important;
-  color: #7c3aed !important;
-  background: #f3e8ff !important;
-  border: 1px solid rgba(124,58,237,0.22) !important;
+  color: #2563eb !important;
+  background: #eff6ff !important;
+  border: 1px solid rgba(37,99,235,0.22) !important;
   box-shadow: none !important;
 }
 
 .automation-page.planner-wizard-page .planner-post-row:nth-child(n) .planner-post-index {
-  background: #f3e8ff !important;
-  color: #7c3aed !important;
+  background: #eff6ff !important;
+  color: #2563eb !important;
 }
 
 .automation-page.planner-wizard-page .planner-post-mainline {
@@ -12472,8 +12472,8 @@ textarea.input:focus,
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: #f3e8ff !important;
-  color: #6d28d9 !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
   font-weight: 900 !important;
   flex: 0 0 auto !important;
 }
@@ -12512,7 +12512,7 @@ textarea.input:focus,
 }
 
 .automation-page.planner-wizard-page .social-dot.facebook { background: #1877f2 !important; }
-.automation-page.planner-wizard-page .social-dot.instagram { background: linear-gradient(135deg, #f97316, #ec4899, #7c3aed) !important; }
+.automation-page.planner-wizard-page .social-dot.instagram { background: linear-gradient(135deg, #f97316, #ec4899, #2563eb) !important; }
 .automation-page.planner-wizard-page .social-dot.linkedin { background: #0a66c2 !important; }
 .automation-page.planner-wizard-page .social-dot.tiktok { background: #111827 !important; }
 
@@ -12537,7 +12537,7 @@ textarea.input:focus,
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: #f3e8ff !important;
+  background: #eff6ff !important;
   font-size: 1rem !important;
 }
 
@@ -12560,8 +12560,8 @@ textarea.input:focus,
 }
 
 .automation-page.planner-wizard-page .planner-summary-title span {
-  background: #f3e8ff !important;
-  color: #7c3aed !important;
+  background: #eff6ff !important;
+  color: #2563eb !important;
 }
 
 .automation-page.planner-wizard-page .planner-summary-list.premium {
@@ -12583,8 +12583,8 @@ textarea.input:focus,
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: #f3e8ff !important;
-  color: #6d28d9 !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
   font-weight: 950 !important;
 }
 
@@ -12898,7 +12898,7 @@ textarea.input:focus,
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: rgba(124, 58, 237, 0.1);
+  background: rgba(37, 99, 235, 0.1);
 }
 
 .planner-wizard-page .planner-includes-chip strong,
@@ -13272,7 +13272,7 @@ textarea.input:focus,
   width: 15px;
   height: 15px;
   margin: 0;
-  accent-color: #7c3aed;
+  accent-color: #2563eb;
 }
 
 .planner-wizard-page .planner-summary-card,
@@ -13945,7 +13945,7 @@ textarea.input:focus,
 /* Button color/text visibility */
 .planner-wizard-page .planner-save-button,
 .planner-wizard-page .planner-create-another-button {
-  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%) !important;
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
   color: #ffffff !important;
   text-shadow: none !important;
   font-weight: 760 !important;
@@ -14238,8 +14238,8 @@ textarea.input:focus,
   --spreelo-text-main: #263044;
   --spreelo-text-soft: #55657a;
   --spreelo-text-muted: #6b7a90;
-  --spreelo-purple-main: #6d28d9;
-  --spreelo-purple-deep: #5b21b6;
+  --spreelo-blue-main: #1d4ed8;
+  --spreelo-blue-deep: #1e40af;
 }
 
 /* Make the right column stable on desktop, but never let it become a skinny strip. */
@@ -14281,7 +14281,7 @@ textarea.input:focus,
 
 .spreelo-nav a.active,
 .nav.spreelo-nav a.active {
-  color: #5b21b6 !important;
+  color: #1e40af !important;
   font-weight: 620 !important;
 }
 
@@ -14429,10 +14429,10 @@ textarea.input:focus,
   flex-basis: 22px !important;
 }
 
-/* Primary buttons: keep the clean purple treatment and readable white text. */
+/* Primary buttons: keep the clean blue treatment and readable white text. */
 .automation-page.planner-wizard-page .planner-save-button,
 .automation-page.planner-wizard-page .planner-create-another-button {
-  background: linear-gradient(135deg, var(--spreelo-purple-main), var(--spreelo-purple-deep)) !important;
+  background: linear-gradient(135deg, var(--spreelo-blue-main), var(--spreelo-blue-deep)) !important;
   color: #ffffff !important;
   border: 0 !important;
   box-shadow: 0 16px 34px rgba(109, 40, 217, 0.28) !important;
@@ -15055,7 +15055,7 @@ textarea.input:focus,
   min-height: 48px !important;
   border: 0 !important;
   border-radius: 15px !important;
-  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%) !important;
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
   font-size: 14px !important;
@@ -15100,12 +15100,12 @@ textarea.input:focus,
   border-radius: 14px !important;
   align-items: center !important;
   justify-content: center !important;
-  background: #f3e8ff !important;
-  border: 1px solid rgba(124, 58, 237, 0.12) !important;
-  color: #6d28d9 !important;
+  background: #eff6ff !important;
+  border: 1px solid rgba(37, 99, 235, 0.12) !important;
+  color: #1d4ed8 !important;
   font-size: 1rem !important;
   line-height: 1 !important;
-  box-shadow: 0 10px 22px rgba(124, 58, 237, 0.06) !important;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.06) !important;
 }
 
 .automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(2) .setup-title-icon {
@@ -15132,7 +15132,7 @@ textarea.input:focus,
   padding: 12px 14px !important;
   border-radius: 16px !important;
   background: #f6f0ff !important;
-  color: #6d28d9 !important;
+  color: #1d4ed8 !important;
   font-size: 0.88rem !important;
   font-weight: 650 !important;
   line-height: 1.45 !important;
@@ -15395,7 +15395,7 @@ textarea.input:focus,
   accent-color: var(--spreelo-blue-main) !important;
 }
 
-/* Setup cards: blue/turquoise accents instead of pink/purple/orange */
+/* Setup cards: blue/turquoise accents instead of pink/blue/orange */
 .automation-page.planner-wizard-page .planner-setup-card:nth-child(1),
 .automation-page.planner-wizard-page .planner-setup-card:nth-child(2),
 .automation-page.planner-wizard-page .planner-setup-card:nth-child(3) {
@@ -15515,15 +15515,15 @@ textarea.input:focus,
   border-color: var(--spreelo-blue-main) !important;
 }
 
-/* === Step 78: final blue-theme cleanup across remaining purple/violet accents === */
+/* === Step 78: final blue-theme cleanup across remaining blue/blue accents === */
 :root {
   --sp-primary: #0f6fff !important;
   --sp-primary-dark: #064fd1 !important;
   --sp-primary-soft: #eaf3ff !important;
   --sp-primary-soft-2: #f4f9ff !important;
   --sp-primary-border: #bfdbfe !important;
-  --spreelo-purple-main: #0f6fff !important;
-  --spreelo-purple-deep: #064fd1 !important;
+  --spreelo-blue-main: #0f6fff !important;
+  --spreelo-blue-deep: #064fd1 !important;
   --spreelo-blue-main: #0f6fff !important;
   --spreelo-blue-deep: #064fd1 !important;
   --spreelo-blue-soft: #eaf3ff !important;
@@ -15531,7 +15531,7 @@ textarea.input:focus,
   --spreelo-blue-border: #bfdbfe !important;
 }
 
-/* Primary actions that were still inheriting purple on calendar/brand/dashboard/help modal */
+/* Primary actions that were still inheriting blue on calendar/brand/dashboard/help modal */
 .dashboard-primary-action,
 .brand-profile-primary-button,
 .campaign-create-button,
@@ -15592,7 +15592,7 @@ textarea.input:focus,
   box-shadow: 0 14px 28px rgba(15, 111, 255, 0.20) !important;
 }
 
-/* Setup helper cards: remove remaining violet helper background/text */
+/* Setup helper cards: remove remaining blue helper background/text */
 .automation-page.planner-wizard-page .planner-setup-helper,
 .automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper,
 .automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(3) .planner-setup-helper {
@@ -15601,7 +15601,7 @@ textarea.input:focus,
   border-color: rgba(15, 111, 255, 0.10) !important;
 }
 
-/* Remaining purple borders/active states */
+/* Remaining blue borders/active states */
 .spreelo-nav a.active,
 .nav a.active,
 .planner-mode-option.active,
@@ -15633,7 +15633,7 @@ textarea.input:focus,
   color: #ffffff !important;
 }
 
-/* Decorative card gradients and borders that were visibly purple */
+/* Decorative card gradients and borders that were visibly blue */
 .planner-summary-card,
 .planner-credits-card,
 .dashboard-side-card.highlighted,
@@ -15694,7 +15694,7 @@ textarea.input:focus,
   box-shadow: 0 18px 42px rgba(15, 111, 255, 0.10) !important;
 }
 
-/* Text links / tiny purple labels */
+/* Text links / tiny blue labels */
 .eyebrow,
 .dashboard-card-header a,
 .planner-add-post-bottom,
@@ -15722,7 +15722,7 @@ textarea.input:focus,
   border-color: rgba(15, 111, 255, 0.10) !important;
 }
 
-/* Avoid leftover purple dashed outline on load-more/saved-plan controls */
+/* Avoid leftover blue dashed outline on load-more/saved-plan controls */
 .saved-rules-load-more,
 .planner-load-more,
 button[class*="load"],
