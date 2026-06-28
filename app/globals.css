@@ -15514,3 +15514,219 @@ textarea.input:focus,
   background: var(--spreelo-blue-main) !important;
   border-color: var(--spreelo-blue-main) !important;
 }
+
+/* === Step 78: final blue-theme cleanup across remaining purple/violet accents === */
+:root {
+  --sp-primary: #0f6fff !important;
+  --sp-primary-dark: #064fd1 !important;
+  --sp-primary-soft: #eaf3ff !important;
+  --sp-primary-soft-2: #f4f9ff !important;
+  --sp-primary-border: #bfdbfe !important;
+  --spreelo-purple-main: #0f6fff !important;
+  --spreelo-purple-deep: #064fd1 !important;
+  --spreelo-blue-main: #0f6fff !important;
+  --spreelo-blue-deep: #064fd1 !important;
+  --spreelo-blue-soft: #eaf3ff !important;
+  --spreelo-blue-softer: #f4f9ff !important;
+  --spreelo-blue-border: #bfdbfe !important;
+}
+
+/* Primary actions that were still inheriting purple on calendar/brand/dashboard/help modal */
+.dashboard-primary-action,
+.brand-profile-primary-button,
+.campaign-create-button,
+.campaign-card .campaign-create-button,
+.campaign-detail-card .campaign-create-button,
+.planner-save-button,
+.add-plan-button,
+.planner-create-another-button,
+.primary-button,
+.learn-more-modal .primary-button.full,
+.learn-more-modal button.primary-button.full {
+  background: linear-gradient(135deg, #0f6fff 0%, #064fd1 100%) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: 0 16px 34px rgba(15, 111, 255, 0.22) !important;
+}
+
+.dashboard-primary-action:hover,
+.brand-profile-primary-button:hover,
+.campaign-create-button:hover,
+.primary-button:hover,
+.learn-more-modal .primary-button.full:hover,
+.learn-more-modal button.primary-button.full:hover {
+  box-shadow: 0 22px 44px rgba(15, 111, 255, 0.28) !important;
+}
+
+/* Soft pills, section labels, step badges and wizard accents */
+.status-pill,
+.dashboard-card-header a,
+.dashboard-card-header > span,
+.planner-section-heading > span,
+.planner-schedule-header span,
+.campaign-calendar-section-heading > span,
+.campaign-detail-header > span,
+.planner-summary-status,
+.planner-post-options > span,
+.brand-profile-form-card > span,
+.brand-profile-form-section > span,
+.campaign-card > span,
+.campaign-detail-card > span,
+.learn-more-modal .help-step-number,
+.learn-more-modal [class*="step-number"],
+.learn-more-modal [class*="StepNumber"] {
+  background: #eaf3ff !important;
+  border-color: rgba(15, 111, 255, 0.16) !important;
+  color: #064fd1 !important;
+}
+
+.planner-builder-step-badge,
+.planner-post-index,
+.campaign-plan-step-number,
+.campaign-plan-step > span:first-child,
+.brand-profile-flow-step-number,
+.brand-profile-guide-step > span:first-child {
+  background: linear-gradient(135deg, #0f6fff 0%, #064fd1 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 28px rgba(15, 111, 255, 0.20) !important;
+}
+
+/* Setup helper cards: remove remaining violet helper background/text */
+.automation-page.planner-wizard-page .planner-setup-helper,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(3) .planner-setup-helper {
+  background: #eaf3ff !important;
+  color: #064fd1 !important;
+  border-color: rgba(15, 111, 255, 0.10) !important;
+}
+
+/* Remaining purple borders/active states */
+.spreelo-nav a.active,
+.nav a.active,
+.planner-mode-option.active,
+.planner-content-chip.active,
+.planner-segmented-buttons button.active,
+.platform-multiselect.open .platform-multiselect-button,
+.platform-multiselect-button:focus-visible,
+.input:focus,
+.planner-select-control:focus,
+.planner-setting-field select:focus,
+.planner-save-input:focus,
+.current-brand-select:focus,
+.custom-picker-button:focus,
+textarea.input:focus,
+.prompt-textarea:focus,
+.large-textarea:focus {
+  border-color: #0f6fff !important;
+  box-shadow: 0 0 0 4px rgba(15, 111, 255, 0.10) !important;
+}
+
+.spreelo-nav a.active,
+.nav a.active {
+  color: #064fd1 !important;
+  background: #f4f9ff !important;
+}
+
+.planner-segmented-buttons button.active {
+  background: linear-gradient(135deg, #0f6fff 0%, #064fd1 100%) !important;
+  color: #ffffff !important;
+}
+
+/* Decorative card gradients and borders that were visibly purple */
+.planner-summary-card,
+.planner-credits-card,
+.dashboard-side-card.highlighted,
+.campaign-calendar-hero-card,
+.brand-profile-guide-card,
+.planner-mode-option.active,
+.planner-content-chip.active,
+.brand-profile-form-card,
+.campaign-calendar-main,
+.campaign-detail-card {
+  background:
+    radial-gradient(circle at top right, rgba(15, 111, 255, 0.055), transparent 34%),
+    #ffffff !important;
+}
+
+.planner-setup-card:nth-child(1),
+.planner-setup-card:nth-child(2),
+.planner-setup-card:nth-child(3),
+.automation-page.planner-wizard-page .planner-setup-card:nth-child(1),
+.automation-page.planner-wizard-page .planner-setup-card:nth-child(2),
+.automation-page.planner-wizard-page .planner-setup-card:nth-child(3) {
+  background:
+    radial-gradient(circle at 92% 82%, rgba(15, 111, 255, 0.055), transparent 34%),
+    #ffffff !important;
+  border-color: rgba(191, 219, 254, 0.86) !important;
+}
+
+/* Icons and small circular accent backgrounds */
+.planner-primary-builder .setup-step-title > .setup-title-icon,
+.setup-title-icon,
+.planner-setting-icon,
+.planner-summary-icon,
+.planner-summary-title > span,
+.planner-sidebar-title > span,
+.planner-includes-chip > span,
+.mode-big-icon,
+.planner-content-chip > span,
+.brand-profile-guide-card .flow-icon,
+.brand-profile-guide-card [class*="icon"],
+.campaign-calendar-main [class*="icon"],
+.dashboard-card [class*="icon"] {
+  background: #eaf3ff !important;
+  border-color: rgba(15, 111, 255, 0.16) !important;
+  color: #064fd1 !important;
+}
+
+/* Calendar campaign cards and side panel buttons */
+.campaign-card,
+.campaign-detail-card,
+.campaign-plan-step {
+  border-color: #dbeafe !important;
+}
+
+.campaign-card:hover,
+.campaign-card.selected,
+.campaign-card.active {
+  border-color: rgba(15, 111, 255, 0.38) !important;
+  box-shadow: 0 18px 42px rgba(15, 111, 255, 0.10) !important;
+}
+
+/* Text links / tiny purple labels */
+.eyebrow,
+.dashboard-card-header a,
+.planner-add-post-bottom,
+.planner-advanced-toggle,
+.view-calendar-button:hover,
+.secondary-button:hover,
+.tiny-button:hover,
+.learn-more-button:hover,
+.campaign-calendar-section-heading > span,
+.brand-profile-form-card > span,
+.brand-profile-form-section > span {
+  color: #064fd1 !important;
+}
+
+/* Progress bars */
+.planner-credit-progress div,
+.progress-bar-fill,
+[class*="progress"] > div {
+  background: linear-gradient(90deg, #0f6fff 0%, #064fd1 100%) !important;
+}
+
+.planner-credit-progress,
+.progress-bar,
+[class*="progress"] {
+  border-color: rgba(15, 111, 255, 0.10) !important;
+}
+
+/* Avoid leftover purple dashed outline on load-more/saved-plan controls */
+.saved-rules-load-more,
+.planner-load-more,
+button[class*="load"],
+button[class*="Load"] {
+  border-color: rgba(15, 111, 255, 0.20) !important;
+  color: #064fd1 !important;
+}
