@@ -14232,3 +14232,334 @@ textarea.input:focus,
     grid-template-columns: 26px minmax(0, 1fr) !important;
   }
 }
+
+/* Step 71: hard responsive + summary override. This block intentionally sits last. */
+:root {
+  --spreelo-text-main: #263044;
+  --spreelo-text-soft: #55657a;
+  --spreelo-text-muted: #6b7a90;
+  --spreelo-purple-main: #6d28d9;
+  --spreelo-purple-deep: #5b21b6;
+}
+
+/* Make the right column stable on desktop, but never let it become a skinny strip. */
+.automation-page.planner-wizard-page .wizard-layout {
+  grid-template-columns: minmax(760px, 1fr) 318px !important;
+  gap: 18px !important;
+  align-items: start !important;
+}
+
+.automation-page.planner-wizard-page .planner-sidebar {
+  width: 318px !important;
+  max-width: 318px !important;
+  min-width: 0 !important;
+}
+
+/* Softer, more readable sidebar + right column text. */
+.automation-page.planner-wizard-page,
+.spreelo-sidebar,
+.sidebar.spreelo-sidebar {
+  color: var(--spreelo-text-main) !important;
+}
+
+.spreelo-nav a,
+.nav.spreelo-nav a,
+.current-brand-card label,
+.current-brand-select,
+.current-brand-new,
+.sidebar-plan-card strong,
+.sidebar-plan-card span {
+  color: var(--spreelo-text-soft) !important;
+  font-weight: 560 !important;
+}
+
+.spreelo-nav a,
+.nav.spreelo-nav a {
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+}
+
+.spreelo-nav a.active,
+.nav.spreelo-nav a.active {
+  color: #5b21b6 !important;
+  font-weight: 620 !important;
+}
+
+/* Right summary header should look intentional, not overly heavy. */
+.automation-page.planner-wizard-page .planner-summary-title,
+.automation-page.planner-wizard-page .planner-sidebar-title {
+  display: grid !important;
+  grid-template-columns: 38px minmax(0, 1fr) !important;
+  gap: 12px !important;
+  align-items: center !important;
+}
+
+.automation-page.planner-wizard-page .planner-summary-title > span,
+.automation-page.planner-wizard-page .planner-sidebar-title > span {
+  width: 38px !important;
+  height: 38px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  align-self: center !important;
+}
+
+.automation-page.planner-wizard-page .planner-summary-title h3,
+.automation-page.planner-wizard-page .planner-sidebar-title h3 {
+  font-size: 20px !important;
+  line-height: 1.15 !important;
+  font-weight: 680 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--spreelo-text-main) !important;
+  margin: 0 !important;
+}
+
+.automation-page.planner-wizard-page .planner-summary-title p,
+.automation-page.planner-wizard-page .planner-sidebar-title p {
+  font-size: 13.5px !important;
+  line-height: 1.35 !important;
+  font-weight: 500 !important;
+  color: var(--spreelo-text-soft) !important;
+  margin: 3px 0 0 !important;
+}
+
+/* Summary rows: icon aligns with the label, label/value same size and not bold. */
+.automation-page.planner-wizard-page .planner-summary-list.premium {
+  display: grid !important;
+  gap: 0 !important;
+}
+
+.automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item,
+.automation-page.planner-wizard-page .planner-summary-list.premium div.planner-summary-item {
+  display: grid !important;
+  grid-template-columns: 28px minmax(0, 1fr) !important;
+  column-gap: 12px !important;
+  align-items: start !important;
+  padding: 15px 0 !important;
+  min-width: 0 !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95) !important;
+  background: transparent !important;
+}
+
+.automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-icon {
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: start !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  transform: none !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+}
+
+.automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item > div {
+  min-width: 0 !important;
+  display: block !important;
+}
+
+.automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item span:not(.planner-summary-icon),
+.automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item strong {
+  display: block !important;
+  font-size: 14px !important;
+  line-height: 1.36 !important;
+  font-weight: 520 !important;
+  color: var(--spreelo-text-soft) !important;
+  letter-spacing: -0.005em !important;
+  margin: 0 !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  hyphens: none !important;
+}
+
+.automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item strong {
+  color: var(--spreelo-text-main) !important;
+  margin-top: 3px !important;
+}
+
+/* Platform icons must always be horizontal, both in field and in right summary. */
+.automation-page.planner-wizard-page .planner-social-icon-row,
+.automation-page.planner-wizard-page .planner-social-icon-row.mini,
+.automation-page.planner-wizard-page .planner-summary-item .planner-social-icon-row.mini,
+.automation-page.planner-wizard-page .platform-selected-icons {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 7px 0 0 !important;
+  white-space: nowrap !important;
+}
+
+.automation-page.planner-wizard-page .platform-selected-icons {
+  margin: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+.automation-page.planner-wizard-page .planner-social-icon-row img,
+.automation-page.planner-wizard-page .planner-social-icon-row.mini img,
+.automation-page.planner-wizard-page .planner-summary-item .planner-social-icon-row.mini img,
+.automation-page.planner-wizard-page .platform-selected-icons img,
+.automation-page.planner-wizard-page img.platform-icon-img {
+  display: inline-block !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  max-width: 24px !important;
+  object-fit: contain !important;
+  margin: 0 !important;
+  vertical-align: middle !important;
+  flex: 0 0 24px !important;
+}
+
+.automation-page.planner-wizard-page .planner-summary-item .planner-social-icon-row.mini img,
+.automation-page.planner-wizard-page .planner-summary-item img.platform-icon-img {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  max-width: 22px !important;
+  flex-basis: 22px !important;
+}
+
+/* Primary buttons: keep the clean purple treatment and readable white text. */
+.automation-page.planner-wizard-page .planner-save-button,
+.automation-page.planner-wizard-page .planner-create-another-button {
+  background: linear-gradient(135deg, var(--spreelo-purple-main), var(--spreelo-purple-deep)) !important;
+  color: #ffffff !important;
+  border: 0 !important;
+  box-shadow: 0 16px 34px rgba(109, 40, 217, 0.28) !important;
+  font-weight: 680 !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-button *,
+.automation-page.planner-wizard-page .planner-create-another-button * {
+  color: #ffffff !important;
+}
+
+/* Explanatory text should not be bold. */
+.automation-page.planner-wizard-page .planner-setup-card p,
+.automation-page.planner-wizard-page .planner-setting-field p,
+.automation-page.planner-wizard-page .planner-post-title > span,
+.automation-page.planner-wizard-page .planner-includes-chip small {
+  font-weight: 440 !important;
+  color: var(--spreelo-text-soft) !important;
+}
+
+/* Includes: give chips room so titles do not break into ugly fragments. */
+.automation-page.planner-wizard-page .planner-includes-chip-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.automation-page.planner-wizard-page .planner-includes-chip {
+  min-width: 0 !important;
+  min-height: 128px !important;
+  padding: 18px !important;
+  align-items: flex-start !important;
+}
+
+.automation-page.planner-wizard-page .planner-includes-chip strong {
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+  font-weight: 650 !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  hyphens: none !important;
+}
+
+.automation-page.planner-wizard-page .planner-includes-chip small {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+
+/* Schedule rows: allow two lines without crashing into the bottom border. */
+.automation-page.planner-wizard-page .planner-post-row,
+.automation-page.planner-wizard-page .planner-post-mainline {
+  min-height: 78px !important;
+}
+
+.automation-page.planner-wizard-page .planner-post-title {
+  min-width: 0 !important;
+  padding-bottom: 4px !important;
+}
+
+.automation-page.planner-wizard-page .planner-post-title > span {
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+  line-height: 1.35 !important;
+  max-width: 100% !important;
+}
+
+/* Tablet: one clean column for main content, then full-width plan/credits. */
+@media (max-width: 1180px) {
+  .automation-page.planner-wizard-page .wizard-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 18px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-sidebar {
+    width: 100% !important;
+    max-width: none !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    align-items: stretch !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-card,
+  .automation-page.planner-wizard-page .planner-credits-card {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item span:not(.planner-summary-icon),
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item strong {
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+}
+
+/* Smaller tablets / phones: everything stacks full width. */
+@media (max-width: 820px) {
+  .automation-page.planner-wizard-page .planner-sidebar {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-card,
+  .automation-page.planner-wizard-page .planner-credits-card {
+    padding: 20px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-settings-grid.simple,
+  .automation-page.planner-wizard-page .planner-setup-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-includes-chip-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .automation-page.planner-wizard-page .planner-includes-chip-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item {
+    grid-template-columns: 28px minmax(0, 1fr) !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-title h3,
+  .automation-page.planner-wizard-page .planner-sidebar-title h3 {
+    font-size: 19px !important;
+  }
+}
