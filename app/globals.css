@@ -15730,3 +15730,145 @@ button[class*="Load"] {
   border-color: rgba(15, 111, 255, 0.20) !important;
   color: #064fd1 !important;
 }
+
+/* === Step 81: targeted blue cleanup for remaining visible purple UI states === */
+:root {
+  --spreelo-blue-main: #0f6fff !important;
+  --spreelo-blue-deep: #064fd1 !important;
+  --spreelo-blue-soft: #eaf3ff !important;
+  --spreelo-blue-softer: #f4f9ff !important;
+  --spreelo-blue-border: #bfdbfe !important;
+}
+
+/* Planner setup helper boxes under Goal / Posts per week / Start date */
+.automation-page.planner-wizard-page .planner-setup-helper,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card .planner-setup-helper,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(1) .planner-setup-helper,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(2) .planner-setup-helper,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(3) .planner-setup-helper {
+  background: #eaf3ff !important;
+  color: #064fd1 !important;
+  border: 1px solid rgba(15, 111, 255, 0.10) !important;
+  box-shadow: none !important;
+}
+
+.automation-page.planner-wizard-page .planner-setup-helper strong,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper strong {
+  color: #064fd1 !important;
+}
+
+/* Setup icons and step badges: force blue instead of old purple */
+.automation-page.planner-wizard-page .planner-primary-builder .setup-title-icon,
+.automation-page.planner-wizard-page .planner-primary-builder .setup-step-title > .setup-title-icon,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(1) .setup-title-icon,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(2) .setup-title-icon,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(3) .setup-title-icon,
+.setup-title-icon,
+.planner-setting-icon,
+.planner-summary-icon,
+.planner-sidebar-title > span,
+.planner-section-heading > span,
+.planner-post-index,
+.planner-builder-step-badge {
+  background: #eaf3ff !important;
+  border-color: rgba(15, 111, 255, 0.16) !important;
+  color: #064fd1 !important;
+  box-shadow: 0 10px 22px rgba(15, 111, 255, 0.06) !important;
+}
+
+.planner-builder-step-badge,
+.planner-section-heading > span:first-child {
+  background: linear-gradient(135deg, #0f6fff 0%, #064fd1 100%) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+/* Left sidebar hover/active states and Plan Pro card */
+.spreelo-nav a,
+.nav.spreelo-nav a {
+  color: #41516a !important;
+}
+
+.spreelo-nav a:hover,
+.nav.spreelo-nav a:hover {
+  background: #f4f9ff !important;
+  color: #064fd1 !important;
+  border-color: rgba(15, 111, 255, 0.16) !important;
+  box-shadow: none !important;
+}
+
+.spreelo-nav a:hover svg,
+.nav.spreelo-nav a:hover svg,
+.spreelo-nav a:hover .sidebar-menu-icon,
+.nav.spreelo-nav a:hover .sidebar-menu-icon {
+  color: #064fd1 !important;
+}
+
+.spreelo-nav a.active,
+.nav.spreelo-nav a.active {
+  background: #eaf3ff !important;
+  color: #064fd1 !important;
+  border-color: rgba(15, 111, 255, 0.22) !important;
+}
+
+.sidebar-plan-card,
+.spreelo-sidebar .sidebar-plan-card,
+.sidebar-plan-card button,
+.sidebar-plan-card a {
+  background: linear-gradient(180deg, #ffffff 0%, #f4f9ff 100%) !important;
+  border-color: rgba(15, 111, 255, 0.18) !important;
+  color: #41516a !important;
+  box-shadow: none !important;
+}
+
+.sidebar-plan-card::before,
+.sidebar-plan-card::after {
+  background: rgba(15, 111, 255, 0.08) !important;
+}
+
+.sidebar-plan-card strong,
+.sidebar-plan-card b,
+.sidebar-plan-card span,
+.sidebar-plan-card p {
+  color: #41516a !important;
+}
+
+.sidebar-plan-card button,
+.sidebar-plan-card a,
+.sidebar-plan-card .upgrade-button {
+  color: #064fd1 !important;
+  border-color: rgba(15, 111, 255, 0.18) !important;
+  background: #ffffff !important;
+}
+
+.sidebar-plan-card button:hover,
+.sidebar-plan-card a:hover,
+.sidebar-plan-card .upgrade-button:hover {
+  background: #eaf3ff !important;
+  color: #064fd1 !important;
+}
+
+/* Current brand/add brand button should not use purple hover */
+.current-brand-new,
+.current-brand-new:hover,
+.current-brand-select:hover,
+.current-brand-select:focus {
+  background: #ffffff !important;
+  border-color: rgba(15, 111, 255, 0.18) !important;
+  color: #41516a !important;
+  box-shadow: 0 0 0 4px rgba(15, 111, 255, 0.08) !important;
+}
+
+.current-brand-new:hover {
+  background: #f4f9ff !important;
+  color: #064fd1 !important;
+}
+
+/* General legacy lavender/purple utility surfaces still visible in cards */
+.automation-page.planner-wizard-page [style*="f5f3ff"],
+.automation-page.planner-wizard-page [style*="f3e8ff"],
+.automation-page.planner-wizard-page [style*="ede9fe"] {
+  background: #eaf3ff !important;
+  color: #064fd1 !important;
+}
