@@ -15083,3 +15083,83 @@ textarea.input:focus,
     font-size: 13px !important;
   }
 }
+
+/* Step 75: planner first-step card polish */
+.automation-page.planner-wizard-page .planner-primary-builder .setup-step-title {
+  display: grid !important;
+  grid-template-columns: 36px minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: 12px !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .setup-step-title > .setup-title-icon {
+  display: inline-flex !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border-radius: 14px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #f3e8ff !important;
+  border: 1px solid rgba(124, 58, 237, 0.12) !important;
+  color: #6d28d9 !important;
+  font-size: 1rem !important;
+  line-height: 1 !important;
+  box-shadow: 0 10px 22px rgba(124, 58, 237, 0.06) !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(2) .setup-title-icon {
+  background: #f5f3ff !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(3) .setup-title-icon {
+  background: #eff6ff !important;
+  color: #2563eb !important;
+  border-color: rgba(37, 99, 235, 0.12) !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .setup-step-title strong {
+  font-weight: 800 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .setup-step-title small {
+  font-weight: 500 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper {
+  min-height: 0 !important;
+  margin-top: 16px !important;
+  padding: 12px 14px !important;
+  border-radius: 16px !important;
+  background: #f6f0ff !important;
+  color: #6d28d9 !important;
+  font-size: 0.88rem !important;
+  font-weight: 650 !important;
+  line-height: 1.45 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(3) .planner-setup-helper {
+  background: #eff6ff !important;
+  color: #2563eb !important;
+}
+
+@media (max-width: 620px) {
+  .automation-page.planner-wizard-page .planner-primary-builder .setup-step-title {
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-primary-builder .setup-step-title > .setup-title-icon {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    border-radius: 12px !important;
+    font-size: 0.92rem !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper {
+    margin-top: 12px !important;
+    padding: 10px 12px !important;
+    font-size: 0.82rem !important;
+  }
+}

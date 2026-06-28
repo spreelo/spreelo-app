@@ -5182,7 +5182,7 @@ setRules((currentRules) =>
               <div className="planner-setup-grid">
 <div className="planner-setup-card">
   <div className="setup-step-title">
-    <span>1</span>
+    <span className="setup-title-icon" aria-hidden="true">🎯</span>
     <div>
       <strong>
         {planCreationMode === "campaign" ? t("automation.campaignGoal") : t("automation.goal")}
@@ -5222,16 +5222,19 @@ setRules((currentRules) =>
     </select>
   )}
 
-  <p>
+  <p className="planner-setup-helper">
     {planCreationMode === "campaign"
       ? t("automation.campaignConnectedText")
-      : translateAutoPlanGoalDescription(autoPlanGoal)}
+      : translateAutoPlanGoalDescription(autoPlanGoal) ||
+        (plannerLocaleIsSwedish
+          ? "Välj ett mål så anpassar Spreelo innehållstyperna efter din plan."
+          : "Choose a goal so Spreelo can tailor the content types to your plan.")}
   </p>
 </div>
 
               <div className="planner-setup-card">
                 <div className="setup-step-title">
-                  <span>2</span>
+                  <span className="setup-title-icon" aria-hidden="true">▦</span>
                   <div>
                     <strong>
                       {planCreationMode === "campaign"
@@ -5274,7 +5277,7 @@ setRules((currentRules) =>
                   </div>
                 )}
 
-                <p>
+                <p className="planner-setup-helper">
                  {planCreationMode === "campaign"
   ? t("automation.campaignPostsPrepared", { count: slots.length })
   : planCreationMode === "manual"
@@ -5285,7 +5288,7 @@ setRules((currentRules) =>
 
               <div className="planner-setup-card">
                 <div className="setup-step-title">
-                  <span>3</span>
+                  <span className="setup-title-icon" aria-hidden="true">📅</span>
                   <div>
                     <strong>{t("automation.startDateTime")}</strong>
                     <small>{t("automation.whenStart")}</small>
@@ -5314,7 +5317,7 @@ setRules((currentRules) =>
                   />
                 </div>
 
-                <p>{t("automation.scheduleFromDateTime")}</p>
+                <p className="planner-setup-helper">{t("automation.scheduleFromDateTime")}</p>
               </div>
               </div>
             </section>
