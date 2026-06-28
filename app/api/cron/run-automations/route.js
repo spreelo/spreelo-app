@@ -23,6 +23,8 @@ const WEBSITE_MAX_IMAGE_CANDIDATES = 40;
 const PRODUCT_RESEARCH_MODEL = "gpt-5.5";
 const POST_TEXT_MODEL = "gpt-4.1-mini";
 const IMAGE_MODEL = "gpt-image-2";
+const INSTAGRAM_GRAPH_API_VERSION =
+  process.env.INSTAGRAM_GRAPH_API_VERSION || "v21.0";
 
 const WEEKDAYS = [
   "Sunday",
@@ -790,10 +792,18 @@ function createEmptySummary() {
     no_credit_balance: 0,
     emails_sent: 0,
     emails_failed: 0,
+    social_publish_checked: 0,
+    social_published: 0,
+    social_publish_failed: 0,
     facebook_publish_checked: 0,
     facebook_published: 0,
     facebook_publish_failed: 0,
     facebook_publish_skipped_no_config: 0,
+    instagram_publish_checked: 0,
+    instagram_published: 0,
+    instagram_publish_failed: 0,
+    instagram_publish_skipped_no_config: 0,
+    instagram_publish_skipped_no_image: 0,
     brand_profile_found: 0,
     brand_profile_missing: 0,
     website_content_rules: 0,
@@ -3209,6 +3219,108 @@ async function publishImagePostToFacebook({
   return result;
 }
 
+function getPublishTargets(platformValue) {
+  const normalized = String(platformValue || "")
+    .toLowerCase()
+    .replaceAll("&", "+")
+    .replaceAll(",", "+");
+
+  const targets = [];
+
+  if (normalized.includes("facebook")) {
+    targets.push("facebook");
+  }
+
+  if (normalized.includes("instagram")) {
+    targets.push("instagram");
+  }
+
+  return targets;
+}
+
+function getMetaErrorMessage(result, fallbackMessage) {
+  const metaMessage = result?.error?.message || fallbackMessage;
+  const metaType = result?.error?.type || "unknown";
+  const metaCode = result?.error?.code || "unknown";
+  const metaSubcode = result?.error?.error_subcode || "none";
+  const metaTrace = result?.error?.fbtrace_id || "none";
+
+  return `${metaMessage} | type: ${metaType} | code: ${metaCode} | subcode: ${metaSubcode} | trace: ${metaTrace}`;
+}
+
+async function publishImagePostToInstagram({
+  instagramUserId,
+  accessToken,
+  imageUrl,
+  caption,
+}) {
+  console.log("Instagram publish: creating media container", {
+    instagramUserId,
+    hasImageUrl: Boolean(imageUrl),
+  });
+
+  const createResponse = await fetch(
+    `https://graph.instagram.com/${INSTAGRAM_GRAPH_API_VERSION}/${instagramUserId}/media`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        image_url: imageUrl,
+        caption,
+        access_token: accessToken,
+      }),
+    }
+  );
+
+  const createResult = await createResponse.json();
+
+  console.log("Instagram publish: media container response", {
+    instagramUserId,
+    ok: createResponse.ok,
+    creationId: createResult?.id || null,
+    error: createResult?.error?.message || null,
+  });
+
+  if (!createResponse.ok || !createResult?.id) {
+    throw new Error(
+      getMetaErrorMessage(createResult, "Instagram media container creation failed")
+    );
+  }
+
+  const publishResponse = await fetch(
+    `https://graph.instagram.com/${INSTAGRAM_GRAPH_API_VERSION}/${instagramUserId}/media_publish`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        creation_id: createResult.id,
+        access_token: accessToken,
+      }),
+    }
+  );
+
+  const publishResult = await publishResponse.json();
+
+  console.log("Instagram publish: publish response", {
+    instagramUserId,
+    ok: publishResponse.ok,
+    publishedId: publishResult?.id || null,
+    error: publishResult?.error?.message || null,
+  });
+
+  if (!publishResponse.ok || !publishResult?.id) {
+    throw new Error(
+      getMetaErrorMessage(publishResult, "Instagram media publish failed")
+    );
+  }
+
+  return publishResult;
+}
+
 async function getFacebookConnectionForBrand({
   supabase,
   userId,
@@ -3242,7 +3354,40 @@ async function getFacebookConnectionForBrand({
   return data || null;
 }
 
-async function publishApprovedFacebookPosts({
+
+async function getInstagramConnectionForBrand({
+  supabase,
+  userId,
+  brandProfileId,
+}) {
+  if (!userId || !brandProfileId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("social_connections")
+    .select("id, page_id, page_name, page_access_token, status, token_expires_at")
+    .eq("user_id", userId)
+    .eq("brand_profile_id", brandProfileId)
+    .eq("platform", "instagram")
+    .eq("status", "connected")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not load Instagram connection for brand", {
+      userId,
+      brandProfileId,
+      message: error.message,
+    });
+
+    return null;
+  }
+
+  return data || null;
+}
+async function publishApprovedSocialPosts({
   supabase,
   nowIso,
   summary,
@@ -3253,32 +3398,36 @@ async function publishApprovedFacebookPosts({
       "id, user_id, brand_profile_id, content, platform, status, published_at, approved_at, image_url"
     )
     .eq("status", "approved")
-    .eq("platform", "Facebook")
     .is("published_at", null)
     .order("approved_at", { ascending: true })
     .limit(BATCH_SIZE);
 
   if (error) {
-    console.error("Could not load approved Facebook posts", {
+    console.error("Could not load approved social posts", {
       message: error.message,
     });
 
-    summary.facebook_publish_failed += 1;
+    summary.social_publish_failed += 1;
     return;
   }
 
-  const approvedPosts = posts || [];
-  summary.facebook_publish_checked += approvedPosts.length;
+  const approvedPosts = (posts || []).filter((post) =>
+    getPublishTargets(post.platform).length > 0
+  );
+
+  summary.social_publish_checked += approvedPosts.length;
 
   for (const post of approvedPosts) {
+    const targets = getPublishTargets(post.platform);
+
     try {
       if (!post.content) {
-        summary.facebook_publish_failed += 1;
+        summary.social_publish_failed += 1;
         continue;
       }
 
       if (!post.brand_profile_id) {
-        console.error("Approved Facebook post is missing brand_profile_id", {
+        console.error("Approved social post is missing brand_profile_id", {
           postId: post.id,
           userId: post.user_id,
         });
@@ -3291,51 +3440,118 @@ async function publishApprovedFacebookPosts({
           })
           .eq("id", post.id);
 
-        summary.facebook_publish_failed += 1;
+        summary.social_publish_failed += 1;
         continue;
       }
 
-      const facebookConnection = await getFacebookConnectionForBrand({
-        supabase,
-        userId: post.user_id,
-        brandProfileId: post.brand_profile_id,
-      });
-
-      if (
-        !facebookConnection?.page_id ||
-        !facebookConnection?.page_access_token
-      ) {
-        console.error("No connected Facebook page found for post brand", {
+      if (targets.includes("instagram") && !post.image_url) {
+        console.error("Instagram publish skipped because post has no image URL", {
           postId: post.id,
+          userId: post.user_id,
+          brandProfileId: post.brand_profile_id,
+          platform: post.platform,
+        });
+
+        await supabase
+          .from("posts")
+          .update({
+            status: "failed",
+            updated_at: nowIso,
+          })
+          .eq("id", post.id);
+
+        summary.instagram_publish_skipped_no_image += 1;
+        summary.social_publish_failed += 1;
+        continue;
+      }
+
+      if (targets.includes("facebook")) {
+        summary.facebook_publish_checked += 1;
+
+        const facebookConnection = await getFacebookConnectionForBrand({
+          supabase,
           userId: post.user_id,
           brandProfileId: post.brand_profile_id,
         });
 
-        await supabase
-          .from("posts")
-          .update({
-            status: "failed",
-            updated_at: nowIso,
-          })
-          .eq("id", post.id);
+        console.log("Facebook publish: connection lookup", {
+          postId: post.id,
+          found: Boolean(facebookConnection),
+          pageId: facebookConnection?.page_id || null,
+        });
 
-        summary.facebook_publish_skipped_no_config += 1;
-        continue;
+        if (
+          !facebookConnection?.page_id ||
+          !facebookConnection?.page_access_token
+        ) {
+          console.error("No connected Facebook page found for post brand", {
+            postId: post.id,
+            userId: post.user_id,
+            brandProfileId: post.brand_profile_id,
+          });
+
+          summary.facebook_publish_skipped_no_config += 1;
+          throw new Error("No connected Facebook page found for this brand");
+        }
+
+        if (post.image_url) {
+          await publishImagePostToFacebook({
+            pageId: facebookConnection.page_id,
+            pageAccessToken: facebookConnection.page_access_token,
+            imageUrl: post.image_url,
+            caption: post.content,
+          });
+        } else {
+          await publishTextPostToFacebook({
+            pageId: facebookConnection.page_id,
+            pageAccessToken: facebookConnection.page_access_token,
+            message: post.content,
+          });
+        }
+
+        summary.facebook_published += 1;
       }
 
-      if (post.image_url) {
-        await publishImagePostToFacebook({
-          pageId: facebookConnection.page_id,
-          pageAccessToken: facebookConnection.page_access_token,
+      if (targets.includes("instagram")) {
+        summary.instagram_publish_checked += 1;
+
+        const instagramConnection = await getInstagramConnectionForBrand({
+          supabase,
+          userId: post.user_id,
+          brandProfileId: post.brand_profile_id,
+        });
+
+        console.log("Instagram publish: connection lookup", {
+          postId: post.id,
+          found: Boolean(instagramConnection),
+          instagramUserId: instagramConnection?.page_id || null,
+          tokenExpiresAt: instagramConnection?.token_expires_at || null,
+          hasImageUrl: Boolean(post.image_url),
+          imageUrl: post.image_url || null,
+        });
+
+        if (
+          !instagramConnection?.page_id ||
+          !instagramConnection?.page_access_token
+        ) {
+          console.error("No connected Instagram account found for post brand", {
+            postId: post.id,
+            userId: post.user_id,
+            brandProfileId: post.brand_profile_id,
+          });
+
+          summary.instagram_publish_skipped_no_config += 1;
+          throw new Error("No connected Instagram account found for this brand");
+        }
+
+        await publishImagePostToInstagram({
+          instagramUserId: instagramConnection.page_id,
+          accessToken: instagramConnection.page_access_token,
           imageUrl: post.image_url,
           caption: post.content,
         });
-      } else {
-        await publishTextPostToFacebook({
-          pageId: facebookConnection.page_id,
-          pageAccessToken: facebookConnection.page_access_token,
-          message: post.content,
-        });
+
+        summary.instagram_published += 1;
       }
 
       const { error: updateError } = await supabase
@@ -3348,16 +3564,18 @@ async function publishApprovedFacebookPosts({
         .eq("id", post.id);
 
       if (updateError) {
-        summary.facebook_publish_failed += 1;
+        summary.social_publish_failed += 1;
         continue;
       }
 
-      summary.facebook_published += 1;
+      summary.social_published += 1;
     } catch (error) {
-      console.error("Facebook publish failed", {
+      console.error("Social publish failed", {
         postId: post.id,
         userId: post.user_id,
         brandProfileId: post.brand_profile_id,
+        platform: post.platform,
+        targets,
         message: error.message,
       });
 
@@ -3369,7 +3587,15 @@ async function publishApprovedFacebookPosts({
         })
         .eq("id", post.id);
 
-      summary.facebook_publish_failed += 1;
+      summary.social_publish_failed += 1;
+
+      if (targets.includes("facebook")) {
+        summary.facebook_publish_failed += 1;
+      }
+
+      if (targets.includes("instagram")) {
+        summary.instagram_publish_failed += 1;
+      }
     }
   }
 }
@@ -3469,7 +3695,7 @@ export async function GET(request) {
     const summary = createEmptySummary();
     const usedWebsiteImageUrlsThisRun = new Set();
 
-   await publishApprovedFacebookPosts({
+   await publishApprovedSocialPosts({
   supabase,
   nowIso,
   summary,

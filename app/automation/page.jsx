@@ -3436,6 +3436,49 @@ function formatConnectedPlatformLabel(platformValue) {
   return platformValue;
 }
 
+function getConnectedPlatformOptions(connectedPlatforms) {
+  const normalizedPlatforms = (connectedPlatforms || [])
+    .map((item) => String(item?.value || item?.label || "").toLowerCase())
+    .filter(Boolean);
+
+  const hasFacebook = normalizedPlatforms.includes("facebook");
+  const hasInstagram = normalizedPlatforms.includes("instagram");
+
+  const options = [];
+
+  if (hasFacebook && hasInstagram) {
+    options.push({
+      value: "Facebook + Instagram",
+      label: "Facebook + Instagram",
+      platforms: ["facebook", "instagram"],
+    });
+  }
+
+  if (hasFacebook) {
+    options.push({ value: "Facebook", label: "Facebook", platforms: ["facebook"] });
+  }
+
+  if (hasInstagram) {
+    options.push({ value: "Instagram", label: "Instagram", platforms: ["instagram"] });
+  }
+
+  for (const item of connectedPlatforms || []) {
+    const value = String(item?.value || "").toLowerCase();
+
+    if (!value || value === "facebook" || value === "instagram") {
+      continue;
+    }
+
+    options.push({
+      value: item.label || formatConnectedPlatformLabel(value),
+      label: item.label || formatConnectedPlatformLabel(value),
+      platforms: [value],
+    });
+  }
+
+  return options;
+}
+
 export default function AutomationPage() {
   const { t, locale } = useUiText(["automation"]);
 
@@ -3663,6 +3706,7 @@ const [slots, setSlots] = useState([]);
   const [platform, setPlatform] = useState("");
 const [connectedPlatforms, setConnectedPlatforms] = useState([]);
 const [loadingConnectedPlatforms, setLoadingConnectedPlatforms] = useState(false);
+const connectedPlatformOptions = getConnectedPlatformOptions(connectedPlatforms);
   const [tone, setTone] = useState("Friendly");
   const [language, setLanguage] = useState("Auto");
   const [postType, setPostType] = useState("Offer");
@@ -3968,20 +4012,20 @@ async function loadConnectedPlatformsForBrand(userId, brandProfileId) {
 
   setConnectedPlatforms(uniquePlatforms);
 
+  const platformOptions = getConnectedPlatformOptions(uniquePlatforms);
+
   setPlatform((currentValue) => {
     const currentValueLower = String(currentValue || "").toLowerCase();
 
-    const currentStillExists = uniquePlatforms.some(
-      (item) =>
-        item.value === currentValueLower ||
-        item.label.toLowerCase() === currentValueLower
+    const currentStillExists = platformOptions.some(
+      (item) => item.value.toLowerCase() === currentValueLower
     );
 
     if (currentStillExists) {
       return currentValue;
     }
 
-    return uniquePlatforms[0]?.label || "";
+    return platformOptions[0]?.value || "";
   });
 
   setLoadingConnectedPlatforms(false);
@@ -5681,7 +5725,7 @@ setRules((currentRules) =>
       </div>
       <div className="input">{t("automation.loadingConnectedChannels")}</div>
     </div>
-  ) : connectedPlatforms.length > 0 ? (
+  ) : connectedPlatformOptions.length > 0 ? (
     <label className="planner-setting-field">
       <div className="planner-setting-head">
         <span className="planner-setting-icon">🌐</span>
@@ -5691,17 +5735,25 @@ setRules((currentRules) =>
         value={platform}
         onChange={(event) => setPlatform(event.target.value)}
       >
-        {connectedPlatforms.map((item) => (
-          <option key={item.value} value={item.label}>
+        {connectedPlatformOptions.map((item) => (
+          <option key={item.value} value={item.value}>
             {item.label}
           </option>
         ))}
       </select>
       <div className="planner-social-icon-row" aria-label={t("automation.platform")}>
-        <span className="social-dot facebook">f</span>
-        <span className="social-dot instagram">◎</span>
-        <span className="social-dot linkedin">in</span>
-        <span className="social-dot tiktok">♪</span>
+        {connectedPlatformOptions.find((item) => item.value === platform)?.platforms.includes("facebook") ? (
+          <span className="social-dot facebook">f</span>
+        ) : null}
+        {connectedPlatformOptions.find((item) => item.value === platform)?.platforms.includes("instagram") ? (
+          <span className="social-dot instagram">◎</span>
+        ) : null}
+        {connectedPlatformOptions.find((item) => item.value === platform)?.platforms.includes("linkedin") ? (
+          <span className="social-dot linkedin">in</span>
+        ) : null}
+        {connectedPlatformOptions.find((item) => item.value === platform)?.platforms.includes("tiktok") ? (
+          <span className="social-dot tiktok">♪</span>
+        ) : null}
       </div>
       <p>{safePlannerText("platformHelp")}</p>
     </label>
