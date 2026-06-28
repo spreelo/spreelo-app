@@ -94,6 +94,15 @@ const analysisProgressStages = [
 const ANALYSIS_STATUS_POLL_INTERVAL_MS = 2000;
 const ANALYSIS_STATUS_MAX_POLLS = 180;
 const ANALYSIS_DISPLAY_DURATION_MS = 210000; // 3.5 minutes
+const BRAND_ASSETS_BUCKET = "brand-assets";
+const MAX_LOGO_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_LOGO_FILE_TYPES = new Set([
+  "image/png",
+  "image/webp",
+  "image/jpeg",
+  "image/jpg",
+]);
+
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -203,6 +212,12 @@ export default function BrandProfile() {
   const [contentLanguage, setContentLanguage] = useState("English");
   const [contentSettingsTouched, setContentSettingsTouched] = useState(false);
   const [showGeneratedFields, setShowGeneratedFields] = useState(false);
+  const [logoUrl, setLogoUrl] = useState("");
+  const [logoStoragePath, setLogoStoragePath] = useState("");
+  const [logoEnabledByDefault, setLogoEnabledByDefault] = useState(true);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoMessage, setLogoMessage] = useState("");
+
 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -365,7 +380,7 @@ export default function BrandProfile() {
       const { data, error } = await supabase
         .from("brand_profiles")
         .select(
-          "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, is_default, created_at"
+          "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, logo_url, logo_storage_path, logo_enabled_by_default, is_default, created_at"
         )
         .eq("user_id", user.id)
         .eq("id", brandIdToLoad)
@@ -399,6 +414,11 @@ export default function BrandProfile() {
       setIndustry(loadedIndustry);
       setTargetAudience(loadedTargetAudience);
 
+      setLogoUrl(data.logo_url || "");
+      setLogoStoragePath(data.logo_storage_path || "");
+      setLogoEnabledByDefault(data.logo_enabled_by_default !== false);
+      setLogoMessage("");
+
       const loadedMarket = data.content_market || "International / Global";
       const loadedCountryCode = data.country_code || "GLOBAL";
       const loadedContentLanguage = data.content_language || "English";
@@ -428,6 +448,160 @@ export default function BrandProfile() {
 
     loadProfile();
   }, []);
+
+  function getSafeLogoFileName(fileName) {
+    const cleanName = String(fileName || "logo")
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80);
+
+    return cleanName || "logo.png";
+  }
+
+  async function handleLogoUpload(event) {
+    const file = event.target.files?.[0];
+
+    if (!file || !user || !brandProfileId) return;
+
+    setLogoMessage("");
+    setMessage("");
+
+    if (!ALLOWED_LOGO_FILE_TYPES.has(file.type)) {
+      setLogoMessage(t("brand.logoErrorType"));
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_LOGO_FILE_SIZE_BYTES) {
+      setLogoMessage(t("brand.logoErrorSize"));
+      event.target.value = "";
+      return;
+    }
+
+    setLogoUploading(true);
+
+    try {
+      const safeFileName = getSafeLogoFileName(file.name);
+      const storagePath = `logos/${user.id}/${brandProfileId}/${Date.now()}-${safeFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(BRAND_ASSETS_BUCKET)
+        .upload(storagePath, file, {
+          cacheControl: "3600",
+          contentType: file.type,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from(BRAND_ASSETS_BUCKET)
+        .getPublicUrl(storagePath);
+
+      const publicUrl = publicUrlData?.publicUrl || "";
+
+      if (!publicUrl) {
+        throw new Error(t("brand.logoErrorPublicUrl"));
+      }
+
+      const { error: updateError } = await supabase
+        .from("brand_profiles")
+        .update({
+          logo_url: publicUrl,
+          logo_storage_path: storagePath,
+          logo_enabled_by_default: logoEnabledByDefault !== false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", brandProfileId)
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        await supabase.storage.from(BRAND_ASSETS_BUCKET).remove([storagePath]);
+        throw updateError;
+      }
+
+      if (logoStoragePath && logoStoragePath !== storagePath) {
+        await supabase.storage.from(BRAND_ASSETS_BUCKET).remove([logoStoragePath]);
+      }
+
+      setLogoUrl(publicUrl);
+      setLogoStoragePath(storagePath);
+      setLogoMessage(t("brand.logoUploaded"));
+    } catch (error) {
+      console.error("Could not upload brand logo:", error);
+      setLogoMessage(error.message || t("brand.logoErrorUpload"));
+    } finally {
+      setLogoUploading(false);
+      event.target.value = "";
+    }
+  }
+
+  async function handleLogoDefaultChange(event) {
+    const checked = event.target.checked;
+
+    setLogoEnabledByDefault(checked);
+    setLogoMessage("");
+    setMessage("");
+
+    if (!user || !brandProfileId) return;
+
+    const { error } = await supabase
+      .from("brand_profiles")
+      .update({
+        logo_enabled_by_default: checked,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", brandProfileId)
+      .eq("user_id", user.id);
+
+    if (error) {
+      setLogoEnabledByDefault(!checked);
+      setLogoMessage(error.message);
+    }
+  }
+
+  async function handleRemoveLogo() {
+    if (!user || !brandProfileId || logoUploading) return;
+
+    setLogoUploading(true);
+    setLogoMessage("");
+    setMessage("");
+
+    const pathToRemove = logoStoragePath;
+
+    try {
+      const { error } = await supabase
+        .from("brand_profiles")
+        .update({
+          logo_url: null,
+          logo_storage_path: null,
+          logo_enabled_by_default: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", brandProfileId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      if (pathToRemove) {
+        await supabase.storage.from(BRAND_ASSETS_BUCKET).remove([pathToRemove]);
+      }
+
+      setLogoUrl("");
+      setLogoStoragePath("");
+      setLogoEnabledByDefault(false);
+      setLogoMessage(t("brand.logoRemoved"));
+    } catch (error) {
+      console.error("Could not remove brand logo:", error);
+      setLogoMessage(error.message || t("brand.logoErrorRemove"));
+    } finally {
+      setLogoUploading(false);
+    }
+  }
 
   function handleMarketChange(event) {
     const nextMarket = event.target.value;
@@ -750,6 +924,9 @@ export default function BrandProfile() {
         content_market: contentMarket,
         country_code: countryCode,
         content_language: contentLanguage,
+        logo_url: logoUrl || null,
+        logo_storage_path: logoStoragePath || null,
+        logo_enabled_by_default: logoEnabledByDefault !== false,
         updated_at: new Date().toISOString(),
       })
       .eq("id", brandProfileId)
@@ -883,6 +1060,16 @@ export default function BrandProfile() {
 
         if (storageDeleteError) {
           throw new Error(`post-images storage: ${storageDeleteError.message}`);
+        }
+      }
+
+      if (logoStoragePath) {
+        const { error: logoDeleteError } = await supabase.storage
+          .from(BRAND_ASSETS_BUCKET)
+          .remove([logoStoragePath]);
+
+        if (logoDeleteError) {
+          throw new Error(`${BRAND_ASSETS_BUCKET} storage: ${logoDeleteError.message}`);
         }
       }
 
@@ -1104,6 +1291,76 @@ export default function BrandProfile() {
                   />
                 </>
               )}
+            </div>
+
+            <div className="brand-profile-form-section brand-logo-section">
+              <div className="brand-profile-section-title">
+                <div>
+                  <h4>{t("brand.logoTitle")}</h4>
+                  <p>{t("brand.logoText")}</p>
+                </div>
+
+                <span>{logoUrl ? t("brand.logoReady") : t("brand.logoOptional")}</span>
+              </div>
+
+              <div className="brand-logo-upload-panel">
+                <div className={`brand-logo-preview ${logoUrl ? "has-logo" : "empty"}`}>
+                  {logoUrl ? (
+                    <img src={logoUrl} alt={t("brand.logoPreviewAlt")} />
+                  ) : (
+                    <div>
+                      <span>PNG</span>
+                      <strong>{t("brand.logoPreviewEmpty")}</strong>
+                    </div>
+                  )}
+                </div>
+
+                <div className="brand-logo-controls">
+                  <div>
+                    <strong>{t("brand.logoUploadTitle")}</strong>
+                    <p>{t("brand.logoUploadText")}</p>
+                  </div>
+
+                  <div className="brand-logo-actions">
+                    <label className="brand-logo-upload-button">
+                      <input
+                        type="file"
+                        accept="image/png,image/webp,image/jpeg"
+                        onChange={handleLogoUpload}
+                        disabled={logoUploading || analyzing || saving || deletingBrand}
+                      />
+                      <span>{logoUploading ? t("brand.logoUploading") : t("brand.logoChooseFile")}</span>
+                    </label>
+
+                    {logoUrl && (
+                      <button
+                        type="button"
+                        className="brand-logo-remove-button"
+                        onClick={handleRemoveLogo}
+                        disabled={logoUploading || analyzing || saving || deletingBrand}
+                      >
+                        {t("brand.logoRemove")}
+                      </button>
+                    )}
+                  </div>
+
+                  <label className="checkbox-row brand-profile-checkbox brand-logo-default-toggle">
+                    <input
+                      type="checkbox"
+                      checked={logoEnabledByDefault}
+                      onChange={handleLogoDefaultChange}
+                      disabled={logoUploading || analyzing || saving || deletingBrand}
+                    />
+                    <span>{t("brand.logoDefaultToggle")}</span>
+                  </label>
+
+                  <p className="brand-profile-field-help">
+                    {t("brand.logoDefaultHelp")}
+                  </p>
+
+                  {logoMessage && <p className="brand-logo-message">{logoMessage}</p>}
+                </div>
+              </div>
             </div>
 
             {showGeneratedFields && (

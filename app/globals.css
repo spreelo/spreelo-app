@@ -15878,12 +15878,203 @@ button[class*="Load"] {
   .spreelo-sidebar .spreelo-brand,
   .sidebar.spreelo-sidebar .spreelo-brand,
   .spreelo-sidebar .brand.spreelo-brand {
-    padding-left: 24px !important;
+    padding-left: 8px !important;
     padding-right: 14px !important;
   }
 
   .spreelo-sidebar .spreelo-logo-image,
   .sidebar.spreelo-sidebar .spreelo-logo-image {
     transform: translateX(4px) !important;
+  }
+}
+
+/* Step 83: Brand logo upload */
+.brand-logo-section {
+  position: relative;
+  overflow: hidden;
+}
+
+.brand-logo-upload-panel {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) 1fr;
+  gap: 20px;
+  align-items: stretch;
+  margin-top: 18px;
+}
+
+.brand-logo-preview {
+  min-height: 150px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 118, 210, 0.16);
+  background:
+    linear-gradient(45deg, rgba(148, 163, 184, 0.12) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(148, 163, 184, 0.12) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(148, 163, 184, 0.12) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(148, 163, 184, 0.12) 75%),
+    #ffffff;
+  background-size: 22px 22px;
+  background-position: 0 0, 0 11px, 11px -11px, -11px 0px;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.65);
+}
+
+.brand-logo-preview.has-logo img {
+  display: block;
+  max-width: 100%;
+  max-height: 112px;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 22px rgba(15, 35, 70, 0.14));
+}
+
+.brand-logo-preview.empty {
+  background:
+    radial-gradient(circle at 80% 10%, rgba(14, 165, 233, 0.14), transparent 34%),
+    linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+}
+
+.brand-logo-preview.empty > div {
+  text-align: center;
+  color: #5f7390;
+}
+
+.brand-logo-preview.empty span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  background: #dff0ff;
+  color: #0b66e4;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+
+.brand-logo-preview.empty strong {
+  display: block;
+  color: #35506c;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.brand-logo-controls {
+  min-width: 0;
+  border-radius: 22px;
+  border: 1px solid rgba(219, 231, 246, 0.95);
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.brand-logo-controls strong {
+  display: block;
+  color: #132238;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+
+.brand-logo-controls p {
+  margin: 0;
+  color: #657890;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.brand-logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.brand-logo-upload-button,
+.brand-logo-remove-button {
+  min-height: 42px;
+  border-radius: 999px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.brand-logo-upload-button {
+  border: 1px solid rgba(11, 102, 228, 0.28);
+  background: linear-gradient(135deg, #0b66e4 0%, #0ea5e9 100%);
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(11, 102, 228, 0.18);
+}
+
+.brand-logo-upload-button input {
+  display: none;
+}
+
+.brand-logo-remove-button {
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  background: #fff7f7;
+  color: #b91c1c;
+}
+
+.brand-logo-upload-button:hover,
+.brand-logo-remove-button:hover {
+  transform: translateY(-1px);
+}
+
+.brand-logo-upload-button:has(input:disabled),
+.brand-logo-remove-button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.brand-logo-default-toggle {
+  margin-top: 2px;
+}
+
+.brand-logo-message {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #eef7ff;
+  color: #0f5fae;
+  border: 1px solid rgba(14, 116, 205, 0.14);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+@media (max-width: 760px) {
+  .brand-logo-upload-panel {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .brand-logo-preview {
+    min-height: 128px;
+  }
+
+  .brand-logo-controls {
+    padding: 16px;
+  }
+
+  .brand-logo-actions {
+    align-items: stretch;
+  }
+
+  .brand-logo-upload-button,
+  .brand-logo-remove-button {
+    width: 100%;
   }
 }
