@@ -3573,11 +3573,11 @@ export default function AutomationPage() {
   const plannerUiCopy = {
     planSummary: plannerLocaleIsSwedish ? "Din plan" : "Your plan",
     readyToCreate: plannerLocaleIsSwedish ? "Redo att skapa" : "Ready to create",
-    spreeloChoosesLanguage: plannerLocaleIsSwedish ? "Spreelo väljer automatiskt" : "Spreelo chooses automatically",
+    spreeloChoosesLanguage: plannerLocaleIsSwedish ? "Svenska" : "English",
     platformHelp: plannerLocaleIsSwedish ? "Här kommer dina inlägg publiceras." : "This is where your posts will be published.",
     languageForPosts: plannerLocaleIsSwedish ? "Språk för inläggen" : "Post language",
     repeatFull: plannerLocaleIsSwedish ? "Upprepning" : "Repeat",
-    languageHelpSmart: plannerLocaleIsSwedish ? "Spreelo kan välja språk utifrån din varumärkesanalys." : "Spreelo can choose the language from your brand analysis.",
+    languageHelpSmart: plannerLocaleIsSwedish ? "Välj vilket språk de skapade inläggen ska skrivas på." : "Choose the language the generated posts should be written in.",
     repeatHelpSmart: plannerLocaleIsSwedish ? "Bestämmer hur ofta planen skapas och upprepas." : "Controls how often the plan is created and repeated.",
     timezoneHelpSmart: plannerLocaleIsSwedish ? "Används för att planera inlägg i rätt lokal tid." : "Used to schedule posts in the correct local time.",
     planIncludesText: plannerLocaleIsSwedish
@@ -5106,6 +5106,8 @@ setRules((currentRules) =>
           }
         }}
       >
+        <div className="wizard-layout">
+          <main className="wizard-main">
      <header className="planner-hero planner-hero-final">
   <div className="planner-hero-copy">
     <h2>
@@ -5168,8 +5170,6 @@ setRules((currentRules) =>
   </section>
 )}
 
-<div className="wizard-layout">
-          <main className="wizard-main">
             <section className="planner-builder-card planner-primary-builder">
               <div className="planner-builder-header">
                 <div className="planner-builder-step-badge">1</div>
