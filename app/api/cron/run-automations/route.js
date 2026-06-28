@@ -429,8 +429,9 @@ Important website item rules:
 - Use only details that are present in the selected item information.
 - Use the selected item URL as the destination link when this post promotes the selected item.
 - Do not invent prices, discounts, guarantees, availability, dates, addresses, square meters, specifications or claims.
-- If a verified price is provided above, you may mention that exact price only.
+- If a verified price is provided above, you may mention that exact price only, exactly as written. Do not convert currency and do not change the currency symbol/code.
 - If no verified price is provided above, do not mention any price at all.
+- Never invent USD, EUR, SEK, kr or any other currency. A price must come from Verified price above.
 - Do not add generic price fallback text such as "see current price" or "se aktuellt pris".
 - A visible ordinary price is not automatically an offer, sale, discount, deal, bargain, campaign price or limited-time promotion.
 - Do not call the item an offer, deal, sale, discount, bargain, fynd, erbjudande, rabatt, rea or kampanjpris unless the selected item information explicitly says that the product is discounted or on sale.
@@ -467,6 +468,52 @@ function normalizePriceDigits(value) {
   return String(value || "").replace(/[^0-9]/g, "");
 }
 
+const PRICE_CURRENCY_WORDS = [
+  "kr",
+  "sek",
+  "nok",
+  "dkk",
+  "eur",
+  "euro",
+  "usd",
+  "dollar",
+  "dollars",
+  "gbp",
+  "pound",
+  "pounds",
+  "chf",
+  "cad",
+  "aud",
+  "nzd",
+  "jpy",
+  "cny",
+  "inr",
+  "brl",
+  "mxn",
+  "zar",
+  "try",
+  "pln",
+  "czk",
+  "huf",
+  "ron",
+  "uzs",
+  "сум",
+];
+
+const PRICE_AMOUNT_PATTERN = String.raw`(?:[$€£]\s*)?\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})?\s*(?:${PRICE_CURRENCY_WORDS.join("|")}\b|:-)|(?:[$€£]\s*)\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})?`;
+const PRICE_SENTENCE_REGEX = new RegExp(
+  String.raw`[^.!?\n]*${PRICE_AMOUNT_PATTERN}[^.!?\n]*[.!?]?`,
+  "gi"
+);
+
+function segmentContainsVerifiedPrice(segment, verifiedDigits) {
+  if (!verifiedDigits) {
+    return false;
+  }
+
+  return normalizePriceDigits(segment).includes(verifiedDigits);
+}
+
 function stripUnsupportedPriceClaims(postContent, websiteItem) {
   let sanitized = String(postContent || "");
   const verifiedPrice = String(websiteItem?.price || "").trim();
@@ -475,17 +522,24 @@ function stripUnsupportedPriceClaims(postContent, websiteItem) {
   const pricePatterns = [
     /\bPris\s*:\s*[^.!?\n]+[.!?]?/gi,
     /\bPrice\s*:\s*[^.!?\n]+[.!?]?/gi,
+    /\bKostar\s+[^.!?\n]+[.!?]?/gi,
+    /\bCosts\s+[^.!?\n]+[.!?]?/gi,
+    /\bpriced at\s+[^.!?\n]+[.!?]?/gi,
     /\bför endast\s+[^.!?\n]+[.!?]?/gi,
     /\bonly\s+[^.!?\n]+[.!?]?/gi,
-    /\bför\s+\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})?\s*(?:kr|sek|:-)\b[.!?]?/gi,
-    /\b\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})?\s*(?:kr|sek|:-)\b[.!?]?/gi,
+    PRICE_SENTENCE_REGEX,
   ];
 
   for (const pattern of pricePatterns) {
     sanitized = sanitized.replace(pattern, (match) => {
-      if (verifiedDigits && normalizePriceDigits(match) === verifiedDigits) {
+      if (segmentContainsVerifiedPrice(match, verifiedDigits)) {
         return match;
       }
+
+      console.warn("Removed unsupported price claim from generated post", {
+        verifiedPrice: verifiedPrice || null,
+        removed: truncateText(match, 160),
+      });
 
       return "";
     });
@@ -493,6 +547,7 @@ function stripUnsupportedPriceClaims(postContent, websiteItem) {
 
   return sanitized
     .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([,.!?])/g, "$1")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -617,6 +672,8 @@ Output rules:
 - Return only the final post text.
 - Do not explain anything.
 - Make it suitable for the selected platform.
+- If the selected platform includes both Facebook and Instagram, write a strong core post that works on both. Avoid platform-specific wording such as "click the link" unless a Destination URL is actually included.
+- Never mention a price unless it was provided as Verified price for the selected website item.
 - Always include the Destination URL in the final post if Destination URL is provided.
 - If emojis are disabled, do not use emojis.
 - If hashtags are enabled, include relevant hashtags at the end.
@@ -2101,7 +2158,43 @@ function getProductPriceFromJsonLd(product) {
   return `${price}${currency ? ` ${currency}` : ""}`.trim();
 }
 
+function extractVisiblePriceFromText(text) {
+  const normalizedText = String(text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalizedText) {
+    return "";
+  }
+
+  const priceRegex = new RegExp(PRICE_AMOUNT_PATTERN, "gi");
+  const matches = [];
+  let match;
+
+  while ((match = priceRegex.exec(normalizedText)) !== null) {
+    const value = String(match[0] || "").trim();
+
+    if (!value || !normalizePriceDigits(value)) {
+      continue;
+    }
+
+    matches.push(value);
+  }
+
+  const preferredLocalCurrencyMatch = matches.find((value) =>
+    /(kr|sek|nok|dkk|eur|euro|uzs|сум)|:-/i.test(value)
+  );
+
+  return preferredLocalCurrencyMatch || matches[0] || "";
+}
+
 function extractProductPriceFromHtml(html) {
+  const visiblePrice = extractVisiblePriceFromText(stripHtmlToText(html));
+
+  if (visiblePrice) {
+    return visiblePrice;
+  }
+
   const metaPrice = getMetaContent(html, [
     "product:price:amount",
     "og:price:amount",
@@ -2117,10 +2210,7 @@ function extractProductPriceFromHtml(html) {
     return `${metaPrice}${metaCurrency ? ` ${metaCurrency}` : ""}`.trim();
   }
 
-  const text = stripHtmlToText(html);
-  const priceMatch = text.match(/(?:\d{1,3}(?:[ .]\d{3})*|\d+)(?:[,.]\d{1,2})?\s?(?:kr|sek|uzs|сум|:-)/i);
-
-  return priceMatch?.[0] ? priceMatch[0].trim() : "";
+  return "";
 }
 
 function extractBestProductImageFromHtml(html, pageUrl) {
@@ -2176,8 +2266,8 @@ async function extractProductDataFromProductPage({
     truncateText(stripHtmlToText(html), 700);
 
  const price =
-  getProductPriceFromJsonLd(product) ||
-  extractProductPriceFromHtml(html);
+  extractProductPriceFromHtml(html) ||
+  getProductPriceFromJsonLd(product);
 
 if (!price) {
   console.log("Product page candidate has no clear price; continuing because many service/catalog pages hide prices", {
@@ -3238,6 +3328,74 @@ function getPublishTargets(platformValue) {
   return targets;
 }
 
+function extractUrlsFromText(value) {
+  return String(value || "").match(/https?:\/\/\S+/gi) || [];
+}
+
+function cleanUrlForCaption(value) {
+  return String(value || "").replace(/[).,!?:;]+$/g, "");
+}
+
+function normalizeHashtagLine(value) {
+  const hashtags = String(value || "").match(/#[\p{L}\p{N}_]+/gu) || [];
+  const unique = [];
+
+  for (const hashtag of hashtags) {
+    const normalized = hashtag.toLowerCase();
+
+    if (!unique.some((item) => item.toLowerCase() === normalized)) {
+      unique.push(hashtag);
+    }
+
+    if (unique.length >= 8) {
+      break;
+    }
+  }
+
+  return unique.join(" ");
+}
+
+function buildInstagramCaptionFromPostContent(content) {
+  const original = String(content || "").trim();
+
+  if (!original) {
+    return original;
+  }
+
+  const urls = extractUrlsFromText(original).map(cleanUrlForCaption);
+  const hashtagLine = normalizeHashtagLine(original);
+
+  let caption = original
+    .replace(/https?:\/\/\S+/gi, "")
+    .replace(/\b(se produkten|beställ direkt|köp här|läs mer|read more|shop now|order here)\s*(här|here)?\s*(👉|➡️)?\s*$/gim, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (hashtagLine) {
+    caption = caption.replace(/(?:^|\s)(#[\p{L}\p{N}_]+\s*)+$/gu, "").trim();
+  }
+
+  const lines = caption
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  caption = lines.join("\n\n");
+
+  const firstUrl = urls[0] || "";
+
+  if (firstUrl) {
+    caption = `${caption}\n\nSe produkten på webbplatsen:\n${firstUrl}`.trim();
+  }
+
+  if (hashtagLine) {
+    caption = `${caption}\n\n${hashtagLine}`.trim();
+  }
+
+  return truncateText(caption, 2200);
+}
+
 function getMetaErrorMessage(result, fallbackMessage) {
   const metaMessage = result?.error?.message || fallbackMessage;
   const metaType = result?.error?.type || "unknown";
@@ -3619,7 +3777,7 @@ async function publishApprovedSocialPosts({
           instagramUserId: instagramConnection.page_id,
           accessToken: instagramConnection.page_access_token,
           imageUrl: post.image_url,
-          caption: post.content,
+          caption: buildInstagramCaptionFromPostContent(post.content),
         });
 
         summary.instagram_published += 1;
