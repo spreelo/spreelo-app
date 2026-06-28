@@ -3426,57 +3426,98 @@ function createCampaignSlotsFromOpportunity({
   });
 }
 
+const platformIconSources = {
+  facebook: "/social-icons/facebook.png",
+  instagram: "/social-icons/instagram.png",
+  linkedin: "/social-icons/linkedin.png",
+  pinterest: "/social-icons/pinterest.png",
+  tiktok: "/social-icons/tiktok.png",
+  x: "/social-icons/x.png",
+  youtube: "/social-icons/youtube.png",
+};
+
+function normalizePlatformKey(platformValue) {
+  const value = String(platformValue || "").trim().toLowerCase();
+
+  if (!value) return "";
+  if (value.includes("facebook")) return "facebook";
+  if (value.includes("instagram")) return "instagram";
+  if (value.includes("linkedin") || value.includes("linked in")) return "linkedin";
+  if (value.includes("pinterest")) return "pinterest";
+  if (value.includes("tiktok") || value.includes("tik tok")) return "tiktok";
+  if (value === "x" || value.includes("twitter")) return "x";
+  if (value.includes("youtube")) return "youtube";
+
+  return value.replace(/[^a-z0-9_-]+/g, "_");
+}
+
 function formatConnectedPlatformLabel(platformValue) {
-  const value = String(platformValue || "").toLowerCase();
+  const value = normalizePlatformKey(platformValue);
 
   if (value === "facebook") return "Facebook";
   if (value === "instagram") return "Instagram";
   if (value === "linkedin") return "LinkedIn";
+  if (value === "pinterest") return "Pinterest";
+  if (value === "tiktok") return "TikTok";
+  if (value === "x") return "X";
+  if (value === "youtube") return "YouTube";
 
-  return platformValue;
+  return String(platformValue || "").trim() || value;
+}
+
+function getPlatformIconSource(platformValue) {
+  return platformIconSources[normalizePlatformKey(platformValue)] || "";
 }
 
 function getConnectedPlatformOptions(connectedPlatforms) {
-  const normalizedPlatforms = (connectedPlatforms || [])
-    .map((item) => String(item?.value || item?.label || "").toLowerCase())
-    .filter(Boolean);
-
-  const hasFacebook = normalizedPlatforms.includes("facebook");
-  const hasInstagram = normalizedPlatforms.includes("instagram");
-
+  const seen = new Set();
   const options = [];
 
-  if (hasFacebook && hasInstagram) {
-    options.push({
-      value: "Facebook + Instagram",
-      label: "Facebook + Instagram",
-      platforms: ["facebook", "instagram"],
-    });
-  }
-
-  if (hasFacebook) {
-    options.push({ value: "Facebook", label: "Facebook", platforms: ["facebook"] });
-  }
-
-  if (hasInstagram) {
-    options.push({ value: "Instagram", label: "Instagram", platforms: ["instagram"] });
-  }
-
   for (const item of connectedPlatforms || []) {
-    const value = String(item?.value || "").toLowerCase();
+    const key = normalizePlatformKey(item?.value || item?.label);
 
-    if (!value || value === "facebook" || value === "instagram") {
+    if (!key || seen.has(key)) {
       continue;
     }
 
+    seen.add(key);
+
     options.push({
-      value: item.label || formatConnectedPlatformLabel(value),
-      label: item.label || formatConnectedPlatformLabel(value),
-      platforms: [value],
+      value: key,
+      label: formatConnectedPlatformLabel(item?.label || item?.value || key),
+      platforms: [key],
+      icon: getPlatformIconSource(key),
     });
   }
 
   return options;
+}
+
+function getSelectedPlatformKeys(platformValue, platformOptions = []) {
+  const normalizedInput = String(platformValue || "").toLowerCase();
+
+  const keys = platformOptions
+    .map((item) => item.value)
+    .filter((key) => normalizedInput.includes(key));
+
+  if (keys.length > 0) {
+    return Array.from(new Set(keys));
+  }
+
+  const directKey = normalizePlatformKey(platformValue);
+
+  if (directKey && platformOptions.some((item) => item.value === directKey)) {
+    return [directKey];
+  }
+
+  return [];
+}
+
+function formatPlatformSelectionFromKeys(keys = [], platformOptions = []) {
+  return keys
+    .map((key) => platformOptions.find((item) => item.value === key)?.label || formatConnectedPlatformLabel(key))
+    .filter(Boolean)
+    .join(" + ");
 }
 
 export default function AutomationPage() {
@@ -3534,6 +3575,8 @@ export default function AutomationPage() {
     readyToCreate: plannerLocaleIsSwedish ? "Redo att skapa" : "Ready to create",
     spreeloChoosesLanguage: plannerLocaleIsSwedish ? "Spreelo väljer automatiskt" : "Spreelo chooses automatically",
     platformHelp: plannerLocaleIsSwedish ? "Här kommer dina inlägg publiceras." : "This is where your posts will be published.",
+    languageForPosts: plannerLocaleIsSwedish ? "Språk för inläggen" : "Post language",
+    repeatFull: plannerLocaleIsSwedish ? "Upprepning" : "Repeat",
     languageHelpSmart: plannerLocaleIsSwedish ? "Spreelo kan välja språk utifrån din varumärkesanalys." : "Spreelo can choose the language from your brand analysis.",
     repeatHelpSmart: plannerLocaleIsSwedish ? "Bestämmer hur ofta planen skapas och upprepas." : "Controls how often the plan is created and repeated.",
     timezoneHelpSmart: plannerLocaleIsSwedish ? "Används för att planera inlägg i rätt lokal tid." : "Used to schedule posts in the correct local time.",
@@ -3704,11 +3747,34 @@ const [slots, setSlots] = useState([]);
 
   const [planName, setPlanName] = useState("");
   const [platform, setPlatform] = useState("");
+const [platformDropdownOpen, setPlatformDropdownOpen] = useState(false);
 const [connectedPlatforms, setConnectedPlatforms] = useState([]);
 const [loadingConnectedPlatforms, setLoadingConnectedPlatforms] = useState(false);
 const connectedPlatformOptions = getConnectedPlatformOptions(connectedPlatforms);
+const selectedPlatformKeys = getSelectedPlatformKeys(platform, connectedPlatformOptions);
+const selectedPlatformOptions = selectedPlatformKeys
+  .map((key) => connectedPlatformOptions.find((item) => item.value === key))
+  .filter(Boolean);
   const [tone, setTone] = useState("Friendly");
   const [language, setLanguage] = useState("Auto");
+const languageOptions = [
+  { value: "Auto", label: safePlannerText("spreeloChoosesLanguage") },
+  { value: "Svenska", label: "Svenska" },
+  { value: "English", label: "English" },
+  { value: "Dansk", label: "Dansk" },
+  { value: "Norsk", label: "Norsk" },
+  { value: "Deutsch", label: "Deutsch" },
+  { value: "Español", label: "Español" },
+  { value: "Français", label: "Français" },
+  { value: "Italiano", label: "Italiano" },
+  { value: "Nederlands", label: "Nederlands" },
+  { value: "Português", label: "Português" },
+  { value: "Suomi", label: "Suomi" },
+  { value: "Polski", label: "Polski" },
+  { value: "العربية", label: "العربية" },
+  { value: "日本語", label: "日本語" },
+  { value: "中文", label: "中文" },
+];
   const [postType, setPostType] = useState("Offer");
   const [length, setLength] = useState("Medium");
   const [ctaType, setCtaType] = useState("Learn more");
@@ -4015,17 +4081,16 @@ async function loadConnectedPlatformsForBrand(userId, brandProfileId) {
   const platformOptions = getConnectedPlatformOptions(uniquePlatforms);
 
   setPlatform((currentValue) => {
-    const currentValueLower = String(currentValue || "").toLowerCase();
+    const currentKeys = getSelectedPlatformKeys(currentValue, platformOptions);
 
-    const currentStillExists = platformOptions.some(
-      (item) => item.value.toLowerCase() === currentValueLower
-    );
-
-    if (currentStillExists) {
-      return currentValue;
+    if (currentKeys.length > 0) {
+      return formatPlatformSelectionFromKeys(currentKeys, platformOptions);
     }
 
-    return platformOptions[0]?.value || "";
+    return formatPlatformSelectionFromKeys(
+      platformOptions.map((item) => item.value),
+      platformOptions
+    );
   });
 
   setLoadingConnectedPlatforms(false);
@@ -5035,6 +5100,10 @@ setRules((currentRules) =>
           if (!event.target.closest(".custom-picker-field")) {
             setOpenPickerId(null);
           }
+
+          if (!event.target.closest(".platform-multiselect")) {
+            setPlatformDropdownOpen(false);
+          }
         }}
       >
      <header className="planner-hero planner-hero-final">
@@ -5726,37 +5795,67 @@ setRules((currentRules) =>
       <div className="input">{t("automation.loadingConnectedChannels")}</div>
     </div>
   ) : connectedPlatformOptions.length > 0 ? (
-    <label className="planner-setting-field">
+    <div className="planner-setting-field">
       <div className="planner-setting-head">
         <span className="planner-setting-icon">🌐</span>
         <strong>{t("automation.platform")}</strong>
       </div>
-      <select
-        value={platform}
-        onChange={(event) => setPlatform(event.target.value)}
-      >
-        {connectedPlatformOptions.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </select>
-      <div className="planner-social-icon-row" aria-label={t("automation.platform")}>
-        {connectedPlatformOptions.find((item) => item.value === platform)?.platforms.includes("facebook") ? (
-          <span className="social-dot facebook">f</span>
-        ) : null}
-        {connectedPlatformOptions.find((item) => item.value === platform)?.platforms.includes("instagram") ? (
-          <span className="social-dot instagram">◎</span>
-        ) : null}
-        {connectedPlatformOptions.find((item) => item.value === platform)?.platforms.includes("linkedin") ? (
-          <span className="social-dot linkedin">in</span>
-        ) : null}
-        {connectedPlatformOptions.find((item) => item.value === platform)?.platforms.includes("tiktok") ? (
-          <span className="social-dot tiktok">♪</span>
-        ) : null}
+
+      <div className={`platform-multiselect ${platformDropdownOpen ? "open" : ""}`}>
+        <button
+          type="button"
+          className="platform-multiselect-button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setPlatformDropdownOpen((current) => !current);
+          }}
+        >
+          <span className="platform-selected-icons">
+            {selectedPlatformOptions.length > 0 ? (
+              selectedPlatformOptions.map((item) => (
+                <img
+                  key={item.value}
+                  src={item.icon}
+                  alt={item.label}
+                  className="platform-icon-img"
+                />
+              ))
+            ) : (
+              <span className="platform-placeholder">{t("automation.choosePlatform")}</span>
+            )}
+          </span>
+          <span className="platform-caret">⌄</span>
+        </button>
+
+        {platformDropdownOpen && (
+          <div className="platform-multiselect-menu" onClick={(event) => event.stopPropagation()}>
+            {connectedPlatformOptions.map((item) => {
+              const checked = selectedPlatformKeys.includes(item.value);
+
+              return (
+                <label key={item.value} className="platform-multiselect-option">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      const nextKeys = checked
+                        ? selectedPlatformKeys.filter((key) => key !== item.value)
+                        : [...selectedPlatformKeys, item.value];
+
+                      setPlatform(formatPlatformSelectionFromKeys(nextKeys, connectedPlatformOptions));
+                    }}
+                  />
+                  <img src={item.icon} alt="" className="platform-icon-img" />
+                  <span>{item.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </div>
+
       <p>{safePlannerText("platformHelp")}</p>
-    </label>
+    </div>
   ) : (
     <div className="planner-setting-field planner-setting-connect-box">
       <div className="planner-setting-head">
@@ -5778,15 +5877,17 @@ setRules((currentRules) =>
   <label className="planner-setting-field">
     <div className="planner-setting-head">
       <span className="planner-setting-icon">✧</span>
-      <strong>{t("automation.language")}</strong>
+      <strong>{safePlannerText("languageForPosts")}</strong>
     </div>
     <select
       value={language}
       onChange={(event) => setLanguage(event.target.value)}
     >
-      <option value="Auto">{safePlannerText("spreeloChoosesLanguage")}</option>
-      <option value="Svenska">Svenska</option>
-      <option value="English">English</option>
+      {languageOptions.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
     </select>
     <p>{safePlannerText("languageHelpSmart")}</p>
   </label>
@@ -5795,7 +5896,7 @@ setRules((currentRules) =>
   <label className="planner-setting-field">
     <div className="planner-setting-head">
       <span className="planner-setting-icon">↻</span>
-      <strong>{t("automation.repeat")}</strong>
+      <strong>{safePlannerText("repeatFull")}</strong>
     </div>
     <select
       value={scheduleType}
@@ -5806,39 +5907,26 @@ setRules((currentRules) =>
     </select>
     <p>{safePlannerText("repeatHelpSmart")}</p>
   </label>
-</div>
 
-<div className="planner-advanced-toggle-row">
-  <button
-    type="button"
-    className="planner-advanced-toggle"
-    onClick={() => setShowAdvancedSettings((current) => !current)}
-  >
-    {showAdvancedSettings ? t("automation.hideAdvancedSettings") : t("automation.advancedSettings")}
-  </button>
-</div>
 
-{showAdvancedSettings && (
-  <div className="planner-settings-grid advanced compact-advanced-settings">
-    <label className="planner-setting-field">
-      <div className="planner-setting-head">
-        <span className="planner-setting-icon">⏱</span>
-        <strong>{t("automation.timezone")}</strong>
-      </div>
-      <select
-        value={timeZone}
-        onChange={(event) => setTimeZone(event.target.value)}
-      >
-        {timeZoneOptions.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      <p>{safePlannerText("timezoneHelpSmart")}</p>
-    </label>
-  </div>
-)}
+  <label className="planner-setting-field">
+    <div className="planner-setting-head">
+      <span className="planner-setting-icon">⏱</span>
+      <strong>{t("automation.timezone")}</strong>
+    </div>
+    <select
+      value={timeZone}
+      onChange={(event) => setTimeZone(event.target.value)}
+    >
+      {timeZoneOptions.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+    <p>{safePlannerText("timezoneHelpSmart")}</p>
+  </label>
+</div>
             </section>
 
             {shouldShowPlannerDetails && !planWasSaved && (
@@ -6167,12 +6255,19 @@ setRules((currentRules) =>
                   <span className="planner-summary-icon">🌐</span>
                   <div>
                     <span>{t("automation.platform")}</span>
-                    <strong>{platform || t("automation.choosePlatform")}</strong>
                     <div className="planner-social-icon-row mini">
-                      <span className="social-dot facebook">f</span>
-                      <span className="social-dot instagram">◎</span>
-                      <span className="social-dot linkedin">in</span>
-                      <span className="social-dot tiktok">♪</span>
+                      {selectedPlatformOptions.length > 0 ? (
+                        selectedPlatformOptions.map((item) => (
+                          <img
+                            key={item.value}
+                            src={item.icon}
+                            alt={item.label}
+                            className="platform-icon-img"
+                          />
+                        ))
+                      ) : (
+                        <strong>{t("automation.choosePlatform")}</strong>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -6180,7 +6275,7 @@ setRules((currentRules) =>
                 <div className="planner-summary-item">
                   <span className="planner-summary-icon">✧</span>
                   <div>
-                    <span>{t("automation.language")}</span>
+                    <span>{safePlannerText("languageForPosts")}</span>
                     <strong>{getLanguageDisplayLabel(language)}</strong>
                   </div>
                 </div>
@@ -6188,7 +6283,7 @@ setRules((currentRules) =>
                 <div className="planner-summary-item">
                   <span className="planner-summary-icon">↻</span>
                   <div>
-                    <span>{t("automation.repeat")}</span>
+                    <span>{safePlannerText("repeatFull")}</span>
                     <strong>{translateScheduleType(scheduleType)}</strong>
                   </div>
                 </div>
