@@ -15271,3 +15271,246 @@ textarea.input:focus,
     font-size: 0.88rem !important;
   }
 }
+
+/* Step 77: blue SaaS color system + 4 settings cards on desktop */
+:root {
+  --spreelo-blue-main: #0f6fff;
+  --spreelo-blue-deep: #0758d8;
+  --spreelo-blue-soft: #eaf3ff;
+  --spreelo-blue-softer: #f4f9ff;
+  --spreelo-blue-border: rgba(15, 111, 255, 0.22);
+  --spreelo-cyan: #18c3c8;
+  --spreelo-text-main: #1f2937;
+  --spreelo-text-soft: #536178;
+  --spreelo-text-muted: #6b7a90;
+}
+
+/* App shell and sidebar active state */
+.spreelo-shell {
+  background: #eef3fa !important;
+}
+
+.spreelo-nav a.active,
+.nav.spreelo-nav a.active {
+  color: var(--spreelo-blue-deep) !important;
+  background: #eaf3ff !important;
+  border-color: rgba(15, 111, 255, 0.18) !important;
+}
+
+.spreelo-nav a.active svg,
+.nav.spreelo-nav a.active svg {
+  color: var(--spreelo-blue-deep) !important;
+}
+
+.current-brand-new,
+.sidebar-plan-card,
+.sidebar-plan-card button {
+  border-color: rgba(15, 111, 255, 0.18) !important;
+}
+
+/* Hero: calmer blue/turquoise direction */
+.automation-page.planner-wizard-page .planner-hero-final {
+  border-color: rgba(191, 219, 254, 0.85) !important;
+  background:
+    radial-gradient(circle at 82% 42%, rgba(24, 195, 200, 0.20), transparent 25%),
+    radial-gradient(circle at 92% 18%, rgba(15, 111, 255, 0.10), transparent 24%),
+    linear-gradient(110deg, #ffffff 0%, #f7fbff 58%, #eaf3ff 100%) !important;
+  box-shadow: 0 22px 70px rgba(15, 111, 255, 0.075) !important;
+}
+
+.automation-page.planner-wizard-page .planner-hero-orb {
+  background: linear-gradient(135deg, rgba(24, 195, 200, 0.30), rgba(15, 111, 255, 0.16)) !important;
+}
+
+.automation-page.planner-wizard-page .planner-hero-calendar {
+  box-shadow: 0 26px 54px rgba(15, 111, 255, 0.13) !important;
+}
+
+.automation-page.planner-wizard-page .planner-hero-calendar::before {
+  background: linear-gradient(90deg, #18c3c8, #0f6fff) !important;
+}
+
+.automation-page.planner-wizard-page .planner-hero-calendar span {
+  background: rgba(15, 111, 255, 0.08) !important;
+  color: var(--spreelo-blue-deep) !important;
+}
+
+.automation-page.planner-wizard-page .planner-hero-mascot {
+  background: linear-gradient(180deg, #ffffff, #eaf3ff) !important;
+  color: var(--spreelo-blue-main) !important;
+  box-shadow: 0 20px 44px rgba(15, 111, 255, 0.14) !important;
+}
+
+/* Primary actions and active controls */
+.automation-page.planner-wizard-page .planner-save-button,
+.automation-page.planner-wizard-page .planner-create-another-button,
+.learn-more-modal > .primary-button.full,
+.learn-more-modal button.primary-button.full {
+  background: linear-gradient(135deg, var(--spreelo-blue-main) 0%, var(--spreelo-blue-deep) 100%) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 0 !important;
+  box-shadow: 0 18px 36px rgba(15, 111, 255, 0.24) !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-button:hover,
+.automation-page.planner-wizard-page .planner-create-another-button:hover,
+.learn-more-modal > .primary-button.full:hover,
+.learn-more-modal button.primary-button.full:hover {
+  box-shadow: 0 24px 48px rgba(15, 111, 255, 0.30) !important;
+}
+
+.automation-page.planner-wizard-page .planner-builder-step-badge,
+.automation-page.planner-wizard-page .planner-post-index,
+.automation-page.planner-wizard-page .planner-post-row:nth-child(n) .planner-post-index {
+  background: linear-gradient(135deg, var(--spreelo-blue-main), var(--spreelo-blue-deep)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 28px rgba(15, 111, 255, 0.20) !important;
+}
+
+.automation-page.planner-wizard-page .planner-segmented-buttons button.active {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, var(--spreelo-blue-main), var(--spreelo-blue-deep)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 28px rgba(15, 111, 255, 0.20) !important;
+}
+
+.automation-page.planner-wizard-page .planner-recommended-pill {
+  background: var(--spreelo-blue-soft) !important;
+  color: var(--spreelo-blue-deep) !important;
+  border-color: rgba(15, 111, 255, 0.16) !important;
+}
+
+.platform-multiselect.open .platform-multiselect-button,
+.platform-multiselect-button:focus-visible {
+  border-color: var(--spreelo-blue-main) !important;
+  box-shadow: 0 0 0 3px rgba(15, 111, 255, 0.10) !important;
+}
+
+.platform-multiselect-option:hover {
+  background: var(--spreelo-blue-softer) !important;
+}
+
+.platform-multiselect-option input {
+  accent-color: var(--spreelo-blue-main) !important;
+}
+
+/* Setup cards: blue/turquoise accents instead of pink/purple/orange */
+.automation-page.planner-wizard-page .planner-setup-card:nth-child(1),
+.automation-page.planner-wizard-page .planner-setup-card:nth-child(2),
+.automation-page.planner-wizard-page .planner-setup-card:nth-child(3) {
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%) !important;
+  border-color: rgba(191, 219, 254, 0.86) !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .setup-step-title > .setup-title-icon,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(2) .setup-title-icon,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(3) .setup-title-icon,
+.automation-page.planner-wizard-page .planner-setting-icon,
+.automation-page.planner-wizard-page .planner-summary-icon,
+.automation-page.planner-wizard-page .planner-summary-title > span,
+.automation-page.planner-wizard-page .planner-sidebar-title > span,
+.automation-page.planner-wizard-page .planner-includes-chip > span {
+  background: var(--spreelo-blue-soft) !important;
+  border-color: var(--spreelo-blue-border) !important;
+  color: var(--spreelo-blue-deep) !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper,
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(3) .planner-setup-helper {
+  background: var(--spreelo-blue-soft) !important;
+  color: var(--spreelo-blue-deep) !important;
+}
+
+/* Settings: four cards on desktop, two-by-two on tablet, one on mobile */
+.automation-page.planner-wizard-page .planner-settings-grid.simple {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.automation-page.planner-wizard-page .planner-settings-builder .planner-setting-field,
+.automation-page.planner-wizard-page .planner-setting-field {
+  min-height: 154px !important;
+  padding: 18px !important;
+}
+
+.automation-page.planner-wizard-page .planner-setting-head strong {
+  font-weight: 650 !important;
+}
+
+@media (min-width: 821px) and (max-width: 1180px) {
+  .automation-page.planner-wizard-page .planner-settings-grid.simple {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .automation-page.planner-wizard-page .planner-settings-grid.simple {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Summary, credits and progress bar */
+.automation-page.planner-wizard-page .planner-summary-status {
+  background: linear-gradient(180deg, #f4f9ff 0%, #ffffff 100%) !important;
+  border-color: rgba(15, 111, 255, 0.16) !important;
+}
+
+.automation-page.planner-wizard-page .planner-summary-status > span {
+  background: #ffffff !important;
+  color: var(--spreelo-blue-deep) !important;
+  border-color: rgba(15, 111, 255, 0.22) !important;
+}
+
+.automation-page.planner-wizard-page .planner-credit-progress div {
+  background: linear-gradient(90deg, var(--spreelo-blue-main) 0%, var(--spreelo-blue-deep) 100%) !important;
+}
+
+.automation-page.planner-wizard-page .planner-credit-progress {
+  background: #dbeafe !important;
+}
+
+.automation-page.planner-wizard-page .planner-credit-wave,
+.automation-page.planner-wizard-page .planner-credit-help {
+  background: linear-gradient(180deg, #f4f9ff 0%, #ffffff 68%) !important;
+}
+
+.automation-page.planner-wizard-page .planner-upgrade-button {
+  color: var(--spreelo-blue-deep) !important;
+  border-color: rgba(15, 111, 255, 0.26) !important;
+  background: #ffffff !important;
+}
+
+.automation-page.planner-wizard-page .planner-upgrade-button:hover {
+  background: var(--spreelo-blue-softer) !important;
+}
+
+/* Smaller accent cleanups */
+.automation-page.planner-wizard-page .planner-advanced-toggle,
+.automation-page.planner-wizard-page .planner-add-post-bottom {
+  border-color: rgba(15, 111, 255, 0.20) !important;
+  color: var(--spreelo-blue-deep) !important;
+}
+
+.automation-page.planner-wizard-page .planner-add-post-bottom:hover {
+  background: var(--spreelo-blue-softer) !important;
+}
+
+.automation-page.planner-wizard-page .planner-content-chip.active,
+.automation-page.planner-wizard-page .planner-mode-option.active {
+  border-color: rgba(15, 111, 255, 0.32) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f9ff 100%) !important;
+  box-shadow: 0 16px 34px rgba(15, 111, 255, 0.10) !important;
+}
+
+.automation-page.planner-wizard-page .mode-big-icon,
+.automation-page.planner-wizard-page .planner-content-chip > span {
+  background: var(--spreelo-blue-soft) !important;
+  color: var(--spreelo-blue-deep) !important;
+}
+
+.automation-page.planner-wizard-page .mode-radio,
+.automation-page.planner-wizard-page .planner-mode-option.active .mode-radio {
+  background: var(--spreelo-blue-main) !important;
+  border-color: var(--spreelo-blue-main) !important;
+}
