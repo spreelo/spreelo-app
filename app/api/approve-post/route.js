@@ -6,6 +6,7 @@ import {
 import {
   getServerTranslations,
   resolveBestServerLocale,
+  resolveUiLocaleFromLanguageName,
 } from "../../../lib/i18n/serverUiText.js";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,46 @@ async function getApproveTranslations({ supabase, locale }) {
     console.error("Could not load approve page translations", error);
     return createFallbackTranslator();
   }
+}
+
+async function getUserAppLanguage(supabase, userId) {
+  if (!supabase || !userId) return null;
+
+  try {
+    const { data, error } = await supabase.auth.admin.getUserById(userId);
+
+    if (error || !data?.user) return null;
+
+    const metadata = data.user.user_metadata || {};
+
+    return (
+      metadata.app_language ||
+      metadata.appLanguage ||
+      metadata.ui_language ||
+      metadata.locale ||
+      null
+    );
+  } catch (error) {
+    console.error("Could not load user app language for approval page", error);
+    return null;
+  }
+}
+
+function resolveApprovalPageLocale({ request, url, post, brandProfile, userAppLanguage }) {
+  const explicitUrlLocale = resolveUiLocaleFromLanguageName(
+    url?.searchParams?.get("lang") || url?.searchParams?.get("locale")
+  );
+
+  if (explicitUrlLocale) return explicitUrlLocale;
+
+  const userAppLocale = resolveUiLocaleFromLanguageName(userAppLanguage);
+
+  if (userAppLocale) return userAppLocale;
+
+  return resolveBestServerLocale({
+    request,
+    languageCandidates: [post?.language, brandProfile?.content_language],
+  });
 }
 
 function createHtmlPage({ title, message, status = "success", t, locale = "en" }) {
@@ -227,7 +268,7 @@ export async function GET(request) {
 
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, status, approval_token, language, brand_profile_id")
+      .select("id, user_id, status, approval_token, language, brand_profile_id")
       .eq("approval_token", token)
       .single();
 
@@ -243,9 +284,13 @@ export async function GET(request) {
       brandProfile = loadedBrandProfile || null;
     }
 
-    const postLocale = resolveBestServerLocale({
+    const userAppLanguage = await getUserAppLanguage(supabase, post?.user_id);
+    const postLocale = resolveApprovalPageLocale({
       request,
-      languageCandidates: [post?.language, brandProfile?.content_language],
+      url,
+      post,
+      brandProfile,
+      userAppLanguage,
     });
 
     translator = await getApproveTranslations({
