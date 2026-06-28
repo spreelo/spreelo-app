@@ -506,6 +506,33 @@ const PRICE_SENTENCE_REGEX = new RegExp(
   "gi"
 );
 
+function hasCurrencyMarker(value) {
+  return /[$€£]|\b(?:kr|sek|nok|dkk|eur|euro|usd|gbp|chf|cad|aud|nzd|jpy|cny|inr|brl|mxn|zar|try|pln|czk|huf|ron|uzs)\b|сум|:-/i.test(String(value || ""));
+}
+
+function normalizeVerifiedPriceValue(value) {
+  const text = String(value || "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!text || !normalizePriceDigits(text) || !hasCurrencyMarker(text)) {
+    return "";
+  }
+
+  const match = text.match(new RegExp(PRICE_AMOUNT_PATTERN, "i"));
+  return match ? String(match[0] || "").trim() : "";
+}
+
+function isStandaloneUnsupportedPriceLine(line, verifiedDigits) {
+  const text = String(line || "").trim();
+
+  if (!text) return false;
+  if (!/^\d+(?:[,.]\d{1,2})?$/.test(text)) return false;
+
+  return !segmentContainsVerifiedPrice(text, verifiedDigits);
+}
+
 function segmentContainsVerifiedPrice(segment, verifiedDigits) {
   if (!verifiedDigits) {
     return false;
@@ -544,6 +571,22 @@ function stripUnsupportedPriceClaims(postContent, websiteItem) {
       return "";
     });
   }
+
+  sanitized = sanitized
+    .split(/\n/)
+    .filter((line) => {
+      if (!isStandaloneUnsupportedPriceLine(line, verifiedDigits)) {
+        return true;
+      }
+
+      console.warn("Removed standalone unsupported price line from generated post", {
+        verifiedPrice: verifiedPrice || null,
+        removed: truncateText(line, 80),
+      });
+
+      return false;
+    })
+    .join("\n");
 
   return sanitized
     .replace(/[ \t]{2,}/g, " ")
@@ -887,6 +930,10 @@ function buildApprovalEmailHtml({
   const platformLabel = rule.platform || "Social media";
   const postTypeLabel = rule.post_type || "Post";
   const safeImageUrl = imageUrl ? escapeHtml(imageUrl) : "";
+  const previewSections = buildPlatformApprovalPreviews({
+    platform: rule.platform,
+    postContent,
+  });
 
   return `
 <!doctype html>
@@ -942,9 +989,20 @@ function buildApprovalEmailHtml({
                         ${escapeHtml(t("emails.approval.generatedPost"))}
                       </p>
 
-                      <div style="font-size:15px;line-height:1.7;color:#111827;">
-                        ${formatPostContentForHtml(postContent)}
-                      </div>
+                      ${previewSections
+                        .map(
+                          (preview) => `
+                            <div style="margin:0 0 16px;">
+                              <p style="margin:0 0 8px;color:#111827;font-size:13px;font-weight:700;">
+                                ${escapeHtml(preview.label)}
+                              </p>
+                              <div style="font-size:15px;line-height:1.7;color:#111827;">
+                                ${formatPostContentForHtml(preview.content)}
+                              </div>
+                            </div>
+                          `
+                        )
+                        .join("<hr style=\"border:none;border-top:1px solid #e5e7eb;margin:16px 0;\"")}
                     </td>
                   </tr>
                 </table>
@@ -993,7 +1051,9 @@ ${t("emails.approval.textPostType", { postType: postTypeLabel })}
 
 ${imageUrl ? `${t("emails.approval.textImage", { imageUrl })}
 ` : ""}${t("emails.approval.textGeneratedPost")}
-${postContent}
+${buildPlatformApprovalPreviews({ platform: rule.platform, postContent })
+  .map((preview) => `${preview.label}:\n${preview.content}`)
+  .join("\n\n---\n\n")}
 
 ${t("emails.approval.textApprovePost")}
 ${approveUrl}
@@ -1607,7 +1667,13 @@ function normalizeWebsiteItem(item, websiteUrl) {
   const type = String(item?.type || "website_item").trim();
   const url = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
   const imageUrl = item?.image_url ? resolveUrl(item.image_url, websiteUrl) : null;
-const price = String(item?.price || "").trim();
+const price = normalizeVerifiedPriceValue(item?.price);
+  if (item?.price && !price) {
+    console.warn("Ignored unverified website item price because it lacked a clear currency marker", {
+      title: truncateText(title, 120),
+      rawPrice: truncateText(String(item.price), 80),
+    });
+  }
   if (!title || !description) {
     return null;
   }
@@ -2155,7 +2221,7 @@ function getProductPriceFromJsonLd(product) {
     return "";
   }
 
-  return `${price}${currency ? ` ${currency}` : ""}`.trim();
+  return normalizeVerifiedPriceValue(`${price}${currency ? ` ${currency}` : ""}`);
 }
 
 function extractVisiblePriceFromText(text) {
@@ -2182,7 +2248,7 @@ function extractVisiblePriceFromText(text) {
   }
 
   const preferredLocalCurrencyMatch = matches.find((value) =>
-    /(kr|sek|nok|dkk|eur|euro|uzs|сум)|:-/i.test(value)
+    /\b(kr|sek|nok|dkk|eur|euro|uzs)\b|сум|:-/i.test(value)
   );
 
   return preferredLocalCurrencyMatch || matches[0] || "";
@@ -2192,7 +2258,7 @@ function extractProductPriceFromHtml(html) {
   const visiblePrice = extractVisiblePriceFromText(stripHtmlToText(html));
 
   if (visiblePrice) {
-    return visiblePrice;
+    return normalizeVerifiedPriceValue(visiblePrice);
   }
 
   const metaPrice = getMetaContent(html, [
@@ -2207,7 +2273,7 @@ function extractProductPriceFromHtml(html) {
   ]);
 
   if (metaPrice) {
-    return `${metaPrice}${metaCurrency ? ` ${metaCurrency}` : ""}`.trim();
+    return normalizeVerifiedPriceValue(`${metaPrice}${metaCurrency ? ` ${metaCurrency}` : ""}`);
   }
 
   return "";
@@ -3394,6 +3460,27 @@ function buildInstagramCaptionFromPostContent(content) {
   }
 
   return truncateText(caption, 2200);
+}
+
+function buildPlatformApprovalPreviews({ platform, postContent }) {
+  const targets = getPublishTargets(platform);
+
+  if (!targets.length) {
+    return [
+      {
+        label: "Social media",
+        content: postContent,
+      },
+    ];
+  }
+
+  return targets.map((target) => ({
+    label: target === "instagram" ? "Instagram" : "Facebook",
+    content:
+      target === "instagram"
+        ? buildInstagramCaptionFromPostContent(postContent)
+        : postContent,
+  }));
 }
 
 function getMetaErrorMessage(result, fallbackMessage) {
