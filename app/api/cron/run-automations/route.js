@@ -3248,6 +3248,71 @@ function getMetaErrorMessage(result, fallbackMessage) {
   return `${metaMessage} | type: ${metaType} | code: ${metaCode} | subcode: ${metaSubcode} | trace: ${metaTrace}`;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForInstagramContainerReady({
+  creationId,
+  accessToken,
+  instagramUserId,
+}) {
+  const maxAttempts = 6;
+  const delayMs = 1500;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    if (attempt > 1) {
+      await sleep(delayMs);
+    }
+
+    const statusUrl = new URL(
+      `https://graph.instagram.com/${INSTAGRAM_GRAPH_API_VERSION}/${creationId}`
+    );
+    statusUrl.searchParams.set("fields", "status_code,status");
+    statusUrl.searchParams.set("access_token", accessToken);
+
+    const statusResponse = await fetch(statusUrl.toString(), {
+      method: "GET",
+    });
+
+    const statusResult = await statusResponse.json();
+    const statusCode = statusResult?.status_code || null;
+
+    console.log("Instagram publish: media container status", {
+      instagramUserId,
+      creationId,
+      attempt,
+      ok: statusResponse.ok,
+      statusCode,
+      status: statusResult?.status || null,
+      error: statusResult?.error?.message || null,
+    });
+
+    if (!statusResponse.ok) {
+      throw new Error(
+        getMetaErrorMessage(
+          statusResult,
+          "Instagram media container status check failed"
+        )
+      );
+    }
+
+    if (statusCode === "FINISHED") {
+      return statusResult;
+    }
+
+    if (statusCode === "ERROR" || statusCode === "EXPIRED") {
+      throw new Error(
+        `Instagram media container is not publishable | status_code: ${statusCode}`
+      );
+    }
+  }
+
+  throw new Error(
+    "Instagram media container was not ready for publishing in time. Try again shortly."
+  );
+}
+
 async function publishImagePostToInstagram({
   instagramUserId,
   accessToken,
@@ -3288,6 +3353,12 @@ async function publishImagePostToInstagram({
       getMetaErrorMessage(createResult, "Instagram media container creation failed")
     );
   }
+
+  await waitForInstagramContainerReady({
+    creationId: createResult.id,
+    accessToken,
+    instagramUserId,
+  });
 
   const publishResponse = await fetch(
     `https://graph.instagram.com/${INSTAGRAM_GRAPH_API_VERSION}/${instagramUserId}/media_publish`,
