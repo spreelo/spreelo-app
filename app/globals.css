@@ -15872,3 +15872,18 @@ button[class*="Load"] {
   background: #eaf3ff !important;
   color: #064fd1 !important;
 }
+
+/* Step 82: small optical logo alignment in the desktop sidebar */
+@media (min-width: 901px) {
+  .spreelo-sidebar .spreelo-brand,
+  .sidebar.spreelo-sidebar .spreelo-brand,
+  .spreelo-sidebar .brand.spreelo-brand {
+    padding-left: 24px !important;
+    padding-right: 14px !important;
+  }
+
+  .spreelo-sidebar .spreelo-logo-image,
+  .sidebar.spreelo-sidebar .spreelo-logo-image {
+    transform: translateX(4px) !important;
+  }
+}
