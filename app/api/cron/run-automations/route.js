@@ -4449,10 +4449,50 @@ async function saveCarouselSlidesForPost({
     throw new Error(`Carousel product slides were not created correctly. Expected at least ${CAROUSEL_MIN_PRODUCT_SLIDES}, got ${rows.length}.`);
   }
 
-  const { error } = await supabase.from("post_slides").insert(rows);
+  await supabase.from("post_slides").delete().eq("post_id", postId);
 
-  if (error) {
-    throw new Error(error.message || "Could not save carousel slides");
+  const insertAttempts = [
+    rows,
+    rows.map(({ metadata, ...rest }) => rest),
+    rows.map(({ metadata, logo_enabled, ...rest }) => rest),
+  ];
+
+  let insertError = null;
+  let inserted = false;
+
+  for (const payload of insertAttempts) {
+    const { error } = await supabase.from("post_slides").insert(payload);
+    if (!error) {
+      inserted = true;
+      insertError = null;
+      break;
+    }
+    insertError = error;
+  }
+
+  if (!inserted) {
+    throw new Error(insertError?.message || "Could not save carousel slides");
+  }
+
+  const readyImageCount = rows.filter((row) => row.image_url).length;
+  const slideCount = rows.length;
+  const slideGenerationStatus = slideCount > 0 ? "ready" : "failed";
+  const slideRenderStatus = readyImageCount === slideCount && slideCount > 0 ? "ready" : readyImageCount > 0 ? "partial" : "none";
+
+  const postUpdatePayload = {
+    slide_count: slideCount,
+    slide_generation_status: slideGenerationStatus,
+    slide_render_status: slideRenderStatus,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error: postUpdateError } = await supabase
+    .from("posts")
+    .update(postUpdatePayload)
+    .eq("id", postId);
+
+  if (postUpdateError) {
+    throw new Error(postUpdateError.message || "Could not update carousel slide summary");
   }
 
   return rows;
@@ -5788,15 +5828,21 @@ product_research_model_used: rule.uses_website_content
 }
 
         if (isCarouselRule(rule)) {
-          await saveCarouselSlidesForPost({
-            supabase,
-            openai,
-            postId: post.id,
-            rule: ruleWithBrandProfile,
-            postContent: generatedContent,
-            imageUrl,
-            imageStoragePath,
-          });
+          try {
+            await saveCarouselSlidesForPost({
+              supabase,
+              openai,
+              postId: post.id,
+              rule: ruleWithBrandProfile,
+              postContent: generatedContent,
+              imageUrl,
+              imageStoragePath,
+            });
+          } catch (carouselSlideError) {
+            await supabase.from("post_slides").delete().eq("post_id", post.id);
+            await supabase.from("posts").delete().eq("id", post.id);
+            throw new Error(carouselSlideError.message || "Carousel slides could not be created.");
+          }
         }
 
         if (isCarouselRule(rule) && websiteItems.length) {
