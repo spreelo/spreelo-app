@@ -28,6 +28,8 @@ const WEBSITE_PRODUCT_REUSE_LIMIT = 100;
 const WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT = 150;
 const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 18;
 const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 8;
+const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
+const CAROUSEL_MAX_PRODUCT_SLIDES = 7;
 
 const PRODUCT_RESEARCH_MODEL = "gpt-5.5";
 const POST_TEXT_MODEL = "gpt-4.1-mini";
@@ -448,6 +450,228 @@ Important website item rules:
 `.trim();
 }
 
+
+function formatWebsiteItemsForPrompt(items = []) {
+  const rows = (items || [])
+    .slice(0, CAROUSEL_MAX_PRODUCT_SLIDES)
+    .map((item, index) => {
+      const verifiedPrice = getTrustedWebsiteItemPrice(item);
+      return `Product ${index + 1}:
+Title: ${item.title || "Not provided"}
+URL: ${item.url || "Not provided"}
+Description: ${item.description || "Not provided"}
+Verified price: ${verifiedPrice || "Not provided"}
+Image URL: ${item.image_url || "Not provided"}`;
+    });
+
+  if (!rows.length) {
+    return "No carousel products were selected.";
+  }
+
+  return rows.join("\n\n");
+}
+
+function getCarouselProducts(rule) {
+  return Array.isArray(rule?.website_items) ? rule.website_items : [];
+}
+
+function isValidCarouselProduct(item) {
+  return Boolean(item?.title && item?.url && item?.image_url);
+}
+
+function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
+  const seen = new Set();
+  const unique = [];
+
+  for (const item of items || []) {
+    const normalized = normalizeWebsiteItem(item, item?.url || item?.source_url || "");
+
+    if (!normalized || !isValidCarouselProduct(normalized)) {
+      continue;
+    }
+
+    const key = [
+      normalizeComparableValue(normalized.url),
+      normalizeComparableValue(normalized.title),
+      normalizeComparableValue(normalized.image_url),
+    ].join("|");
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    unique.push({
+      ...normalized,
+      item_key: normalized.item_key || item.item_key || createItemKey(normalized),
+      times_used: Number(item.times_used || 0),
+      last_used_at: item.last_used_at || null,
+    });
+  }
+
+  return unique;
+}
+
+function selectCarouselProductsFromPool({
+  items,
+  rule,
+  sourceUrl,
+  recentUsedItems = [],
+  usedWebsiteImageUrlsThisRun = new Set(),
+  allowReuseWhenExhausted = false,
+}) {
+  const scored = dedupeWebsiteItemsByUrlTitleAndImage(items)
+    .map((item) => {
+      let score = scoreWebsiteItemForRule(item, rule);
+
+      if (hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, sourceUrl)) {
+        score -= allowReuseWhenExhausted ? 25 : 1000;
+      }
+
+      if (usedWebsiteImageUrlsThisRun.has(normalizeComparableValue(item.image_url))) {
+        score -= allowReuseWhenExhausted ? 20 : 1000;
+      }
+
+      return { item, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return scored
+    .filter((entry) => allowReuseWhenExhausted || entry.score > -500)
+    .map((entry) => entry.item)
+    .slice(0, CAROUSEL_MAX_PRODUCT_SLIDES);
+}
+
+async function prepareCarouselProductsForRule({
+  supabase,
+  openai,
+  rule,
+  brandProfile,
+  summary,
+  usedWebsiteImageUrlsThisRun = new Set(),
+}) {
+  const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
+  const contentType = rule.content_type_id || "carousel_website_item";
+
+  if (!websiteUrl) {
+    throw new Error("Website carousel requires a website URL in Brand profile");
+  }
+
+  const recentUsedItems = await getRecentUsedWebsiteItems({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    contentType,
+    limit: WEBSITE_PRODUCT_REUSE_LIMIT,
+  });
+
+  let catalogItems = await getWebsiteProductCatalogItems({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
+  });
+
+  let selectedProducts = selectCarouselProductsFromPool({
+    items: catalogItems,
+    rule,
+    sourceUrl: websiteUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+    allowReuseWhenExhausted: false,
+  });
+
+  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+    try {
+      const discoveredCandidates = await discoverProductCandidatesFromWebsite({
+        websiteUrl,
+        campaignPrompt: rule.prompt,
+        usedItems: recentUsedItems,
+      });
+
+      if (discoveredCandidates.length) {
+        const discoveredItems = await verifyDiscoveredWebsiteProductCandidates({
+          candidates: discoveredCandidates,
+          websiteUrl,
+        });
+
+        await upsertWebsiteProductCatalogItems({
+          supabase,
+          userId: rule.user_id,
+          brandProfileId: rule.brand_profile_id,
+          sourceUrl: websiteUrl,
+          items: discoveredItems,
+          discoverySource: "site_discovery",
+        });
+
+        catalogItems = [...catalogItems, ...discoveredItems];
+        selectedProducts = selectCarouselProductsFromPool({
+          items: catalogItems,
+          rule,
+          sourceUrl: websiteUrl,
+          recentUsedItems,
+          usedWebsiteImageUrlsThisRun,
+          allowReuseWhenExhausted: false,
+        });
+      }
+    } catch (discoveryError) {
+      console.error("Carousel product discovery failed", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        message: discoveryError.message,
+      });
+    }
+  }
+
+  let cycleNumber = await getCurrentWebsiteCycle({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    contentType,
+  });
+
+  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+    selectedProducts = selectCarouselProductsFromPool({
+      items: catalogItems,
+      rule,
+      sourceUrl: websiteUrl,
+      recentUsedItems,
+      usedWebsiteImageUrlsThisRun,
+      allowReuseWhenExhausted: true,
+    });
+
+    if (selectedProducts.length >= CAROUSEL_MIN_PRODUCT_SLIDES) {
+      cycleNumber += 1;
+      summary.website_items_reused_cycle += 1;
+    }
+  }
+
+  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+    throw new Error(
+      `Website carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} products with product images. Found ${selectedProducts.length}.`
+    );
+  }
+
+  for (const product of selectedProducts) {
+    usedWebsiteImageUrlsThisRun.add(normalizeComparableValue(product.image_url));
+  }
+
+  summary.website_items_found += selectedProducts.length;
+  summary.website_content_success += 1;
+  summary.website_image_used += selectedProducts.length;
+
+  return {
+    websiteItems: selectedProducts,
+    websiteItem: selectedProducts[0],
+    websiteSourceUrl: websiteUrl,
+    websiteCycleNumber: cycleNumber,
+    useWebsiteImage: true,
+  };
+}
+
 function getPostDestinationUrl(rule) {
   return (
     rule?.website_item?.url ||
@@ -688,7 +912,10 @@ function sanitizeUnsupportedOfferLanguage(postContent, websiteItem) {
 
 function buildAutomationPrompt(rule) {
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
-  const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
+  const carouselProducts = getCarouselProducts(rule);
+  const websiteItemText = isCarouselRule(rule) && carouselProducts.length
+    ? `Selected carousel products:\n${formatWebsiteItemsForPrompt(carouselProducts)}`
+    : formatWebsiteItemForPrompt(rule.website_item);
   const campaignStrategyText = formatCampaignStrategyForPrompt(rule);
   const destinationUrl = getPostDestinationUrl(rule);
 
@@ -702,7 +929,9 @@ ${
   rule.uses_website_content
     ? `
 Website content mode:
-This automation rule is supposed to promote one concrete product, service, listing, offer or other sellable item from the business website.
+${isCarouselRule(rule) && carouselProducts.length
+  ? `This automation rule is supposed to create a product carousel with at least ${CAROUSEL_MIN_PRODUCT_SLIDES} different website products. The caption should introduce the collection and invite the audience to swipe through the carousel. Do not focus only on one product.`
+  : "This automation rule is supposed to promote one concrete product, service, listing, offer or other sellable item from the business website."}
 
 ${websiteItemText}
 `.trim()
@@ -731,7 +960,8 @@ Critical brand relevance rules:
 - Do not write generic advice that could apply to any random company.
 - Do not write about shopping, product care, cars, restaurants, salons, real estate or other unrelated industries unless the Brand profile says that is the business.
 - Use the User instruction as the content angle or post type, but always adapt it to the Brand profile.
-- If this is Website content mode, focus on the selected website item.
+- If this is Website content mode and this is not a carousel, focus on the selected website item.
+- If this is a carousel, focus on the selected carousel products as a small collection and do not present it as a single-product post.
 - If the User instruction says "common mistakes", write common mistakes related to this specific business, industry and audience.
 - If the User instruction says "tips", write tips related to this specific business, industry and audience.
 - If the User instruction says "FAQ", answer a question that would make sense for this specific business, industry and audience.
@@ -3884,6 +4114,51 @@ async function prepareWebsiteContentForRule({
   );
 }
 
+async function saveCarouselWebsiteContentHistory({
+  supabase,
+  rule,
+  postId,
+  sourceUrl,
+  websiteItems,
+  cycleNumber,
+}) {
+  if (!isCarouselRule(rule) || !Array.isArray(websiteItems) || !websiteItems.length || !sourceUrl) {
+    return;
+  }
+
+  const rows = websiteItems.map((websiteItem, index) => ({
+    user_id: rule.user_id,
+    brand_profile_id: rule.brand_profile_id,
+    automation_rule_id: rule.id,
+    post_id: postId,
+    source_url: sourceUrl,
+    source_type: "website",
+    content_type: rule.content_type_id || "carousel_website_item",
+    item_key: websiteItem.item_key || createItemKey(websiteItem),
+    item_url: websiteItem.url || null,
+    item_title: websiteItem.title || null,
+    item_description: websiteItem.description || null,
+    item_image_url: websiteItem.image_url || null,
+    cycle_number: cycleNumber || 1,
+  }));
+
+  const { error } = await supabase.from("website_content_history").insert(rows);
+
+  if (error) {
+    throw new Error(error.message || "Could not save carousel website content history");
+  }
+
+  await Promise.all(
+    websiteItems.map((websiteItem) =>
+      markWebsiteProductCatalogItemUsed({
+        supabase,
+        brandProfileId: rule.brand_profile_id,
+        productUrl: websiteItem.url,
+      })
+    )
+  );
+}
+
 async function saveWebsiteContentHistory({
   supabase,
   rule,
@@ -3944,6 +4219,12 @@ async function generateAutomationPost(openai, rule) {
 }
 
 async function generateCarouselSlides(openai, rule, postContent) {
+  const carouselProducts = getCarouselProducts(rule).filter(isValidCarouselProduct);
+
+  if (carouselProducts.length >= CAROUSEL_MIN_PRODUCT_SLIDES) {
+    return generateProductCarouselSlides(openai, rule, postContent, carouselProducts);
+  }
+
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
   const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
   const destinationUrl = getPostDestinationUrl(rule);
@@ -4020,6 +4301,108 @@ Return JSON exactly in this shape:
   }
 }
 
+function buildFallbackProductCarouselSlides(rule, products) {
+  return products.slice(0, CAROUSEL_MAX_PRODUCT_SLIDES).map((product, index) => ({
+    slide_type: index === 0 ? "product_hook" : "product",
+    headline: normalizeSlideText(product.title || `Product ${index + 1}`, 90),
+    body: normalizeSlideText(
+      product.description ||
+        (index === 0
+          ? "Swipe through a few selected products from the website."
+          : "A selected product from the website."),
+      190
+    ),
+    cta_text: index === products.length - 1 ? normalizeSlideText(rule?.cta_type || "See more", 70) : "",
+    product_url: product.url || null,
+    image_url: product.image_url || null,
+  }));
+}
+
+async function generateProductCarouselSlides(openai, rule, postContent, products) {
+  const selectedProducts = products.slice(0, CAROUSEL_MAX_PRODUCT_SLIDES);
+  const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
+  const productsText = formatWebsiteItemsForPrompt(selectedProducts);
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: POST_TEXT_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are Spreelo, an expert social media product carousel strategist. Return only valid JSON. Do not explain your work.",
+        },
+        {
+          role: "user",
+          content: `
+Create short slide copy for a product carousel.
+
+Brand profile:
+${brandProfileText}
+
+Selected products for the carousel:
+${productsText}
+
+Platform: ${rule.platform || "Instagram/Facebook"}
+${getLanguageInstruction(rule.language)}
+Tone: ${rule.tone || "Professional"}
+CTA type: ${rule.cta_type || "Soft CTA"}
+
+Caption already created for the post:
+${postContent || "Not provided"}
+
+Rules:
+- Create exactly ${selectedProducts.length} slides, one slide for each product in the same order.
+- Every slide must focus on its matching product only.
+- Write in the selected post language.
+- Keep text short enough for a social media carousel.
+- Use only facts from the product list and brand profile.
+- Do not invent prices, discounts, stock status, reviews, delivery promises, guarantees or features.
+- If a verified price is provided for a product, you may mention it exactly as written. If not, do not mention price.
+- The first slide can feel like a hook, but it must still feature Product 1.
+- The final slide can include a CTA, but it must still feature the final product.
+
+Return JSON exactly in this shape:
+{
+  "slides": [
+    { "headline": "...", "body": "...", "cta_text": "" }
+  ]
+}
+          `.trim(),
+        },
+      ],
+      temperature: 0.55,
+    });
+
+    const raw = completion.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse(raw);
+    const sourceSlides = Array.isArray(parsed?.slides) ? parsed.slides : [];
+
+    const slides = selectedProducts.map((product, index) => {
+      const slide = sourceSlides[index] || {};
+      return {
+        slide_type: index === 0 ? "product_hook" : index === selectedProducts.length - 1 ? "product_cta" : "product",
+        headline: normalizeSlideText(slide.headline || slide.title || product.title || `Product ${index + 1}`, 90),
+        body: normalizeSlideText(slide.body || slide.text || product.description || "", 210),
+        cta_text: normalizeSlideText(slide.cta_text || slide.cta || (index === selectedProducts.length - 1 ? rule?.cta_type || "See more" : ""), 80),
+        product_url: product.url || null,
+        image_url: product.image_url || null,
+      };
+    });
+
+    return slides.every((slide) => slide.headline || slide.body)
+      ? slides
+      : buildFallbackProductCarouselSlides(rule, selectedProducts);
+  } catch (error) {
+    console.error("Product carousel slide copy generation failed, using fallback slides", {
+      ruleId: rule.id,
+      message: error.message,
+    });
+
+    return buildFallbackProductCarouselSlides(rule, selectedProducts);
+  }
+}
+
 async function saveCarouselSlidesForPost({
   supabase,
   openai,
@@ -4030,14 +4413,16 @@ async function saveCarouselSlidesForPost({
   imageStoragePath,
 }) {
   if (!isCarouselRule(rule) || !postId) {
-    return;
+    return [];
   }
 
   const slides = await generateCarouselSlides(openai, rule, postContent);
   const selectedItem = rule?.website_item || null;
+  const productCount = getCarouselProducts(rule).filter(isValidCarouselProduct).length;
 
   const rows = slides.map((slide, index) => {
-    const isProductSlide = slide.slide_type === "product" || index === 1;
+    const slideImageUrl = slide.image_url || (index === 0 ? imageUrl : null) || selectedItem?.image_url || null;
+    const slideProductUrl = slide.product_url || (index === 0 ? selectedItem?.url : null) || null;
 
     return {
       post_id: postId,
@@ -4046,21 +4431,31 @@ async function saveCarouselSlidesForPost({
       headline: slide.headline || null,
       body: slide.body || null,
       cta_text: slide.cta_text || null,
-      image_url: isProductSlide ? imageUrl || selectedItem?.image_url || null : null,
-      product_url: isProductSlide ? selectedItem?.url || null : null,
+      image_url: slideImageUrl,
+      product_url: slideProductUrl,
       logo_enabled: shouldUseLogoForRule(rule, rule.brand_profile),
       metadata: {
-        generated_by: "step94_carousel_draft",
+        generated_by: productCount >= CAROUSEL_MIN_PRODUCT_SLIDES
+          ? "step95_product_carousel"
+          : "step94_carousel_draft",
         source_content_type_id: rule.content_type_id || null,
+        product_count: productCount || null,
+        image_storage_path: index === 0 ? imageStoragePath || null : null,
       },
     };
   });
+
+  if (productCount >= CAROUSEL_MIN_PRODUCT_SLIDES && rows.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+    throw new Error(`Carousel product slides were not created correctly. Expected at least ${CAROUSEL_MIN_PRODUCT_SLIDES}, got ${rows.length}.`);
+  }
 
   const { error } = await supabase.from("post_slides").insert(rows);
 
   if (error) {
     throw new Error(error.message || "Could not save carousel slides");
   }
+
+  return rows;
 }
 
 async function generateAutomationImage(openai, rule, postContent) {
@@ -5056,22 +5451,6 @@ export async function GET(request) {
           continue;
         }
 
-        if (isCarouselRule(rule)) {
-          await supabase
-            .from("automation_rules")
-            .update({
-              is_active: false,
-              next_run_at: null,
-              last_error:
-                "Carousel generation is paused until slide image generation is ready.",
-              updated_at: nowIso,
-            })
-            .eq("id", rule.id);
-
-          summary.skipped += 1;
-          summary.carousel_generation_paused += 1;
-          continue;
-        }
 
         const creditCost = Number(rule.credit_cost || 1);
 
@@ -5112,11 +5491,46 @@ const brandProfile = await getBrandProfileForRule(supabase, rule);
         }
 
 let websiteItem = null;
+let websiteItems = [];
 let websiteSourceUrl = null;
 let websiteCycleNumber = null;
 let useWebsiteImage = false;
 
-        if (rule.uses_website_content) {
+        if (isCarouselRule(rule)) {
+          try {
+            const preparedCarouselProducts = await prepareCarouselProductsForRule({
+              supabase,
+              openai,
+              rule,
+              brandProfile,
+              summary,
+              usedWebsiteImageUrlsThisRun,
+            });
+
+            websiteItem = preparedCarouselProducts.websiteItem;
+            websiteItems = preparedCarouselProducts.websiteItems || [];
+            websiteSourceUrl = preparedCarouselProducts.websiteSourceUrl;
+            websiteCycleNumber = preparedCarouselProducts.websiteCycleNumber;
+            useWebsiteImage = Boolean(preparedCarouselProducts.useWebsiteImage);
+          } catch (carouselError) {
+            const message = carouselError.message ||
+              `Website carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} products with product images.`;
+
+            await supabase
+              .from("automation_rules")
+              .update({
+                is_active: false,
+                next_run_at: null,
+                last_error: message,
+                updated_at: nowIso,
+              })
+              .eq("id", rule.id);
+
+            summary.skipped += 1;
+            summary.carousel_generation_paused += 1;
+            continue;
+          }
+        } else if (rule.uses_website_content) {
           try {
            const preparedWebsiteContent = await prepareWebsiteContentForRule({
   supabase,
@@ -5141,6 +5555,7 @@ let useWebsiteImage = false;
           ...rule,
           brand_profile: brandProfile,
           website_item: websiteItem,
+          website_items: websiteItems,
         };
 
         const rawGeneratedContent = await generateAutomationPost(
@@ -5384,7 +5799,26 @@ product_research_model_used: rule.uses_website_content
           });
         }
 
-        if (rule.uses_website_content && websiteItem) {
+        if (isCarouselRule(rule) && websiteItems.length) {
+          try {
+            await saveCarouselWebsiteContentHistory({
+              supabase,
+              rule,
+              postId: post.id,
+              sourceUrl: websiteSourceUrl,
+              websiteItems,
+              cycleNumber: websiteCycleNumber,
+            });
+          } catch (historyError) {
+            console.error("Could not save carousel website content history", {
+              ruleId: rule.id,
+              postId: post.id,
+              message: historyError.message,
+            });
+
+            summary.warnings += 1;
+          }
+        } else if (rule.uses_website_content && websiteItem) {
           try {
             await saveWebsiteContentHistory({
               supabase,
