@@ -4428,7 +4428,7 @@ async function saveCarouselSlidesForPost({
       user_id: rule.user_id,
       post_id: postId,
       slide_order: index + 1,
-      slide_type: slide.slide_type || "content",
+      slide_type: "content",
       headline: slide.headline || null,
       body: slide.body || null,
       cta_text: slide.cta_text || null,
@@ -4439,6 +4439,7 @@ async function saveCarouselSlidesForPost({
         generated_by: productCount >= CAROUSEL_MIN_PRODUCT_SLIDES
           ? "step95_product_carousel"
           : "step94_carousel_draft",
+        carousel_slide_role: slide.slide_type || (index === 0 ? "product_hook" : index === slides.length - 1 ? "product_cta" : "product"),
         source_content_type_id: rule.content_type_id || null,
         product_count: productCount || null,
         image_storage_path: index === 0 ? imageStoragePath || null : null,
