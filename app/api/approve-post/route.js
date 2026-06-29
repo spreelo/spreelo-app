@@ -268,7 +268,7 @@ export async function GET(request) {
 
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, user_id, status, approval_token, language, brand_profile_id")
+      .select("id, user_id, status, approval_token, language, brand_profile_id, content_format")
       .eq("approval_token", token)
       .single();
 
@@ -326,6 +326,19 @@ export async function GET(request) {
         message: translator.t("approvePages.cannotApprove.message", {
           status: post.status,
         }),
+        status: "error",
+        httpStatus: 409,
+        t: translator.t,
+        locale: translator.locale,
+      });
+    }
+
+
+    if (post.content_format && post.content_format !== "single_image") {
+      return htmlResponse({
+        title: translator.t("approvePages.cannotApprove.title"),
+        message:
+          "This carousel draft can be reviewed in Spreelo, but automatic carousel publishing is not enabled yet.",
         status: "error",
         httpStatus: 409,
         t: translator.t,

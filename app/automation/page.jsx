@@ -132,6 +132,19 @@ const contentTypes = [
       "Use a relevant image connected to the selected website item if one can be found. Avoid logos, banners, hero images, decorative icons and unrelated images. If no clearly relevant product, service, listing or offer image can be found, create a professional AI image based on the selected item instead.",
     usesWebsiteContent: true,
   },
+  {
+    id: "carousel_website_item",
+    label: "Website carousel",
+    shortLabel: "Carousel",
+    description:
+      "Turn one product, service, listing or offer from your website into a swipeable carousel draft.",
+    prompt:
+      "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website and create a swipeable carousel draft around it. The carousel should educate, build interest and end with a clear CTA. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
+    imagePrompt:
+      "Use a relevant image connected to the selected website item if one can be found. Avoid logos, banners, hero images, decorative icons and unrelated images. If no clearly relevant product, service, listing or offer image can be found, keep the carousel draft image-light for now.",
+    usesWebsiteContent: true,
+    contentFormat: "carousel",
+  },
     {
     id: "problem_solution",
     label: "Problem → Solution",
@@ -290,6 +303,7 @@ const contentTypes = [
 
 const slotTypeIcons = {
   website_item: "🛍️",
+  carousel_website_item: "▦",
   problem_solution: "🧩",
   tips: "💡",
   mistakes: "⚠️",
@@ -314,6 +328,7 @@ function getSlotTypeIcon(slot) {
 
 const recommendedContentTypeIds = [
   "website_item",
+  "carousel_website_item",
   "tips",
   "mistakes",
   "behind_scenes",
@@ -995,6 +1010,7 @@ function createSlot(overrides = {}) {
 contentTypeId: overrides.contentTypeId || null,
 contentTypeLabel: overrides.contentTypeLabel || null,
 usesWebsiteContent: Boolean(overrides.usesWebsiteContent),
+contentFormat: overrides.contentFormat || "single_image",
 isCampaignSlot: Boolean(overrides.isCampaignSlot),
 campaignRole: overrides.campaignRole || "",
 campaignSummary: overrides.campaignSummary || "",
@@ -1046,6 +1062,7 @@ function createSlotFromContentType(type, index = 0, options = {}) {
     contentTypeId: type.id,
     contentTypeLabel: type.label,
     usesWebsiteContent: Boolean(type.usesWebsiteContent),
+    contentFormat: type.contentFormat || "single_image",
     timeZone,
   });
 }
@@ -1096,6 +1113,7 @@ function createRecommendedSlots(options = {}) {
       contentTypeId: type.id,
       contentTypeLabel: type.label,
       usesWebsiteContent: Boolean(type.usesWebsiteContent),
+      contentFormat: type.contentFormat || "single_image",
       timeZone,
     });
   });
@@ -1429,6 +1447,7 @@ function getSlotCreditLabel(slot) {
 function getContentTypeIcon(typeId) {
   const icons = {
     website_item: "🛒",
+    carousel_website_item: "▦",
     problem_solution: "⚡",
     tips: "💡",
     mistakes: "!",
@@ -1451,6 +1470,7 @@ function getContentTypeIcon(typeId) {
 function getContentPreviewCardId(typeId) {
   const map = {
     website_item: "product_focus",
+    carousel_website_item: "product_focus",
     problem_solution: "problem_solution",
     tips: "tips_advice",
     mistakes: "common_mistakes",
@@ -1517,6 +1537,10 @@ function getPlanPreviewCardsFromTypes(types = [], goalId = "") {
 }
 
 function getSlotFormatLabel(slot) {
+  if (slot.contentFormat === "carousel") {
+    return slot.generateImage ? "Carousel + website image" : "Carousel draft";
+  }
+
   if (slot.usesWebsiteContent && slot.generateImage) {
     return "Text + website image";
   }
@@ -4728,6 +4752,7 @@ function addSlot() {
         contentTypeId: selectedType.id,
         contentTypeLabel: selectedType.label,
         usesWebsiteContent: Boolean(selectedType.usesWebsiteContent),
+        contentFormat: selectedType.contentFormat || "single_image",
         timeZone,
       });
 
@@ -5169,6 +5194,7 @@ ${slot.campaignSummary}`
                content_type_id: slot.contentTypeId,
         content_type_label: slot.contentTypeLabel,
         uses_website_content: Boolean(slot.usesWebsiteContent),
+        content_format: slot.contentFormat || "single_image",
 
         campaign_phase: slot.campaignPhase || null,
         marketing_angle: slot.marketingAngle || null,

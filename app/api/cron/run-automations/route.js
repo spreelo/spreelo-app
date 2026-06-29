@@ -1662,6 +1662,78 @@ function safeJsonParse(value) {
   }
 }
 
+function normalizeContentFormat(value) {
+  const format = String(value || "single_image").trim();
+
+  if (["single_image", "carousel", "slideshow_video"].includes(format)) {
+    return format;
+  }
+
+  return "single_image";
+}
+
+function isCarouselRule(rule) {
+  return normalizeContentFormat(rule?.content_format) === "carousel";
+}
+
+function normalizeSlideText(value, maxLength = 180) {
+  return truncateText(String(value || "").replace(/\s+/g, " ").trim(), maxLength);
+}
+
+function buildFallbackCarouselSlides(rule, postContent) {
+  const item = rule?.website_item || {};
+  const title = normalizeSlideText(item.title || rule?.brand_profile?.business_name || "Worth a closer look", 80);
+  const description = normalizeSlideText(item.description || postContent || "A relevant pick from the business website.", 180);
+  const cta = normalizeSlideText(rule?.cta_type || "See more", 60);
+
+  return [
+    {
+      slide_type: "hook",
+      headline: title,
+      body: normalizeSlideText("A quick look at why this could be a good fit.", 160),
+      cta_text: "",
+    },
+    {
+      slide_type: "product",
+      headline: normalizeSlideText(title, 80),
+      body: description,
+      cta_text: "",
+    },
+    {
+      slide_type: "benefit",
+      headline: "Why it matters",
+      body: normalizeSlideText("Connect the item to the audience's need in a clear and useful way.", 160),
+      cta_text: "",
+    },
+    {
+      slide_type: "cta",
+      headline: "Want to know more?",
+      body: normalizeSlideText("Visit the website to see the current details and decide if it fits.", 160),
+      cta_text: cta,
+    },
+  ];
+}
+
+function normalizeCarouselSlides(value, rule, postContent) {
+  const source = Array.isArray(value?.slides) ? value.slides : Array.isArray(value) ? value : [];
+
+  const slides = source
+    .map((slide, index) => ({
+      slide_type: normalizeSlideText(slide?.slide_type || (index === 0 ? "hook" : index === source.length - 1 ? "cta" : "content"), 40) || "content",
+      headline: normalizeSlideText(slide?.headline || slide?.title || "", 90),
+      body: normalizeSlideText(slide?.body || slide?.text || "", 220),
+      cta_text: normalizeSlideText(slide?.cta_text || slide?.cta || "", 80),
+    }))
+    .filter((slide) => slide.headline || slide.body || slide.cta_text)
+    .slice(0, 5);
+
+  if (slides.length >= 3) {
+    return slides;
+  }
+
+  return buildFallbackCarouselSlides(rule, postContent);
+}
+
 function normalizeItemKeyPart(value) {
   return String(value || "")
     .toLowerCase()
@@ -3870,6 +3942,126 @@ async function generateAutomationPost(openai, rule) {
   return completion.choices?.[0]?.message?.content?.trim() || "";
 }
 
+async function generateCarouselSlides(openai, rule, postContent) {
+  const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
+  const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
+  const destinationUrl = getPostDestinationUrl(rule);
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: POST_TEXT_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are Spreelo, an expert social media carousel strategist. Return only valid JSON. Do not explain your work.",
+        },
+        {
+          role: "user",
+          content: `
+Create a swipeable carousel draft with 4 or 5 slides.
+
+Brand profile:
+${brandProfileText}
+
+Selected website item:
+${websiteItemText}
+
+Platform: ${rule.platform || "Instagram/Facebook"}
+${getLanguageInstruction(rule.language)}
+Tone: ${rule.tone || "Professional"}
+CTA type: ${rule.cta_type || "Soft CTA"}
+Destination URL: ${destinationUrl || "Not provided"}
+
+Automation instruction:
+${rule.prompt || "Create a useful product/service carousel."}
+
+Caption already created for the post:
+${postContent || "Not provided"}
+
+Rules:
+- Write the slide text in the selected post language.
+- Use only facts from the brand profile, selected website item and automation instruction.
+- Do not invent prices, discounts, guarantees, stock status, reviews, delivery promises or features.
+- Slide 1 should be a strong hook.
+- One middle slide should introduce the selected item clearly.
+- One middle slide should explain a benefit or useful angle.
+- Final slide should have a clear CTA.
+- Keep each slide short enough to fit on a social media carousel.
+- If a Destination URL exists, include it only on the final slide CTA/body if it fits naturally.
+
+Return JSON exactly in this shape:
+{
+  "slides": [
+    { "slide_type": "hook", "headline": "...", "body": "...", "cta_text": "" },
+    { "slide_type": "product", "headline": "...", "body": "...", "cta_text": "" },
+    { "slide_type": "benefit", "headline": "...", "body": "...", "cta_text": "" },
+    { "slide_type": "cta", "headline": "...", "body": "...", "cta_text": "..." }
+  ]
+}
+          `.trim(),
+        },
+      ],
+      temperature: 0.65,
+    });
+
+    const raw = completion.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse(raw);
+
+    return normalizeCarouselSlides(parsed, rule, postContent);
+  } catch (error) {
+    console.error("Carousel slide generation failed, using fallback slides", {
+      ruleId: rule.id,
+      message: error.message,
+    });
+
+    return buildFallbackCarouselSlides(rule, postContent);
+  }
+}
+
+async function saveCarouselSlidesForPost({
+  supabase,
+  openai,
+  postId,
+  rule,
+  postContent,
+  imageUrl,
+  imageStoragePath,
+}) {
+  if (!isCarouselRule(rule) || !postId) {
+    return;
+  }
+
+  const slides = await generateCarouselSlides(openai, rule, postContent);
+  const selectedItem = rule?.website_item || null;
+
+  const rows = slides.map((slide, index) => {
+    const isProductSlide = slide.slide_type === "product" || index === 1;
+
+    return {
+      post_id: postId,
+      slide_order: index + 1,
+      slide_type: slide.slide_type || "content",
+      headline: slide.headline || null,
+      body: slide.body || null,
+      cta_text: slide.cta_text || null,
+      image_url: isProductSlide ? imageUrl || selectedItem?.image_url || null : null,
+      product_url: isProductSlide ? selectedItem?.url || null : null,
+      logo_enabled: shouldUseLogoForRule(rule, rule.brand_profile),
+      metadata: {
+        generated_by: "step94_carousel_draft",
+        source_content_type_id: rule.content_type_id || null,
+      },
+    };
+  });
+
+  const { error } = await supabase.from("post_slides").insert(rows);
+
+  if (error) {
+    throw new Error(error.message || "Could not save carousel slides");
+  }
+}
+
 async function generateAutomationImage(openai, rule, postContent) {
   const prompt = buildImagePrompt(rule, postContent);
 
@@ -4504,7 +4696,7 @@ async function publishApprovedSocialPosts({
   const { data: posts, error } = await supabase
     .from("posts")
     .select(
-      "id, user_id, brand_profile_id, content, platform, status, published_at, approved_at, image_url"
+      "id, user_id, brand_profile_id, content, platform, status, published_at, approved_at, image_url, content_format"
     )
     .eq("status", "approved")
     .is("published_at", null)
@@ -4520,8 +4712,10 @@ async function publishApprovedSocialPosts({
     return;
   }
 
-  const approvedPosts = (posts || []).filter((post) =>
-    getPublishTargets(post.platform).length > 0
+  const approvedPosts = (posts || []).filter(
+    (post) =>
+      normalizeContentFormat(post.content_format) === "single_image" &&
+      getPublishTargets(post.platform).length > 0
   );
 
   summary.social_publish_checked += approvedPosts.length;
@@ -4991,6 +5185,7 @@ approved_at: null,
 scheduled_for: nowIso,
             image_status: wantsImage ? "generating" : "none",
             image_prompt: wantsImage ? rule.image_prompt || null : null,
+            content_format: normalizeContentFormat(rule.content_format),
     text_model_used: POST_TEXT_MODEL,
 image_model_used: wantsImage ? IMAGE_MODEL : null,
 include_logo: shouldUseLogoForRule(rule, brandProfile),
@@ -5159,6 +5354,18 @@ product_research_model_used: rule.uses_website_content
   }
 }
 
+        if (isCarouselRule(rule)) {
+          await saveCarouselSlidesForPost({
+            supabase,
+            openai,
+            postId: post.id,
+            rule: ruleWithBrandProfile,
+            postContent: generatedContent,
+            imageUrl,
+            imageStoragePath,
+          });
+        }
+
         if (rule.uses_website_content && websiteItem) {
           try {
             await saveWebsiteContentHistory({
@@ -5180,7 +5387,7 @@ product_research_model_used: rule.uses_website_content
           }
         }
 
-        if (postStatus === "pending_approval") {
+        if (postStatus === "pending_approval" && !isCarouselRule(rule)) {
           if (!resendApiKey) {
             summary.warnings += 1;
             summary.emails_failed += 1;
