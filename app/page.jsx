@@ -138,14 +138,26 @@ function formatContentFormat(post, t) {
 
 function formatPostKind(post, t) {
   if (post?.content_format === "carousel") {
+    const slideCount = Number(post.slide_count || 0);
+
+    if (slideCount <= 0) {
+      return t("dashboard.carouselDraftMissingSlides");
+    }
+
     return t("dashboard.carouselWithCount", {
-      count: post.slide_count || 0,
+      count: slideCount,
     });
   }
 
   if (post?.content_format === "slideshow_video") {
+    const slideCount = Number(post.slide_count || 0);
+
+    if (slideCount <= 0) {
+      return t("dashboard.slideshowDraftMissingSlides");
+    }
+
     return t("dashboard.slideshowWithCount", {
-      count: post.slide_count || 0,
+      count: slideCount,
     });
   }
 

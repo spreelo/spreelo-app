@@ -961,6 +961,7 @@ function createEmptySummary() {
     website_content_rules: 0,
     website_content_success: 0,
     website_content_failed: 0,
+    carousel_generation_paused: 0,
     website_items_found: 0,
     website_items_reused_cycle: 0,
     website_image_used: 0,
@@ -5052,6 +5053,23 @@ export async function GET(request) {
       try {
         if (hasAlreadyRunToday(rule, now)) {
           summary.skipped += 1;
+          continue;
+        }
+
+        if (isCarouselRule(rule)) {
+          await supabase
+            .from("automation_rules")
+            .update({
+              is_active: false,
+              next_run_at: null,
+              last_error:
+                "Carousel generation is paused until slide image generation is ready.",
+              updated_at: nowIso,
+            })
+            .eq("id", rule.id);
+
+          summary.skipped += 1;
+          summary.carousel_generation_paused += 1;
           continue;
         }
 
