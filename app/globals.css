@@ -16754,3 +16754,84 @@ textarea.input,
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
+
+/* Step 93: slide foundation preview states. */
+.dashboard-format-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin: 2px 0 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.edit-post-slides-block {
+  margin: 22px 0;
+  padding: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 24px;
+  background: #f8fafc;
+}
+
+.edit-post-slides-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.edit-post-slide-card {
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+}
+
+.edit-post-slide-number {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.edit-post-slide-card img,
+.edit-post-slide-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #eef4ff;
+  color: #64748b;
+  object-fit: cover;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.edit-post-slide-content {
+  padding: 12px;
+}
+
+.edit-post-slide-content h4 {
+  margin: 0 0 6px;
+  color: #0f172a;
+  font-size: 0.98rem;
+}
+
+.edit-post-slide-content p {
+  margin: 0 0 8px;
+  color: #475569;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.edit-post-slide-content strong {
+  color: #1d4ed8;
+  font-size: 0.86rem;
+}

@@ -66,6 +66,38 @@ function formatScheduleType(value, t) {
   return t("dashboard.schedule.scheduled");
 }
 
+function isSlideBasedPost(post) {
+  return ["carousel", "slideshow_video"].includes(post?.content_format);
+}
+
+function formatContentFormat(post, t) {
+  if (post?.content_format === "carousel") {
+    return t("dashboard.format.carousel");
+  }
+
+  if (post?.content_format === "slideshow_video") {
+    return t("dashboard.format.slideshowVideo");
+  }
+
+  return t("dashboard.format.singleImage");
+}
+
+function formatPostKind(post, t) {
+  if (post?.content_format === "carousel") {
+    return t("dashboard.carouselWithCount", {
+      count: post.slide_count || 0,
+    });
+  }
+
+  if (post?.content_format === "slideshow_video") {
+    return t("dashboard.slideshowWithCount", {
+      count: post.slide_count || 0,
+    });
+  }
+
+  return post?.post_type || t("dashboard.post");
+}
+
 function formatPlanName(rule, t) {
   if (rule?.name) return rule.name;
   if (rule?.content_type_label) return rule.content_type_label;
@@ -215,7 +247,7 @@ export default function Home() {
     const { data: postsData, error: postsError } = await supabase
       .from("posts")
       .select(
-        "id, brand_profile_id, platform, tone, language, post_type, idea, content, status, created_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status"
+        "id, brand_profile_id, platform, tone, language, post_type, idea, content, status, created_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, content_format"
       )
       .eq("user_id", user.id)
       .eq("brand_profile_id", selectedBrand.id)
@@ -224,7 +256,35 @@ export default function Home() {
     if (postsError) {
       setMessage(postsError.message);
     } else {
-      setPosts(postsData || []);
+      const basePosts = postsData || [];
+      const slidePostIds = basePosts
+        .filter((post) => isSlideBasedPost(post))
+        .map((post) => post.id);
+
+      if (slidePostIds.length === 0) {
+        setPosts(basePosts);
+      } else {
+        const { data: slidesData, error: slidesError } = await supabase
+          .from("post_slides")
+          .select("id, post_id")
+          .in("post_id", slidePostIds);
+
+        if (slidesError) {
+          setPosts(basePosts);
+        } else {
+          const slideCounts = (slidesData || []).reduce((counts, slide) => {
+            counts[slide.post_id] = (counts[slide.post_id] || 0) + 1;
+            return counts;
+          }, {});
+
+          setPosts(
+            basePosts.map((post) => ({
+              ...post,
+              slide_count: slideCounts[post.id] || 0,
+            }))
+          );
+        }
+      }
     }
 
     const { data: rulesData, error: rulesError } = await supabase
@@ -679,15 +739,23 @@ export default function Home() {
                               />
                             ) : (
                               <div className="dashboard-pending-placeholder">
-                                {post.platform?.slice(0, 1) || "S"}
+                                {isSlideBasedPost(post)
+                                  ? post.slide_count || "S"
+                                  : post.platform?.slice(0, 1) || "S"}
                               </div>
                             )}
 
                             <div>
                               <h4>
                                 {post.platform || t("dashboard.platformNotSet")} ·{" "}
-                                {post.post_type || t("dashboard.post")}
+                                {formatPostKind(post, t)}
                               </h4>
+
+                              {isSlideBasedPost(post) && (
+                                <span className="dashboard-format-pill">
+                                  {formatContentFormat(post, t)}
+                                </span>
+                              )}
 
                               <p>
                                 {(

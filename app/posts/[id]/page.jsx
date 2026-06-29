@@ -61,12 +61,29 @@ function getImageStatusClass(status) {
   return "status-pill";
 }
 
+function isSlideBasedPost(post) {
+  return ["carousel", "slideshow_video"].includes(post?.content_format);
+}
+
+function formatContentFormat(post, t) {
+  if (post?.content_format === "carousel") {
+    return t("posts.format.carousel");
+  }
+
+  if (post?.content_format === "slideshow_video") {
+    return t("posts.format.slideshowVideo");
+  }
+
+  return t("posts.format.singleImage");
+}
+
 export default function EditPostPage() {
   const { t } = useUiText(["posts"]);
   const params = useParams();
   const postId = params.id;
 
   const [post, setPost] = useState(null);
+  const [slides, setSlides] = useState([]);
   const [content, setContent] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -88,7 +105,7 @@ export default function EditPostPage() {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt"
+          "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, content_format"
         )
         .eq("id", postId)
         .eq("user_id", user.id)
@@ -101,6 +118,20 @@ export default function EditPostPage() {
       if (data) {
         setPost(data);
         setContent(data.content || "");
+
+        if (isSlideBasedPost(data)) {
+          const { data: slidesData } = await supabase
+            .from("post_slides")
+            .select(
+              "id, post_id, slide_order, slide_type, headline, body, cta_text, image_url, product_url, logo_enabled, render_status, metadata"
+            )
+            .eq("post_id", postId)
+            .order("slide_order", { ascending: true });
+
+          setSlides(slidesData || []);
+        } else {
+          setSlides([]);
+        }
       }
 
       setLoading(false);
@@ -123,7 +154,7 @@ export default function EditPostPage() {
       })
       .eq("id", postId)
       .select(
-        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt"
+        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, content_format"
       )
       .single();
 
@@ -158,7 +189,7 @@ export default function EditPostPage() {
       })
       .eq("id", postId)
       .select(
-        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt"
+        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, content_format"
       )
       .single();
 
@@ -315,6 +346,10 @@ export default function EditPostPage() {
               <span className="status-pill">{t("posts.generatedByAutomation")}</span>
             )}
 
+            {isSlideBasedPost(post) && (
+              <span className="status-pill">{formatContentFormat(post, t)}</span>
+            )}
+
             {imageStatusLabel && (
               <span className={getImageStatusClass(post.image_status)}>
                 {imageStatusLabel}
@@ -366,6 +401,47 @@ export default function EditPostPage() {
             </p>
           )}
         </div>
+
+        {isSlideBasedPost(post) && (
+          <div className="edit-post-slides-block">
+            <div className="edit-post-image-header">
+              <div>
+                <label className="field-label">{t("posts.slidesTitle")}</label>
+                <p>{t("posts.slidesText", { count: slides.length })}</p>
+              </div>
+            </div>
+
+            {slides.length === 0 ? (
+              <div className="idea-box">
+                <p>{t("posts.noSlidesYet")}</p>
+              </div>
+            ) : (
+              <div className="edit-post-slides-grid">
+                {slides.map((slide) => (
+                  <article className="edit-post-slide-card" key={slide.id}>
+                    <div className="edit-post-slide-number">
+                      {t("posts.slideNumber", { number: slide.slide_order ?? 1 })}
+                    </div>
+
+                    {slide.image_url ? (
+                      <img src={slide.image_url} alt={t("posts.slideImageAlt")} />
+                    ) : (
+                      <div className="edit-post-slide-placeholder">
+                        {t("posts.slideImagePending")}
+                      </div>
+                    )}
+
+                    <div className="edit-post-slide-content">
+                      {slide.headline && <h4>{slide.headline}</h4>}
+                      {slide.body && <p>{slide.body}</p>}
+                      {slide.cta_text && <strong>{slide.cta_text}</strong>}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {post.image_url && (
           <div className="edit-post-image-block">
