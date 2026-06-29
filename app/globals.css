@@ -16700,3 +16700,57 @@ textarea.input,
     justify-content: flex-start !important;
   }
 }
+
+/* Step 91: fix remaining in-between layout where summary/credits become too narrow. */
+@media (min-width: 901px) and (max-width: 1250px) {
+  .automation-page.planner-wizard-page .planner-sidebar {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 18px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-card,
+  .automation-page.planner-wizard-page .planner-credits-card {
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium {
+    display: block !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item,
+  .automation-page.planner-wizard-page .planner-summary-list.premium div.planner-summary-item {
+    border: 0 !important;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.92) !important;
+    border-radius: 0 !important;
+    padding: 12px 6px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-save-card,
+  .automation-page.planner-wizard-page .planner-final-cta {
+    grid-template-columns: minmax(0, 1fr) !important;
+    text-align: center !important;
+    gap: 14px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-save-card > div:first-child,
+  .automation-page.planner-wizard-page .planner-final-cta > div:first-child {
+    display: block !important;
+    max-width: 680px !important;
+    margin: 0 auto !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-save-card .primary-button,
+  .automation-page.planner-wizard-page .planner-final-cta .primary-button,
+  .automation-page.planner-wizard-page .planner-save-button {
+    width: min(100%, 520px) !important;
+    justify-self: center !important;
+  }
+}
+
+/* Large tablets with the normal mobile header should also stack summary and credits. */
+@media (max-width: 980px) {
+  .automation-page.planner-wizard-page .planner-sidebar {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
