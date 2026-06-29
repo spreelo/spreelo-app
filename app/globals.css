@@ -17576,3 +17576,111 @@ textarea.input,
     align-self: flex-start !important;
   }
 }
+
+/* Step 94l: saved plan cleanup, brand readiness final polish, carousel image safety */
+.automation-page.planner-wizard-page .planner-create-another-panel,
+.automation-page.planner-wizard-page .planner-create-another-button {
+  display: none !important;
+}
+
+.dashboard-side-card .dashboard-brand-progress.dashboard-brand-readiness,
+.dashboard-side-card .dashboard-brand-readiness {
+  display: grid !important;
+  gap: 10px !important;
+  margin-top: 16px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+  box-shadow: none !important;
+}
+
+.dashboard-side-card .dashboard-brand-readiness-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  min-height: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.dashboard-side-card .dashboard-brand-readiness-row span {
+  color: #667085 !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  font-weight: 850 !important;
+  letter-spacing: 0 !important;
+}
+
+.dashboard-side-card .dashboard-brand-readiness-row strong {
+  color: #111827 !important;
+  font-size: 17px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.dashboard-side-card .dashboard-brand-readiness .dashboard-brand-progress-bar,
+.dashboard-side-card .dashboard-brand-progress-bar {
+  display: block !important;
+  width: 100% !important;
+  height: 7px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  background: #e8eefc !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
+
+.dashboard-side-card .dashboard-brand-readiness .dashboard-brand-progress-bar > div,
+.dashboard-side-card .dashboard-brand-progress-bar > div {
+  display: block !important;
+  height: 100% !important;
+  border-radius: inherit !important;
+  background: linear-gradient(90deg, #0f6fff 0%, #6a5dfc 100%) !important;
+}
+
+.dashboard-side-card .dashboard-brand-ready-badge {
+  justify-self: start !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 26px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  border: 0 !important;
+  background: #eef4ff !important;
+  color: #0b63d8 !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 850 !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-side-card .dashboard-brand-ready-badge.is-ready {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+}
+
+.dashboard-side-card .dashboard-brand-complete-note {
+  margin: 14px 0 0 !important;
+  color: #344054 !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+  font-weight: 650 !important;
+}
+
+.edit-post-image-block img,
+.edit-post-slide-card img {
+  object-fit: contain !important;
+  background: #ffffff !important;
+}
+
+.edit-post-image-block img {
+  height: auto !important;
+  max-height: none !important;
+}

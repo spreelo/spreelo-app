@@ -6626,17 +6626,7 @@ setRules((currentRules) =>
       : t("automation.startAutomaticPlanHelp")}
   </p>
 </div>
-         {savedPlanSummary ? (
-  <div className="planner-create-another-panel">
-    <button
-      type="button"
-      className="planner-create-another-button"
-      onClick={startAnotherPlan}
-    >
-      {plannerLocaleIsSwedish ? "Generera inlägg" : "Generate posts"}
-    </button>
-  </div>
-) : (
+         {savedPlanSummary ? null : (
   <>
     <input
       className="planner-save-input"

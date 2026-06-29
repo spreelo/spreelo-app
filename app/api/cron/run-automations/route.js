@@ -5387,7 +5387,7 @@ product_research_model_used: rule.uses_website_content
           }
         }
 
-        if (postStatus === "pending_approval" && !isCarouselRule(rule)) {
+        if (postStatus === "pending_approval") {
           if (!resendApiKey) {
             summary.warnings += 1;
             summary.emails_failed += 1;
