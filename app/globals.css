@@ -16091,200 +16091,203 @@ button[class*="Load"] {
   box-shadow: 0 20px 42px rgba(11, 102, 228, 0.3) !important;
 }
 
-/* Step 85: cleaner planner flow, dashboard content plans and brand profile card fixes */
-.automation-page.planner-wizard-page .planner-settings-builder {
-  background:
-    linear-gradient(180deg, #f4f9ff 0%, #ffffff 100%) !important;
-  border-color: rgba(191, 219, 254, 0.74) !important;
+/* Step 86: planner flow/order, clearer CTA, translations and sidebar tagline */
+.spreelo-sidebar-tagline {
+  margin: 8px 0 20px;
+  padding: 0 2px;
+  display: grid;
+  gap: 5px;
+  color: #475569;
 }
 
-.automation-page.planner-wizard-page .planner-settings-builder .planner-setting-field,
-.automation-page.planner-wizard-page .planner-settings-builder label.planner-setting-field {
-  background: #ffffff !important;
-  border-color: rgba(226, 232, 240, 0.96) !important;
+.spreelo-sidebar-tagline strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.25;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+  color: #172033;
+}
+
+.spreelo-sidebar-tagline span {
+  display: block;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 650;
+  color: #64748b;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder {
+  order: 1 !important;
+}
+
+.automation-page.planner-wizard-page .planner-settings-builder {
+  order: 2 !important;
+  background: linear-gradient(180deg, #f4f8ff 0%, #eef6ff 100%) !important;
+  border-color: rgba(147, 197, 253, 0.44) !important;
+}
+
+.automation-page.planner-wizard-page .planner-schedule-card {
+  order: 3 !important;
+}
+
+.automation-page.planner-wizard-page .planner-how-it-works-card {
+  order: 4 !important;
+  padding: 26px 28px !important;
+  border-radius: 28px !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(226, 232, 240, 0.98) !important;
+  box-shadow: 0 18px 54px rgba(15, 23, 42, 0.05) !important;
+}
+
+.automation-page.planner-wizard-page .planner-how-it-works-card h3 {
+  margin: 0 0 18px !important;
+  font-size: 1.25rem !important;
+  line-height: 1.15 !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.03em !important;
+  color: #172033 !important;
+}
+
+.automation-page.planner-wizard-page .planner-how-it-works-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 18px !important;
+}
+
+.automation-page.planner-wizard-page .planner-how-it-works-grid > div {
+  display: grid !important;
+  grid-template-columns: 38px minmax(0, 1fr) !important;
+  gap: 4px 12px !important;
+  align-items: start !important;
+  min-width: 0 !important;
+}
+
+.automation-page.planner-wizard-page .planner-how-it-works-grid span {
+  grid-row: 1 / span 2 !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #eff6ff !important;
+  color: #2563eb !important;
+  border: 1px solid rgba(37, 99, 235, 0.18) !important;
+  font-weight: 900 !important;
+}
+
+.automation-page.planner-wizard-page .planner-how-it-works-grid strong {
+  font-size: 0.86rem !important;
+  line-height: 1.25 !important;
+  font-weight: 850 !important;
+  color: #172033 !important;
+}
+
+.automation-page.planner-wizard-page .planner-how-it-works-grid p {
+  margin: 0 !important;
+  font-size: 0.8rem !important;
+  line-height: 1.38 !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
 }
 
 .automation-page.planner-wizard-page .planner-save-card {
+  order: 5 !important;
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 420px) !important;
-  align-items: center !important;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 520px) !important;
   gap: 24px !important;
-  padding: 28px 32px !important;
-  background: #ffffff !important;
-  border: 1px solid rgba(226, 232, 240, 0.96) !important;
+  align-items: center !important;
+  justify-items: stretch !important;
+  padding: 24px 30px !important;
   border-radius: 28px !important;
-  box-shadow: 0 18px 54px rgba(15, 23, 42, 0.055) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(226, 232, 240, 0.98) !important;
+  box-shadow: 0 18px 54px rgba(15, 23, 42, 0.05) !important;
 }
 
 .automation-page.planner-wizard-page .planner-save-card > div:first-child {
   display: block !important;
-  justify-self: start !important;
-  text-align: left !important;
 }
 
 .automation-page.planner-wizard-page .planner-save-card h3 {
-  margin: 0 0 6px !important;
-  color: #111827 !important;
-  font-size: 1.35rem !important;
-  font-weight: 850 !important;
+  margin: 0 0 8px !important;
+  font-size: 1.3rem !important;
+  line-height: 1.15 !important;
+  font-weight: 900 !important;
   letter-spacing: -0.03em !important;
+  color: #172033 !important;
 }
 
 .automation-page.planner-wizard-page .planner-save-card p {
   margin: 0 !important;
   color: #667085 !important;
-  font-size: 0.95rem !important;
-  font-weight: 520 !important;
-  line-height: 1.45 !important;
+  font-size: 0.9rem !important;
+  font-weight: 650 !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-card::after {
+  content: none !important;
 }
 
 .automation-page.planner-wizard-page .planner-save-input {
   display: none !important;
 }
 
-.automation-page.planner-wizard-page .planner-save-card .planner-save-button,
-.automation-page.planner-wizard-page .planner-save-card .planner-create-another-button {
-  justify-self: stretch !important;
-  width: 100% !important;
-  min-height: 58px !important;
-  border-radius: 16px !important;
-  background: linear-gradient(135deg, #1d72f3, #0057d9) !important;
-  color: #ffffff !important;
-  box-shadow: 0 18px 36px rgba(29, 114, 243, 0.22) !important;
-  font-size: 1.02rem !important;
-  font-weight: 850 !important;
+.automation-page.planner-wizard-page .planner-save-action-stack {
+  display: grid !important;
+  gap: 10px !important;
+  justify-items: center !important;
 }
 
-.automation-page.planner-wizard-page .planner-save-card::after {
-  grid-column: 2 !important;
-  justify-self: center !important;
-  content: "🔒 Du kan ändra eller pausa planen när som helst." !important;
-  margin-top: -10px !important;
+.automation-page.planner-wizard-page .planner-save-card .planner-save-button {
+  width: 100% !important;
+  min-height: 58px !important;
+  border-radius: 18px !important;
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+  box-shadow: 0 18px 34px rgba(37, 99, 235, 0.22) !important;
+}
+
+.automation-page.planner-wizard-page .planner-save-trust {
+  margin: 0 !important;
+  text-align: center !important;
   color: #667085 !important;
-  font-size: 0.86rem !important;
+  font-size: 0.84rem !important;
+  font-weight: 700 !important;
+}
+
+.automation-page.planner-wizard-page .planner-includes-preview-card,
+.automation-page.planner-wizard-page .saved-card.saved-card-compact {
+  display: none !important;
+}
+
+.automation-page.planner-wizard-page .planner-setup-helper {
   font-weight: 600 !important;
 }
 
-.automation-page.planner-wizard-page .planner-save-message,
-.automation-page.planner-wizard-page .planner-save-success {
-  grid-column: 1 / -1 !important;
+.automation-page.planner-wizard-page .setup-step-title small {
+  font-size: 14px !important;
+  line-height: 1.35 !important;
 }
 
-.dashboard-content-plans-card {
-  margin-top: 18px !important;
+.automation-page.planner-wizard-page .planner-schedule-actions {
+  display: none !important;
 }
 
-.dashboard-plan-list {
-  display: grid;
-  gap: 10px;
-}
-
-.dashboard-plan-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) 120px 180px auto;
-  gap: 14px;
-  align-items: center;
-  min-height: 64px;
-  padding: 14px 16px;
-  border: 1px solid rgba(226, 232, 240, 0.96);
-  border-radius: 16px;
-  background: #ffffff;
-}
-
-.dashboard-plan-row h4 {
-  margin: 0 0 4px;
-  color: #111827;
-  font-size: 0.95rem;
-  font-weight: 760;
-}
-
-.dashboard-plan-row p,
-.dashboard-plan-row span,
-.dashboard-plan-row strong {
-  margin: 0;
-  color: #667085;
-  font-size: 0.86rem;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.dashboard-plan-row strong {
-  color: #344054;
-}
-
-.dashboard-plan-row a {
-  justify-self: end;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid rgba(37, 99, 235, 0.2);
-  border-radius: 999px;
-  color: #1d4ed8;
-  background: #f4f9ff;
-  font-size: 0.82rem;
-  font-weight: 760;
-}
-
-.dashboard-side-card:has(.dashboard-brand-progress) {
-  overflow: hidden;
-}
-
-.dashboard-brand-progress {
-  display: grid !important;
-  gap: 12px !important;
-  padding: 14px !important;
-  border: 1px solid rgba(226, 232, 240, 0.96) !important;
-  border-radius: 18px !important;
-  background: #f8fbff !important;
-}
-
-.dashboard-brand-progress > div:first-child {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 12px !important;
-}
-
-.dashboard-brand-progress strong {
-  font-size: 2.1rem !important;
-  line-height: 1 !important;
-  letter-spacing: -0.055em !important;
-  color: #111827 !important;
-}
-
-.dashboard-brand-progress span {
-  color: #667085 !important;
-  font-size: 0.84rem !important;
-  font-weight: 760 !important;
-  text-align: right !important;
-}
-
-.dashboard-brand-progress .dashboard-credit-bar {
-  width: 100% !important;
-  height: 9px !important;
-  background: #dbeafe !important;
-}
-
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .automation-page.planner-wizard-page .planner-save-card {
     grid-template-columns: 1fr !important;
-    gap: 16px !important;
-    padding: 22px !important;
+    gap: 18px !important;
   }
 
-  .automation-page.planner-wizard-page .planner-save-card::after {
-    grid-column: 1 !important;
-    margin-top: -4px !important;
+  .automation-page.planner-wizard-page .planner-how-it-works-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
+}
 
-  .dashboard-plan-row {
+@media (max-width: 640px) {
+  .automation-page.planner-wizard-page .planner-how-it-works-grid {
     grid-template-columns: 1fr !important;
-    align-items: start;
-  }
-
-  .dashboard-plan-row a {
-    justify-self: stretch;
   }
 }

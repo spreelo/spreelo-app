@@ -22,6 +22,7 @@ export default function Settings() {
   )
     ? locale
     : "";
+  const deleteConfirmWord = String(t("settings.deleteConfirmWord") || "DELETE").trim() || "DELETE";
 
   useEffect(() => {
     async function loadUser() {
@@ -58,8 +59,8 @@ export default function Settings() {
   async function handleDeleteAccount() {
     if (deletingAccount) return;
 
-    if (confirmText !== "DELETE") {
-      setDeleteMessage(t("settings.errorTypeDelete"));
+    if (confirmText.trim().toLocaleLowerCase() !== deleteConfirmWord.toLocaleLowerCase()) {
+      setDeleteMessage(t("settings.errorTypeDelete", { word: deleteConfirmWord }));
       return;
     }
 
@@ -167,7 +168,7 @@ export default function Settings() {
           <h3>{t("settings.deleteTitle")}</h3>
           <p>{t("settings.deleteText")}</p>
           <p className="danger-warning">
-            {t("settings.deleteWarningBefore")} <strong>DELETE</strong>{" "}
+            {t("settings.deleteWarningBefore")} <strong>{deleteConfirmWord}</strong>{" "}
             {t("settings.deleteWarningAfter")}
           </p>
         </div>
@@ -178,7 +179,7 @@ export default function Settings() {
             className="input"
             value={confirmText}
             onChange={(event) => setConfirmText(event.target.value)}
-            placeholder={t("settings.confirmPlaceholder")}
+            placeholder={t("settings.confirmPlaceholder", { word: deleteConfirmWord })}
             disabled={deletingAccount}
           />
 

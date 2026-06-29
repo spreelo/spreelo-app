@@ -522,7 +522,40 @@ function getMonthStartDateString(dateString) {
   return `${parts.year}-${padNumber(parts.month)}-01`;
 }
 
-function getMonthLabel(dateString) {
+
+function getIntlLocaleFromUiLocale(locale) {
+  const normalizedLocale = String(locale || "en").trim().toLowerCase();
+
+  const localeMap = {
+    en: "en-US",
+    sv: "sv-SE",
+    da: "da-DK",
+    no: "nb-NO",
+    fi: "fi-FI",
+    de: "de-DE",
+    fr: "fr-FR",
+    es: "es-ES",
+    it: "it-IT",
+    pt: "pt-PT",
+    nl: "nl-NL",
+    pl: "pl-PL",
+    tr: "tr-TR",
+    ar: "ar",
+    hi: "hi-IN",
+    id: "id-ID",
+    ja: "ja-JP",
+    ko: "ko-KR",
+    zh: "zh-CN",
+    th: "th-TH",
+    uk: "uk-UA",
+    ru: "ru-RU",
+    bg: "bg-BG",
+  };
+
+  return localeMap[normalizedLocale] || normalizedLocale || "en-US";
+}
+
+function getMonthLabel(dateString, locale = "en") {
   const parts = getDatePartsFromDateString(dateString);
 
   if (!parts) {
@@ -531,7 +564,7 @@ function getMonthLabel(dateString) {
 
   const date = new Date(Date.UTC(parts.year, parts.month - 1, 1));
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(getIntlLocaleFromUiLocale(locale), {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
@@ -666,7 +699,7 @@ function getWeekdayFromDateString(dateString, timeZone = DEFAULT_TIME_ZONE) {
   return getWeekdayInTimeZone(date, timeZone);
 }
 
-function formatStartDateLabel(dateString, timeZone = DEFAULT_TIME_ZONE) {
+function formatStartDateLabel(dateString, timeZone = DEFAULT_TIME_ZONE, locale = "en") {
   if (!dateString) {
     return "No start date";
   }
@@ -687,7 +720,7 @@ function formatStartDateLabel(dateString, timeZone = DEFAULT_TIME_ZONE) {
     timeZone,
   });
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(getIntlLocaleFromUiLocale(locale), {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -1482,6 +1515,7 @@ function DatePickerField({
   timeZone,
   compact = false,
   weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+  locale = "en",
 }) {
   const [visibleMonth, setVisibleMonth] = useState(() =>
     getMonthStartDateString(value)
@@ -1505,7 +1539,7 @@ function DatePickerField({
           className="custom-picker-button"
           onClick={() => setOpenPickerId(isOpen ? null : pickerId)}
         >
-          <span>{formatStartDateLabel(value, timeZone)}</span>
+          <span>{formatStartDateLabel(value, timeZone, locale)}</span>
           <strong>📅</strong>
         </button>
 
@@ -1519,7 +1553,7 @@ function DatePickerField({
                 ‹
               </button>
 
-              <strong>{getMonthLabel(visibleMonth)}</strong>
+              <strong>{getMonthLabel(visibleMonth, locale)}</strong>
 
               <button
                 type="button"
@@ -3543,34 +3577,24 @@ export default function AutomationPage() {
 
   const plannerGoalCopy = {
     sell_more: {
-      label: plannerLocaleIsSwedish ? "Sälj mer" : "Sell more",
-      description: plannerLocaleIsSwedish
-        ? "Fokus på produkter, köpinspiration och tydligare uppmaningar som driver försäljning."
-        : "Product posts, buying inspiration and clearer calls to action that drive sales.",
+      label: t("automation.planGoal.sell_more.label"),
+      description: t("automation.planGoal.sell_more.description"),
     },
     get_followers: {
-      label: plannerLocaleIsSwedish ? "Nå fler kunder" : "Reach more customers",
-      description: plannerLocaleIsSwedish
-        ? "Delbart och lätt innehåll som skapar igenkänning, synlighet och engagemang."
-        : "Shareable, easy content that builds recognition, visibility and engagement.",
+      label: t("automation.planGoal.get_followers.label"),
+      description: t("automation.planGoal.get_followers.description"),
     },
     build_trust: {
-      label: plannerLocaleIsSwedish ? "Bygg förtroende" : "Build trust",
-      description: plannerLocaleIsSwedish
-        ? "Visar expertis, svarar på frågor och ger kunderna fler skäl att välja dig."
-        : "Shows expertise, answers questions and gives customers more reasons to choose you.",
+      label: t("automation.planGoal.build_trust.label"),
+      description: t("automation.planGoal.build_trust.description"),
     },
     educate_customers: {
-      label: plannerLocaleIsSwedish ? "Ge tips & råd" : "Give tips & advice",
-      description: plannerLocaleIsSwedish
-        ? "Lärande inlägg som hjälper kunderna och gör företaget relevant."
-        : "Helpful educational posts that guide customers and make the business relevant.",
+      label: t("automation.planGoal.educate_customers.label"),
+      description: t("automation.planGoal.educate_customers.description"),
     },
     stay_visible: {
-      label: plannerLocaleIsSwedish ? "Håll kontot aktivt" : "Keep the account active",
-      description: plannerLocaleIsSwedish
-        ? "En trygg blandning som håller företaget synligt när kunden inte vill välja själv."
-        : "A safe content mix that keeps the business visible when the customer does not want to choose manually.",
+      label: t("automation.planGoal.stay_visible.label"),
+      description: t("automation.planGoal.stay_visible.description"),
     },
   };
 
@@ -3661,8 +3685,31 @@ export default function AutomationPage() {
     return plannerUiCopy[key] || t(`automation.${key}`);
   }
 
+  function getAutoPostLanguageLabel() {
+    const normalizedLocale = String(locale || "en").toLowerCase();
+    const localeLanguageMap = {
+      sv: "Svenska",
+      da: "Dansk",
+      no: "Norsk",
+      de: "Deutsch",
+      es: "Español",
+      fr: "Français",
+      it: "Italiano",
+      nl: "Nederlands",
+      pt: "Português",
+      fi: "Suomi",
+      pl: "Polski",
+      ar: "العربية",
+      ja: "日本語",
+      zh: "中文",
+      en: "English",
+    };
+
+    return localeLanguageMap[normalizedLocale] || "English";
+  }
+
   function getLanguageDisplayLabel(value) {
-    return value === "Auto" ? safePlannerText("spreeloChoosesLanguage") : value;
+    return value === "Auto" ? getAutoPostLanguageLabel() : value;
   }
 
   function getPlatformIconLabel(value) {
@@ -3761,8 +3808,8 @@ const selectedPlatformOptions = selectedPlatformKeys
   .filter(Boolean);
   const [tone, setTone] = useState("Friendly");
   const [language, setLanguage] = useState("Auto");
-const languageOptions = [
-  { value: "Auto", label: safePlannerText("spreeloChoosesLanguage") },
+const baseLanguageOptions = [
+  { value: "Auto", label: getAutoPostLanguageLabel() },
   { value: "Svenska", label: "Svenska" },
   { value: "English", label: "English" },
   { value: "Dansk", label: "Dansk" },
@@ -3779,6 +3826,12 @@ const languageOptions = [
   { value: "日本語", label: "日本語" },
   { value: "中文", label: "中文" },
 ];
+const languageOptions = baseLanguageOptions.filter((option, index, options) => {
+  if (option.value === "Auto") return true;
+  return !options.slice(0, index).some(
+    (earlierOption) => earlierOption.label === option.label
+  );
+});
   const [postType, setPostType] = useState("Offer");
   const [length, setLength] = useState("Medium");
   const [ctaType, setCtaType] = useState("Learn more");
@@ -5326,6 +5379,7 @@ setRules((currentRules) =>
                     timeZone={timeZone}
                     compact
                     weekdayLabels={weekdayLabels}
+                    locale={locale}
                   />
 
                   <TimePickerField
@@ -5526,15 +5580,10 @@ setRules((currentRules) =>
   <section className="planner-schedule-card">
     <div className="planner-schedule-header">
       <div>
-        <h3>{t("automation.plannedFirstWeekTitle")}</h3>
-        <span>{t("automation.plannedFirstWeekText")}</span>
+        <h3>{t("automation.planCreationPreviewTitle")}</h3>
+        <span>{t("automation.planCreationPreviewText")}</span>
       </div>
 
-       <div className="planner-schedule-actions">
-        <a className="view-calendar-button" href="/calendar">
-          {t("automation.viewCalendar")}
-        </a>
-      </div>
     </div>
 
     <div className="planner-post-table">
@@ -5628,7 +5677,7 @@ setRules((currentRules) =>
               <div className="planner-post-date">
                 {slot.dateLocked ? (
                   <div className="locked-campaign-date">
-                    <strong>{formatStartDateLabel(slot.startDate, timeZone)}</strong>
+                    <strong>{formatStartDateLabel(slot.startDate, timeZone, locale)}</strong>
                     <span>{t("automation.lockedCampaignDate")}</span>
 
                     <button
@@ -5651,6 +5700,7 @@ setRules((currentRules) =>
                     timeZone={timeZone}
                     compact
                     weekdayLabels={weekdayLabels}
+                    locale={locale}
                   />
                 )}
               </div>
@@ -5969,16 +6019,67 @@ setRules((currentRules) =>
   </label>
 </div>
             </section>
+
+            {shouldShowPlannerDetails && !planWasSaved && (
+              <section className="planner-includes-preview-card">
+                <div className="planner-preview-panel">
+                  <div className="planner-section-heading compact">
+                    <div>
+                      <h3>{t("automation.planIncludesTitle")}</h3>
+                      <p>{safePlannerText("planIncludesText")}</p>
+                    </div>
+                  </div>
+
+                  <div className="planner-includes-chip-grid">
+                    {getPlanPreviewCardsFromTypes(includedContentTypes, autoPlanGoal).map((card) => (
+                      <div className={`planner-includes-chip preview-${card.id}`} key={card.id}>
+                        <span>{card.icon}</span>
+                        <strong>{translatePreviewCardLabel(card.id)}</strong>
+                        <small>{translatePreviewCardDescription(card.id)}</small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
   </>
 )}
+            <section className="planner-how-it-works-card">
+              <h3>{t("automation.howItWorksTitle")}</h3>
+              <div className="planner-how-it-works-grid">
+                <div>
+                  <span>✦</span>
+                  <strong>{t("automation.howItWorksAutomaticTitle")}</strong>
+                  <p>{t("automation.howItWorksAutomaticText")}</p>
+                </div>
+
+                <div>
+                  <span>🌐</span>
+                  <strong>{t("automation.howItWorksChannelsTitle")}</strong>
+                  <p>{t("automation.howItWorksChannelsText")}</p>
+                </div>
+
+                <div>
+                  <span>✉</span>
+                  <strong>{t("automation.howItWorksApprovalTitle")}</strong>
+                  <p>{t("automation.howItWorksApprovalText")}</p>
+                </div>
+
+                <div>
+                  <span>⌘</span>
+                  <strong>{t("automation.howItWorksManageTitle")}</strong>
+                  <p>{t("automation.howItWorksManageText")}</p>
+                </div>
+              </div>
+            </section>
 
             <section className="planner-save-card">
               <div>
-  <h3>{savedPlanSummary ? t("automation.planSaved") : t("automation.generatePlanTitle")}</h3>
+  <h3>{savedPlanSummary ? t("automation.planSaved") : t("automation.startAutomaticPlanTitle")}</h3>
   <p>
     {savedPlanSummary
       ? t("automation.automationPlanReady")
-      : t("automation.generatePlanHelp")}
+      : t("automation.startAutomaticPlanHelp")}
   </p>
 </div>
          {savedPlanSummary ? (
@@ -6000,14 +6101,17 @@ setRules((currentRules) =>
       placeholder={t("automation.planNamePlaceholderShort")}
     />
 
-    <button
-      type="button"
-      className="planner-save-button"
-      onClick={savePlan}
-      disabled={saving || !hasEnoughCredits}
-    >
-      {saving ? t("automation.saving") : t("automation.generatePostPlan")}
-    </button>
+    <div className="planner-save-action-stack">
+      <button
+        type="button"
+        className="planner-save-button"
+        onClick={savePlan}
+        disabled={saving || !hasEnoughCredits}
+      >
+        {saving ? t("automation.saving") : t("automation.startActivatePlan")}
+      </button>
+      <p className="planner-save-trust">🔒 {t("automation.startAutomaticPlanTrust")}</p>
+    </div>
   </>
 )}
 
@@ -6069,6 +6173,149 @@ setRules((currentRules) =>
                 </div>
               )}
             </section>
+            <section className="saved-card saved-card-compact">
+              <div className="saved-header">
+                <div>
+                  <p>{t("automation.savedPlans")}</p>
+                  <h3>{t("automation.contentPlans")}</h3>
+                </div>
+
+              </div>
+
+              {loading ? (
+                <div className="automation-empty">
+                  <h4>{t("automation.loadingContentPlans")}</h4>
+                  <p>{t("automation.loadingContentPlansText")}</p>
+                </div>
+              ) : rules.length === 0 ? (
+                <div className="automation-empty">
+                  <div className="folder-icon">📁</div>
+                  <div>
+                    <h4>{t("automation.noContentPlansYet")}</h4>
+                    <p>{t("automation.noContentPlansText")}</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="saved-bulk-actions">
+                    <label className="image-check">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleRulesSelected}
+                        onChange={toggleSelectVisibleRules}
+                      />
+                      {t("automation.selectVisible")}
+                    </label>
+
+                    <span>
+                      {t("automation.selectedRulesCount", { count: selectedRuleIds.length })}
+                      {!showSavedRules && rules.length > 3
+                        ? ` · ${t("automation.showingRulesCount", { visible: visibleRules.length, total: rules.length })}`
+                        : ""}
+                    </span>
+
+                    {selectedRuleIds.length > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          className="tiny-button"
+                          onClick={clearSelectedRules}
+                          disabled={deletingRules}
+                        >
+                          {t("automation.clear")}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="danger-button"
+                          onClick={deleteSelectedRules}
+                          disabled={deletingRules}
+                        >
+                          {deletingRules
+                            ? t("automation.deleting")
+                            : confirmingBulkDelete
+                            ? t("automation.confirmDeleteCount", { count: selectedRuleIds.length })
+                            : t("automation.deleteSelectedCount", { count: selectedRuleIds.length })}
+                        </button>
+                      </>
+                    )}
+
+                    {confirmingBulkDelete && (
+                      <span className="delete-confirm-note">
+                        {t("automation.confirmDeleteSelectedRules")}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="saved-rule-list">
+                    {visibleRules.map((rule) => {
+                      const ruleTimeZone = rule.timezone || DEFAULT_TIME_ZONE;
+                      const isSelected = selectedRuleIds.includes(rule.id);
+                      const isConfirmingDelete =
+                        confirmingSingleDeleteId === rule.id;
+
+                      return (
+                        <article
+                          className={`saved-rule-card ${
+                            isSelected ? "selected" : ""
+                          }`}
+                          key={rule.id}
+                        >
+                          <label className="image-check">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleRuleSelection(rule.id)}
+                            />
+                          </label>
+
+                          <div>
+                            <h4>
+                              {rule.schedule_type === "once"
+                                ? rule.run_date
+                                : rule.weekday}{" "}
+                              · {rule.publish_time?.slice(0, 5)}
+                            </h4>
+                            <p>
+                              {rule.platform} ·{" "}
+                              {rule.content_type_label || rule.post_type} ·{" "}
+                              {rule.uses_website_content
+                                ? t("automation.websiteContent")
+                                : rule.generate_image
+                                ? t("automation.textImage")
+                                : t("automation.textOnly")}
+                            </p>
+                            <small>
+                              {t("automation.nextRun")}: {" "}
+                              {formatDateTime(rule.next_run_at, ruleTimeZone)}
+                            </small>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => deleteSingleRule(rule.id)}
+                            disabled={deletingRules}
+                          >
+                            {isConfirmingDelete ? t("automation.confirm") : t("automation.delete")}
+                          </button>
+                        </article>
+                      );
+                    })}
+
+                    {!showSavedRules && rules.length > 3 && (
+                      <button
+                        type="button"
+                        className="show-more-rules"
+                        onClick={() => setShowSavedRules(true)}
+                      >
+                        {t("automation.showMoreSavedRules", { count: rules.length - 3 })}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </section>
           </main>
 
                    <aside className="planner-sidebar">
@@ -6111,7 +6358,7 @@ setRules((currentRules) =>
                   <div>
                     <span>{t("automation.start")}</span>
                     <strong>
-                      {formatStartDateLabel(planStartDate, timeZone)},{" "}
+                      {formatStartDateLabel(planStartDate, timeZone, locale)},{" "}
                       {defaultPublishTime}
                     </strong>
                   </div>

@@ -20,13 +20,15 @@ const navItems = [
   },
   {
     id: "automation",
-    labelKey: "layout.nav.automation",
+    label: "AI Content Studio",
+    labelKey: "layout.nav.aiContentStudio",
     href: "/automation",
     icon: "/icons/sidebar/automation.png",
   },
   {
     id: "calendar",
-    labelKey: "layout.nav.calendar",
+    label: "Your AI Calendar",
+    labelKey: "layout.nav.yourAiCalendar",
     href: "/calendar",
     icon: "/icons/sidebar/calendar.png",
   },
@@ -287,6 +289,11 @@ export default function AppLayout({ active, children }) {
           />
         </div>
 
+        <div className="spreelo-sidebar-tagline">
+          <strong>Spreelo — your AI marketing assistant</strong>
+          <span>Creating and publishing personalized social media posts for your business — automatically.</span>
+        </div>
+
         <div className="current-brand-card">
           <label>{t("common.currentBrand")}</label>
 
@@ -331,7 +338,7 @@ export default function AppLayout({ active, children }) {
               onClick={() => setMobileMenuOpen(false)}
             >
               <img src={item.icon} alt="" className="sidebar-menu-icon" />
-              <span>{t(item.labelKey)}</span>
+              <span>{item.label || t(item.labelKey)}</span>
             </a>
           ))}
         </nav>
