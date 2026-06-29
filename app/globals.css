@@ -17160,3 +17160,197 @@ textarea.input,
     font-size: 10px !important;
   }
 }
+
+/* Step 94i: dashboard content plans + compact brand readiness cleanup */
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper {
+  font-weight: 600 !important;
+}
+
+.dashboard-content-plans-card .saved-header {
+  align-items: flex-start !important;
+  gap: 16px !important;
+}
+
+.dashboard-content-plans-card .saved-header p {
+  margin: 0 0 6px !important;
+}
+
+.dashboard-content-plans-card .saved-header h3 {
+  margin: 0 !important;
+}
+
+.dashboard-plan-list {
+  display: grid !important;
+  gap: 12px !important;
+}
+
+.dashboard-plan-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto !important;
+  align-items: center !important;
+  gap: 16px !important;
+  padding: 14px 16px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  background: #ffffff !important;
+}
+
+.dashboard-plan-row > div:first-child {
+  min-width: 0 !important;
+}
+
+.dashboard-plan-row h4 {
+  margin: 0 0 7px !important;
+  color: #111827 !important;
+  font-size: 15px !important;
+  line-height: 1.25 !important;
+  font-weight: 850 !important;
+}
+
+.dashboard-plan-row p {
+  margin: 0 !important;
+  color: #667085 !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  font-weight: 550 !important;
+}
+
+.dashboard-plan-meta {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 210px !important;
+  color: #475467 !important;
+  font-size: 13px !important;
+}
+
+.dashboard-plan-meta span {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 26px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  background: #f3f6fb !important;
+  color: #475467 !important;
+  font-weight: 750 !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-plan-meta strong {
+  color: #111827 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-plan-row > a {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 34px !important;
+  padding: 0 13px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(191, 219, 254, 0.95) !important;
+  background: #f8fbff !important;
+  color: #0b63d8 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-side-card .dashboard-brand-readiness,
+.dashboard-brand-progress.dashboard-brand-readiness {
+  display: grid !important;
+  gap: 10px !important;
+  margin-top: 16px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+
+.dashboard-brand-readiness-row {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+}
+
+.dashboard-brand-readiness-row span {
+  color: #667085 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  letter-spacing: 0.01em !important;
+}
+
+.dashboard-brand-readiness-row strong {
+  color: #111827 !important;
+  font-size: 15px !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1 !important;
+}
+
+.dashboard-brand-readiness .dashboard-brand-progress-bar {
+  height: 7px !important;
+  width: 100% !important;
+  background: #e8eefc !important;
+  border-radius: 999px !important;
+  overflow: hidden !important;
+}
+
+.dashboard-brand-readiness .dashboard-brand-progress-bar > div {
+  height: 100% !important;
+  border-radius: inherit !important;
+  background: linear-gradient(90deg, #0f6fff 0%, #6a5dfc 100%) !important;
+}
+
+.dashboard-brand-ready-badge {
+  justify-self: start !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 28px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  background: #eef4ff !important;
+  color: #0b63d8 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-brand-ready-badge.is-ready {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+}
+
+.dashboard-brand-complete-note,
+.dashboard-side-card .dashboard-brand-complete-note {
+  margin-top: 16px !important;
+  color: #344054 !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+  font-weight: 650 !important;
+}
+
+@media (max-width: 980px) {
+  .dashboard-plan-row {
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+  }
+
+  .dashboard-plan-meta {
+    justify-content: flex-start !important;
+    min-width: 0 !important;
+  }
+
+  .dashboard-plan-row > a {
+    justify-self: start !important;
+  }
+}

@@ -857,8 +857,10 @@ export default function Home() {
                               </p>
                             </div>
 
-                            <span>{formatScheduleType(rule.schedule_type, t)}</span>
-                            <strong>{formatDate(rule.next_run_at || rule.run_date, t)}</strong>
+                            <div className="dashboard-plan-meta">
+                              <span>{formatScheduleType(rule.schedule_type, t)}</span>
+                              <strong>{formatDate(rule.next_run_at || rule.run_date, t)}</strong>
+                            </div>
                             <a href="/automation">{t("dashboard.manage")}</a>
                           </article>
                       ))}
@@ -907,23 +909,28 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="dashboard-brand-progress">
-                    <div className="dashboard-brand-progress-top">
-                      <strong className="dashboard-brand-progress-percent">
-                        {brandCompleteness.percent}%
-                      </strong>
-                      <span className="dashboard-brand-progress-badge">
-                        {brandCompleteness.completed}/{brandCompleteness.total}{" "}
-                        {t("dashboard.completed")}
-                      </span>
+                  <div className="dashboard-brand-progress dashboard-brand-readiness">
+                    <div className="dashboard-brand-readiness-row">
+                      <span>{t("dashboard.brandReadiness")}</span>
+                      <strong>{brandCompleteness.percent}%</strong>
                     </div>
 
                     <div className="dashboard-brand-progress-bar" aria-hidden="true">
                       <div style={{ width: `${brandCompleteness.percent}%` }} />
                     </div>
+
+                    <span
+                      className={`dashboard-brand-ready-badge ${
+                        brandCompleteness.percent === 100 ? "is-ready" : ""
+                      }`}
+                    >
+                      {brandCompleteness.percent === 100
+                        ? t("dashboard.brandReady")
+                        : `${brandCompleteness.completed}/${brandCompleteness.total} ${t("dashboard.completed")}`}
+                    </span>
                   </div>
 
-                  <p className="dashboard-side-note">
+                  <p className="dashboard-side-note dashboard-brand-complete-note">
                     {brandCompleteness.percent === 100
                       ? t("dashboard.brandComplete")
                       : t("dashboard.brandIncomplete")}
