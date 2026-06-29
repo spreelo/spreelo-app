@@ -771,41 +771,36 @@ export default function Home() {
                   </div>
 
                   {!loading && pendingApprovalPosts.length > 0 && (
-                    <div className="saved-bulk-actions">
-                      <label className="image-check">
-                        <input
-                          type="checkbox"
-                          checked={allVisiblePendingSelected}
-                          onChange={() => {
-                            if (allVisiblePendingSelected) {
-                              clearSelectedPendingPosts();
-                            } else {
-                              selectVisiblePendingPosts();
-                            }
-                          }}
-                        />
-                        {t("dashboard.selectVisible")}
-                      </label>
-
-                      <span>
-                        {t("dashboard.selectedShowing", { selected: selectedPendingCount, visible: visiblePendingApprovalPosts.length, total: pendingApprovalPosts.length })}
-                      </span>
-
-                      {selectedPendingCount > 0 && (
+                    <div className="dashboard-plan-toolbar dashboard-review-toolbar">
+                      <div>
                         <button
                           type="button"
-                          className="tiny-button"
-                          onClick={clearSelectedPendingPosts}
+                          className="dashboard-inline-action"
+                          onClick={
+                            allVisiblePendingSelected
+                              ? clearSelectedPendingPosts
+                              : selectVisiblePendingPosts
+                          }
                           disabled={bulkActionLoading}
                         >
-                          {t("dashboard.clear")}
+                          {allVisiblePendingSelected
+                            ? t("dashboard.clear")
+                            : t("dashboard.selectVisible")}
                         </button>
-                      )}
+
+                        {selectedPendingCount > 0 && (
+                          <span className="dashboard-selection-count">
+                            {t("dashboard.pendingSelected", {
+                              count: selectedPendingCount,
+                            })}
+                          </span>
+                        )}
+                      </div>
 
                       {selectedPendingCount > 0 && (
                         <button
                           type="button"
-                          className="danger-button"
+                          className="dashboard-delete-button"
                           onClick={deleteSelectedPendingPosts}
                           disabled={bulkActionLoading}
                         >
@@ -818,7 +813,7 @@ export default function Home() {
                       )}
 
                       {deleteConfirmActive && selectedPendingCount > 0 && (
-                        <span className="delete-confirm-note">
+                        <span className="delete-confirm-note dashboard-review-confirm-note">
                           {t("dashboard.confirmDeleteNote", { count: selectedPendingCount })}
                         </span>
                       )}

@@ -4193,6 +4193,7 @@ const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [scheduleType, setScheduleType] = useState("weekly");
+  const [editingRuleId, setEditingRuleId] = useState("");
 
   const [planName, setPlanName] = useState("");
   const [platform, setPlatform] = useState("");
@@ -4573,6 +4574,7 @@ const searchParams =
 
 const campaignOpportunityId = searchParams?.get("campaignOpportunityId") || "";
 const requestedBrandProfileId = searchParams?.get("brandProfileId") || "";
+const requestedPlanId = searchParams?.get("plan") || "";
 
 let selectedBrandId = "";
 
@@ -4677,6 +4679,14 @@ const { data, error } = await supabase
           sortedRules.some((rule) => rule.id === ruleId)
         )
       );
+
+      if (requestedPlanId) {
+        const requestedRule = sortedRules.find((rule) => rule.id === requestedPlanId);
+
+        if (requestedRule) {
+          loadExistingAutomationRuleIntoPlanner(requestedRule);
+        }
+      }
     }
 
     const { data: balanceData, error: balanceError } = await supabase
@@ -5362,6 +5372,68 @@ const { error } = await supabase
     await deleteRulesByIds([ruleId]);
   }
 
+  function loadExistingAutomationRuleIntoPlanner(rule) {
+    if (!rule?.id) return;
+
+    const selectedTimeZone = rule.timezone || timeZone || DEFAULT_TIME_ZONE;
+    const ruleStartDate =
+      rule.run_date ||
+      getDateInputValueInTimeZone(
+        rule.next_run_at ? new Date(rule.next_run_at) : new Date(),
+        selectedTimeZone
+      );
+    const rulePublishTime = normalizeTime(rule.publish_time || defaultPublishTime);
+    const contentType = getContentTypeById(rule.content_type_id);
+    const contentTypeId = contentType?.id || rule.content_type_id || "manual_prompt";
+
+    setEditingRuleId(rule.id);
+    setSavedPlanSummary(null);
+    setMessage("");
+    setCampaignOpportunity(null);
+    setPlanCreationMode(contentTypeId === "manual_prompt" ? "manual" : "select");
+    setPlanName(rule.name || "");
+    setPlatform(rule.platform || "");
+    setTone(rule.tone || "Friendly");
+    setLanguage(rule.language || "Auto");
+    setPostType(rule.post_type || "Offer");
+    setLength(rule.length || "Medium");
+    setCtaType(rule.cta_type || "Learn more");
+    setScheduleType(rule.schedule_type || "weekly");
+    setTimeZone(selectedTimeZone);
+    setPlanStartDate(ruleStartDate);
+    setDefaultPublishTime(rulePublishTime);
+    setAutoPlanGoal("");
+    setSelectedContentTypeIds(contentTypeId ? [contentTypeId] : []);
+    setSlots([
+      createSlot({
+        startDate: ruleStartDate,
+        weekday: rule.weekday || getWeekdayFromDateString(ruleStartDate, selectedTimeZone),
+        publishTime: rulePublishTime,
+        prompt: rule.prompt || contentType?.prompt || "",
+        imagePrompt: rule.image_prompt || contentType?.imagePrompt || "",
+        generateImage: Boolean(rule.generate_image),
+        includeEmojis: rule.include_emojis !== false,
+        includeHashtags: rule.include_hashtags !== false,
+        includeLogo:
+          typeof rule.include_logo === "boolean" ? rule.include_logo : null,
+        contentTypeId,
+        contentTypeLabel:
+          rule.content_type_label || contentType?.label || rule.post_type || "Manual prompt",
+        usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
+        contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
+        timeZone: selectedTimeZone,
+      }),
+    ]);
+
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        document
+          .querySelector(".planner-primary-builder")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }
+
   async function savePlan() {
     setMessage("");
     setSavedPlanSummary(null);
@@ -5493,6 +5565,44 @@ ${slot.campaignSummary}`
       };
     });
 
+    if (editingRuleId) {
+      const row = rows[0];
+      const { data: updatedRules, error } = await supabase
+        .from("automation_rules")
+        .update(row)
+        .eq("id", editingRuleId)
+        .eq("user_id", user.id)
+        .eq("brand_profile_id", selectedBrandId)
+        .select("*");
+
+      if (error) {
+        setMessage(error.message);
+        setSaving(false);
+        return;
+      }
+
+      setRules((currentRules) =>
+        sortAutomationRules([
+          ...(updatedRules || []),
+          ...currentRules.filter((rule) => rule.id !== editingRuleId),
+        ])
+      );
+      setMessage(t("automation.planSaved"));
+      setSavedPlanSummary({
+        name: row.name || t("automation.contentPlan"),
+        totalPosts: 1,
+        scheduleType: row.schedule_type,
+        postsPerWeek: row.schedule_type === "weekly" ? 1 : null,
+        firstPostLabel: row.next_run_at
+          ? formatDateTime(row.next_run_at, selectedTimeZone)
+          : `${formatStartDateLabel(row.run_date, selectedTimeZone)} at ${normalizeTime(row.publish_time)}`,
+        credits: row.credit_cost || 1,
+        method: t("automation.contentPlan"),
+      });
+      setSaving(false);
+      return;
+    }
+
     const { data: insertedRules, error } = await supabase
   .from("automation_rules")
   .insert(rows)
@@ -5563,12 +5673,14 @@ setRules((currentRules) =>
   setLength("Medium");
   setCtaType("Learn more");
   setScheduleType("weekly");
+  setEditingRuleId("");
   setShowAdvancedSettings(false);
 
   if (typeof window !== "undefined") {
     const url = new URL(window.location.href);
     url.searchParams.delete("campaignOpportunityId");
     url.searchParams.delete("brandProfileId");
+    url.searchParams.delete("plan");
     window.history.replaceState({}, "", url.toString());
   }
 

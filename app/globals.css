@@ -17550,3 +17550,29 @@ textarea.input,
     flex-wrap: wrap !important;
   }
 }
+
+
+/* Step 94k: align pending approval bulk toolbar with content plans */
+.dashboard-review-toolbar {
+  margin: 2px 0 12px !important;
+}
+
+.dashboard-review-toolbar .dashboard-delete-button {
+  margin-left: auto !important;
+}
+
+.dashboard-review-confirm-note {
+  flex-basis: 100% !important;
+  width: 100% !important;
+  color: #9f1239 !important;
+  font-size: 12px !important;
+  font-weight: 750 !important;
+  margin-top: -4px !important;
+}
+
+@media (max-width: 620px) {
+  .dashboard-review-toolbar .dashboard-delete-button {
+    margin-left: 0 !important;
+    align-self: flex-start !important;
+  }
+}
