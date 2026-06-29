@@ -13,12 +13,6 @@ const navItems = [
     icon: "/icons/sidebar/dashboard.png",
   },
   {
-    id: "create",
-    labelKey: "layout.nav.content",
-    href: "/create",
-    icon: "/icons/sidebar/content.png",
-  },
-  {
     id: "automation",
     label: "AI Content Studio",
     labelKey: "layout.nav.aiContentStudio",
