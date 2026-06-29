@@ -3781,7 +3781,14 @@ export default function AutomationPage() {
   }
 
   function translateScheduleType(value) {
-    return value === "weekly" ? t("automation.weekly") : t("automation.once");
+    return value === "weekly" ? t("automation.weekly") : t("automation.oneTime");
+  }
+
+  function getTimeZoneDisplayLabel(value) {
+    const zone = String(value || DEFAULT_TIME_ZONE);
+    const translated = t(`automation.timeZone.${zone}`);
+
+    return translated && translated !== `automation.timeZone.${zone}` ? translated : zone;
   }
   function translatePreviewCardLabel(cardId) {
     if (plannerLocaleIsSwedish && previewCardCopy[cardId]?.label) {
@@ -6088,7 +6095,7 @@ setRules((currentRules) =>
     >
       {timeZoneOptions.map((option) => (
         <option key={option} value={option}>
-          {option}
+          {getTimeZoneDisplayLabel(option)}
         </option>
       ))}
     </select>
@@ -6483,7 +6490,7 @@ setRules((currentRules) =>
                   <span className="planner-summary-icon">⏱</span>
                   <div>
                     <span>{t("automation.timezone")}</span>
-                    <strong>{timeZone}</strong>
+                    <strong>{getTimeZoneDisplayLabel(timeZone)}</strong>
                   </div>
                 </div>
 

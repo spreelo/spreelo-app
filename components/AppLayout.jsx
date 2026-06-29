@@ -333,7 +333,7 @@ export default function AppLayout({ active, children }) {
               onClick={() => setMobileMenuOpen(false)}
             >
               <img src={item.icon} alt="" className="sidebar-menu-icon" />
-              <span>{item.label || t(item.labelKey)}</span>
+              <span>{t(item.labelKey)}</span>
             </a>
           ))}
         </nav>
