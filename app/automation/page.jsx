@@ -3886,6 +3886,48 @@ function formatPlatformSelectionFromKeys(keys = [], platformOptions = []) {
     .join(" + ");
 }
 
+
+function SetupHelperNote({ variant = "goal", icon, children }) {
+  return (
+    <div className={`planner-setup-helper planner-setup-helper-${variant}`}>
+      <span className="planner-setup-helper-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="planner-setup-helper-text">{children}</span>
+    </div>
+  );
+}
+
+function GoalHelperIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 18h14" />
+      <path d="M7.5 18V12.5" />
+      <path d="M12 18V8.5" />
+      <path d="M16.5 18V5.5" />
+      <path d="m14.8 7 2.3-2.5 1.9 2" />
+    </svg>
+  );
+}
+
+function FrequencyHelperIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m20 6-9 9-4-4" />
+      <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
+    </svg>
+  );
+}
+
+function TimingHelperIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 7.8v4.7l3.2 2" />
+    </svg>
+  );
+}
+
 export default function AutomationPage() {
   const { t, locale } = useUiText(["automation"]);
 
@@ -5665,14 +5707,17 @@ setRules((currentRules) =>
     </select>
   )}
 
-  <p className="planner-setup-helper">
+  <SetupHelperNote
+    variant="goal"
+    icon={<GoalHelperIcon />}
+  >
     {planCreationMode === "campaign"
       ? t("automation.campaignConnectedText")
       : translateAutoPlanGoalDescription(autoPlanGoal) ||
         (plannerLocaleIsSwedish
           ? "Välj ett mål så anpassar Spreelo innehållstyperna efter din plan."
           : "Choose a goal so Spreelo can tailor the content types to your plan.")}
-  </p>
+  </SetupHelperNote>
 </div>
 
               <div className="planner-setup-card">
@@ -5720,13 +5765,16 @@ setRules((currentRules) =>
                   </div>
                 )}
 
-                <p className="planner-setup-helper">
-                 {planCreationMode === "campaign"
-  ? t("automation.campaignPostsPrepared", { count: slots.length })
-  : planCreationMode === "manual"
-  ? t("automation.manualPostsAdded")
-  : t("automation.recommendedGrowthSmart")}
-                </p>
+                <SetupHelperNote
+                  variant="frequency"
+                  icon={<FrequencyHelperIcon />}
+                >
+                  {planCreationMode === "campaign"
+                    ? t("automation.campaignPostsPrepared", { count: slots.length })
+                    : planCreationMode === "manual"
+                    ? t("automation.manualPostsAdded")
+                    : t("automation.recommendedGrowthSmart")}
+                </SetupHelperNote>
               </div>
 
               <div className="planner-setup-card">
@@ -5761,7 +5809,12 @@ setRules((currentRules) =>
                   />
                 </div>
 
-                <p className="planner-setup-helper">{t("automation.scheduleFromDateTime")}</p>
+                <SetupHelperNote
+                  variant="timing"
+                  icon={<TimingHelperIcon />}
+                >
+                  {t("automation.scheduleFromDateTime")}
+                </SetupHelperNote>
               </div>
               </div>
             </section>

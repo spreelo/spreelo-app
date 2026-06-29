@@ -16870,3 +16870,103 @@ textarea.input,
     z-index: 6000 !important;
   }
 }
+
+/* Step 94f: premium helper cards in Goal / Posts per week / Start date */
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper {
+  display: grid !important;
+  grid-template-columns: 56px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 16px !important;
+  min-height: 132px !important;
+  margin-top: 18px !important;
+  padding: 18px 20px !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(191, 219, 254, 0.85) !important;
+  box-shadow: none !important;
+  font-size: 0.98rem !important;
+  font-weight: 700 !important;
+  line-height: 1.55 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-goal {
+  background: #f5f1fb !important;
+  border-color: #e6def7 !important;
+  color: #2f2d75 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-frequency {
+  background: #f3f8f5 !important;
+  border-color: #d8ebe1 !important;
+  color: #135b51 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-timing {
+  background: #fbf7ef !important;
+  border-color: #eee2cf !important;
+  color: #72511f !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-icon {
+  width: 52px !important;
+  height: 52px !important;
+  min-width: 52px !important;
+  border-radius: 18px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  border: 1px solid rgba(255, 255, 255, 0.96) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-icon svg {
+  width: 28px !important;
+  height: 28px !important;
+  display: block !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-goal .planner-setup-helper-icon {
+  color: #8e79d9 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-frequency .planner-setup-helper-icon {
+  color: #2f7d69 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-timing .planner-setup-helper-icon {
+  color: #9a7a34 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-text {
+  display: block !important;
+}
+
+@media (max-width: 980px) {
+  .automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper {
+    min-height: 0 !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper {
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    gap: 12px !important;
+    margin-top: 14px !important;
+    padding: 14px 15px !important;
+    border-radius: 18px !important;
+    font-size: 0.88rem !important;
+    line-height: 1.5 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-icon {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    border-radius: 14px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-primary-builder .planner-setup-helper-icon svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+}
