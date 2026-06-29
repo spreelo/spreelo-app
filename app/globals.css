@@ -6874,7 +6874,7 @@ textarea.input:focus,
     background: #ffffff !important;
     color: #111827 !important;
     font-size: 15px !important;
-    font-weight: 750 !important;
+    font-weight: 600 !important;
     box-shadow: none !important;
 }
 
@@ -10412,7 +10412,7 @@ textarea.input:focus,
   margin-top: 4px !important;
   color: #64748b !important;
   font-size: 12px !important;
-  font-weight: 750 !important;
+  font-weight: 600 !important;
 }
 
 .facebook-page-option-action {
@@ -12119,7 +12119,7 @@ textarea.input:focus,
   border-radius: 16px !important;
   background: #f5f0ff !important;
   color: #1d4ed8 !important;
-  font-weight: 750 !important;
+  font-weight: 600 !important;
 }
 
 .automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card:nth-child(3) p:last-child {
@@ -12595,13 +12595,13 @@ textarea.input:focus,
 
 .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item > div > span {
   color: #0f172a !important;
-  font-weight: 750 !important;
+  font-weight: 600 !important;
   font-size: 0.8rem !important;
 }
 
 .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item > div > strong {
   color: #0f172a !important;
-  font-weight: 750 !important;
+  font-weight: 600 !important;
   font-size: 0.94rem !important;
   line-height: 1.35 !important;
 }

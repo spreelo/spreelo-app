@@ -76,20 +76,47 @@ const commonTimeZones = [
   "Europe/Oslo",
   "Europe/Helsinki",
   "Europe/London",
+  "Europe/Dublin",
   "Europe/Berlin",
   "Europe/Paris",
   "Europe/Madrid",
   "Europe/Rome",
   "Europe/Amsterdam",
+  "Europe/Brussels",
+  "Europe/Warsaw",
+  "Europe/Vienna",
+  "Europe/Zurich",
+  "Europe/Prague",
+  "Europe/Athens",
+  "Europe/Istanbul",
+  "Europe/Moscow",
   "America/New_York",
+  "America/Toronto",
   "America/Chicago",
   "America/Denver",
   "America/Los_Angeles",
+  "America/Vancouver",
+  "America/Mexico_City",
+  "America/Sao_Paulo",
+  "America/Bogota",
+  "America/Argentina/Buenos_Aires",
   "Asia/Bangkok",
   "Asia/Dubai",
   "Asia/Singapore",
+  "Asia/Kuala_Lumpur",
+  "Asia/Jakarta",
+  "Asia/Manila",
+  "Asia/Hong_Kong",
+  "Asia/Shanghai",
   "Asia/Tokyo",
+  "Asia/Seoul",
+  "Asia/Kolkata",
+  "Asia/Riyadh",
+  "Africa/Cairo",
+  "Africa/Johannesburg",
+  "Africa/Lagos",
   "Australia/Sydney",
+  "Pacific/Auckland",
 ];
 
 const contentTypes = [
@@ -1061,6 +1088,36 @@ function getBrowserTimeZone() {
   } catch {
     return DEFAULT_TIME_ZONE;
   }
+}
+
+function getLocaleDefaultTimeZone(locale = "en") {
+  const language = String(locale || "en").toLowerCase().split("-")[0];
+  const map = {
+    sv: "Europe/Stockholm",
+    da: "Europe/Copenhagen",
+    no: "Europe/Oslo",
+    fi: "Europe/Helsinki",
+    en: "Europe/London",
+    de: "Europe/Berlin",
+    fr: "Europe/Paris",
+    es: "Europe/Madrid",
+    it: "Europe/Rome",
+    nl: "Europe/Amsterdam",
+    pl: "Europe/Warsaw",
+    tr: "Europe/Istanbul",
+    ru: "Europe/Moscow",
+    uk: "Europe/Kyiv",
+    ar: "Asia/Riyadh",
+    hi: "Asia/Kolkata",
+    id: "Asia/Jakarta",
+    ja: "Asia/Tokyo",
+    ko: "Asia/Seoul",
+    zh: "Asia/Shanghai",
+    th: "Asia/Bangkok",
+    pt: "Europe/Lisbon",
+  };
+
+  return map[language] || DEFAULT_TIME_ZONE;
 }
 
 function getOneTimeRunAtIso(
@@ -3599,18 +3656,16 @@ export default function AutomationPage() {
   };
 
   const plannerUiCopy = {
-    planSummary: plannerLocaleIsSwedish ? "Din plan" : "Your plan",
-    readyToCreate: plannerLocaleIsSwedish ? "Redo att skapa" : "Ready to create",
-    spreeloChoosesLanguage: plannerLocaleIsSwedish ? "Svenska" : "English",
-    platformHelp: plannerLocaleIsSwedish ? "Här kommer dina inlägg publiceras." : "This is where your posts will be published.",
-    languageForPosts: plannerLocaleIsSwedish ? "Språk för inläggen" : "Post language",
-    repeatFull: plannerLocaleIsSwedish ? "Upprepning" : "Repeat",
-    languageHelpSmart: plannerLocaleIsSwedish ? "Välj vilket språk de skapade inläggen ska skrivas på." : "Choose the language the generated posts should be written in.",
-    repeatHelpSmart: plannerLocaleIsSwedish ? "Bestämmer hur ofta planen skapas och upprepas." : "Controls how often the plan is created and repeated.",
-    timezoneHelpSmart: plannerLocaleIsSwedish ? "Används för att planera inlägg i rätt lokal tid." : "Used to schedule posts in the correct local time.",
-    planIncludesText: plannerLocaleIsSwedish
-      ? "Inläggstyper väljs automatiskt för att matcha ditt mål."
-      : "Post types are chosen automatically to match your goal.",
+    planSummary: t("automation.planSummary"),
+    readyToCreate: t("automation.readyToCreate"),
+    spreeloChoosesLanguage: getAutoPostLanguageLabel(),
+    platformHelp: t("automation.platformHelp"),
+    languageForPosts: t("automation.languageForPosts"),
+    repeatFull: t("automation.repeatFull"),
+    languageHelpSmart: t("automation.languageHelpSmart"),
+    repeatHelpSmart: t("automation.repeatHelpSmart"),
+    timezoneHelpSmart: t("automation.timezoneHelpSmart"),
+    planIncludesText: t("automation.planIncludesText"),
   };
 
   const previewCardCopy = {
@@ -3729,11 +3784,31 @@ export default function AutomationPage() {
     return value === "weekly" ? t("automation.weekly") : t("automation.once");
   }
   function translatePreviewCardLabel(cardId) {
-    return previewCardCopy[cardId]?.label || t(`automation.previewCard.${cardId}.label`);
+    if (plannerLocaleIsSwedish && previewCardCopy[cardId]?.label) {
+      return previewCardCopy[cardId].label;
+    }
+
+    return t(`automation.previewCard.${cardId}.label`);
   }
 
   function translatePreviewCardDescription(cardId) {
-    return previewCardCopy[cardId]?.description || t(`automation.previewCard.${cardId}.description`);
+    if (plannerLocaleIsSwedish && previewCardCopy[cardId]?.description) {
+      return previewCardCopy[cardId].description;
+    }
+
+    return t(`automation.previewCard.${cardId}.description`);
+  }
+
+  function getLocalizedSlotFormatLabel(slot) {
+    if (slot.usesWebsiteContent && slot.generateImage) {
+      return t("automation.textWebsiteImage");
+    }
+
+    if (slot.generateImage) {
+      return t("automation.textImage");
+    }
+
+    return t("automation.textOnly");
   }
 
   function getCustomerSlotLabel(slot) {
@@ -3854,23 +3929,25 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
 
   useEffect(() => {
     const browserTimeZone = getBrowserTimeZone();
+    const localeTimeZone = getLocaleDefaultTimeZone(locale);
+    const resolvedTimeZone = browserTimeZone || localeTimeZone || DEFAULT_TIME_ZONE;
     const browserStartDate = getDateInputValueInTimeZone(
       new Date(),
-      browserTimeZone
+      resolvedTimeZone
     );
     const browserRecommendedTime = getRecommendedTimeForDate(
       browserStartDate,
-      browserTimeZone
+      resolvedTimeZone
     );
 
-    setTimeZone(browserTimeZone);
+    setTimeZone(resolvedTimeZone);
     setPlanStartDate(browserStartDate);
     setDefaultPublishTime(browserRecommendedTime);
     setSlots((currentSlots) =>
       applySmartScheduleToSlots(
         currentSlots,
         browserStartDate,
-        browserTimeZone,
+        resolvedTimeZone,
         browserRecommendedTime
       )
     );
@@ -3879,10 +3956,10 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   }, []);
 
   const timeZoneOptions = useMemo(() => {
-    const options = new Set([timeZone, DEFAULT_TIME_ZONE, ...commonTimeZones]);
+    const options = new Set([timeZone, getLocaleDefaultTimeZone(locale), DEFAULT_TIME_ZONE, ...commonTimeZones]);
 
     return Array.from(options).filter(Boolean);
-  }, [timeZone]);
+  }, [timeZone, locale]);
 
   const plannedCredits = useMemo(() => {
     return slots.reduce(
@@ -5592,7 +5669,7 @@ setRules((currentRules) =>
           expandedInstructionSlotIds.includes(slot.id);
         const displayLabel = getCustomerSlotLabel(slot);
         const displayDescription = getCustomerSlotPurpose(slot);
-        const formatLabel = getSlotFormatLabel(slot);
+        const formatLabel = getLocalizedSlotFormatLabel(slot);
         const hasStrategyInfo =
           slot.isCampaignSlot &&
           (slot.marketingAngle ||

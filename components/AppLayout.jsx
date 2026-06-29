@@ -289,11 +289,6 @@ export default function AppLayout({ active, children }) {
           />
         </div>
 
-        <div className="spreelo-sidebar-tagline">
-          <strong>Spreelo — your AI marketing assistant</strong>
-          <span>Creating and publishing personalized social media posts for your business — automatically.</span>
-        </div>
-
         <div className="current-brand-card">
           <label>{t("common.currentBrand")}</label>
 
