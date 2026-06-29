@@ -43,11 +43,11 @@ const smartPostingSlotsByWeekday = {
 };
 
 const smartPostingDayGoalBonus = {
-  sell_more: { Thursday: 8, Friday: 12, Saturday: 9, Sunday: 3 },
-  get_followers: { Tuesday: 7, Wednesday: 8, Thursday: 6, Sunday: 5 },
-  build_trust: { Tuesday: 8, Wednesday: 8, Thursday: 6, Monday: 4 },
-  educate_customers: { Tuesday: 8, Wednesday: 9, Sunday: 6, Monday: 4 },
-  stay_visible: { Monday: 4, Tuesday: 6, Wednesday: 6, Thursday: 6, Friday: 5 },
+  sell_more: { Thursday: 9, Friday: 12, Saturday: 10, Sunday: 4 },
+  get_followers: { Tuesday: 7, Wednesday: 8, Thursday: 6, Sunday: 7, Saturday: 4 },
+  build_trust: { Tuesday: 8, Wednesday: 8, Thursday: 6, Sunday: 5, Monday: 4 },
+  educate_customers: { Tuesday: 8, Wednesday: 9, Sunday: 7, Monday: 4, Thursday: 4 },
+  stay_visible: { Monday: 6, Tuesday: 6, Wednesday: 6, Thursday: 6, Friday: 6, Sunday: 5 },
 };
 
 const smartPostingTypePreferences = {
@@ -60,28 +60,28 @@ const smartPostingTypePreferences = {
     preferredTimes: ["12:15", "16:30", "18:30", "19:00"],
   },
   problem_solution: {
-    dayBonus: { Monday: 6, Tuesday: 8, Wednesday: 7, Thursday: 5 },
-    preferredTimes: ["09:30", "10:30", "11:30"],
+    dayBonus: { Monday: 7, Tuesday: 8, Wednesday: 7, Thursday: 5, Sunday: 4 },
+    preferredTimes: ["08:30", "12:15", "16:30", "18:30"],
   },
   tips: {
-    dayBonus: { Tuesday: 8, Wednesday: 9, Thursday: 5, Sunday: 5 },
-    preferredTimes: ["09:30", "10:30", "11:30", "18:30"],
+    dayBonus: { Tuesday: 8, Wednesday: 9, Thursday: 6, Sunday: 7, Saturday: 3 },
+    preferredTimes: ["10:30", "12:15", "18:30", "19:30"],
   },
   mistakes: {
-    dayBonus: { Tuesday: 7, Wednesday: 8, Thursday: 5, Sunday: 4 },
-    preferredTimes: ["10:30", "11:30", "18:30"],
+    dayBonus: { Tuesday: 7, Wednesday: 8, Thursday: 5, Sunday: 5 },
+    preferredTimes: ["10:30", "12:15", "18:30", "19:30"],
   },
   faq: {
-    dayBonus: { Tuesday: 6, Wednesday: 7, Thursday: 8, Sunday: 4 },
-    preferredTimes: ["10:30", "12:15", "18:30"],
+    dayBonus: { Tuesday: 6, Wednesday: 7, Thursday: 8, Sunday: 5 },
+    preferredTimes: ["12:15", "16:30", "18:30", "10:30"],
   },
   behind_scenes: {
     dayBonus: { Wednesday: 6, Thursday: 7, Friday: 8, Saturday: 5 },
     preferredTimes: ["13:30", "16:30", "18:30"],
   },
   checklist: {
-    dayBonus: { Monday: 6, Tuesday: 7, Wednesday: 8, Sunday: 7 },
-    preferredTimes: ["09:30", "10:30", "18:30", "19:30"],
+    dayBonus: { Monday: 7, Tuesday: 7, Wednesday: 8, Sunday: 8, Thursday: 4 },
+    preferredTimes: ["08:30", "12:15", "18:30", "19:30"],
   },
   service_focus: {
     dayBonus: { Tuesday: 7, Wednesday: 7, Thursday: 8, Friday: 5 },
@@ -108,8 +108,8 @@ const smartPostingTypePreferences = {
     preferredTimes: ["10:30", "11:30", "18:30"],
   },
   mini_guide: {
-    dayBonus: { Tuesday: 8, Wednesday: 9, Sunday: 7, Monday: 4 },
-    preferredTimes: ["09:30", "10:30", "18:30", "19:30"],
+    dayBonus: { Tuesday: 8, Wednesday: 9, Sunday: 8, Monday: 4, Thursday: 4 },
+    preferredTimes: ["12:15", "18:30", "19:30", "10:30"],
   },
   manual_prompt: {
     dayBonus: { Tuesday: 6, Wednesday: 6, Thursday: 6, Friday: 5 },
@@ -904,6 +904,82 @@ function getTimePreferenceScore(preferredTimes = [], publishTime) {
   return 0;
 }
 
+function getPublishTimeMinutes(publishTime = "10:30") {
+  const [hourValue, minuteValue] = String(publishTime).split(":");
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue || 0);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    return 10 * 60 + 30;
+  }
+
+  return hour * 60 + minute;
+}
+
+function getPostingDaypart(publishTime = "10:30") {
+  const minutes = getPublishTimeMinutes(publishTime);
+
+  if (minutes < 11 * 60) return "morning";
+  if (minutes < 14 * 60) return "midday";
+  if (minutes < 18 * 60) return "afternoon";
+
+  return "evening";
+}
+
+function getDayNumberFromDateString(dateString) {
+  const parsedDate = new Date(`${dateString}T00:00:00`);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return 0;
+  }
+
+  return Math.floor(parsedDate.getTime() / 86400000);
+}
+
+function getDynamicPostingScore({
+  candidate,
+  usedWeekdays,
+  usedDayparts,
+  usedTimes,
+  usedDayNumbers,
+  count,
+}) {
+  let score = candidate.score || 0;
+  const daypart = getPostingDaypart(candidate.publishTime);
+  const daypartUseCount = usedDayparts[daypart] || 0;
+  const dayNumber = getDayNumberFromDateString(candidate.startDate);
+
+  // Keep a professional rhythm: avoid every post looking like a 10:30 office slot.
+  score -= daypartUseCount * (count >= 5 ? 7 : 10);
+
+  if (usedTimes.has(candidate.publishTime)) {
+    score -= 9;
+  }
+
+  if (usedWeekdays.has(candidate.weekday)) {
+    score -= 12;
+  }
+
+  const tooCloseToAnotherPost = usedDayNumbers.some(
+    (usedDayNumber) => Math.abs(usedDayNumber - dayNumber) <= 1
+  );
+
+  if (tooCloseToAnotherPost && count <= 5) {
+    score -= 8;
+  }
+
+  // For larger plans, intentionally include one stronger evening/weekend moment.
+  if (count >= 5 && ["evening", "afternoon"].includes(daypart)) {
+    score += 4;
+  }
+
+  if (count >= 7 && ["Saturday", "Sunday"].includes(candidate.weekday)) {
+    score += 4;
+  }
+
+  return score;
+}
+
 function getSmartPostingScore({
   weekday,
   publishTime,
@@ -992,6 +1068,10 @@ function buildSmartSlotSchedule({
   const result = [];
   const usedSlotKeys = new Set();
   const usedDateCounts = {};
+  const usedWeekdays = new Set();
+  const usedTimes = new Set();
+  const usedDayparts = {};
+  const usedDayNumbers = [];
   const normalizedGoalId = goalId || "stay_visible";
   const allowTwoSameDay = normalizedGoalId === "sell_more" && count >= 5;
   const maxPerDay = allowTwoSameDay ? 2 : 1;
@@ -1006,12 +1086,39 @@ function buildSmartSlotSchedule({
       horizonDays: count >= 7 ? 14 : 10,
     });
 
-    let selectedCandidate = candidates.find((candidate) => {
-      const slotKey = `${candidate.startDate}-${candidate.publishTime}`;
-      const dateCount = usedDateCounts[candidate.startDate] || 0;
+    const availableCandidates = candidates
+      .filter((candidate) => {
+        const slotKey = `${candidate.startDate}-${candidate.publishTime}`;
+        const dateCount = usedDateCounts[candidate.startDate] || 0;
 
-      return !usedSlotKeys.has(slotKey) && dateCount < maxPerDay;
-    });
+        return !usedSlotKeys.has(slotKey) && dateCount < maxPerDay;
+      })
+      .sort((a, b) => {
+        const scoreA = getDynamicPostingScore({
+          candidate: a,
+          usedWeekdays,
+          usedDayparts,
+          usedTimes,
+          usedDayNumbers,
+          count,
+        });
+        const scoreB = getDynamicPostingScore({
+          candidate: b,
+          usedWeekdays,
+          usedDayparts,
+          usedTimes,
+          usedDayNumbers,
+          count,
+        });
+
+        if (scoreB !== scoreA) return scoreB - scoreA;
+
+        return `${a.startDate} ${a.publishTime}`.localeCompare(
+          `${b.startDate} ${b.publishTime}`
+        );
+      });
+
+    let selectedCandidate = availableCandidates[0];
 
     if (!selectedCandidate) {
       selectedCandidate = candidates.find((candidate) => {
@@ -1035,6 +1142,11 @@ function buildSmartSlotSchedule({
     usedSlotKeys.add(selectedSlotKey);
     usedDateCounts[selectedCandidate.startDate] =
       (usedDateCounts[selectedCandidate.startDate] || 0) + 1;
+    usedWeekdays.add(selectedCandidate.weekday);
+    usedTimes.add(selectedCandidate.publishTime);
+    usedDayparts[getPostingDaypart(selectedCandidate.publishTime)] =
+      (usedDayparts[getPostingDaypart(selectedCandidate.publishTime)] || 0) + 1;
+    usedDayNumbers.push(getDayNumberFromDateString(selectedCandidate.startDate));
 
     result.push({
       startDate: selectedCandidate.startDate,
