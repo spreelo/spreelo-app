@@ -22,42 +22,113 @@ const weekdays = [
 
 const dayOrder = weekdays;
 
-const recommendedWeeklySchedule = [
-  {
-    weekday: "Monday",
-    publishTime: "09:00",
-  },
-  {
-    weekday: "Tuesday",
-    publishTime: "10:00",
-  },
-  {
-    weekday: "Wednesday",
-    publishTime: "11:00",
-  },
-  {
-    weekday: "Thursday",
-    publishTime: "10:00",
-  },
-  {
-    weekday: "Friday",
-    publishTime: "09:00",
-  },
-];
+const fallbackRecommendedTimesByWeekday = {
+  Monday: "10:30",
+  Tuesday: "10:30",
+  Wednesday: "11:30",
+  Thursday: "13:30",
+  Friday: "11:30",
+  Saturday: "10:30",
+  Sunday: "18:30",
+};
 
-const recommendedTimesByWeekday = recommendedWeeklySchedule.reduce(
-  (result, item) => ({
-    ...result,
-    [item.weekday]: item.publishTime,
-  }),
-  {}
-);
+const smartPostingSlotsByWeekday = {
+  Monday: ["08:30", "10:30", "13:30", "18:30"],
+  Tuesday: ["09:30", "10:30", "12:15", "18:30"],
+  Wednesday: ["09:30", "11:30", "13:30", "19:00"],
+  Thursday: ["10:30", "12:15", "16:30", "18:30"],
+  Friday: ["09:30", "11:30", "16:30", "18:30"],
+  Saturday: ["10:30", "14:30", "16:30", "19:00"],
+  Sunday: ["10:30", "16:30", "18:30", "19:30"],
+};
+
+const smartPostingDayGoalBonus = {
+  sell_more: { Thursday: 8, Friday: 12, Saturday: 9, Sunday: 3 },
+  get_followers: { Tuesday: 7, Wednesday: 8, Thursday: 6, Sunday: 5 },
+  build_trust: { Tuesday: 8, Wednesday: 8, Thursday: 6, Monday: 4 },
+  educate_customers: { Tuesday: 8, Wednesday: 9, Sunday: 6, Monday: 4 },
+  stay_visible: { Monday: 4, Tuesday: 6, Wednesday: 6, Thursday: 6, Friday: 5 },
+};
+
+const smartPostingTypePreferences = {
+  website_item: {
+    dayBonus: { Thursday: 10, Friday: 12, Saturday: 9, Sunday: 4 },
+    preferredTimes: ["11:30", "12:15", "16:30", "18:30"],
+  },
+  carousel_website_item: {
+    dayBonus: { Wednesday: 8, Thursday: 10, Friday: 9, Saturday: 7, Sunday: 5 },
+    preferredTimes: ["12:15", "16:30", "18:30", "19:00"],
+  },
+  problem_solution: {
+    dayBonus: { Monday: 6, Tuesday: 8, Wednesday: 7, Thursday: 5 },
+    preferredTimes: ["09:30", "10:30", "11:30"],
+  },
+  tips: {
+    dayBonus: { Tuesday: 8, Wednesday: 9, Thursday: 5, Sunday: 5 },
+    preferredTimes: ["09:30", "10:30", "11:30", "18:30"],
+  },
+  mistakes: {
+    dayBonus: { Tuesday: 7, Wednesday: 8, Thursday: 5, Sunday: 4 },
+    preferredTimes: ["10:30", "11:30", "18:30"],
+  },
+  faq: {
+    dayBonus: { Tuesday: 6, Wednesday: 7, Thursday: 8, Sunday: 4 },
+    preferredTimes: ["10:30", "12:15", "18:30"],
+  },
+  behind_scenes: {
+    dayBonus: { Wednesday: 6, Thursday: 7, Friday: 8, Saturday: 5 },
+    preferredTimes: ["13:30", "16:30", "18:30"],
+  },
+  checklist: {
+    dayBonus: { Monday: 6, Tuesday: 7, Wednesday: 8, Sunday: 7 },
+    preferredTimes: ["09:30", "10:30", "18:30", "19:30"],
+  },
+  service_focus: {
+    dayBonus: { Tuesday: 7, Wednesday: 7, Thursday: 8, Friday: 5 },
+    preferredTimes: ["10:30", "12:15", "16:30"],
+  },
+  case_example: {
+    dayBonus: { Tuesday: 7, Wednesday: 8, Thursday: 8, Sunday: 4 },
+    preferredTimes: ["11:30", "13:30", "18:30"],
+  },
+  myth_fact: {
+    dayBonus: { Tuesday: 8, Wednesday: 8, Thursday: 6, Sunday: 5 },
+    preferredTimes: ["10:30", "11:30", "18:30"],
+  },
+  local: {
+    dayBonus: { Monday: 6, Thursday: 7, Friday: 8, Saturday: 6 },
+    preferredTimes: ["08:30", "10:30", "11:30", "16:30"],
+  },
+  seasonal: {
+    dayBonus: { Thursday: 7, Friday: 8, Saturday: 7, Sunday: 6 },
+    preferredTimes: ["10:30", "12:15", "16:30", "18:30"],
+  },
+  comparison: {
+    dayBonus: { Tuesday: 7, Wednesday: 8, Thursday: 7, Sunday: 5 },
+    preferredTimes: ["10:30", "11:30", "18:30"],
+  },
+  mini_guide: {
+    dayBonus: { Tuesday: 8, Wednesday: 9, Sunday: 7, Monday: 4 },
+    preferredTimes: ["09:30", "10:30", "18:30", "19:30"],
+  },
+  manual_prompt: {
+    dayBonus: { Tuesday: 6, Wednesday: 6, Thursday: 6, Friday: 5 },
+    preferredTimes: ["10:30", "12:15", "16:30"],
+  },
+};
+
+const recommendedWeeklySchedule = weekdays.map((weekday) => ({
+  weekday,
+  publishTime: fallbackRecommendedTimesByWeekday[weekday],
+}));
+
+const recommendedTimesByWeekday = fallbackRecommendedTimesByWeekday;
 
 function createTimeOptions() {
   const options = [];
 
   for (let hour = 0; hour < 24; hour += 1) {
-    for (const minute of [0, 30]) {
+    for (const minute of [0, 15, 30, 45]) {
       const hourLabel = String(hour).padStart(2, "0");
       const minuteLabel = String(minute).padStart(2, "0");
 
@@ -797,7 +868,7 @@ function formatStartDateLabel(dateString, timeZone = DEFAULT_TIME_ZONE, locale =
 }
 
 function getRecommendedTimeForWeekday(weekday) {
-  return recommendedTimesByWeekday[weekday] || "09:00";
+  return recommendedTimesByWeekday[weekday] || "10:30";
 }
 
 function getRecommendedTimeForDate(dateString, timeZone = DEFAULT_TIME_ZONE) {
@@ -806,166 +877,199 @@ function getRecommendedTimeForDate(dateString, timeZone = DEFAULT_TIME_ZONE) {
   return getRecommendedTimeForWeekday(weekday);
 }
 
-function getRecommendedCampaignPublishTime(intent, timingAnchor) {
-  const normalizedIntent = String(intent || "").toLowerCase();
-  const normalizedAnchor = String(timingAnchor || "").toLowerCase();
+function getTimePreferenceScore(preferredTimes = [], publishTime) {
+  const exactIndex = preferredTimes.indexOf(publishTime);
 
-  if (normalizedAnchor === "relationship_event" || normalizedIntent === "event") {
-    return "09:00";
+  if (exactIndex >= 0) {
+    return 16 - exactIndex * 2;
   }
 
-  if (normalizedAnchor === "deadline_before_event" || normalizedIntent === "deadline") {
-    return "18:30";
-  }
+  const [hourValue, minuteValue] = String(publishTime || "10:30").split(":");
+  const publishMinutes = Number(hourValue) * 60 + Number(minuteValue || 0);
 
-  if (normalizedIntent === "engagement") {
-    return "19:00";
-  }
+  const closestDistance = preferredTimes.reduce((bestDistance, timeValue) => {
+    const [preferredHour, preferredMinute] = String(timeValue).split(":");
+    const preferredMinutes = Number(preferredHour) * 60 + Number(preferredMinute || 0);
 
-  if (normalizedIntent === "conversion" || normalizedAnchor === "conversion_before_deadline") {
-    return "12:00";
-  }
+    if (Number.isNaN(preferredMinutes) || Number.isNaN(publishMinutes)) {
+      return bestDistance;
+    }
 
-  if (normalizedIntent === "trust") {
-    return "10:00";
-  }
+    return Math.min(bestDistance, Math.abs(preferredMinutes - publishMinutes));
+  }, 9999);
 
-  if (normalizedIntent === "inspiration") {
-    return "11:30";
-  }
+  if (closestDistance <= 60) return 7;
+  if (closestDistance <= 120) return 3;
 
-  return "10:00";
+  return 0;
 }
 
-function getCampaignPublishTime(baseTime = "09:00", sameDayIndex = 0) {
-  const offsets = [0, 120, 240, -90, 360, 480];
-  const offset = offsets[sameDayIndex] ?? sameDayIndex * 120;
+function getSmartPostingScore({
+  weekday,
+  publishTime,
+  contentTypeId,
+  goalId,
+  dayOffset = 0,
+}) {
+  const typePreference =
+    smartPostingTypePreferences[contentTypeId] ||
+    smartPostingTypePreferences.manual_prompt;
+  const goalDayBonus = smartPostingDayGoalBonus[goalId] || {};
 
-  return addMinutesToTimeString(baseTime, offset);
-}
+  let score = 50;
 
+  score += typePreference.dayBonus?.[weekday] || 0;
+  score += goalDayBonus[weekday] || 0;
+  score += getTimePreferenceScore(typePreference.preferredTimes, publishTime);
 
-function addMinutesToTimeString(timeString, minutesToAdd) {
-  const [hourValue, minuteValue] = String(timeString || "09:00").split(":");
-  const hour = Number(hourValue);
-  const minute = Number(minuteValue);
-
-  if (Number.isNaN(hour) || Number.isNaN(minute)) {
-    return "09:00";
+  if (weekday === "Saturday" || weekday === "Sunday") {
+    score += ["website_item", "carousel_website_item", "seasonal", "checklist", "mini_guide"].includes(
+      contentTypeId
+    )
+      ? 4
+      : -3;
   }
 
-  const totalMinutes = Math.min(
-    Math.max(hour * 60 + minute + minutesToAdd, 7 * 60),
-    21 * 60
-  );
+  // Prefer good slots within the first upcoming week, without forcing the first date.
+  score -= Math.max(0, dayOffset - 6) * 2;
 
-  return `${padNumber(Math.floor(totalMinutes / 60))}:${padNumber(
-    totalMinutes % 60
-  )}`;
+  return score;
 }
 
-function getCampaignPublishTimeForDate(
-  dateString,
+function buildSmartPostingCandidates({
+  startDate,
   timeZone = DEFAULT_TIME_ZONE,
-  sameDayIndex = 0
-) {
-  const baseTime = getRecommendedTimeForDate(dateString, timeZone);
-  const offsets = [0, 240, 480, -120, 120, 360];
-  const offset = offsets[sameDayIndex] ?? sameDayIndex * 120;
+  contentTypeId,
+  goalId,
+  horizonDays = 14,
+}) {
+  if (!startDate) return [];
 
-  return addMinutesToTimeString(baseTime, offset);
+  const candidates = [];
+
+  for (let dayOffset = 0; dayOffset < horizonDays; dayOffset += 1) {
+    const candidateDate = addDaysToDateString(startDate, dayOffset);
+    const weekday = getWeekdayFromDateString(candidateDate, timeZone);
+    const publishTimes = smartPostingSlotsByWeekday[weekday] || [
+      getRecommendedTimeForWeekday(weekday),
+    ];
+
+    for (const publishTime of publishTimes) {
+      candidates.push({
+        startDate: candidateDate,
+        weekday,
+        publishTime,
+        score: getSmartPostingScore({
+          weekday,
+          publishTime,
+          contentTypeId,
+          goalId,
+          dayOffset,
+        }),
+      });
+    }
+  }
+
+  return candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return `${a.startDate} ${a.publishTime}`.localeCompare(
+      `${b.startDate} ${b.publishTime}`
+    );
+  });
 }
 
 function buildSmartSlotSchedule({
   startDate,
   count,
   timeZone = DEFAULT_TIME_ZONE,
-  firstPublishTime = null,
+  contentTypeIds = [],
+  goalId = "",
 }) {
-  const startWeekday = getWeekdayFromDateString(startDate, timeZone);
-  const startWeekdayIndex = dayOrder.indexOf(startWeekday);
-
-  if (!startDate || startWeekdayIndex === -1 || count <= 0) {
+  if (!startDate || count <= 0) {
     return [];
   }
 
-  const result = [
-    {
+  const result = [];
+  const usedSlotKeys = new Set();
+  const usedDateCounts = {};
+  const normalizedGoalId = goalId || "stay_visible";
+  const allowTwoSameDay = normalizedGoalId === "sell_more" && count >= 5;
+  const maxPerDay = allowTwoSameDay ? 2 : 1;
+
+  for (let index = 0; index < count; index += 1) {
+    const contentTypeId = contentTypeIds[index] || "manual_prompt";
+    const candidates = buildSmartPostingCandidates({
       startDate,
-      weekday: startWeekday,
-      publishTime:
-        firstPublishTime || getRecommendedTimeForWeekday(startWeekday),
-    },
-  ];
+      timeZone,
+      contentTypeId,
+      goalId: normalizedGoalId,
+      horizonDays: count >= 7 ? 14 : 10,
+    });
 
-  if (count === 1) {
-    return result;
-  }
+    let selectedCandidate = candidates.find((candidate) => {
+      const slotKey = `${candidate.startDate}-${candidate.publishTime}`;
+      const dateCount = usedDateCounts[candidate.startDate] || 0;
 
-  let weekOffset = 0;
+      return !usedSlotKeys.has(slotKey) && dateCount < maxPerDay;
+    });
 
-  while (result.length < count && weekOffset < 20) {
-    const candidates = recommendedWeeklySchedule
-      .map((item) => {
-        const targetWeekdayIndex = dayOrder.indexOf(item.weekday);
-
-        let daysUntilTarget =
-          ((targetWeekdayIndex - startWeekdayIndex + 7) % 7) +
-          weekOffset * 7;
-
-        if (daysUntilTarget === 0) {
-          daysUntilTarget = 7;
-        }
-
-        const itemStartDate = addDaysToDateString(startDate, daysUntilTarget);
-
-        return {
-          startDate: itemStartDate,
-          weekday: item.weekday,
-          publishTime: item.publishTime,
-        };
-      })
-      .sort((a, b) => a.startDate.localeCompare(b.startDate));
-
-    for (const candidate of candidates) {
-      const alreadyExists = result.some(
-        (item) => item.startDate === candidate.startDate
-      );
-
-      if (alreadyExists) {
-        continue;
-      }
-
-      if (result.length >= count) {
-        break;
-      }
-
-      result.push(candidate);
+    if (!selectedCandidate) {
+      selectedCandidate = candidates.find((candidate) => {
+        const slotKey = `${candidate.startDate}-${candidate.publishTime}`;
+        return !usedSlotKeys.has(slotKey);
+      });
     }
 
-    weekOffset += 1;
+    if (!selectedCandidate) {
+      const fallbackDate = addDaysToDateString(startDate, index);
+      const fallbackWeekday = getWeekdayFromDateString(fallbackDate, timeZone);
+
+      selectedCandidate = {
+        startDate: fallbackDate,
+        weekday: fallbackWeekday,
+        publishTime: getRecommendedTimeForWeekday(fallbackWeekday),
+      };
+    }
+
+    const selectedSlotKey = `${selectedCandidate.startDate}-${selectedCandidate.publishTime}`;
+    usedSlotKeys.add(selectedSlotKey);
+    usedDateCounts[selectedCandidate.startDate] =
+      (usedDateCounts[selectedCandidate.startDate] || 0) + 1;
+
+    result.push({
+      startDate: selectedCandidate.startDate,
+      weekday: selectedCandidate.weekday,
+      publishTime: selectedCandidate.publishTime,
+    });
   }
 
-  return result;
+  return result.sort((a, b) =>
+    `${a.startDate} ${a.publishTime}`.localeCompare(
+      `${b.startDate} ${b.publishTime}`
+    )
+  );
 }
 
 function applySmartScheduleToSlots(
   currentSlots,
   startDate,
   timeZone = DEFAULT_TIME_ZONE,
-  firstPublishTime = null
+  _firstPublishTime = null,
+  goalId = ""
 ) {
+  const contentTypeIds = currentSlots.map((slot) => slot.contentTypeId).filter(Boolean);
   const smartSchedule = buildSmartSlotSchedule({
     startDate,
     count: currentSlots.length,
     timeZone,
-    firstPublishTime,
+    contentTypeIds,
+    goalId,
   });
 
   return currentSlots.map((slot, index) => {
     const schedule = smartSchedule[index];
 
-    if (!schedule) {
+    if (!schedule || slot.dateLocked) {
       return slot;
     }
 
@@ -1036,7 +1140,12 @@ function createSlotFromContentType(type, index = 0, options = {}) {
     startDate,
     count: index + 1,
     timeZone,
-    firstPublishTime: options.firstPublishTime || null,
+    contentTypeIds:
+      options.contentTypeIds ||
+      Array.from({ length: index + 1 }).map((_, itemIndex) =>
+        itemIndex === index ? type.id : null
+      ),
+    goalId: options.goalId || "",
   });
 
   const schedule = smartSchedule[index] || {
@@ -1090,7 +1199,8 @@ function createRecommendedSlots(options = {}) {
     startDate,
     count: types.length,
     timeZone,
-    firstPublishTime: options.firstPublishTime || null,
+    contentTypeIds: repeatedTypeIds,
+    goalId: options.autoPlanGoal || "",
   });
 
   return types.map((type, index) => {
@@ -1470,7 +1580,7 @@ function getContentTypeIcon(typeId) {
 function getContentPreviewCardId(typeId) {
   const map = {
     website_item: "product_focus",
-    carousel_website_item: "product_focus",
+    carousel_website_item: "website_carousel",
     problem_solution: "problem_solution",
     tips: "tips_advice",
     mistakes: "common_mistakes",
@@ -3722,6 +3832,12 @@ export default function AutomationPage() {
       label: plannerLocaleIsSwedish ? "Produktfokus" : "Product focus",
       description: plannerLocaleIsSwedish ? "Framhäver relevanta produkter eller tjänster." : "Highlights relevant products or services.",
     },
+    website_carousel: {
+      label: plannerLocaleIsSwedish ? "Webbplatskarusell" : "Website carousel",
+      description: plannerLocaleIsSwedish
+        ? "Skapar flera slides från webbplats, produkt eller tjänst."
+        : "Creates multiple slides from a website item, product or service.",
+    },
     offers: {
       label: plannerLocaleIsSwedish ? "Kampanjer & erbjudanden" : "Campaigns & offers",
       description: plannerLocaleIsSwedish ? "Använder köptillfällen endast när det passar." : "Uses buying moments only when they fit.",
@@ -3849,6 +3965,10 @@ export default function AutomationPage() {
   }
 
   function getLocalizedSlotFormatLabel(slot) {
+    if (slot?.contentFormat === "carousel") {
+      return t("automation.textCarousel");
+    }
+
     if (slot.usesWebsiteContent && slot.generateImage) {
       return t("automation.textWebsiteImage");
     }
@@ -3997,7 +4117,8 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
         currentSlots,
         browserStartDate,
         resolvedTimeZone,
-        browserRecommendedTime
+        browserRecommendedTime,
+        autoPlanGoal
       )
     );
 
@@ -4449,7 +4570,8 @@ const { data, error } = await supabase
         currentSlots,
         value,
         timeZone,
-        defaultPublishTime
+        defaultPublishTime,
+        autoPlanGoal
       )
     );
   }
@@ -4458,7 +4580,7 @@ const { data, error } = await supabase
     setDefaultPublishTime(value);
 
     setSlots((currentSlots) =>
-      applySmartScheduleToSlots(currentSlots, planStartDate, timeZone, value)
+      applySmartScheduleToSlots(currentSlots, planStartDate, timeZone, value, autoPlanGoal)
     );
   }
 
@@ -4729,11 +4851,16 @@ function addSlot() {
     }
 
     setSlots((currentSlots) => {
+      const nextContentTypeIds = [
+        ...currentSlots.map((slot) => slot.contentTypeId).filter(Boolean),
+        selectedType.id,
+      ];
       const smartSchedule = buildSmartSlotSchedule({
         startDate: planStartDate,
         count: currentSlots.length + 1,
         timeZone,
-        firstPublishTime: defaultPublishTime,
+        contentTypeIds: nextContentTypeIds,
+        goalId: autoPlanGoal,
       });
 
       const schedule = smartSchedule[currentSlots.length] || {
@@ -4956,10 +5083,12 @@ function toggleContentType(typeId) {
 
   const nextIndex = selectedContentTypeIds.length;
 
+  const nextContentTypeIds = [...selectedContentTypeIds, typeId];
   const newSlot = createSlotFromContentType(selectedType, nextIndex, {
     startDate: planStartDate,
     timeZone,
-    firstPublishTime: defaultPublishTime,
+    contentTypeIds: nextContentTypeIds,
+    goalId: autoPlanGoal,
   });
 
   setSelectedContentTypeIds((currentTypeIds) => [...currentTypeIds, typeId]);
