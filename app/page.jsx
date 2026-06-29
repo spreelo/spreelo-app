@@ -434,9 +434,7 @@ export default function Home() {
 
   const nextAutomation = upcomingRules[0] || null;
   const currentBrandName = brandProfile?.business_name || t("dashboard.currentBrand");
-  const dashboardEyebrow = String(locale || "").toLowerCase().startsWith("sv")
-    ? "Översikt"
-    : "Overview";
+  const dashboardEyebrow = t("dashboard.eyebrow");
 
   function togglePendingPostSelection(postId) {
     setDeleteConfirmActive(false);
@@ -910,15 +908,17 @@ export default function Home() {
                   </div>
 
                   <div className="dashboard-brand-progress">
-                    <div>
-                      <strong>{brandCompleteness.percent}%</strong>
-                      <span>
+                    <div className="dashboard-brand-progress-top">
+                      <strong className="dashboard-brand-progress-percent">
+                        {brandCompleteness.percent}%
+                      </strong>
+                      <span className="dashboard-brand-progress-badge">
                         {brandCompleteness.completed}/{brandCompleteness.total}{" "}
                         {t("dashboard.completed")}
                       </span>
                     </div>
 
-                    <div className="dashboard-credit-bar">
+                    <div className="dashboard-brand-progress-bar" aria-hidden="true">
                       <div style={{ width: `${brandCompleteness.percent}%` }} />
                     </div>
                   </div>

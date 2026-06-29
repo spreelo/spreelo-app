@@ -17050,3 +17050,113 @@ textarea.input,
     padding: 0 8px !important;
   }
 }
+
+/* Step 94h: final polish for premium helper boxes and brand progress */
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card .planner-setup-helper.planner-setup-helper-goal {
+  background: #f5f1fb !important;
+  border-color: #e3daf5 !important;
+  color: #2f2d75 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card .planner-setup-helper.planner-setup-helper-frequency {
+  background: #f3f8f5 !important;
+  border-color: #d4e9de !important;
+  color: #135b51 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card .planner-setup-helper.planner-setup-helper-timing {
+  background: #fbf7ef !important;
+  border-color: #eadcc6 !important;
+  color: #72511f !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card .planner-setup-helper.planner-setup-helper-goal .planner-setup-helper-icon {
+  color: #8e79d9 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card .planner-setup-helper.planner-setup-helper-frequency .planner-setup-helper-icon {
+  color: #2f7d69 !important;
+}
+
+.automation-page.planner-wizard-page .planner-primary-builder .planner-setup-card .planner-setup-helper.planner-setup-helper-timing .planner-setup-helper-icon {
+  color: #9a7a34 !important;
+}
+
+.dashboard-brand-progress {
+  display: grid !important;
+  gap: 12px !important;
+  margin-top: 14px !important;
+  padding: 14px 16px !important;
+  border-radius: 18px !important;
+  background: #f8fbff !important;
+  border: 1px solid rgba(191, 219, 254, 0.72) !important;
+  overflow: hidden !important;
+}
+
+.dashboard-brand-progress-top,
+.dashboard-brand-progress > div:first-child.dashboard-brand-progress-top {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+}
+
+.dashboard-brand-progress-percent,
+.dashboard-brand-progress strong.dashboard-brand-progress-percent {
+  color: #0f172a !important;
+  font-size: 28px !important;
+  line-height: 1 !important;
+  letter-spacing: -0.04em !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-brand-progress-badge,
+.dashboard-brand-progress span.dashboard-brand-progress-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 24px !important;
+  max-width: 100% !important;
+  padding: 0 9px !important;
+  border-radius: 999px !important;
+  background: #eaf3ff !important;
+  color: #0b63d8 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-brand-progress-bar {
+  height: 7px !important;
+  width: 100% !important;
+  background: #e5eefc !important;
+  border-radius: 999px !important;
+  overflow: hidden !important;
+}
+
+.dashboard-brand-progress-bar > div {
+  height: 100% !important;
+  border-radius: inherit !important;
+  background: linear-gradient(90deg, #0f6fff 0%, #5b8cff 100%) !important;
+}
+
+@media (max-width: 620px) {
+  .dashboard-brand-progress {
+    padding: 12px !important;
+    gap: 10px !important;
+  }
+
+  .dashboard-brand-progress-percent,
+  .dashboard-brand-progress strong.dashboard-brand-progress-percent {
+    font-size: 24px !important;
+  }
+
+  .dashboard-brand-progress-badge,
+  .dashboard-brand-progress span.dashboard-brand-progress-badge {
+    min-height: 22px !important;
+    padding: 0 8px !important;
+    font-size: 10px !important;
+  }
+}

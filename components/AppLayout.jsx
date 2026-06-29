@@ -206,10 +206,6 @@ export default function AppLayout({ active, children }) {
 
 
   function getNavLabel(item) {
-    if (item.id === "dashboard") {
-      return String(locale || "").toLowerCase().startsWith("sv") ? "Översikt" : "Overview";
-    }
-
     return t(item.labelKey);
   }
 
