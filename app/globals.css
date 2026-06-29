@@ -17684,3 +17684,29 @@ textarea.input,
   height: auto !important;
   max-height: none !important;
 }
+
+
+/* Step 95f: carousel review and email wording polish */
+.carousel-review-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 14px 0 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.carousel-review-banner strong {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.carousel-review-banner span {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #475569;
+}

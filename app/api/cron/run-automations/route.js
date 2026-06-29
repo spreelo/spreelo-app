@@ -1209,10 +1209,15 @@ function buildApprovalEmailHtml({
   postContent,
   approveUrl,
   imageUrl,
+  isCarouselDraft = false,
 }) {
   const platformLabel = rule.platform || "Social media";
   const postTypeLabel = rule.post_type || "Post";
   const safeImageUrl = imageUrl ? escapeHtml(imageUrl) : "";
+  const titleKey = isCarouselDraft ? "emails.approval.carouselTitle" : "emails.approval.title";
+  const introKey = isCarouselDraft ? "emails.approval.carouselIntro" : "emails.approval.intro";
+  const buttonKey = isCarouselDraft ? "emails.approval.carouselButton" : "emails.approval.button";
+  const afterKey = isCarouselDraft ? "emails.approval.carouselAfterApproval" : "emails.approval.afterApproval";
   return `
 <!doctype html>
 <html lang="${escapeHtml(locale || "en")}">
@@ -1228,12 +1233,12 @@ function buildApprovalEmailHtml({
                 </p>
 
                 <h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;color:#111827;">
-                  ${escapeHtml(t("emails.approval.title"))}
+                  ${escapeHtml(t(titleKey))}
                 </h1>
 
                 <p style="margin:0;color:#4b5563;font-size:15px;line-height:1.6;">
                   ${escapeHtml(
-                    t("emails.approval.intro", {
+                    t(introKey, {
                       platform: platformLabel,
                       postType: String(postTypeLabel).toLowerCase(),
                     })
@@ -1279,11 +1284,11 @@ function buildApprovalEmailHtml({
             <tr>
               <td align="center" style="padding:4px 28px 28px;">
                 <a href="${approveUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:999px;">
-                  ${escapeHtml(t("emails.approval.button"))}
+                  ${escapeHtml(t(buttonKey))}
                 </a>
 
                 <p style="margin:18px 0 0;color:#6b7280;font-size:13px;line-height:1.5;">
-                  ${escapeHtml(t("emails.approval.afterApproval"))}
+                  ${escapeHtml(t(afterKey))}
                 </p>
               </td>
             </tr>
@@ -1306,12 +1311,16 @@ function buildApprovalEmailText({
   postContent,
   approveUrl,
   imageUrl,
+  isCarouselDraft = false,
 }) {
   const platformLabel = rule.platform || "Social media";
   const postTypeLabel = rule.post_type || "Post";
+  const textTitleKey = isCarouselDraft ? "emails.approval.carouselTextTitle" : "emails.approval.textTitle";
+  const textActionKey = isCarouselDraft ? "emails.approval.carouselTextApprovePost" : "emails.approval.textApprovePost";
+  const afterKey = isCarouselDraft ? "emails.approval.carouselAfterApproval" : "emails.approval.afterApproval";
 
   return `
-${t("emails.approval.textTitle")}
+${t(textTitleKey)}
 
 ${t("emails.approval.textPlatform", { platform: platformLabel })}
 ${t("emails.approval.textPostType", { postType: postTypeLabel })}
@@ -1320,10 +1329,10 @@ ${imageUrl ? `${t("emails.approval.textImage", { imageUrl })}
 ` : ""}${t("emails.approval.textGeneratedPost")}
 ${postContent}
 
-${t("emails.approval.textApprovePost")}
+${t(textActionKey)}
 ${approveUrl}
 
-${t("emails.approval.afterApproval")}
+${t(afterKey)}
 `.trim();
 }
 
@@ -4708,6 +4717,8 @@ async function sendApprovalEmail({
   approvalToken,
   imageUrl,
   userAppLanguage,
+  postId,
+  contentFormat,
 }) {
   const detectedPostLocale = detectLikelyUiLocaleFromText(postContent);
   const userLocale = resolveUiLocaleFromLanguageName(userAppLanguage);
@@ -4732,7 +4743,11 @@ async function sendApprovalEmail({
     locale,
     namespaces: ["emails"],
   });
-  const approveUrl = `${APP_URL}/api/approve-post?token=${approvalToken}&lang=${locale}`;
+  const normalizedContentFormat = normalizeContentFormat(contentFormat || rule?.content_format);
+  const isCarouselDraft = normalizedContentFormat === "carousel";
+  const approveUrl = isCarouselDraft && postId
+    ? `${APP_URL}/posts/${postId}`
+    : `${APP_URL}/api/approve-post?token=${approvalToken}&lang=${locale}`;
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -4743,7 +4758,7 @@ async function sendApprovalEmail({
     body: JSON.stringify({
       from: RESEND_FROM_EMAIL,
       to,
-      subject: t("emails.approval.subject"),
+      subject: isCarouselDraft ? t("emails.approval.carouselSubject") : t("emails.approval.subject"),
       html: buildApprovalEmailHtml({
         locale,
         t,
@@ -4751,6 +4766,7 @@ async function sendApprovalEmail({
         postContent,
         approveUrl,
         imageUrl,
+        isCarouselDraft,
       }),
       text: buildApprovalEmailText({
         t,
@@ -4758,6 +4774,7 @@ async function sendApprovalEmail({
         postContent,
         approveUrl,
         imageUrl,
+        isCarouselDraft,
       }),
     }),
   });
@@ -5906,8 +5923,10 @@ product_research_model_used: rule.uses_website_content
                   rule: ruleWithBrandProfile,
                   postContent: generatedContent,
                   approvalToken,
-                  imageUrl: isWebsiteBasedPost && !websiteItem?.image_url ? null : imageUrl,
+                  imageUrl: isCarouselRule(rule) ? null : (isWebsiteBasedPost && !websiteItem?.image_url ? null : imageUrl),
                   userAppLanguage: userProfile.appLanguage,
+                  postId: post.id,
+                  contentFormat: normalizeContentFormat(rule.content_format),
                 });
 
                 summary.emails_sent += 1;

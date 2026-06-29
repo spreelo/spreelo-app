@@ -263,6 +263,8 @@ export default function EditPostPage() {
     (isAutomationPost ? t("posts.generatedByAutomation") : t("posts.manualDraft"));
 
   const imageStatusLabel = formatImageStatus(post.image_status, t);
+  const isCarouselPost = post.content_format === "carousel";
+  const hasSlides = slides.length > 0;
 
   return (
     <AppLayout active="dashboard">
@@ -272,7 +274,9 @@ export default function EditPostPage() {
             {isPendingApproval ? t("posts.reviewPost") : t("posts.editPost")}
           </p>
           <h2>
-            {isPendingApproval
+            {isCarouselPost
+              ? t("posts.reviewCarouselTitle")
+              : isPendingApproval
               ? t("posts.reviewApproveTitle")
               : t("posts.editSavedTitle")}
           </h2>
@@ -311,14 +315,16 @@ export default function EditPostPage() {
                 {discarding ? t("posts.discarding") : t("posts.discard")}
               </button>
 
-              <button
-                type="button"
-                className="primary-button"
-                onClick={approvePost}
-                disabled={saving || approving || discarding}
-              >
-                {approving ? t("posts.approving") : t("posts.approve")}
-              </button>
+              {!isCarouselPost && (
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={approvePost}
+                  disabled={saving || approving || discarding}
+                >
+                  {approving ? t("posts.approving") : t("posts.approve")}
+                </button>
+              )}
             </>
           )}
         </div>
@@ -391,7 +397,8 @@ export default function EditPostPage() {
 
           {isPendingApproval && (
             <p>
-              <strong>{t("posts.note")}:</strong> {t("posts.approvalNote")}
+              <strong>{t("posts.note")}:</strong>{" "}
+              {isCarouselPost ? t("posts.carouselReviewNote") : t("posts.approvalNote")}
             </p>
           )}
 
@@ -401,6 +408,13 @@ export default function EditPostPage() {
             </p>
           )}
         </div>
+
+        {isCarouselPost && (
+          <div className="carousel-review-banner">
+            <strong>{t("posts.carouselReviewBannerTitle")}</strong>
+            <span>{t("posts.carouselReviewBannerText")}</span>
+          </div>
+        )}
 
         {isSlideBasedPost(post) && (
           <div className="edit-post-slides-block">
@@ -443,7 +457,7 @@ export default function EditPostPage() {
           </div>
         )}
 
-        {post.image_url && (
+        {post.image_url && !(isCarouselPost && hasSlides) && (
           <div className="edit-post-image-block">
             <div className="edit-post-image-header">
               <div>
