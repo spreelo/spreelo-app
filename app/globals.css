@@ -16449,3 +16449,254 @@ textarea.input,
     font-size: 15px !important;
   }
 }
+
+/* Step 90: stabilise planner at medium widths (tablet / narrow desktop) */
+.automation-page.planner-wizard-page,
+.automation-page.planner-wizard-page * {
+  box-sizing: border-box !important;
+}
+
+.automation-page.planner-wizard-page {
+  min-width: 0 !important;
+  overflow-x: hidden !important;
+}
+
+.automation-page.planner-wizard-page .wizard-main,
+.automation-page.planner-wizard-page .planner-builder-card,
+.automation-page.planner-wizard-page .planner-settings-card,
+.automation-page.planner-wizard-page .planner-schedule-card,
+.automation-page.planner-wizard-page .planner-save-card,
+.automation-page.planner-wizard-page .planner-summary-card,
+.automation-page.planner-wizard-page .planner-credits-card {
+  min-width: 0 !important;
+}
+
+/* Do not keep the right rail beside the builder when the app sidebar already steals width. */
+@media (max-width: 1500px) {
+  .automation-page.planner-wizard-page .wizard-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 18px !important;
+    width: 100% !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-sidebar {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 16px !important;
+    align-items: stretch !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-card,
+  .automation-page.planner-wizard-page .planner-credits-card {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px 14px !important;
+    border-top: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item,
+  .automation-page.planner-wizard-page .planner-summary-list.premium div.planner-summary-item {
+    border: 1px solid rgba(226, 232, 240, 0.92) !important;
+    border-radius: 16px !important;
+    padding: 12px !important;
+    min-width: 0 !important;
+  }
+}
+
+/* Narrow desktop: sidebar still exists, so make the actual planner more compact and avoid squeezed grids. */
+@media (min-width: 901px) and (max-width: 1220px) {
+  .spreelo-sidebar,
+  .sidebar.spreelo-sidebar {
+    width: 210px !important;
+    min-width: 210px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .spreelo-shell {
+    grid-template-columns: 210px minmax(0, 1fr) !important;
+  }
+
+  .spreelo-content,
+  .content.spreelo-content {
+    padding-left: 12px !important;
+    padding-right: 14px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-hero-final,
+  .automation-page.planner-wizard-page .planner-hero {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-height: auto !important;
+    padding: 28px 30px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-hero-visual,
+  .automation-page.planner-wizard-page .planner-hero-orb,
+  .automation-page.planner-wizard-page .planner-hero-calendar,
+  .automation-page.planner-wizard-page .planner-hero-mascot {
+    display: none !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-hero-copy h2,
+  .automation-page.planner-wizard-page .planner-hero h2 {
+    max-width: 780px !important;
+    font-size: clamp(30px, 4.1vw, 42px) !important;
+    line-height: 1.02 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-setup-grid,
+  .automation-page.planner-wizard-page .planner-settings-grid.simple {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-setup-grid .planner-setup-card:nth-child(3),
+  .automation-page.planner-wizard-page .planner-settings-grid.simple .planner-setting-field:nth-child(4) {
+    grid-column: 1 / -1 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-mainline {
+    grid-template-columns: 32px minmax(0, 1fr) minmax(142px, 170px) minmax(86px, 96px) !important;
+    gap: 10px !important;
+    align-items: center !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-format,
+  .automation-page.planner-wizard-page .planner-post-actions {
+    grid-column: 2 / -1 !important;
+    width: fit-content !important;
+    max-width: 100% !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-actions {
+    justify-content: flex-start !important;
+  }
+}
+
+/* Tablet / large mobile: one clear column, no half desktop layout. */
+@media (max-width: 900px) {
+  .automation-page.planner-wizard-page .wizard-layout,
+  .automation-page.planner-wizard-page .planner-sidebar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium {
+    display: block !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item,
+  .automation-page.planner-wizard-page .planner-summary-list.premium div.planner-summary-item {
+    border: 0 !important;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.92) !important;
+    border-radius: 0 !important;
+    padding: 11px 4px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-save-card {
+    grid-template-columns: minmax(0, 1fr) !important;
+    text-align: center !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-save-card > div:first-child {
+    display: block !important;
+  }
+}
+
+/* Phone: compact schedule cards that do not leave unused side gutters. */
+@media (max-width: 760px) {
+  .automation-page.planner-wizard-page .planner-schedule-card {
+    padding: 14px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-table {
+    display: grid !important;
+    gap: 10px !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-row {
+    display: block !important;
+    border-radius: 18px !important;
+    border: 1px solid rgba(226, 232, 240, 0.95) !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-mainline {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 8px !important;
+    padding: 12px !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-title {
+    grid-column: 1 / -1 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date {
+    grid-column: 1 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-time {
+    grid-column: 2 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-format {
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-actions {
+    grid-column: 2 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-actions button:first-child {
+    width: 38px !important;
+    min-width: 38px !important;
+    max-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-actions button:not(:first-child) {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .automation-page.planner-wizard-page .planner-post-mainline {
+    grid-template-columns: 1fr !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date,
+  .automation-page.planner-wizard-page .planner-post-time,
+  .automation-page.planner-wizard-page .planner-post-format,
+  .automation-page.planner-wizard-page .planner-post-actions {
+    grid-column: 1 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-actions {
+    justify-content: flex-start !important;
+  }
+}
