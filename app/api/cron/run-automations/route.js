@@ -4425,6 +4425,7 @@ async function saveCarouselSlidesForPost({
     const slideProductUrl = slide.product_url || (index === 0 ? selectedItem?.url : null) || null;
 
     return {
+      user_id: rule.user_id,
       post_id: postId,
       slide_order: index + 1,
       slide_type: slide.slide_type || "content",
