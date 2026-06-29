@@ -11,6 +11,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.spreelo.com";
+
 function createFallbackTranslator() {
   const labels = {
     ...getDefaultNamespaceLabels("common"),
@@ -335,15 +337,7 @@ export async function GET(request) {
 
 
     if (post.content_format && post.content_format !== "single_image") {
-      return htmlResponse({
-        title: translator.t("approvePages.cannotApprove.title"),
-        message:
-          "This carousel draft can be reviewed in Spreelo, but automatic carousel publishing is not enabled yet.",
-        status: "error",
-        httpStatus: 409,
-        t: translator.t,
-        locale: translator.locale,
-      });
+      return Response.redirect(`${APP_URL}/posts/${post.id}`, 302);
     }
 
     const approvedAt = new Date().toISOString();
