@@ -16291,3 +16291,161 @@ button[class*="Load"] {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Step 89: compact planner post controls and consistent input weight */
+.automation-page.planner-wizard-page .planner-post-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.automation-page.planner-wizard-page .planner-post-title-row strong {
+  font-size: 15px !important;
+}
+
+.automation-page.planner-wizard-page .planner-post-type-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.automation-page.planner-wizard-page .planner-post-type-icon.type-tips,
+.automation-page.planner-wizard-page .planner-post-type-icon.type-mini_guide,
+.automation-page.planner-wizard-page .planner-post-type-icon.type-checklist {
+  background: #fff7ed;
+  border-color: rgba(249, 115, 22, 0.14);
+}
+
+.automation-page.planner-wizard-page .planner-post-type-icon.type-mistakes,
+.automation-page.planner-wizard-page .planner-post-type-icon.type-faq,
+.automation-page.planner-wizard-page .planner-post-type-icon.type-comparison {
+  background: #fefce8;
+  border-color: rgba(202, 138, 4, 0.16);
+}
+
+.automation-page.planner-wizard-page .planner-post-type-icon.type-behind_scenes,
+.automation-page.planner-wizard-page .planner-post-type-icon.type-case_example,
+.automation-page.planner-wizard-page .planner-post-type-icon.type-local {
+  background: #f0fdf4;
+  border-color: rgba(22, 163, 74, 0.14);
+}
+
+.automation-page.planner-wizard-page .planner-post-type-icon.type-website_item,
+.automation-page.planner-wizard-page .planner-post-type-icon.type-service_focus,
+.automation-page.planner-wizard-page .planner-post-type-icon.type-problem_solution {
+  background: #eef2ff;
+  border-color: rgba(79, 70, 229, 0.14);
+}
+
+.input,
+.planner-select-control,
+.planner-setting-field select,
+.planner-save-input,
+.brand-profile-form-section .input,
+.custom-picker-button,
+textarea.input,
+.prompt-textarea,
+.large-textarea {
+  font-weight: 600 !important;
+}
+
+.automation-page.planner-wizard-page .planner-post-actions button.planner-post-edit-icon-button {
+  min-width: 36px;
+  width: 36px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 12px;
+  border-color: rgba(203, 213, 225, 0.95);
+  background: #ffffff;
+  color: #1e40af;
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.automation-page.planner-wizard-page .planner-post-row.expanded .planner-post-actions button.planner-post-edit-icon-button {
+  color: #b45309;
+  border-color: rgba(251, 146, 60, 0.24);
+  background: #fff7ed;
+}
+
+@media (max-width: 1300px) {
+  .automation-page.planner-wizard-page .planner-post-mainline {
+    grid-template-columns: 46px minmax(0, 1fr) auto;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-title {
+    grid-column: 2 / -1;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date {
+    grid-column: 2 / 3;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-time {
+    grid-column: 3 / 4;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-format {
+    grid-column: 2 / 3;
+    grid-row: 4;
+    max-width: min(100%, 240px);
+  }
+
+  .automation-page.planner-wizard-page .planner-post-actions {
+    grid-column: 3 / 4;
+    grid-row: 4;
+    justify-content: flex-end;
+    align-items: center;
+  }
+}
+
+@media (max-width: 900px) {
+  .automation-page.planner-wizard-page .planner-post-mainline {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-title {
+    grid-column: 2 / -1;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-date,
+  .automation-page.planner-wizard-page .planner-post-time {
+    grid-column: 2 / -1;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-format {
+    grid-column: 2 / 3;
+    grid-row: auto;
+    max-width: min(100%, 220px);
+  }
+
+  .automation-page.planner-wizard-page .planner-post-actions {
+    grid-column: 3 / 4;
+    grid-row: auto;
+    align-self: center;
+    justify-self: end;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-type-icon {
+    width: 26px;
+    height: 26px;
+    flex-basis: 26px;
+    font-size: 14px;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-title-row strong {
+    font-size: 15px !important;
+  }
+}

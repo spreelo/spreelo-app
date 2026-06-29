@@ -287,6 +287,31 @@ const contentTypes = [
   },
 ];
 
+
+const slotTypeIcons = {
+  website_item: "🛍️",
+  problem_solution: "🧩",
+  tips: "💡",
+  mistakes: "⚠️",
+  faq: "❓",
+  behind_scenes: "🎬",
+  checklist: "✅",
+  service_focus: "🛠️",
+  case_example: "🏆",
+  myth_fact: "✨",
+  local: "📍",
+  seasonal: "📅",
+  comparison: "⚖️",
+  mini_guide: "📘",
+  manual_prompt: "✍️",
+  custom: "✍️",
+};
+
+function getSlotTypeIcon(slot) {
+  if (!slot) return slotTypeIcons.custom;
+  return slotTypeIcons[slot.contentTypeId] || slotTypeIcons.custom;
+}
+
 const recommendedContentTypeIds = [
   "website_item",
   "tips",
@@ -3781,14 +3806,7 @@ export default function AutomationPage() {
   }
 
   function translateScheduleType(value) {
-    return value === "weekly" ? t("automation.weekly") : t("automation.oneTime");
-  }
-
-  function getTimeZoneDisplayLabel(value) {
-    const zone = String(value || DEFAULT_TIME_ZONE);
-    const translated = t(`automation.timeZone.${zone}`);
-
-    return translated && translated !== `automation.timeZone.${zone}` ? translated : zone;
+    return value === "weekly" ? t("automation.weekly") : t("automation.once");
   }
   function translatePreviewCardLabel(cardId) {
     if (plannerLocaleIsSwedish && previewCardCopy[cardId]?.label) {
@@ -5707,6 +5725,13 @@ setRules((currentRules) =>
                     />
                   )}
 
+                  <span
+                    className={`planner-post-type-icon type-${slot.contentTypeId || "custom"}`}
+                    aria-hidden="true"
+                  >
+                    {getSlotTypeIcon(slot)}
+                  </span>
+
                   <strong>
                     {slot.isCampaignSlot && slot.marketingAngle
                       ? getCampaignAngleLabel(slot.marketingAngle)
@@ -5810,9 +5835,12 @@ setRules((currentRules) =>
               <div className="planner-post-actions">
                 <button
                   type="button"
+                  className="planner-post-edit-icon-button"
+                  title={instructionsAreExpanded ? t("automation.hide") : t("automation.edit")}
+                  aria-label={instructionsAreExpanded ? t("automation.hide") : t("automation.edit")}
                   onClick={() => toggleSlotInstructions(slot.id)}
                 >
-                  {instructionsAreExpanded ? t("automation.hide") : t("automation.edit")}
+                  {instructionsAreExpanded ? "✕" : "✎"}
                 </button>
 
                 <button
@@ -6095,7 +6123,7 @@ setRules((currentRules) =>
     >
       {timeZoneOptions.map((option) => (
         <option key={option} value={option}>
-          {getTimeZoneDisplayLabel(option)}
+          {option}
         </option>
       ))}
     </select>
@@ -6490,7 +6518,7 @@ setRules((currentRules) =>
                   <span className="planner-summary-icon">⏱</span>
                   <div>
                     <span>{t("automation.timezone")}</span>
-                    <strong>{getTimeZoneDisplayLabel(timeZone)}</strong>
+                    <strong>{timeZone}</strong>
                   </div>
                 </div>
 
