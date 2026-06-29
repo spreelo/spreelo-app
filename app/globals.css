@@ -16970,3 +16970,83 @@ textarea.input,
     height: 22px !important;
   }
 }
+
+/* Step 94g: cleaner dashboard brand profile completion card */
+.dashboard-side-card .dashboard-side-title > span {
+  flex: 0 0 auto;
+}
+
+.dashboard-brand-progress {
+  display: grid !important;
+  gap: 10px !important;
+  margin-top: 14px !important;
+  padding: 14px !important;
+  border-radius: 16px !important;
+  background: #f8fbff !important;
+  border: 1px solid rgba(191, 219, 254, 0.7) !important;
+}
+
+.dashboard-brand-progress > div:first-child {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.dashboard-brand-progress strong {
+  color: #0f172a !important;
+  font-size: 30px !important;
+  line-height: 1 !important;
+  letter-spacing: -0.04em !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-brand-progress span {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 26px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  background: #eaf3ff !important;
+  color: #0b63d8 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-brand-progress .dashboard-credit-bar {
+  height: 8px !important;
+  background: #e5eefc !important;
+  border-radius: 999px !important;
+  overflow: hidden !important;
+}
+
+.dashboard-brand-progress .dashboard-credit-bar div {
+  height: 100% !important;
+  border-radius: inherit !important;
+  background: linear-gradient(90deg, #0f6fff 0%, #5b8cff 100%) !important;
+}
+
+.dashboard-side-card .dashboard-side-note {
+  margin-top: 12px !important;
+  color: #475467 !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+@media (max-width: 620px) {
+  .dashboard-brand-progress {
+    padding: 12px !important;
+  }
+
+  .dashboard-brand-progress strong {
+    font-size: 26px !important;
+  }
+
+  .dashboard-brand-progress span {
+    font-size: 11px !important;
+    padding: 0 8px !important;
+  }
+}

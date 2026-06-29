@@ -165,7 +165,7 @@ export default function Home() {
   const [deleteConfirmActive, setDeleteConfirmActive] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [showAllPendingPosts, setShowAllPendingPosts] = useState(false);
-  const { t } = useUiText(["dashboard"]);
+  const { t, locale } = useUiText(["dashboard"]);
 
   useEffect(() => {
     loadDashboard();
@@ -434,6 +434,9 @@ export default function Home() {
 
   const nextAutomation = upcomingRules[0] || null;
   const currentBrandName = brandProfile?.business_name || t("dashboard.currentBrand");
+  const dashboardEyebrow = String(locale || "").toLowerCase().startsWith("sv")
+    ? "Översikt"
+    : "Overview";
 
   function togglePendingPostSelection(postId) {
     setDeleteConfirmActive(false);
@@ -509,7 +512,7 @@ export default function Home() {
       <div className="dashboard-page">
         <header className="dashboard-hero">
           <div>
-            <p className="dashboard-eyebrow">{t("dashboard.eyebrow")}</p>
+            <p className="dashboard-eyebrow">{dashboardEyebrow}</p>
             <h2>{t("dashboard.title", { brandName: currentBrandName })}</h2>
             <span>{t("dashboard.subtitle")}</span>
           </div>

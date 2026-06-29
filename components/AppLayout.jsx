@@ -51,7 +51,7 @@ function getBrandStorageKey(userId) {
 }
 
 export default function AppLayout({ active, children }) {
-  const { t } = useUiText(["layout"]);
+  const { t, locale } = useUiText(["layout"]);
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [brandProfiles, setBrandProfiles] = useState([]);
@@ -204,6 +204,15 @@ export default function AppLayout({ active, children }) {
     window.location.href = "/brand";
   }
 
+
+  function getNavLabel(item) {
+    if (item.id === "dashboard") {
+      return String(locale || "").toLowerCase().startsWith("sv") ? "Översikt" : "Overview";
+    }
+
+    return t(item.labelKey);
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -327,7 +336,7 @@ export default function AppLayout({ active, children }) {
               onClick={() => setMobileMenuOpen(false)}
             >
               <img src={item.icon} alt="" className="sidebar-menu-icon" />
-              <span>{t(item.labelKey)}</span>
+              <span>{getNavLabel(item)}</span>
             </a>
           ))}
         </nav>
