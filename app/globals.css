@@ -16835,3 +16835,38 @@ textarea.input,
   color: #1d4ed8;
   font-size: 0.86rem;
 }
+
+/* Step 94e: keep mobile schedule pickers visible inside compact post cards. */
+@media (max-width: 760px) {
+  .automation-page.planner-wizard-page .planner-post-table,
+  .automation-page.planner-wizard-page .planner-post-row,
+  .automation-page.planner-wizard-page .planner-post-mainline,
+  .automation-page.planner-wizard-page .planner-post-date,
+  .automation-page.planner-wizard-page .planner-post-time,
+  .automation-page.planner-wizard-page .custom-picker-field,
+  .automation-page.planner-wizard-page .custom-picker-anchor {
+    overflow: visible !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-row:has(.custom-time-popover),
+  .automation-page.planner-wizard-page .planner-post-row:has(.custom-calendar-popover) {
+    position: relative !important;
+    z-index: 5000 !important;
+  }
+
+  .automation-page.planner-wizard-page .custom-time-popover {
+    left: 0 !important;
+    right: auto !important;
+    width: min(190px, calc(100vw - 52px)) !important;
+    max-height: 230px !important;
+    z-index: 6000 !important;
+  }
+
+  .automation-page.planner-wizard-page .planner-post-time .custom-time-popover {
+    min-width: 100% !important;
+  }
+
+  .automation-page.planner-wizard-page .custom-calendar-popover {
+    z-index: 6000 !important;
+  }
+}
