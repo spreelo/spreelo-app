@@ -29,7 +29,9 @@ const WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT = 150;
 const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 18;
 const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 8;
 const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
-const CAROUSEL_MAX_PRODUCT_SLIDES = 7;
+const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
+const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
+const CAROUSEL_MAX_PRODUCT_SLIDES = CAROUSEL_PRODUCT_SLIDE_TARGET + CAROUSEL_OUTRO_SLIDE_COUNT;
 
 const PRODUCT_RESEARCH_MODEL = "gpt-5.5";
 const POST_TEXT_MODEL = "gpt-4.1-mini";
@@ -522,24 +524,52 @@ function selectCarouselProductsFromPool({
 }) {
   const scored = dedupeWebsiteItemsByUrlTitleAndImage(items)
     .map((item) => {
+      const wasUsedRecently = hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, sourceUrl);
+      const imageUsedThisRun = usedWebsiteImageUrlsThisRun.has(normalizeComparableValue(item.image_url));
+      const usageCount = Number(item?.times_used || 0);
+      const lastUsedAtTs = item?.last_used_at ? Date.parse(item.last_used_at) : 0;
       let score = scoreWebsiteItemForRule(item, rule);
 
-      if (hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, sourceUrl)) {
-        score -= allowReuseWhenExhausted ? 25 : 1000;
-      }
-
-      if (usedWebsiteImageUrlsThisRun.has(normalizeComparableValue(item.image_url))) {
+      if (wasUsedRecently) {
         score -= allowReuseWhenExhausted ? 20 : 1000;
       }
 
-      return { item, score };
+      if (imageUsedThisRun) {
+        score -= allowReuseWhenExhausted ? 15 : 1000;
+      }
+
+      return {
+        item,
+        score,
+        wasUsedRecently,
+        imageUsedThisRun,
+        usageCount,
+        lastUsedAtTs,
+      };
     })
-    .sort((a, b) => b.score - a.score);
+    .filter((entry) => allowReuseWhenExhausted || entry.score > -500)
+    .sort((a, b) => {
+      if (a.wasUsedRecently !== b.wasUsedRecently) {
+        return a.wasUsedRecently ? 1 : -1;
+      }
+      if (a.imageUsedThisRun !== b.imageUsedThisRun) {
+        return a.imageUsedThisRun ? 1 : -1;
+      }
+      if (a.usageCount !== b.usageCount) {
+        return a.usageCount - b.usageCount;
+      }
+      if (a.lastUsedAtTs !== b.lastUsedAtTs) {
+        return a.lastUsedAtTs - b.lastUsedAtTs;
+      }
+      if (a.score !== b.score) {
+        return b.score - a.score;
+      }
+      return String(a.item?.title || '').localeCompare(String(b.item?.title || ''));
+    });
 
   return scored
-    .filter((entry) => allowReuseWhenExhausted || entry.score > -500)
-    .map((entry) => entry.item)
-    .slice(0, CAROUSEL_MAX_PRODUCT_SLIDES);
+    .map((entry) => ({ ...entry.item, times_used: entry.usageCount, last_used_at: entry.item?.last_used_at || null }))
+    .slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
 }
 
 async function prepareCarouselProductsForRule({
@@ -1202,6 +1232,58 @@ website_web_search_fallback_used: 0,
   };
 }
 
+function buildCarouselEmailPreviewHtml(carouselSlides = []) {
+  const slides = (carouselSlides || []).filter((slide) => slide?.image_url).slice(0, 6);
+
+  if (!slides.length) {
+    return "";
+  }
+
+  const rows = [];
+  for (let index = 0; index < slides.length; index += 3) {
+    rows.push(slides.slice(index, index + 3));
+  }
+
+  const body = rows
+    .map((row) => `
+      <tr>
+        ${row
+          .map(
+            (slide) => `
+          <td width="33.33%" valign="top" style="padding:6px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#ffffff;">
+              <tr>
+                <td style="padding:0;">
+                  <img src="${escapeHtml(slide.image_url || '')}" alt="${escapeHtml(slide.headline || 'Carousel slide')}" style="display:block;width:100%;height:160px;object-fit:cover;" />
+                </td>
+              </tr>
+              ${slide.headline ? `
+              <tr>
+                <td style="padding:10px 10px 12px;font-size:12px;line-height:1.45;color:#111827;font-weight:700;">
+                  ${escapeHtml(slide.headline)}
+                </td>
+              </tr>
+              ` : ''}
+            </table>
+          </td>`
+          )
+          .join('')}
+        ${Array.from({ length: Math.max(0, 3 - row.length) }).map(() => '<td width="33.33%" style="padding:6px;"></td>').join('')}
+      </tr>
+    `)
+    .join('');
+
+  return `
+    <tr>
+      <td style="padding:0 22px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:6px;">
+          ${body}
+        </table>
+      </td>
+    </tr>
+  `;
+}
+
 function buildApprovalEmailHtml({
   locale,
   t,
@@ -1209,6 +1291,7 @@ function buildApprovalEmailHtml({
   postContent,
   approveUrl,
   imageUrl,
+  carouselSlides = [],
   isCarouselDraft = false,
 }) {
   const platformLabel = rule.platform || "Social media";
@@ -1218,6 +1301,7 @@ function buildApprovalEmailHtml({
   const introKey = isCarouselDraft ? "emails.approval.carouselIntro" : "emails.approval.intro";
   const buttonKey = isCarouselDraft ? "emails.approval.carouselButton" : "emails.approval.button";
   const afterKey = isCarouselDraft ? "emails.approval.carouselAfterApproval" : "emails.approval.afterApproval";
+  const carouselPreviewHtml = isCarouselDraft ? buildCarouselEmailPreviewHtml(carouselSlides) : "";
   return `
 <!doctype html>
 <html lang="${escapeHtml(locale || "en")}">
@@ -1248,7 +1332,9 @@ function buildApprovalEmailHtml({
             </tr>
 
             ${
-              safeImageUrl
+              isCarouselDraft
+                ? carouselPreviewHtml
+                : safeImageUrl
                 ? `
             <tr>
               <td style="padding:0 28px 20px;">
@@ -4310,8 +4396,9 @@ Return JSON exactly in this shape:
   }
 }
 
-function buildFallbackProductCarouselSlides(rule, products) {
-  return products.slice(0, CAROUSEL_MAX_PRODUCT_SLIDES).map((product, index) => ({
+function buildFallbackProductCarouselSlides(rule, products, postContent = "") {
+  const selectedProducts = products.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  const productSlides = selectedProducts.map((product, index) => ({
     slide_type: index === 0 ? "product_hook" : "product",
     headline: normalizeSlideText(product.title || `Product ${index + 1}`, 90),
     body: normalizeSlideText(
@@ -4321,14 +4408,59 @@ function buildFallbackProductCarouselSlides(rule, products) {
           : "A selected product from the website."),
       190
     ),
-    cta_text: index === products.length - 1 ? normalizeSlideText(rule?.cta_type || "See more", 70) : "",
+    cta_text: "",
     product_url: product.url || null,
     image_url: product.image_url || null,
   }));
+
+  productSlides.push({
+    slide_type: "product_outro",
+    headline: normalizeSlideText(rule?.brand_profile?.business_name || "See more in the collection", 90),
+    body: normalizeSlideText(
+      postContent || "Explore more products from the collection on the website.",
+      180
+    ),
+    cta_text: normalizeSlideText(rule?.cta_type || "See more", 70),
+    overlay_text: normalizeSlideText(rule?.brand_profile?.business_name || "See more", 80),
+    product_url: getPostDestinationUrl(rule) || null,
+    image_url: null,
+  });
+
+  return productSlides;
+}
+
+function buildCarouselOutroImagePrompt(rule, outroSlide, products) {
+  const brandName = rule?.brand_profile?.business_name || "the brand";
+  const language = rule?.language || rule?.brand_profile?.content_language || "English";
+  const productNames = (products || []).slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET).map((item) => item?.title).filter(Boolean).join(", ");
+  const headline = normalizeSlideText(outroSlide?.headline || brandName, 80);
+  const supportingText = normalizeSlideText(outroSlide?.cta_text || outroSlide?.body || rule?.cta_type || "See more", 90);
+
+  return `Create a premium square closing slide for a social media carousel. This is the final CTA slide after product slides for ${brandName}. Use a clean, polished marketing design with a subtle modern background and clear readable text overlay. Write the overlaid text in ${language}. Main overlay text: "${headline}". Supporting overlay text: "${supportingText}". The slide should feel like a professional final call-to-action and may use abstract shapes or a tasteful product-inspired collage. Do not show prices, discount claims, or crowded text. Products featured earlier in the carousel: ${productNames || "selected website products"}.`;
+}
+
+async function generateCarouselOutroSlideImage(openai, rule, outroSlide, products) {
+  const imagePrompt = buildCarouselOutroImagePrompt(rule, outroSlide, products);
+  const response = await openai.images.generate({
+    model: IMAGE_MODEL,
+    prompt: imagePrompt,
+    size: "1024x1024",
+  });
+
+  const imageBase64 = response?.data?.[0]?.b64_json;
+
+  if (!imageBase64) {
+    throw new Error("OpenAI image generation returned empty outro image data");
+  }
+
+  return {
+    imageBase64,
+    imagePrompt,
+  };
 }
 
 async function generateProductCarouselSlides(openai, rule, postContent, products) {
-  const selectedProducts = products.slice(0, CAROUSEL_MAX_PRODUCT_SLIDES);
+  const selectedProducts = products.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
   const productsText = formatWebsiteItemsForPrompt(selectedProducts);
 
@@ -4361,21 +4493,24 @@ Caption already created for the post:
 ${postContent || "Not provided"}
 
 Rules:
-- Create exactly ${selectedProducts.length} slides, one slide for each product in the same order.
-- Every slide must focus on its matching product only.
+- Create exactly ${selectedProducts.length} product slides in the same order as the selected products.
+- Then create 1 final outro slide that acts as a closing CTA for the whole carousel.
+- Every product slide must focus on its matching product only.
 - Write in the selected post language.
 - Keep text short enough for a social media carousel.
 - Use only facts from the product list and brand profile.
 - Do not invent prices, discounts, stock status, reviews, delivery promises, guarantees or features.
 - If a verified price is provided for a product, you may mention it exactly as written. If not, do not mention price.
-- The first slide can feel like a hook, but it must still feature Product 1.
-- The final slide can include a CTA, but it must still feature the final product.
+- The first product slide can feel like a hook, but it must still feature Product 1.
+- The final outro slide should invite the reader to explore more or visit the website.
+- The final outro slide should include short overlay_text suitable for a text overlay on an AI-generated closing image.
 
 Return JSON exactly in this shape:
 {
   "slides": [
     { "headline": "...", "body": "...", "cta_text": "" }
-  ]
+  ],
+  "outro": { "headline": "...", "body": "...", "cta_text": "...", "overlay_text": "..." }
 }
           `.trim(),
         },
@@ -4386,29 +4521,51 @@ Return JSON exactly in this shape:
     const raw = completion.choices?.[0]?.message?.content || "";
     const parsed = safeJsonParse(raw);
     const sourceSlides = Array.isArray(parsed?.slides) ? parsed.slides : [];
+    const sourceOutro = parsed?.outro || {};
 
     const slides = selectedProducts.map((product, index) => {
       const slide = sourceSlides[index] || {};
       return {
-        slide_type: index === 0 ? "product_hook" : index === selectedProducts.length - 1 ? "product_cta" : "product",
+        slide_type: index === 0 ? "product_hook" : "product",
         headline: normalizeSlideText(slide.headline || slide.title || product.title || `Product ${index + 1}`, 90),
         body: normalizeSlideText(slide.body || slide.text || product.description || "", 210),
-        cta_text: normalizeSlideText(slide.cta_text || slide.cta || (index === selectedProducts.length - 1 ? rule?.cta_type || "See more" : ""), 80),
+        cta_text: normalizeSlideText(slide.cta_text || slide.cta || "", 80),
         product_url: product.url || null,
         image_url: product.image_url || null,
       };
     });
 
-    return slides.every((slide) => slide.headline || slide.body)
-      ? slides
-      : buildFallbackProductCarouselSlides(rule, selectedProducts);
+    const outroSlide = {
+      slide_type: "product_outro",
+      headline: normalizeSlideText(
+        sourceOutro.headline || sourceOutro.title || rule?.brand_profile?.business_name || "See more from the collection",
+        90
+      ),
+      body: normalizeSlideText(
+        sourceOutro.body || sourceOutro.text || "Explore more products from the collection on the website.",
+        210
+      ),
+      cta_text: normalizeSlideText(sourceOutro.cta_text || sourceOutro.cta || rule?.cta_type || "See more", 80),
+      overlay_text: normalizeSlideText(
+        sourceOutro.overlay_text || sourceOutro.overlay || sourceOutro.headline || rule?.brand_profile?.business_name || "See more",
+        90
+      ),
+      product_url: getPostDestinationUrl(rule) || null,
+      image_url: null,
+    };
+
+    const combinedSlides = slides.every((slide) => slide.headline || slide.body)
+      ? [...slides, outroSlide]
+      : buildFallbackProductCarouselSlides(rule, selectedProducts, postContent);
+
+    return combinedSlides;
   } catch (error) {
     console.error("Product carousel slide copy generation failed, using fallback slides", {
       ruleId: rule.id,
       message: error.message,
     });
 
-    return buildFallbackProductCarouselSlides(rule, selectedProducts);
+    return buildFallbackProductCarouselSlides(rule, selectedProducts, postContent);
   }
 }
 
@@ -4427,40 +4584,96 @@ async function saveCarouselSlidesForPost({
 
   const slides = await generateCarouselSlides(openai, rule, postContent);
   const selectedItem = rule?.website_item || null;
-  const productCount = getCarouselProducts(rule).filter(isValidCarouselProduct).length;
+  const carouselProducts = getCarouselProducts(rule).filter(isValidCarouselProduct).slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  const productCount = carouselProducts.length;
+  const includeLogo = shouldUseLogoForRule(rule, rule.brand_profile);
+  const destinationUrl = getPostDestinationUrl(rule);
 
-  const rows = slides.map((slide, index) => {
-    const slideImageUrl = slide.image_url || (index === 0 ? imageUrl : null) || selectedItem?.image_url || null;
-    const slideProductUrl = slide.product_url || (index === 0 ? selectedItem?.url : null) || null;
+  const rows = [];
 
-    return {
+  for (let index = 0; index < slides.length; index += 1) {
+    const slide = slides[index] || {};
+    const isOutroSlide = String(slide.slide_type || '').toLowerCase() === 'product_outro';
+    let slideImageUrl = slide.image_url || (!isOutroSlide && index === 0 ? imageUrl : null) || (!isOutroSlide ? selectedItem?.image_url : null) || null;
+    let slideStoragePath = !isOutroSlide && index === 0 ? imageStoragePath || null : null;
+    let generatedImagePrompt = null;
+
+    if (isOutroSlide && !slideImageUrl) {
+      try {
+        const { imageBase64, imagePrompt } = await generateCarouselOutroSlideImage(
+          openai,
+          rule,
+          slide,
+          carouselProducts
+        );
+
+        const uploadedImage = await uploadGeneratedImageToStorage({
+          supabase,
+          imageBase64,
+          userId: rule.user_id,
+          postId,
+          fileSuffix: `carousel-slide-${index + 1}`,
+        });
+
+        slideImageUrl = uploadedImage.imageUrl;
+        slideStoragePath = uploadedImage.imageStoragePath;
+        generatedImagePrompt = imagePrompt;
+
+        const logoOverlayResult = await applyLogoOverlayIfNeeded({
+          supabase,
+          userId: rule.user_id,
+          postId: `${postId}-carousel-slide-${index + 1}`,
+          imageUrl: slideImageUrl,
+          imageStoragePath: slideStoragePath,
+          brandProfile: rule.brand_profile,
+          includeLogo: includeLogo,
+        });
+
+        if (logoOverlayResult?.imageUrl) {
+          slideImageUrl = logoOverlayResult.imageUrl;
+          slideStoragePath = logoOverlayResult.imageStoragePath || slideStoragePath;
+        }
+      } catch (error) {
+        console.error('Carousel outro slide image generation failed', {
+          ruleId: rule?.id,
+          postId,
+          message: error.message,
+        });
+      }
+    }
+
+    const slideProductUrl = slide.product_url || (!isOutroSlide && index === 0 ? selectedItem?.url : null) || (isOutroSlide ? destinationUrl : null) || null;
+
+    rows.push({
       user_id: rule.user_id,
       post_id: postId,
       slide_order: index + 1,
-      slide_type: "content",
+      slide_type: 'content',
       headline: slide.headline || null,
       body: slide.body || null,
       cta_text: slide.cta_text || null,
       image_url: slideImageUrl,
       product_url: slideProductUrl,
-      logo_enabled: shouldUseLogoForRule(rule, rule.brand_profile),
+      logo_enabled: includeLogo,
       metadata: {
         generated_by: productCount >= CAROUSEL_MIN_PRODUCT_SLIDES
-          ? "step95_product_carousel"
-          : "step94_carousel_draft",
-        carousel_slide_role: slide.slide_type || (index === 0 ? "product_hook" : index === slides.length - 1 ? "product_cta" : "product"),
+          ? 'step95g_product_carousel_outro'
+          : 'step94_carousel_draft',
+        carousel_slide_role: slide.slide_type || (index === 0 ? 'product_hook' : index === slides.length - 1 ? 'product_cta' : 'product'),
         source_content_type_id: rule.content_type_id || null,
         product_count: productCount || null,
-        image_storage_path: index === 0 ? imageStoragePath || null : null,
+        image_storage_path: slideStoragePath || null,
+        image_prompt: generatedImagePrompt || null,
+        overlay_text: slide.overlay_text || null,
       },
-    };
-  });
-
-  if (productCount >= CAROUSEL_MIN_PRODUCT_SLIDES && rows.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
-    throw new Error(`Carousel product slides were not created correctly. Expected at least ${CAROUSEL_MIN_PRODUCT_SLIDES}, got ${rows.length}.`);
+    });
   }
 
-  await supabase.from("post_slides").delete().eq("post_id", postId);
+  if (productCount >= CAROUSEL_MIN_PRODUCT_SLIDES && rows.length < CAROUSEL_MIN_PRODUCT_SLIDES + CAROUSEL_OUTRO_SLIDE_COUNT) {
+    throw new Error(`Carousel product slides were not created correctly. Expected at least ${CAROUSEL_MIN_PRODUCT_SLIDES + CAROUSEL_OUTRO_SLIDE_COUNT}, got ${rows.length}.`);
+  }
+
+  await supabase.from('post_slides').delete().eq('post_id', postId);
 
   const insertAttempts = [
     rows,
@@ -4472,7 +4685,7 @@ async function saveCarouselSlidesForPost({
   let inserted = false;
 
   for (const payload of insertAttempts) {
-    const { error } = await supabase.from("post_slides").insert(payload);
+    const { error } = await supabase.from('post_slides').insert(payload);
     if (!error) {
       inserted = true;
       insertError = null;
@@ -4482,13 +4695,13 @@ async function saveCarouselSlidesForPost({
   }
 
   if (!inserted) {
-    throw new Error(insertError?.message || "Could not save carousel slides");
+    throw new Error(insertError?.message || 'Could not save carousel slides');
   }
 
   const readyImageCount = rows.filter((row) => row.image_url).length;
   const slideCount = rows.length;
-  const slideGenerationStatus = slideCount > 0 ? "ready" : "failed";
-  const slideRenderStatus = readyImageCount === slideCount && slideCount > 0 ? "ready" : readyImageCount > 0 ? "partial" : "none";
+  const slideGenerationStatus = slideCount > 0 ? 'ready' : 'failed';
+  const slideRenderStatus = readyImageCount === slideCount && slideCount > 0 ? 'ready' : readyImageCount > 0 ? 'partial' : 'none';
 
   const postUpdatePayload = {
     slide_count: slideCount,
@@ -4498,12 +4711,12 @@ async function saveCarouselSlidesForPost({
   };
 
   const { error: postUpdateError } = await supabase
-    .from("posts")
+    .from('posts')
     .update(postUpdatePayload)
-    .eq("id", postId);
+    .eq('id', postId);
 
   if (postUpdateError) {
-    throw new Error(postUpdateError.message || "Could not update carousel slide summary");
+    throw new Error(postUpdateError.message || 'Could not update carousel slide summary');
   }
 
   return rows;
@@ -4535,8 +4748,10 @@ async function uploadGeneratedImageToStorage({
   imageBase64,
   userId,
   postId,
+  fileSuffix = "",
 }) {
-  const filePath = `${userId}/${postId}.png`;
+  const safeSuffix = String(fileSuffix || "").trim();
+  const filePath = `${userId}/${postId}${safeSuffix ? `-${safeSuffix}` : ""}.png`;
   const fileBuffer = Buffer.from(imageBase64, "base64");
 
   const { error: uploadError } = await supabase.storage
@@ -4749,6 +4964,23 @@ async function sendApprovalEmail({
     ? `${APP_URL}/posts/${postId}`
     : `${APP_URL}/api/approve-post?token=${approvalToken}&lang=${locale}`;
 
+  let carouselSlides = [];
+  if (isCarouselDraft && postId) {
+    try {
+      const { data } = await supabase
+        .from('post_slides')
+        .select('slide_order, headline, image_url')
+        .eq('post_id', postId)
+        .order('slide_order', { ascending: true });
+      carouselSlides = data || [];
+    } catch (error) {
+      console.error('Could not load carousel slides for approval email', {
+        postId,
+        message: error.message,
+      });
+    }
+  }
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -4766,6 +4998,7 @@ async function sendApprovalEmail({
         postContent,
         approveUrl,
         imageUrl,
+        carouselSlides,
         isCarouselDraft,
       }),
       text: buildApprovalEmailText({
@@ -4774,6 +5007,7 @@ async function sendApprovalEmail({
         postContent,
         approveUrl,
         imageUrl,
+        carouselSlides,
         isCarouselDraft,
       }),
     }),
