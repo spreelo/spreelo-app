@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useUiText } from "../lib/i18n/useUiText";
 
 const PENDING_PREVIEW_LIMIT = 3;
+const CONTENT_PLANS_PREVIEW_LIMIT = 3;
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
@@ -64,6 +65,59 @@ function formatScheduleType(value, t) {
   if (value === "weekly") return t("dashboard.schedule.weekly");
 
   return t("dashboard.schedule.scheduled");
+}
+
+function getPlanNextDate(rule) {
+  return rule?.next_run_at || rule?.run_date || null;
+}
+
+function isFutureDate(value) {
+  if (!value) return false;
+  return new Date(value).getTime() > Date.now();
+}
+
+function getContentPlanStatus(rule, t) {
+  const nextDate = getPlanNextDate(rule);
+
+  if (rule?.schedule_type === "weekly") {
+    if (rule?.is_active) {
+      return {
+        key: "running",
+        label: t("dashboard.planStatus.running"),
+      };
+    }
+
+    return {
+      key: "paused",
+      label: t("dashboard.planStatus.paused"),
+    };
+  }
+
+  if (isFutureDate(nextDate)) {
+    return {
+      key: "coming",
+      label: t("dashboard.planStatus.coming"),
+    };
+  }
+
+  return {
+    key: "finished",
+    label: t("dashboard.planStatus.finished"),
+  };
+}
+
+function getContentPlanSortScore(rule) {
+  const status = getContentPlanStatus(rule, (key) => key);
+  const statusWeight = {
+    running: 0,
+    coming: 1,
+    paused: 2,
+    finished: 3,
+  }[status.key] ?? 4;
+
+  const date = new Date(getPlanNextDate(rule) || rule?.created_at || 0).getTime();
+
+  return [statusWeight, Number.isFinite(date) ? date : 0];
 }
 
 function isSlideBasedPost(post) {
@@ -165,6 +219,9 @@ export default function Home() {
   const [deleteConfirmActive, setDeleteConfirmActive] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [showAllPendingPosts, setShowAllPendingPosts] = useState(false);
+  const [selectedContentPlanIds, setSelectedContentPlanIds] = useState([]);
+  const [showAllContentPlans, setShowAllContentPlans] = useState(false);
+  const [contentPlanActionLoading, setContentPlanActionLoading] = useState(false);
   const { t, locale } = useUiText(["dashboard"]);
 
   useEffect(() => {
@@ -213,6 +270,8 @@ export default function Home() {
     setSelectedPendingPostIds([]);
     setDeleteConfirmActive(false);
     setShowAllPendingPosts(false);
+    setSelectedContentPlanIds([]);
+    setShowAllContentPlans(false);
     setSuggestedCampaign(null);
 
     const {
@@ -290,7 +349,7 @@ export default function Home() {
     const { data: rulesData, error: rulesError } = await supabase
       .from("automation_rules")
       .select(
-        "id, brand_profile_id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, content_type_label, uses_website_content, generate_image, approval_required"
+        "id, brand_profile_id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, content_type_label, uses_website_content, generate_image, approval_required, created_at"
       )
       .eq("user_id", user.id)
       .eq("brand_profile_id", selectedBrand.id)
@@ -425,16 +484,84 @@ export default function Home() {
     return rules
       .slice()
       .sort((a, b) => {
-        const dateA = new Date(a.next_run_at || a.run_date || a.created_at || 0);
-        const dateB = new Date(b.next_run_at || b.run_date || b.created_at || 0);
+        const [statusA, dateA] = getContentPlanSortScore(a);
+        const [statusB, dateB] = getContentPlanSortScore(b);
+
+        if (statusA !== statusB) return statusA - statusB;
         return dateA - dateB;
-      })
-      .slice(0, 4);
+      });
   }, [rules]);
+
+  const visibleDashboardContentPlans = useMemo(() => {
+    if (showAllContentPlans) return dashboardContentPlans;
+    return dashboardContentPlans.slice(0, CONTENT_PLANS_PREVIEW_LIMIT);
+  }, [dashboardContentPlans, showAllContentPlans]);
+
+  const visibleContentPlanIds = visibleDashboardContentPlans.map((rule) => rule.id);
+  const allVisibleContentPlansSelected =
+    visibleContentPlanIds.length > 0 &&
+    visibleContentPlanIds.every((ruleId) => selectedContentPlanIds.includes(ruleId));
 
   const nextAutomation = upcomingRules[0] || null;
   const currentBrandName = brandProfile?.business_name || t("dashboard.currentBrand");
   const dashboardEyebrow = t("dashboard.eyebrow");
+
+  function toggleContentPlanSelection(ruleId) {
+    setSelectedContentPlanIds((current) => {
+      if (current.includes(ruleId)) {
+        return current.filter((id) => id !== ruleId);
+      }
+
+      return [...current, ruleId];
+    });
+  }
+
+  function selectVisibleContentPlans() {
+    setSelectedContentPlanIds((current) => {
+      const merged = new Set(current);
+
+      visibleContentPlanIds.forEach((id) => merged.add(id));
+
+      return Array.from(merged);
+    });
+  }
+
+  function clearSelectedContentPlans() {
+    setSelectedContentPlanIds([]);
+  }
+
+  async function deleteContentPlans(ruleIds) {
+    const ids = Array.from(new Set((ruleIds || []).filter(Boolean)));
+
+    if (ids.length === 0 || !currentBrandId) return;
+
+    const confirmed = window.confirm(
+      t("dashboard.confirmDeleteContentPlans", { count: ids.length })
+    );
+
+    if (!confirmed) return;
+
+    setContentPlanActionLoading(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("automation_rules")
+      .delete()
+      .eq("brand_profile_id", currentBrandId)
+      .in("id", ids);
+
+    if (error) {
+      setMessage(error.message || t("dashboard.errorDeleteContentPlans"));
+    } else {
+      setRules((current) => current.filter((rule) => !ids.includes(rule.id)));
+      setSelectedContentPlanIds((current) =>
+        current.filter((ruleId) => !ids.includes(ruleId))
+      );
+      setMessage(t("dashboard.deletedContentPlans", { count: ids.length }));
+    }
+
+    setContentPlanActionLoading(false);
+  }
 
   function togglePendingPostSelection(postId) {
     setDeleteConfirmActive(false);
@@ -846,25 +973,120 @@ export default function Home() {
                       <a href="/automation">{t("dashboard.createContentPlan")}</a>
                     </div>
                   ) : (
-                    <div className="dashboard-plan-list">
-                      {dashboardContentPlans.map((rule) => (
-                          <article className="dashboard-plan-row" key={rule.id}>
-                            <div>
-                              <h4>{formatPlanName(rule, t)}</h4>
-                              <p>
-                                {rule.platform || t("dashboard.platformNotSet")} ·{" "}
-                                {rule.content_type_label || rule.post_type || t("dashboard.post")}
-                              </p>
-                            </div>
+                    <>
+                      <div className="dashboard-plan-toolbar">
+                        <div>
+                          <button
+                            type="button"
+                            className="dashboard-inline-action"
+                            onClick={
+                              allVisibleContentPlansSelected
+                                ? clearSelectedContentPlans
+                                : selectVisibleContentPlans
+                            }
+                          >
+                            {allVisibleContentPlansSelected
+                              ? t("dashboard.clear")
+                              : t("dashboard.selectVisible")}
+                          </button>
 
-                            <div className="dashboard-plan-meta">
-                              <span>{formatScheduleType(rule.schedule_type, t)}</span>
-                              <strong>{formatDate(rule.next_run_at || rule.run_date, t)}</strong>
-                            </div>
-                            <a href="/automation">{t("dashboard.manage")}</a>
-                          </article>
-                      ))}
-                    </div>
+                          {selectedContentPlanIds.length > 0 && (
+                            <span className="dashboard-selection-count">
+                              {t("dashboard.contentPlansSelected", {
+                                count: selectedContentPlanIds.length,
+                              })}
+                            </span>
+                          )}
+                        </div>
+
+                        {selectedContentPlanIds.length > 0 && (
+                          <button
+                            type="button"
+                            className="dashboard-delete-button"
+                            disabled={contentPlanActionLoading}
+                            onClick={() => deleteContentPlans(selectedContentPlanIds)}
+                          >
+                            {contentPlanActionLoading
+                              ? t("dashboard.deleting")
+                              : t("dashboard.deleteSelected")}
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="dashboard-plan-list">
+                        {visibleDashboardContentPlans.map((rule) => {
+                          const status = getContentPlanStatus(rule, t);
+
+                          return (
+                            <article className="dashboard-plan-row" key={rule.id}>
+                              <label className="dashboard-plan-check">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedContentPlanIds.includes(rule.id)}
+                                  onChange={() => toggleContentPlanSelection(rule.id)}
+                                  aria-label={t("dashboard.selectContentPlan")}
+                                />
+                              </label>
+
+                              <div className="dashboard-plan-main">
+                                <div className="dashboard-plan-title-row">
+                                  <h4>{formatPlanName(rule, t)}</h4>
+                                  <span
+                                    className={`dashboard-plan-status dashboard-plan-status-${status.key}`}
+                                  >
+                                    {status.label}
+                                  </span>
+                                </div>
+                                <p>
+                                  {rule.platform || t("dashboard.platformNotSet")} ·{" "}
+                                  {rule.content_type_label || rule.post_type || t("dashboard.post")}
+                                </p>
+                              </div>
+
+                              <div className="dashboard-plan-meta">
+                                <span>{formatScheduleType(rule.schedule_type, t)}</span>
+                                <strong>{formatDate(getPlanNextDate(rule), t)}</strong>
+                              </div>
+
+                              <div className="dashboard-plan-actions">
+                                <a href={`/automation?plan=${encodeURIComponent(rule.id)}`}>
+                                  {t("dashboard.manage")}
+                                </a>
+                                <button
+                                  type="button"
+                                  className="dashboard-plan-delete"
+                                  disabled={contentPlanActionLoading}
+                                  onClick={() => deleteContentPlans([rule.id])}
+                                >
+                                  {t("dashboard.delete")}
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+
+                      {dashboardContentPlans.length > CONTENT_PLANS_PREVIEW_LIMIT && (
+                        <div className="dashboard-plan-footer">
+                          <button
+                            type="button"
+                            className="show-more-rules"
+                            onClick={() => {
+                              setShowAllContentPlans((current) => !current);
+                              clearSelectedContentPlans();
+                            }}
+                          >
+                            {showAllContentPlans
+                              ? t("dashboard.showLess")
+                              : t("dashboard.showAllContentPlans", {
+                                  count:
+                                    dashboardContentPlans.length -
+                                    CONTENT_PLANS_PREVIEW_LIMIT,
+                                })}
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </section>
               </main>
