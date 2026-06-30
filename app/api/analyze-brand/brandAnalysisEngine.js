@@ -2458,16 +2458,7 @@ export async function runBrandAnalysisJob({
       detectedWebsiteContentLanguage = languageDetection.language || "";
     }
 
-    await updateJob({
-      status: "running",
-      step: "finding_products",
-      progress: 40,
-    });
-
-    const productSourceCandidates = await fetchProductSourceCandidates({
-      websiteUrl: website.url,
-      html: website.html,
-    });
+    const productSourceCandidates = [];
 
     await updateJob({
       status: "running",
