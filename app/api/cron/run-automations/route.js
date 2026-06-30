@@ -26,8 +26,8 @@ const WEBSITE_MAX_TOTAL_TEXT_CHARS = 22000;
 const WEBSITE_MAX_IMAGE_CANDIDATES = 40;
 const WEBSITE_PRODUCT_REUSE_LIMIT = 100;
 const WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT = 150;
-const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 18;
-const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 8;
+const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 36;
+const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 12;
 const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
 const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
 const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
@@ -2088,9 +2088,17 @@ async function fetchHtml(url) {
     }
 
     const contentType = response.headers.get("content-type") || "";
+    const lowerContentType = contentType.toLowerCase();
 
-    if (!contentType.toLowerCase().includes("text/html")) {
-      throw new Error("Website did not return HTML");
+    if (
+      lowerContentType &&
+      !lowerContentType.includes("text/html") &&
+      !lowerContentType.includes("application/xhtml") &&
+      !lowerContentType.includes("application/xml") &&
+      !lowerContentType.includes("text/xml") &&
+      !lowerContentType.includes("text/plain")
+    ) {
+      throw new Error(`Website did not return readable HTML/XML content: ${contentType}`);
     }
 
     return await response.text();
@@ -3193,6 +3201,133 @@ function getProductPriceFromJsonLd(product) {
   return normalizeVerifiedPriceValue(`${price}${currency ? ` ${currency}` : ""}`);
 }
 
+
+function getProductUrlFromJsonLd(product, pageUrl) {
+  const rawUrl =
+    product?.url ||
+    product?.offers?.url ||
+    product?.mainEntityOfPage?.['@id'] ||
+    product?.mainEntityOfPage?.url ||
+    "";
+
+  const resolvedUrl = rawUrl ? resolveUrl(String(rawUrl), pageUrl) : null;
+
+  return resolvedUrl && isHttpUrl(resolvedUrl) ? resolvedUrl : null;
+}
+
+function extractJsonLdProductCandidatesFromHtml({
+  html,
+  pageUrl,
+  websiteUrl,
+  campaignPrompt,
+}) {
+  const objects = extractJsonLdObjects(html);
+  const candidates = [];
+
+  for (const object of objects) {
+    if (!normalizeJsonLdType(object?.['@type']).some((type) => type.includes('product'))) {
+      continue;
+    }
+
+    const title = String(object?.name || "").trim();
+    const url = getProductUrlFromJsonLd(object, pageUrl) || pageUrl;
+    const imageUrl = getProductImageFromJsonLd(object, pageUrl);
+    const price = getProductPriceFromJsonLd(object);
+    const description = String(object?.description || "").trim();
+
+    if (!title || !url || !isSameOrSubdomainUrl(url, websiteUrl)) {
+      continue;
+    }
+
+    if (isLikelyBadDiscoveryPageUrl(url, websiteUrl)) {
+      continue;
+    }
+
+    candidates.push({
+      title,
+      url,
+      price,
+      image_url: imageUrl,
+      description,
+      reason: `Product found in structured data on ${pageUrl}`,
+      score: 40 + scorePossibleProductLink({ url, text: title, campaignPrompt }),
+    });
+  }
+
+  return dedupeUrlItems(candidates);
+}
+
+function extractProductUrlCandidatesFromText({
+  text,
+  pageUrl,
+  websiteUrl,
+  campaignPrompt,
+}) {
+  const candidates = [];
+  const source = String(text || "");
+  const origin = getWebsiteOrigin(websiteUrl);
+  const host = getHostnameWithoutWww(websiteUrl);
+  const patterns = [
+    /https?:\\/\\/[^"'<>\\s]+/gi,
+    /["']((?:\\/[^"'<>\\s]+){1,})["']/g,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+
+    while ((match = pattern.exec(source)) !== null) {
+      const raw = String(match[1] || match[0] || "")
+        .replace(/\\u002F/g, "/")
+        .replace(/\\\//g, "/")
+        .replace(/&amp;/g, "&")
+        .trim();
+
+      if (!raw || raw.length > 700) {
+        continue;
+      }
+
+      const resolvedUrl = raw.startsWith("http")
+        ? raw
+        : resolveUrl(raw, origin || pageUrl);
+
+      if (!resolvedUrl || !isHttpUrl(resolvedUrl)) {
+        continue;
+      }
+
+      if (!isSameOrSubdomainUrl(resolvedUrl, websiteUrl)) {
+        continue;
+      }
+
+      if (isLikelyNonProductUrl(resolvedUrl, websiteUrl)) {
+        continue;
+      }
+
+      const lower = resolvedUrl.toLowerCase();
+      const looksProductLike =
+        lower.includes("/produkt") ||
+        lower.includes("/product") ||
+        lower.includes("/produkter") ||
+        lower.includes("/p/") ||
+        /\/[^/?#]+-p\d{3,}/i.test(lower) ||
+        /\/[^/?#]+\d{5,}/i.test(lower);
+
+      if (!looksProductLike && host && !lower.includes(host)) {
+        continue;
+      }
+
+      candidates.push({
+        title: "",
+        url: resolvedUrl.split("#")[0],
+        price: "",
+        reason: `Product-like URL found in embedded page data on ${pageUrl}`,
+        score: (looksProductLike ? 28 : 6) + scorePossibleProductLink({ url: resolvedUrl, text: "", campaignPrompt }),
+      });
+    }
+  }
+
+  return dedupeUrlItems(candidates);
+}
+
 function extractVisiblePriceFromText(text) {
   const normalizedText = String(text || "")
     .replace(/\s+/g, " ")
@@ -3294,7 +3429,11 @@ if (!price) {
   });
 }
 
-const imageUrl = extractBestProductImageFromHtml(html, productUrl);
+const imageUrl =
+  extractBestProductImageFromHtml(html, productUrl) ||
+  (webSearchProduct?.image_url && isHttpUrl(webSearchProduct.image_url) && !isBadProductImageUrl(webSearchProduct.image_url)
+    ? webSearchProduct.image_url
+    : null);
 
   const normalizedItem = normalizeWebsiteItem(
     {
@@ -3480,6 +3619,24 @@ function extractProductLinksFromDiscoveryPage({
   const links = extractLinks(html, pageUrl);
   const candidates = [];
 
+  candidates.push(
+    ...extractJsonLdProductCandidatesFromHtml({
+      html,
+      pageUrl,
+      websiteUrl,
+      campaignPrompt,
+    })
+  );
+
+  candidates.push(
+    ...extractProductUrlCandidatesFromText({
+      text: html,
+      pageUrl,
+      websiteUrl,
+      campaignPrompt,
+    })
+  );
+
   for (const link of links) {
     const url = link?.url;
 
@@ -3515,8 +3672,8 @@ function extractProductLinksFromDiscoveryPage({
   }
 
   return dedupeUrlItems(candidates)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 12);
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+    .slice(0, 40);
 }
 
 async function findProductCandidatesFromDiscoveryPages({
@@ -3679,6 +3836,101 @@ async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt }) {
   }
 }
 
+
+async function discoverProductsFromSitemaps({
+  websiteUrl,
+  campaignPrompt,
+  maxSitemaps = 12,
+  maxCandidates = 80,
+}) {
+  const origin = getWebsiteOrigin(websiteUrl);
+  const startUrls = Array.from(
+    new Set(
+      [
+        origin ? `${origin}/sitemap.xml` : "",
+        origin ? `${origin}/sitemap_index.xml` : "",
+        origin ? `${origin}/sitemap-products.xml` : "",
+        origin ? `${origin}/sitemap_product.xml` : "",
+        origin ? `${origin}/product-sitemap.xml` : "",
+        origin ? `${origin}/products-sitemap.xml` : "",
+        origin ? `${origin}/sitemap_products_1.xml` : "",
+      ].filter(Boolean)
+    )
+  );
+
+  const queue = [...startUrls];
+  const visited = new Set();
+  const candidates = [];
+
+  while (queue.length && visited.size < maxSitemaps && candidates.length < maxCandidates) {
+    const sitemapUrl = queue.shift();
+    const normalizedSitemapUrl = normalizeComparableValue(sitemapUrl);
+
+    if (!sitemapUrl || visited.has(normalizedSitemapUrl)) {
+      continue;
+    }
+
+    visited.add(normalizedSitemapUrl);
+
+    try {
+      const xml = await fetchHtml(sitemapUrl);
+      const urls = extractUrlsFromXml(xml, sitemapUrl).filter((url) =>
+        isSameOrSubdomainUrl(url, websiteUrl)
+      );
+
+      if (!urls.length) {
+        continue;
+      }
+
+      if (/<sitemapindex/i.test(xml)) {
+        const productishSitemaps = urls.filter((url) => {
+          const lower = url.toLowerCase();
+          return (
+            lower.includes('product') ||
+            lower.includes('produkt') ||
+            lower.includes('shop') ||
+            lower.includes('catalog') ||
+            lower.includes('katalog')
+          );
+        });
+
+        queue.push(...(productishSitemaps.length ? productishSitemaps : urls.slice(0, 8)));
+        continue;
+      }
+
+      const productUrls = urls
+        .map((url) => ({
+          title: "",
+          url,
+          price: "",
+          reason: `Product URL found in sitemap: ${sitemapUrl}`,
+          score: scoreDiscoveredProductUrl(url, websiteUrl, campaignPrompt),
+        }))
+        .filter((item) => item.score >= 0)
+        .filter((item) => !isLikelyBadDiscoveryPageUrl(item.url, websiteUrl));
+
+      candidates.push(...productUrls);
+    } catch (error) {
+      console.log("Product sitemap discovery unavailable", {
+        sitemapUrl,
+        message: error.message,
+      });
+    }
+  }
+
+  const result = dedupeUrlItems(candidates)
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+    .slice(0, maxCandidates);
+
+  console.log("Product sitemap discovery finished", {
+    websiteUrl,
+    visitedSitemapCount: visited.size,
+    candidateCount: result.length,
+  });
+
+  return result;
+}
+
 async function discoverProductCandidatesFromWebsite({
   websiteUrl,
   campaignPrompt,
@@ -3690,6 +3942,12 @@ async function discoverProductCandidatesFromWebsite({
       .map((item) => normalizeComparableValue(item.item_url || item.product_url || item.url))
       .filter(Boolean)
   );
+
+  const sitemapCandidates = await discoverProductsFromSitemaps({
+    websiteUrl,
+    campaignPrompt,
+  });
+  candidates.push(...sitemapCandidates);
 
   const shopifyCandidates = await discoverShopifyProductsJson({
     websiteUrl,
