@@ -26,7 +26,7 @@ const WEBSITE_MAX_TOTAL_TEXT_CHARS = 22000;
 const WEBSITE_MAX_IMAGE_CANDIDATES = 40;
 const WEBSITE_PRODUCT_REUSE_LIMIT = 100;
 const WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT = 150;
-const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 36;
+const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 80;
 const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 12;
 const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
 const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
@@ -1831,6 +1831,92 @@ function extractPageTitle(html) {
   return "";
 }
 
+function getAttributeValueFromTag(tag, attributeName) {
+  const regex = new RegExp(`\\b${attributeName}=["']([^"']+)["']`, "i");
+  return String(tag || "").match(regex)?.[1] || "";
+}
+
+function splitSrcsetUrls(value) {
+  return String(value || "")
+    .split(",")
+    .map((part) => part.trim().split(/\s+/)[0])
+    .filter(Boolean);
+}
+
+function normalizeEscapedUrl(value) {
+  return String(value || "")
+    .replace(/\\u0026/g, "&")
+    .replace(/\\u002F/gi, "/")
+    .replace(/\\\//g, "/")
+    .replace(/&amp;/g, "&")
+    .trim();
+}
+
+function looksLikeProductImageUrl(value) {
+  const lower = String(value || "").toLowerCase();
+
+  if (!lower) {
+    return false;
+  }
+
+  if (/\.(jpe?g|png|webp|avif)(\?|#|$)/i.test(lower)) {
+    return true;
+  }
+
+  return (
+    lower.includes("image") ||
+    lower.includes("img") ||
+    lower.includes("media") ||
+    lower.includes("cdn") ||
+    lower.includes("product") ||
+    lower.includes("produkt") ||
+    lower.includes("globalassets")
+  );
+}
+
+function extractEmbeddedImageUrls(html, pageUrl, score = 4) {
+  const candidates = [];
+  const seen = new Set();
+  const source = String(html || "");
+  const patterns = [
+    /https?:\/\/[^"'<>\s\)\]]+/gi,
+    /["']((?:\/[^"'<>\s\)\]]+){1,}\.(?:jpe?g|png|webp|avif)(?:\?[^"'<>\s\)\]]*)?)["']/gi,
+    /(?:image|imageUrl|image_url|thumbnail|thumbnailUrl|src|url)["']?\s*[:=]\s*["']([^"']+)["']/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+
+    while ((match = pattern.exec(source)) !== null) {
+      const raw = normalizeEscapedUrl(match[1] || match[0] || "");
+      const resolved = raw.startsWith("http") ? raw : resolveUrl(raw, pageUrl);
+
+      if (!resolved || !isHttpUrl(resolved) || seen.has(resolved)) {
+        continue;
+      }
+
+      if (!looksLikeProductImageUrl(resolved) || isBadProductImageUrl(resolved)) {
+        continue;
+      }
+
+      seen.add(resolved);
+      candidates.push({
+        url: resolved,
+        alt: "Embedded product image",
+        source: "embedded-image",
+        score,
+        page_url: pageUrl,
+      });
+
+      if (candidates.length >= 80) {
+        return candidates;
+      }
+    }
+  }
+
+  return candidates;
+}
+
 function extractImageCandidates(html, pageUrl) {
   const candidates = [];
   const seen = new Set();
@@ -1907,38 +1993,51 @@ function extractImageCandidates(html, pageUrl) {
   }
 
   const imageRegex = /<img\b[^>]*>/gi;
-  const srcRegex = /\bsrc=["']([^"']+)["']/i;
-  const dataSrcRegex = /\bdata-src=["']([^"']+)["']/i;
-  const dataOriginalRegex = /\bdata-original=["']([^"']+)["']/i;
-  const dataLazyRegex = /\bdata-lazy=["']([^"']+)["']/i;
-  const dataImgZoomRegex = /\bdata-img-zoom-url=["']([^"']+)["']/i;
-  const srcsetRegex = /\bsrcset=["']([^"']+)["']/i;
-  const altRegex = /\balt=["']([^"']*)["']/i;
-
   const matches = String(html || "").match(imageRegex) || [];
+  const directImageAttributes = [
+    "src",
+    "data-src",
+    "data-original",
+    "data-lazy",
+    "data-lazy-src",
+    "data-image",
+    "data-image-src",
+    "data-src-large",
+    "data-zoom-image",
+    "data-img-zoom-url",
+    "data-full",
+  ];
+  const srcsetAttributes = ["srcset", "data-srcset", "data-lazy-srcset"];
 
   for (const tag of matches) {
-    const srcMatch =
-      tag.match(srcRegex) ||
-      tag.match(dataSrcRegex) ||
-      tag.match(dataOriginalRegex) ||
-      tag.match(dataLazyRegex) ||
-      tag.match(dataImgZoomRegex);
-    const srcsetMatch = tag.match(srcsetRegex);
-    const altMatch = tag.match(altRegex);
+    const alt = getAttributeValueFromTag(tag, "alt");
 
-    let imageUrl = srcMatch?.[1] || "";
+    for (const attributeName of directImageAttributes) {
+      const value = getAttributeValueFromTag(tag, attributeName);
+      if (!value) {
+        continue;
+      }
 
-    if (!imageUrl && srcsetMatch?.[1]) {
-      imageUrl = srcsetMatch[1].split(",")[0]?.trim().split(" ")[0] || "";
+      addCandidate({
+        url: normalizeEscapedUrl(value),
+        alt,
+        source: `img:${attributeName}`,
+        score: attributeName === "src" ? 0 : 8,
+      });
     }
 
-    addCandidate({
-      url: imageUrl,
-      alt: altMatch?.[1] || "",
-      source: "img",
-      score: 0,
-    });
+    for (const attributeName of srcsetAttributes) {
+      const srcsetValue = getAttributeValueFromTag(tag, attributeName);
+
+      for (const imageUrl of splitSrcsetUrls(srcsetValue)) {
+        addCandidate({
+          url: normalizeEscapedUrl(imageUrl),
+          alt,
+          source: `img:${attributeName}`,
+          score: 10,
+        });
+      }
+    }
   }
 
   const backgroundImageRegex = /url\((['"]?)(https?:[^)'"]+)\1\)/gi;
@@ -1953,9 +2052,13 @@ function extractImageCandidates(html, pageUrl) {
     });
   }
 
+  for (const embeddedImage of extractEmbeddedImageUrls(html, pageUrl, 2)) {
+    addCandidate(embeddedImage);
+  }
+
   return candidates
     .sort((a, b) => b.score - a.score)
-    .slice(0, WEBSITE_MAX_IMAGE_CANDIDATES);
+    .slice(0, Math.max(WEBSITE_MAX_IMAGE_CANDIDATES, 80));
 }
 
 function extractLinks(html, pageUrl) {
@@ -3154,36 +3257,46 @@ function findJsonLdProduct(html) {
   );
 }
 
-function getProductImageFromJsonLd(product, pageUrl) {
-  const image = product?.image;
-
-  if (!image) {
-    return null;
+function collectImageValuesFromObject(value, results = []) {
+  if (!value) {
+    return results;
   }
 
-  let imageUrl = "";
+  if (typeof value === "string") {
+    results.push(value);
+    return results;
+  }
 
-  if (typeof image === "string") {
-    imageUrl = image;
-  } else if (Array.isArray(image)) {
-    const firstImage = image[0];
-
-    if (typeof firstImage === "string") {
-      imageUrl = firstImage;
-    } else if (firstImage?.url) {
-      imageUrl = firstImage.url;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectImageValuesFromObject(item, results);
     }
-  } else if (image?.url) {
-    imageUrl = image.url;
+    return results;
   }
 
-  const resolvedUrl = imageUrl ? resolveUrl(imageUrl, pageUrl) : null;
-
-  if (!resolvedUrl || !isHttpUrl(resolvedUrl) || isBadProductImageUrl(resolvedUrl)) {
-    return null;
+  if (typeof value === "object") {
+    for (const key of ["url", "contentUrl", "src", "image"]) {
+      if (value?.[key]) {
+        collectImageValuesFromObject(value[key], results);
+      }
+    }
   }
 
-  return resolvedUrl;
+  return results;
+}
+
+function getProductImageFromJsonLd(product, pageUrl) {
+  const rawImages = collectImageValuesFromObject(product?.image);
+
+  for (const rawImage of rawImages) {
+    const resolvedUrl = rawImage ? resolveUrl(rawImage, pageUrl) : null;
+
+    if (resolvedUrl && isHttpUrl(resolvedUrl) && !isBadProductImageUrl(resolvedUrl)) {
+      return resolvedUrl;
+    }
+  }
+
+  return null;
 }
 
 function getProductPriceFromJsonLd(product) {
