@@ -17811,3 +17811,59 @@ textarea.input,
     padding: 18px !important;
   }
 }
+
+/* Step 98c: remove remaining blue/pink planner wash background */
+html,
+body {
+  background: #eef4fb !important;
+  background-image: none !important;
+}
+
+html body .app-shell.spreelo-shell,
+html body .spreelo-shell,
+html body .app-shell,
+html body .content.spreelo-content,
+html body .spreelo-content,
+html body .content {
+  background: #eef4fb !important;
+  background-color: #eef4fb !important;
+  background-image: none !important;
+}
+
+html body .automation-page,
+html body .automation-page.planner-wizard-page,
+html body .planner-wizard-page,
+html body .automation-page.campaign-planner-clean,
+html body .automation-page .wizard-layout,
+html body .automation-page .wizard-main {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+html body .automation-page::before,
+html body .automation-page::after,
+html body .planner-wizard-page::before,
+html body .planner-wizard-page::after,
+html body .wizard-layout::before,
+html body .wizard-layout::after,
+html body .wizard-main::before,
+html body .wizard-main::after,
+html body .content.spreelo-content::before,
+html body .content.spreelo-content::after {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+}
+
+html body .planner-hero,
+html body .campaign-mode-banner,
+html body .planner-mode-card,
+html body .planner-summary-card,
+html body .planner-schedule-card,
+html body .planner-settings-card,
+html body .planner-save-card,
+html body .planner-credits-card,
+html body .saved-card-compact {
+  background-color: #ffffff !important;
+}
