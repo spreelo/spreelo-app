@@ -2493,24 +2493,70 @@ function getCampaignRecommendedPostCount(campaign, fallbackCount = 3) {
 function normalizeCampaignOpportunityForPlanner(campaign) {
   if (!campaign) return campaign;
 
-  const singleDate =
+  const rawSingleDate =
     campaign.event_date ||
+    campaign.campaign_date ||
+    campaign.date ||
+    campaign.main_date ||
+    campaign.target_date ||
     (campaign.start_date && !campaign.end_date ? campaign.start_date : "") ||
     (campaign.start_date && campaign.end_date && campaign.start_date === campaign.end_date
       ? campaign.start_date
       : "");
 
-  if (!singleDate) {
-    return campaign;
-  }
+  const singleDate = String(rawSingleDate || "").slice(0, 10);
+  const startDate = String(campaign.start_date || singleDate || "").slice(0, 10);
+  const endDate = String(campaign.end_date || singleDate || startDate || "").slice(0, 10);
+  const normalizedPostPlan = Array.isArray(campaign.post_plan) ? campaign.post_plan : [];
 
   return {
     ...campaign,
-    event_date: campaign.event_date || singleDate,
-    start_date: campaign.start_date || singleDate,
-    end_date: campaign.end_date || singleDate,
+    event_date: campaign.event_date || (singleDate && startDate === endDate ? singleDate : null),
+    start_date: startDate || campaign.start_date || null,
+    end_date: endDate || campaign.end_date || null,
     recommended_post_count: getCampaignRecommendedPostCount(campaign),
+    post_plan: normalizedPostPlan,
+    _normalized_for_planner: true,
   };
+}
+
+function mergeCampaignOpportunitySources(databaseCampaign, handoffCampaign) {
+  if (!databaseCampaign && !handoffCampaign) return null;
+
+  const merged = {
+    ...(handoffCampaign || {}),
+    ...(databaseCampaign || {}),
+  };
+
+  const dateFallback =
+    merged.event_date ||
+    merged.campaign_date ||
+    merged.date ||
+    merged.main_date ||
+    merged.target_date ||
+    handoffCampaign?.event_date ||
+    handoffCampaign?.start_date ||
+    databaseCampaign?.event_date ||
+    databaseCampaign?.start_date ||
+    "";
+
+  if (!merged.event_date && dateFallback) {
+    merged.event_date = String(dateFallback).slice(0, 10);
+  }
+
+  if (!merged.start_date && merged.event_date) {
+    merged.start_date = merged.event_date;
+  }
+
+  if (!merged.end_date && merged.event_date) {
+    merged.end_date = merged.event_date;
+  }
+
+  if (!Array.isArray(merged.post_plan) && Array.isArray(handoffCampaign?.post_plan)) {
+    merged.post_plan = handoffCampaign.post_plan;
+  }
+
+  return normalizeCampaignOpportunityForPlanner(merged);
 }
 
 function buildCampaignPostPlan(campaign, recommendedCount) {
@@ -4765,10 +4811,14 @@ async function loadCampaignOpportunityIntoPlanner({
     .eq("is_archived", false)
     .maybeSingle();
 
-  const rawCampaign =
-    campaignFromDatabase ||
-    getCalendarCampaignHandoff(campaignOpportunityId, selectedBrandId);
-  const campaign = normalizeCampaignOpportunityForPlanner(rawCampaign);
+  const campaignFromHandoff = getCalendarCampaignHandoff(
+    campaignOpportunityId,
+    selectedBrandId
+  );
+  const campaign = mergeCampaignOpportunitySources(
+    campaignFromDatabase,
+    campaignFromHandoff
+  );
 
   if (error && !campaign) {
     setMessage(error.message);
@@ -4780,7 +4830,7 @@ async function loadCampaignOpportunityIntoPlanner({
     return;
   }
 
-  if (campaignFromDatabase) {
+  if (campaignFromDatabase && campaignFromHandoff) {
     clearCalendarCampaignHandoff();
   }
 
@@ -4796,11 +4846,28 @@ async function loadCampaignOpportunityIntoPlanner({
     campaignTimeZone
   );
 
-  const campaignSlots = createCampaignSlotsFromOpportunity({
+  let campaignSlots = createCampaignSlotsFromOpportunity({
     campaign,
     timeZone: campaignTimeZone,
     defaultPublishTime: campaignPublishTime,
   });
+
+  if (!campaignSlots.length && campaign.event_date) {
+    const fallbackCampaign = normalizeCampaignOpportunityForPlanner({
+      ...campaign,
+      start_date: campaign.event_date,
+      end_date: campaign.event_date,
+      post_plan: buildFallbackCampaignPlan(
+        getCampaignRecommendedPostCount(campaign, 5)
+      ),
+    });
+
+    campaignSlots = createCampaignSlotsFromOpportunity({
+      campaign: fallbackCampaign,
+      timeZone: campaignTimeZone,
+      defaultPublishTime: campaignPublishTime,
+    });
+  }
 
   setCampaignOpportunity(campaign);
   setPlanCreationMode("campaign");
