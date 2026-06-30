@@ -2528,20 +2528,36 @@ function mergeCampaignOpportunitySources(databaseCampaign, handoffCampaign) {
     ...(databaseCampaign || {}),
   };
 
-  const dateFallback =
+  const explicitSingleDate =
     merged.event_date ||
     merged.campaign_date ||
     merged.date ||
     merged.main_date ||
     merged.target_date ||
     handoffCampaign?.event_date ||
-    handoffCampaign?.start_date ||
     databaseCampaign?.event_date ||
-    databaseCampaign?.start_date ||
     "";
 
-  if (!merged.event_date && dateFallback) {
-    merged.event_date = String(dateFallback).slice(0, 10);
+  const mergedStartDate = String(merged.start_date || handoffCampaign?.start_date || databaseCampaign?.start_date || "").slice(0, 10);
+  const mergedEndDate = String(merged.end_date || handoffCampaign?.end_date || databaseCampaign?.end_date || "").slice(0, 10);
+
+  // Do not turn a broad date range such as 2026-01-01 – 2026-12-31 into
+  // a fixed event on January 1. That made calendar campaigns look loaded but
+  // caused the campaign planner to schedule against the wrong date.
+  if (!merged.event_date && explicitSingleDate) {
+    merged.event_date = String(explicitSingleDate).slice(0, 10);
+  }
+
+  if (!merged.event_date && mergedStartDate && mergedEndDate && mergedStartDate === mergedEndDate) {
+    merged.event_date = mergedStartDate;
+  }
+
+  if (!merged.start_date && mergedStartDate) {
+    merged.start_date = mergedStartDate;
+  }
+
+  if (!merged.end_date && mergedEndDate) {
+    merged.end_date = mergedEndDate;
   }
 
   if (!merged.start_date && merged.event_date) {
@@ -4846,9 +4862,93 @@ function summarizeCampaignForDebug(campaign) {
     end_date: campaign.end_date || null,
     recommended_post_count: campaign.recommended_post_count ?? null,
     post_plan_length: Array.isArray(campaign.post_plan) ? campaign.post_plan.length : null,
-    has_post_plan: Array.isArray(campaign.post_plan),
+    has_post_plan: Array.isArray(campaign.post_plan) && campaign.post_plan.length > 0,
     source_note: campaign._handoffBrandMismatch ? "handoff brand mismatch" : "",
   };
+}
+
+
+function buildDirectCalendarCampaignSlots({
+  campaign,
+  timeZone = DEFAULT_TIME_ZONE,
+  defaultPublishTime = "09:00",
+}) {
+  const count = getCampaignRecommendedPostCount(campaign, 3);
+  const fallbackPostPlan = buildFallbackCampaignPlan(count);
+  const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
+  const safeStartDate = getLaterDateString(
+    campaign?.start_date || campaign?.event_date || todayDateString,
+    todayDateString
+  );
+  const safeEndDate = campaign?.event_date
+    ? campaign.event_date
+    : getLaterDateString(
+        campaign?.end_date || addDaysToDateString(safeStartDate, Math.max(count - 1, 0) * 7),
+        safeStartDate
+      );
+  const totalDays = Math.max(
+    getDaysBetweenDateStrings(safeStartDate, safeEndDate) || 0,
+    0
+  );
+
+  return fallbackPostPlan.map((postPlanItem, index) => {
+    const ratio = count <= 1 ? 0 : index / Math.max(count - 1, 1);
+    const startDate = campaign?.event_date
+      ? getLaterDateString(
+          addDaysToDateString(campaign.event_date, -(postPlanItem.days_before_event || 0)),
+          todayDateString
+        )
+      : addDaysToDateString(safeStartDate, Math.round(totalDays * ratio));
+    const weekday = getWeekdayFromDateString(startDate, timeZone);
+    const enhancedPostPlanItem = buildCampaignPostPlanItem({
+      campaign,
+      postPlanItem,
+      index,
+      total: fallbackPostPlan.length,
+      daysBeforeEvent: campaign?.event_date
+        ? getDaysBetweenDateStrings(startDate, campaign.event_date)
+        : null,
+      timingAnchor: postPlanItem.timing_anchor || null,
+    });
+    const contentSourceMode = getCampaignContentSourceMode(
+      campaign,
+      enhancedPostPlanItem,
+      index,
+      fallbackPostPlan.length
+    );
+
+    enhancedPostPlanItem.content_source_mode = contentSourceMode;
+
+    return createSlot({
+      startDate,
+      weekday,
+      publishTime: getCampaignPublishTime(defaultPublishTime, index),
+      prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
+      imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem, index),
+      generateImage: true,
+      contentTypeId: getCampaignSlotContentTypeId(contentSourceMode),
+      contentTypeLabel: getCampaignSlotContentTypeLabel(campaign, contentSourceMode),
+      usesWebsiteContent: shouldUseWebsiteContentForCampaign(
+        contentSourceMode,
+        campaign
+      ),
+      contentFormat: getCampaignSlotContentFormat(contentSourceMode),
+      isCampaignSlot: true,
+      campaignRole: enhancedPostPlanItem.role || `Campaign post ${index + 1}`,
+      campaignSummary: buildCampaignSummary(campaign, enhancedPostPlanItem, index),
+      campaignPhase: enhancedPostPlanItem.campaign_phase || "",
+      marketingAngle: enhancedPostPlanItem.marketing_angle || "",
+      customerStage: enhancedPostPlanItem.customer_stage || "",
+      ctaStrength: enhancedPostPlanItem.cta_strength || "",
+      campaignPostIndex: index + 1,
+      campaignPostCount: fallbackPostPlan.length,
+      campaignGoal: enhancedPostPlanItem.campaign_goal || campaign?.title || "",
+      targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
+      strategyNotes: enhancedPostPlanItem.strategy_notes || "",
+      dateLocked: true,
+      timeZone,
+    });
+  });
 }
 
 async function loadCampaignOpportunityIntoPlanner({
@@ -4977,17 +5077,38 @@ async function loadCampaignOpportunityIntoPlanner({
     campaignTimeZone
   );
 
-  let campaignSlots = createCampaignSlotsFromOpportunity({
-    campaign,
-    timeZone: campaignTimeZone,
-    defaultPublishTime: campaignPublishTime,
-  });
+  let campaignSlots = [];
+  let campaignSlotBuildError = null;
+
+  try {
+    // If the calendar campaign has no real post_plan, build the visible plan
+    // directly from the campaign opportunity. This is the normal flow after the
+    // faster brand analysis, where calendar rows are lightweight and posts are
+    // only planned when the customer clicks "Skapa inlägg".
+    const hasUsablePostPlan = Array.isArray(campaign.post_plan) && campaign.post_plan.length > 0;
+
+    campaignSlots = hasUsablePostPlan
+      ? createCampaignSlotsFromOpportunity({
+          campaign,
+          timeZone: campaignTimeZone,
+          defaultPublishTime: campaignPublishTime,
+        })
+      : buildDirectCalendarCampaignSlots({
+          campaign,
+          timeZone: campaignTimeZone,
+          defaultPublishTime: campaignPublishTime,
+        });
+  } catch (slotError) {
+    campaignSlotBuildError = slotError;
+    campaignSlots = [];
+  }
 
   setCampaignDebugInfo((current) => ({
     ...(current || {}),
     campaignStartDate,
     campaignPublishTime,
     initialSlotCount: campaignSlots.length,
+    slotBuildError: campaignSlotBuildError?.message || "",
   }));
 
   if (!campaignSlots.length) {
