@@ -8,6 +8,7 @@ import {
 } from "../jobHelpers.js";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 async function getAuthenticatedUser(request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

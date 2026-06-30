@@ -93,7 +93,7 @@ const analysisProgressStages = [
 
 const ANALYSIS_STATUS_POLL_INTERVAL_MS = 2000;
 const ANALYSIS_STATUS_MAX_POLLS = 180;
-const ANALYSIS_DISPLAY_DURATION_MS = 45000; // Smooth progress target, not a forced wait.
+const ANALYSIS_DISPLAY_DURATION_MS = 120000; // Smooth progress target, not a forced wait.
 const ANALYSIS_MIN_VISIBLE_DURATION_MS = 2500;
 const BRAND_ASSETS_BUCKET = "brand-assets";
 const MAX_LOGO_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -148,10 +148,10 @@ function getSmoothAnalysisProgress(startedAt) {
   const ratio = elapsedMs / ANALYSIS_DISPLAY_DURATION_MS;
 
   if (ratio >= 1) {
-    return 99;
+    return 96;
   }
 
-  return Math.max(1, Math.min(99, ratio * 99));
+  return Math.max(1, Math.min(96, ratio * 96));
 }
 function getFriendlyAnalysisError(value) {
   const cleanError = String(value || "");

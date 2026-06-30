@@ -1,11 +1,11 @@
 import OpenAI from "openai";
 
 export const WEBSITE_FETCH_TIMEOUT_MS = 12000;
-export const WEBSITE_MAX_TEXT_CHARS = 12000;
+export const WEBSITE_MAX_TEXT_CHARS = 8000;
 export const WEBSITE_MAX_PRODUCT_SOURCE_PAGES = 1;
 export const WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS = 3000;
 export const WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS = 3000;
-export const MAX_CAMPAIGN_OPPORTUNITIES = 18;
+export const MAX_CAMPAIGN_OPPORTUNITIES = 12;
 
 export function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
@@ -1696,21 +1696,7 @@ Return JSON only in this exact shape:
       "engagement_score": 1,
       "recommended_post_count": 5,
       "campaign_angles": ["angle 1", "angle 2"],
-      "post_plan": [
-        {
-          "role": "Campaign post role",
-          "days_before_event": 14,
-          "scheduled_date": "YYYY-MM-DD or null, especially for date range campaigns",
-          "publish_time": "HH:MM in local time, chosen for this exact weekday, audience, post role and campaign type",
-          "timing_anchor": "before_start | start | middle | end | event | relationship_event | deadline_before_event | conversion_before_deadline",
-          "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main | relationship_event",
-          "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency | main",
-          "customer_stage": "cold | warm | ready_to_buy",
-          "cta_strength": "soft | medium | strong",
-          "purpose": "What this post should achieve in the campaign sequence",
-          "schedule_reason": "Why this exact date and time is strategically best for this business, campaign and post role"
-        }
-      ],
+      "post_plan": [],
       "prompt_context": "Reusable prompt context for generating posts later. Do not include finished post copy."
     }
   ]
@@ -1743,14 +1729,13 @@ Campaign selection quality gate:
 - Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
 - If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
 - The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
-- For broad ecommerce, retail and product-based businesses, returning only around 10 opportunities is usually under-generated unless the year has already passed or the business is unusually narrow. Prefer 15-20 strong opportunities when enough relevant moments exist.
+- For broad ecommerce, retail and product-based businesses, return a focused but useful set of the strongest upcoming opportunities. Prefer quality and speed over generating a huge calendar in this first analysis.
 
 Campaign quantity:
-- Return 15 to 20 campaign opportunities when the brand is ecommerce, retail, food, restaurant, beauty, fashion, gifts, local services, bookings, events, tourism, product-based, service-based or has strong seasonal/commercial potential.
-- For giftable, personalized, physical, visual or home/lifestyle products, include a strong mix of gift moments, seasonal moments, shopping moments, customer-life moments and industry-specific moments across the calendar year.
-- Return 12 to 20 campaign opportunities for most other businesses.
-- Return fewer than 10 only when the business is genuinely narrow, low-frequency, sensitive or has very limited safe marketing angles.
-- Never return more than 20.
+- Return 8 to 12 campaign opportunities for the first brand analysis.
+- For ecommerce, retail, gifts, services, bookings, food, beauty, fashion, product-based and seasonal businesses, use the higher end of that range when enough strong opportunities exist.
+- For narrow, sensitive or low-frequency businesses, return fewer only when that is clearly better.
+- Never return more than 12.
 
 Campaign timing:
 - Only create campaign opportunities for Calendar year ${campaignCalendarYear}.
@@ -1758,23 +1743,8 @@ Campaign timing:
 - If an opportunity cannot be placed inside this year, omit it.
 - For exact dated events, event_date must be YYYY-MM-DD.
 - For date ranges or seasons, use start_date and end_date.
-- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the main campaign date, final event date, or campaign end date. For date ranges, timing_anchor must explain where the post belongs: before_start, start, middle, conversion_window, deadline_before_event, relationship_event or end.
-- For date ranges/seasons, each post_plan item should include scheduled_date as YYYY-MM-DD whenever a specific date is strategically best. scheduled_date must be inside the campaign period, or shortly before start_date only when timing_anchor is before_start.
-- For date ranges/seasons, do not spread posts with mechanical equal intervals. Create a natural marketing rhythm: launch, early interest, proof/trust, decision window, deadline/closing or relationship close.
-- For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" or "deadline_before_event" so they are scheduled near the real action deadline, not randomly in the middle.
-- For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
-- For date ranges/seasons, distinguish the marketing period from the customer action deadline. The campaign may end on a cultural, seasonal or business moment, but conversion-focused posts must be placed when customers can still realistically act.
-- If the business offer requires production time, personalization, delivery, booking, reservation, installation, consultation, limited capacity or any other lead time, place product_push, offer and urgency posts before the realistic purchase/action deadline. The final day of the period should then be used for softer relationship, celebration, reminder, educational or brand-building content unless same-day action is realistic.
-- Do not rely on a single country-specific holiday template. Identify the correct local market moments first, then apply the same timing logic to any gift day, seasonal period, shopping moment, booking window, event period, local tradition or industry campaign.
-- The post_plan order must be chronological and strategically progressive: early value/inspiration first, engagement/trust in the middle, conversion before the deadline, and final relationship or closing content at the end when appropriate.
-- Avoid clustering most posts in the final few days unless the campaign is explicitly a short flash sale or same-day/instant-action event.
-- For gift campaigns, holiday campaigns, physical products, personalized products, handmade products, printed products, shipped products, booking services or anything with lead time, separate the cultural/event date from the realistic customer action deadline.
-- For these lead-time campaigns, use the final event date mainly for relationship, greeting, thank-you, celebration or brand warmth, not hard selling.
-- For these lead-time campaigns, choose the final sales/order/booking reminder based on the real buying deadline for this specific business, product, market and customer behavior. It may be several weeks before the event for long lead-time offers, or much closer for fast-action offers.
-- Do not use fixed day patterns. Decide the best number of posts, exact days_before_event values and publish_time values for each campaign as a senior performance-minded social media marketer would.
-- Each post_plan item must include publish_time in HH:MM local time. Choose the time based on weekday, audience behavior, campaign role, business category and whether the post is inspiration, engagement, trust, product discovery, product push, urgency or relationship-building.
-- Each post_plan item must include schedule_reason explaining why that specific date offset and time is the best strategic choice.
-- The code may validate or clamp impossible dates, but the AI plan should be the source of truth for the campaign sequence.
+- Do not generate detailed post_plan items during brand analysis. Always return post_plan as an empty array []. Spreelo creates the detailed post sequence later only when the user chooses a campaign.
+- recommended_post_count should still reflect how many posts the selected campaign should later create.
 - Use date_confidence as relevance strength, not proof that the campaign exists on the website: high = strong fit for this business/market, medium = plausible fit, low = weak or uncertain fit.
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 
@@ -1782,20 +1752,10 @@ Campaign strategy:
 - Every campaign must be genuinely useful for this business, industry, market and audience.
 - Every campaign must include a strategic campaign blueprint.
 - Every campaign should move the audience from interest to action.
+- Keep each campaign object compact. Do not create long schedule explanations or finished post copy in this analysis.
 - recommended_post_count must be between 1 and 10.
 - relevance_score, sales_score and engagement_score must be between 1 and 5.
-- The final post in post_plan should normally have days_before_event 0 only when it is appropriate to publish on the main date. If customers need lead time to buy, book or receive delivery, do not make the final date a hard sales push; use it for softer relationship-building content.
-- Earlier post_plan items should prepare the audience before the event.
-- Every post_plan item should include timing_anchor. For exact event_date campaigns use "event", "relationship_event", "deadline_before_event", "conversion_before_deadline" or "before_start". For start_date/end_date campaigns use "before_start", "start", "middle", "conversion_window", "deadline_before_event", "relationship_event" or "end" to control when the post should be scheduled.
-- For every post_plan item, write a role that sounds customer-facing and strategic, not generic. Avoid vague internal labels like "Campaign post" or "Warm-up post".
-- Do not make every post a reminder.
-- Do not make early posts too salesy.
-- Do not make final posts too vague.
 - Choose recommended_post_count from the actual campaign complexity and commercial value, not from a fixed template. A minor awareness moment may need 1-2 posts, a strong sales/booking period may need 3-5, and a major lead-time campaign may need 5-7.
-- Design the post_plan as a complete campaign sequence, not as separate random posts.
-- The sequence should normally move from awareness/inspiration to engagement/trust to product discovery/product push to urgency/deadline, with a softer relationship or celebration post at the end only when it is genuinely useful.
-- Do not force every campaign to include every stage. Use only the stages that make the campaign stronger.
-- Do not choose the same publish_time for every post. Vary times when a different time is strategically better for the weekday, audience and role of the post.
 
 Website product mode:
 - Set website_product_mode.available to true when the website appears product-based, ecommerce, retail, catalog-based, service-menu-based, bookable, listing-based, restaurant/menu-based, course/event-based or otherwise likely to contain concrete sellable/selectable website items. For obvious ecommerce/retail/product-catalog websites, prefer true even if the first fetched pages only show categories, campaign areas or navigation; concrete product pages are verified later during product-post generation.
@@ -1828,6 +1788,8 @@ Accuracy:
       },
     ],
     temperature: 0.2,
+    response_format: { type: "json_object" },
+    max_completion_tokens: 12000,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -1975,21 +1937,7 @@ Return JSON only in this exact shape:
       "engagement_score": 1,
       "recommended_post_count": 5,
       "campaign_angles": ["angle 1", "angle 2"],
-      "post_plan": [
-        {
-          "role": "Campaign post role",
-          "days_before_event": 14,
-          "scheduled_date": "YYYY-MM-DD or null, especially for date range campaigns",
-          "publish_time": "HH:MM in local time, chosen for this exact weekday, audience, post role and campaign type",
-          "timing_anchor": "before_start | start | middle | end | event | relationship_event | deadline_before_event | conversion_before_deadline",
-          "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main | relationship_event",
-          "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency | main",
-          "customer_stage": "cold | warm | ready_to_buy",
-          "cta_strength": "soft | medium | strong",
-          "purpose": "What this post should achieve in the campaign sequence",
-          "schedule_reason": "Why this exact date and time is strategically best for this business, campaign and post role"
-        }
-      ],
+      "post_plan": [],
       "prompt_context": "Reusable prompt context for generating posts later. Do not include finished post copy."
     }
   ]
@@ -2022,13 +1970,13 @@ Campaign selection quality gate:
 - Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
 - If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
 - The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
-- For broad ecommerce, retail and product-based businesses, returning only around 10 opportunities is usually under-generated unless the year has already passed or the business is unusually narrow. Prefer 15-20 strong opportunities when enough relevant moments exist.
+- For broad ecommerce, retail and product-based businesses, return a focused but useful set of the strongest upcoming opportunities. Prefer quality and speed over generating a huge calendar in this first analysis.
 
 Campaign quantity:
-- Return 15 to 20 campaign opportunities when the brand has strong seasonal/commercial potential.
-- Return 12 to 20 campaign opportunities for most other businesses.
-- Return fewer than 10 only when the business is genuinely narrow, low-frequency, sensitive or has very limited safe marketing angles.
-- Never return more than 20.
+- Return 8 to 12 campaign opportunities for the first brand analysis.
+- Use the higher end of that range when the brand has strong seasonal or commercial potential.
+- Return fewer only when the business is genuinely narrow, low-frequency, sensitive or has very limited safe marketing angles.
+- Never return more than 12.
 
 Campaign timing:
 - Only create campaign opportunities for Calendar year ${campaignCalendarYear}.
@@ -2036,23 +1984,8 @@ Campaign timing:
 - If an opportunity cannot be placed inside this year, omit it.
 - For exact dated events, event_date must be YYYY-MM-DD.
 - For date ranges or seasons, use start_date and end_date.
-- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the main campaign date, final event date, or campaign end date. For date ranges, timing_anchor must explain where the post belongs: before_start, start, middle, conversion_window, deadline_before_event, relationship_event or end.
-- For date ranges/seasons, each post_plan item should include scheduled_date as YYYY-MM-DD whenever a specific date is strategically best. scheduled_date must be inside the campaign period, or shortly before start_date only when timing_anchor is before_start.
-- For date ranges/seasons, do not spread posts with mechanical equal intervals. Create a natural marketing rhythm: launch, early interest, proof/trust, decision window, deadline/closing or relationship close.
-- For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" or "deadline_before_event" so they are scheduled near the real action deadline, not randomly in the middle.
-- For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
-- For date ranges/seasons, distinguish the marketing period from the customer action deadline. The campaign may end on a cultural, seasonal or business moment, but conversion-focused posts must be placed when customers can still realistically act.
-- If the business offer requires production time, personalization, delivery, booking, reservation, installation, consultation, limited capacity or any other lead time, place product_push, offer and urgency posts before the realistic purchase/action deadline. The final day of the period should then be used for softer relationship, celebration, reminder, educational or brand-building content unless same-day action is realistic.
-- Do not rely on a single country-specific holiday template. Identify the correct local market moments first, then apply the same timing logic to any gift day, seasonal period, shopping moment, booking window, event period, local tradition or industry campaign.
-- The post_plan order must be chronological and strategically progressive: early value/inspiration first, engagement/trust in the middle, conversion before the deadline, and final relationship or closing content at the end when appropriate.
-- Avoid clustering most posts in the final few days unless the campaign is explicitly a short flash sale or same-day/instant-action event.
-- For gift campaigns, holiday campaigns, physical products, personalized products, handmade products, printed products, shipped products, booking services or anything with lead time, separate the cultural/event date from the realistic customer action deadline.
-- For these lead-time campaigns, use the final event date mainly for relationship, greeting, thank-you, celebration or brand warmth, not hard selling.
-- For these lead-time campaigns, choose the final sales/order/booking reminder based on the real buying deadline for this specific business, product, market and customer behavior. It may be several weeks before the event for long lead-time offers, or much closer for fast-action offers.
-- Do not use fixed day patterns. Decide the best number of posts, exact days_before_event values and publish_time values for each campaign as a senior performance-minded social media marketer would.
-- Each post_plan item must include publish_time in HH:MM local time. Choose the time based on weekday, audience behavior, campaign role, business category and whether the post is inspiration, engagement, trust, product discovery, product push, urgency or relationship-building.
-- Each post_plan item must include schedule_reason explaining why that specific date offset and time is the best strategic choice.
-- The code may validate or clamp impossible dates, but the AI plan should be the source of truth for the campaign sequence.
+- Do not generate detailed post_plan items during brand analysis. Always return post_plan as an empty array []. Spreelo creates the detailed post sequence later only when the user chooses a campaign.
+- recommended_post_count should still reflect how many posts the selected campaign should later create.
 - Use date_confidence as relevance strength, not proof that the campaign exists on the website: high = strong fit for this business/market, medium = plausible fit, low = weak or uncertain fit.
 - If date is uncertain, use date_confidence "low" and prefer a date range.
 
@@ -2060,6 +1993,7 @@ Campaign strategy:
 - Every campaign must be genuinely useful for this business, industry, market and audience.
 - Every campaign must include a strategic campaign blueprint.
 - Every campaign should move the audience from interest to action.
+- Keep each campaign object compact. Do not create long schedule explanations or finished post copy in this analysis.
 - recommended_post_count must be between 1 and 10.
 - relevance_score, sales_score and engagement_score must be between 1 and 5.
 - Do not create finished social media posts.
@@ -2073,6 +2007,8 @@ Website-content rules:
       },
     ],
     temperature: 0.2,
+    response_format: { type: "json_object" },
+    max_completion_tokens: 12000,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -2396,13 +2332,9 @@ export async function runBrandAnalysisJob({
         progress: 25,
       });
 
-      const languageDetection = await detectWebsiteLanguageWithOpenAI({
-        openai,
-        websiteUrl: website.url,
-        html: website.html,
-      });
-
-      detectedWebsiteContentLanguage = languageDetection.language || "";
+      // Keep the first analysis fast: the main brand analysis prompt detects the
+      // customer-facing language, so we avoid a separate OpenAI request here.
+      detectedWebsiteContentLanguage = "";
     }
 
     const productSourceCandidates = [];
@@ -2410,7 +2342,7 @@ export async function runBrandAnalysisJob({
     await updateJob({
       status: "running",
       step: "creating_profile",
-      progress: 65,
+      progress: 45,
     });
 
     analysis = await analyzeWebsiteWithOpenAI({
