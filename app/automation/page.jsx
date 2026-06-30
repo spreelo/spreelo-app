@@ -208,11 +208,11 @@ const contentTypes = [
     label: "Website carousel",
     shortLabel: "Carousel",
     description:
-      "Turn one product, service, listing or offer from your website into a swipeable carousel draft.",
+      "Turn several relevant website products into a swipeable product collection, guide or campaign draft.",
     prompt:
-      "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website and create a swipeable carousel draft around it. The carousel should educate, build interest and end with a clear CTA. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
+      "Use the website URL from the brand profile. Identify several concrete products, services, listings, offers or other sellable items from the website and create a swipeable carousel draft around them. The carousel should feel like a curated collection, guide, comparison or campaign post with one clear shared theme. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
     imagePrompt:
-      "Use a relevant image connected to the selected website item if one can be found. Avoid logos, banners, hero images, decorative icons and unrelated images. If no clearly relevant product, service, listing or offer image can be found, keep the carousel draft image-light for now.",
+      "Use relevant images connected to the selected website items if they can be found. Avoid logos, banners, hero images, decorative icons and unrelated images. If enough verified item images cannot be found, stop instead of inventing products.",
     usesWebsiteContent: true,
     contentFormat: "carousel",
   },
@@ -449,27 +449,27 @@ const autoPlanStrategies = {
     label: "Sell more",
     contentTypeIds: [
       "website_item",
-      "website_item",
+      "carousel_website_item",
       "website_item",
       "tips",
-      "mistakes",
-      "behind_scenes",
+      "carousel_website_item",
+      "website_item",
       "faq",
     ],
-    imageCount: 4,
+    imageCount: 5,
   },
   get_followers: {
     label: "Reach more customers",
     contentTypeIds: [
       "tips",
+      "carousel_website_item",
       "checklist",
-      "myth_fact",
       "seasonal",
       "local",
       "comparison",
       "faq",
     ],
-    imageCount: 3,
+    imageCount: 4,
   },
   build_trust: {
     label: "Build trust",
@@ -477,38 +477,38 @@ const autoPlanStrategies = {
       "case_example",
       "behind_scenes",
       "faq",
-      "problem_solution",
+      "carousel_website_item",
       "service_focus",
       "case_example",
       "tips",
     ],
-    imageCount: 3,
+    imageCount: 4,
   },
   educate_customers: {
     label: "Give tips & advice",
     contentTypeIds: [
       "tips",
       "mini_guide",
-      "faq",
+      "carousel_website_item",
       "comparison",
       "mistakes",
       "checklist",
       "myth_fact",
     ],
-    imageCount: 2,
+    imageCount: 4,
   },
   stay_visible: {
     label: "Keep the account active",
     contentTypeIds: [
       "problem_solution",
       "tips",
-      "behind_scenes",
+      "carousel_website_item",
       "faq",
       "seasonal",
       "case_example",
       "local",
     ],
-    imageCount: 2,
+    imageCount: 4,
   },
 };
 
@@ -520,8 +520,9 @@ function getContentTypeById(typeId) {
   return contentTypes.find((type) => type.id === typeId) || null;
 }
 function getBrandSafeContentTypeId(typeId, websiteProductModeAvailable) {
-  if (typeId === "website_item" && !websiteProductModeAvailable) {
-    return "problem_solution";
+  if (!websiteProductModeAvailable) {
+    if (typeId === "website_item") return "problem_solution";
+    if (typeId === "carousel_website_item") return "mini_guide";
   }
 
   return typeId;
@@ -554,7 +555,7 @@ function getGoalContentTypeIds({
 }
 function getVisibleContentTypes(websiteProductModeAvailable) {
   return contentTypes.filter((type) => {
-    if (type.id === "website_item") {
+    if (["website_item", "carousel_website_item"].includes(type.id)) {
       return Boolean(websiteProductModeAvailable);
     }
 
@@ -3013,6 +3014,79 @@ function getCampaignSearchText(campaign) {
 function getCampaignProductSelectionHint(campaign) {
   return String(campaign?.website_product_selection_hint || "").trim();
 }
+
+function getCampaignFormatDecisionText(campaign, postPlanItem = null) {
+  return [
+    getCampaignStrategicText(campaign, postPlanItem),
+    campaign?.website_content_strategy,
+    campaign?.website_content_fit,
+    campaign?.title,
+    campaign?.description,
+    campaign?.campaign_goal,
+    campaign?.target_customer_need,
+    campaign?.product_selection_guidance,
+    campaign?.website_product_selection_hint,
+    postPlanItem?.role,
+    postPlanItem?.purpose,
+    postPlanItem?.marketing_angle,
+    postPlanItem?.campaign_phase,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function campaignHasProductWebsiteFit(campaign) {
+  const fit = String(campaign?.website_content_fit || "").toLowerCase();
+  const strategy = String(campaign?.website_content_strategy || "").toLowerCase();
+
+  return fit !== "weak" && ["product", "support"].includes(strategy);
+}
+
+function shouldUseCarouselForCampaignPost(campaign, postPlanItem = {}, index = 0, total = 1) {
+  if (!campaignHasProductWebsiteFit(campaign)) {
+    return false;
+  }
+
+  const intent = postPlanItem?.intended_intent || getCampaignPostIntent(postPlanItem, index, total);
+  const timingAnchor = String(postPlanItem?.timing_anchor || "").toLowerCase();
+  const text = getCampaignFormatDecisionText(campaign, postPlanItem);
+
+  if (intent === "event" || timingAnchor === "relationship_event") {
+    return false;
+  }
+
+  if (/last[_\s-]?chance|deadline|final|urgent|urgency|sista|slutlig/.test(text)) {
+    return false;
+  }
+
+  const strongCarouselSignals = /gift|gifts|present|presents|guide|ideas|idea|collection|favorites|favourites|top|best|compare|comparison|choose|choosing|selection|curated|bundle|range|assortment|theme|holiday|black friday|cyber monday|christmas|xmas|mother|father|halloween|back to school|sommar|summer|jul|mors dag|fars dag|presenter|gåvor|favoriter|utbud|kollektion|jämför|välj|guide/.test(text);
+
+  if (strongCarouselSignals && ["inspiration", "conversion", "middle", "engagement"].includes(intent)) {
+    return true;
+  }
+
+  if (total >= 4 && index === Math.max(1, Math.floor(total / 2)) && ["inspiration", "middle", "conversion"].includes(intent)) {
+    return true;
+  }
+
+  return false;
+}
+
+function getCampaignSlotContentTypeId(sourceMode) {
+  if (sourceMode === "website_carousel") return "carousel_website_item";
+  return "manual_prompt";
+}
+
+function getCampaignSlotContentFormat(sourceMode) {
+  if (sourceMode === "website_carousel") return "carousel";
+  return "single_image";
+}
+
+function getCampaignSlotContentTypeLabel(campaign, sourceMode) {
+  if (sourceMode === "website_carousel") return "Website carousel";
+  return campaign?.title || "Campaign post";
+}
 function getDaysBetweenDateStrings(startDateString, endDateString) {
   const startParts = getDatePartsFromDateString(startDateString);
   const endParts = getDatePartsFromDateString(endDateString);
@@ -3106,6 +3180,10 @@ function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
     return "generic_campaign";
   }
 
+  if (shouldUseCarouselForCampaignPost(campaign, postPlanItem, index, total)) {
+    return "website_carousel";
+  }
+
   if (websiteContentFit === "strong") {
     if (websiteContentStrategy === "product") {
       return isLaterCampaignPost
@@ -3184,7 +3262,7 @@ function shouldUseWebsiteContentForCampaign(sourceMode, campaign = null) {
     return false;
   }
 
-  return ["website_product", "website_service"].includes(sourceMode);
+  return ["website_product", "website_service", "website_carousel"].includes(sourceMode);
 }
 
 function getCampaignSourceInstruction(sourceMode, campaign = null) {
@@ -3204,6 +3282,10 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
 
   if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
     return "Do not use website products or services for this post. The website content match is weak, so keep the post focused on the campaign theme and audience value.";
+  }
+
+  if (sourceMode === "website_carousel") {
+    return `Create this as a website product carousel. Select several relevant products from the brand website that share one clear campaign theme. The product selection must follow the campaign context and product selection hint, such as gift recipient, holiday, seasonal need, customer stage or buying intent. Do not choose random unrelated products just because they exist. Use only product details that clearly exist on the website. Do not invent products, prices, discounts, stock, delivery promises or features. If at least five verified matching products with images cannot be found, the automation should stop with an error instead of silently creating a generic fallback.${productSelectionInstruction}`;
   }
 
   if (sourceMode === "website_product") {
@@ -3622,12 +3704,13 @@ function createCampaignSlotsFromOpportunity({
         prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
         generateImage: true,
-        contentTypeId: "manual_prompt",
-        contentTypeLabel: campaign?.title || "Campaign post",
+        contentTypeId: getCampaignSlotContentTypeId(contentSourceMode),
+        contentTypeLabel: getCampaignSlotContentTypeLabel(campaign, contentSourceMode),
         usesWebsiteContent: shouldUseWebsiteContentForCampaign(
           contentSourceMode,
           campaign
         ),
+        contentFormat: getCampaignSlotContentFormat(contentSourceMode),
         isCampaignSlot: true,
         campaignRole: enhancedPostPlanItem.role || "Campaign post",
         campaignSummary: buildCampaignSummary(
@@ -3695,12 +3778,13 @@ function createCampaignSlotsFromOpportunity({
         prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
         generateImage: true,
-        contentTypeId: "manual_prompt",
-        contentTypeLabel: campaign?.title || "Campaign post",
+        contentTypeId: getCampaignSlotContentTypeId(contentSourceMode),
+        contentTypeLabel: getCampaignSlotContentTypeLabel(campaign, contentSourceMode),
         usesWebsiteContent: shouldUseWebsiteContentForCampaign(
           contentSourceMode,
           campaign
         ),
+        contentFormat: getCampaignSlotContentFormat(contentSourceMode),
         isCampaignSlot: true,
         campaignRole: enhancedPostPlanItem.role || "Campaign post",
         campaignSummary: buildCampaignSummary(
@@ -3764,12 +3848,13 @@ function createCampaignSlotsFromOpportunity({
       prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
       imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
       generateImage: true,
-      contentTypeId: "manual_prompt",
-      contentTypeLabel: campaign?.title || "Campaign post",
+      contentTypeId: getCampaignSlotContentTypeId(contentSourceMode),
+      contentTypeLabel: getCampaignSlotContentTypeLabel(campaign, contentSourceMode),
       usesWebsiteContent: shouldUseWebsiteContentForCampaign(
         contentSourceMode,
         campaign
       ),
+      contentFormat: getCampaignSlotContentFormat(contentSourceMode),
       isCampaignSlot: true,
       campaignRole: enhancedPostPlanItem.role || "Campaign post",
       campaignSummary: buildCampaignSummary(
@@ -4904,12 +4989,13 @@ const fallbackStartDate =
       prompt: buildCampaignPrompt(campaignOpportunity, postPlanItem, nextIndex),
       imagePrompt: buildCampaignImagePrompt(campaignOpportunity, postPlanItem),
      generateImage: true,
-     contentTypeId: "manual_prompt",
-contentTypeLabel: campaignOpportunity.title || "Campaign post",
+     contentTypeId: getCampaignSlotContentTypeId(contentSourceMode),
+contentTypeLabel: getCampaignSlotContentTypeLabel(campaignOpportunity, contentSourceMode),
 usesWebsiteContent: shouldUseWebsiteContentForCampaign(
   contentSourceMode,
   campaignOpportunity
 ),
+contentFormat: getCampaignSlotContentFormat(contentSourceMode),
 isCampaignSlot: true,
 campaignRole: postPlanItem.role || "Campaign post",
 campaignSummary: buildCampaignSummary(
