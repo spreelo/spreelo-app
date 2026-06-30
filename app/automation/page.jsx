@@ -4780,6 +4780,28 @@ async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
   }
 }
 
+function getCalendarCampaignHandoffBrandId(campaignOpportunityId) {
+  if (typeof window === "undefined" || !campaignOpportunityId) {
+    return "";
+  }
+
+  try {
+    const raw = localStorage.getItem(CAMPAIGN_HANDOFF_STORAGE_KEY);
+    if (!raw) return "";
+
+    const parsed = JSON.parse(raw);
+    const campaign = parsed?.campaign || null;
+
+    if (!campaign?.id || campaign.id !== campaignOpportunityId) {
+      return "";
+    }
+
+    return parsed?.brandProfileId || campaign?.brand_profile_id || "";
+  } catch {
+    return "";
+  }
+}
+
 function clearCalendarCampaignHandoff() {
   if (typeof window === "undefined") return;
 
@@ -4800,28 +4822,32 @@ async function loadCampaignOpportunityIntoPlanner({
     return;
   }
 
-  const { data: campaignFromDatabase, error } = await supabase
+  const campaignFromHandoff = getCalendarCampaignHandoff(
+    campaignOpportunityId,
+    selectedBrandId
+  );
+
+  let campaignFromDatabase = null;
+  let campaignDatabaseError = null;
+
+  const databaseResult = await supabase
     .from("brand_campaign_opportunities")
     .select("*")
     .eq("id", campaignOpportunityId)
     .eq("user_id", currentUser.id)
     .eq("brand_profile_id", selectedBrandId)
-    .eq("is_active", true)
-    .eq("is_hidden", false)
-    .eq("is_archived", false)
     .maybeSingle();
 
-  const campaignFromHandoff = getCalendarCampaignHandoff(
-    campaignOpportunityId,
-    selectedBrandId
-  );
+  campaignFromDatabase = databaseResult.data || null;
+  campaignDatabaseError = databaseResult.error || null;
+
   const campaign = mergeCampaignOpportunitySources(
     campaignFromDatabase,
     campaignFromHandoff
   );
 
-  if (error && !campaign) {
-    setMessage(error.message);
+  if (campaignDatabaseError && !campaign) {
+    setMessage(campaignDatabaseError.message);
     return;
   }
 
@@ -4830,7 +4856,12 @@ async function loadCampaignOpportunityIntoPlanner({
     return;
   }
 
-  if (campaignFromDatabase && campaignFromHandoff) {
+  if (campaign.is_active === false || campaign.is_hidden === true || campaign.is_archived === true) {
+    setMessage(t("automation.errorCampaignNotFound"));
+    return;
+  }
+
+  if (campaignFromDatabase || campaignFromHandoff) {
     clearCalendarCampaignHandoff();
   }
 
@@ -5044,13 +5075,22 @@ const searchParams =
 const campaignOpportunityId = searchParams?.get("campaignOpportunityId") || "";
 const requestedBrandProfileId = searchParams?.get("brandProfileId") || "";
 const requestedPlanId = searchParams?.get("plan") || "";
+const handoffBrandProfileId = campaignOpportunityId
+  ? getCalendarCampaignHandoffBrandId(campaignOpportunityId)
+  : "";
+const preferredBrandProfileId = requestedBrandProfileId || handoffBrandProfileId;
+
+if (campaignOpportunityId) {
+  setPlanCreationMode("campaign");
+  setMessage("");
+}
 
 let selectedBrandId = "";
 
 try {
     selectedBrandId = await getCurrentBrandIdForUser(
     user,
-    requestedBrandProfileId
+    preferredBrandProfileId
   );
   setCurrentBrandId(selectedBrandId);
   await loadConnectedPlatformsForBrand(user.id, selectedBrandId);
