@@ -67,8 +67,28 @@ function formatScheduleType(value, t) {
   return t("dashboard.schedule.scheduled");
 }
 
+function getRulesFromContentPlan(plan) {
+  if (Array.isArray(plan?.rules) && plan.rules.length > 0) {
+    return plan.rules;
+  }
+
+  return plan ? [plan] : [];
+}
+
 function getPlanNextDate(rule) {
-  return rule?.next_run_at || rule?.run_date || null;
+  const rules = getRulesFromContentPlan(rule);
+  const futureDates = rules
+    .map((item) => item?.next_run_at)
+    .filter(Boolean)
+    .map((value) => new Date(value))
+    .filter((date) => Number.isFinite(date.getTime()) && date.getTime() > Date.now())
+    .sort((a, b) => a - b);
+
+  if (futureDates.length > 0) {
+    return futureDates[0].toISOString();
+  }
+
+  return rule?.next_run_at || rule?.run_date || rules[0]?.next_run_at || rules[0]?.run_date || null;
 }
 
 function isFutureDate(value) {
@@ -77,10 +97,13 @@ function isFutureDate(value) {
 }
 
 function getContentPlanStatus(rule, t) {
+  const rules = getRulesFromContentPlan(rule);
+  const hasWeeklyRule = rules.some((item) => item?.schedule_type === "weekly");
+  const hasActiveRule = rules.some((item) => item?.is_active);
   const nextDate = getPlanNextDate(rule);
 
-  if (rule?.schedule_type === "weekly") {
-    if (rule?.is_active) {
+  if (hasWeeklyRule) {
+    if (hasActiveRule) {
       return {
         key: "running",
         label: t("dashboard.planStatus.running"),
@@ -165,11 +188,80 @@ function formatPostKind(post, t) {
 }
 
 function formatPlanName(rule, t) {
-  if (rule?.name) return rule.name;
-  if (rule?.content_type_label) return rule.content_type_label;
-  if (rule?.post_type) return rule.post_type;
+  const rules = getRulesFromContentPlan(rule);
+  const firstRule = rules[0] || rule;
+
+  if (firstRule?.name) return firstRule.name;
+  if (firstRule?.content_type_label) return firstRule.content_type_label;
+  if (firstRule?.post_type) return firstRule.post_type;
 
   return t("dashboard.contentPlan");
+}
+
+function getContentPlanSummary(rule, t) {
+  const rules = getRulesFromContentPlan(rule);
+  const firstRule = rules[0] || rule;
+  const uniqueTypes = Array.from(
+    new Set(
+      rules
+        .map((item) => item?.content_type_label || item?.post_type)
+        .filter(Boolean)
+    )
+  );
+
+  const typeSummary = uniqueTypes.length
+    ? uniqueTypes.slice(0, 3).join(", ") + (uniqueTypes.length > 3 ? "…" : "")
+    : firstRule?.post_type || t("dashboard.post");
+
+  const countLabel =
+    rules.length > 1
+      ? t("dashboard.planPostCount", { count: rules.length })
+      : t("dashboard.planOnePost");
+
+  return `${firstRule?.platform || t("dashboard.platformNotSet")} · ${countLabel} · ${typeSummary}`;
+}
+
+function getContentPlanGroupKey(rule) {
+  const createdMinute = String(rule?.created_at || "").slice(0, 16);
+  const name = String(rule?.name || rule?.content_type_label || rule?.post_type || "").trim();
+  const platform = String(rule?.platform || "").trim();
+  const scheduleType = String(rule?.schedule_type || "").trim();
+
+  return [name, platform, scheduleType, createdMinute].join("|");
+}
+
+function groupContentPlans(rules = []) {
+  const groups = new Map();
+
+  rules.forEach((rule) => {
+    const key = getContentPlanGroupKey(rule);
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        ...rule,
+        id: key,
+        primary_rule_id: rule.id,
+        ruleIds: [],
+        rules: [],
+      });
+    }
+
+    const group = groups.get(key);
+    group.rules.push(rule);
+    group.ruleIds.push(rule.id);
+
+    const currentNext = getPlanNextDate(group);
+    const incomingNext = getPlanNextDate(rule);
+
+    if (incomingNext && (!currentNext || new Date(incomingNext) < new Date(currentNext))) {
+      group.next_run_at = incomingNext;
+      group.run_date = rule.run_date;
+    }
+
+    group.is_active = group.rules.some((item) => item.is_active);
+  });
+
+  return Array.from(groups.values());
 }
 
 function getCurrentMonthStart() {
@@ -454,7 +546,7 @@ export default function Home() {
 
   const upcomingRules = useMemo(() => {
     return activeRules
-      .filter((rule) => rule.next_run_at)
+      .filter((rule) => rule.next_run_at && isFutureDate(rule.next_run_at))
       .sort((a, b) => new Date(a.next_run_at) - new Date(b.next_run_at))
       .slice(0, 5);
   }, [activeRules]);
@@ -493,8 +585,7 @@ export default function Home() {
       : 0;
 
   const dashboardContentPlans = useMemo(() => {
-    return rules
-      .slice()
+    return groupContentPlans(rules)
       .sort((a, b) => {
         const [statusA, dateA] = getContentPlanSortScore(a);
         const [statusB, dateB] = getContentPlanSortScore(b);
@@ -543,7 +634,16 @@ export default function Home() {
   }
 
   async function deleteContentPlans(ruleIds) {
-    const ids = Array.from(new Set((ruleIds || []).filter(Boolean)));
+    const ids = Array.from(
+      new Set(
+        (ruleIds || [])
+          .filter(Boolean)
+          .flatMap((planId) => {
+            const plan = dashboardContentPlans.find((item) => item.id === planId);
+            return plan?.ruleIds?.length ? plan.ruleIds : [planId];
+          })
+      )
+    );
 
     if (ids.length === 0 || !currentBrandId) return;
 
@@ -1045,8 +1145,7 @@ export default function Home() {
                                   </span>
                                 </div>
                                 <p>
-                                  {rule.platform || t("dashboard.platformNotSet")} ·{" "}
-                                  {rule.content_type_label || rule.post_type || t("dashboard.post")}
+                                  {getContentPlanSummary(rule, t)}
                                 </p>
                               </div>
 
@@ -1056,7 +1155,7 @@ export default function Home() {
                               </div>
 
                               <div className="dashboard-plan-actions">
-                                <a href={`/automation?plan=${encodeURIComponent(rule.id)}`}>
+                                <a href={`/automation?plan=${encodeURIComponent(rule.primary_rule_id || rule.id)}`}>
                                   {t("dashboard.manage")}
                                 </a>
                                 <button

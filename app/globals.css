@@ -17722,3 +17722,45 @@ textarea.input,
   background: #15803d !important;
   opacity: 1;
 }
+
+/* Step 97: cleaner planner width and compact mobile schedule controls */
+.automation-page .wizard-layout {
+  max-width: 100%;
+}
+
+.automation-page .wizard-main {
+  min-width: 0;
+}
+
+@media (min-width: 1180px) {
+  .automation-page .wizard-layout {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+}
+
+@media (max-width: 760px) {
+  .automation-page .planner-post-mainline {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .automation-page .planner-post-date,
+  .automation-page .planner-post-time,
+  .automation-page .planner-post-format,
+  .automation-page .planner-post-actions {
+    grid-column: 2;
+    width: 100%;
+  }
+
+  .automation-page .planner-post-format,
+  .automation-page .planner-post-actions {
+    display: inline-flex;
+    width: auto;
+    justify-self: start;
+  }
+
+  .automation-page .planner-post-actions {
+    margin-top: -4px;
+  }
+}

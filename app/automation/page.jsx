@@ -1032,6 +1032,12 @@ function buildSmartPostingCandidates({
     ];
 
     for (const publishTime of publishTimes) {
+      const candidateIso = getOneTimeRunAtIso(candidateDate, publishTime, timeZone);
+
+      if (candidateIso && new Date(candidateIso).getTime() <= Date.now()) {
+        continue;
+      }
+
       candidates.push({
         startDate: candidateDate,
         weekday,
@@ -1053,6 +1059,36 @@ function buildSmartPostingCandidates({
       `${b.startDate} ${b.publishTime}`
     );
   });
+}
+
+function getFirstFuturePostingCandidate({
+  startDate,
+  publishTime,
+  timeZone = DEFAULT_TIME_ZONE,
+  maxDays = 30,
+}) {
+  const safeStartDate = startDate || getDateInputValueInTimeZone(new Date(), timeZone);
+  const safePublishTime = normalizeTime(publishTime || "10:30");
+
+  for (let dayOffset = 0; dayOffset <= maxDays; dayOffset += 1) {
+    const candidateDate = addDaysToDateString(safeStartDate, dayOffset);
+    const candidateIso = getOneTimeRunAtIso(candidateDate, safePublishTime, timeZone);
+
+    if (candidateIso && new Date(candidateIso).getTime() > Date.now()) {
+      return {
+        startDate: candidateDate,
+        weekday: getWeekdayFromDateString(candidateDate, timeZone),
+        publishTime: safePublishTime,
+      };
+    }
+  }
+
+  const fallbackDate = addDaysToDateString(safeStartDate, 1);
+  return {
+    startDate: fallbackDate,
+    weekday: getWeekdayFromDateString(fallbackDate, timeZone),
+    publishTime: safePublishTime,
+  };
 }
 
 function buildSmartSlotSchedule({
@@ -1132,11 +1168,11 @@ function buildSmartSlotSchedule({
       const fallbackDate = addDaysToDateString(startDate, index);
       const fallbackWeekday = getWeekdayFromDateString(fallbackDate, timeZone);
 
-      selectedCandidate = {
+      selectedCandidate = getFirstFuturePostingCandidate({
         startDate: fallbackDate,
-        weekday: fallbackWeekday,
         publishTime: getRecommendedTimeForWeekday(fallbackWeekday),
-      };
+        timeZone,
+      });
     }
 
     const selectedSlotKey = `${selectedCandidate.startDate}-${selectedCandidate.publishTime}`;
@@ -4685,7 +4721,7 @@ if (!selectedBrandId) {
 
 const { data: brandProfileData, error: brandProfileError } = await supabase
   .from("brand_profiles")
-  .select("id, website_product_mode_available, logo_url, logo_enabled_by_default")
+  .select("id, business_name, website_product_mode_available, logo_url, logo_enabled_by_default")
   .eq("id", selectedBrandId)
   .eq("user_id", user.id)
   .maybeSingle();
@@ -4769,7 +4805,8 @@ const { data, error } = await supabase
         const requestedRule = sortedRules.find((rule) => rule.id === requestedPlanId);
 
         if (requestedRule) {
-          loadExistingAutomationRuleIntoPlanner(requestedRule);
+          const requestedRuleGroup = getAutomationRuleGroup(sortedRules, requestedRule);
+          loadExistingAutomationRuleGroupIntoPlanner(requestedRuleGroup);
         }
       }
     }
@@ -5458,6 +5495,105 @@ const { error } = await supabase
     await deleteRulesByIds([ruleId]);
   }
 
+  function getAutomationRuleGroupKey(rule) {
+    const createdMinute = String(rule?.created_at || "").slice(0, 16);
+    const name = String(rule?.name || "").trim();
+    const platformValue = String(rule?.platform || "").trim();
+    const scheduleValue = String(rule?.schedule_type || "").trim();
+
+    return [name, platformValue, scheduleValue, createdMinute].join("|");
+  }
+
+  function getAutomationRuleGroup(rulesToSearch, selectedRule) {
+    if (!selectedRule?.id) return [];
+
+    const selectedKey = getAutomationRuleGroupKey(selectedRule);
+
+    return (rulesToSearch || [])
+      .filter((rule) => getAutomationRuleGroupKey(rule) === selectedKey)
+      .sort((a, b) =>
+        `${a.run_date || ""} ${a.publish_time || ""}`.localeCompare(
+          `${b.run_date || ""} ${b.publish_time || ""}`
+        )
+      );
+  }
+
+  function loadExistingAutomationRuleGroupIntoPlanner(ruleGroup) {
+    const groupedRules = (ruleGroup || []).filter(Boolean);
+
+    if (groupedRules.length <= 1) {
+      loadExistingAutomationRuleIntoPlanner(groupedRules[0]);
+      return;
+    }
+
+    const firstRule = groupedRules[0];
+    const selectedTimeZone = firstRule.timezone || timeZone || DEFAULT_TIME_ZONE;
+    const firstStartDate =
+      firstRule.run_date ||
+      getDateInputValueInTimeZone(
+        firstRule.next_run_at ? new Date(firstRule.next_run_at) : new Date(),
+        selectedTimeZone
+      );
+
+    setEditingRuleId("");
+    setSavedPlanSummary(null);
+    setMessage("");
+    setCampaignOpportunity(null);
+    setPlanCreationMode("auto");
+    setPlanName(firstRule.name || "");
+    setPlatform(firstRule.platform || "");
+    setTone(firstRule.tone || "Friendly");
+    setLanguage(firstRule.language || "Auto");
+    setPostType(firstRule.post_type || "Offer");
+    setLength(firstRule.length || "Medium");
+    setCtaType(firstRule.cta_type || "Learn more");
+    setScheduleType(firstRule.schedule_type || "weekly");
+    setTimeZone(selectedTimeZone);
+    setPlanStartDate(firstStartDate);
+    setDefaultPublishTime(normalizeTime(firstRule.publish_time || defaultPublishTime));
+    setAutoPlanGoal("");
+
+    const preparedSlots = groupedRules.map((rule) => {
+      const ruleStartDate =
+        rule.run_date ||
+        getDateInputValueInTimeZone(
+          rule.next_run_at ? new Date(rule.next_run_at) : new Date(),
+          selectedTimeZone
+        );
+      const contentType = getContentTypeById(rule.content_type_id);
+      const contentTypeId = contentType?.id || rule.content_type_id || "manual_prompt";
+
+      return createSlot({
+        startDate: ruleStartDate,
+        weekday: rule.weekday || getWeekdayFromDateString(ruleStartDate, selectedTimeZone),
+        publishTime: normalizeTime(rule.publish_time || defaultPublishTime),
+        prompt: rule.prompt || contentType?.prompt || "",
+        imagePrompt: rule.image_prompt || contentType?.imagePrompt || "",
+        generateImage: Boolean(rule.generate_image),
+        includeEmojis: rule.include_emojis !== false,
+        includeHashtags: rule.include_hashtags !== false,
+        includeLogo: typeof rule.include_logo === "boolean" ? rule.include_logo : null,
+        contentTypeId,
+        contentTypeLabel:
+          rule.content_type_label || contentType?.label || rule.post_type || "Manual prompt",
+        usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
+        contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
+        timeZone: selectedTimeZone,
+      });
+    });
+
+    setSelectedContentTypeIds(preparedSlots.map((slot) => slot.contentTypeId).filter(Boolean));
+    setSlots(preparedSlots);
+
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        document
+          .querySelector(".planner-primary-builder")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }
+
   function loadExistingAutomationRuleIntoPlanner(rule) {
     if (!rule?.id) return;
 
@@ -5583,6 +5719,25 @@ if (!selectedBrandId) {
 setCurrentBrandId(selectedBrandId);
 
 const selectedTimeZone = timeZone || DEFAULT_TIME_ZONE;
+const sortedPlanSlots = slots
+  .slice()
+  .sort((a, b) =>
+    `${a.startDate || ""} ${a.publishTime || ""}`.localeCompare(
+      `${b.startDate || ""} ${b.publishTime || ""}`
+    )
+  );
+const firstPlanSlot = sortedPlanSlots[0];
+const selectedGoalLabel = autoPlanGoal ? plannerGoalCopy[autoPlanGoal]?.label : "";
+const sharedGeneratedPlanName =
+  planName.trim() ||
+  [
+    selectedGoalLabel || t("automation.contentPlan"),
+    firstPlanSlot?.startDate
+      ? formatStartDateLabel(firstPlanSlot.startDate, selectedTimeZone, locale)
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
 const rows = slots.map((slot) => {
       const slotWeekday = getWeekdayFromDateString(
@@ -5593,10 +5748,7 @@ const rows = slots.map((slot) => {
       return {
         user_id: user.id,
         brand_profile_id: selectedBrandId,
-        name:
-          planName ||
-          slot.contentTypeLabel ||
-          `${slotWeekday} ${slot.publishTime}`,
+        name: sharedGeneratedPlanName,
         weekday: slotWeekday,
         publish_time: slot.publishTime,
         prompt:
@@ -5722,7 +5874,7 @@ ${slot.campaignSummary}`
       setMessage("");
 
       setSavedPlanSummary({
-        name: planName.trim() || t("automation.contentPlan"),
+        name: sharedGeneratedPlanName,
         totalPosts: rows.length,
         scheduleType,
         postsPerWeek: scheduleType === "weekly" ? rows.length : null,
@@ -5796,7 +5948,9 @@ setRules((currentRules) =>
     <h2>
       {campaignOpportunity
         ? `Create campaign: ${campaignOpportunity.title}`
-        : t("automation.heroSmartTitle")}
+        : t("automation.heroSmartTitleWithBrand", {
+            brandName: currentBrandProfile?.business_name || t("automation.yourBusiness"),
+          })}
     </h2>
     <p>
       {campaignOpportunity
