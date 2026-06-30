@@ -93,7 +93,8 @@ const analysisProgressStages = [
 
 const ANALYSIS_STATUS_POLL_INTERVAL_MS = 2000;
 const ANALYSIS_STATUS_MAX_POLLS = 180;
-const ANALYSIS_DISPLAY_DURATION_MS = 210000; // 3.5 minutes
+const ANALYSIS_DISPLAY_DURATION_MS = 45000; // Smooth progress target, not a forced wait.
+const ANALYSIS_MIN_VISIBLE_DURATION_MS = 2500;
 const BRAND_ASSETS_BUCKET = "brand-assets";
 const MAX_LOGO_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_LOGO_FILE_TYPES = new Set([
@@ -698,7 +699,7 @@ export default function BrandProfile() {
       
             if (job.status === "completed") {
         const remainingMs =
-          ANALYSIS_DISPLAY_DURATION_MS - (Date.now() - displayStartedAt);
+          ANALYSIS_MIN_VISIBLE_DURATION_MS - (Date.now() - displayStartedAt);
 
         if (remainingMs > 0) {
           await sleep(remainingMs);

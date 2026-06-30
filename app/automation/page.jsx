@@ -4852,11 +4852,22 @@ async function loadCampaignOpportunityIntoPlanner({
     defaultPublishTime: campaignPublishTime,
   });
 
-  if (!campaignSlots.length && campaign.event_date) {
+  if (!campaignSlots.length) {
+    const fallbackDate =
+      campaign.event_date ||
+      campaign.start_date ||
+      campaign.end_date ||
+      campaignStartDate;
+
     const fallbackCampaign = normalizeCampaignOpportunityForPlanner({
       ...campaign,
-      start_date: campaign.event_date,
-      end_date: campaign.event_date,
+      event_date:
+        campaign.event_date ||
+        (campaign.start_date && campaign.end_date && campaign.start_date === campaign.end_date
+          ? campaign.start_date
+          : null),
+      start_date: campaign.start_date || fallbackDate,
+      end_date: campaign.end_date || campaign.start_date || fallbackDate,
       post_plan: buildFallbackCampaignPlan(
         getCampaignRecommendedPostCount(campaign, 5)
       ),
@@ -4866,6 +4877,77 @@ async function loadCampaignOpportunityIntoPlanner({
       campaign: fallbackCampaign,
       timeZone: campaignTimeZone,
       defaultPublishTime: campaignPublishTime,
+    });
+  }
+
+  if (!campaignSlots.length) {
+    const emergencyPostPlan = buildFallbackCampaignPlan(
+      getCampaignRecommendedPostCount(campaign, 3)
+    );
+    const emergencySchedule = buildSmartSlotSchedule({
+      startDate: campaignStartDate,
+      count: emergencyPostPlan.length,
+      timeZone: campaignTimeZone,
+      firstPublishTime: campaignPublishTime,
+    });
+
+    campaignSlots = emergencyPostPlan.map((postPlanItem, index) => {
+      const schedule = emergencySchedule[index] || {
+        startDate: campaignStartDate,
+        weekday: getWeekdayFromDateString(campaignStartDate, campaignTimeZone),
+        publishTime: campaignPublishTime,
+      };
+      const enhancedPostPlanItem = buildCampaignPostPlanItem({
+        campaign,
+        postPlanItem,
+        index,
+        total: emergencyPostPlan.length,
+        daysBeforeEvent: null,
+        timingAnchor: null,
+      });
+      const contentSourceMode = getCampaignContentSourceMode(
+        campaign,
+        enhancedPostPlanItem,
+        index,
+        emergencyPostPlan.length
+      );
+
+      enhancedPostPlanItem.content_source_mode = contentSourceMode;
+
+      return createSlot({
+        startDate: schedule.startDate,
+        weekday: schedule.weekday,
+        publishTime: schedule.publishTime,
+        prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
+        imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem, index),
+        generateImage: true,
+        contentTypeId: getCampaignSlotContentTypeId(contentSourceMode),
+        contentTypeLabel: getCampaignSlotContentTypeLabel(campaign, contentSourceMode),
+        usesWebsiteContent: shouldUseWebsiteContentForCampaign(
+          contentSourceMode,
+          campaign
+        ),
+        contentFormat: getCampaignSlotContentFormat(contentSourceMode),
+        isCampaignSlot: true,
+        campaignRole: enhancedPostPlanItem.role || "Campaign post",
+        campaignSummary: buildCampaignSummary(
+          campaign,
+          enhancedPostPlanItem,
+          index
+        ),
+        campaignPhase: enhancedPostPlanItem.campaign_phase || "",
+        marketingAngle: enhancedPostPlanItem.marketing_angle || "",
+        customerStage: enhancedPostPlanItem.customer_stage || "",
+        ctaStrength: enhancedPostPlanItem.cta_strength || "",
+        campaignPostIndex: enhancedPostPlanItem.campaign_post_index || index + 1,
+        campaignPostCount:
+          enhancedPostPlanItem.campaign_post_count || emergencyPostPlan.length,
+        campaignGoal: enhancedPostPlanItem.campaign_goal || "",
+        targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
+        strategyNotes: enhancedPostPlanItem.strategy_notes || "",
+        dateLocked: true,
+        timeZone: campaignTimeZone,
+      });
     });
   }
 
@@ -4879,7 +4961,7 @@ async function loadCampaignOpportunityIntoPlanner({
   setCtaType("Learn more");
   setPlanStartDate(campaignSlots[0]?.startDate || campaignStartDate);
   setDefaultPublishTime(campaignPublishTime);
-    setSlots(campaignSlots);
+  setSlots(campaignSlots);
   setExpandedInstructionSlotIds([]);
   setSavedPlanSummary(null);
   setMessage("");
