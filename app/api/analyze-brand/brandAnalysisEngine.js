@@ -1378,21 +1378,61 @@ function buildStrategicCampaignOpportunitySet({
   opportunities,
   campaignCalendarYear,
   currentDate,
+  contentLanguage = "",
+  websiteProductMode = null,
 }) {
   const normalizedSource = normalizeCampaignOpportunities(
     Array.isArray(opportunities) ? opportunities : [],
     campaignCalendarYear
-  );
+  ).filter((opportunity) => isOpportunityUpcomingOnDate(opportunity, currentDate));
 
-  // Step 99b: keep the campaign calendar AI-led. Do not inject a fixed
-  // market/calendar base here, because that can make international calendars
-  // culturally wrong. The AI analysis is responsible for selecting the best
-  // local holidays, shopping moments, seasonal periods and industry campaigns.
-  // This post-processing only removes past/out-of-year/duplicate items and caps
-  // the list so brand analysis stays fast and predictable.
-  return normalizedSource
-    .filter((opportunity) => isOpportunityUpcomingOnDate(opportunity, currentDate))
-    .slice(0, MAX_CAMPAIGN_OPPORTUNITIES);
+  const fixedDateCount = normalizedSource.filter((opportunity) =>
+    Boolean(opportunity.event_date)
+  ).length;
+
+  const shouldSupplementProductCalendar =
+    Boolean(websiteProductMode?.available) &&
+    (normalizedSource.length < 10 || fixedDateCount < 3);
+
+  const supplementalOpportunities = shouldSupplementProductCalendar
+    ? normalizeCampaignOpportunities(
+        buildFallbackProductCampaignOpportunities({
+          campaignCalendarYear,
+          currentDate,
+          contentLanguage,
+        }),
+        campaignCalendarYear
+      ).filter((opportunity) => isOpportunityUpcomingOnDate(opportunity, currentDate))
+    : [];
+
+  const selected = [];
+  const usedSlugs = new Set();
+
+  function addOpportunity(opportunity) {
+    if (!opportunity || selected.length >= MAX_CAMPAIGN_OPPORTUNITIES) return;
+    const slug = opportunity.slug || slugify(opportunity.title);
+    if (!slug || usedSlugs.has(slug)) return;
+    usedSlugs.add(slug);
+    selected.push(opportunity);
+  }
+
+  // Keep AI-chosen campaigns first, but do not ship a thin calendar when the
+  // brand is clearly product/retail/service based and the AI under-selected
+  // concrete dated opportunities. The supplement is a safety net, not the main
+  // strategy, and is still filtered to the chosen calendar year and future dates.
+  normalizedSource.forEach(addOpportunity);
+
+  supplementalOpportunities
+    .sort((a, b) => {
+      const fixedScoreA = a.event_date ? 2 : 0;
+      const fixedScoreB = b.event_date ? 2 : 0;
+      const scoreA = fixedScoreA + Number(a.sales_score || 0) + Number(a.relevance_score || 0);
+      const scoreB = fixedScoreB + Number(b.sales_score || 0) + Number(b.relevance_score || 0);
+      return scoreB - scoreA;
+    })
+    .forEach(addOpportunity);
+
+  return selected.slice(0, MAX_CAMPAIGN_OPPORTUNITIES);
 }
 
 export function normalizeCampaignOpportunities(rawOpportunities, fallbackYear) {
@@ -1729,23 +1769,22 @@ Campaign selection quality gate:
 - Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
 - If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
 - The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
-- Do not let evergreen/custom campaigns crowd out stronger fixed-date or clearly timed local opportunities. When the business has gift, retail, ecommerce, food, beauty, fashion, service, booking, seasonal or product potential, exact-date holidays/theme days/shopping days that genuinely fit the business should normally be included before generic year-round ideas.
-- A good first calendar should usually contain a healthy mix: exact-date moments, date-range campaigns and a few evergreen/custom campaigns only when they are clearly grounded in the business.
 - For broad ecommerce, retail and product-based businesses, return a focused but useful set of the strongest upcoming opportunities. Prefer quality and speed over generating a huge calendar in this first analysis.
 
 Campaign quantity:
-- Return 8 to 12 campaign opportunities for the first brand analysis.
-- For ecommerce, retail, gifts, services, bookings, food, beauty, fashion, product-based and seasonal businesses, use the higher end of that range when enough strong opportunities exist.
-- For narrow, sensitive or low-frequency businesses, return fewer only when that is clearly better.
+- Return 10 to 12 campaign opportunities for the first brand analysis when the business has clear commercial, seasonal, retail, gift, ecommerce, service, booking, restaurant, food, beauty, fashion or product-based potential.
+- Return 8 to 9 only when the business is genuinely narrow, low-frequency, sensitive or has limited safe marketing angles.
+- Do not return only 5-6 opportunities for normal retail/ecommerce/product/service businesses. That feels unfinished.
 - Never return more than 12.
 
 Campaign timing:
-- Prioritize exact dated opportunities when they are relevant and culturally correct for the selected/inferred market. Examples include local gift days, national holidays, theme days, shopping days and culturally important seasonal dates. Do not invent exact dates; if unsure, use a date range and low date_confidence.
 - Only create campaign opportunities for Calendar year ${campaignCalendarYear}.
 - Every event_date, start_date and end_date must be inside Calendar year ${campaignCalendarYear}.
 - If an opportunity cannot be placed inside this year, omit it.
 - For exact dated events, event_date must be YYYY-MM-DD.
 - For date ranges or seasons, use start_date and end_date.
+- A healthy calendar should normally include several fixed-date opportunities when the market and business make them relevant. For giftable, retail, ecommerce, food, fashion, beauty, local service or product-based businesses, include relevant fixed local dates such as local Mother's Day, Father's Day, Valentine's Day, Christmas date(s), Halloween, Singles Day, national/local shopping days or culturally relevant holidays when they fit.
+- Do not replace obvious relevant fixed-date opportunities with broad evergreen campaigns. Evergreen/custom campaigns may supplement the calendar, not dominate it.
 - Do not generate detailed post_plan items during brand analysis. Always return post_plan as an empty array []. Spreelo creates the detailed post sequence later only when the user chooses a campaign.
 - recommended_post_count should still reflect how many posts the selected campaign should later create.
 - Use date_confidence as relevance strength, not proof that the campaign exists on the website: high = strong fit for this business/market, medium = plausible fit, low = weak or uncertain fit.
@@ -1973,23 +2012,22 @@ Campaign selection quality gate:
 - Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
 - If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
 - The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
-- Do not let evergreen/custom campaigns crowd out stronger fixed-date or clearly timed local opportunities. When the business has gift, retail, ecommerce, food, beauty, fashion, service, booking, seasonal or product potential, exact-date holidays/theme days/shopping days that genuinely fit the business should normally be included before generic year-round ideas.
-- A good first calendar should usually contain a healthy mix: exact-date moments, date-range campaigns and a few evergreen/custom campaigns only when they are clearly grounded in the business.
 - For broad ecommerce, retail and product-based businesses, return a focused but useful set of the strongest upcoming opportunities. Prefer quality and speed over generating a huge calendar in this first analysis.
 
 Campaign quantity:
-- Return 8 to 12 campaign opportunities for the first brand analysis.
-- Use the higher end of that range when the brand has strong seasonal or commercial potential.
-- Return fewer only when the business is genuinely narrow, low-frequency, sensitive or has very limited safe marketing angles.
+- Return 10 to 12 campaign opportunities for the first brand analysis when the business has clear commercial, seasonal, retail, gift, ecommerce, service, booking, restaurant, food, beauty, fashion or product-based potential.
+- Return 8 to 9 only when the business is genuinely narrow, low-frequency, sensitive or has limited safe marketing angles.
+- Do not return only 5-6 opportunities for normal retail/ecommerce/product/service businesses. That feels unfinished.
 - Never return more than 12.
 
 Campaign timing:
-- Prioritize exact dated opportunities when they are relevant and culturally correct for the selected/inferred market. Examples include local gift days, national holidays, theme days, shopping days and culturally important seasonal dates. Do not invent exact dates; if unsure, use a date range and low date_confidence.
 - Only create campaign opportunities for Calendar year ${campaignCalendarYear}.
 - Every event_date, start_date and end_date must be inside Calendar year ${campaignCalendarYear}.
 - If an opportunity cannot be placed inside this year, omit it.
 - For exact dated events, event_date must be YYYY-MM-DD.
 - For date ranges or seasons, use start_date and end_date.
+- A healthy calendar should normally include several fixed-date opportunities when the market and business make them relevant. For giftable, retail, ecommerce, food, fashion, beauty, local service or product-based businesses, include relevant fixed local dates such as local Mother's Day, Father's Day, Valentine's Day, Christmas date(s), Halloween, Singles Day, national/local shopping days or culturally relevant holidays when they fit.
+- Do not replace obvious relevant fixed-date opportunities with broad evergreen campaigns. Evergreen/custom campaigns may supplement the calendar, not dominate it.
 - Do not generate detailed post_plan items during brand analysis. Always return post_plan as an empty array []. Spreelo creates the detailed post sequence later only when the user chooses a campaign.
 - recommended_post_count should still reflect how many posts the selected campaign should later create.
 - Use date_confidence as relevance strength, not proof that the campaign exists on the website: high = strong fit for this business/market, medium = plausible fit, low = weak or uncertain fit.

@@ -3363,7 +3363,6 @@ function shouldUseCarouselForCampaignPost(campaign, postPlanItem = {}, index = 0
 
 function getCampaignSlotContentTypeId(sourceMode) {
   if (sourceMode === "website_carousel") return "carousel_website_item";
-  if (sourceMode === "website_product" || sourceMode === "website_service") return "website_item";
   return "manual_prompt";
 }
 
@@ -3374,10 +3373,6 @@ function getCampaignSlotContentFormat(sourceMode) {
 
 function getCampaignSlotContentTypeLabel(campaign, sourceMode) {
   if (sourceMode === "website_carousel") return "Website carousel";
-  if (sourceMode === "website_product") return "Website product";
-  if (sourceMode === "website_service") return "Website service";
-  if (sourceMode === "ai_image_overlay") return "AI image with overlay";
-  if (sourceMode === "ai_image_text") return "AI image with text";
   return campaign?.title || "Campaign post";
 }
 function getDaysBetweenDateStrings(startDateString, endDateString) {
@@ -3451,20 +3446,6 @@ function getCampaignScheduleFactText(campaign, postPlanItem = {}) {
 }
 
 function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
-  const explicitSourceMode = String(postPlanItem?.content_source_mode || "").trim();
-
-  if ([
-    "generic_campaign",
-    "mixed_campaign_and_website",
-    "website_product",
-    "website_service",
-    "website_carousel",
-    "ai_image_overlay",
-    "ai_image_text",
-  ].includes(explicitSourceMode)) {
-    return explicitSourceMode;
-  }
-
   const websiteContentFit = String(
     campaign?.website_content_fit || ""
   ).toLowerCase();
@@ -4927,42 +4908,92 @@ function summarizeCampaignForDebug(campaign) {
 }
 
 
+function getFocusedCampaignWindowDays(count, totalRangeDays) {
+  const safeCount = Math.min(Math.max(Math.round(Number(count) || 1), 1), 7);
 
-async function requestStrategicCampaignPlanFromApi({
-  campaignOpportunityId,
-  brandProfileId,
+  // Broad/evergreen campaigns should become a focused campaign push, not a few
+  // random posts spread across months. Seasonal windows can use more of their
+  // real range, but still keep the sequence tight enough to feel intentional.
+  if (totalRangeDays >= 120) {
+    if (safeCount <= 2) return 10;
+    if (safeCount <= 3) return 16;
+    if (safeCount <= 4) return 21;
+    if (safeCount <= 5) return 28;
+    return 35;
+  }
+
+  if (totalRangeDays >= 45) {
+    return Math.min(totalRangeDays, safeCount <= 3 ? 18 : safeCount <= 5 ? 30 : 42);
+  }
+
+  if (totalRangeDays >= 14) {
+    return Math.min(totalRangeDays, Math.max(10, safeCount * 6));
+  }
+
+  return Math.max(totalRangeDays, safeCount <= 2 ? 5 : safeCount * 3);
+}
+
+function buildFocusedRangeCampaignSchedule({
+  campaign,
+  postPlan,
   timeZone = DEFAULT_TIME_ZONE,
+  defaultPublishTime = "09:00",
 }) {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
+  const count = postPlan.length;
+  const rawStartDate = campaign?.start_date || todayDateString;
+  const rawEndDate = campaign?.end_date || "";
+  const safeStartDate = getLaterDateString(rawStartDate, todayDateString);
+  const rangeEndDate = rawEndDate
+    ? getLaterDateString(rawEndDate, safeStartDate)
+    : addDaysToDateString(safeStartDate, getFocusedCampaignWindowDays(count, 999));
+  const totalRangeDays = Math.max(getDaysBetweenDateStrings(safeStartDate, rangeEndDate) || 0, 0);
+  const focusedWindowDays = getFocusedCampaignWindowDays(count, totalRangeDays);
+  const focusedEndDate = getLaterDateString(
+    totalRangeDays > focusedWindowDays
+      ? addDaysToDateString(safeStartDate, focusedWindowDays)
+      : rangeEndDate,
+    safeStartDate
+  );
+  const usableDays = Math.max(getDaysBetweenDateStrings(safeStartDate, focusedEndDate) || 0, 0);
 
-  const accessToken = session?.access_token;
-
-  if (!accessToken) {
-    throw new Error("Missing active session for campaign planning.");
+  if (count <= 1) {
+    return [
+      {
+        startDate: safeStartDate,
+        weekday: getWeekdayFromDateString(safeStartDate, timeZone),
+        publishTime: defaultPublishTime,
+        postPlanItem: postPlan[0] || {},
+      },
+    ];
   }
 
-  const response = await fetch("/api/plan-campaign", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      campaignOpportunityId,
-      brandProfileId,
-      timeZone,
-    }),
+  const preferredTimesByAngle = {
+    awareness: "08:15",
+    engagement: "17:30",
+    product_discovery: "12:10",
+    product_push: "12:10",
+    trust: "17:30",
+    offer: "12:10",
+    urgency: "18:15",
+    main: defaultPublishTime,
+  };
+
+  return postPlan.map((postPlanItem, index) => {
+    const ratio = index / Math.max(count - 1, 1);
+    const offsetDays = Math.round(usableDays * ratio);
+    const startDate = addDaysToDateString(safeStartDate, offsetDays);
+    const weekday = getWeekdayFromDateString(startDate, timeZone);
+    const marketingAngle = postPlanItem?.marketing_angle || "main";
+    const publishTime = preferredTimesByAngle[marketingAngle] || getRecommendedTimeForWeekday(weekday) || defaultPublishTime;
+
+    return {
+      startDate,
+      weekday,
+      publishTime,
+      postPlanItem,
+    };
   });
-
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(payload?.error || "Could not create campaign plan.");
-  }
-
-  return payload;
 }
 
 function buildDirectCalendarCampaignSlots({
@@ -4971,55 +5002,65 @@ function buildDirectCalendarCampaignSlots({
   defaultPublishTime = "09:00",
 }) {
   const count = getCampaignRecommendedPostCount(campaign, 3);
-  const fallbackPostPlan = buildFallbackCampaignPlan(count);
-  const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
-  const safeStartDate = getLaterDateString(
-    campaign?.start_date || campaign?.event_date || todayDateString,
-    todayDateString
-  );
-  const safeEndDate = campaign?.event_date
-    ? campaign.event_date
-    : getLaterDateString(
-        campaign?.end_date || addDaysToDateString(safeStartDate, Math.max(count - 1, 0) * 7),
-        safeStartDate
-      );
-  const totalDays = Math.max(
-    getDaysBetweenDateStrings(safeStartDate, safeEndDate) || 0,
-    0
-  );
+  const fallbackPostPlan = buildFallbackCampaignPlan(count).map((postPlanItem, index) => {
+    const strategy = getStrategicCampaignStep(count, index, postPlanItem);
+    return {
+      ...postPlanItem,
+      ...strategy,
+      role: postPlanItem.role || getCampaignAngleLabel(strategy.marketing_angle),
+      purpose: postPlanItem.purpose || getCampaignStrategyPurpose(strategy.marketing_angle),
+      campaign_goal: postPlanItem.campaign_goal || campaign?.campaign_goal || campaign?.title || "",
+      target_customer_need:
+        postPlanItem.target_customer_need || campaign?.target_customer_need || campaign?.description || "",
+      strategy_notes:
+        postPlanItem.strategy_notes ||
+        "Part of a focused campaign sequence. The timing, angle and content type are chosen to move the audience from interest toward action without generating the final caption or image until this post runs.",
+    };
+  });
 
-  return fallbackPostPlan.map((postPlanItem, index) => {
-    const ratio = count <= 1 ? 0 : index / Math.max(count - 1, 1);
-    const startDate = campaign?.event_date
-      ? getLaterDateString(
-          addDaysToDateString(campaign.event_date, -(postPlanItem.days_before_event || 0)),
-          todayDateString
-        )
-      : addDaysToDateString(safeStartDate, Math.round(totalDays * ratio));
-    const weekday = getWeekdayFromDateString(startDate, timeZone);
+  const schedule = campaign?.event_date
+    ? buildFixedEventCampaignSchedule({
+        campaign,
+        postPlan: fallbackPostPlan,
+        timeZone,
+      })
+    : buildFocusedRangeCampaignSchedule({
+        campaign,
+        postPlan: fallbackPostPlan,
+        timeZone,
+        defaultPublishTime,
+      });
+
+  return schedule.map((scheduleItem, index) => {
+    const postPlanItem = scheduleItem.postPlanItem || fallbackPostPlan[index] || {};
+    const startDate = scheduleItem.startDate || campaign?.event_date || schedule[0]?.startDate;
+    const weekday = scheduleItem.weekday || getWeekdayFromDateString(startDate, timeZone);
+    const daysBeforeEvent = campaign?.event_date
+      ? getDaysBetweenDateStrings(startDate, campaign.event_date)
+      : null;
     const enhancedPostPlanItem = buildCampaignPostPlanItem({
       campaign,
       postPlanItem,
       index,
-      total: fallbackPostPlan.length,
-      daysBeforeEvent: campaign?.event_date
-        ? getDaysBetweenDateStrings(startDate, campaign.event_date)
-        : null,
-      timingAnchor: postPlanItem.timing_anchor || null,
+      total: schedule.length,
+      daysBeforeEvent,
+      timingAnchor: scheduleItem.timingAnchor || postPlanItem.timing_anchor || null,
     });
     const contentSourceMode = getCampaignContentSourceMode(
       campaign,
       enhancedPostPlanItem,
       index,
-      fallbackPostPlan.length
+      schedule.length
     );
 
     enhancedPostPlanItem.content_source_mode = contentSourceMode;
+    enhancedPostPlanItem.scheduled_date = startDate;
+    enhancedPostPlanItem.campaign_main_date = campaign?.event_date || null;
 
     return createSlot({
       startDate,
       weekday,
-      publishTime: getCampaignPublishTime(defaultPublishTime, index),
+      publishTime: scheduleItem.publishTime || getCampaignPublishTime(defaultPublishTime, index),
       prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
       imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem, index),
       generateImage: true,
@@ -5038,7 +5079,7 @@ function buildDirectCalendarCampaignSlots({
       customerStage: enhancedPostPlanItem.customer_stage || "",
       ctaStrength: enhancedPostPlanItem.cta_strength || "",
       campaignPostIndex: index + 1,
-      campaignPostCount: fallbackPostPlan.length,
+      campaignPostCount: schedule.length,
       campaignGoal: enhancedPostPlanItem.campaign_goal || campaign?.title || "",
       targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
       strategyNotes: enhancedPostPlanItem.strategy_notes || "",
@@ -5176,53 +5217,22 @@ async function loadCampaignOpportunityIntoPlanner({
 
   let campaignSlots = [];
   let campaignSlotBuildError = null;
-  let strategicCampaign = campaign;
-  let strategicPlanSource = Array.isArray(campaign.post_plan) && campaign.post_plan.length > 0
-    ? "database"
-    : "";
-  let strategicPlanError = "";
 
   try {
-    const hasUsablePostPlan = Array.isArray(strategicCampaign.post_plan) && strategicCampaign.post_plan.length > 0;
+    // If the calendar campaign has no real post_plan, build the visible plan
+    // directly from the campaign opportunity. This is the normal flow after the
+    // faster brand analysis, where calendar rows are lightweight and posts are
+    // only planned when the customer clicks "Skapa inlägg".
+    const hasUsablePostPlan = Array.isArray(campaign.post_plan) && campaign.post_plan.length > 0;
 
-    if (!hasUsablePostPlan) {
-      try {
-        const plannedCampaignPayload = await requestStrategicCampaignPlanFromApi({
-          campaignOpportunityId: campaign.id || campaignOpportunityId,
-          brandProfileId: selectedBrandId,
-          timeZone: campaignTimeZone,
-        });
-
-        const plannedCampaign = plannedCampaignPayload?.campaign;
-
-        if (plannedCampaign && Array.isArray(plannedCampaign.post_plan) && plannedCampaign.post_plan.length > 0) {
-          strategicCampaign = normalizeCampaignOpportunityForPlanner({
-            ...strategicCampaign,
-            ...plannedCampaign,
-            post_plan: plannedCampaign.post_plan,
-            recommended_post_count:
-              plannedCampaign.recommended_post_count ||
-              plannedCampaign.post_plan.length ||
-              strategicCampaign.recommended_post_count,
-          });
-          strategicPlanSource = plannedCampaignPayload?.source || "openai";
-          setCampaignOpportunity(strategicCampaign);
-        }
-      } catch (planningError) {
-        strategicPlanError = planningError?.message || "Campaign planning failed.";
-      }
-    }
-
-    const hasStrategicPostPlan = Array.isArray(strategicCampaign.post_plan) && strategicCampaign.post_plan.length > 0;
-
-    campaignSlots = hasStrategicPostPlan
+    campaignSlots = hasUsablePostPlan
       ? createCampaignSlotsFromOpportunity({
-          campaign: strategicCampaign,
+          campaign,
           timeZone: campaignTimeZone,
           defaultPublishTime: campaignPublishTime,
         })
       : buildDirectCalendarCampaignSlots({
-          campaign: strategicCampaign,
+          campaign,
           timeZone: campaignTimeZone,
           defaultPublishTime: campaignPublishTime,
         });
@@ -5235,9 +5245,6 @@ async function loadCampaignOpportunityIntoPlanner({
     ...(current || {}),
     campaignStartDate,
     campaignPublishTime,
-    strategicPlanSource,
-    strategicPlanError,
-    plannedCampaign: summarizeCampaignForDebug(strategicCampaign),
     initialSlotCount: campaignSlots.length,
     slotBuildError: campaignSlotBuildError?.message || "",
   }));
@@ -5363,11 +5370,11 @@ async function loadCampaignOpportunityIntoPlanner({
     })),
   }));
 
-  setCampaignOpportunity(strategicCampaign || campaign);
+  setCampaignOpportunity(campaign);
   setPlanCreationMode("campaign");
   setScheduleType("once");
-  setPlanName((strategicCampaign || campaign).title || "Campaign plan");
-  setLanguage((strategicCampaign || campaign).language || "Auto");
+  setPlanName(campaign.title || "Campaign plan");
+  setLanguage(campaign.language || "Auto");
   setPostType("Campaign");
   setTone("Friendly");
   setCtaType("Learn more");
@@ -6821,7 +6828,7 @@ setRules((currentRules) =>
   </section>
 )}
 
-{campaignDebugInfo?.enabled && (
+{campaignDebugInfo?.enabled && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debugCampaign") === "1" && (
   <section
     style={{
       margin: "18px 0",
