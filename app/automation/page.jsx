@@ -4790,6 +4790,41 @@ function clearCalendarCampaignHandoff() {
   }
 }
 
+function getStoredCalendarCampaignHandoff() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = localStorage.getItem(CAMPAIGN_HANDOFF_STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    const campaign = parsed?.campaign || null;
+
+    if (!campaign?.id) return null;
+
+    return {
+      campaign,
+      brandProfileId:
+        parsed?.brandProfileId ||
+        campaign?.brand_profile_id ||
+        campaign?.brandProfileId ||
+        "",
+      createdAt: parsed?.createdAt || "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isRecentCalendarCampaignHandoff(handoff, maxAgeMinutes = 30) {
+  if (!handoff?.createdAt) return false;
+
+  const createdAtMs = new Date(handoff.createdAt).getTime();
+  if (!Number.isFinite(createdAtMs)) return false;
+
+  return Date.now() - createdAtMs <= maxAgeMinutes * 60 * 1000;
+}
+
 async function loadCampaignOpportunityIntoPlanner({
   currentUser,
   selectedBrandId,
@@ -4797,7 +4832,7 @@ async function loadCampaignOpportunityIntoPlanner({
   selectedTimeZone,
 }) {
   if (!campaignOpportunityId) {
-    return;
+    return false;
   }
 
   const campaignFromHandoff = getCalendarCampaignHandoff(
@@ -4806,144 +4841,157 @@ async function loadCampaignOpportunityIntoPlanner({
   );
 
   let campaignFromDatabase = null;
-  let loadError = null;
+  let error = null;
+
+  let databaseQuery = supabase
+    .from("brand_campaign_opportunities")
+    .select("*")
+    .eq("id", campaignOpportunityId)
+    .eq("user_id", currentUser.id);
 
   if (selectedBrandId) {
-    const strictResult = await supabase
-      .from("brand_campaign_opportunities")
-      .select("*")
-      .eq("id", campaignOpportunityId)
-      .eq("user_id", currentUser.id)
-      .eq("brand_profile_id", selectedBrandId)
-      .maybeSingle();
-
-    if (strictResult.error) {
-      loadError = strictResult.error;
-    } else {
-      campaignFromDatabase = strictResult.data || null;
-    }
+    databaseQuery = databaseQuery.eq("brand_profile_id", selectedBrandId);
   }
 
-  if (!campaignFromDatabase) {
-    const relaxedResult = await supabase
+  const primaryResult = await databaseQuery.maybeSingle();
+  campaignFromDatabase = primaryResult.data || null;
+  error = primaryResult.error || null;
+
+  // Calendar handoff must be tolerant. Older rows, newly created rows, or rows
+  // where the current brand has not caught up yet should not make the planner
+  // fall back to the normal auto-plan view.
+  if (!campaignFromDatabase && selectedBrandId) {
+    const fallbackResult = await supabase
       .from("brand_campaign_opportunities")
       .select("*")
       .eq("id", campaignOpportunityId)
       .eq("user_id", currentUser.id)
       .maybeSingle();
 
-    if (relaxedResult.error) {
-      loadError = relaxedResult.error;
-    } else {
-      campaignFromDatabase = relaxedResult.data || null;
+    if (fallbackResult.data) {
+      campaignFromDatabase = fallbackResult.data;
+      error = null;
+    } else if (fallbackResult.error && !error) {
+      error = fallbackResult.error;
     }
   }
-
   const campaign = mergeCampaignOpportunitySources(
     campaignFromDatabase,
     campaignFromHandoff
   );
 
-  if (!campaign) {
-    setPlanCreationMode("auto");
-    setCampaignOpportunity(null);
-    setSlots([]);
-    setMessage(loadError?.message || t("automation.errorCampaignNotFound"));
-    return;
+  if (error && !campaign) {
+    setMessage(error.message);
+    return false;
   }
 
-  if (campaignFromDatabase || campaignFromHandoff) {
+  if (!campaign) {
+    setMessage(t("automation.errorCampaignNotFound"));
+    return false;
+  }
+
+  if (campaignFromDatabase && campaignFromHandoff) {
     clearCalendarCampaignHandoff();
   }
 
   const campaignTimeZone = selectedTimeZone || timeZone || DEFAULT_TIME_ZONE;
-  const campaignStartDate = getSafeCampaignStartDate(campaign, campaignTimeZone);
+
+ const campaignStartDate = getSafeCampaignStartDate(
+  campaign,
+  campaignTimeZone
+);
+    
   const campaignPublishTime = getRecommendedTimeForDate(
     campaignStartDate,
     campaignTimeZone
   );
-  const campaignPostCount = getCampaignRecommendedPostCount(campaign, 3);
-
-  const campaignWithGeneratedPlan = normalizeCampaignOpportunityForPlanner({
-    ...campaign,
-    recommended_post_count: campaignPostCount,
-    post_plan:
-      Array.isArray(campaign.post_plan) && campaign.post_plan.length > 0
-        ? campaign.post_plan
-        : buildFallbackCampaignPlan(campaignPostCount),
-  });
 
   let campaignSlots = createCampaignSlotsFromOpportunity({
-    campaign: campaignWithGeneratedPlan,
+    campaign,
     timeZone: campaignTimeZone,
     defaultPublishTime: campaignPublishTime,
   });
 
-  if (!Array.isArray(campaignSlots) || campaignSlots.length === 0) {
-    const fallbackPlan = buildFallbackCampaignPlan(campaignPostCount);
-    const fallbackSchedule = buildSmartSlotSchedule({
+  if (!campaignSlots.length) {
+    const fallbackDate =
+      campaign.event_date ||
+      campaign.start_date ||
+      campaign.end_date ||
+      campaignStartDate;
+
+    const fallbackCampaign = normalizeCampaignOpportunityForPlanner({
+      ...campaign,
+      event_date:
+        campaign.event_date ||
+        (campaign.start_date && campaign.end_date && campaign.start_date === campaign.end_date
+          ? campaign.start_date
+          : null),
+      start_date: campaign.start_date || fallbackDate,
+      end_date: campaign.end_date || campaign.start_date || fallbackDate,
+      post_plan: buildFallbackCampaignPlan(
+        getCampaignRecommendedPostCount(campaign, 5)
+      ),
+    });
+
+    campaignSlots = createCampaignSlotsFromOpportunity({
+      campaign: fallbackCampaign,
+      timeZone: campaignTimeZone,
+      defaultPublishTime: campaignPublishTime,
+    });
+  }
+
+  if (!campaignSlots.length) {
+    const emergencyPostPlan = buildFallbackCampaignPlan(
+      getCampaignRecommendedPostCount(campaign, 3)
+    );
+    const emergencySchedule = buildSmartSlotSchedule({
       startDate: campaignStartDate,
-      count: fallbackPlan.length,
+      count: emergencyPostPlan.length,
       timeZone: campaignTimeZone,
       firstPublishTime: campaignPublishTime,
     });
 
-    campaignSlots = fallbackPlan.map((postPlanItem, index) => {
-      const schedule = fallbackSchedule[index] || {
+    campaignSlots = emergencyPostPlan.map((postPlanItem, index) => {
+      const schedule = emergencySchedule[index] || {
         startDate: campaignStartDate,
         weekday: getWeekdayFromDateString(campaignStartDate, campaignTimeZone),
         publishTime: campaignPublishTime,
       };
-
       const enhancedPostPlanItem = buildCampaignPostPlanItem({
-        campaign: campaignWithGeneratedPlan,
+        campaign,
         postPlanItem,
         index,
-        total: fallbackPlan.length,
+        total: emergencyPostPlan.length,
         daysBeforeEvent: null,
         timingAnchor: null,
       });
-
       const contentSourceMode = getCampaignContentSourceMode(
-        campaignWithGeneratedPlan,
+        campaign,
         enhancedPostPlanItem,
         index,
-        fallbackPlan.length
+        emergencyPostPlan.length
       );
 
       enhancedPostPlanItem.content_source_mode = contentSourceMode;
 
       return createSlot({
         startDate: schedule.startDate,
-        weekday:
-          schedule.weekday ||
-          getWeekdayFromDateString(schedule.startDate, campaignTimeZone),
-        publishTime: schedule.publishTime || campaignPublishTime,
-        prompt: buildCampaignPrompt(
-          campaignWithGeneratedPlan,
-          enhancedPostPlanItem,
-          index
-        ),
-        imagePrompt: buildCampaignImagePrompt(
-          campaignWithGeneratedPlan,
-          enhancedPostPlanItem,
-          index
-        ),
+        weekday: schedule.weekday,
+        publishTime: schedule.publishTime,
+        prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
+        imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem, index),
         generateImage: true,
         contentTypeId: getCampaignSlotContentTypeId(contentSourceMode),
-        contentTypeLabel: getCampaignSlotContentTypeLabel(
-          campaignWithGeneratedPlan,
-          contentSourceMode
-        ),
+        contentTypeLabel: getCampaignSlotContentTypeLabel(campaign, contentSourceMode),
         usesWebsiteContent: shouldUseWebsiteContentForCampaign(
           contentSourceMode,
-          campaignWithGeneratedPlan
+          campaign
         ),
         contentFormat: getCampaignSlotContentFormat(contentSourceMode),
         isCampaignSlot: true,
         campaignRole: enhancedPostPlanItem.role || "Campaign post",
         campaignSummary: buildCampaignSummary(
-          campaignWithGeneratedPlan,
+          campaign,
           enhancedPostPlanItem,
           index
         ),
@@ -4951,48 +4999,33 @@ async function loadCampaignOpportunityIntoPlanner({
         marketingAngle: enhancedPostPlanItem.marketing_angle || "",
         customerStage: enhancedPostPlanItem.customer_stage || "",
         ctaStrength: enhancedPostPlanItem.cta_strength || "",
-        campaignPostIndex:
-          enhancedPostPlanItem.campaign_post_index || index + 1,
+        campaignPostIndex: enhancedPostPlanItem.campaign_post_index || index + 1,
         campaignPostCount:
-          enhancedPostPlanItem.campaign_post_count || fallbackPlan.length,
+          enhancedPostPlanItem.campaign_post_count || emergencyPostPlan.length,
         campaignGoal: enhancedPostPlanItem.campaign_goal || "",
         targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
         strategyNotes: enhancedPostPlanItem.strategy_notes || "",
-        dateLocked: Boolean(campaignWithGeneratedPlan.event_date),
+        dateLocked: true,
         timeZone: campaignTimeZone,
       });
     });
   }
 
-  const preparedSlots = Array.isArray(campaignSlots) ? campaignSlots : [];
-
-  if (preparedSlots.length === 0) {
-    setMessage(t("automation.errorNoCampaignLoaded"));
-    setCampaignOpportunity(campaignWithGeneratedPlan);
-    setPlanCreationMode("campaign");
-    setSlots([]);
-    return;
-  }
-
-  setCampaignOpportunity(campaignWithGeneratedPlan);
+  setCampaignOpportunity(campaign);
   setPlanCreationMode("campaign");
   setScheduleType("once");
-  setPlanName(campaignWithGeneratedPlan.title || "Campaign plan");
-  setLanguage(
-    campaignWithGeneratedPlan.language ||
-      campaignWithGeneratedPlan.content_language ||
-      campaignWithGeneratedPlan.detected_language ||
-      "Auto"
-  );
+  setPlanName(campaign.title || "Campaign plan");
+  setLanguage(campaign.language || "Auto");
   setPostType("Campaign");
   setTone("Friendly");
   setCtaType("Learn more");
-  setPlanStartDate(preparedSlots[0]?.startDate || campaignStartDate);
+  setPlanStartDate(campaignSlots[0]?.startDate || campaignStartDate);
   setDefaultPublishTime(campaignPublishTime);
-  setSlots(preparedSlots);
+  setSlots(campaignSlots);
   setExpandedInstructionSlotIds([]);
   setSavedPlanSummary(null);
   setMessage("");
+  return true;
 }
 
 async function loadConnectedPlatformsForBrand(userId, brandProfileId) {
@@ -5069,8 +5102,20 @@ const searchParams =
     ? new URLSearchParams(window.location.search)
     : null;
 
-const campaignOpportunityId = searchParams?.get("campaignOpportunityId") || "";
-const requestedBrandProfileId = searchParams?.get("brandProfileId") || "";
+const requestedMode = searchParams?.get("mode") || "";
+const storedCampaignHandoff = getStoredCalendarCampaignHandoff();
+const shouldUseStoredCampaignHandoff =
+  requestedMode === "campaign" ||
+  Boolean(searchParams?.get("campaignOpportunityId") || searchParams?.get("campaignId")) ||
+  isRecentCalendarCampaignHandoff(storedCampaignHandoff);
+
+const campaignOpportunityId =
+  searchParams?.get("campaignOpportunityId") ||
+  searchParams?.get("campaignId") ||
+  (shouldUseStoredCampaignHandoff ? storedCampaignHandoff?.campaign?.id || "" : "");
+const requestedBrandProfileId =
+  searchParams?.get("brandProfileId") ||
+  (shouldUseStoredCampaignHandoff ? storedCampaignHandoff?.brandProfileId || "" : "");
 const requestedPlanId = searchParams?.get("plan") || "";
 
 let selectedBrandId = "";
@@ -5152,12 +5197,17 @@ if (brandProfileError) {
   }
 }
 if (campaignOpportunityId) {
-  await loadCampaignOpportunityIntoPlanner({
+  const campaignLoaded = await loadCampaignOpportunityIntoPlanner({
     currentUser: user,
     selectedBrandId,
     campaignOpportunityId,
     selectedTimeZone: timeZone || DEFAULT_TIME_ZONE,
   });
+
+  if (!campaignLoaded && requestedMode === "campaign") {
+    setPlanCreationMode("campaign");
+    setMessage(t("automation.errorCampaignNotFound"));
+  }
 }
 
 const { data, error } = await supabase

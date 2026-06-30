@@ -918,7 +918,10 @@ export default function Calendar() {
         localStorage.setItem(
           CAMPAIGN_HANDOFF_STORAGE_KEY,
           JSON.stringify({
-            campaign: normalizedCampaign,
+            campaign: {
+              ...normalizedCampaign,
+              brand_profile_id: handoffBrandProfileId,
+            },
             brandProfileId: handoffBrandProfileId,
             createdAt: new Date().toISOString(),
           })
@@ -930,6 +933,7 @@ export default function Calendar() {
 
     const params = new URLSearchParams({
       campaignOpportunityId: campaign.id,
+      campaignId: campaign.id,
       brandProfileId: handoffBrandProfileId,
       mode: "campaign",
     });
