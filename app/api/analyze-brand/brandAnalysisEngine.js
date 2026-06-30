@@ -935,6 +935,413 @@ export function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
   };
 }
 
+
+function getLastFridayOfNovember(year) {
+  const date = new Date(Date.UTC(year, 10, 30));
+
+  while (date.getUTCDay() !== 5) {
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(dateString, days) {
+  const date = new Date(`${dateString}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    return dateString;
+  }
+
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function isOpportunityUpcomingOnDate(opportunity, currentDate) {
+  if (!opportunity || !currentDate) {
+    return true;
+  }
+
+  const endDate = opportunity.end_date || opportunity.event_date || opportunity.start_date;
+
+  if (!endDate) {
+    return true;
+  }
+
+  return endDate >= currentDate;
+}
+
+function getOpportunityKey(opportunity) {
+  return slugify(opportunity?.slug || opportunity?.title || "");
+}
+
+function isSwedishContentLanguage(language) {
+  const normalized = String(language || "").toLowerCase();
+  return normalized.includes("swedish") || normalized.includes("svensk");
+}
+
+function appearsProductOrRetailBased({ industry, websiteProductMode }) {
+  if (websiteProductMode?.available) {
+    return true;
+  }
+
+  const normalizedIndustry = String(industry || "").toLowerCase();
+
+  return [
+    "ecommerce",
+    "e-commerce",
+    "webshop",
+    "online store",
+    "retail",
+    "butik",
+    "shop",
+    "product",
+    "produkt",
+    "electronics",
+    "elektronik",
+    "fashion",
+    "mode",
+    "beauty",
+    "home",
+    "interior",
+    "inredning",
+    "gifts",
+    "present",
+  ].some((keyword) => normalizedIndustry.includes(keyword));
+}
+
+function makeFallbackCampaign({
+  title,
+  slug,
+  description,
+  eventType = "custom_campaign",
+  eventDate = null,
+  startDate = null,
+  endDate = null,
+  category = "product_discovery",
+  goal,
+  need,
+  productGuidance,
+  angles = ["product_discovery", "product_push"],
+  postCount = 5,
+  salesScore = 4,
+  engagementScore = 3,
+}) {
+  return {
+    title,
+    slug,
+    description,
+    event_type: eventType,
+    event_date: eventDate,
+    start_date: startDate,
+    end_date: endDate,
+    date_confidence: "medium",
+    website_content_fit: "strong",
+    website_content_strategy: "product",
+    website_product_selection_hint: productGuidance,
+    campaign_category: category,
+    campaign_goal: goal,
+    target_customer_need: need,
+    recommended_angles: angles,
+    product_selection_guidance: productGuidance,
+    tone_guidance: "Helpful, commercial and clear without inventing unverified discounts or promises.",
+    cta_guidance: "Start with inspiration and product discovery, then move toward clearer website visits and purchase intent.",
+    image_guidance: "Use verified website product images for product posts and carousel slides; use AI images only for safe mood or campaign context.",
+    relevance_reason: "Fallback campaign generated because the brand appears product-based and needs a usable campaign calendar even when AI returned too few future opportunities.",
+    relevance_score: 4,
+    sales_score: salesScore,
+    engagement_score: engagementScore,
+    recommended_post_count: postCount,
+    campaign_angles: angles,
+    post_plan: [],
+    prompt_context: `${title}: ${description} ${productGuidance}`.trim(),
+  };
+}
+
+function buildFallbackProductCampaignOpportunities({
+  campaignCalendarYear,
+  currentDate,
+  contentLanguage,
+}) {
+  const swedish = isSwedishContentLanguage(contentLanguage);
+  const blackFriday = getLastFridayOfNovember(campaignCalendarYear);
+  const cyberMonday = addDays(blackFriday, 3);
+
+  const campaigns = swedish
+    ? [
+        makeFallbackCampaign({
+          title: "Sommarens smarta produktval",
+          slug: "sommarens-smarta-produktval",
+          description: "En säsongsanpassad produktguide som hjälper kunder att hitta praktiska produkter för sommar, hem och vardag.",
+          eventType: "seasonal",
+          startDate: `${campaignCalendarYear}-07-01`,
+          endDate: `${campaignCalendarYear}-08-15`,
+          category: "seasonal_campaign",
+          goal: "Driva produktupptäckt och försäljning genom en relevant sommarvinkel.",
+          need: "Kunder vill hitta produkter som gör sommaren, hemmet eller vardagen enklare och roligare.",
+          productGuidance: "Välj produkter som naturligt passar sommar, hem, resor, uteplats, ljud, kylning, smart teknik eller vardagskomfort. Undvik slumpmässiga produkter utan tydlig säsongskoppling.",
+          angles: ["awareness", "product_discovery", "product_push"],
+          postCount: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Back to school och vardagsstart",
+          slug: "back-to-school-vardagsstart",
+          description: "En köpguide för produkter som hjälper kunder komma igång efter sommaren.",
+          eventType: "seasonal",
+          startDate: `${campaignCalendarYear}-08-05`,
+          endDate: `${campaignCalendarYear}-09-05`,
+          category: "seasonal_campaign",
+          goal: "Fånga efterfrågan när kunder återgår till skola, jobb och vardagsrutiner.",
+          need: "Kunder behöver praktiska produkter för skola, arbete, teknik, hem och nya rutiner.",
+          productGuidance: "Prioritera produkter för skola, arbete, teknik, datorer, tillbehör, hörlurar, smarta vardagsprodukter och organisering. Undvik produkter som inte passar vardagsstarten.",
+          angles: ["product_discovery", "product_push", "trust"],
+          postCount: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Höstens uppgradering hemma",
+          slug: "hostens-uppgradering-hemma",
+          description: "En säsongskampanj för produkter som gör hemmet smartare, bekvämare eller mer underhållande under hösten.",
+          eventType: "seasonal",
+          startDate: `${campaignCalendarYear}-09-15`,
+          endDate: `${campaignCalendarYear}-10-20`,
+          category: "seasonal_campaign",
+          goal: "Driva intresse och köp kring produkter för hemmet inför höstperioden.",
+          need: "Kunder spenderar mer tid hemma och vill förbättra komfort, underhållning och vardagsrutiner.",
+          productGuidance: "Välj produkter för smart hem, städning, ljud, TV, gaming, kök, värme, belysning eller hemkomfort. Undvik sommarprodukter utan höstkoppling.",
+          angles: ["awareness", "product_discovery", "product_push"],
+          postCount: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Halloween och höstmys hemma",
+          slug: "halloween-hostmys-hemma",
+          description: "En lättsam kampanj för produkter som passar filmkvällar, ljud, ljus, spel och hemmakvällar.",
+          eventType: "theme_day",
+          eventDate: `${campaignCalendarYear}-10-31`,
+          category: "engagement_theme",
+          goal: "Skapa engagemang och produktintresse kring en säsongsaktuell höstkväll.",
+          need: "Kunder vill skapa stämning hemma med underhållning, ljud, ljus eller smarta produkter.",
+          productGuidance: "Välj produkter som passar filmkväll, gaming, högtalare, belysning, TV, projektor, smart hem eller mys hemma. Undvik produkter utan tydlig Halloween- eller hemmakvällskoppling.",
+          angles: ["engagement", "product_discovery", "product_push"],
+          postCount: 4,
+          salesScore: 3,
+          engagementScore: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Singles Day produktguide",
+          slug: "singles-day-produktguide",
+          description: "En shoppingperiod där kunder kan inspireras till smarta produktval och uppgraderingar.",
+          eventType: "shopping",
+          eventDate: `${campaignCalendarYear}-11-11`,
+          category: "sales_campaign",
+          goal: "Driva produktupptäckt och köpintresse under en tydlig shoppingdag.",
+          need: "Kunder letar efter produkter att unna sig själva eller uppgradera hemma.",
+          productGuidance: "Välj attraktiva produkter med bred köpintention, gärna teknik, ljud, smart hem, gaming, vardagsprodukter och populära kategorier. Nämn inte rabatter om de inte är verifierade.",
+          angles: ["product_discovery", "product_push", "urgency"],
+          postCount: 4,
+          salesScore: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Black Week köpguide",
+          slug: "black-week-kopguide",
+          description: "En försäljningsdriven shoppingkampanj för att hjälpa kunder hitta rätt produkter under Black Week-perioden.",
+          eventType: "shopping",
+          startDate: addDays(blackFriday, -4),
+          endDate: cyberMonday,
+          category: "sales_campaign",
+          goal: "Driva försäljning och hemsidebesök under årets starka shoppingperiod.",
+          need: "Kunder vill jämföra, välja och hitta produkter som passar deras behov under Black Week.",
+          productGuidance: "Prioritera starka produktkategorier, populära produkter, jämförelsevänliga produkter, teknik, hem, ljud, gaming och produkter med tydlig köpintention. Använd bara rabatt-/erbjudandevinkel om den är verifierad eller tydligt kopplad till shoppingperioden.",
+          angles: ["product_discovery", "product_push", "offer", "urgency"],
+          postCount: 6,
+          salesScore: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Julklappsguide",
+          slug: "julklappsguide",
+          description: "En presentguide som hjälper kunder hitta relevanta julklappar i olika produktkategorier.",
+          eventType: "holiday",
+          eventDate: `${campaignCalendarYear}-12-24`,
+          category: "gift_campaign",
+          goal: "Driva presentköp genom relevanta produktrekommendationer inför jul.",
+          need: "Kunder behöver hjälp att hitta bra julklappar till olika mottagare och behov.",
+          productGuidance: "Välj produkter som fungerar som julklappar: teknik, ljud, gaming, smart hem, kök, personlig användning, hemkomfort eller populära produktkategorier. Anpassa urvalet till mottagare och undvik slumpmässiga produkter.",
+          angles: ["awareness", "product_discovery", "product_push", "urgency"],
+          postCount: 6,
+          salesScore: 5,
+        }),
+      ]
+    : [
+        makeFallbackCampaign({
+          title: "Summer product picks",
+          slug: "summer-product-picks",
+          description: "A seasonal product guide that helps customers find useful products for summer, home and everyday life.",
+          eventType: "seasonal",
+          startDate: `${campaignCalendarYear}-07-01`,
+          endDate: `${campaignCalendarYear}-08-15`,
+          category: "seasonal_campaign",
+          goal: "Drive product discovery and sales through a relevant summer angle.",
+          need: "Customers want products that make summer, home or everyday routines easier and more enjoyable.",
+          productGuidance: "Choose products that naturally fit summer, home, travel, outdoor living, sound, cooling, smart tech or everyday comfort. Avoid random products with no seasonal connection.",
+          angles: ["awareness", "product_discovery", "product_push"],
+          postCount: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Back to school and routine reset",
+          slug: "back-to-school-routine-reset",
+          description: "A buying guide for products that help customers restart school, work and daily routines.",
+          eventType: "seasonal",
+          startDate: `${campaignCalendarYear}-08-05`,
+          endDate: `${campaignCalendarYear}-09-05`,
+          category: "seasonal_campaign",
+          goal: "Capture demand as customers return to school, work and routines.",
+          need: "Customers need practical products for school, work, technology, home and new routines.",
+          productGuidance: "Prioritize products for school, work, tech, computers, accessories, headphones, smart everyday products and organization. Avoid products that do not fit the routine reset.",
+          angles: ["product_discovery", "product_push", "trust"],
+          postCount: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Autumn home upgrade",
+          slug: "autumn-home-upgrade",
+          description: "A seasonal campaign for products that make the home smarter, more comfortable or more entertaining during autumn.",
+          eventType: "seasonal",
+          startDate: `${campaignCalendarYear}-09-15`,
+          endDate: `${campaignCalendarYear}-10-20`,
+          category: "seasonal_campaign",
+          goal: "Drive interest and purchase intent around home-related products for autumn.",
+          need: "Customers spend more time at home and want to improve comfort, entertainment and routines.",
+          productGuidance: "Choose products for smart home, cleaning, sound, TV, gaming, kitchen, heating, lighting or home comfort. Avoid summer-only products.",
+          angles: ["awareness", "product_discovery", "product_push"],
+          postCount: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Halloween and cosy nights in",
+          slug: "halloween-cosy-nights-in",
+          description: "A light seasonal campaign for products that fit movie nights, sound, lighting, gaming and home entertainment.",
+          eventType: "theme_day",
+          eventDate: `${campaignCalendarYear}-10-31`,
+          category: "engagement_theme",
+          goal: "Create engagement and product interest around a seasonal night at home.",
+          need: "Customers want to create atmosphere at home with entertainment, sound, lighting or smart products.",
+          productGuidance: "Choose products for movie nights, gaming, speakers, lighting, TV, projectors, smart home or cosy home experiences. Avoid products with no clear Halloween or home-night connection.",
+          angles: ["engagement", "product_discovery", "product_push"],
+          postCount: 4,
+          salesScore: 3,
+          engagementScore: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Singles Day product guide",
+          slug: "singles-day-product-guide",
+          description: "A shopping moment where customers can be inspired to choose smart upgrades and useful products.",
+          eventType: "shopping",
+          eventDate: `${campaignCalendarYear}-11-11`,
+          category: "sales_campaign",
+          goal: "Drive product discovery and purchase intent around a clear shopping day.",
+          need: "Customers look for products to treat themselves or upgrade their home.",
+          productGuidance: "Choose attractive products with broad purchase intent, such as technology, sound, smart home, gaming, everyday products and popular categories. Do not mention discounts unless verified.",
+          angles: ["product_discovery", "product_push", "urgency"],
+          postCount: 4,
+          salesScore: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Black Week buying guide",
+          slug: "black-week-buying-guide",
+          description: "A sales-driven shopping campaign that helps customers find the right products during Black Week.",
+          eventType: "shopping",
+          startDate: addDays(blackFriday, -4),
+          endDate: cyberMonday,
+          category: "sales_campaign",
+          goal: "Drive sales and website visits during a major shopping period.",
+          need: "Customers want to compare, choose and find products that fit their needs during Black Week.",
+          productGuidance: "Prioritize strong product categories, popular products, comparison-friendly products, tech, home, sound, gaming and products with clear buying intent. Only use discount or offer angles when verified or clearly tied to the shopping period.",
+          angles: ["product_discovery", "product_push", "offer", "urgency"],
+          postCount: 6,
+          salesScore: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Christmas gift guide",
+          slug: "christmas-gift-guide",
+          description: "A gift guide that helps customers find relevant Christmas gifts across product categories.",
+          eventType: "holiday",
+          eventDate: `${campaignCalendarYear}-12-24`,
+          category: "gift_campaign",
+          goal: "Drive gift purchases through relevant product recommendations before Christmas.",
+          need: "Customers need help finding good Christmas gifts for different recipients and needs.",
+          productGuidance: "Choose giftable products: technology, sound, gaming, smart home, kitchen, personal use, home comfort or popular product categories. Adapt the selection to recipients and avoid random products.",
+          angles: ["awareness", "product_discovery", "product_push", "urgency"],
+          postCount: 6,
+          salesScore: 5,
+        }),
+      ];
+
+  return campaigns.filter((campaign) =>
+    normalizeCampaignOpportunity(campaign, campaignCalendarYear)?.event_year ===
+      campaignCalendarYear &&
+    isOpportunityUpcomingOnDate(
+      normalizeCampaignOpportunity(campaign, campaignCalendarYear),
+      currentDate
+    )
+  );
+}
+
+function buildStrategicCampaignOpportunitySet({
+  opportunities,
+  campaignCalendarYear,
+  currentDate,
+  contentLanguage,
+  industry,
+  websiteProductMode,
+}) {
+  const sourceOpportunities = Array.isArray(opportunities)
+    ? opportunities
+    : [];
+
+  const normalizedSource = normalizeCampaignOpportunities(
+    sourceOpportunities,
+    campaignCalendarYear
+  );
+
+  const upcomingSourceCount = normalizedSource.filter((opportunity) =>
+    isOpportunityUpcomingOnDate(opportunity, currentDate)
+  ).length;
+
+  const shouldAddFallbacks =
+    upcomingSourceCount < 6 &&
+    appearsProductOrRetailBased({ industry, websiteProductMode });
+
+  if (!shouldAddFallbacks) {
+    return sourceOpportunities;
+  }
+
+  const fallbackOpportunities = buildFallbackProductCampaignOpportunities({
+    campaignCalendarYear,
+    currentDate,
+    contentLanguage,
+  });
+
+  const usedKeys = new Set(
+    normalizedSource.map((opportunity) => getOpportunityKey(opportunity)).filter(Boolean)
+  );
+
+  const merged = [...sourceOpportunities];
+
+  for (const fallback of fallbackOpportunities) {
+    const key = getOpportunityKey(fallback);
+
+    if (key && usedKeys.has(key)) {
+      continue;
+    }
+
+    usedKeys.add(key);
+    merged.push(fallback);
+
+    if (merged.length >= MAX_CAMPAIGN_OPPORTUNITIES) {
+      break;
+    }
+  }
+
+  return merged;
+}
+
 export function normalizeCampaignOpportunities(rawOpportunities, fallbackYear) {
   const opportunities = Array.isArray(rawOpportunities)
     ? rawOpportunities
@@ -2027,6 +2434,15 @@ export async function runBrandAnalysisJob({
     websiteProductMode: analysis.website_product_mode,
   });
 
+  const strategicCampaignOpportunities = buildStrategicCampaignOpportunitySet({
+    opportunities: analysis.campaign_opportunities,
+    campaignCalendarYear,
+    currentDate,
+    contentLanguage: finalContentLanguage,
+    industry: profile.industry,
+    websiteProductMode: analysis.website_product_mode,
+  });
+
   const savedOpportunities = await replaceBrandCampaignOpportunities({
     supabase,
     userId,
@@ -2036,7 +2452,7 @@ export async function runBrandAnalysisJob({
     contentLanguage: finalContentLanguage,
     industry: profile.industry,
     campaignCalendarYear,
-    opportunities: analysis.campaign_opportunities,
+    opportunities: strategicCampaignOpportunities,
   });
 
   await logAnalysisRun({
