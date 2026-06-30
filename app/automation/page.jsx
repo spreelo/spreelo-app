@@ -1026,6 +1026,46 @@ function getPostingDaypart(publishTime = "10:30") {
   return "evening";
 }
 
+
+function minutesToPublishTime(totalMinutes) {
+  const safeTotalMinutes = Math.max(0, Math.min(23 * 60 + 59, Math.round(totalMinutes || 0)));
+  const hour = Math.floor(safeTotalMinutes / 60);
+  const minute = safeTotalMinutes % 60;
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function getCampaignPublishTime(basePublishTime = "10:30", sameDayIndex = 0) {
+  const baseMinutes = getPublishTimeMinutes(basePublishTime || "10:30");
+  const offsetMinutes = Math.max(0, Number(sameDayIndex) || 0) * 90;
+  const latestUsefulPostMinutes = 20 * 60 + 30;
+
+  return minutesToPublishTime(Math.min(baseMinutes + offsetMinutes, latestUsefulPostMinutes));
+}
+
+function getRecommendedCampaignPublishTime(intent = "", timingAnchor = "") {
+  const normalizedIntent = String(intent || "").toLowerCase();
+  const normalizedAnchor = String(timingAnchor || "").toLowerCase();
+
+  if (normalizedAnchor.includes("evening") || normalizedIntent.includes("deadline") || normalizedIntent.includes("last")) {
+    return "18:30";
+  }
+
+  if (normalizedAnchor.includes("lunch") || normalizedAnchor.includes("midday") || normalizedIntent.includes("conversion")) {
+    return "12:00";
+  }
+
+  if (normalizedAnchor.includes("afternoon") || normalizedIntent.includes("engagement")) {
+    return "15:30";
+  }
+
+  if (normalizedIntent.includes("trust")) {
+    return "11:00";
+  }
+
+  return "10:30";
+}
+
 function getDayNumberFromDateString(dateString) {
   const parsedDate = new Date(`${dateString}T00:00:00`);
 
