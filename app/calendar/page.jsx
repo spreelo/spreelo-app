@@ -936,6 +936,7 @@ export default function Calendar() {
       campaignId: campaign.id,
       brandProfileId: handoffBrandProfileId,
       mode: "campaign",
+      debugCampaign: "1",
     });
 
     window.location.href = `/automation?${params.toString()}`;

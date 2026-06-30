@@ -4489,6 +4489,7 @@ const [creditBalance, setCreditBalance] = useState(null);
 const [currentBrandId, setCurrentBrandId] = useState("");
 const [currentBrandProfile, setCurrentBrandProfile] = useState(null);
 const [campaignOpportunity, setCampaignOpportunity] = useState(null);
+const [campaignDebugInfo, setCampaignDebugInfo] = useState(null);
 
   const [planStartDate, setPlanStartDate] = useState(initialStartDate);
   const [defaultPublishTime, setDefaultPublishTime] = useState(
@@ -4825,6 +4826,31 @@ function isRecentCalendarCampaignHandoff(handoff, maxAgeMinutes = 30) {
   return Date.now() - createdAtMs <= maxAgeMinutes * 60 * 1000;
 }
 
+function maskDebugId(value) {
+  const stringValue = String(value || "");
+  if (!stringValue) return "";
+  if (stringValue.length <= 10) return stringValue;
+  return `${stringValue.slice(0, 6)}…${stringValue.slice(-4)}`;
+}
+
+function summarizeCampaignForDebug(campaign) {
+  if (!campaign) return null;
+
+  return {
+    id: maskDebugId(campaign.id),
+    title: campaign.title || "",
+    brand_profile_id: maskDebugId(campaign.brand_profile_id || campaign.brandProfileId),
+    user_id: maskDebugId(campaign.user_id),
+    event_date: campaign.event_date || null,
+    start_date: campaign.start_date || null,
+    end_date: campaign.end_date || null,
+    recommended_post_count: campaign.recommended_post_count ?? null,
+    post_plan_length: Array.isArray(campaign.post_plan) ? campaign.post_plan.length : null,
+    has_post_plan: Array.isArray(campaign.post_plan),
+    source_note: campaign._handoffBrandMismatch ? "handoff brand mismatch" : "",
+  };
+}
+
 async function loadCampaignOpportunityIntoPlanner({
   currentUser,
   selectedBrandId,
@@ -4835,10 +4861,25 @@ async function loadCampaignOpportunityIntoPlanner({
     return false;
   }
 
+  setCampaignDebugInfo((current) => ({
+    ...(current || {}),
+    enabled: true,
+    loadCampaignFunctionCalled: true,
+    loadStartedAt: new Date().toISOString(),
+    selectedBrandId: maskDebugId(selectedBrandId),
+    requestedCampaignId: maskDebugId(campaignOpportunityId),
+  }));
+
   const campaignFromHandoff = getCalendarCampaignHandoff(
     campaignOpportunityId,
     selectedBrandId
   );
+
+  setCampaignDebugInfo((current) => ({
+    ...(current || {}),
+    handoffCampaign: summarizeCampaignForDebug(campaignFromHandoff),
+    handoffMatchedRequestedId: Boolean(campaignFromHandoff),
+  }));
 
   let campaignFromDatabase = null;
   let error = null;
@@ -4856,6 +4897,13 @@ async function loadCampaignOpportunityIntoPlanner({
   const primaryResult = await databaseQuery.maybeSingle();
   campaignFromDatabase = primaryResult.data || null;
   error = primaryResult.error || null;
+
+  setCampaignDebugInfo((current) => ({
+    ...(current || {}),
+    primaryDatabaseFound: Boolean(campaignFromDatabase),
+    primaryDatabaseCampaign: summarizeCampaignForDebug(campaignFromDatabase),
+    primaryDatabaseError: primaryResult.error?.message || "",
+  }));
 
   // Calendar handoff must be tolerant. Older rows, newly created rows, or rows
   // where the current brand has not caught up yet should not make the planner
@@ -4875,17 +4923,40 @@ async function loadCampaignOpportunityIntoPlanner({
       error = fallbackResult.error;
     }
   }
+  setCampaignDebugInfo((current) => ({
+    ...(current || {}),
+    fallbackDatabaseFound: Boolean(campaignFromDatabase),
+    fallbackDatabaseCampaign: summarizeCampaignForDebug(campaignFromDatabase),
+    lastDatabaseError: error?.message || "",
+  }));
+
   const campaign = mergeCampaignOpportunitySources(
     campaignFromDatabase,
     campaignFromHandoff
   );
 
+  setCampaignDebugInfo((current) => ({
+    ...(current || {}),
+    mergedCampaign: summarizeCampaignForDebug(campaign),
+    mergeSucceeded: Boolean(campaign),
+  }));
+
   if (error && !campaign) {
+    setCampaignDebugInfo((current) => ({
+      ...(current || {}),
+      finalStatus: "failed: database error and no campaign",
+      finalError: error.message || "Unknown database error",
+    }));
     setMessage(error.message);
     return false;
   }
 
   if (!campaign) {
+    setCampaignDebugInfo((current) => ({
+      ...(current || {}),
+      finalStatus: "failed: no campaign from database or localStorage",
+      finalError: t("automation.errorCampaignNotFound"),
+    }));
     setMessage(t("automation.errorCampaignNotFound"));
     return false;
   }
@@ -4911,6 +4982,13 @@ async function loadCampaignOpportunityIntoPlanner({
     timeZone: campaignTimeZone,
     defaultPublishTime: campaignPublishTime,
   });
+
+  setCampaignDebugInfo((current) => ({
+    ...(current || {}),
+    campaignStartDate,
+    campaignPublishTime,
+    initialSlotCount: campaignSlots.length,
+  }));
 
   if (!campaignSlots.length) {
     const fallbackDate =
@@ -4938,6 +5016,12 @@ async function loadCampaignOpportunityIntoPlanner({
       timeZone: campaignTimeZone,
       defaultPublishTime: campaignPublishTime,
     });
+
+    setCampaignDebugInfo((current) => ({
+      ...(current || {}),
+      fallbackCampaign: summarizeCampaignForDebug(fallbackCampaign),
+      fallbackSlotCount: campaignSlots.length,
+    }));
   }
 
   if (!campaignSlots.length) {
@@ -5010,6 +5094,22 @@ async function loadCampaignOpportunityIntoPlanner({
       });
     });
   }
+
+  setCampaignDebugInfo((current) => ({
+    ...(current || {}),
+    finalStatus: campaignSlots.length > 0 ? "success: campaign slots created" : "failed: 0 slots after emergency fallback",
+    finalSlotCount: campaignSlots.length,
+    finalSlots: campaignSlots.slice(0, 7).map((slot) => ({
+      id: slot.id,
+      startDate: slot.startDate,
+      weekday: slot.weekday,
+      publishTime: slot.publishTime,
+      contentTypeId: slot.contentTypeId,
+      isCampaignSlot: Boolean(slot.isCampaignSlot),
+      campaignRole: slot.campaignRole || "",
+      campaignSummary: slot.campaignSummary || "",
+    })),
+  }));
 
   setCampaignOpportunity(campaign);
   setPlanCreationMode("campaign");
@@ -5117,6 +5217,29 @@ const requestedBrandProfileId =
   searchParams?.get("brandProfileId") ||
   (shouldUseStoredCampaignHandoff ? storedCampaignHandoff?.brandProfileId || "" : "");
 const requestedPlanId = searchParams?.get("plan") || "";
+const shouldShowCampaignDebug =
+  searchParams?.get("debugCampaign") === "1" ||
+  requestedMode === "campaign" ||
+  Boolean(campaignOpportunityId) ||
+  Boolean(storedCampaignHandoff?.campaign?.id);
+
+if (shouldShowCampaignDebug) {
+  setCampaignDebugInfo({
+    enabled: true,
+    pageLoadedAt: new Date().toISOString(),
+    currentUrl: window.location.href,
+    queryString: window.location.search,
+    requestedMode,
+    urlCampaignOpportunityId: maskDebugId(searchParams?.get("campaignOpportunityId")),
+    urlCampaignId: maskDebugId(searchParams?.get("campaignId")),
+    resolvedCampaignOpportunityId: maskDebugId(campaignOpportunityId),
+    urlBrandProfileId: maskDebugId(searchParams?.get("brandProfileId")),
+    storedHandoffExists: Boolean(storedCampaignHandoff?.campaign?.id),
+    storedHandoffIsRecent: isRecentCalendarCampaignHandoff(storedCampaignHandoff),
+    storedHandoffBrandProfileId: maskDebugId(storedCampaignHandoff?.brandProfileId),
+    storedHandoffCampaign: summarizeCampaignForDebug(storedCampaignHandoff?.campaign),
+  });
+}
 
 let selectedBrandId = "";
 
@@ -5126,6 +5249,12 @@ try {
     requestedBrandProfileId
   );
   setCurrentBrandId(selectedBrandId);
+  if (shouldShowCampaignDebug) {
+    setCampaignDebugInfo((current) => ({
+      ...(current || {}),
+      selectedBrandId: maskDebugId(selectedBrandId),
+    }));
+  }
   await loadConnectedPlatformsForBrand(user.id, selectedBrandId);
 } catch (error) {
   setMessage(error.message || t("automation.errorLoadBrand"));
@@ -5204,10 +5333,21 @@ if (campaignOpportunityId) {
     selectedTimeZone: timeZone || DEFAULT_TIME_ZONE,
   });
 
+  setCampaignDebugInfo((current) => ({
+    ...(current || {}),
+    campaignLoadedResult: Boolean(campaignLoaded),
+  }));
+
   if (!campaignLoaded && requestedMode === "campaign") {
     setPlanCreationMode("campaign");
     setMessage(t("automation.errorCampaignNotFound"));
   }
+} else if (shouldShowCampaignDebug) {
+  setCampaignDebugInfo((current) => ({
+    ...(current || {}),
+    campaignLoadedResult: false,
+    finalStatus: "no campaignOpportunityId was available in URL or localStorage",
+  }));
 }
 
 const { data, error } = await supabase
@@ -6430,6 +6570,52 @@ setRules((currentRules) =>
         {t("automation.postCount", { count: getCampaignRecommendedPostCount(campaignOpportunity, slots.length) })}
       </strong>
     </div>
+  </section>
+)}
+
+{campaignDebugInfo?.enabled && (
+  <section
+    style={{
+      margin: "18px 0",
+      padding: "16px",
+      border: "2px solid #f59e0b",
+      borderRadius: "18px",
+      background: "#fff7ed",
+      color: "#111827",
+      boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+    }}
+  >
+    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
+      <div>
+        <p style={{ margin: "0 0 4px", fontSize: "12px", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#92400e" }}>
+          Campaign debug
+        </p>
+        <h3 style={{ margin: 0, fontSize: "18px" }}>Kalender → AI Content Studio</h3>
+        <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#475569" }}>
+          Skicka en skärmbild på denna ruta om kampanjen fortfarande hamnar i vanligt läge eller visar 0 inlägg.
+        </p>
+      </div>
+      <strong style={{ color: campaignDebugInfo.finalSlotCount > 0 ? "#047857" : "#b45309" }}>
+        {campaignDebugInfo.finalStatus || "debug active"}
+      </strong>
+    </div>
+    <pre
+      style={{
+        marginTop: "12px",
+        maxHeight: "360px",
+        overflow: "auto",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        fontSize: "12px",
+        lineHeight: 1.5,
+        background: "#0f172a",
+        color: "#e5e7eb",
+        borderRadius: "12px",
+        padding: "12px",
+      }}
+    >
+      {JSON.stringify(campaignDebugInfo, null, 2)}
+    </pre>
   </section>
 )}
 
