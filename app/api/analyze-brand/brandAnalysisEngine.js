@@ -1729,6 +1729,8 @@ Campaign selection quality gate:
 - Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
 - If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
 - The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
+- Do not let evergreen/custom campaigns crowd out stronger fixed-date or clearly timed local opportunities. When the business has gift, retail, ecommerce, food, beauty, fashion, service, booking, seasonal or product potential, exact-date holidays/theme days/shopping days that genuinely fit the business should normally be included before generic year-round ideas.
+- A good first calendar should usually contain a healthy mix: exact-date moments, date-range campaigns and a few evergreen/custom campaigns only when they are clearly grounded in the business.
 - For broad ecommerce, retail and product-based businesses, return a focused but useful set of the strongest upcoming opportunities. Prefer quality and speed over generating a huge calendar in this first analysis.
 
 Campaign quantity:
@@ -1738,6 +1740,7 @@ Campaign quantity:
 - Never return more than 12.
 
 Campaign timing:
+- Prioritize exact dated opportunities when they are relevant and culturally correct for the selected/inferred market. Examples include local gift days, national holidays, theme days, shopping days and culturally important seasonal dates. Do not invent exact dates; if unsure, use a date range and low date_confidence.
 - Only create campaign opportunities for Calendar year ${campaignCalendarYear}.
 - Every event_date, start_date and end_date must be inside Calendar year ${campaignCalendarYear}.
 - If an opportunity cannot be placed inside this year, omit it.
@@ -1970,6 +1973,8 @@ Campaign selection quality gate:
 - Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
 - If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
 - The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
+- Do not let evergreen/custom campaigns crowd out stronger fixed-date or clearly timed local opportunities. When the business has gift, retail, ecommerce, food, beauty, fashion, service, booking, seasonal or product potential, exact-date holidays/theme days/shopping days that genuinely fit the business should normally be included before generic year-round ideas.
+- A good first calendar should usually contain a healthy mix: exact-date moments, date-range campaigns and a few evergreen/custom campaigns only when they are clearly grounded in the business.
 - For broad ecommerce, retail and product-based businesses, return a focused but useful set of the strongest upcoming opportunities. Prefer quality and speed over generating a huge calendar in this first analysis.
 
 Campaign quantity:
@@ -1979,6 +1984,7 @@ Campaign quantity:
 - Never return more than 12.
 
 Campaign timing:
+- Prioritize exact dated opportunities when they are relevant and culturally correct for the selected/inferred market. Examples include local gift days, national holidays, theme days, shopping days and culturally important seasonal dates. Do not invent exact dates; if unsure, use a date range and low date_confidence.
 - Only create campaign opportunities for Calendar year ${campaignCalendarYear}.
 - Every event_date, start_date and end_date must be inside Calendar year ${campaignCalendarYear}.
 - If an opportunity cannot be placed inside this year, omit it.

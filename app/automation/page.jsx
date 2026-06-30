@@ -3363,6 +3363,7 @@ function shouldUseCarouselForCampaignPost(campaign, postPlanItem = {}, index = 0
 
 function getCampaignSlotContentTypeId(sourceMode) {
   if (sourceMode === "website_carousel") return "carousel_website_item";
+  if (sourceMode === "website_product" || sourceMode === "website_service") return "website_item";
   return "manual_prompt";
 }
 
@@ -3373,6 +3374,10 @@ function getCampaignSlotContentFormat(sourceMode) {
 
 function getCampaignSlotContentTypeLabel(campaign, sourceMode) {
   if (sourceMode === "website_carousel") return "Website carousel";
+  if (sourceMode === "website_product") return "Website product";
+  if (sourceMode === "website_service") return "Website service";
+  if (sourceMode === "ai_image_overlay") return "AI image with overlay";
+  if (sourceMode === "ai_image_text") return "AI image with text";
   return campaign?.title || "Campaign post";
 }
 function getDaysBetweenDateStrings(startDateString, endDateString) {
@@ -3446,6 +3451,20 @@ function getCampaignScheduleFactText(campaign, postPlanItem = {}) {
 }
 
 function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
+  const explicitSourceMode = String(postPlanItem?.content_source_mode || "").trim();
+
+  if ([
+    "generic_campaign",
+    "mixed_campaign_and_website",
+    "website_product",
+    "website_service",
+    "website_carousel",
+    "ai_image_overlay",
+    "ai_image_text",
+  ].includes(explicitSourceMode)) {
+    return explicitSourceMode;
+  }
+
   const websiteContentFit = String(
     campaign?.website_content_fit || ""
   ).toLowerCase();
@@ -4908,6 +4927,44 @@ function summarizeCampaignForDebug(campaign) {
 }
 
 
+
+async function requestStrategicCampaignPlanFromApi({
+  campaignOpportunityId,
+  brandProfileId,
+  timeZone = DEFAULT_TIME_ZONE,
+}) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const accessToken = session?.access_token;
+
+  if (!accessToken) {
+    throw new Error("Missing active session for campaign planning.");
+  }
+
+  const response = await fetch("/api/plan-campaign", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      campaignOpportunityId,
+      brandProfileId,
+      timeZone,
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload?.error || "Could not create campaign plan.");
+  }
+
+  return payload;
+}
+
 function buildDirectCalendarCampaignSlots({
   campaign,
   timeZone = DEFAULT_TIME_ZONE,
@@ -5119,22 +5176,53 @@ async function loadCampaignOpportunityIntoPlanner({
 
   let campaignSlots = [];
   let campaignSlotBuildError = null;
+  let strategicCampaign = campaign;
+  let strategicPlanSource = Array.isArray(campaign.post_plan) && campaign.post_plan.length > 0
+    ? "database"
+    : "";
+  let strategicPlanError = "";
 
   try {
-    // If the calendar campaign has no real post_plan, build the visible plan
-    // directly from the campaign opportunity. This is the normal flow after the
-    // faster brand analysis, where calendar rows are lightweight and posts are
-    // only planned when the customer clicks "Skapa inlägg".
-    const hasUsablePostPlan = Array.isArray(campaign.post_plan) && campaign.post_plan.length > 0;
+    const hasUsablePostPlan = Array.isArray(strategicCampaign.post_plan) && strategicCampaign.post_plan.length > 0;
 
-    campaignSlots = hasUsablePostPlan
+    if (!hasUsablePostPlan) {
+      try {
+        const plannedCampaignPayload = await requestStrategicCampaignPlanFromApi({
+          campaignOpportunityId: campaign.id || campaignOpportunityId,
+          brandProfileId: selectedBrandId,
+          timeZone: campaignTimeZone,
+        });
+
+        const plannedCampaign = plannedCampaignPayload?.campaign;
+
+        if (plannedCampaign && Array.isArray(plannedCampaign.post_plan) && plannedCampaign.post_plan.length > 0) {
+          strategicCampaign = normalizeCampaignOpportunityForPlanner({
+            ...strategicCampaign,
+            ...plannedCampaign,
+            post_plan: plannedCampaign.post_plan,
+            recommended_post_count:
+              plannedCampaign.recommended_post_count ||
+              plannedCampaign.post_plan.length ||
+              strategicCampaign.recommended_post_count,
+          });
+          strategicPlanSource = plannedCampaignPayload?.source || "openai";
+          setCampaignOpportunity(strategicCampaign);
+        }
+      } catch (planningError) {
+        strategicPlanError = planningError?.message || "Campaign planning failed.";
+      }
+    }
+
+    const hasStrategicPostPlan = Array.isArray(strategicCampaign.post_plan) && strategicCampaign.post_plan.length > 0;
+
+    campaignSlots = hasStrategicPostPlan
       ? createCampaignSlotsFromOpportunity({
-          campaign,
+          campaign: strategicCampaign,
           timeZone: campaignTimeZone,
           defaultPublishTime: campaignPublishTime,
         })
       : buildDirectCalendarCampaignSlots({
-          campaign,
+          campaign: strategicCampaign,
           timeZone: campaignTimeZone,
           defaultPublishTime: campaignPublishTime,
         });
@@ -5147,6 +5235,9 @@ async function loadCampaignOpportunityIntoPlanner({
     ...(current || {}),
     campaignStartDate,
     campaignPublishTime,
+    strategicPlanSource,
+    strategicPlanError,
+    plannedCampaign: summarizeCampaignForDebug(strategicCampaign),
     initialSlotCount: campaignSlots.length,
     slotBuildError: campaignSlotBuildError?.message || "",
   }));
@@ -5272,11 +5363,11 @@ async function loadCampaignOpportunityIntoPlanner({
     })),
   }));
 
-  setCampaignOpportunity(campaign);
+  setCampaignOpportunity(strategicCampaign || campaign);
   setPlanCreationMode("campaign");
   setScheduleType("once");
-  setPlanName(campaign.title || "Campaign plan");
-  setLanguage(campaign.language || "Auto");
+  setPlanName((strategicCampaign || campaign).title || "Campaign plan");
+  setLanguage((strategicCampaign || campaign).language || "Auto");
   setPostType("Campaign");
   setTone("Friendly");
   setCtaType("Learn more");
@@ -5378,11 +5469,7 @@ const requestedBrandProfileId =
   searchParams?.get("brandProfileId") ||
   (shouldUseStoredCampaignHandoff ? storedCampaignHandoff?.brandProfileId || "" : "");
 const requestedPlanId = searchParams?.get("plan") || "";
-const shouldShowCampaignDebug =
-  searchParams?.get("debugCampaign") === "1" ||
-  requestedMode === "campaign" ||
-  Boolean(campaignOpportunityId) ||
-  Boolean(storedCampaignHandoff?.campaign?.id);
+const shouldShowCampaignDebug = searchParams?.get("debugCampaign") === "1";
 
 if (shouldShowCampaignDebug) {
   setCampaignDebugInfo({
