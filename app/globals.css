@@ -17710,3 +17710,15 @@ textarea.input,
   line-height: 1.45;
   color: #475569;
 }
+
+/* Step 95i: carousel review cleanup */
+.approve-success-button {
+  background: #16a34a !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 28px rgba(22, 163, 74, 0.22);
+}
+
+.approve-success-button:hover {
+  background: #15803d !important;
+  opacity: 1;
+}

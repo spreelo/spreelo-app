@@ -170,7 +170,10 @@ export default function EditPostPage() {
   }
 
   async function approvePost() {
-    const confirmApprove = window.confirm(t("posts.confirmApprove"));
+    const isCarouselApproval = post?.content_format === "carousel";
+    const confirmApprove = window.confirm(
+      t(isCarouselApproval ? "posts.confirmApproveCarousel" : "posts.confirmApprove")
+    );
 
     if (!confirmApprove) return;
 
@@ -198,7 +201,7 @@ export default function EditPostPage() {
     } else {
       setPost(data);
       setContent(data.content || "");
-      setMessage(t("posts.messageApproved"));
+      setMessage(t(isCarouselApproval ? "posts.messageApprovedCarousel" : "posts.messageApproved"));
     }
 
     setApproving(false);
@@ -262,8 +265,8 @@ export default function EditPostPage() {
     post.source_label ||
     (isAutomationPost ? t("posts.generatedByAutomation") : t("posts.manualDraft"));
 
-  const imageStatusLabel = formatImageStatus(post.image_status, t);
   const isCarouselPost = post.content_format === "carousel";
+  const imageStatusLabel = isCarouselPost ? null : formatImageStatus(post.image_status, t);
   const hasSlides = slides.length > 0;
 
   return (
@@ -287,13 +290,15 @@ export default function EditPostPage() {
             {t("posts.back")}
           </a>
 
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => navigator.clipboard.writeText(content)}
-          >
-            {t("posts.copyText")}
-          </button>
+          {!isCarouselPost && (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => navigator.clipboard.writeText(content)}
+            >
+              {t("posts.copyText")}
+            </button>
+          )}
 
           <button
             type="button"
@@ -315,16 +320,14 @@ export default function EditPostPage() {
                 {discarding ? t("posts.discarding") : t("posts.discard")}
               </button>
 
-              {!isCarouselPost && (
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={approvePost}
-                  disabled={saving || approving || discarding}
-                >
-                  {approving ? t("posts.approving") : t("posts.approve")}
-                </button>
-              )}
+              <button
+                type="button"
+                className={isCarouselPost ? "primary-button approve-success-button" : "primary-button"}
+                onClick={approvePost}
+                disabled={saving || approving || discarding}
+              >
+                {approving ? t("posts.approving") : t("posts.approve")}
+              </button>
             </>
           )}
         </div>
@@ -374,7 +377,7 @@ export default function EditPostPage() {
             {formatDate(post.created_at, t)}
           </p>
 
-          {post.scheduled_for && (
+          {post.scheduled_for && !isCarouselPost && (
             <p>
               <strong>{t("posts.scheduledFor")}:</strong>{" "}
               {formatDate(post.scheduled_for, t)}
@@ -395,10 +398,10 @@ export default function EditPostPage() {
             </p>
           )}
 
-          {isPendingApproval && (
+          {isPendingApproval && !isCarouselPost && (
             <p>
               <strong>{t("posts.note")}:</strong>{" "}
-              {isCarouselPost ? t("posts.carouselReviewNote") : t("posts.approvalNote")}
+              {t("posts.approvalNote")}
             </p>
           )}
 

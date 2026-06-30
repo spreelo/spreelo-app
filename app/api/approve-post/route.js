@@ -360,8 +360,8 @@ export async function GET(request) {
     }
 
     return htmlResponse({
-      title: translator.t(isCarouselPost ? "approvePages.carouselApproved.title" : "approvePages.approved.title"),
-      message: translator.t(isCarouselPost ? "approvePages.carouselApproved.message" : "approvePages.approved.message"),
+      title: translator.t(isCarouselPost ? "approvePages.carouselApprovedV2.title" : "approvePages.approved.title"),
+      message: translator.t(isCarouselPost ? "approvePages.carouselApprovedV2.message" : "approvePages.approved.message"),
       status: "success",
       httpStatus: 200,
       t: translator.t,

@@ -1299,8 +1299,8 @@ function buildApprovalEmailHtml({
   const safeImageUrl = imageUrl ? escapeHtml(imageUrl) : "";
   const titleKey = isCarouselDraft ? "emails.approval.carouselTitle" : "emails.approval.title";
   const introKey = isCarouselDraft ? "emails.approval.carouselIntro" : "emails.approval.intro";
-  const buttonKey = isCarouselDraft ? "emails.approval.carouselButton" : "emails.approval.button";
-  const afterKey = isCarouselDraft ? "emails.approval.carouselAfterApproval" : "emails.approval.afterApproval";
+  const buttonKey = isCarouselDraft ? "emails.approval.button" : "emails.approval.button";
+  const afterKey = isCarouselDraft ? "emails.approval.carouselAfterApprovalV2" : "emails.approval.afterApproval";
   const carouselPreviewHtml = isCarouselDraft ? buildCarouselEmailPreviewHtml(carouselSlides) : "";
   return `
 <!doctype html>
@@ -1402,8 +1402,8 @@ function buildApprovalEmailText({
   const platformLabel = rule.platform || "Social media";
   const postTypeLabel = rule.post_type || "Post";
   const textTitleKey = isCarouselDraft ? "emails.approval.carouselTextTitle" : "emails.approval.textTitle";
-  const textActionKey = isCarouselDraft ? "emails.approval.carouselTextApprovePost" : "emails.approval.textApprovePost";
-  const afterKey = isCarouselDraft ? "emails.approval.carouselAfterApproval" : "emails.approval.afterApproval";
+  const textActionKey = isCarouselDraft ? "emails.approval.textApprovePost" : "emails.approval.textApprovePost";
+  const afterKey = isCarouselDraft ? "emails.approval.carouselAfterApprovalV2" : "emails.approval.afterApproval";
 
   return `
 ${t(textTitleKey)}
