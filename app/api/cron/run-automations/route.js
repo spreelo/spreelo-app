@@ -70,6 +70,195 @@ function formatPostContentForHtml(content) {
   return escapeHtml(content).replace(/\n/g, "<br />");
 }
 
+
+function escapeSvg(value) {
+  return escapeHtml(String(value || "").replace(/\s+/g, " ").trim());
+}
+
+function splitTextIntoLines(value, maxCharsPerLine, maxLines) {
+  const words = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+
+  if (!words.length) {
+    return [];
+  }
+
+  const lines = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxCharsPerLine || !current) {
+      current = candidate;
+      continue;
+    }
+
+    lines.push(current);
+    current = word;
+
+    if (lines.length === maxLines) {
+      break;
+    }
+  }
+
+  if (lines.length < maxLines && current) {
+    lines.push(current);
+  }
+
+  if (words.length && lines.length) {
+    const consumed = lines.join(" ").split(" ").filter(Boolean).length;
+    if (consumed < words.length) {
+      lines[maxLines - 1] = `${lines[maxLines - 1].replace(/[.…]+$/g, "")}…`;
+    }
+  }
+
+  return lines.slice(0, maxLines);
+}
+
+function buildSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400, fill = "#0f172a" }) {
+  if (!Array.isArray(lines) || !lines.length) {
+    return "";
+  }
+
+  const spans = lines
+    .map((line, index) => {
+      const dy = index === 0 ? 0 : lineHeight;
+      return `<tspan x="${x}" dy="${dy}">${escapeSvg(line)}</tspan>`;
+    })
+    .join("");
+
+  return `<text x="${x}" y="${y}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}">${spans}</text>`;
+}
+
+function getCarouselSlideDefaultCta(language) {
+  const normalized = String(language || "").toLowerCase();
+
+  if (normalized.includes("swed") || normalized.includes("svensk")) {
+    return "Lär mer";
+  }
+
+  if (normalized.includes("span")) {
+    return "Más info";
+  }
+
+  if (normalized.includes("french")) {
+    return "Voir plus";
+  }
+
+  if (normalized.includes("german") || normalized.includes("deutsch")) {
+    return "Mehr sehen";
+  }
+
+  return "Learn more";
+}
+
+async function renderCarouselProductSlideImage({
+  slide,
+  brandName,
+  sourceImageUrl,
+  language,
+}) {
+  const width = 1080;
+  const height = 1080;
+  const heroX = 64;
+  const heroY = 64;
+  const heroWidth = 952;
+  const heroHeight = 566;
+  const heroImageX = 114;
+  const heroImageY = 108;
+  const heroImageWidth = 852;
+  const heroImageHeight = 478;
+  const copyX = 64;
+  const copyY = 662;
+  const copyWidth = 952;
+  const copyHeight = 354;
+  const textX = 114;
+  const brandLabelY = 722;
+  const headlineY = 782;
+  const bodyY = 884;
+  const ctaY = 960;
+
+  const brandLabel = normalizeSlideText(brandName || "", 36);
+  const headline = normalizeSlideText(slide?.headline || "", 110);
+  const body = normalizeSlideText(slide?.body || "", 260);
+  const ctaText = normalizeSlideText(
+    slide?.cta_text || getCarouselSlideDefaultCta(language),
+    34
+  );
+
+  const brandLines = splitTextIntoLines(brandLabel, 28, 1);
+  const headlineLines = splitTextIntoLines(headline, 20, 2);
+  const bodyLines = splitTextIntoLines(body, 42, 4);
+  const ctaWidth = Math.max(220, Math.min(420, 70 + ctaText.length * 16));
+
+  const backgroundSvg = `
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${width}" height="${height}" rx="0" fill="#f5f7fb"/>
+      <rect x="${heroX}" y="${heroY}" width="${heroWidth}" height="${heroHeight}" rx="36" fill="#ffffff" stroke="#d9e2f0" stroke-width="3"/>
+      <rect x="${copyX}" y="${copyY}" width="${copyWidth}" height="${copyHeight}" rx="36" fill="#ffffff" stroke="#d9e2f0" stroke-width="3"/>
+      <rect x="${heroImageX}" y="${heroImageY}" width="${heroImageWidth}" height="${heroImageHeight}" rx="28" fill="#f8fafc"/>
+      <rect x="${textX}" y="${ctaY - 42}" width="${ctaWidth}" height="58" rx="29" fill="#eff6ff" stroke="#bfdbfe" stroke-width="2"/>
+      ${buildSvgTextBlock(brandLines, { x: textX, y: brandLabelY, fontSize: 22, lineHeight: 24, fontWeight: 700, fill: '#64748b' })}
+      ${buildSvgTextBlock(headlineLines, { x: textX, y: headlineY, fontSize: 54, lineHeight: 60, fontWeight: 800, fill: '#0f172a' })}
+      ${buildSvgTextBlock(bodyLines, { x: textX, y: bodyY, fontSize: 31, lineHeight: 38, fontWeight: 500, fill: '#334155' })}
+      <text x="${textX + 34}" y="${ctaY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#1d4ed8">${escapeSvg(ctaText)}</text>
+    </svg>
+  `;
+
+  const composites = [{
+    input: Buffer.from(backgroundSvg),
+    top: 0,
+    left: 0,
+  }];
+
+  if (sourceImageUrl) {
+    try {
+      const sourceBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
+      const productImageBuffer = await sharp(sourceBuffer)
+        .rotate()
+        .resize({
+          width: heroImageWidth,
+          height: heroImageHeight,
+          fit: 'contain',
+          background: { r: 248, g: 250, b: 252, alpha: 1 },
+          withoutEnlargement: false,
+        })
+        .png()
+        .toBuffer();
+
+      composites.push({
+        input: productImageBuffer,
+        top: heroImageY,
+        left: heroImageX,
+      });
+    } catch (error) {
+      console.error('Carousel product slide image fetch/render failed', {
+        sourceImageUrl,
+        message: error.message,
+      });
+    }
+  }
+
+  const outputBuffer = await sharp({
+    create: {
+      width,
+      height,
+      channels: 4,
+      background: { r: 245, g: 247, b: 251, alpha: 1 },
+    },
+  })
+    .composite(composites)
+    .png()
+    .toBuffer();
+
+  return {
+    imageBase64: outputBuffer.toString('base64'),
+  };
+}
+
 function getDateYYYYMMDDInTimeZone(
   date = new Date(),
   timeZone = DEFAULT_TIME_ZONE
@@ -4594,9 +4783,56 @@ async function saveCarouselSlidesForPost({
   for (let index = 0; index < slides.length; index += 1) {
     const slide = slides[index] || {};
     const isOutroSlide = String(slide.slide_type || '').toLowerCase() === 'product_outro';
-    let slideImageUrl = slide.image_url || (!isOutroSlide && index === 0 ? imageUrl : null) || (!isOutroSlide ? selectedItem?.image_url : null) || null;
+    const sourceSlideImageUrl = slide.image_url || (!isOutroSlide && index === 0 ? imageUrl : null) || (!isOutroSlide ? selectedItem?.image_url : null) || null;
+    let slideImageUrl = sourceSlideImageUrl;
     let slideStoragePath = !isOutroSlide && index === 0 ? imageStoragePath || null : null;
     let generatedImagePrompt = null;
+    let slideRenderedBy = 'source_image';
+
+    if (!isOutroSlide && sourceSlideImageUrl) {
+      try {
+        const { imageBase64 } = await renderCarouselProductSlideImage({
+          slide,
+          brandName: rule?.brand_profile?.business_name || 'Spreelo',
+          sourceImageUrl: sourceSlideImageUrl,
+          language: rule?.language || rule?.brand_profile?.content_language || 'English',
+        });
+
+        const uploadedImage = await uploadGeneratedImageToStorage({
+          supabase,
+          imageBase64,
+          userId: rule.user_id,
+          postId,
+          fileSuffix: `carousel-slide-${index + 1}-rendered`,
+        });
+
+        slideImageUrl = uploadedImage.imageUrl;
+        slideStoragePath = uploadedImage.imageStoragePath;
+        slideRenderedBy = 'step95j_product_carousel_render';
+
+        const logoOverlayResult = await applyLogoOverlayIfNeeded({
+          supabase,
+          userId: rule.user_id,
+          postId: `${postId}-carousel-slide-${index + 1}`,
+          imageUrl: slideImageUrl,
+          imageStoragePath: slideStoragePath,
+          brandProfile: rule.brand_profile,
+          includeLogo: includeLogo,
+        });
+
+        if (logoOverlayResult?.imageUrl) {
+          slideImageUrl = logoOverlayResult.imageUrl;
+          slideStoragePath = logoOverlayResult.imageStoragePath || slideStoragePath;
+        }
+      } catch (error) {
+        console.error('Carousel product slide render failed', {
+          ruleId: rule?.id,
+          postId,
+          slideOrder: index + 1,
+          message: error.message,
+        });
+      }
+    }
 
     if (isOutroSlide && !slideImageUrl) {
       try {
@@ -4618,6 +4854,7 @@ async function saveCarouselSlidesForPost({
         slideImageUrl = uploadedImage.imageUrl;
         slideStoragePath = uploadedImage.imageStoragePath;
         generatedImagePrompt = imagePrompt;
+        slideRenderedBy = 'step95g_product_carousel_outro';
 
         const logoOverlayResult = await applyLogoOverlayIfNeeded({
           supabase,
@@ -4657,7 +4894,7 @@ async function saveCarouselSlidesForPost({
       logo_enabled: includeLogo,
       metadata: {
         generated_by: productCount >= CAROUSEL_MIN_PRODUCT_SLIDES
-          ? 'step95g_product_carousel_outro'
+          ? slideRenderedBy
           : 'step94_carousel_draft',
         carousel_slide_role: slide.slide_type || (index === 0 ? 'product_hook' : index === slides.length - 1 ? 'product_cta' : 'product'),
         source_content_type_id: rule.content_type_id || null,
@@ -4665,6 +4902,8 @@ async function saveCarouselSlidesForPost({
         image_storage_path: slideStoragePath || null,
         image_prompt: generatedImagePrompt || null,
         overlay_text: slide.overlay_text || null,
+        source_image_url: sourceSlideImageUrl || null,
+        rendered_slide: slideRenderedBy !== 'source_image',
       },
     });
   }
@@ -5308,6 +5547,199 @@ async function publishImagePostToInstagram({
   return publishResult;
 }
 
+
+async function publishCarouselPostToFacebook({
+  pageId,
+  pageAccessToken,
+  slideImageUrls,
+  caption,
+}) {
+  const uploadedMediaIds = [];
+
+  for (const imageUrl of slideImageUrls) {
+    const response = await fetch(
+      `https://graph.facebook.com/v19.0/${pageId}/photos`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: imageUrl,
+          published: false,
+          access_token: pageAccessToken,
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result?.id) {
+      throw new Error(
+        getMetaErrorMessage(result, "Facebook carousel image upload failed")
+      );
+    }
+
+    uploadedMediaIds.push(result.id);
+  }
+
+  if (uploadedMediaIds.length < 2) {
+    throw new Error("Facebook carousel publishing requires at least 2 slide images.");
+  }
+
+  const response = await fetch(
+    `https://graph.facebook.com/v19.0/${pageId}/feed`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: caption,
+        attached_media: uploadedMediaIds.map((mediaId) => ({ media_fbid: mediaId })),
+        access_token: pageAccessToken,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result?.id) {
+    throw new Error(
+      getMetaErrorMessage(result, "Facebook carousel publish failed")
+    );
+  }
+
+  return result;
+}
+
+async function createInstagramCarouselChild({
+  instagramUserId,
+  accessToken,
+  imageUrl,
+}) {
+  const response = await fetch(
+    `https://graph.instagram.com/${INSTAGRAM_GRAPH_API_VERSION}/${instagramUserId}/media`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        image_url: imageUrl,
+        is_carousel_item: true,
+        access_token: accessToken,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result?.id) {
+    throw new Error(
+      getMetaErrorMessage(result, "Instagram carousel child creation failed")
+    );
+  }
+
+  await waitForInstagramContainerReady({
+    creationId: result.id,
+    accessToken,
+    instagramUserId,
+  });
+
+  return result.id;
+}
+
+async function publishCarouselPostToInstagram({
+  instagramUserId,
+  accessToken,
+  slideImageUrls,
+  caption,
+}) {
+  const childIds = [];
+
+  for (const imageUrl of slideImageUrls) {
+    const childId = await createInstagramCarouselChild({
+      instagramUserId,
+      accessToken,
+      imageUrl,
+    });
+    childIds.push(childId);
+  }
+
+  if (childIds.length < 2) {
+    throw new Error("Instagram carousel publishing requires at least 2 slide images.");
+  }
+
+  const createResponse = await fetch(
+    `https://graph.instagram.com/${INSTAGRAM_GRAPH_API_VERSION}/${instagramUserId}/media`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        media_type: "CAROUSEL",
+        children: childIds,
+        caption,
+        access_token: accessToken,
+      }),
+    }
+  );
+
+  const createResult = await createResponse.json();
+
+  if (!createResponse.ok || !createResult?.id) {
+    throw new Error(
+      getMetaErrorMessage(createResult, "Instagram carousel container creation failed")
+    );
+  }
+
+  await waitForInstagramContainerReady({
+    creationId: createResult.id,
+    accessToken,
+    instagramUserId,
+  });
+
+  const publishResponse = await fetch(
+    `https://graph.instagram.com/${INSTAGRAM_GRAPH_API_VERSION}/${instagramUserId}/media_publish`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        creation_id: createResult.id,
+        access_token: accessToken,
+      }),
+    }
+  );
+
+  const publishResult = await publishResponse.json();
+
+  if (!publishResponse.ok || !publishResult?.id) {
+    throw new Error(
+      getMetaErrorMessage(publishResult, "Instagram carousel publish failed")
+    );
+  }
+
+  return publishResult;
+}
+
+async function loadCarouselSlidesForPublish({ supabase, postId }) {
+  const { data, error } = await supabase
+    .from("post_slides")
+    .select("id, slide_order, image_url, headline, body, cta_text, metadata")
+    .eq("post_id", postId)
+    .order("slide_order", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message || "Could not load carousel slides");
+  }
+
+  return (data || []).filter((slide) => slide?.image_url);
+}
+
 async function getFacebookConnectionForBrand({
   supabase,
   userId,
@@ -5399,16 +5831,16 @@ async function publishApprovedSocialPosts({
     return;
   }
 
-  const approvedPosts = (posts || []).filter(
-    (post) =>
-      normalizeContentFormat(post.content_format) === "single_image" &&
-      getPublishTargets(post.platform).length > 0
-  );
+  const approvedPosts = (posts || []).filter((post) => {
+    const format = normalizeContentFormat(post.content_format);
+    return ["single_image", "carousel"].includes(format) && getPublishTargets(post.platform).length > 0;
+  });
 
   summary.social_publish_checked += approvedPosts.length;
 
   for (const post of approvedPosts) {
     const targets = getPublishTargets(post.platform);
+    const normalizedFormat = normalizeContentFormat(post.content_format);
     let facebookConnectionForPost = null;
     let instagramConnectionForPost = null;
     let activePublishTarget = null;
@@ -5437,7 +5869,7 @@ async function publishApprovedSocialPosts({
         continue;
       }
 
-      if (targets.includes("instagram") && !post.image_url) {
+      if (targets.includes("instagram") && normalizedFormat === "single_image" && !post.image_url) {
         console.error("Instagram publish skipped because post has no image URL", {
           postId: post.id,
           userId: post.user_id,
@@ -5490,7 +5922,27 @@ async function publishApprovedSocialPosts({
           throw new Error("No connected Facebook page found for this brand");
         }
 
-        if (post.image_url) {
+        if (normalizedFormat === "carousel") {
+          const carouselSlides = await loadCarouselSlidesForPublish({
+            supabase,
+            postId: post.id,
+          });
+
+          const slideImageUrls = carouselSlides
+            .map((slide) => slide.image_url)
+            .filter(Boolean);
+
+          if (slideImageUrls.length < 2) {
+            throw new Error("Carousel post is missing render-ready slide images for Facebook publishing.");
+          }
+
+          await publishCarouselPostToFacebook({
+            pageId: facebookConnection.page_id,
+            pageAccessToken: facebookConnection.page_access_token,
+            slideImageUrls,
+            caption: post.content,
+          });
+        } else if (post.image_url) {
           await publishImagePostToFacebook({
             pageId: facebookConnection.page_id,
             pageAccessToken: facebookConnection.page_access_token,
@@ -5544,12 +5996,34 @@ async function publishApprovedSocialPosts({
           throw new Error("No connected Instagram account found for this brand");
         }
 
-        await publishImagePostToInstagram({
-          instagramUserId: instagramConnection.page_id,
-          accessToken: instagramConnection.page_access_token,
-          imageUrl: post.image_url,
-          caption: buildInstagramCaptionFromPostContent(post.content),
-        });
+        if (normalizedFormat === "carousel") {
+          const carouselSlides = await loadCarouselSlidesForPublish({
+            supabase,
+            postId: post.id,
+          });
+
+          const slideImageUrls = carouselSlides
+            .map((slide) => slide.image_url)
+            .filter(Boolean);
+
+          if (slideImageUrls.length < 2) {
+            throw new Error("Carousel post is missing render-ready slide images for Instagram publishing.");
+          }
+
+          await publishCarouselPostToInstagram({
+            instagramUserId: instagramConnection.page_id,
+            accessToken: instagramConnection.page_access_token,
+            slideImageUrls,
+            caption: buildInstagramCaptionFromPostContent(post.content),
+          });
+        } else {
+          await publishImagePostToInstagram({
+            instagramUserId: instagramConnection.page_id,
+            accessToken: instagramConnection.page_access_token,
+            imageUrl: post.image_url,
+            caption: buildInstagramCaptionFromPostContent(post.content),
+          });
+        }
 
         summary.instagram_published += 1;
         activePublishTarget = null;
