@@ -3268,8 +3268,8 @@ function extractProductUrlCandidatesFromText({
   const origin = getWebsiteOrigin(websiteUrl);
   const host = getHostnameWithoutWww(websiteUrl);
   const patterns = [
-    /https?:\\/\\/[^"'<>\\s]+/gi,
-    /["']((?:\\/[^"'<>\\s]+){1,})["']/g,
+    /https?:\/\/[^"'<>\s]+/gi,
+    /["']((?:\/[^"'<>\s]+){1,})["']/g,
   ];
 
   for (const pattern of patterns) {
