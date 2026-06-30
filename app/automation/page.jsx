@@ -4697,7 +4697,11 @@ async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
     }
 
     if (selectedBrandId && parsed?.brandProfileId && parsed.brandProfileId !== selectedBrandId) {
-      return null;
+      return {
+        ...campaign,
+        brand_profile_id: parsed.brandProfileId,
+        _handoffBrandMismatch: true,
+      };
     }
 
     return campaign;

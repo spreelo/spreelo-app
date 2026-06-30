@@ -17867,3 +17867,39 @@ html body .planner-credits-card,
 html body .saved-card-compact {
   background-color: #ffffff !important;
 }
+
+/* Step 98e: stabilize campaign planner scrolling and remove heavy repaint layers */
+.automation-page.campaign-planner-clean,
+.automation-page.campaign-planner-clean .wizard-layout,
+.automation-page.campaign-planner-clean .wizard-main,
+.automation-page.campaign-planner-clean .planner-sidebar {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+.automation-page.campaign-planner-clean .planner-sidebar {
+  position: static !important;
+  top: auto !important;
+  align-self: start !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.automation-page.campaign-planner-clean .planner-summary-card,
+.automation-page.campaign-planner-clean .planner-credits-card,
+.automation-page.campaign-planner-clean .planner-hero,
+.automation-page.campaign-planner-clean .campaign-mode-banner,
+.automation-page.campaign-planner-clean .planner-builder-card,
+.automation-page.campaign-planner-clean .planner-save-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: none !important;
+  will-change: auto !important;
+}
+
+.automation-page.campaign-planner-clean *,
+.automation-page.campaign-planner-clean *::before,
+.automation-page.campaign-planner-clean *::after {
+  scroll-behavior: auto !important;
+}

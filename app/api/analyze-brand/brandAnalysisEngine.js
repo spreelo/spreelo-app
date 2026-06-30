@@ -957,6 +957,42 @@ function addDays(dateString, days) {
   return date.toISOString().slice(0, 10);
 }
 
+
+function getNthWeekdayOfMonth(year, monthIndex, weekday, occurrence) {
+  const date = new Date(Date.UTC(year, monthIndex, 1));
+  let found = 0;
+
+  while (date.getUTCMonth() === monthIndex) {
+    if (date.getUTCDay() === weekday) {
+      found += 1;
+      if (found === occurrence) {
+        return date.toISOString().slice(0, 10);
+      }
+    }
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`;
+}
+
+function getLastWeekdayOfMonth(year, monthIndex, weekday) {
+  const date = new Date(Date.UTC(year, monthIndex + 1, 0));
+
+  while (date.getUTCDay() !== weekday) {
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function getSwedishMothersDay(year) {
+  return getLastWeekdayOfMonth(year, 4, 0);
+}
+
+function getSwedishFathersDay(year) {
+  return getNthWeekdayOfMonth(year, 10, 0, 2);
+}
+
 function isOpportunityUpcomingOnDate(opportunity, currentDate) {
   if (!opportunity || !currentDate) {
     return true;
@@ -1026,6 +1062,7 @@ function makeFallbackCampaign({
   postCount = 5,
   salesScore = 4,
   engagementScore = 3,
+  dateConfidence = "medium",
 }) {
   return {
     title,
@@ -1035,7 +1072,7 @@ function makeFallbackCampaign({
     event_date: eventDate,
     start_date: startDate,
     end_date: endDate,
-    date_confidence: "medium",
+    date_confidence: dateConfidence,
     website_content_fit: "strong",
     website_content_strategy: "product",
     website_product_selection_hint: productGuidance,
@@ -1066,9 +1103,43 @@ function buildFallbackProductCampaignOpportunities({
   const swedish = isSwedishContentLanguage(contentLanguage);
   const blackFriday = getLastFridayOfNovember(campaignCalendarYear);
   const cyberMonday = addDays(blackFriday, 3);
+  const swedishMothersDay = getSwedishMothersDay(campaignCalendarYear);
+  const swedishFathersDay = getSwedishFathersDay(campaignCalendarYear);
 
   const campaigns = swedish
     ? [
+        makeFallbackCampaign({
+          title: "Mors dag presentguide",
+          slug: "mors-dag-presentguide",
+          description: "En presentguide som hjälper kunder hitta omtänksamma och användbara produkter inför Mors dag.",
+          eventType: "holiday",
+          eventDate: swedishMothersDay,
+          category: "gift_campaign",
+          goal: "Driva relevanta presentköp inför Mors dag med produkter som passar olika behov och personligheter.",
+          need: "Kunder vill hitta en uppskattad present som känns genomtänkt och praktisk.",
+          productGuidance: "Välj presentvänliga produkter som passar hem, vardag, teknik, ljud, kök, smart hem, hälsa, komfort eller personlig användning. Undvik produkter som känns slumpmässiga eller svåra att motivera som present.",
+          angles: ["awareness", "product_discovery", "gift_guide", "product_push"],
+          postCount: 5,
+          salesScore: 5,
+          engagementScore: 4,
+          dateConfidence: "high",
+        }),
+        makeFallbackCampaign({
+          title: "Fars dag presentguide",
+          slug: "fars-dag-presentguide",
+          description: "En presentguide som hjälper kunder hitta relevanta produkter inför Fars dag.",
+          eventType: "holiday",
+          eventDate: swedishFathersDay,
+          category: "gift_campaign",
+          goal: "Driva presentköp inför Fars dag genom tydliga produktförslag och köpvägledning.",
+          need: "Kunder behöver konkreta presentidéer som passar olika intressen, hem och vardagsbehov.",
+          productGuidance: "Välj presentvänliga produkter som teknik, ljud, gaming, smart hem, verktygsliknande elektronik, kök, kaffe, personlig användning eller vardagsuppgraderingar. Undvik slumpmässiga produkter utan tydlig presentlogik.",
+          angles: ["awareness", "product_discovery", "gift_guide", "product_push", "urgency"],
+          postCount: 5,
+          salesScore: 5,
+          engagementScore: 4,
+          dateConfidence: "high",
+        }),
         makeFallbackCampaign({
           title: "Sommarens smarta produktval",
           slug: "sommarens-smarta-produktval",
@@ -1154,6 +1225,22 @@ function buildFallbackProductCampaignOpportunities({
           angles: ["product_discovery", "product_push", "offer", "urgency"],
           postCount: 6,
           salesScore: 5,
+        }),
+        makeFallbackCampaign({
+          title: "Cyber Monday teknikval",
+          slug: "cyber-monday-teknikval",
+          description: "En köpdriven kampanj för kunder som fortfarande jämför och vill hitta rätt produkt efter Black Week-helgen.",
+          eventType: "shopping",
+          eventDate: cyberMonday,
+          category: "sales_campaign",
+          goal: "Fånga köpintentionen under Cyber Monday med tydliga produktval och beslutshjälp.",
+          need: "Kunder vill snabbt hitta rätt produkt innan shoppingperioden är över.",
+          productGuidance: "Prioritera jämförelsevänliga produkter, populära kategorier och produkter med tydlig köpintention. Nämn inte rabatter eller kampanjpriser om de inte är verifierade.",
+          angles: ["product_discovery", "product_push", "comparison", "urgency"],
+          postCount: 4,
+          salesScore: 5,
+          engagementScore: 3,
+          dateConfidence: "high",
         }),
         makeFallbackCampaign({
           title: "Julklappsguide",
@@ -1300,15 +1387,12 @@ function buildStrategicCampaignOpportunitySet({
     campaignCalendarYear
   );
 
-  const upcomingSourceCount = normalizedSource.filter((opportunity) =>
-    isOpportunityUpcomingOnDate(opportunity, currentDate)
-  ).length;
+  const productOrRetailBased = appearsProductOrRetailBased({
+    industry,
+    websiteProductMode,
+  });
 
-  const shouldAddFallbacks =
-    upcomingSourceCount < 6 &&
-    appearsProductOrRetailBased({ industry, websiteProductMode });
-
-  if (!shouldAddFallbacks) {
+  if (!productOrRetailBased) {
     return sourceOpportunities;
   }
 
@@ -1316,7 +1400,7 @@ function buildStrategicCampaignOpportunitySet({
     campaignCalendarYear,
     currentDate,
     contentLanguage,
-  });
+  }).filter((opportunity) => isOpportunityUpcomingOnDate(opportunity, currentDate));
 
   const usedKeys = new Set(
     normalizedSource.map((opportunity) => getOpportunityKey(opportunity)).filter(Boolean)
@@ -1685,6 +1769,7 @@ Campaign selection quality gate:
 - Do not choose campaigns because they are generally popular. Choose them only when there is a clear customer reason to buy, book, visit, remember, compare, prepare, celebrate, gift, upgrade, replace, learn or engage with this specific business.
 - Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
 - Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. For example: giftable products should strongly consider local gift days; ecommerce/retail should strongly consider major local shopping periods; restaurants/food should consider relevant food and dining moments; beauty/fashion should consider party, season, wedding, graduation and self-care moments; service/bookable businesses should consider seasonal preparation and booking windows.
+- For broad ecommerce and retail, do not miss obvious high-value local shopping and gift moments that are still upcoming in the calendar year. These should normally beat generic evergreen campaigns when they fit the product range.
 - Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or B2B software. A pet-related day belongs to pet brands, not to unrelated retailers unless their product range genuinely fits.
 - Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
 - If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
@@ -1963,6 +2048,7 @@ Campaign selection quality gate:
 - Do not choose campaigns because they are generally popular. Choose them only when there is a clear customer reason to buy, book, visit, remember, compare, prepare, celebrate, gift, upgrade, replace, learn or engage with this specific business.
 - Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
 - Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. For example: giftable products should strongly consider local gift days; ecommerce/retail should strongly consider major local shopping periods; restaurants/food should consider relevant food and dining moments; beauty/fashion should consider party, season, wedding, graduation and self-care moments; service/bookable businesses should consider seasonal preparation and booking windows.
+- For broad ecommerce and retail, do not miss obvious high-value local shopping and gift moments that are still upcoming in the calendar year. These should normally beat generic evergreen campaigns when they fit the product range.
 - Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or B2B software. A pet-related day belongs to pet brands, not to unrelated retailers unless their product range genuinely fits.
 - Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
 - If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
