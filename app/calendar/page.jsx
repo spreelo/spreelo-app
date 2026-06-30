@@ -5,6 +5,8 @@ import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 
+const CAMPAIGN_HANDOFF_STORAGE_KEY = "spreelo_calendar_campaign_handoff";
+
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
@@ -884,9 +886,25 @@ export default function Calendar() {
   function handleCreateCampaign(campaign) {
     if (!campaign?.id) return;
 
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(
+          CAMPAIGN_HANDOFF_STORAGE_KEY,
+          JSON.stringify({
+            campaign,
+            brandProfileId,
+            createdAt: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // URL parameters below are still enough for the normal database handoff.
+      }
+    }
+
     const params = new URLSearchParams({
       campaignOpportunityId: campaign.id,
       brandProfileId,
+      mode: "campaign",
     });
 
     window.location.href = `/automation?${params.toString()}`;
