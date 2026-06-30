@@ -213,6 +213,30 @@ function getCampaignRecommendedPostCount(campaign, fallbackCount = 3) {
   return Math.min(Math.max(Math.round(count), 1), 7);
 }
 
+
+function normalizeCampaignForStudioHandoff(campaign) {
+  if (!campaign) return campaign;
+
+  const singleDate =
+    campaign.event_date ||
+    (campaign.start_date && !campaign.end_date ? campaign.start_date : "") ||
+    (campaign.start_date && campaign.end_date && campaign.start_date === campaign.end_date
+      ? campaign.start_date
+      : "");
+
+  if (!singleDate) {
+    return campaign;
+  }
+
+  return {
+    ...campaign,
+    event_date: campaign.event_date || singleDate,
+    start_date: campaign.start_date || singleDate,
+    end_date: campaign.end_date || singleDate,
+    recommended_post_count: getCampaignRecommendedPostCount(campaign),
+  };
+}
+
 function buildFallbackCampaignPlan(count, t) {
   const templates = [
     {
@@ -886,14 +910,15 @@ export default function Calendar() {
   function handleCreateCampaign(campaign) {
     if (!campaign?.id) return;
 
-    const handoffBrandProfileId = campaign.brand_profile_id || brandProfileId;
+    const normalizedCampaign = normalizeCampaignForStudioHandoff(campaign);
+    const handoffBrandProfileId = normalizedCampaign.brand_profile_id || brandProfileId;
 
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(
           CAMPAIGN_HANDOFF_STORAGE_KEY,
           JSON.stringify({
-            campaign,
+            campaign: normalizedCampaign,
             brandProfileId: handoffBrandProfileId,
             createdAt: new Date().toISOString(),
           })

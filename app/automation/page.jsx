@@ -2489,6 +2489,30 @@ function getCampaignRecommendedPostCount(campaign, fallbackCount = 3) {
   return Math.min(Math.max(Math.round(count), 1), 7);
 }
 
+
+function normalizeCampaignOpportunityForPlanner(campaign) {
+  if (!campaign) return campaign;
+
+  const singleDate =
+    campaign.event_date ||
+    (campaign.start_date && !campaign.end_date ? campaign.start_date : "") ||
+    (campaign.start_date && campaign.end_date && campaign.start_date === campaign.end_date
+      ? campaign.start_date
+      : "");
+
+  if (!singleDate) {
+    return campaign;
+  }
+
+  return {
+    ...campaign,
+    event_date: campaign.event_date || singleDate,
+    start_date: campaign.start_date || singleDate,
+    end_date: campaign.end_date || singleDate,
+    recommended_post_count: getCampaignRecommendedPostCount(campaign),
+  };
+}
+
 function buildCampaignPostPlan(campaign, recommendedCount) {
   const rawPostPlan = Array.isArray(campaign?.post_plan)
     ? campaign.post_plan
@@ -4741,9 +4765,10 @@ async function loadCampaignOpportunityIntoPlanner({
     .eq("is_archived", false)
     .maybeSingle();
 
-  const campaign =
+  const rawCampaign =
     campaignFromDatabase ||
     getCalendarCampaignHandoff(campaignOpportunityId, selectedBrandId);
+  const campaign = normalizeCampaignOpportunityForPlanner(rawCampaign);
 
   if (error && !campaign) {
     setMessage(error.message);
