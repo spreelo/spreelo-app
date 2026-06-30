@@ -804,6 +804,61 @@ async function prepareCarouselProductsForRule({
 
   if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
     try {
+      const webSearchItems = await findWebsiteProductWithWebSearch({
+        openai,
+        brandProfile,
+        rule,
+        websiteUrl,
+        usedWebsiteItems: recentUsedItems,
+      });
+
+      if (Array.isArray(webSearchItems) && webSearchItems.length) {
+        await upsertWebsiteProductCatalogItems({
+          supabase,
+          userId: rule.user_id,
+          brandProfileId: rule.brand_profile_id,
+          sourceUrl: websiteUrl,
+          items: webSearchItems,
+          discoverySource: "ai_web_search",
+        });
+
+        catalogItems = [...catalogItems, ...webSearchItems];
+        selectedProducts = selectCarouselProductsFromPool({
+          items: catalogItems,
+          rule,
+          sourceUrl: websiteUrl,
+          recentUsedItems,
+          usedWebsiteImageUrlsThisRun,
+          allowReuseWhenExhausted: false,
+        });
+
+        if (selectedProducts.length >= CAROUSEL_MIN_PRODUCT_SLIDES) {
+          summary.website_web_search_success += 1;
+        } else {
+          console.log("Carousel web search found products, but not enough usable product images yet", {
+            ruleId: rule.id,
+            brandProfileId: rule.brand_profile_id,
+            websiteUrl,
+            webSearchCount: webSearchItems.length,
+            selectedCount: selectedProducts.length,
+            requiredCount: CAROUSEL_MIN_PRODUCT_SLIDES,
+          });
+        }
+      }
+    } catch (webSearchError) {
+      console.error("Carousel product web search failed", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        message: webSearchError.message,
+      });
+
+      summary.website_web_search_failed += 1;
+    }
+  }
+
+  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+    try {
       const discoveredCandidates = await discoverProductCandidatesFromWebsite({
         websiteUrl,
         campaignPrompt: rule.prompt,
