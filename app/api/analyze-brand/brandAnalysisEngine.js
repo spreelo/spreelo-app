@@ -1,11 +1,11 @@
 import OpenAI from "openai";
 
 export const WEBSITE_FETCH_TIMEOUT_MS = 12000;
-export const WEBSITE_MAX_TEXT_CHARS = 18000;
+export const WEBSITE_MAX_TEXT_CHARS = 12000;
 export const WEBSITE_MAX_PRODUCT_SOURCE_PAGES = 1;
 export const WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS = 3000;
 export const WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS = 3000;
-export const MAX_CAMPAIGN_OPPORTUNITIES = 25;
+export const MAX_CAMPAIGN_OPPORTUNITIES = 18;
 
 export function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
@@ -1378,75 +1378,21 @@ function buildStrategicCampaignOpportunitySet({
   opportunities,
   campaignCalendarYear,
   currentDate,
-  contentLanguage,
-  industry,
-  websiteProductMode,
 }) {
-  const sourceOpportunities = Array.isArray(opportunities)
-    ? opportunities
-    : [];
-
   const normalizedSource = normalizeCampaignOpportunities(
-    sourceOpportunities,
+    Array.isArray(opportunities) ? opportunities : [],
     campaignCalendarYear
   );
 
-  const productOrRetailBased = appearsProductOrRetailBased({
-    industry,
-    websiteProductMode,
-  });
-
-  if (!productOrRetailBased) {
-    return sourceOpportunities;
-  }
-
-  const fallbackOpportunities = buildFallbackProductCampaignOpportunities({
-    campaignCalendarYear,
-    currentDate,
-    contentLanguage,
-  }).filter((opportunity) => isOpportunityUpcomingOnDate(opportunity, currentDate));
-
-  const usedKeys = new Set();
-  const merged = [];
-
-  // Product and retail calendars must not depend entirely on the AI remembering
-  // obvious high-value shopping moments. Add the deterministic premium moments
-  // first, then fill the remaining slots with AI opportunities. This is fast and
-  // does not add any extra website fetching or AI calls.
-  for (const fallback of fallbackOpportunities) {
-    const key = getOpportunityKey(fallback);
-
-    if (key && usedKeys.has(key)) {
-      continue;
-    }
-
-    usedKeys.add(key);
-    merged.push(fallback);
-
-    if (merged.length >= MAX_CAMPAIGN_OPPORTUNITIES) {
-      return merged;
-    }
-  }
-
-  for (const opportunity of sourceOpportunities) {
-    const key = getOpportunityKey(opportunity);
-
-    if (key && usedKeys.has(key)) {
-      continue;
-    }
-
-    if (key) {
-      usedKeys.add(key);
-    }
-
-    merged.push(opportunity);
-
-    if (merged.length >= MAX_CAMPAIGN_OPPORTUNITIES) {
-      break;
-    }
-  }
-
-  return merged;
+  // Step 99b: keep the campaign calendar AI-led. Do not inject a fixed
+  // market/calendar base here, because that can make international calendars
+  // culturally wrong. The AI analysis is responsible for selecting the best
+  // local holidays, shopping moments, seasonal periods and industry campaigns.
+  // This post-processing only removes past/out-of-year/duplicate items and caps
+  // the list so brand analysis stays fast and predictable.
+  return normalizedSource
+    .filter((opportunity) => isOpportunityUpcomingOnDate(opportunity, currentDate))
+    .slice(0, MAX_CAMPAIGN_OPPORTUNITIES);
 }
 
 export function normalizeCampaignOpportunities(rawOpportunities, fallbackYear) {
@@ -1781,7 +1727,7 @@ Global rules:
 - Do not default to English because a website contains imported product names, technical terms, brand names, model names, platform terms or isolated phrases.
 - Campaigns must be relevant to the selected/inferred market, local culture, local seasonality, local buying behavior and the business type.
 - Include local holidays, local gift days, cultural moments, religious/cultural seasons, national shopping moments, school seasons, tourism seasons, weather seasons, industry moments and commercial periods only when they are useful and suitable for that business.
-- Do not force internationally famous commercial days if they are not relevant in the selected market.
+- Do not force internationally famous commercial days if they are not relevant in the selected market. Use your market knowledge to choose the correct local holidays, gift days, religious/cultural seasons and shopping moments for the selected/inferred country, language and audience.
 - Do not include political, sensitive or divisive events unless clearly safe and directly suitable for business marketing.
 - Quality matters, but do not under-generate the calendar. A useful business calendar should feel rich enough for a marketing team to choose from.
 - Avoid weak filler, but for businesses with clear seasonal, commercial, gift, retail, service, booking or product potential, you must normally return many strong opportunities rather than only a few obvious ones.
@@ -1792,7 +1738,7 @@ Campaign selection quality gate:
 - Do not choose campaigns because they are generally popular. Choose them only when there is a clear customer reason to buy, book, visit, remember, compare, prepare, celebrate, gift, upgrade, replace, learn or engage with this specific business.
 - Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
 - Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. For example: giftable products should strongly consider local gift days; ecommerce/retail should strongly consider major local shopping periods; restaurants/food should consider relevant food and dining moments; beauty/fashion should consider party, season, wedding, graduation and self-care moments; service/bookable businesses should consider seasonal preparation and booking windows.
-- For broad ecommerce and retail, do not miss obvious high-value local shopping and gift moments that are still upcoming in the calendar year. These should normally beat generic evergreen campaigns when they fit the product range.
+- For broad ecommerce and retail, do not miss obvious high-value local shopping and gift moments that are still upcoming in the calendar year for the selected/inferred market. These should normally beat generic evergreen campaigns when they fit the product range.
 - Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or B2B software. A pet-related day belongs to pet brands, not to unrelated retailers unless their product range genuinely fits.
 - Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
 - If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
@@ -1819,7 +1765,7 @@ Campaign timing:
 - For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
 - For date ranges/seasons, distinguish the marketing period from the customer action deadline. The campaign may end on a cultural, seasonal or business moment, but conversion-focused posts must be placed when customers can still realistically act.
 - If the business offer requires production time, personalization, delivery, booking, reservation, installation, consultation, limited capacity or any other lead time, place product_push, offer and urgency posts before the realistic purchase/action deadline. The final day of the period should then be used for softer relationship, celebration, reminder, educational or brand-building content unless same-day action is realistic.
-- Do not rely on named holiday-specific rules. Apply the same timing logic to any gift day, seasonal period, shopping moment, booking window, event period, local tradition or industry campaign.
+- Do not rely on a single country-specific holiday template. Identify the correct local market moments first, then apply the same timing logic to any gift day, seasonal period, shopping moment, booking window, event period, local tradition or industry campaign.
 - The post_plan order must be chronological and strategically progressive: early value/inspiration first, engagement/trust in the middle, conversion before the deadline, and final relationship or closing content at the end when appropriate.
 - Avoid clustering most posts in the final few days unless the campaign is explicitly a short flash sale or same-day/instant-action event.
 - For gift campaigns, holiday campaigns, physical products, personalized products, handmade products, printed products, shipped products, booking services or anything with lead time, separate the cultural/event date from the realistic customer action deadline.
@@ -1876,7 +1822,7 @@ Website content strategy:
 
 Accuracy:
 - Do not invent specific services, products, offers, discounts, sales, delivery promises, locations, dates or facts not supported by the website, description or general market knowledge.
-- Do not search beyond the provided content.
+- Do not invent business-specific facts beyond the provided content. You may use general market knowledge for holidays, shopping periods, cultural seasons and local commercial timing.
 - Do not create finished social media posts.
 `.trim(),
       },
@@ -2060,7 +2006,7 @@ Global rules:
 - Do not default to English because the description contains imported product names, platform terms, brand names or isolated phrases.
 - Campaigns must be relevant to the selected/inferred market, local culture, local seasonality, local buying behavior and the business type.
 - Include local holidays, local gift days, cultural moments, religious/cultural seasons, national shopping moments, school seasons, tourism seasons, weather seasons, industry moments and commercial periods only when they are useful and suitable for that business.
-- Do not force internationally famous commercial days if they are not relevant in the selected market.
+- Do not force internationally famous commercial days if they are not relevant in the selected market. Use your market knowledge to choose the correct local holidays, gift days, religious/cultural seasons and shopping moments for the selected/inferred country, language and audience.
 - Do not include political, sensitive or divisive events unless clearly safe and directly suitable for business marketing.
 - Quality matters, but do not under-generate the calendar. A useful business calendar should feel rich enough for a marketing team to choose from.
 - Avoid weak filler, but for businesses with clear seasonal, commercial, gift, retail, service, booking or product potential, you must normally return many strong opportunities rather than only a few obvious ones.
@@ -2071,7 +2017,7 @@ Campaign selection quality gate:
 - Do not choose campaigns because they are generally popular. Choose them only when there is a clear customer reason to buy, book, visit, remember, compare, prepare, celebrate, gift, upgrade, replace, learn or engage with this specific business.
 - Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
 - Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. For example: giftable products should strongly consider local gift days; ecommerce/retail should strongly consider major local shopping periods; restaurants/food should consider relevant food and dining moments; beauty/fashion should consider party, season, wedding, graduation and self-care moments; service/bookable businesses should consider seasonal preparation and booking windows.
-- For broad ecommerce and retail, do not miss obvious high-value local shopping and gift moments that are still upcoming in the calendar year. These should normally beat generic evergreen campaigns when they fit the product range.
+- For broad ecommerce and retail, do not miss obvious high-value local shopping and gift moments that are still upcoming in the calendar year for the selected/inferred market. These should normally beat generic evergreen campaigns when they fit the product range.
 - Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or B2B software. A pet-related day belongs to pet brands, not to unrelated retailers unless their product range genuinely fits.
 - Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
 - If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. For example, prefer a grounded campaign like "Product guide", "Seasonal upgrade", "Gift guide" or "Buying advice" over an unsupported named feature.
@@ -2097,7 +2043,7 @@ Campaign timing:
 - For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
 - For date ranges/seasons, distinguish the marketing period from the customer action deadline. The campaign may end on a cultural, seasonal or business moment, but conversion-focused posts must be placed when customers can still realistically act.
 - If the business offer requires production time, personalization, delivery, booking, reservation, installation, consultation, limited capacity or any other lead time, place product_push, offer and urgency posts before the realistic purchase/action deadline. The final day of the period should then be used for softer relationship, celebration, reminder, educational or brand-building content unless same-day action is realistic.
-- Do not rely on named holiday-specific rules. Apply the same timing logic to any gift day, seasonal period, shopping moment, booking window, event period, local tradition or industry campaign.
+- Do not rely on a single country-specific holiday template. Identify the correct local market moments first, then apply the same timing logic to any gift day, seasonal period, shopping moment, booking window, event period, local tradition or industry campaign.
 - The post_plan order must be chronological and strategically progressive: early value/inspiration first, engagement/trust in the middle, conversion before the deadline, and final relationship or closing content at the end when appropriate.
 - Avoid clustering most posts in the final few days unless the campaign is explicitly a short flash sale or same-day/instant-action event.
 - For gift campaigns, holiday campaigns, physical products, personalized products, handmade products, printed products, shipped products, booking services or anything with lead time, separate the cultural/event date from the realistic customer action deadline.
@@ -2122,6 +2068,7 @@ Campaign strategy:
 Website-content rules:
 - Because no website was provided, website_content_strategy must be "support" or "none".
 - Because no website was provided, website_product_selection_hint must be an empty string.
+- Use the selected or inferred market to choose culturally correct holidays, seasonal moments and shopping periods; do not apply a Swedish/Western template unless that is the actual market fit.
 `.trim(),
       },
     ],
