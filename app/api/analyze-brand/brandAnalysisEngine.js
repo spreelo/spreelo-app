@@ -2,8 +2,9 @@ import OpenAI from "openai";
 
 export const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 export const WEBSITE_MAX_TEXT_CHARS = 18000;
-export const WEBSITE_MAX_PRODUCT_SOURCE_PAGES = 4;
-export const WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS = 9000;
+export const WEBSITE_MAX_PRODUCT_SOURCE_PAGES = 1;
+export const WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS = 3000;
+export const WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS = 3000;
 export const MAX_CAMPAIGN_OPPORTUNITIES = 25;
 
 export function normalizeWebsiteUrl(value) {
@@ -485,8 +486,9 @@ export function extractProductSourceLinks(html, pageUrl) {
   return links.sort((a, b) => b.score - a.score);
 }
 
-export async function fetchWebsiteHtml(websiteUrl) {
+export async function fetchWebsiteHtml(websiteUrl, options = {}) {
   const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+  const timeoutMs = Number(options?.timeoutMs || WEBSITE_FETCH_TIMEOUT_MS);
 
   if (!normalizedWebsiteUrl) {
     throw new Error("Website URL is required");
@@ -495,7 +497,7 @@ export async function fetchWebsiteHtml(websiteUrl) {
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(),
-    WEBSITE_FETCH_TIMEOUT_MS
+    timeoutMs
   );
 
   try {
@@ -542,7 +544,9 @@ export async function fetchProductSourceCandidates({ websiteUrl, html }) {
 
   for (const link of sourceLinks) {
     try {
-      const candidate = await fetchWebsiteHtml(link.url);
+      const candidate = await fetchWebsiteHtml(link.url, {
+        timeoutMs: WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS,
+      });
 
       candidates.push({
         url: candidate.url,
@@ -1402,12 +1406,13 @@ function buildStrategicCampaignOpportunitySet({
     contentLanguage,
   }).filter((opportunity) => isOpportunityUpcomingOnDate(opportunity, currentDate));
 
-  const usedKeys = new Set(
-    normalizedSource.map((opportunity) => getOpportunityKey(opportunity)).filter(Boolean)
-  );
+  const usedKeys = new Set();
+  const merged = [];
 
-  const merged = [...sourceOpportunities];
-
+  // Product and retail calendars must not depend entirely on the AI remembering
+  // obvious high-value shopping moments. Add the deterministic premium moments
+  // first, then fill the remaining slots with AI opportunities. This is fast and
+  // does not add any extra website fetching or AI calls.
   for (const fallback of fallbackOpportunities) {
     const key = getOpportunityKey(fallback);
 
@@ -1417,6 +1422,24 @@ function buildStrategicCampaignOpportunitySet({
 
     usedKeys.add(key);
     merged.push(fallback);
+
+    if (merged.length >= MAX_CAMPAIGN_OPPORTUNITIES) {
+      return merged;
+    }
+  }
+
+  for (const opportunity of sourceOpportunities) {
+    const key = getOpportunityKey(opportunity);
+
+    if (key && usedKeys.has(key)) {
+      continue;
+    }
+
+    if (key) {
+      usedKeys.add(key);
+    }
+
+    merged.push(opportunity);
 
     if (merged.length >= MAX_CAMPAIGN_OPPORTUNITIES) {
       break;
