@@ -6100,7 +6100,7 @@ setRules((currentRules) =>
   return (
     <AppLayout active="automation">
       <div
-        className="automation-page planner-wizard-page"
+        className={`automation-page planner-wizard-page ${campaignOpportunity ? "campaign-planner-clean" : ""}`}
         onClick={(event) => {
           if (!event.target.closest(".custom-picker-field")) {
             setOpenPickerId(null);
@@ -6177,6 +6177,7 @@ setRules((currentRules) =>
   </section>
 )}
 
+            {planCreationMode !== "campaign" && (
             <section className="planner-builder-card planner-primary-builder">
               <div className="planner-builder-header">
                 <div className="planner-builder-step-badge">1</div>
@@ -6340,33 +6341,9 @@ setRules((currentRules) =>
               </div>
               </div>
             </section>
+            )}
 
-            {planCreationMode === "campaign" ? (
-  <section className="planner-mode-card">
-    <div className="planner-included-card">
-      <div className="planner-section-heading compact">
-        <div>
-          <h3>{t("automation.campaignPosts")}</h3>
-          <p>
-            {t("automation.campaignSequenceText")}
-          </p>
-        </div>
-      </div>
-
-      <div className="planner-included-grid">
-        <div className="planner-included-type">
-          <span>🎯</span>
-          <strong>{t("automation.campaignPlan")}</strong>
-        </div>
-
-        <div className="planner-included-type">
-          <span>{slots.length}</span>
-          <strong>{t("automation.plannedPosts")}</strong>
-        </div>
-      </div>
-    </div>
-  </section>
-) : (
+            {planCreationMode === "campaign" ? null : (
   <section className="planner-mode-card">
     <div className="planner-mode-grid">
       <button

@@ -17764,3 +17764,50 @@ textarea.input,
     margin-top: -4px;
   }
 }
+
+/* Step 98b: cleaner campaign handoff UI and flatter planner background */
+.spreelo-shell,
+.app-shell,
+.spreelo-content,
+.content,
+.content.spreelo-content {
+  background: #f4f7fb !important;
+  background-image: none !important;
+}
+
+.spreelo-content,
+.content.spreelo-content {
+  overflow: visible !important;
+}
+
+.automation-page.campaign-planner-clean .planner-hero {
+  margin-bottom: 18px !important;
+}
+
+.automation-page.campaign-planner-clean .campaign-mode-banner {
+  margin-bottom: 18px !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.045) !important;
+}
+
+.automation-page.campaign-planner-clean .campaign-mode-banner::before,
+.automation-page.campaign-planner-clean .campaign-mode-banner::after,
+.automation-page.campaign-planner-clean .planner-hero::before,
+.automation-page.campaign-planner-clean .planner-hero::after {
+  display: none !important;
+}
+
+.automation-page.campaign-planner-clean .planner-schedule-card {
+  scroll-margin-top: 24px;
+}
+
+.automation-page.campaign-planner-clean .wizard-main {
+  gap: 18px !important;
+}
+
+@media (max-width: 900px) {
+  .automation-page.campaign-planner-clean .campaign-mode-banner {
+    padding: 18px !important;
+  }
+}
