@@ -336,10 +336,7 @@ export async function GET(request) {
     }
 
 
-    if (post.content_format && post.content_format !== "single_image") {
-      return Response.redirect(`${APP_URL}/posts/${post.id}`, 302);
-    }
-
+    const isCarouselPost = post.content_format === "carousel";
     const approvedAt = new Date().toISOString();
 
     const { error: updateError } = await supabase
@@ -363,8 +360,8 @@ export async function GET(request) {
     }
 
     return htmlResponse({
-      title: translator.t("approvePages.approved.title"),
-      message: translator.t("approvePages.approved.message"),
+      title: translator.t(isCarouselPost ? "approvePages.carouselApproved.title" : "approvePages.approved.title"),
+      message: translator.t(isCarouselPost ? "approvePages.carouselApproved.message" : "approvePages.approved.message"),
       status: "success",
       httpStatus: 200,
       t: translator.t,
