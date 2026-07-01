@@ -1807,265 +1807,11 @@ function getAttributeValueFromTag(tag, attributeName) {
   return String(tag || "").match(regex)?.[1] || "";
 }
 
-function parseSrcsetCandidate(part) {
-  const pieces = String(part || "").trim().split(/\s+/).filter(Boolean);
-  const url = pieces[0] || "";
-  const descriptor = pieces[1] || "";
-  const widthMatch = descriptor.match(/^(\d+)w$/i);
-  const densityMatch = descriptor.match(/^(\d+(?:\.\d+)?)x$/i);
-
-  return {
-    url,
-    width: widthMatch ? Number(widthMatch[1]) : 0,
-    density: densityMatch ? Number(densityMatch[1]) : 0,
-  };
-}
-
-function splitSrcsetCandidates(value) {
+function splitSrcsetUrls(value) {
   return String(value || "")
     .split(",")
-    .map(parseSrcsetCandidate)
-    .filter((candidate) => candidate.url);
-}
-
-function splitSrcsetUrls(value) {
-  return splitSrcsetCandidates(value).map((candidate) => candidate.url);
-}
-
-function getUrlImageSizeSignal(value) {
-  const url = String(value || "").toLowerCase();
-  if (!url) {
-    return 0;
-  }
-
-  const signals = [];
-  const queryMatches = [
-    ...url.matchAll(/(?:^|[?&;_/-])(?:w|width|imwidth|size|sw|dw|fmtwidth|resize)=?(\d{2,5})(?=$|[&;_x/-])/gi),
-    ...url.matchAll(/(?:_|-|\/)(\d{2,5})x(\d{2,5})(?=[_.?&/-]|$)/gi),
-  ];
-
-  for (const match of queryMatches) {
-    const first = Number(match[1] || 0);
-    const second = Number(match[2] || 0);
-    if (Number.isFinite(first) && first > 0) signals.push(first);
-    if (Number.isFinite(second) && second > 0) signals.push(second);
-  }
-
-  const shopifySizeMatch = url.match(/_(pico|icon|thumb|small|compact|medium|large|grande|original|master)(?=\.|_|-)/i);
-  if (shopifySizeMatch) {
-    const scores = {
-      pico: 16,
-      icon: 32,
-      thumb: 80,
-      small: 160,
-      compact: 200,
-      medium: 400,
-      large: 800,
-      grande: 1200,
-      original: 1600,
-      master: 1800,
-    };
-    signals.push(scores[shopifySizeMatch[1].toLowerCase()] || 0);
-  }
-
-  return signals.length ? Math.max(...signals) : 0;
-}
-
-function getImageUrlQualityScore(value) {
-  const url = String(value || "");
-  const lower = url.toLowerCase();
-  let score = 0;
-  const sizeSignal = getUrlImageSizeSignal(url);
-
-  if (sizeSignal >= 1600) score += 45;
-  else if (sizeSignal >= 1200) score += 38;
-  else if (sizeSignal >= 900) score += 30;
-  else if (sizeSignal >= 700) score += 22;
-  else if (sizeSignal >= 500) score += 12;
-  else if (sizeSignal > 0 && sizeSignal < 350) score -= 35;
-
-  if (/\.(jpe?g|png|webp|avif)(\?|#|$)/i.test(lower)) score += 8;
-  if (lower.includes("srcset") || lower.includes("large") || lower.includes("zoom")) score += 8;
-  if (lower.includes("product") || lower.includes("products") || lower.includes("produkt") || lower.includes("media")) score += 10;
-  if (lower.includes("ztat.net") || lower.includes("zalando")) score += 12;
-  if (lower.includes("thumbnail") || lower.includes("thumb") || lower.includes("small") || lower.includes("preview") || lower.includes("swatch")) score -= 25;
-  if (lower.includes("100x") || lower.includes("150x") || lower.includes("200x") || lower.includes("300x")) score -= 20;
-  if (isBadProductImageUrl(url)) score -= 100;
-
-  return score;
-}
-
-function normalizeProductImageUrlForQuality(value) {
-  let url = normalizeEscapedUrl(value);
-  if (!url) {
-    return url;
-  }
-
-  // Shopify often exposes the same image with a size suffix. Prefer the largest stable public variant.
-  url = url.replace(/_((?:pico|icon|thumb|small|compact|medium|large|grande))(?=\.(?:jpe?g|png|webp|avif))/i, "_2048x2048");
-
-  // Common product-CDN width params. Do not keep thumbnails when a larger public variant is available.
-  url = url.replace(/([?&])width=\d{2,5}/gi, "$1width=1800");
-  url = url.replace(/([?&])w=\d{2,5}/gi, "$1w=1800");
-  url = url.replace(/([?&])imwidth=\d{2,5}/gi, "$1imwidth=1800");
-  url = url.replace(/([?&])size=\d{2,5}/gi, "$1size=1800");
-  url = url.replace(/([?&])sw=\d{2,5}/gi, "$1sw=1800");
-  url = url.replace(/([?&])dw=\d{2,5}/gi, "$1dw=1800");
-
-  // Zalando/ztat product images are often returned with a tiny imwidth in scraped HTML.
-  // Request a larger variant before scoring/using the URL.
-  if (/\/\/[^/]*ztat\.net\//i.test(url) && !/[?&]imwidth=/i.test(url)) {
-    url += url.includes("?") ? "&imwidth=1800" : "?imwidth=1800";
-  }
-
-  return url;
-}
-
-function pickBestProductImageUrl(candidates = [], pageUrl = "") {
-  const normalized = [];
-  const seen = new Set();
-
-  for (const candidate of candidates) {
-    const rawUrl = typeof candidate === "string" ? candidate : candidate?.url;
-    const source = typeof candidate === "string" ? "candidate" : candidate?.source;
-    const baseScore = typeof candidate === "string" ? 0 : Number(candidate?.score || 0);
-    const width = typeof candidate === "string" ? 0 : Number(candidate?.width || 0);
-    const density = typeof candidate === "string" ? 0 : Number(candidate?.density || 0);
-    const resolvedUrl = rawUrl ? resolveUrl(normalizeProductImageUrlForQuality(rawUrl), pageUrl) : null;
-
-    if (!resolvedUrl || !isHttpUrl(resolvedUrl) || isBadProductImageUrl(resolvedUrl)) {
-      continue;
-    }
-
-    const key = normalizeComparableValue(resolvedUrl);
-    if (!key || seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-
-    let score = baseScore + getImageUrlQualityScore(resolvedUrl);
-    if (width >= 1600) score += 45;
-    else if (width >= 1200) score += 38;
-    else if (width >= 900) score += 30;
-    else if (width >= 700) score += 22;
-    else if (width > 0 && width < 350) score -= 35;
-    if (density >= 2) score += 12;
-    if (source === "json-ld:image") score += 20;
-    if (source === "og:image" || source === "twitter:image") score += 8;
-    if (source && String(source).includes("srcset")) score += 18;
-    if (source && /zoom|full|large/i.test(String(source))) score += 18;
-
-    normalized.push({ url: resolvedUrl, score });
-  }
-
-  return normalized.sort((a, b) => b.score - a.score)[0]?.url || null;
-}
-
-
-function stripImageSizeParamsForIdentity(value) {
-  try {
-    const url = new URL(resolveUrl(normalizeEscapedUrl(value), "https://spreelo.local") || normalizeEscapedUrl(value));
-    const removableParams = [
-      "w",
-      "width",
-      "imwidth",
-      "size",
-      "sw",
-      "dw",
-      "fmtwidth",
-      "resize",
-      "height",
-      "h",
-      "quality",
-      "q",
-      "format",
-      "fm",
-      "auto",
-      "fit",
-      "crop",
-    ];
-
-    for (const param of removableParams) {
-      url.searchParams.delete(param);
-    }
-
-    return `${url.hostname}${url.pathname}${url.search}`
-      .toLowerCase()
-      .replace(/_(?:pico|icon|thumb|small|compact|medium|large|grande|master|original|\d+x\d+)(?=\.(?:jpe?g|png|webp|avif))/gi, "")
-      .replace(/[-_](?:\d{2,5}x\d{2,5}|\d{2,5}w|\d{2,5})(?=\.(?:jpe?g|png|webp|avif))/gi, "")
-      .replace(/[?&]$/, "");
-  } catch {
-    return String(value || "")
-      .toLowerCase()
-      .replace(/[?&](?:w|width|imwidth|size|sw|dw|fmtwidth|resize|height|h|quality|q|format|fm|auto|fit|crop)=\d+[^&]*/gi, "")
-      .replace(/_(?:pico|icon|thumb|small|compact|medium|large|grande|master|original|\d+x\d+)(?=\.(?:jpe?g|png|webp|avif))/gi, "")
-      .replace(/[-_](?:\d{2,5}x\d{2,5}|\d{2,5}w|\d{2,5})(?=\.(?:jpe?g|png|webp|avif))/gi, "");
-  }
-}
-
-function getImageAssetToken(value) {
-  try {
-    const url = new URL(resolveUrl(normalizeEscapedUrl(value), "https://spreelo.local") || normalizeEscapedUrl(value));
-    const pathname = decodeURIComponent(url.pathname || "").toLowerCase();
-    const parts = pathname.split("/").filter(Boolean);
-    const file = parts[parts.length - 1] || "";
-    const withoutExtension = file.replace(/\.(?:jpe?g|png|webp|avif)$/i, "");
-    return withoutExtension
-      .replace(/_(?:pico|icon|thumb|small|compact|medium|large|grande|master|original|\d+x\d+)$/i, "")
-      .replace(/[-_](?:\d{2,5}x\d{2,5}|\d{2,5}w|\d{2,5})$/i, "")
-      .replace(/[^a-z0-9]+/g, "")
-      .slice(-80);
-  } catch {
-    return "";
-  }
-}
-
-function imageCandidateLooksLikeSameAsset(candidateUrl, lockedUrl) {
-  const candidateIdentity = stripImageSizeParamsForIdentity(candidateUrl);
-  const lockedIdentity = stripImageSizeParamsForIdentity(lockedUrl);
-
-  if (candidateIdentity && lockedIdentity && candidateIdentity === lockedIdentity) {
-    return true;
-  }
-
-  const candidateToken = getImageAssetToken(candidateUrl);
-  const lockedToken = getImageAssetToken(lockedUrl);
-
-  if (candidateToken && lockedToken) {
-    if (candidateToken === lockedToken) return true;
-    if (candidateToken.length >= 14 && lockedToken.includes(candidateToken)) return true;
-    if (lockedToken.length >= 14 && candidateToken.includes(lockedToken)) return true;
-  }
-
-  return false;
-}
-
-function upgradeLockedProductImageUrlFromHtml(lockedImageUrl, html, pageUrl) {
-  const normalizedLockedImageUrl = lockedImageUrl
-    ? resolveUrl(normalizeProductImageUrlForQuality(lockedImageUrl), pageUrl)
-    : null;
-
-  if (!normalizedLockedImageUrl || !isHttpUrl(normalizedLockedImageUrl)) {
-    return normalizedLockedImageUrl || null;
-  }
-
-  const sameAssetCandidates = extractImageCandidates(html, pageUrl)
-    .filter((candidate) => imageCandidateLooksLikeSameAsset(candidate?.url, normalizedLockedImageUrl))
-    .map((candidate) => ({
-      ...candidate,
-      score: Number(candidate?.score || 0) + 100,
-    }));
-
-  const upgradedSameAssetUrl = pickBestProductImageUrl(
-    [
-      { url: normalizedLockedImageUrl, source: "locked-product-image", score: 120 },
-      ...sameAssetCandidates,
-    ],
-    pageUrl
-  );
-
-  return upgradedSameAssetUrl || normalizedLockedImageUrl;
+    .map((part) => part.trim().split(/\s+/)[0])
+    .filter(Boolean);
 }
 
 function normalizeEscapedUrl(value) {
@@ -2146,8 +1892,8 @@ function extractImageCandidates(html, pageUrl) {
   const candidates = [];
   const seen = new Set();
 
-  const addCandidate = ({ url, alt = "", source = "image", score = 0, width = 0, density = 0 }) => {
-    const resolvedUrl = resolveUrl(normalizeProductImageUrlForQuality(url), pageUrl);
+  const addCandidate = ({ url, alt = "", source = "image", score = 0 }) => {
+    const resolvedUrl = resolveUrl(url, pageUrl);
 
     if (!resolvedUrl || !isHttpUrl(resolvedUrl)) {
       return;
@@ -2168,24 +1914,6 @@ function extractImageCandidates(html, pageUrl) {
       lowerUrl.endsWith(".svg")
     ) {
       score -= 30;
-    }
-
-    score += getImageUrlQualityScore(resolvedUrl);
-
-    if (width >= 1600) {
-      score += 35;
-    } else if (width >= 1200) {
-      score += 28;
-    } else if (width >= 900) {
-      score += 22;
-    } else if (width >= 700) {
-      score += 14;
-    } else if (width > 0 && width < 350) {
-      score -= 30;
-    }
-
-    if (density >= 2) {
-      score += 10;
     }
 
     if (
@@ -2221,8 +1949,6 @@ function extractImageCandidates(html, pageUrl) {
       source,
       score,
       page_url: pageUrl,
-      width,
-      density,
     });
   };
 
@@ -2274,14 +2000,12 @@ function extractImageCandidates(html, pageUrl) {
     for (const attributeName of srcsetAttributes) {
       const srcsetValue = getAttributeValueFromTag(tag, attributeName);
 
-      for (const imageCandidate of splitSrcsetCandidates(srcsetValue)) {
+      for (const imageUrl of splitSrcsetUrls(srcsetValue)) {
         addCandidate({
-          url: normalizeEscapedUrl(imageCandidate.url),
+          url: normalizeEscapedUrl(imageUrl),
           alt,
           source: `img:${attributeName}`,
-          score: 10 + (imageCandidate.width >= 1000 ? 20 : imageCandidate.width >= 700 ? 12 : 0),
-          width: imageCandidate.width,
-          density: imageCandidate.density,
+          score: 10,
         });
       }
     }
@@ -3534,13 +3258,16 @@ function collectImageValuesFromObject(value, results = []) {
 
 function getProductImageFromJsonLd(product, pageUrl) {
   const rawImages = collectImageValuesFromObject(product?.image);
-  const candidates = rawImages.map((rawImage) => ({
-    url: rawImage,
-    source: "json-ld:image",
-    score: 30,
-  }));
 
-  return pickBestProductImageUrl(candidates, pageUrl);
+  for (const rawImage of rawImages) {
+    const resolvedUrl = rawImage ? resolveUrl(rawImage, pageUrl) : null;
+
+    if (resolvedUrl && isHttpUrl(resolvedUrl) && !isBadProductImageUrl(resolvedUrl)) {
+      return resolvedUrl;
+    }
+  }
+
+  return null;
 }
 
 function getProductPriceFromJsonLd(product) {
@@ -3727,53 +3454,30 @@ function extractProductPriceFromHtml(html) {
 
 function extractBestProductImageFromHtml(html, pageUrl) {
   const product = findJsonLdProduct(html);
-  const rawJsonLdImages = collectImageValuesFromObject(product?.image).map((url) => ({
-    url,
-    source: "json-ld:image",
-    score: 58,
-  }));
+  const jsonLdImage = getProductImageFromJsonLd(product, pageUrl);
 
-  const ogImage = getMetaContent(html, [
-    "og:image",
-    "og:image:url",
-    "og:image:secure_url",
-  ]);
-  const twitterImage = getMetaContent(html, ["twitter:image", "twitter:image:src"]);
-  const itempropImage = getMetaContent(html, ["image"]);
-
-  // Product pages must keep title, price, URL and image tied to the same product.
-  // Use only product-level metadata first (JSON-LD Product.image, Open Graph, Twitter, itemprop image).
-  // These are much safer than scanning the whole page, because ecommerce pages often contain
-  // recommendation grids with sharper images for other products. Pick the best metadata image
-  // by quality, then only upgrade that same locked asset/URL variant.
-  const metadataProductImage = pickBestProductImageUrl(
-    [
-      ...rawJsonLdImages,
-      ...(ogImage ? [{ url: ogImage, source: "og:image", score: 62 }] : []),
-      ...(twitterImage ? [{ url: twitterImage, source: "twitter:image", score: 56 }] : []),
-      ...(itempropImage ? [{ url: itempropImage, source: "itemprop:image", score: 48 }] : []),
-    ],
-    pageUrl
-  );
-
-  if (metadataProductImage) {
-    return upgradeLockedProductImageUrlFromHtml(metadataProductImage, html, pageUrl);
+  if (jsonLdImage) {
+    return jsonLdImage;
   }
 
-  // Last resort only: use the highest-ranked image near the product area.
-  // This remains intentionally weaker than metadata so a sharper recommended-product
-  // image cannot steal the post from the selected product.
-  const htmlImageCandidates = extractImageCandidates(html, pageUrl)
-    .slice(0, 12)
-    .map((candidate) => ({
-      ...candidate,
-      score: Number(candidate?.score || 0) - 80,
-    }));
+  const ogImage = getMetaContent(html, ["og:image", "twitter:image"]);
+  const resolvedOgImage = ogImage ? resolveUrl(ogImage, pageUrl) : null;
 
-  const fallbackProductImage = pickBestProductImageUrl(htmlImageCandidates, pageUrl);
-  return fallbackProductImage
-    ? upgradeLockedProductImageUrlFromHtml(fallbackProductImage, html, pageUrl)
-    : null;
+  if (
+    resolvedOgImage &&
+    isHttpUrl(resolvedOgImage) &&
+    !isBadProductImageUrl(resolvedOgImage)
+  ) {
+    return resolvedOgImage;
+  }
+
+  const imageCandidates = extractImageCandidates(html, pageUrl);
+
+  const bestImage = imageCandidates.find(
+    (image) => image?.url && !isBadProductImageUrl(image.url)
+  );
+
+  return bestImage?.url || null;
 }
 
 async function extractProductDataFromProductPage({
@@ -4179,19 +3883,10 @@ async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt }) {
         const handle = String(product?.handle || "").trim();
         const title = String(product?.title || "").trim();
         const productUrl = handle ? `${origin}/products/${handle}` : "";
-        const imageUrl = pickBestProductImageUrl(
-          [
-            product?.image?.src ? { url: product.image.src, source: "shopify:image", score: 25 } : null,
-            ...(Array.isArray(product?.images)
-              ? product.images.map((image, index) => ({
-                  url: image?.src,
-                  source: "shopify:images",
-                  score: 20 - index,
-                }))
-              : []),
-          ].filter(Boolean),
-          origin
-        );
+        const imageUrl =
+          product?.image?.src ||
+          product?.images?.[0]?.src ||
+          null;
         const firstVariant = Array.isArray(product?.variants)
           ? product.variants[0]
           : null;
@@ -5735,8 +5430,7 @@ async function fetchImageBufferForOverlay(imageUrl) {
 
   const response = await fetch(imageUrl, {
     headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; SpreeloImageFetcher/1.0; +https://spreelo.com)",
-      "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      "User-Agent": "Spreelo/1.0 image overlay",
     },
   });
 
