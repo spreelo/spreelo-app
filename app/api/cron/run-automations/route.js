@@ -1887,6 +1887,7 @@ function getImageUrlQualityScore(value) {
   if (/\.(jpe?g|png|webp|avif)(\?|#|$)/i.test(lower)) score += 8;
   if (lower.includes("srcset") || lower.includes("large") || lower.includes("zoom")) score += 8;
   if (lower.includes("product") || lower.includes("products") || lower.includes("produkt") || lower.includes("media")) score += 10;
+  if (lower.includes("ztat.net") || lower.includes("zalando")) score += 12;
   if (lower.includes("thumbnail") || lower.includes("thumb") || lower.includes("small") || lower.includes("preview") || lower.includes("swatch")) score -= 25;
   if (lower.includes("100x") || lower.includes("150x") || lower.includes("200x") || lower.includes("300x")) score -= 20;
   if (isBadProductImageUrl(url)) score -= 100;
@@ -1903,9 +1904,19 @@ function normalizeProductImageUrlForQuality(value) {
   // Shopify often exposes the same image with a size suffix. Prefer the largest stable public variant.
   url = url.replace(/_((?:pico|icon|thumb|small|compact|medium|large|grande))(?=\.(?:jpe?g|png|webp|avif))/i, "_2048x2048");
 
-  // Some Shopify/CDN URLs use width query params. Do not downscale product images in Spreelo.
-  url = url.replace(/([?&])width=\d{2,5}/i, "$1width=1600");
-  url = url.replace(/([?&])w=\d{2,5}/i, "$1w=1600");
+  // Common product-CDN width params. Do not keep thumbnails when a larger public variant is available.
+  url = url.replace(/([?&])width=\d{2,5}/gi, "$1width=1800");
+  url = url.replace(/([?&])w=\d{2,5}/gi, "$1w=1800");
+  url = url.replace(/([?&])imwidth=\d{2,5}/gi, "$1imwidth=1800");
+  url = url.replace(/([?&])size=\d{2,5}/gi, "$1size=1800");
+  url = url.replace(/([?&])sw=\d{2,5}/gi, "$1sw=1800");
+  url = url.replace(/([?&])dw=\d{2,5}/gi, "$1dw=1800");
+
+  // Zalando/ztat product images are often returned with a tiny imwidth in scraped HTML.
+  // Request a larger variant before scoring/using the URL.
+  if (/\/\/[^/]*ztat\.net\//i.test(url) && !/[?&]imwidth=/i.test(url)) {
+    url += url.includes("?") ? "&imwidth=1800" : "?imwidth=1800";
+  }
 
   return url;
 }
@@ -5598,7 +5609,8 @@ async function fetchImageBufferForOverlay(imageUrl) {
 
   const response = await fetch(imageUrl, {
     headers: {
-      "User-Agent": "Spreelo/1.0 image overlay",
+      "User-Agent": "Mozilla/5.0 (compatible; SpreeloImageFetcher/1.0; +https://spreelo.com)",
+      "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
     },
   });
 
