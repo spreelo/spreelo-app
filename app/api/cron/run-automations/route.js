@@ -3730,29 +3730,34 @@ function extractBestProductImageFromHtml(html, pageUrl) {
   const rawJsonLdImages = collectImageValuesFromObject(product?.image).map((url) => ({
     url,
     source: "json-ld:image",
-    score: 60,
+    score: 58,
   }));
 
-  // Product pages must keep title, price, URL and image tied to the same product.
-  // First lock to the product metadata image, then only upgrade that exact image asset
-  // to a larger variant. Do not let recommended/related products on the page win.
-  const jsonLdProductImage = pickBestProductImageUrl(rawJsonLdImages, pageUrl);
-  if (jsonLdProductImage) {
-    return upgradeLockedProductImageUrlFromHtml(jsonLdProductImage, html, pageUrl);
-  }
+  const ogImage = getMetaContent(html, [
+    "og:image",
+    "og:image:url",
+    "og:image:secure_url",
+  ]);
+  const twitterImage = getMetaContent(html, ["twitter:image", "twitter:image:src"]);
+  const itempropImage = getMetaContent(html, ["image"]);
 
-  const ogImage = getMetaContent(html, ["og:image"]);
-  const twitterImage = getMetaContent(html, ["twitter:image"]);
-  const metaProductImage = pickBestProductImageUrl(
+  // Product pages must keep title, price, URL and image tied to the same product.
+  // Use only product-level metadata first (JSON-LD Product.image, Open Graph, Twitter, itemprop image).
+  // These are much safer than scanning the whole page, because ecommerce pages often contain
+  // recommendation grids with sharper images for other products. Pick the best metadata image
+  // by quality, then only upgrade that same locked asset/URL variant.
+  const metadataProductImage = pickBestProductImageUrl(
     [
-      ...(ogImage ? [{ url: ogImage, source: "og:image", score: 45 }] : []),
-      ...(twitterImage ? [{ url: twitterImage, source: "twitter:image", score: 40 }] : []),
+      ...rawJsonLdImages,
+      ...(ogImage ? [{ url: ogImage, source: "og:image", score: 62 }] : []),
+      ...(twitterImage ? [{ url: twitterImage, source: "twitter:image", score: 56 }] : []),
+      ...(itempropImage ? [{ url: itempropImage, source: "itemprop:image", score: 48 }] : []),
     ],
     pageUrl
   );
 
-  if (metaProductImage) {
-    return upgradeLockedProductImageUrlFromHtml(metaProductImage, html, pageUrl);
+  if (metadataProductImage) {
+    return upgradeLockedProductImageUrlFromHtml(metadataProductImage, html, pageUrl);
   }
 
   // Last resort only: use the highest-ranked image near the product area.
