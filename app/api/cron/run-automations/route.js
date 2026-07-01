@@ -1962,6 +1962,112 @@ function pickBestProductImageUrl(candidates = [], pageUrl = "") {
   return normalized.sort((a, b) => b.score - a.score)[0]?.url || null;
 }
 
+
+function stripImageSizeParamsForIdentity(value) {
+  try {
+    const url = new URL(resolveUrl(normalizeEscapedUrl(value), "https://spreelo.local") || normalizeEscapedUrl(value));
+    const removableParams = [
+      "w",
+      "width",
+      "imwidth",
+      "size",
+      "sw",
+      "dw",
+      "fmtwidth",
+      "resize",
+      "height",
+      "h",
+      "quality",
+      "q",
+      "format",
+      "fm",
+      "auto",
+      "fit",
+      "crop",
+    ];
+
+    for (const param of removableParams) {
+      url.searchParams.delete(param);
+    }
+
+    return `${url.hostname}${url.pathname}${url.search}`
+      .toLowerCase()
+      .replace(/_(?:pico|icon|thumb|small|compact|medium|large|grande|master|original|\d+x\d+)(?=\.(?:jpe?g|png|webp|avif))/gi, "")
+      .replace(/[-_](?:\d{2,5}x\d{2,5}|\d{2,5}w|\d{2,5})(?=\.(?:jpe?g|png|webp|avif))/gi, "")
+      .replace(/[?&]$/, "");
+  } catch {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[?&](?:w|width|imwidth|size|sw|dw|fmtwidth|resize|height|h|quality|q|format|fm|auto|fit|crop)=\d+[^&]*/gi, "")
+      .replace(/_(?:pico|icon|thumb|small|compact|medium|large|grande|master|original|\d+x\d+)(?=\.(?:jpe?g|png|webp|avif))/gi, "")
+      .replace(/[-_](?:\d{2,5}x\d{2,5}|\d{2,5}w|\d{2,5})(?=\.(?:jpe?g|png|webp|avif))/gi, "");
+  }
+}
+
+function getImageAssetToken(value) {
+  try {
+    const url = new URL(resolveUrl(normalizeEscapedUrl(value), "https://spreelo.local") || normalizeEscapedUrl(value));
+    const pathname = decodeURIComponent(url.pathname || "").toLowerCase();
+    const parts = pathname.split("/").filter(Boolean);
+    const file = parts[parts.length - 1] || "";
+    const withoutExtension = file.replace(/\.(?:jpe?g|png|webp|avif)$/i, "");
+    return withoutExtension
+      .replace(/_(?:pico|icon|thumb|small|compact|medium|large|grande|master|original|\d+x\d+)$/i, "")
+      .replace(/[-_](?:\d{2,5}x\d{2,5}|\d{2,5}w|\d{2,5})$/i, "")
+      .replace(/[^a-z0-9]+/g, "")
+      .slice(-80);
+  } catch {
+    return "";
+  }
+}
+
+function imageCandidateLooksLikeSameAsset(candidateUrl, lockedUrl) {
+  const candidateIdentity = stripImageSizeParamsForIdentity(candidateUrl);
+  const lockedIdentity = stripImageSizeParamsForIdentity(lockedUrl);
+
+  if (candidateIdentity && lockedIdentity && candidateIdentity === lockedIdentity) {
+    return true;
+  }
+
+  const candidateToken = getImageAssetToken(candidateUrl);
+  const lockedToken = getImageAssetToken(lockedUrl);
+
+  if (candidateToken && lockedToken) {
+    if (candidateToken === lockedToken) return true;
+    if (candidateToken.length >= 14 && lockedToken.includes(candidateToken)) return true;
+    if (lockedToken.length >= 14 && candidateToken.includes(lockedToken)) return true;
+  }
+
+  return false;
+}
+
+function upgradeLockedProductImageUrlFromHtml(lockedImageUrl, html, pageUrl) {
+  const normalizedLockedImageUrl = lockedImageUrl
+    ? resolveUrl(normalizeProductImageUrlForQuality(lockedImageUrl), pageUrl)
+    : null;
+
+  if (!normalizedLockedImageUrl || !isHttpUrl(normalizedLockedImageUrl)) {
+    return normalizedLockedImageUrl || null;
+  }
+
+  const sameAssetCandidates = extractImageCandidates(html, pageUrl)
+    .filter((candidate) => imageCandidateLooksLikeSameAsset(candidate?.url, normalizedLockedImageUrl))
+    .map((candidate) => ({
+      ...candidate,
+      score: Number(candidate?.score || 0) + 100,
+    }));
+
+  const upgradedSameAssetUrl = pickBestProductImageUrl(
+    [
+      { url: normalizedLockedImageUrl, source: "locked-product-image", score: 120 },
+      ...sameAssetCandidates,
+    ],
+    pageUrl
+  );
+
+  return upgradedSameAssetUrl || normalizedLockedImageUrl;
+}
+
 function normalizeEscapedUrl(value) {
   return String(value || "")
     .replace(/\\u0026/g, "&")
@@ -3624,34 +3730,38 @@ function extractBestProductImageFromHtml(html, pageUrl) {
   const rawJsonLdImages = collectImageValuesFromObject(product?.image).map((url) => ({
     url,
     source: "json-ld:image",
-    score: 60,
+    score: 58,
   }));
 
-  // Product pages must keep title, price, URL and image tied to the same product.
-  // Do NOT let generic page image scanning override the product metadata image;
-  // large ecommerce pages often contain many related/recommended products below the
-  // main product, and those images can score higher while belonging to another item.
-  const jsonLdProductImage = pickBestProductImageUrl(rawJsonLdImages, pageUrl);
-  if (jsonLdProductImage) {
-    return jsonLdProductImage;
-  }
+  const ogImage = getMetaContent(html, [
+    "og:image",
+    "og:image:url",
+    "og:image:secure_url",
+  ]);
+  const twitterImage = getMetaContent(html, ["twitter:image", "twitter:image:src"]);
+  const itempropImage = getMetaContent(html, ["image"]);
 
-  const ogImage = getMetaContent(html, ["og:image"]);
-  const twitterImage = getMetaContent(html, ["twitter:image"]);
-  const metaProductImage = pickBestProductImageUrl(
+  // Product pages must keep title, price, URL and image tied to the same product.
+  // Use only product-level metadata first (JSON-LD Product.image, Open Graph, Twitter, itemprop image).
+  // These are much safer than scanning the whole page, because ecommerce pages often contain
+  // recommendation grids with sharper images for other products. Pick the best metadata image
+  // by quality, then only upgrade that same locked asset/URL variant.
+  const metadataProductImage = pickBestProductImageUrl(
     [
-      ...(ogImage ? [{ url: ogImage, source: "og:image", score: 45 }] : []),
-      ...(twitterImage ? [{ url: twitterImage, source: "twitter:image", score: 40 }] : []),
+      ...rawJsonLdImages,
+      ...(ogImage ? [{ url: ogImage, source: "og:image", score: 62 }] : []),
+      ...(twitterImage ? [{ url: twitterImage, source: "twitter:image", score: 56 }] : []),
+      ...(itempropImage ? [{ url: itempropImage, source: "itemprop:image", score: 48 }] : []),
     ],
     pageUrl
   );
 
-  if (metaProductImage) {
-    return metaProductImage;
+  if (metadataProductImage) {
+    return upgradeLockedProductImageUrlFromHtml(metadataProductImage, html, pageUrl);
   }
 
-  // Last resort only: use the highest-ranked image in the upper product area.
-  // This is intentionally weaker than metadata so a sharper recommended-product
+  // Last resort only: use the highest-ranked image near the product area.
+  // This remains intentionally weaker than metadata so a sharper recommended-product
   // image cannot steal the post from the selected product.
   const htmlImageCandidates = extractImageCandidates(html, pageUrl)
     .slice(0, 12)
@@ -3660,7 +3770,10 @@ function extractBestProductImageFromHtml(html, pageUrl) {
       score: Number(candidate?.score || 0) - 80,
     }));
 
-  return pickBestProductImageUrl(htmlImageCandidates, pageUrl);
+  const fallbackProductImage = pickBestProductImageUrl(htmlImageCandidates, pageUrl);
+  return fallbackProductImage
+    ? upgradeLockedProductImageUrlFromHtml(fallbackProductImage, html, pageUrl)
+    : null;
 }
 
 async function extractProductDataFromProductPage({
