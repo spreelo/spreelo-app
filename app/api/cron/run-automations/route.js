@@ -1807,11 +1807,148 @@ function getAttributeValueFromTag(tag, attributeName) {
   return String(tag || "").match(regex)?.[1] || "";
 }
 
-function splitSrcsetUrls(value) {
+function parseSrcsetCandidate(part) {
+  const pieces = String(part || "").trim().split(/\s+/).filter(Boolean);
+  const url = pieces[0] || "";
+  const descriptor = pieces[1] || "";
+  const widthMatch = descriptor.match(/^(\d+)w$/i);
+  const densityMatch = descriptor.match(/^(\d+(?:\.\d+)?)x$/i);
+
+  return {
+    url,
+    width: widthMatch ? Number(widthMatch[1]) : 0,
+    density: densityMatch ? Number(densityMatch[1]) : 0,
+  };
+}
+
+function splitSrcsetCandidates(value) {
   return String(value || "")
     .split(",")
-    .map((part) => part.trim().split(/\s+/)[0])
-    .filter(Boolean);
+    .map(parseSrcsetCandidate)
+    .filter((candidate) => candidate.url);
+}
+
+function splitSrcsetUrls(value) {
+  return splitSrcsetCandidates(value).map((candidate) => candidate.url);
+}
+
+function getUrlImageSizeSignal(value) {
+  const url = String(value || "").toLowerCase();
+  if (!url) {
+    return 0;
+  }
+
+  const signals = [];
+  const queryMatches = [
+    ...url.matchAll(/(?:^|[?&;_/-])(?:w|width|imwidth|size|sw|dw|fmtwidth|resize)=?(\d{2,5})(?=$|[&;_x/-])/gi),
+    ...url.matchAll(/(?:_|-|\/)(\d{2,5})x(\d{2,5})(?=[_.?&/-]|$)/gi),
+  ];
+
+  for (const match of queryMatches) {
+    const first = Number(match[1] || 0);
+    const second = Number(match[2] || 0);
+    if (Number.isFinite(first) && first > 0) signals.push(first);
+    if (Number.isFinite(second) && second > 0) signals.push(second);
+  }
+
+  const shopifySizeMatch = url.match(/_(pico|icon|thumb|small|compact|medium|large|grande|original|master)(?=\.|_|-)/i);
+  if (shopifySizeMatch) {
+    const scores = {
+      pico: 16,
+      icon: 32,
+      thumb: 80,
+      small: 160,
+      compact: 200,
+      medium: 400,
+      large: 800,
+      grande: 1200,
+      original: 1600,
+      master: 1800,
+    };
+    signals.push(scores[shopifySizeMatch[1].toLowerCase()] || 0);
+  }
+
+  return signals.length ? Math.max(...signals) : 0;
+}
+
+function getImageUrlQualityScore(value) {
+  const url = String(value || "");
+  const lower = url.toLowerCase();
+  let score = 0;
+  const sizeSignal = getUrlImageSizeSignal(url);
+
+  if (sizeSignal >= 1600) score += 45;
+  else if (sizeSignal >= 1200) score += 38;
+  else if (sizeSignal >= 900) score += 30;
+  else if (sizeSignal >= 700) score += 22;
+  else if (sizeSignal >= 500) score += 12;
+  else if (sizeSignal > 0 && sizeSignal < 350) score -= 35;
+
+  if (/\.(jpe?g|png|webp|avif)(\?|#|$)/i.test(lower)) score += 8;
+  if (lower.includes("srcset") || lower.includes("large") || lower.includes("zoom")) score += 8;
+  if (lower.includes("product") || lower.includes("products") || lower.includes("produkt") || lower.includes("media")) score += 10;
+  if (lower.includes("thumbnail") || lower.includes("thumb") || lower.includes("small") || lower.includes("preview") || lower.includes("swatch")) score -= 25;
+  if (lower.includes("100x") || lower.includes("150x") || lower.includes("200x") || lower.includes("300x")) score -= 20;
+  if (isBadProductImageUrl(url)) score -= 100;
+
+  return score;
+}
+
+function normalizeProductImageUrlForQuality(value) {
+  let url = normalizeEscapedUrl(value);
+  if (!url) {
+    return url;
+  }
+
+  // Shopify often exposes the same image with a size suffix. Prefer the largest stable public variant.
+  url = url.replace(/_((?:pico|icon|thumb|small|compact|medium|large|grande))(?=\.(?:jpe?g|png|webp|avif))/i, "_2048x2048");
+
+  // Some Shopify/CDN URLs use width query params. Do not downscale product images in Spreelo.
+  url = url.replace(/([?&])width=\d{2,5}/i, "$1width=1600");
+  url = url.replace(/([?&])w=\d{2,5}/i, "$1w=1600");
+
+  return url;
+}
+
+function pickBestProductImageUrl(candidates = [], pageUrl = "") {
+  const normalized = [];
+  const seen = new Set();
+
+  for (const candidate of candidates) {
+    const rawUrl = typeof candidate === "string" ? candidate : candidate?.url;
+    const source = typeof candidate === "string" ? "candidate" : candidate?.source;
+    const baseScore = typeof candidate === "string" ? 0 : Number(candidate?.score || 0);
+    const width = typeof candidate === "string" ? 0 : Number(candidate?.width || 0);
+    const density = typeof candidate === "string" ? 0 : Number(candidate?.density || 0);
+    const resolvedUrl = rawUrl ? resolveUrl(normalizeProductImageUrlForQuality(rawUrl), pageUrl) : null;
+
+    if (!resolvedUrl || !isHttpUrl(resolvedUrl) || isBadProductImageUrl(resolvedUrl)) {
+      continue;
+    }
+
+    const key = normalizeComparableValue(resolvedUrl);
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+
+    let score = baseScore + getImageUrlQualityScore(resolvedUrl);
+    if (width >= 1600) score += 45;
+    else if (width >= 1200) score += 38;
+    else if (width >= 900) score += 30;
+    else if (width >= 700) score += 22;
+    else if (width > 0 && width < 350) score -= 35;
+    if (density >= 2) score += 12;
+    if (source === "json-ld:image") score += 20;
+    if (source === "og:image" || source === "twitter:image") score += 8;
+    if (source && String(source).includes("srcset")) score += 18;
+    if (source && /zoom|full|large/i.test(String(source))) score += 18;
+
+    normalized.push({ url: resolvedUrl, score });
+  }
+
+  return normalized.sort((a, b) => b.score - a.score)[0]?.url || null;
 }
 
 function normalizeEscapedUrl(value) {
@@ -1892,8 +2029,8 @@ function extractImageCandidates(html, pageUrl) {
   const candidates = [];
   const seen = new Set();
 
-  const addCandidate = ({ url, alt = "", source = "image", score = 0 }) => {
-    const resolvedUrl = resolveUrl(url, pageUrl);
+  const addCandidate = ({ url, alt = "", source = "image", score = 0, width = 0, density = 0 }) => {
+    const resolvedUrl = resolveUrl(normalizeProductImageUrlForQuality(url), pageUrl);
 
     if (!resolvedUrl || !isHttpUrl(resolvedUrl)) {
       return;
@@ -1914,6 +2051,24 @@ function extractImageCandidates(html, pageUrl) {
       lowerUrl.endsWith(".svg")
     ) {
       score -= 30;
+    }
+
+    score += getImageUrlQualityScore(resolvedUrl);
+
+    if (width >= 1600) {
+      score += 35;
+    } else if (width >= 1200) {
+      score += 28;
+    } else if (width >= 900) {
+      score += 22;
+    } else if (width >= 700) {
+      score += 14;
+    } else if (width > 0 && width < 350) {
+      score -= 30;
+    }
+
+    if (density >= 2) {
+      score += 10;
     }
 
     if (
@@ -1949,6 +2104,8 @@ function extractImageCandidates(html, pageUrl) {
       source,
       score,
       page_url: pageUrl,
+      width,
+      density,
     });
   };
 
@@ -2000,12 +2157,14 @@ function extractImageCandidates(html, pageUrl) {
     for (const attributeName of srcsetAttributes) {
       const srcsetValue = getAttributeValueFromTag(tag, attributeName);
 
-      for (const imageUrl of splitSrcsetUrls(srcsetValue)) {
+      for (const imageCandidate of splitSrcsetCandidates(srcsetValue)) {
         addCandidate({
-          url: normalizeEscapedUrl(imageUrl),
+          url: normalizeEscapedUrl(imageCandidate.url),
           alt,
           source: `img:${attributeName}`,
-          score: 10,
+          score: 10 + (imageCandidate.width >= 1000 ? 20 : imageCandidate.width >= 700 ? 12 : 0),
+          width: imageCandidate.width,
+          density: imageCandidate.density,
         });
       }
     }
@@ -3258,16 +3417,13 @@ function collectImageValuesFromObject(value, results = []) {
 
 function getProductImageFromJsonLd(product, pageUrl) {
   const rawImages = collectImageValuesFromObject(product?.image);
+  const candidates = rawImages.map((rawImage) => ({
+    url: rawImage,
+    source: "json-ld:image",
+    score: 30,
+  }));
 
-  for (const rawImage of rawImages) {
-    const resolvedUrl = rawImage ? resolveUrl(rawImage, pageUrl) : null;
-
-    if (resolvedUrl && isHttpUrl(resolvedUrl) && !isBadProductImageUrl(resolvedUrl)) {
-      return resolvedUrl;
-    }
-  }
-
-  return null;
+  return pickBestProductImageUrl(candidates, pageUrl);
 }
 
 function getProductPriceFromJsonLd(product) {
@@ -3454,30 +3610,33 @@ function extractProductPriceFromHtml(html) {
 
 function extractBestProductImageFromHtml(html, pageUrl) {
   const product = findJsonLdProduct(html);
-  const jsonLdImage = getProductImageFromJsonLd(product, pageUrl);
+  const rawJsonLdImages = collectImageValuesFromObject(product?.image).map((url) => ({
+    url,
+    source: "json-ld:image",
+    score: 35,
+  }));
+  const metaImageCandidates = [];
+  const ogImage = getMetaContent(html, ["og:image"]);
+  const twitterImage = getMetaContent(html, ["twitter:image"]);
 
-  if (jsonLdImage) {
-    return jsonLdImage;
+  if (ogImage) {
+    metaImageCandidates.push({ url: ogImage, source: "og:image", score: 20 });
   }
 
-  const ogImage = getMetaContent(html, ["og:image", "twitter:image"]);
-  const resolvedOgImage = ogImage ? resolveUrl(ogImage, pageUrl) : null;
-
-  if (
-    resolvedOgImage &&
-    isHttpUrl(resolvedOgImage) &&
-    !isBadProductImageUrl(resolvedOgImage)
-  ) {
-    return resolvedOgImage;
+  if (twitterImage) {
+    metaImageCandidates.push({ url: twitterImage, source: "twitter:image", score: 18 });
   }
 
-  const imageCandidates = extractImageCandidates(html, pageUrl);
+  const htmlImageCandidates = extractImageCandidates(html, pageUrl);
 
-  const bestImage = imageCandidates.find(
-    (image) => image?.url && !isBadProductImageUrl(image.url)
+  return pickBestProductImageUrl(
+    [
+      ...rawJsonLdImages,
+      ...metaImageCandidates,
+      ...htmlImageCandidates,
+    ],
+    pageUrl
   );
-
-  return bestImage?.url || null;
 }
 
 async function extractProductDataFromProductPage({
@@ -3883,10 +4042,19 @@ async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt }) {
         const handle = String(product?.handle || "").trim();
         const title = String(product?.title || "").trim();
         const productUrl = handle ? `${origin}/products/${handle}` : "";
-        const imageUrl =
-          product?.image?.src ||
-          product?.images?.[0]?.src ||
-          null;
+        const imageUrl = pickBestProductImageUrl(
+          [
+            product?.image?.src ? { url: product.image.src, source: "shopify:image", score: 25 } : null,
+            ...(Array.isArray(product?.images)
+              ? product.images.map((image, index) => ({
+                  url: image?.src,
+                  source: "shopify:images",
+                  score: 20 - index,
+                }))
+              : []),
+          ].filter(Boolean),
+          origin
+        );
         const firstVariant = Array.isArray(product?.variants)
           ? product.variants[0]
           : null;
