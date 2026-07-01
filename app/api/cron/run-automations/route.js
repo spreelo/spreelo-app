@@ -1895,30 +1895,63 @@ function getImageUrlQualityScore(value) {
   return score;
 }
 
-function normalizeProductImageUrlForQuality(value) {
+function setImageUrlNumericParam(url, paramName, value) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.has(paramName)) {
+      parsed.searchParams.set(paramName, String(value));
+      return parsed.toString();
+    }
+  } catch (error) {
+    // Fall back to regex handling below for relative/escaped URLs.
+  }
+
+  const pattern = new RegExp(`([?&])${paramName}=\\d{2,5}`, "i");
+  return String(url || "").replace(pattern, `$1${paramName}=${value}`);
+}
+
+function addImageUrlNumericParam(url, paramName, value) {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set(paramName, String(value));
+    return parsed.toString();
+  } catch (error) {
+    const separator = String(url || "").includes("?") ? "&" : "?";
+    return `${url}${separator}${paramName}=${value}`;
+  }
+}
+
+function upgradeLockedProductImageUrl(value) {
   let url = normalizeEscapedUrl(value);
   if (!url) {
     return url;
   }
 
-  // Shopify often exposes the same image with a size suffix. Prefer the largest stable public variant.
+  // This function must never choose a different image. It only asks the same image/CDN URL
+  // for a larger public variant. Product matching is more important than image quality.
+
+  // Shopify often exposes the same image with a size suffix. Prefer a larger stable variant.
   url = url.replace(/_((?:pico|icon|thumb|small|compact|medium|large|grande))(?=\.(?:jpe?g|png|webp|avif))/i, "_2048x2048");
 
-  // Common product-CDN width params. Do not keep thumbnails when a larger public variant is available.
-  url = url.replace(/([?&])width=\d{2,5}/gi, "$1width=1800");
-  url = url.replace(/([?&])w=\d{2,5}/gi, "$1w=1800");
-  url = url.replace(/([?&])imwidth=\d{2,5}/gi, "$1imwidth=1800");
-  url = url.replace(/([?&])size=\d{2,5}/gi, "$1size=1800");
-  url = url.replace(/([?&])sw=\d{2,5}/gi, "$1sw=1800");
-  url = url.replace(/([?&])dw=\d{2,5}/gi, "$1dw=1800");
+  const numericParams = ["width", "w", "imwidth", "size", "sw", "dw", "fmtwidth", "resize"];
+  for (const paramName of numericParams) {
+    const hasParam = new RegExp(`([?&])${paramName}=\\d{2,5}`, "i").test(url);
+    if (hasParam) {
+      url = setImageUrlNumericParam(url, paramName, 1800);
+    }
+  }
 
-  // Zalando/ztat product images are often returned with a tiny imwidth in scraped HTML.
-  // Request a larger variant before scoring/using the URL.
-  if (/\/\/[^/]*ztat\.net\//i.test(url) && !/[?&]imwidth=/i.test(url)) {
-    url += url.includes("?") ? "&imwidth=1800" : "?imwidth=1800";
+  // Zalando/ztat product images use imwidth for the rendered size. If the selected
+  // image is already the correct ztat product image, force the same path to 1800px.
+  if (/\/\/[^/]*ztat\.net\//i.test(url)) {
+    url = addImageUrlNumericParam(url, "imwidth", 1800);
   }
 
   return url;
+}
+
+function normalizeProductImageUrlForQuality(value) {
+  return upgradeLockedProductImageUrl(value);
 }
 
 function pickBestProductImageUrl(candidates = [], pageUrl = "") {
@@ -1960,339 +1993,6 @@ function pickBestProductImageUrl(candidates = [], pageUrl = "") {
   }
 
   return normalized.sort((a, b) => b.score - a.score)[0]?.url || null;
-}
-
-
-function stripImageSizeParamsForIdentity(value) {
-  try {
-    const url = new URL(resolveUrl(normalizeEscapedUrl(value), "https://spreelo.local") || normalizeEscapedUrl(value));
-    const removableParams = [
-      "w",
-      "width",
-      "imwidth",
-      "size",
-      "sw",
-      "dw",
-      "fmtwidth",
-      "resize",
-      "height",
-      "h",
-      "quality",
-      "q",
-      "format",
-      "fm",
-      "auto",
-      "fit",
-      "crop",
-    ];
-
-    for (const param of removableParams) {
-      url.searchParams.delete(param);
-    }
-
-    return `${url.hostname}${url.pathname}${url.search}`
-      .toLowerCase()
-      .replace(/_(?:pico|icon|thumb|small|compact|medium|large|grande|master|original|\d+x\d+)(?=\.(?:jpe?g|png|webp|avif))/gi, "")
-      .replace(/[-_](?:\d{2,5}x\d{2,5}|\d{2,5}w|\d{2,5})(?=\.(?:jpe?g|png|webp|avif))/gi, "")
-      .replace(/[?&]$/, "");
-  } catch {
-    return String(value || "")
-      .toLowerCase()
-      .replace(/[?&](?:w|width|imwidth|size|sw|dw|fmtwidth|resize|height|h|quality|q|format|fm|auto|fit|crop)=\d+[^&]*/gi, "")
-      .replace(/_(?:pico|icon|thumb|small|compact|medium|large|grande|master|original|\d+x\d+)(?=\.(?:jpe?g|png|webp|avif))/gi, "")
-      .replace(/[-_](?:\d{2,5}x\d{2,5}|\d{2,5}w|\d{2,5})(?=\.(?:jpe?g|png|webp|avif))/gi, "");
-  }
-}
-
-function getImageAssetToken(value) {
-  try {
-    const url = new URL(resolveUrl(normalizeEscapedUrl(value), "https://spreelo.local") || normalizeEscapedUrl(value));
-    const pathname = decodeURIComponent(url.pathname || "").toLowerCase();
-    const parts = pathname.split("/").filter(Boolean);
-    const file = parts[parts.length - 1] || "";
-    const withoutExtension = file.replace(/\.(?:jpe?g|png|webp|avif)$/i, "");
-    return withoutExtension
-      .replace(/_(?:pico|icon|thumb|small|compact|medium|large|grande|master|original|\d+x\d+)$/i, "")
-      .replace(/[-_](?:\d{2,5}x\d{2,5}|\d{2,5}w|\d{2,5})$/i, "")
-      .replace(/[^a-z0-9]+/g, "")
-      .slice(-80);
-  } catch {
-    return "";
-  }
-}
-
-function imageCandidateLooksLikeSameAsset(candidateUrl, lockedUrl) {
-  const candidateIdentity = stripImageSizeParamsForIdentity(candidateUrl);
-  const lockedIdentity = stripImageSizeParamsForIdentity(lockedUrl);
-
-  if (candidateIdentity && lockedIdentity && candidateIdentity === lockedIdentity) {
-    return true;
-  }
-
-  const candidateToken = getImageAssetToken(candidateUrl);
-  const lockedToken = getImageAssetToken(lockedUrl);
-
-  if (candidateToken && lockedToken) {
-    if (candidateToken === lockedToken) return true;
-    if (candidateToken.length >= 14 && lockedToken.includes(candidateToken)) return true;
-    if (lockedToken.length >= 14 && candidateToken.includes(lockedToken)) return true;
-  }
-
-  return false;
-}
-
-function extractImageUrlsFromSrcsetAttribute(value) {
-  return splitSrcsetCandidates(value).map((candidate) => ({
-    url: candidate.url,
-    width: candidate.width,
-    density: candidate.density,
-  }));
-}
-
-function addLinkedThumbnailCandidate(candidates, seen, { url, source, score = 0, width = 0, density = 0 }, pageUrl) {
-  const resolvedUrl = url ? resolveUrl(normalizeProductImageUrlForQuality(url), pageUrl) : null;
-
-  if (!resolvedUrl || !isHttpUrl(resolvedUrl) || isBadProductImageUrl(resolvedUrl)) {
-    return;
-  }
-
-  const key = normalizeComparableValue(resolvedUrl);
-
-  if (!key || seen.has(key)) {
-    return;
-  }
-
-  seen.add(key);
-  candidates.push({
-    url: resolvedUrl,
-    source,
-    score,
-    width,
-    density,
-  });
-}
-
-function extractFullImageCandidatesFromMatchedThumbnail({ tag, contextHtml, pageUrl }) {
-  const candidates = [];
-  const seen = new Set();
-
-  const directAttributes = [
-    "data-full",
-    "data-full-src",
-    "data-large",
-    "data-large-src",
-    "data-original",
-    "data-original-src",
-    "data-zoom",
-    "data-zoom-src",
-    "data-zoom-image",
-    "data-img-zoom-url",
-    "data-image",
-    "data-image-src",
-    "data-src-large",
-    "data-master",
-    "data-hires",
-    "data-highres",
-    "data-zoom-url",
-    "href",
-    "src",
-    "data-src",
-    "data-lazy-src",
-  ];
-
-  for (const attributeName of directAttributes) {
-    const value = getAttributeValueFromTag(tag, attributeName);
-
-    if (!value || !looksLikeProductImageUrl(value)) {
-      continue;
-    }
-
-    addLinkedThumbnailCandidate(candidates, seen, {
-      url: value,
-      source: `matched-thumbnail:${attributeName}`,
-      score: attributeName === "src" ? 90 : 150,
-    }, pageUrl);
-  }
-
-  for (const attributeName of ["srcset", "data-srcset", "data-lazy-srcset"]) {
-    for (const imageCandidate of extractImageUrlsFromSrcsetAttribute(getAttributeValueFromTag(tag, attributeName))) {
-      addLinkedThumbnailCandidate(candidates, seen, {
-        url: imageCandidate.url,
-        source: `matched-thumbnail:${attributeName}`,
-        score: 165 + (imageCandidate.width >= 1000 ? 35 : imageCandidate.width >= 700 ? 20 : 0),
-        width: imageCandidate.width,
-        density: imageCandidate.density,
-      }, pageUrl);
-    }
-  }
-
-  // Many ecommerce galleries wrap thumbnails in an anchor or <picture>. The full-size
-  // image often lives on the same gallery node, not in the img src itself. Only inspect
-  // the small local context around the already matched thumbnail so we do not drift into
-  // recommendations or other products further down the page.
-  const localHtml = String(contextHtml || "");
-  const contextImageAttributes = [
-    "href",
-    "src",
-    "srcset",
-    "data-src",
-    "data-srcset",
-    "data-lazy-src",
-    "data-lazy-srcset",
-    "data-full",
-    "data-full-src",
-    "data-large",
-    "data-large-src",
-    "data-original",
-    "data-original-src",
-    "data-zoom",
-    "data-zoom-src",
-    "data-zoom-image",
-    "data-img-zoom-url",
-    "data-image",
-    "data-image-src",
-    "data-src-large",
-    "data-master",
-    "data-hires",
-    "data-highres",
-    "data-zoom-url",
-  ];
-
-  for (const attributeName of contextImageAttributes) {
-    const attributeRegex = new RegExp(`${attributeName}=["']([^"']+)["']`, "gi");
-    let match;
-
-    while ((match = attributeRegex.exec(localHtml)) !== null) {
-      const value = normalizeEscapedUrl(match[1] || "");
-
-      if (!value) {
-        continue;
-      }
-
-      if (attributeName.toLowerCase().includes("srcset")) {
-        for (const imageCandidate of extractImageUrlsFromSrcsetAttribute(value)) {
-          addLinkedThumbnailCandidate(candidates, seen, {
-            url: imageCandidate.url,
-            source: `matched-thumbnail-context:${attributeName}`,
-            score: 175 + (imageCandidate.width >= 1000 ? 35 : imageCandidate.width >= 700 ? 20 : 0),
-            width: imageCandidate.width,
-            density: imageCandidate.density,
-          }, pageUrl);
-        }
-        continue;
-      }
-
-      if (!looksLikeProductImageUrl(value)) {
-        continue;
-      }
-
-      addLinkedThumbnailCandidate(candidates, seen, {
-        url: value,
-        source: `matched-thumbnail-context:${attributeName}`,
-        score: attributeName === "href" ? 190 : 170,
-      }, pageUrl);
-    }
-  }
-
-  return candidates;
-}
-
-function extractLinkedFullImageCandidatesForLockedImage(lockedImageUrl, html, pageUrl) {
-  const sourceHtml = String(html || "");
-  const lockedUrl = resolveUrl(normalizeEscapedUrl(lockedImageUrl), pageUrl);
-  const candidates = [];
-  const imageRegex = /<img[^>]*>/gi;
-  let match;
-
-  while ((match = imageRegex.exec(sourceHtml)) !== null) {
-    const tag = match[0] || "";
-    const tagCandidates = [];
-
-    for (const attributeName of [
-      "src",
-      "data-src",
-      "data-original",
-      "data-lazy",
-      "data-lazy-src",
-      "data-image",
-      "data-image-src",
-      "data-src-large",
-      "data-zoom-image",
-      "data-img-zoom-url",
-      "data-full",
-      "data-large",
-    ]) {
-      const value = getAttributeValueFromTag(tag, attributeName);
-      if (value) {
-        tagCandidates.push(value);
-      }
-    }
-
-    for (const attributeName of ["srcset", "data-srcset", "data-lazy-srcset"]) {
-      for (const imageCandidate of extractImageUrlsFromSrcsetAttribute(getAttributeValueFromTag(tag, attributeName))) {
-        tagCandidates.push(imageCandidate.url);
-      }
-    }
-
-    const matchesLockedImage = tagCandidates.some((candidateUrl) =>
-      imageCandidateLooksLikeSameAsset(candidateUrl, lockedUrl)
-    );
-
-    if (!matchesLockedImage) {
-      continue;
-    }
-
-    const contextStart = Math.max(0, match.index - 2200);
-    const contextEnd = Math.min(sourceHtml.length, match.index + tag.length + 2200);
-    const contextHtml = sourceHtml.slice(contextStart, contextEnd);
-
-    candidates.push(
-      ...extractFullImageCandidatesFromMatchedThumbnail({
-        tag,
-        contextHtml,
-        pageUrl,
-      })
-    );
-  }
-
-  return candidates;
-}
-
-function upgradeLockedProductImageUrlFromHtml(lockedImageUrl, html, pageUrl) {
-  const normalizedLockedImageUrl = lockedImageUrl
-    ? resolveUrl(normalizeProductImageUrlForQuality(lockedImageUrl), pageUrl)
-    : null;
-
-  if (!normalizedLockedImageUrl || !isHttpUrl(normalizedLockedImageUrl)) {
-    return normalizedLockedImageUrl || null;
-  }
-
-  const linkedThumbnailCandidates = extractLinkedFullImageCandidatesForLockedImage(
-    lockedImageUrl,
-    html,
-    pageUrl
-  ).map((candidate) => ({
-    ...candidate,
-    score: Number(candidate?.score || 0) + 220,
-  }));
-
-  const sameAssetCandidates = extractImageCandidates(html, pageUrl)
-    .filter((candidate) => imageCandidateLooksLikeSameAsset(candidate?.url, normalizedLockedImageUrl))
-    .map((candidate) => ({
-      ...candidate,
-      score: Number(candidate?.score || 0) + 100,
-    }));
-
-  const upgradedSameAssetUrl = pickBestProductImageUrl(
-    [
-      { url: normalizedLockedImageUrl, source: "locked-product-image", score: 120 },
-      ...linkedThumbnailCandidates,
-      ...sameAssetCandidates,
-    ],
-    pageUrl
-  );
-
-  return upgradedSameAssetUrl || normalizedLockedImageUrl;
 }
 
 function normalizeEscapedUrl(value) {
@@ -2927,7 +2627,9 @@ function normalizeWebsiteItem(item, websiteUrl) {
   const description = String(item?.description || "").trim();
   const type = String(item?.type || "website_item").trim();
   const url = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
-  const imageUrl = item?.image_url ? resolveUrl(item.image_url, websiteUrl) : null;
+  const imageUrl = item?.image_url
+    ? resolveUrl(upgradeLockedProductImageUrl(item.image_url), websiteUrl)
+    : null;
 let price = normalizeVerifiedPriceValue(item?.price);
   if (item?.price && !price) {
     console.warn("Ignored unverified website item price because it lacked a clear currency marker", {
@@ -3957,50 +3659,30 @@ function extractBestProductImageFromHtml(html, pageUrl) {
   const rawJsonLdImages = collectImageValuesFromObject(product?.image).map((url) => ({
     url,
     source: "json-ld:image",
-    score: 58,
+    score: 35,
   }));
+  const metaImageCandidates = [];
+  const ogImage = getMetaContent(html, ["og:image"]);
+  const twitterImage = getMetaContent(html, ["twitter:image"]);
 
-  const ogImage = getMetaContent(html, [
-    "og:image",
-    "og:image:url",
-    "og:image:secure_url",
-  ]);
-  const twitterImage = getMetaContent(html, ["twitter:image", "twitter:image:src"]);
-  const itempropImage = getMetaContent(html, ["image"]);
+  if (ogImage) {
+    metaImageCandidates.push({ url: ogImage, source: "og:image", score: 20 });
+  }
 
-  // Product pages must keep title, price, URL and image tied to the same product.
-  // Use only product-level metadata first (JSON-LD Product.image, Open Graph, Twitter, itemprop image).
-  // These are much safer than scanning the whole page, because ecommerce pages often contain
-  // recommendation grids with sharper images for other products. Pick the best metadata image
-  // by quality, then only upgrade that same locked asset/URL variant.
-  const metadataProductImage = pickBestProductImageUrl(
+  if (twitterImage) {
+    metaImageCandidates.push({ url: twitterImage, source: "twitter:image", score: 18 });
+  }
+
+  const htmlImageCandidates = extractImageCandidates(html, pageUrl);
+
+  return pickBestProductImageUrl(
     [
       ...rawJsonLdImages,
-      ...(ogImage ? [{ url: ogImage, source: "og:image", score: 62 }] : []),
-      ...(twitterImage ? [{ url: twitterImage, source: "twitter:image", score: 56 }] : []),
-      ...(itempropImage ? [{ url: itempropImage, source: "itemprop:image", score: 48 }] : []),
+      ...metaImageCandidates,
+      ...htmlImageCandidates,
     ],
     pageUrl
   );
-
-  if (metadataProductImage) {
-    return upgradeLockedProductImageUrlFromHtml(metadataProductImage, html, pageUrl);
-  }
-
-  // Last resort only: use the highest-ranked image near the product area.
-  // This remains intentionally weaker than metadata so a sharper recommended-product
-  // image cannot steal the post from the selected product.
-  const htmlImageCandidates = extractImageCandidates(html, pageUrl)
-    .slice(0, 12)
-    .map((candidate) => ({
-      ...candidate,
-      score: Number(candidate?.score || 0) - 80,
-    }));
-
-  const fallbackProductImage = pickBestProductImageUrl(htmlImageCandidates, pageUrl);
-  return fallbackProductImage
-    ? upgradeLockedProductImageUrlFromHtml(fallbackProductImage, html, pageUrl)
-    : null;
 }
 
 async function extractProductDataFromProductPage({
