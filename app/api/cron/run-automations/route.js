@@ -156,55 +156,24 @@ function getCarouselSlideDefaultCta(language) {
 }
 
 async function renderCarouselProductSlideImage({
-  slide,
-  brandName,
   sourceImageUrl,
-  language,
 }) {
   const width = 1080;
   const height = 1080;
-  const heroX = 64;
-  const heroY = 64;
-  const heroWidth = 952;
-  const heroHeight = 566;
-  const heroImageX = 114;
-  const heroImageY = 108;
-  const heroImageWidth = 852;
-  const heroImageHeight = 478;
-  const copyX = 64;
-  const copyY = 662;
-  const copyWidth = 952;
-  const copyHeight = 354;
-  const textX = 114;
-  const brandLabelY = 722;
-  const headlineY = 782;
-  const bodyY = 884;
-  const ctaY = 960;
-
-  const brandLabel = normalizeSlideText(brandName || "", 36);
-  const headline = normalizeSlideText(slide?.headline || "", 110);
-  const body = normalizeSlideText(slide?.body || "", 260);
-  const ctaText = normalizeSlideText(
-    slide?.cta_text || getCarouselSlideDefaultCta(language),
-    34
-  );
-
-  const brandLines = splitTextIntoLines(brandLabel, 28, 1);
-  const headlineLines = splitTextIntoLines(headline, 20, 2);
-  const bodyLines = splitTextIntoLines(body, 42, 4);
-  const ctaWidth = Math.max(220, Math.min(420, 70 + ctaText.length * 16));
+  const cardX = 64;
+  const cardY = 64;
+  const cardWidth = 952;
+  const cardHeight = 952;
+  const imageX = 116;
+  const imageY = 116;
+  const imageWidth = 848;
+  const imageHeight = 848;
 
   const backgroundSvg = `
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <rect width="${width}" height="${height}" rx="0" fill="#f5f7fb"/>
-      <rect x="${heroX}" y="${heroY}" width="${heroWidth}" height="${heroHeight}" rx="36" fill="#ffffff" stroke="#d9e2f0" stroke-width="3"/>
-      <rect x="${copyX}" y="${copyY}" width="${copyWidth}" height="${copyHeight}" rx="36" fill="#ffffff" stroke="#d9e2f0" stroke-width="3"/>
-      <rect x="${heroImageX}" y="${heroImageY}" width="${heroImageWidth}" height="${heroImageHeight}" rx="28" fill="#f8fafc"/>
-      <rect x="${textX}" y="${ctaY - 42}" width="${ctaWidth}" height="58" rx="29" fill="#eff6ff" stroke="#bfdbfe" stroke-width="2"/>
-      ${buildSvgTextBlock(brandLines, { x: textX, y: brandLabelY, fontSize: 22, lineHeight: 24, fontWeight: 700, fill: '#64748b' })}
-      ${buildSvgTextBlock(headlineLines, { x: textX, y: headlineY, fontSize: 54, lineHeight: 60, fontWeight: 800, fill: '#0f172a' })}
-      ${buildSvgTextBlock(bodyLines, { x: textX, y: bodyY, fontSize: 31, lineHeight: 38, fontWeight: 500, fill: '#334155' })}
-      <text x="${textX + 34}" y="${ctaY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#1d4ed8">${escapeSvg(ctaText)}</text>
+      <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${cardHeight}" rx="42" fill="#ffffff" stroke="#d9e2f0" stroke-width="3"/>
+      <rect x="${imageX}" y="${imageY}" width="${imageWidth}" height="${imageHeight}" rx="30" fill="#f8fafc"/>
     </svg>
   `;
 
@@ -220,8 +189,8 @@ async function renderCarouselProductSlideImage({
       const productImageBuffer = await sharp(sourceBuffer)
         .rotate()
         .resize({
-          width: heroImageWidth,
-          height: heroImageHeight,
+          width: imageWidth,
+          height: imageHeight,
           fit: 'contain',
           background: { r: 248, g: 250, b: 252, alpha: 1 },
           withoutEnlargement: false,
@@ -231,8 +200,8 @@ async function renderCarouselProductSlideImage({
 
       composites.push({
         input: productImageBuffer,
-        top: heroImageY,
-        left: heroImageX,
+        top: imageY,
+        left: imageX,
       });
     } catch (error) {
       console.error('Carousel product slide image fetch/render failed', {
@@ -1483,46 +1452,48 @@ function buildCarouselEmailPreviewHtml(carouselSlides = []) {
     return "";
   }
 
-  const rows = [];
-  for (let index = 0; index < slides.length; index += 3) {
-    rows.push(slides.slice(index, index + 3));
-  }
-
-  const body = rows
-    .map((row) => `
-      <tr>
-        ${row
-          .map(
-            (slide) => `
-          <td width="33.33%" valign="top" style="padding:6px;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#ffffff;">
-              <tr>
-                <td style="padding:0;">
-                  <img src="${escapeHtml(slide.image_url || '')}" alt="${escapeHtml(slide.headline || 'Carousel slide')}" style="display:block;width:100%;height:160px;object-fit:cover;" />
-                </td>
-              </tr>
-              ${slide.headline ? `
-              <tr>
-                <td style="padding:10px 10px 12px;font-size:12px;line-height:1.45;color:#111827;font-weight:700;">
-                  ${escapeHtml(slide.headline)}
-                </td>
-              </tr>
-              ` : ''}
-            </table>
-          </td>`
-          )
-          .join('')}
-        ${Array.from({ length: Math.max(0, 3 - row.length) }).map(() => '<td width="33.33%" style="padding:6px;"></td>').join('')}
-      </tr>
+  const cards = slides
+    .map((slide) => `
+      <div class="carousel-email-card" style="display:inline-block;width:31%;max-width:180px;min-width:150px;vertical-align:top;margin:6px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#ffffff;">
+          <tr>
+            <td style="padding:0;background:#f8fafc;">
+              <img src="${escapeHtml(slide.image_url || '')}" alt="${escapeHtml(slide.headline || 'Carousel slide')}" style="display:block;width:100%;height:auto;max-height:180px;object-fit:contain;background:#f8fafc;" />
+            </td>
+          </tr>
+          ${slide.headline ? `
+          <tr>
+            <td style="padding:10px 10px 12px;font-size:12px;line-height:1.45;color:#111827;font-weight:700;">
+              ${escapeHtml(slide.headline)}
+            </td>
+          </tr>
+          ` : ''}
+        </table>
+      </div>
     `)
     .join('');
 
   return `
     <tr>
       <td style="padding:0 22px 20px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:6px;">
-          ${body}
-        </table>
+        <style>
+          @media only screen and (max-width: 520px) {
+            .carousel-email-card {
+              width: 47% !important;
+              max-width: 47% !important;
+              min-width: 0 !important;
+              margin: 4px !important;
+            }
+            .carousel-email-card img {
+              height: auto !important;
+              max-height: none !important;
+              object-fit: contain !important;
+            }
+          }
+        </style>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:6px;text-align:left;font-size:0;line-height:0;">
+          ${cards}
+        </div>
       </td>
     </tr>
   `;
