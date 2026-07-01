@@ -782,15 +782,8 @@ async function prepareCarouselProductsForRule({
       });
 
       if (Array.isArray(webSearchItems) && webSearchItems.length) {
-        await upsertWebsiteProductCatalogItems({
-          supabase,
-          userId: rule.user_id,
-          brandProfileId: rule.brand_profile_id,
-          sourceUrl: websiteUrl,
-          items: webSearchItems,
-          discoverySource: "ai_web_search",
-        });
-
+        // Keep AI-found products as candidates for this specific run first.
+        // Only products that are actually selected are persisted later.
         catalogItems = [...catalogItems, ...webSearchItems];
         selectedProducts = selectCarouselProductsFromPool({
           items: catalogItems,
@@ -840,15 +833,8 @@ async function prepareCarouselProductsForRule({
           websiteUrl,
         });
 
-        await upsertWebsiteProductCatalogItems({
-          supabase,
-          userId: rule.user_id,
-          brandProfileId: rule.brand_profile_id,
-          sourceUrl: websiteUrl,
-          items: discoveredItems,
-          discoverySource: "site_discovery",
-        });
-
+        // Keep discovered products as candidates for this carousel run first.
+        // Do not pollute the general product catalog with unused campaign candidates.
         catalogItems = [...catalogItems, ...discoveredItems];
         selectedProducts = selectCarouselProductsFromPool({
           items: catalogItems,
@@ -901,6 +887,18 @@ async function prepareCarouselProductsForRule({
   for (const product of selectedProducts) {
     usedWebsiteImageUrlsThisRun.add(normalizeComparableValue(product.image_url));
   }
+
+  // Persist only the products that actually made it into the carousel plan.
+  // Candidate products found for a specific campaign should not become the brand's
+  // general product catalog unless they were really used.
+  await upsertWebsiteProductCatalogItems({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    items: selectedProducts,
+    discoverySource: "selected_carousel_product",
+  });
 
   summary.website_items_found += selectedProducts.length;
   summary.website_content_success += 1;
@@ -2786,7 +2784,27 @@ async function getWebsiteProductCatalogItems({
     return [];
   }
 
-  return (data || []).map(normalizeWebsiteCatalogItem).filter(Boolean);
+  const normalizedItems = (data || []).map(normalizeWebsiteCatalogItem).filter(Boolean);
+
+  // Older versions stored every discovered product candidate in the general catalog,
+  // even when the product was only found for a specific campaign and never used.
+  // Keep products that were actually used, plus products saved by the newer
+  // selected_* flows. Ignore old candidate-only rows so a Halloween/product-theme
+  // search cannot pollute ordinary future sales posts.
+  return normalizedItems.filter((item) => {
+    const source = String(item.catalog_source || "").toLowerCase();
+    const timesUsed = Number(item.times_used || 0);
+
+    if (timesUsed > 0) {
+      return true;
+    }
+
+    if (source.startsWith("selected_")) {
+      return true;
+    }
+
+    return !["ai_web_search", "site_discovery", "live_research"].includes(source);
+  });
 }
 
 async function upsertWebsiteProductCatalogItems({
@@ -4641,15 +4659,8 @@ async function prepareWebsiteContentForRule({
     });
 
     if (Array.isArray(webSearchItems) && webSearchItems.length) {
-      await upsertWebsiteProductCatalogItems({
-        supabase,
-        userId: rule.user_id,
-        brandProfileId: rule.brand_profile_id,
-        sourceUrl: websiteUrl,
-        items: webSearchItems,
-        discoverySource: "ai_web_search",
-      });
-
+      // Treat AI-found products as candidates for this exact post first.
+      // Only the selected product is persisted below.
       const selected = await chooseUnusedWebsiteItem({
         supabase,
         userId: rule.user_id,
@@ -4663,6 +4674,15 @@ async function prepareWebsiteContentForRule({
       });
 
       if (selected?.item) {
+        await upsertWebsiteProductCatalogItems({
+          supabase,
+          userId: rule.user_id,
+          brandProfileId: rule.brand_profile_id,
+          sourceUrl: websiteUrl,
+          items: [selected.item],
+          discoverySource: "selected_website_product",
+        });
+
         summary.website_items_found += 1;
         summary.website_content_success += 1;
         summary.website_web_search_success += 1;
@@ -4697,15 +4717,7 @@ async function prepareWebsiteContentForRule({
         websiteUrl,
       });
 
-      await upsertWebsiteProductCatalogItems({
-        supabase,
-        userId: rule.user_id,
-        brandProfileId: rule.brand_profile_id,
-        sourceUrl: websiteUrl,
-        items: discoveredItems,
-        discoverySource: "site_discovery",
-      });
-
+      // Keep discovered products local to this run until one is actually selected.
       const discoveredSelection = await chooseUnusedWebsiteItem({
         supabase,
         userId: rule.user_id,
@@ -4719,6 +4731,15 @@ async function prepareWebsiteContentForRule({
       });
 
       if (discoveredSelection?.item) {
+        await upsertWebsiteProductCatalogItems({
+          supabase,
+          userId: rule.user_id,
+          brandProfileId: rule.brand_profile_id,
+          sourceUrl: websiteUrl,
+          items: [discoveredSelection.item],
+          discoverySource: "selected_website_product",
+        });
+
         console.log("Website product selected from expanded product discovery", {
           ruleId: rule.id,
           brandProfileId: rule.brand_profile_id,
@@ -4756,6 +4777,15 @@ async function prepareWebsiteContentForRule({
     });
 
     if (reuseSelection?.item) {
+      await upsertWebsiteProductCatalogItems({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        sourceUrl: websiteUrl,
+        items: [reuseSelection.item],
+        discoverySource: "selected_website_product",
+      });
+
       if (reuseSelection.startedNewCycle) {
         summary.website_items_reused_cycle += 1;
       }
