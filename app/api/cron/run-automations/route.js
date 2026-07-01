@@ -1895,63 +1895,30 @@ function getImageUrlQualityScore(value) {
   return score;
 }
 
-function setImageUrlNumericParam(url, paramName, value) {
-  try {
-    const parsed = new URL(url);
-    if (parsed.searchParams.has(paramName)) {
-      parsed.searchParams.set(paramName, String(value));
-      return parsed.toString();
-    }
-  } catch (error) {
-    // Fall back to regex handling below for relative/escaped URLs.
-  }
-
-  const pattern = new RegExp(`([?&])${paramName}=\\d{2,5}`, "i");
-  return String(url || "").replace(pattern, `$1${paramName}=${value}`);
-}
-
-function addImageUrlNumericParam(url, paramName, value) {
-  try {
-    const parsed = new URL(url);
-    parsed.searchParams.set(paramName, String(value));
-    return parsed.toString();
-  } catch (error) {
-    const separator = String(url || "").includes("?") ? "&" : "?";
-    return `${url}${separator}${paramName}=${value}`;
-  }
-}
-
-function upgradeLockedProductImageUrl(value) {
+function normalizeProductImageUrlForQuality(value) {
   let url = normalizeEscapedUrl(value);
   if (!url) {
     return url;
   }
 
-  // This function must never choose a different image. It only asks the same image/CDN URL
-  // for a larger public variant. Product matching is more important than image quality.
-
-  // Shopify often exposes the same image with a size suffix. Prefer a larger stable variant.
+  // Shopify often exposes the same image with a size suffix. Prefer the largest stable public variant.
   url = url.replace(/_((?:pico|icon|thumb|small|compact|medium|large|grande))(?=\.(?:jpe?g|png|webp|avif))/i, "_2048x2048");
 
-  const numericParams = ["width", "w", "imwidth", "size", "sw", "dw", "fmtwidth", "resize"];
-  for (const paramName of numericParams) {
-    const hasParam = new RegExp(`([?&])${paramName}=\\d{2,5}`, "i").test(url);
-    if (hasParam) {
-      url = setImageUrlNumericParam(url, paramName, 1800);
-    }
-  }
+  // Common product-CDN width params. Do not keep thumbnails when a larger public variant is available.
+  url = url.replace(/([?&])width=\d{2,5}/gi, "$1width=1800");
+  url = url.replace(/([?&])w=\d{2,5}/gi, "$1w=1800");
+  url = url.replace(/([?&])imwidth=\d{2,5}/gi, "$1imwidth=1800");
+  url = url.replace(/([?&])size=\d{2,5}/gi, "$1size=1800");
+  url = url.replace(/([?&])sw=\d{2,5}/gi, "$1sw=1800");
+  url = url.replace(/([?&])dw=\d{2,5}/gi, "$1dw=1800");
 
-  // Zalando/ztat product images use imwidth for the rendered size. If the selected
-  // image is already the correct ztat product image, force the same path to 1800px.
-  if (/\/\/[^/]*ztat\.net\//i.test(url)) {
-    url = addImageUrlNumericParam(url, "imwidth", 1800);
+  // Zalando/ztat product images are often returned with a tiny imwidth in scraped HTML.
+  // Request a larger variant before scoring/using the URL.
+  if (/\/\/[^/]*ztat\.net\//i.test(url) && !/[?&]imwidth=/i.test(url)) {
+    url += url.includes("?") ? "&imwidth=1800" : "?imwidth=1800";
   }
 
   return url;
-}
-
-function normalizeProductImageUrlForQuality(value) {
-  return upgradeLockedProductImageUrl(value);
 }
 
 function pickBestProductImageUrl(candidates = [], pageUrl = "") {
@@ -2627,9 +2594,7 @@ function normalizeWebsiteItem(item, websiteUrl) {
   const description = String(item?.description || "").trim();
   const type = String(item?.type || "website_item").trim();
   const url = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
-  const imageUrl = item?.image_url
-    ? resolveUrl(upgradeLockedProductImageUrl(item.image_url), websiteUrl)
-    : null;
+  const imageUrl = item?.image_url ? resolveUrl(item.image_url, websiteUrl) : null;
 let price = normalizeVerifiedPriceValue(item?.price);
   if (item?.price && !price) {
     console.warn("Ignored unverified website item price because it lacked a clear currency marker", {
@@ -3659,30 +3624,43 @@ function extractBestProductImageFromHtml(html, pageUrl) {
   const rawJsonLdImages = collectImageValuesFromObject(product?.image).map((url) => ({
     url,
     source: "json-ld:image",
-    score: 35,
+    score: 60,
   }));
-  const metaImageCandidates = [];
+
+  // Product pages must keep title, price, URL and image tied to the same product.
+  // Do NOT let generic page image scanning override the product metadata image;
+  // large ecommerce pages often contain many related/recommended products below the
+  // main product, and those images can score higher while belonging to another item.
+  const jsonLdProductImage = pickBestProductImageUrl(rawJsonLdImages, pageUrl);
+  if (jsonLdProductImage) {
+    return jsonLdProductImage;
+  }
+
   const ogImage = getMetaContent(html, ["og:image"]);
   const twitterImage = getMetaContent(html, ["twitter:image"]);
-
-  if (ogImage) {
-    metaImageCandidates.push({ url: ogImage, source: "og:image", score: 20 });
-  }
-
-  if (twitterImage) {
-    metaImageCandidates.push({ url: twitterImage, source: "twitter:image", score: 18 });
-  }
-
-  const htmlImageCandidates = extractImageCandidates(html, pageUrl);
-
-  return pickBestProductImageUrl(
+  const metaProductImage = pickBestProductImageUrl(
     [
-      ...rawJsonLdImages,
-      ...metaImageCandidates,
-      ...htmlImageCandidates,
+      ...(ogImage ? [{ url: ogImage, source: "og:image", score: 45 }] : []),
+      ...(twitterImage ? [{ url: twitterImage, source: "twitter:image", score: 40 }] : []),
     ],
     pageUrl
   );
+
+  if (metaProductImage) {
+    return metaProductImage;
+  }
+
+  // Last resort only: use the highest-ranked image in the upper product area.
+  // This is intentionally weaker than metadata so a sharper recommended-product
+  // image cannot steal the post from the selected product.
+  const htmlImageCandidates = extractImageCandidates(html, pageUrl)
+    .slice(0, 12)
+    .map((candidate) => ({
+      ...candidate,
+      score: Number(candidate?.score || 0) - 80,
+    }));
+
+  return pickBestProductImageUrl(htmlImageCandidates, pageUrl);
 }
 
 async function extractProductDataFromProductPage({
