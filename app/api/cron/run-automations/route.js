@@ -754,13 +754,16 @@ async function prepareCarouselProductsForRule({
     limit: WEBSITE_PRODUCT_REUSE_LIMIT,
   });
 
-  let catalogItems = await getWebsiteProductCatalogItems({
-    supabase,
-    userId: rule.user_id,
-    brandProfileId: rule.brand_profile_id,
-    sourceUrl: websiteUrl,
-    limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
-  });
+  let catalogItems = filterWebsiteCatalogItemsForRule(
+    await getWebsiteProductCatalogItems({
+      supabase,
+      userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id,
+      sourceUrl: websiteUrl,
+      limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
+    }),
+    rule
+  );
 
   let selectedProducts = selectCarouselProductsFromPool({
     items: catalogItems,
@@ -782,8 +785,6 @@ async function prepareCarouselProductsForRule({
       });
 
       if (Array.isArray(webSearchItems) && webSearchItems.length) {
-        // Keep AI-found products as candidates for this specific run first.
-        // Only products that are actually selected are persisted later.
         catalogItems = [...catalogItems, ...webSearchItems];
         selectedProducts = selectCarouselProductsFromPool({
           items: catalogItems,
@@ -833,8 +834,6 @@ async function prepareCarouselProductsForRule({
           websiteUrl,
         });
 
-        // Keep discovered products as candidates for this carousel run first.
-        // Do not pollute the general product catalog with unused campaign candidates.
         catalogItems = [...catalogItems, ...discoveredItems];
         selectedProducts = selectCarouselProductsFromPool({
           items: catalogItems,
@@ -888,16 +887,13 @@ async function prepareCarouselProductsForRule({
     usedWebsiteImageUrlsThisRun.add(normalizeComparableValue(product.image_url));
   }
 
-  // Persist only the products that actually made it into the carousel plan.
-  // Candidate products found for a specific campaign should not become the brand's
-  // general product catalog unless they were really used.
   await upsertWebsiteProductCatalogItems({
     supabase,
     userId: rule.user_id,
     brandProfileId: rule.brand_profile_id,
     sourceUrl: websiteUrl,
     items: selectedProducts,
-    discoverySource: "selected_carousel_product",
+    discoverySource: getWebsiteCatalogDiscoverySource("selected", rule),
   });
 
   summary.website_items_found += selectedProducts.length;
@@ -2784,27 +2780,7 @@ async function getWebsiteProductCatalogItems({
     return [];
   }
 
-  const normalizedItems = (data || []).map(normalizeWebsiteCatalogItem).filter(Boolean);
-
-  // Older versions stored every discovered product candidate in the general catalog,
-  // even when the product was only found for a specific campaign and never used.
-  // Keep products that were actually used, plus products saved by the newer
-  // selected_* flows. Ignore old candidate-only rows so a Halloween/product-theme
-  // search cannot pollute ordinary future sales posts.
-  return normalizedItems.filter((item) => {
-    const source = String(item.catalog_source || "").toLowerCase();
-    const timesUsed = Number(item.times_used || 0);
-
-    if (timesUsed > 0) {
-      return true;
-    }
-
-    if (source.startsWith("selected_")) {
-      return true;
-    }
-
-    return !["ai_web_search", "site_discovery", "live_research"].includes(source);
-  });
+  return (data || []).map(normalizeWebsiteCatalogItem).filter(Boolean);
 }
 
 async function upsertWebsiteProductCatalogItems({
@@ -2858,6 +2834,7 @@ async function markWebsiteProductCatalogItemUsed({
   supabase,
   brandProfileId,
   productUrl,
+  usedSource = null,
 }) {
   if (!brandProfileId || !productUrl) {
     return;
@@ -2865,7 +2842,7 @@ async function markWebsiteProductCatalogItemUsed({
 
   const { data, error: readError } = await supabase
     .from("website_product_catalog")
-    .select("id, times_used")
+    .select("id, times_used, discovery_source")
     .eq("brand_profile_id", brandProfileId)
     .eq("product_url", productUrl)
     .limit(1);
@@ -2883,13 +2860,19 @@ async function markWebsiteProductCatalogItemUsed({
     return;
   }
 
+  const updatePayload = {
+    times_used: Number(data[0].times_used || 0) + 1,
+    last_used_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (usedSource) {
+    updatePayload.discovery_source = usedSource;
+  }
+
   const { error: updateError } = await supabase
     .from("website_product_catalog")
-    .update({
-      times_used: Number(data[0].times_used || 0) + 1,
-      last_used_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", data[0].id);
 
   if (updateError) {
@@ -2900,6 +2883,77 @@ async function markWebsiteProductCatalogItemUsed({
       code: updateError.code,
     });
   }
+}
+
+
+function isCampaignScopedWebsiteRule(rule) {
+  return Boolean(
+    rule?.campaign_phase ||
+      rule?.marketing_angle ||
+      rule?.customer_stage ||
+      rule?.cta_strength ||
+      rule?.campaign_goal ||
+      rule?.target_customer_need ||
+      rule?.strategy_notes ||
+      rule?.campaign_post_index ||
+      rule?.campaign_post_count
+  );
+}
+
+function getWebsiteCatalogDiscoverySource(baseSource, rule) {
+  const cleanSource = String(baseSource || "live_research").trim() || "live_research";
+  return isCampaignScopedWebsiteRule(rule)
+    ? `campaign_${cleanSource}`
+    : `general_${cleanSource}`;
+}
+
+function getWebsiteCatalogUsedSource(rule) {
+  return isCampaignScopedWebsiteRule(rule) ? "campaign_used" : "general_used";
+}
+
+function isCampaignScopedCatalogSource(source) {
+  return String(source || "").toLowerCase().startsWith("campaign_");
+}
+
+function isGeneralScopedCatalogSource(source) {
+  const value = String(source || "").toLowerCase();
+  return (
+    value.startsWith("general_") ||
+    value === "general_used" ||
+    value === "live_research" ||
+    value === "manual" ||
+    value === "catalog"
+  );
+}
+
+function filterWebsiteCatalogItemsForRule(items, rule) {
+  const sourceItems = Array.isArray(items) ? items : [];
+
+  if (isCampaignScopedWebsiteRule(rule)) {
+    return sourceItems;
+  }
+
+  return sourceItems.filter((item) => {
+    const source = String(item?.catalog_source || item?.discovery_source || "").toLowerCase();
+
+    if (!source) {
+      return true;
+    }
+
+    if (isCampaignScopedCatalogSource(source)) {
+      return false;
+    }
+
+    // Legacy rows from older versions were stored as ai_web_search/site_discovery without
+    // knowing whether they came from a themed calendar campaign. To avoid campaign products
+    // leaking into normal AI Content Studio sales posts, treat those legacy candidate pools as
+    // campaign-scoped until a product is selected again by a normal post and marked general_used.
+    if (["ai_web_search", "site_discovery"].includes(source)) {
+      return false;
+    }
+
+    return isGeneralScopedCatalogSource(source);
+  });
 }
 
 function formatUsedWebsiteItemsForResearchPrompt(usedItems, limit = 100) {
@@ -4604,12 +4658,15 @@ async function prepareWebsiteContentForRule({
     limit: WEBSITE_PRODUCT_REUSE_LIMIT,
   });
 
-  const catalogItems = await getWebsiteProductCatalogItems({
-    supabase,
-    userId: rule.user_id,
-    brandProfileId: rule.brand_profile_id,
-    sourceUrl: websiteUrl,
-  });
+  const catalogItems = filterWebsiteCatalogItemsForRule(
+    await getWebsiteProductCatalogItems({
+      supabase,
+      userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id,
+      sourceUrl: websiteUrl,
+    }),
+    rule
+  );
 
   const sortedCatalogItems = [...catalogItems].sort(
     (a, b) => scoreWebsiteItemForRule(b, rule) - scoreWebsiteItemForRule(a, rule)
@@ -4659,8 +4716,6 @@ async function prepareWebsiteContentForRule({
     });
 
     if (Array.isArray(webSearchItems) && webSearchItems.length) {
-      // Treat AI-found products as candidates for this exact post first.
-      // Only the selected product is persisted below.
       const selected = await chooseUnusedWebsiteItem({
         supabase,
         userId: rule.user_id,
@@ -4680,7 +4735,7 @@ async function prepareWebsiteContentForRule({
           brandProfileId: rule.brand_profile_id,
           sourceUrl: websiteUrl,
           items: [selected.item],
-          discoverySource: "selected_website_product",
+          discoverySource: getWebsiteCatalogDiscoverySource("ai_web_search", rule),
         });
 
         summary.website_items_found += 1;
@@ -4717,7 +4772,6 @@ async function prepareWebsiteContentForRule({
         websiteUrl,
       });
 
-      // Keep discovered products local to this run until one is actually selected.
       const discoveredSelection = await chooseUnusedWebsiteItem({
         supabase,
         userId: rule.user_id,
@@ -4737,7 +4791,7 @@ async function prepareWebsiteContentForRule({
           brandProfileId: rule.brand_profile_id,
           sourceUrl: websiteUrl,
           items: [discoveredSelection.item],
-          discoverySource: "selected_website_product",
+          discoverySource: getWebsiteCatalogDiscoverySource("site_discovery", rule),
         });
 
         console.log("Website product selected from expanded product discovery", {
@@ -4783,7 +4837,7 @@ async function prepareWebsiteContentForRule({
         brandProfileId: rule.brand_profile_id,
         sourceUrl: websiteUrl,
         items: [reuseSelection.item],
-        discoverySource: "selected_website_product",
+        discoverySource: getWebsiteCatalogDiscoverySource("reuse_selected", rule),
       });
 
       if (reuseSelection.startedNewCycle) {
@@ -4865,6 +4919,7 @@ async function saveCarouselWebsiteContentHistory({
         supabase,
         brandProfileId: rule.brand_profile_id,
         productUrl: websiteItem.url,
+        usedSource: getWebsiteCatalogUsedSource(rule),
       })
     )
   );
@@ -4906,6 +4961,7 @@ async function saveWebsiteContentHistory({
     supabase,
     brandProfileId: rule.brand_profile_id,
     productUrl: websiteItem.url,
+    usedSource: getWebsiteCatalogUsedSource(rule),
   });
 }
 
