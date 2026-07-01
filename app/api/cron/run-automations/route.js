@@ -1962,116 +1962,6 @@ function pickBestProductImageUrl(candidates = [], pageUrl = "") {
   return normalized.sort((a, b) => b.score - a.score)[0]?.url || null;
 }
 
-function getScoredProductImageCandidates(candidates = [], pageUrl = "") {
-  const normalized = [];
-  const seen = new Set();
-
-  for (const candidate of candidates || []) {
-    const rawUrl = typeof candidate === "string" ? candidate : candidate?.url;
-    const source = typeof candidate === "string" ? "candidate" : candidate?.source;
-    const baseScore = typeof candidate === "string" ? 0 : Number(candidate?.score || 0);
-    const width = typeof candidate === "string" ? 0 : Number(candidate?.width || 0);
-    const density = typeof candidate === "string" ? 0 : Number(candidate?.density || 0);
-    const resolvedUrl = rawUrl ? resolveUrl(normalizeProductImageUrlForQuality(rawUrl), pageUrl) : null;
-
-    if (!resolvedUrl || !isHttpUrl(resolvedUrl) || isBadProductImageUrl(resolvedUrl)) {
-      continue;
-    }
-
-    const key = normalizeComparableValue(resolvedUrl);
-    if (!key || seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-
-    let score = baseScore + getImageUrlQualityScore(resolvedUrl);
-    if (width >= 1600) score += 45;
-    else if (width >= 1200) score += 38;
-    else if (width >= 900) score += 30;
-    else if (width >= 700) score += 22;
-    else if (width > 0 && width < 350) score -= 35;
-    if (density >= 2) score += 12;
-    if (source === "json-ld:image") score += 26;
-    if (source === "og:image" || source === "twitter:image") score += 18;
-    if (source && String(source).includes("srcset")) score += 18;
-    if (source && /zoom|full|large/i.test(String(source))) score += 18;
-
-    normalized.push({ url: resolvedUrl, score, source });
-  }
-
-  return normalized.sort((a, b) => b.score - a.score);
-}
-
-function pickBestPrimaryProductImageUrl(candidates = [], pageUrl = "") {
-  return getScoredProductImageCandidates(candidates, pageUrl)[0]?.url || null;
-}
-
-function getProductTitleTokens(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/&amp;/g, " ")
-    .replace(/[^a-z0-9åäöüéèáàóòíìñçæøšž]+/gi, " ")
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 4)
-    .slice(0, 12);
-}
-
-function trimHtmlBeforeRecommendationSections(html) {
-  const source = String(html || "");
-  const patterns = [
-    /variationer\s+p[åa]\s+denna\s+stil/i,
-    /vad\s+s[äa]gs\s+om\s+dessa/i,
-    /mer\s+fr[åa]n/i,
-    /b[äa]ttre\s+tillsammans/i,
-    /sponsrade\s+av/i,
-    /rekommenderas/i,
-    /du\s+kanske\s+ocks[åa]\s+gillar/i,
-    /liknande\s+produkter/i,
-    /andra\s+k[öo]pte/i,
-    /more\s+from/i,
-    /recommended/i,
-    /similar\s+products/i,
-    /you\s+may\s+also\s+like/i,
-  ];
-
-  let cutAt = -1;
-
-  for (const pattern of patterns) {
-    const match = pattern.exec(source);
-    if (match && match.index > 0 && (cutAt === -1 || match.index < cutAt)) {
-      cutAt = match.index;
-    }
-  }
-
-  return cutAt > 0 ? source.slice(0, cutAt) : source;
-}
-
-function extractTitleScopedProductHtml(html, productTitle = "") {
-  const source = trimHtmlBeforeRecommendationSections(html);
-  const tokens = getProductTitleTokens(productTitle);
-
-  if (!tokens.length) {
-    return source;
-  }
-
-  const lower = source.toLowerCase();
-  const indexes = tokens
-    .map((token) => lower.indexOf(token.toLowerCase()))
-    .filter((index) => index >= 0);
-
-  if (!indexes.length) {
-    return source;
-  }
-
-  const anchor = Math.min(...indexes);
-  const start = Math.max(0, anchor - 45000);
-  const end = Math.min(source.length, anchor + 90000);
-
-  return source.slice(start, end);
-}
-
 function normalizeEscapedUrl(value) {
   return String(value || "")
     .replace(/\\u0026/g, "&")
@@ -3729,49 +3619,48 @@ function extractProductPriceFromHtml(html) {
   return "";
 }
 
-function extractBestProductImageFromHtml(html, pageUrl, productTitle = "") {
+function extractBestProductImageFromHtml(html, pageUrl) {
   const product = findJsonLdProduct(html);
   const rawJsonLdImages = collectImageValuesFromObject(product?.image).map((url) => ({
     url,
     source: "json-ld:image",
-    score: 55,
+    score: 60,
   }));
-  const metaImageCandidates = [];
+
+  // Product pages must keep title, price, URL and image tied to the same product.
+  // Do NOT let generic page image scanning override the product metadata image;
+  // large ecommerce pages often contain many related/recommended products below the
+  // main product, and those images can score higher while belonging to another item.
+  const jsonLdProductImage = pickBestProductImageUrl(rawJsonLdImages, pageUrl);
+  if (jsonLdProductImage) {
+    return jsonLdProductImage;
+  }
+
   const ogImage = getMetaContent(html, ["og:image"]);
   const twitterImage = getMetaContent(html, ["twitter:image"]);
-
-  if (ogImage) {
-    metaImageCandidates.push({ url: ogImage, source: "og:image", score: 42 });
-  }
-
-  if (twitterImage) {
-    metaImageCandidates.push({ url: twitterImage, source: "twitter:image", score: 38 });
-  }
-
-  // Critical rule for product posts: keep image, text and URL tied to the same product.
-  // On large ecommerce pages such as Zalando, the page HTML also contains many
-  // recommendation images. Those may be sharp, but they belong to other products.
-  // Therefore a real product-page primary image from JSON-LD/OG/Twitter beats
-  // any generic image found later on the page.
-  const primaryImage = pickBestPrimaryProductImageUrl(
+  const metaProductImage = pickBestProductImageUrl(
     [
-      ...rawJsonLdImages,
-      ...metaImageCandidates,
+      ...(ogImage ? [{ url: ogImage, source: "og:image", score: 45 }] : []),
+      ...(twitterImage ? [{ url: twitterImage, source: "twitter:image", score: 40 }] : []),
     ],
     pageUrl
   );
 
-  if (primaryImage) {
-    return primaryImage;
+  if (metaProductImage) {
+    return metaProductImage;
   }
 
-  const scopedHtml = extractTitleScopedProductHtml(html, productTitle);
-  const scopedImageCandidates = extractImageCandidates(scopedHtml, pageUrl).map((candidate) => ({
-    ...candidate,
-    score: Number(candidate.score || 0) + 8,
-  }));
+  // Last resort only: use the highest-ranked image in the upper product area.
+  // This is intentionally weaker than metadata so a sharper recommended-product
+  // image cannot steal the post from the selected product.
+  const htmlImageCandidates = extractImageCandidates(html, pageUrl)
+    .slice(0, 12)
+    .map((candidate) => ({
+      ...candidate,
+      score: Number(candidate?.score || 0) - 80,
+    }));
 
-  return pickBestProductImageUrl(scopedImageCandidates, pageUrl);
+  return pickBestProductImageUrl(htmlImageCandidates, pageUrl);
 }
 
 async function extractProductDataFromProductPage({
@@ -3807,15 +3696,11 @@ if (!price) {
   });
 }
 
-const pageMatchedImageUrl = extractBestProductImageFromHtml(html, productUrl, title);
-const fallbackSearchImageUrl =
-  webSearchProduct?.image_url &&
-  isHttpUrl(webSearchProduct.image_url) &&
-  !isBadProductImageUrl(webSearchProduct.image_url)
-    ? normalizeProductImageUrlForQuality(webSearchProduct.image_url)
-    : null;
-
-const imageUrl = pageMatchedImageUrl || fallbackSearchImageUrl;
+const imageUrl =
+  extractBestProductImageFromHtml(html, productUrl) ||
+  (webSearchProduct?.image_url && isHttpUrl(webSearchProduct.image_url) && !isBadProductImageUrl(webSearchProduct.image_url)
+    ? webSearchProduct.image_url
+    : null);
 
   const normalizedItem = normalizeWebsiteItem(
     {
