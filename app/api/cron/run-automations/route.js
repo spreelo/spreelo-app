@@ -2041,6 +2041,223 @@ function imageCandidateLooksLikeSameAsset(candidateUrl, lockedUrl) {
   return false;
 }
 
+function extractImageUrlsFromSrcsetAttribute(value) {
+  return splitSrcsetCandidates(value).map((candidate) => ({
+    url: candidate.url,
+    width: candidate.width,
+    density: candidate.density,
+  }));
+}
+
+function addLinkedThumbnailCandidate(candidates, seen, { url, source, score = 0, width = 0, density = 0 }, pageUrl) {
+  const resolvedUrl = url ? resolveUrl(normalizeProductImageUrlForQuality(url), pageUrl) : null;
+
+  if (!resolvedUrl || !isHttpUrl(resolvedUrl) || isBadProductImageUrl(resolvedUrl)) {
+    return;
+  }
+
+  const key = normalizeComparableValue(resolvedUrl);
+
+  if (!key || seen.has(key)) {
+    return;
+  }
+
+  seen.add(key);
+  candidates.push({
+    url: resolvedUrl,
+    source,
+    score,
+    width,
+    density,
+  });
+}
+
+function extractFullImageCandidatesFromMatchedThumbnail({ tag, contextHtml, pageUrl }) {
+  const candidates = [];
+  const seen = new Set();
+
+  const directAttributes = [
+    "data-full",
+    "data-full-src",
+    "data-large",
+    "data-large-src",
+    "data-original",
+    "data-original-src",
+    "data-zoom",
+    "data-zoom-src",
+    "data-zoom-image",
+    "data-img-zoom-url",
+    "data-image",
+    "data-image-src",
+    "data-src-large",
+    "data-master",
+    "data-hires",
+    "data-highres",
+    "data-zoom-url",
+    "href",
+    "src",
+    "data-src",
+    "data-lazy-src",
+  ];
+
+  for (const attributeName of directAttributes) {
+    const value = getAttributeValueFromTag(tag, attributeName);
+
+    if (!value || !looksLikeProductImageUrl(value)) {
+      continue;
+    }
+
+    addLinkedThumbnailCandidate(candidates, seen, {
+      url: value,
+      source: `matched-thumbnail:${attributeName}`,
+      score: attributeName === "src" ? 90 : 150,
+    }, pageUrl);
+  }
+
+  for (const attributeName of ["srcset", "data-srcset", "data-lazy-srcset"]) {
+    for (const imageCandidate of extractImageUrlsFromSrcsetAttribute(getAttributeValueFromTag(tag, attributeName))) {
+      addLinkedThumbnailCandidate(candidates, seen, {
+        url: imageCandidate.url,
+        source: `matched-thumbnail:${attributeName}`,
+        score: 165 + (imageCandidate.width >= 1000 ? 35 : imageCandidate.width >= 700 ? 20 : 0),
+        width: imageCandidate.width,
+        density: imageCandidate.density,
+      }, pageUrl);
+    }
+  }
+
+  // Many ecommerce galleries wrap thumbnails in an anchor or <picture>. The full-size
+  // image often lives on the same gallery node, not in the img src itself. Only inspect
+  // the small local context around the already matched thumbnail so we do not drift into
+  // recommendations or other products further down the page.
+  const localHtml = String(contextHtml || "");
+  const contextImageAttributes = [
+    "href",
+    "src",
+    "srcset",
+    "data-src",
+    "data-srcset",
+    "data-lazy-src",
+    "data-lazy-srcset",
+    "data-full",
+    "data-full-src",
+    "data-large",
+    "data-large-src",
+    "data-original",
+    "data-original-src",
+    "data-zoom",
+    "data-zoom-src",
+    "data-zoom-image",
+    "data-img-zoom-url",
+    "data-image",
+    "data-image-src",
+    "data-src-large",
+    "data-master",
+    "data-hires",
+    "data-highres",
+    "data-zoom-url",
+  ];
+
+  for (const attributeName of contextImageAttributes) {
+    const attributeRegex = new RegExp(`${attributeName}=["']([^"']+)["']`, "gi");
+    let match;
+
+    while ((match = attributeRegex.exec(localHtml)) !== null) {
+      const value = normalizeEscapedUrl(match[1] || "");
+
+      if (!value) {
+        continue;
+      }
+
+      if (attributeName.toLowerCase().includes("srcset")) {
+        for (const imageCandidate of extractImageUrlsFromSrcsetAttribute(value)) {
+          addLinkedThumbnailCandidate(candidates, seen, {
+            url: imageCandidate.url,
+            source: `matched-thumbnail-context:${attributeName}`,
+            score: 175 + (imageCandidate.width >= 1000 ? 35 : imageCandidate.width >= 700 ? 20 : 0),
+            width: imageCandidate.width,
+            density: imageCandidate.density,
+          }, pageUrl);
+        }
+        continue;
+      }
+
+      if (!looksLikeProductImageUrl(value)) {
+        continue;
+      }
+
+      addLinkedThumbnailCandidate(candidates, seen, {
+        url: value,
+        source: `matched-thumbnail-context:${attributeName}`,
+        score: attributeName === "href" ? 190 : 170,
+      }, pageUrl);
+    }
+  }
+
+  return candidates;
+}
+
+function extractLinkedFullImageCandidatesForLockedImage(lockedImageUrl, html, pageUrl) {
+  const sourceHtml = String(html || "");
+  const lockedUrl = resolveUrl(normalizeEscapedUrl(lockedImageUrl), pageUrl);
+  const candidates = [];
+  const imageRegex = /<img[^>]*>/gi;
+  let match;
+
+  while ((match = imageRegex.exec(sourceHtml)) !== null) {
+    const tag = match[0] || "";
+    const tagCandidates = [];
+
+    for (const attributeName of [
+      "src",
+      "data-src",
+      "data-original",
+      "data-lazy",
+      "data-lazy-src",
+      "data-image",
+      "data-image-src",
+      "data-src-large",
+      "data-zoom-image",
+      "data-img-zoom-url",
+      "data-full",
+      "data-large",
+    ]) {
+      const value = getAttributeValueFromTag(tag, attributeName);
+      if (value) {
+        tagCandidates.push(value);
+      }
+    }
+
+    for (const attributeName of ["srcset", "data-srcset", "data-lazy-srcset"]) {
+      for (const imageCandidate of extractImageUrlsFromSrcsetAttribute(getAttributeValueFromTag(tag, attributeName))) {
+        tagCandidates.push(imageCandidate.url);
+      }
+    }
+
+    const matchesLockedImage = tagCandidates.some((candidateUrl) =>
+      imageCandidateLooksLikeSameAsset(candidateUrl, lockedUrl)
+    );
+
+    if (!matchesLockedImage) {
+      continue;
+    }
+
+    const contextStart = Math.max(0, match.index - 2200);
+    const contextEnd = Math.min(sourceHtml.length, match.index + tag.length + 2200);
+    const contextHtml = sourceHtml.slice(contextStart, contextEnd);
+
+    candidates.push(
+      ...extractFullImageCandidatesFromMatchedThumbnail({
+        tag,
+        contextHtml,
+        pageUrl,
+      })
+    );
+  }
+
+  return candidates;
+}
+
 function upgradeLockedProductImageUrlFromHtml(lockedImageUrl, html, pageUrl) {
   const normalizedLockedImageUrl = lockedImageUrl
     ? resolveUrl(normalizeProductImageUrlForQuality(lockedImageUrl), pageUrl)
@@ -2049,6 +2266,15 @@ function upgradeLockedProductImageUrlFromHtml(lockedImageUrl, html, pageUrl) {
   if (!normalizedLockedImageUrl || !isHttpUrl(normalizedLockedImageUrl)) {
     return normalizedLockedImageUrl || null;
   }
+
+  const linkedThumbnailCandidates = extractLinkedFullImageCandidatesForLockedImage(
+    lockedImageUrl,
+    html,
+    pageUrl
+  ).map((candidate) => ({
+    ...candidate,
+    score: Number(candidate?.score || 0) + 220,
+  }));
 
   const sameAssetCandidates = extractImageCandidates(html, pageUrl)
     .filter((candidate) => imageCandidateLooksLikeSameAsset(candidate?.url, normalizedLockedImageUrl))
@@ -2060,6 +2286,7 @@ function upgradeLockedProductImageUrlFromHtml(lockedImageUrl, html, pageUrl) {
   const upgradedSameAssetUrl = pickBestProductImageUrl(
     [
       { url: normalizedLockedImageUrl, source: "locked-product-image", score: 120 },
+      ...linkedThumbnailCandidates,
       ...sameAssetCandidates,
     ],
     pageUrl
