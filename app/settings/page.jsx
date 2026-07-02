@@ -15,6 +15,11 @@ const SETTINGS_DELETE_COPY = {
     confirmation: "Confirmation",
     placeholder: "Type {word}",
     deleteButton: "Delete my account",
+    openDeleteDialog: "Delete account",
+    deleteModalTitle: "Delete account permanently?",
+    deleteModalIntro: "This removes your brands, posts, images, campaign calendars, analyses, social connections and account data permanently.",
+    deleteModalWarning: "This cannot be undone.",
+    cancel: "Cancel",
     deletingAccount: "Deleting account...",
     deletingMessage: "Deleting your account...",
     errorTypeDelete: "Type {word} to confirm account deletion.",
@@ -37,6 +42,11 @@ const SETTINGS_DELETE_COPY = {
     confirmation: "Bekräftelse",
     placeholder: "Skriv {word}",
     deleteButton: "Radera mitt konto",
+    openDeleteDialog: "Radera konto",
+    deleteModalTitle: "Radera konto permanent?",
+    deleteModalIntro: "Detta tar bort dina varumärken, inlägg, bilder, kampanjkalendrar, analyser, sociala kopplingar och kontodata permanent.",
+    deleteModalWarning: "Detta kan inte ångras.",
+    cancel: "Avbryt",
     deletingAccount: "Raderar konto...",
     deletingMessage: "Raderar ditt konto...",
     errorTypeDelete: "Skriv {word} för att bekräfta kontoradering.",
@@ -267,6 +277,7 @@ export default function Settings() {
   const [confirmText, setConfirmText] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteReasonDetails, setDeleteReasonDetails] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
   const recommendedLocale = SUPPORTED_UI_LOCALES.some(
@@ -328,10 +339,6 @@ export default function Settings() {
       setDeleteMessage(getDeleteCopy(locale, "errorTypeDelete", deleteConfirmWord, t("settings.errorTypeDelete", { word: deleteConfirmWord })));
       return;
     }
-
-    const confirmed = window.confirm(getDeleteCopy(locale, "confirmDialog", deleteConfirmWord, t("settings.deleteConfirmDialog")));
-
-    if (!confirmed) return;
 
     setDeletingAccount(true);
     setDeleteMessage(getDeleteCopy(locale, "deletingMessage", deleteConfirmWord, t("settings.deletingMessage")));
@@ -431,75 +438,125 @@ export default function Settings() {
         </div>
       </section>
 
-      <section className="settings-danger-zone">
+      <section className="settings-danger-zone settings-danger-zone-compact">
         <div>
           <p className="eyebrow danger-eyebrow">
             {t("settings.dangerEyebrow")}
           </p>
           <h3>{t("settings.deleteTitle")}</h3>
           <p>{t("settings.deleteText")}</p>
-          <p className="danger-warning">
-            {t("settings.deleteWarningBefore")} <strong>{deleteConfirmWord}</strong>{" "}
-            {t("settings.deleteWarningAfter")}
-          </p>
         </div>
 
-        <div className="settings-danger-box">
-          <label>{deleteConfirmationLabel}</label>
-          <input
-            className="input"
-            value={confirmText}
-            onChange={(event) => setConfirmText(event.target.value)}
-            placeholder={deletePlaceholder}
-            disabled={deletingAccount}
-          />
-
-          <label>{getDeleteCopy(locale, "reasonLabel", deleteConfirmWord, "Why are you deleting your account?")}</label>
-          <select
-            className="input"
-            value={deleteReason}
-            onChange={(event) => setDeleteReason(event.target.value)}
-            disabled={deletingAccount}
-          >
-            <option value="">
-              {getDeleteCopy(locale, "reasonPlaceholder", deleteConfirmWord, "Choose a reason")}
-            </option>
-            {deleteReasonOptions.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <p>{getDeleteCopy(locale, "reasonOptional", deleteConfirmWord, "Optional, but helps us improve Spreelo")}</p>
-
-          <label>{getDeleteCopy(locale, "reasonDetailsLabel", deleteConfirmWord, "Anything else you want to tell us?")}</label>
-          <textarea
-            className="input"
-            rows={3}
-            value={deleteReasonDetails}
-            onChange={(event) => setDeleteReasonDetails(event.target.value)}
-            placeholder={getDeleteCopy(locale, "reasonDetailsPlaceholder", deleteConfirmWord, "Optional details")}
-            disabled={deletingAccount}
-          />
-
-          <p>{getDeleteCopy(locale, "billingNotice", deleteConfirmWord, "If you later have an active paid subscription, deletion should also cancel it through the billing provider or ask you to cancel first. Spreelo does not have payments connected yet.")}</p>
-
-          <button
-            type="button"
-            className="danger-button full"
-            onClick={handleDeleteAccount}
-            disabled={deletingAccount}
-          >
-            {deletingAccount
-              ? deletingAccountLabel
-              : deleteButtonLabel}
-          </button>
-
-          {deleteMessage && (
-            <p className="settings-delete-message">{deleteMessage}</p>
-          )}
-        </div>
+        <button
+          type="button"
+          className="danger-button compact"
+          onClick={() => {
+            setDeleteMessage("");
+            setDeleteModalOpen(true);
+          }}
+          disabled={deletingAccount}
+        >
+          {getDeleteCopy(locale, "openDeleteDialog", deleteConfirmWord, deleteButtonLabel)}
+        </button>
       </section>
+
+      {deleteModalOpen && (
+        <div className="settings-modal-backdrop" role="presentation">
+          <div
+            className="settings-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-modal-title"
+          >
+            <button
+              type="button"
+              className="settings-modal-close"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={deletingAccount}
+              aria-label={getDeleteCopy(locale, "cancel", deleteConfirmWord, "Cancel")}
+            >
+              ×
+            </button>
+
+            <p className="eyebrow danger-eyebrow">
+              {t("settings.dangerEyebrow")}
+            </p>
+            <h3 id="delete-account-modal-title">
+              {getDeleteCopy(locale, "deleteModalTitle", deleteConfirmWord, "Delete account permanently?")}
+            </h3>
+            <p>
+              {getDeleteCopy(locale, "deleteModalIntro", deleteConfirmWord, getDeleteCopy(locale, "confirmDialog", deleteConfirmWord, t("settings.deleteConfirmDialog")))}
+            </p>
+            <p className="danger-warning">
+              {getDeleteCopy(locale, "deleteModalWarning", deleteConfirmWord, "This cannot be undone.")}
+            </p>
+
+            <div className="settings-delete-form">
+              <label>{getDeleteCopy(locale, "reasonLabel", deleteConfirmWord, "Why are you deleting your account?")}</label>
+              <select
+                className="input"
+                value={deleteReason}
+                onChange={(event) => setDeleteReason(event.target.value)}
+                disabled={deletingAccount}
+              >
+                <option value="">
+                  {getDeleteCopy(locale, "reasonPlaceholder", deleteConfirmWord, "Choose a reason")}
+                </option>
+                {deleteReasonOptions.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <p>{getDeleteCopy(locale, "reasonOptional", deleteConfirmWord, "Optional, but helps us improve Spreelo")}</p>
+
+              <label>{getDeleteCopy(locale, "reasonDetailsLabel", deleteConfirmWord, "Anything else you want to tell us?")}</label>
+              <textarea
+                className="input"
+                rows={3}
+                value={deleteReasonDetails}
+                onChange={(event) => setDeleteReasonDetails(event.target.value)}
+                placeholder={getDeleteCopy(locale, "reasonDetailsPlaceholder", deleteConfirmWord, "Optional details")}
+                disabled={deletingAccount}
+              />
+
+              <label>{deleteConfirmationLabel}</label>
+              <input
+                className="input"
+                value={confirmText}
+                onChange={(event) => setConfirmText(event.target.value)}
+                placeholder={deletePlaceholder}
+                disabled={deletingAccount}
+              />
+
+              <p>{getDeleteCopy(locale, "billingNotice", deleteConfirmWord, "If you later have an active paid subscription, deletion should also cancel it through the billing provider or ask you to cancel first. Spreelo does not have payments connected yet.")}</p>
+            </div>
+
+            {deleteMessage && (
+              <p className="settings-delete-message">{deleteMessage}</p>
+            )}
+
+            <div className="settings-modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={deletingAccount}
+              >
+                {getDeleteCopy(locale, "cancel", deleteConfirmWord, "Cancel")}
+              </button>
+              <button
+                type="button"
+                className="danger-button"
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+              >
+                {deletingAccount ? deletingAccountLabel : deleteButtonLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
