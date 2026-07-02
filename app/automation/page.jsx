@@ -5,7 +5,7 @@ import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 
-const DEFAULT_TIME_ZONE = "Europe/Stockholm";
+const DEFAULT_TIME_ZONE = "UTC";
 const AUTO_PLAN_IMAGE_COUNT = 2;
 const DEFAULT_AUTO_PLAN_POST_COUNT = 5;
 const CAMPAIGN_HANDOFF_STORAGE_KEY = "spreelo_calendar_campaign_handoff";
@@ -1532,42 +1532,15 @@ function normalizeTime(value) {
 
 function getBrowserTimeZone() {
   try {
-    return (
-      Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIME_ZONE
-    );
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
   } catch {
-    return DEFAULT_TIME_ZONE;
+    return "";
   }
 }
 
-function getLocaleDefaultTimeZone(locale = "en") {
-  const language = String(locale || "en").toLowerCase().split("-")[0];
-  const map = {
-    sv: "Europe/Stockholm",
-    da: "Europe/Copenhagen",
-    no: "Europe/Oslo",
-    fi: "Europe/Helsinki",
-    en: "Europe/London",
-    de: "Europe/Berlin",
-    fr: "Europe/Paris",
-    es: "Europe/Madrid",
-    it: "Europe/Rome",
-    nl: "Europe/Amsterdam",
-    pl: "Europe/Warsaw",
-    tr: "Europe/Istanbul",
-    ru: "Europe/Moscow",
-    uk: "Europe/Kyiv",
-    ar: "Asia/Riyadh",
-    hi: "Asia/Kolkata",
-    id: "Asia/Jakarta",
-    ja: "Asia/Tokyo",
-    ko: "Asia/Seoul",
-    zh: "Asia/Shanghai",
-    th: "Asia/Bangkok",
-    pt: "Europe/Lisbon",
-  };
-
-  return map[language] || DEFAULT_TIME_ZONE;
+function getLocaleDefaultTimeZone() {
+  // Do not infer timezone from language. A language is not a location.
+  return "";
 }
 
 function getOneTimeRunAtIso(
@@ -1666,7 +1639,7 @@ function getInitialNextRunAtIso({
 function formatDateTime(value, timeZone = DEFAULT_TIME_ZONE) {
   if (!value) return "Not set";
 
-  return new Intl.DateTimeFormat("sv-SE", {
+  return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone,
@@ -1688,7 +1661,7 @@ function formatSubscriptionPlan(value) {
 function formatRenewDate(value, timeZone = DEFAULT_TIME_ZONE) {
   if (!value) return "Not set yet";
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(undefined, {
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -2882,72 +2855,35 @@ function getCampaignStrategicText(campaign, postPlanItem = null) {
 }
 
 function getCampaignLeadTimeProfile(campaign) {
-  const text = getCampaignStrategicText(campaign);
-  const hasLongLeadTimeSignals = /custom|personal|personalized|personalised|made[\s-]?to[\s-]?order|bespoke|tailor|tailored|print|printed|portrait|engraved|engraving|production|produce|delivery|deliver|shipping|ship|order in time|pre[\s-]?order|lead time|appointment|booking|bookable|reservation|limited seats|limited availability|limited capacity|consultation|quote|install|installation|service area|gift|gifts|present|presents|kurs|bokning|beställ|leverans|personlig|personliga|anpassad|skräddarsydd|tryck|porträtt|gravyr|produktion|leveranstid|beställningstid|gåva|gåvor|presenter/.test(text);
-  const hasFastActionSignals = /instant|digital download|same[\s-]?day|pickup|pick[\s-]?up|walk[\s-]?in|in stock|ready[\s-]?made|available now|retail|restaurant|cafe|menu|drop[\s-]?in|flash sale|limited[\s-]?time|today only/.test(text);
-
-  if (hasLongLeadTimeSignals && !hasFastActionSignals) {
-    return {
-      isLeadTimeSensitive: true,
-      deadlineLeadDays: 10,
-      conversionLeadDays: 16,
-      trustLeadDays: 23,
-      engagementLeadDays: 30,
-      inspirationLeadDays: 38,
-    };
-  }
-
-  if (hasLongLeadTimeSignals) {
-    return {
-      isLeadTimeSensitive: true,
-      deadlineLeadDays: 5,
-      conversionLeadDays: 10,
-      trustLeadDays: 16,
-      engagementLeadDays: 22,
-      inspirationLeadDays: 28,
-    };
-  }
-
+  // Do not infer lead-time behavior from Swedish/English keywords. Keep this
+  // neutral until the AI campaign blueprint provides structured lead-time data.
   return {
     isLeadTimeSensitive: false,
-    deadlineLeadDays: 1,
-    conversionLeadDays: 3,
-    trustLeadDays: 6,
-    engagementLeadDays: 9,
-    inspirationLeadDays: 14,
+    deadlineLeadDays: 3,
+    conversionLeadDays: 7,
+    trustLeadDays: 12,
+    engagementLeadDays: 18,
+    inspirationLeadDays: 24,
   };
 }
 
 function getCampaignPostIntent(postPlanItem, index, total) {
-  const explicitAnchor = String(
+  const explicitAnchor = normalizeStrategyValue(
     postPlanItem?.timing_anchor || postPlanItem?.schedule_anchor || ""
-  ).toLowerCase();
-  const text = getCampaignStrategicText(null, postPlanItem);
-  const combinedText = `${explicitAnchor} ${text}`;
+  );
+  const marketingAngle = normalizeStrategyValue(postPlanItem?.marketing_angle);
+  const campaignPhase = normalizeStrategyValue(postPlanItem?.campaign_phase);
+  const intendedIntent = normalizeStrategyValue(postPlanItem?.intended_intent);
 
-  if (/relationship|soft|community|gratitude|event|main day|day of|celebrate|thank|hälsning|fira|relations/.test(combinedText)) {
-    return "event";
-  }
-
-  if (/last[_\s-]?chance|last call|final|deadline|urgent|urgency|sista|slutlig|act now|deadline_before_event/.test(combinedText)) {
-    return "deadline";
-  }
-
-  if (/offer|sale|discount|deal|buy|order|shop|book|product[_\s-]?push|product push|ready[_\s-]?to[_\s-]?buy|conversion|köp|beställ|boka|köptryck/.test(combinedText)) {
-    return "conversion";
-  }
-
-  if (/trust|proof|review|testimonial|process|quality|faq|guide|confidence|trygg|förtroende|reassurance/.test(combinedText)) {
-    return "trust";
-  }
-
-  if (/engagement|question|comment|share|save|poll|react|conversation|kommentera|fråga|reflektera|publiken/.test(combinedText)) {
-    return "engagement";
-  }
-
-  if (/product[_\s-]?discovery|product[_\s-]?idea|discover|inspiration|awareness|idea|tips|guide|inspir/.test(combinedText)) {
-    return "inspiration";
-  }
+  if (intendedIntent) return intendedIntent;
+  if (explicitAnchor === "relationship_event") return "event";
+  if (explicitAnchor === "deadline_before_event") return "deadline";
+  if (["product_push", "offer", "urgency", "conversion"].includes(marketingAngle)) return "conversion";
+  if (["trust", "proof"].includes(marketingAngle)) return "trust";
+  if (["engagement", "community"].includes(marketingAngle)) return "engagement";
+  if (["product_discovery", "awareness", "inspiration"].includes(marketingAngle)) return "inspiration";
+  if (["late", "middle_late", "conversion"].includes(campaignPhase)) return "conversion";
+  if (["early", "early_middle"].includes(campaignPhase)) return "inspiration";
 
   if (index === 0) return "inspiration";
   if (index === total - 1) return "deadline";
@@ -3329,12 +3265,6 @@ function shouldUseCarouselForCampaignPost(campaign, postPlanItem = {}, index = 0
     return false;
   }
 
-  if (/last[_\s-]?chance|deadline|final|urgent|urgency|sista|slutlig/.test(text)) {
-    return false;
-  }
-
-  const strongCarouselSignals = /gift|gifts|present|presents|guide|ideas|idea|collection|favorites|favourites|top|best|compare|comparison|choose|choosing|selection|curated|bundle|range|assortment|theme|holiday|black friday|cyber monday|christmas|xmas|mother|father|halloween|back to school|sommar|summer|jul|mors dag|fars dag|presenter|gåvor|favoriter|utbud|kollektion|jämför|välj|guide/.test(text);
-
   const marketingAngle = normalizeStrategyValue(postPlanItem?.marketing_angle);
   const campaignPhase = normalizeStrategyValue(postPlanItem?.campaign_phase);
   const carouselFriendlyRole = [
@@ -3345,10 +3275,6 @@ function shouldUseCarouselForCampaignPost(campaign, postPlanItem = {}, index = 0
     "inspiration",
     "middle",
   ].includes(marketingAngle) || ["middle", "early_middle", "middle_late"].includes(campaignPhase);
-
-  if (strongCarouselSignals && (carouselFriendlyRole || ["inspiration", "conversion", "middle", "engagement"].includes(intent))) {
-    return true;
-  }
 
   if (total >= 3 && carouselFriendlyRole && index === Math.max(1, Math.floor(total / 2))) {
     return true;

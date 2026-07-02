@@ -9,7 +9,7 @@ import { useUiText } from "../../../lib/i18n/useUiText";
 function formatDate(value, t) {
   if (!value) return t("posts.notSet");
 
-  return new Intl.DateTimeFormat("sv-SE", {
+  return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));

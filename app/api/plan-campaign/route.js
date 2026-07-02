@@ -203,7 +203,7 @@ export async function POST(request) {
       return Response.json({ error: "You must be logged in." }, { status: 401 });
     }
 
-    const { campaignOpportunityId, brandProfileId, timeZone = "Europe/Stockholm" } = await request.json();
+    const { campaignOpportunityId, brandProfileId, timeZone = "UTC" } = await request.json();
 
     if (!campaignOpportunityId || !brandProfileId) {
       return Response.json({ error: "Missing campaign or brand id." }, { status: 400 });

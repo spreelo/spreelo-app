@@ -15,7 +15,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_TIME_ZONE = "Europe/Stockholm";
+const DEFAULT_TIME_ZONE = "UTC";
 const BATCH_SIZE = 25;
 const APP_URL = "https://app.spreelo.com";
 const RESEND_FROM_EMAIL = "Spreelo <noreply@spreelo.com>";
@@ -133,27 +133,6 @@ function buildSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400
   return `<text x="${x}" y="${y}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}">${spans}</text>`;
 }
 
-function getCarouselSlideDefaultCta(language) {
-  const normalized = String(language || "").toLowerCase();
-
-  if (normalized.includes("swed") || normalized.includes("svensk")) {
-    return "Lär mer";
-  }
-
-  if (normalized.includes("span")) {
-    return "Más info";
-  }
-
-  if (normalized.includes("french")) {
-    return "Voir plus";
-  }
-
-  if (normalized.includes("german") || normalized.includes("deutsch")) {
-    return "Mehr sehen";
-  }
-
-  return "Learn more";
-}
 
 async function renderCarouselProductSlideImage({
   sourceImageUrl,
@@ -1114,36 +1093,12 @@ function sanitizeUnsupportedOfferLanguage(postContent, websiteItem) {
     return postContent;
   }
 
-  let sanitized = String(postContent);
-  const explicitOfferSignal = hasExplicitOfferSignal(websiteItem);
-
-  if (!explicitOfferSignal) {
-    const replacements = [
-      [/erbjudandet gäller just nu/gi, "produkten finns online"],
-      [/detta erbjudande gäller just nu/gi, "produkten finns online"],
-      [/erbjudandet/gi, "produkten"],
-      [/erbjudanden/gi, "produkter"],
-      [/erbjudande/gi, "produkt"],
-      [/kampanjpris/gi, "pris"],
-      [/rabatter/gi, "priser"],
-      [/rabatt/gi, "pris"],
-      [/\brea\b/gi, "shopping"],
-      [/\bfynda\b/gi, "hitta"],
-      [/\bfynd\b/gi, "produkt"],
-      [/\bdeal(s)?\b/gi, "product"],
-      [/\boffer(s)?\b/gi, "product"],
-      [/\bdiscount(s)?\b/gi, "price"],
-      [/\bsale\b/gi, "shopping"],
-    ];
-
-    for (const [pattern, replacement] of replacements) {
-      sanitized = sanitized.replace(pattern, replacement);
-    }
-  }
-
-  if (websiteItem?.url) {
-    sanitized = stripUnsupportedPriceClaims(sanitized, websiteItem);
-  }
+  // Do not rewrite generated copy with Swedish/English keyword replacements.
+  // The prompt must prevent unverified offers in the correct language. We only
+  // keep language-neutral verified price cleanup below.
+  const sanitized = websiteItem?.url
+    ? stripUnsupportedPriceClaims(String(postContent), websiteItem)
+    : String(postContent);
 
   return sanitized.trim();
 }
@@ -1868,8 +1823,6 @@ function looksLikeProductImageUrl(value) {
     lower.includes("img") ||
     lower.includes("media") ||
     lower.includes("cdn") ||
-    lower.includes("product") ||
-    lower.includes("produkt") ||
     lower.includes("globalassets")
   );
 }
@@ -2365,7 +2318,7 @@ function buildFallbackCarouselSlides(rule, postContent) {
   const item = rule?.website_item || {};
   const title = normalizeSlideText(item.title || rule?.brand_profile?.business_name || "Worth a closer look", 80);
   const description = normalizeSlideText(item.description || postContent || "A relevant pick from the business website.", 180);
-  const cta = normalizeSlideText(rule?.cta_type || "See more", 60);
+  const cta = normalizeSlideText(rule?.cta_type || "", 60);
 
   return [
     {
@@ -3041,23 +2994,8 @@ function scoreWebsiteItemForRule(item, rule) {
     }
   }
 
-  const campaignThemes = [
-    { triggers: ["christmas", "xmas", "jul", "julafton"], tokens: ["christmas", "xmas", "jul", "julafton", "god-jul", "tomte", "ren", "snö"] },
-    { triggers: ["halloween", "spooky", "skräck"], tokens: ["halloween", "spooky", "skräck", "pumpa", "pumpkin", "ghost", "spöke"] },
-    { triggers: ["easter", "påsk"], tokens: ["easter", "påsk", "ägg", "egg", "bunny", "hare"] },
-    { triggers: ["valentine", "alla hjärtans", "romantic"], tokens: ["valentine", "hjärta", "heart", "romantic", "love"] },
-  ];
-
-  for (const theme of campaignThemes) {
-    if (theme.triggers.some((trigger) => promptText.includes(trigger))) {
-      const directMatches = theme.tokens.filter((token) => haystack.includes(token)).length;
-      score += directMatches * 35;
-
-      if (!directMatches && isCampaignScopedWebsiteRule(rule)) {
-        score -= 20;
-      }
-    }
-  }
+  // Language-neutral relevance scoring only. Campaign-specific product fit is
+  // handled by AI during product research, not by Swedish/English keyword lists.
 
   if (item?.image_url) score += 3;
   if (item?.price) score += 1;
@@ -3531,15 +3469,12 @@ function extractProductUrlCandidatesFromText({
       }
 
       const lower = resolvedUrl.toLowerCase();
-      const looksProductLike =
-        lower.includes("/produkt") ||
-        lower.includes("/product") ||
-        lower.includes("/produkter") ||
+      const looksItemLike =
         lower.includes("/p/") ||
         /\/[^/?#]+-p\d{3,}/i.test(lower) ||
         /\/[^/?#]+\d{5,}/i.test(lower);
 
-      if (!looksProductLike && host && !lower.includes(host)) {
+      if (!looksItemLike && host && !lower.includes(host)) {
         continue;
       }
 
@@ -3547,8 +3482,8 @@ function extractProductUrlCandidatesFromText({
         title: "",
         url: resolvedUrl.split("#")[0],
         price: "",
-        reason: `Product-like URL found in embedded page data on ${pageUrl}`,
-        score: (looksProductLike ? 28 : 6) + scorePossibleProductLink({ url: resolvedUrl, text: "", campaignPrompt }),
+        reason: `Item-like URL found in embedded page data on ${pageUrl}`,
+        score: (looksItemLike ? 28 : 6) + scorePossibleProductLink({ url: resolvedUrl, text: "", campaignPrompt }),
       });
     }
   }
@@ -3785,85 +3720,31 @@ function dedupeUrlItems(items) {
 }
 
 function scorePossibleProductLink({ url, text, campaignPrompt }) {
-  const lower = `${url || ""} ${text || ""}`.toLowerCase();
-  const lowerCampaign = String(campaignPrompt || "").toLowerCase();
-
   let score = 0;
 
-  const strongProductSignals = [
-    "/produkt",
-    "/produkter",
-    "/product",
-    "/p/",
-    "/lego-",
-    "/spel",
-    "/sallskapsspel",
-    "/sällskapsspel",
-    "/familjespel",
-    "/bradspel",
-    "/brädspel",
-    "/quiz",
-    "/hitster",
-    "/bygg",
-  ];
+  try {
+    const parsedUrl = new URL(url);
+    const pathSegments = parsedUrl.pathname.split("/").filter(Boolean);
 
-  const weakOrBadSignals = [
-    "/varumarken",
-    "/varumärken",
-    "/kategori",
-    "/category",
-    "/collections",
-    "/kundservice",
-    "/faq",
-    "/blog",
-    "/news",
-    "/nyheter",
-    "/cart",
-    "/checkout",
-    "/kundvagn",
-    "/kassa",
-    "/search",
-    "/sok",
-    "/sök",
-  ];
-
-  for (const signal of strongProductSignals) {
-    if (lower.includes(signal)) {
-      score += 12;
+    // Language-neutral link scoring. Product relevance is handled by structured
+    // website data and AI research, not by Swedish/English keyword lists.
+    if (pathSegments.length >= 1 && pathSegments.length <= 5) {
+      score += 8;
     }
-  }
 
-  for (const signal of weakOrBadSignals) {
-    if (lower.includes(signal)) {
-      score -= 20;
+    if (pathSegments.length > 6) {
+      score -= 6;
     }
-  }
 
-  const campaignBoostWords = [
-    "fars dag",
-    "pappa",
-    "father",
-    "dad",
-    "spel",
-    "game",
-    "quiz",
-    "hitster",
-    "lego",
-    "bygg",
-    "familj",
-    "family",
-    "sällskap",
-    "sallskap",
-  ];
-
-  for (const word of campaignBoostWords) {
-    if (lowerCampaign.includes(word) && lower.includes(word)) {
-      score += 10;
+    if (parsedUrl.search) {
+      score -= 2;
     }
+  } catch {
+    score -= 10;
   }
 
   if (text && String(text).trim().length >= 4) {
-    score += 3;
+    score += 4;
   }
 
   return score;
@@ -3988,9 +3869,6 @@ function buildLikelyDiscoveryUrls(websiteUrl) {
     urls.push(
       `${origin}/collections/all`,
       `${origin}/products`,
-      `${origin}/shop`,
-      `${origin}/butik`,
-      `${origin}/webshop`,
       `${origin}/sitemap.xml`,
       `${origin}/sitemap_products_1.xml`,
       `${origin}/product-sitemap.xml`
@@ -4142,18 +4020,7 @@ async function discoverProductsFromSitemaps({
       }
 
       if (/<sitemapindex/i.test(xml)) {
-        const productishSitemaps = urls.filter((url) => {
-          const lower = url.toLowerCase();
-          return (
-            lower.includes('product') ||
-            lower.includes('produkt') ||
-            lower.includes('shop') ||
-            lower.includes('catalog') ||
-            lower.includes('katalog')
-          );
-        });
-
-        queue.push(...(productishSitemaps.length ? productishSitemaps : urls.slice(0, 8)));
+        queue.push(...urls.slice(0, 8));
         continue;
       }
 
@@ -5207,7 +5074,7 @@ function buildFallbackProductCarouselSlides(rule, products, postContent = "") {
       postContent || "Explore more products from the collection on the website.",
       180
     ),
-    cta_text: normalizeSlideText(rule?.cta_type || "See more", 70),
+    cta_text: normalizeSlideText(rule?.cta_type || "", 70),
     overlay_text: normalizeSlideText(rule?.brand_profile?.business_name || "See more", 80),
     product_url: getPostDestinationUrl(rule) || null,
     image_url: null,
@@ -5221,7 +5088,7 @@ function buildCarouselOutroImagePrompt(rule, outroSlide, products) {
   const language = rule?.language || rule?.brand_profile?.content_language || "English";
   const productNames = (products || []).slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET).map((item) => item?.title).filter(Boolean).join(", ");
   const headline = normalizeSlideText(outroSlide?.headline || brandName, 80);
-  const supportingText = normalizeSlideText(outroSlide?.cta_text || outroSlide?.body || rule?.cta_type || "See more", 90);
+  const supportingText = normalizeSlideText(outroSlide?.cta_text || outroSlide?.body || rule?.cta_type || "", 90);
 
   return `Create a premium square closing slide for a social media carousel. This is the final CTA slide after product slides for ${brandName}. Use a clean, polished marketing design with a subtle modern background and clear readable text overlay. Write the overlaid text in ${language}. Main overlay text: "${headline}". Supporting overlay text: "${supportingText}". The slide should feel like a professional final call-to-action and may use abstract shapes, elegant composition, soft shadows, geometric shapes, or a tasteful category-inspired scene. If you include any product-like objects, they must be generic, unbranded, non-specific, and not directly identifiable as exact products from the store. Never invent or depict specific catalog items, exact product prints, poster motifs, readable slogan text on products, apparel graphics, packaging artwork, or branded product designs. Do not place the store name or brand logo onto any depicted product. Avoid close-up hero shots of a single product. For stores that sell printed or text-based products such as posters, apparel, mugs, or accessories, do not generate new readable product text or new product artwork. Keep all non-overlay product details subtle, generic, and secondary to the CTA message. Do not show prices, discount claims, or crowded text. Products featured earlier in the carousel: ${productNames || "selected website products"}.`;
 }
@@ -5332,7 +5199,7 @@ Return JSON exactly in this shape:
         sourceOutro.body || sourceOutro.text || "Explore more products from the collection on the website.",
         210
       ),
-      cta_text: normalizeSlideText(sourceOutro.cta_text || sourceOutro.cta || rule?.cta_type || "See more", 80),
+      cta_text: normalizeSlideText(sourceOutro.cta_text || sourceOutro.cta || rule?.cta_type || "", 80),
       overlay_text: normalizeSlideText(
         sourceOutro.overlay_text || sourceOutro.overlay || sourceOutro.headline || rule?.brand_profile?.business_name || "See more",
         90

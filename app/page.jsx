@@ -15,7 +15,7 @@ function getBrandStorageKey(userId) {
 function formatDate(value, t) {
   if (!value) return t("dashboard.notSet");
 
-  return new Intl.DateTimeFormat("sv-SE", {
+  return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
@@ -24,7 +24,7 @@ function formatDate(value, t) {
 function formatShortDate(value, t) {
   if (!value) return t("dashboard.notSet");
 
-  return new Intl.DateTimeFormat("sv-SE", {
+  return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
     hour: "2-digit",
