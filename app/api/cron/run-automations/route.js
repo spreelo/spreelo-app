@@ -621,6 +621,7 @@ Title: ${item.title || "Not provided"}
 URL: ${item.url || "Not provided"}
 Description: ${item.description || "Not provided"}
 Verified price: ${verifiedPrice || "Not provided"}
+Direct checkout proof: ${verifiedPrice ? "Price visible" : "Not verified - use contact/request-info wording, not buy-now wording"}
 Image URL: ${item.image_url || "Not provided"}`;
     });
 
@@ -651,7 +652,7 @@ function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
     }
 
     const key = [
-      normalizeComparableValue(normalized.url),
+      normalizeComparableValue(canonicalizeWebsiteProductUrl(normalized.url, item?.url || item?.source_url || "") || normalized.url),
       normalizeComparableValue(normalized.title),
       normalizeComparableValue(normalized.image_url),
     ].join("|");
@@ -820,7 +821,7 @@ async function prepareCarouselProductsForRule({
     }
   }
 
-  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES || isCampaignScopedWebsiteRule(rule)) {
     try {
       const discoveredCandidates = await discoverProductCandidatesFromWebsite({
         websiteUrl,
@@ -1218,12 +1219,15 @@ Website factual grounding rules:
 - Always include the Destination URL in the final post when a Destination URL is available.
 - If a selected website item is provided, the Destination URL should be the selected item URL, not just the homepage.
 - Place the Destination URL near the end of the post, before hashtags if hashtags are used.
+- Keep URLs clean and professional: use the canonical product URL only, without tracking parameters or long collection/search query variants.
+- Do not paste multiple links. Use one URL maximum.
 - The Destination URL may be introduced with a safe CTA such as "See the product", "View the product", "See our current selection", "Explore available products", "Visit our website", "Learn more about the business", "Contact us through the website" or similar.
 - Do not claim that the website contains information about a specific topic, service, product, guide, offer, article or page unless that exact information was provided in the Brand profile or Selected website item.
 - Do not write phrases like "read more about this service on our website", "learn more about this topic on our website", "see more details about this offer on our website", "book this service" or "explore this service" unless the website content clearly supports that exact claim.
 - Do not imply that a specific service exists unless the Brand profile or Selected website item clearly says the business offers that service.
 - If the post uses a general seasonal, educational or awareness angle that is not directly found on the website, keep the CTA general and safe, but still include the website URL.
 - For product-based businesses, use safe CTAs such as "see our current selection", "explore available products", "contact us for guidance" or "get help choosing the right option" when that fits the brand.
+- If the selected website item has no verified price or direct purchase proof, do not write as if it is a normal webshop checkout product. Use contact/request-info/request-quote style wording instead of buy-now wording.
 - For service businesses, use safe CTAs such as "contact us to discuss your needs", "get in touch to learn what fits your situation" or "visit our website" unless a specific bookable service was provided.
 - Never invent services, guides, articles, guarantees, discounts, availability, booking pages or website pages that were not provided.
 - A product price is not automatically an offer, sale, discount, deal, bargain, fynd, erbjudande, rabatt, rea or kampanjpris. Do not use those words unless the selected item information explicitly confirms a discount or sale.
@@ -1234,6 +1238,9 @@ Output rules:
 - Return only the final post text.
 - Do not explain anything.
 - Make it suitable for the selected platform.
+- Keep the caption compact: normally 2 to 4 short sentences plus optional hashtags. Avoid repeating the same selling point.
+- For carousels, write one short intro and one clear CTA. Do not list every product in the caption if the slides already show them.
+- For carousel slide titles, use benefit/occasion/gift-angle wording instead of only copying product names when a campaign theme is provided.
 - If the selected platform includes both Facebook and Instagram, write a strong core post that works on both. Avoid platform-specific wording such as "click the link" unless a Destination URL is actually included.
 - Never mention a price unless it was provided as Verified price for the selected website item. If you mention it, write it naturally inside the text, never as a standalone line.
 - Always include the Destination URL in the final post if Destination URL is provided.
@@ -1695,6 +1702,34 @@ function resolveUrl(value, baseUrl) {
     return new URL(value, baseUrl).toString();
   } catch {
     return null;
+  }
+}
+
+function canonicalizeWebsiteProductUrl(value, baseUrl = "") {
+  const resolved = value ? resolveUrl(value, baseUrl || value) : null;
+
+  if (!resolved || !isHttpUrl(resolved)) {
+    return resolved;
+  }
+
+  try {
+    const url = new URL(resolved);
+    url.hash = "";
+    url.search = "";
+
+    // Shopify often exposes the same product as both /products/x and
+    // /collections/y/products/x. Store and compare the product-level URL only.
+    const shopifyProductMatch = url.pathname.match(/\/collections\/[^/]+\/products\/([^/?#]+)/i);
+    if (shopifyProductMatch?.[1]) {
+      url.pathname = `/products/${shopifyProductMatch[1]}`;
+    }
+
+    url.pathname = url.pathname.replace(/\/{2,}/g, "/").replace(/\/$/, "") || "/";
+    url.hostname = url.hostname.toLowerCase();
+
+    return url.toString();
+  } catch {
+    return resolved.split("#")[0].split("?")[0].replace(/\/$/, "");
   }
 }
 
@@ -2417,7 +2452,8 @@ function normalizeWebsiteItem(item, websiteUrl) {
   const title = String(item?.title || "").trim();
   const description = String(item?.description || "").trim();
   const type = String(item?.type || "website_item").trim();
-  const url = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
+  const resolvedUrl = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
+  const url = resolvedUrl ? canonicalizeWebsiteProductUrl(resolvedUrl, websiteUrl) : websiteUrl;
   const imageUrl = item?.image_url ? resolveUrl(item.image_url, websiteUrl) : null;
 let price = normalizeVerifiedPriceValue(item?.price);
   if (item?.price && !price) {
@@ -2590,15 +2626,20 @@ async function getCurrentWebsiteCycle({
 }
 
 function normalizeComparableValue(value) {
-  return String(value || "")
+  let normalized = String(value || "")
     .toLowerCase()
     .trim()
+    .replace(/&amp;/g, "&")
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
-    .replace(/\?.*$/, "")
     .replace(/#.*$/, "")
+    .replace(/\?.*$/, "")
     .replace(/\/$/, "")
     .replace(/\s+/g, " ");
+
+  normalized = normalized.replace(/\/collections\/[^/]+\/products\//i, "/products/");
+
+  return normalized;
 }
 
 function isWeakItemUrl(itemUrl, sourceUrl) {
@@ -2623,12 +2664,15 @@ async function getUsedWebsiteItems({
 }) {
   let query = supabase
     .from("website_content_history")
-    .select("item_key, item_url, item_title, item_image_url, created_at")
+    .select("item_key, item_url, item_title, item_image_url, content_type, created_at")
     .eq("user_id", userId)
     .eq("brand_profile_id", brandProfileId)
     .eq("source_url", sourceUrl)
-    .eq("content_type", contentType)
     .limit(limit);
+
+  if (contentType) {
+    query = query.eq("content_type", contentType);
+  }
 
   if (cycleNumber) {
     query = query.eq("cycle_number", cycleNumber);
@@ -2651,25 +2695,27 @@ async function getRecentUsedWebsiteItems({
   contentType,
   limit = WEBSITE_PRODUCT_REUSE_LIMIT,
 }) {
+  // Product rotation must be shared across normal website posts and carousels.
+  // Otherwise a product used in a carousel can immediately reappear in a single-product post.
   return getUsedWebsiteItems({
     supabase,
     userId,
     brandProfileId,
     sourceUrl,
-    contentType,
+    contentType: null,
     limit,
   });
 }
 
 function hasWebsiteItemAlreadyBeenUsed(item, usedItems, sourceUrl) {
   const itemKey = normalizeComparableValue(item?.item_key);
-  const itemUrl = normalizeComparableValue(item?.url || item?.product_url);
+  const itemUrl = normalizeComparableValue(canonicalizeWebsiteProductUrl(item?.url || item?.product_url || "", sourceUrl) || item?.url || item?.product_url);
   const itemTitle = normalizeComparableValue(item?.title || item?.item_title);
   const itemImageUrl = normalizeComparableValue(item?.image_url || item?.item_image_url);
 
   return usedItems.some((usedItem) => {
     const usedKey = normalizeComparableValue(usedItem.item_key);
-    const usedUrl = normalizeComparableValue(usedItem.item_url || usedItem.product_url || usedItem.url);
+    const usedUrl = normalizeComparableValue(canonicalizeWebsiteProductUrl(usedItem.item_url || usedItem.product_url || usedItem.url || "", sourceUrl) || usedItem.item_url || usedItem.product_url || usedItem.url);
     const usedTitle = normalizeComparableValue(usedItem.item_title || usedItem.title);
     const usedImageUrl = normalizeComparableValue(usedItem.item_image_url || usedItem.image_url);
 
@@ -2799,7 +2845,7 @@ async function upsertWebsiteProductCatalogItems({
       user_id: userId,
       brand_profile_id: brandProfileId,
       source_url: sourceUrl,
-      product_url: item.url,
+      product_url: canonicalizeWebsiteProductUrl(item.url, sourceUrl) || item.url,
       title: item.title,
       description: item.description || "",
       price: item.price || null,
@@ -2840,18 +2886,20 @@ async function markWebsiteProductCatalogItemUsed({
     return;
   }
 
+  const canonicalProductUrl = canonicalizeWebsiteProductUrl(productUrl, productUrl) || productUrl;
+
   const { data, error: readError } = await supabase
     .from("website_product_catalog")
     .select("id, times_used, discovery_source")
     .eq("brand_profile_id", brandProfileId)
-    .eq("product_url", productUrl)
+    .eq("product_url", canonicalProductUrl)
     .limit(1);
 
   if (readError || !data?.[0]?.id) {
     if (readError) {
       console.error("Could not read website product catalog usage", {
         brandProfileId,
-        productUrl,
+        productUrl: canonicalProductUrl,
         message: readError.message,
         code: readError.code,
       });
@@ -2980,8 +3028,8 @@ function formatUsedWebsiteItemsForResearchPrompt(usedItems, limit = 100) {
 
 function scoreWebsiteItemForRule(item, rule) {
   const haystack = `${item?.title || ""} ${item?.description || ""} ${item?.url || ""}`.toLowerCase();
-  const promptWords = String(rule?.prompt || "")
-    .toLowerCase()
+  const promptText = `${rule?.prompt || ""} ${rule?.campaign_goal || ""} ${rule?.strategy_notes || ""}`.toLowerCase();
+  const promptWords = promptText
     .split(/[^\p{L}\p{N}]+/u)
     .filter((word) => word.length >= 4);
 
@@ -2990,6 +3038,24 @@ function scoreWebsiteItemForRule(item, rule) {
   for (const word of promptWords) {
     if (haystack.includes(word)) {
       score += 4;
+    }
+  }
+
+  const campaignThemes = [
+    { triggers: ["christmas", "xmas", "jul", "julafton"], tokens: ["christmas", "xmas", "jul", "julafton", "god-jul", "tomte", "ren", "snö"] },
+    { triggers: ["halloween", "spooky", "skräck"], tokens: ["halloween", "spooky", "skräck", "pumpa", "pumpkin", "ghost", "spöke"] },
+    { triggers: ["easter", "påsk"], tokens: ["easter", "påsk", "ägg", "egg", "bunny", "hare"] },
+    { triggers: ["valentine", "alla hjärtans", "romantic"], tokens: ["valentine", "hjärta", "heart", "romantic", "love"] },
+  ];
+
+  for (const theme of campaignThemes) {
+    if (theme.triggers.some((trigger) => promptText.includes(trigger))) {
+      const directMatches = theme.tokens.filter((token) => haystack.includes(token)).length;
+      score += directMatches * 35;
+
+      if (!directMatches && isCampaignScopedWebsiteRule(rule)) {
+        score -= 20;
+      }
     }
   }
 
@@ -3217,6 +3283,12 @@ function isBadProductImageUrl(value) {
     lowerUrl.includes("banner") ||
     lowerUrl.includes("hero") ||
     lowerUrl.includes("background") ||
+    lowerUrl.includes("classy-fabric") ||
+    lowerUrl.includes("theme") ||
+    lowerUrl.includes("pattern") ||
+    lowerUrl.includes("separator") ||
+    lowerUrl.includes("texture") ||
+    lowerUrl.includes("swatch") ||
     lowerUrl.endsWith(".svg")
   );
 }
@@ -3524,7 +3596,32 @@ function extractProductPriceFromHtml(html) {
   return "";
 }
 
-function extractBestProductImageFromHtml(html, pageUrl) {
+function imageUrlMatchesProductIdentity(imageUrl, productUrl, productTitle = "") {
+  const imageComparable = normalizeComparableValue(imageUrl);
+  const productComparable = normalizeComparableValue(productUrl);
+  const titleTokens = String(productTitle || "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((token) => token.length >= 4);
+
+  if (!imageComparable) {
+    return false;
+  }
+
+  const slug = productComparable.split("/").filter(Boolean).at(-1) || "";
+  const slugTokens = slug.split(/[^\p{L}\p{N}]+/u).filter((token) => token.length >= 4);
+
+  if (slug && imageComparable.includes(slug)) {
+    return true;
+  }
+
+  const meaningfulTokens = [...new Set([...slugTokens, ...titleTokens])];
+  const matches = meaningfulTokens.filter((token) => imageComparable.includes(token)).length;
+
+  return matches >= Math.min(2, meaningfulTokens.length || 2);
+}
+
+function extractBestProductImageFromHtml(html, pageUrl, productTitle = "") {
   const product = findJsonLdProduct(html);
   const jsonLdImage = getProductImageFromJsonLd(product, pageUrl);
 
@@ -3543,13 +3640,16 @@ function extractBestProductImageFromHtml(html, pageUrl) {
     return resolvedOgImage;
   }
 
-  const imageCandidates = extractImageCandidates(html, pageUrl);
+  const imageCandidates = extractImageCandidates(html, pageUrl)
+    .filter((image) => image?.url && !isBadProductImageUrl(image.url));
 
-  const bestImage = imageCandidates.find(
-    (image) => image?.url && !isBadProductImageUrl(image.url)
+  // Safety rule: never upgrade to a sharper image if we cannot tie it to the same product page.
+  // A lower-resolution correct product image is better than a sharp image from a recommended product.
+  const matchedImage = imageCandidates.find((image) =>
+    imageUrlMatchesProductIdentity(image.url, pageUrl, productTitle)
   );
 
-  return bestImage?.url || null;
+  return matchedImage?.url || null;
 }
 
 async function extractProductDataFromProductPage({
@@ -3586,8 +3686,11 @@ if (!price) {
 }
 
 const imageUrl =
-  extractBestProductImageFromHtml(html, productUrl) ||
-  (webSearchProduct?.image_url && isHttpUrl(webSearchProduct.image_url) && !isBadProductImageUrl(webSearchProduct.image_url)
+  extractBestProductImageFromHtml(html, productUrl, title) ||
+  (webSearchProduct?.image_url &&
+  isHttpUrl(webSearchProduct.image_url) &&
+  !isBadProductImageUrl(webSearchProduct.image_url) &&
+  imageUrlMatchesProductIdentity(webSearchProduct.image_url, productUrl, title)
     ? webSearchProduct.image_url
     : null);
 
@@ -4320,7 +4423,7 @@ Search strategy:
 
 Product quality rules:
 - Return only real product pages from the allowed customer domain.
-- A product page must be about one specific product that a customer can buy, book or order.
+- A product page must be about one specific product that a customer can buy, book, order, rent, request a quote for or contact the business about.
 - Do not return the homepage.
 - Do not return brand pages.
 - Do not return category pages.
@@ -4684,7 +4787,7 @@ async function prepareWebsiteContentForRule({
     allowReuseWhenExhausted: false,
   });
 
-  if (catalogSelection?.item) {
+  if (catalogSelection?.item && !isCampaignScopedWebsiteRule(rule)) {
     console.log("Website product selected from product catalog", {
       ruleId: rule.id,
       brandProfileId: rule.brand_profile_id,
@@ -4706,6 +4809,18 @@ async function prepareWebsiteContentForRule({
     };
   }
 
+  if (catalogSelection?.item && isCampaignScopedWebsiteRule(rule)) {
+    console.log("Campaign website rule found a catalog match, but will still run live product research before final selection", {
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      productUrl: catalogSelection.item.url,
+      title: catalogSelection.item.title,
+      catalogCount: catalogItems.length,
+      recentUsedCount: recentUsedItems.length,
+    });
+  }
+
   try {
     const webSearchItems = await findWebsiteProductWithWebSearch({
       openai,
@@ -4722,7 +4837,7 @@ async function prepareWebsiteContentForRule({
         brandProfileId: rule.brand_profile_id,
         sourceUrl: websiteUrl,
         contentType,
-        items: webSearchItems,
+        items: isCampaignScopedWebsiteRule(rule) ? [...sortedCatalogItems, ...webSearchItems] : webSearchItems,
         usedWebsiteImageUrlsThisRun,
         recentUsedItems,
         allowReuseWhenExhausted: false,
@@ -4778,7 +4893,7 @@ async function prepareWebsiteContentForRule({
         brandProfileId: rule.brand_profile_id,
         sourceUrl: websiteUrl,
         contentType,
-        items: discoveredItems,
+        items: isCampaignScopedWebsiteRule(rule) ? [...sortedCatalogItems, ...(Array.isArray(webSearchItems) ? webSearchItems : []), ...discoveredItems] : discoveredItems,
         usedWebsiteImageUrlsThisRun,
         recentUsedItems,
         allowReuseWhenExhausted: false,
@@ -5839,7 +5954,12 @@ function extractUrlsFromText(value) {
 }
 
 function cleanUrlForCaption(value) {
-  return String(value || "").replace(/[).,!?:;]+$/g, "");
+  const cleaned = String(value || "").replace(/[).,!?:;]+$/g, "");
+  return canonicalizeWebsiteProductUrl(cleaned, cleaned) || cleaned;
+}
+
+function cleanPostContentUrls(content) {
+  return String(content || "").replace(/https?:\/\/\S+/gi, (match) => cleanUrlForCaption(match));
 }
 
 function normalizeHashtagLine(value) {
@@ -6811,9 +6931,11 @@ let useWebsiteImage = false;
           ruleWithBrandProfile
         );
 
-        const generatedContent = sanitizeUnsupportedOfferLanguage(
-          rawGeneratedContent,
-          websiteItem
+        const generatedContent = cleanPostContentUrls(
+          sanitizeUnsupportedOfferLanguage(
+            rawGeneratedContent,
+            websiteItem
+          )
         );
 
         if (!generatedContent) {
