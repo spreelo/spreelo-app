@@ -646,6 +646,7 @@ function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
       item_key: normalized.item_key || item.item_key || createItemKey(normalized),
       times_used: Number(item.times_used || 0),
       last_used_at: item.last_used_at || null,
+      selection_priority: Number(item.selection_priority || 0),
     });
   }
 
@@ -698,6 +699,10 @@ function selectCarouselProductsFromPool({
       }
       if (a.lastUsedAtTs !== b.lastUsedAtTs) {
         return a.lastUsedAtTs - b.lastUsedAtTs;
+      }
+      const priorityDelta = Number(b.item?.selection_priority || 0) - Number(a.item?.selection_priority || 0);
+      if (priorityDelta !== 0) {
+        return priorityDelta;
       }
       if (a.score !== b.score) {
         return b.score - a.score;
@@ -754,7 +759,7 @@ async function prepareCarouselProductsForRule({
     allowReuseWhenExhausted: false,
   });
 
-  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES || isCampaignScopedWebsiteRule(rule)) {
     try {
       const webSearchItems = await findWebsiteProductWithWebSearch({
         openai,
@@ -765,7 +770,10 @@ async function prepareCarouselProductsForRule({
       });
 
       if (Array.isArray(webSearchItems) && webSearchItems.length) {
-        catalogItems = [...catalogItems, ...webSearchItems];
+        catalogItems = [
+          ...catalogItems.map((item) => ({ ...item, selection_priority: Number(item.selection_priority || 0) || 10 })),
+          ...webSearchItems.map((item) => ({ ...item, selection_priority: 100 })),
+        ];
         selectedProducts = selectCarouselProductsFromPool({
           items: catalogItems,
           rule,
@@ -814,7 +822,10 @@ async function prepareCarouselProductsForRule({
           websiteUrl,
         });
 
-        catalogItems = [...catalogItems, ...discoveredItems];
+        catalogItems = [
+          ...catalogItems.map((item) => ({ ...item, selection_priority: Number(item.selection_priority || 0) || 10 })),
+          ...discoveredItems.map((item) => ({ ...item, selection_priority: 90 })),
+        ];
         selectedProducts = selectCarouselProductsFromPool({
           items: catalogItems,
           rule,
@@ -2500,22 +2511,13 @@ Rules:
 - Avoid choosing products mainly aimed at a different recipient when a stronger match exists.
 - Do not return unrelated random products just because they exist on the website.
 
-Campaign-specific product guidance:
-- For Father's Day, prefer items that feel suitable as a gift for a father or as a shared father-child activity. For toy or game stores, prefer adult-friendly and family-friendly gifts such as board games, party games, music games like Hitster, quiz games, family games, building sets, model kits, hobby kits, outdoor play, sports-related toys, vehicle/tech-themed sets or products children and parents can enjoy together. Avoid toddler products, baby toys or products mainly aimed at very young children when stronger father/gift/family options exist.
-- For Mother's Day, prefer thoughtful gifts, self-care, beauty, flowers, home decor, jewelry, premium food, family-oriented gifts or emotionally meaningful products when available.
-- For Valentine's Day, prefer romantic gifts, sweets, flowers, beauty, fragrance, date-night products, dinner-related items, matching items or emotionally meaningful gifts when available.
-- For Halloween, prefer costumes, decorations, candy, spooky-themed products, party products, masks, makeup, pumpkins, lights, games or products that help customers create a Halloween feeling.
-- For Christmas, prefer gifts, decorations, festive food, premium treats, toys, games, gift cards, partywear, cozy products or products that are naturally bought as Christmas presents.
-- For Easter, prefer candy, eggs, decorations, spring products, flowers, family activities, food, gifts or products connected to Easter celebrations.
-- For Black Friday, Cyber Monday or sales campaigns, prefer products with clear offer, discount, high demand, gift potential, seasonal relevance or strong buying intent.
-- For back-to-school campaigns, prefer school supplies, backpacks, clothing, shoes, lunch boxes, tech, books, sports items or products useful for children, students or parents preparing for school.
-- For graduation campaigns, prefer gifts, partywear, flowers, celebration products, jewelry, beauty, accessories, premium food, decorations or keepsakes.
-- For wedding season campaigns, prefer outfits, shoes, accessories, beauty, gifts, flowers, decor, photography, services or products connected to weddings and guests.
-- For summer campaigns, prefer outdoor products, travel items, swimwear, grilling, picnic items, cold drinks, sunscreen, summer fashion, toys, garden products or seasonal services.
-- For winter campaigns, prefer warm clothing, cozy products, lighting, indoor activities, gifts, seasonal food, winter gear or services connected to the season.
-- For grocery stores or supermarkets, choose products that naturally support the campaign occasion, such as themed treats, flowers, dinner ingredients, dessert items, coffee, chocolate, breakfast, grilling or gift-style bundles, depending on the campaign.
-- If the campaign is broad and several products could fit, choose the item with the strongest practical or emotional reason to buy for that occasion.
-- If no website item fits the automation context, still return generally usable items, but put the closest matches first.
+Language-neutral campaign fit guidance:
+- Do not rely on a fixed Swedish or English list of holidays, words or product types.
+- Infer the campaign meaning from the automation prompt, market, language, audience and website content.
+- If the website has a category, collection, search result, campaign page or landing page that is clearly dedicated to the same campaign/theme/occasion, inspect that area first and prefer concrete product pages found from there.
+- Prefer items whose title, URL, description, image and surrounding page context clearly support the campaign intent.
+- Avoid broad homepage items, generic custom products, unrelated bestsellers and decorative campaign banners when clearly stronger theme-specific product pages exist.
+- If no concrete product page fits the campaign well, return generally usable items only after the strongest theme-specific search paths have been tried, and rank the closest matches first.
 - Return 3 to 15 items if possible.
 
 Return JSON in this exact shape:
@@ -3012,6 +3014,7 @@ async function chooseUnusedWebsiteItem({
   sourceUrl,
   contentType,
   items,
+  rule = null,
   usedWebsiteImageUrlsThisRun = new Set(),
   recentUsedItems = null,
   allowReuseWhenExhausted = true,
@@ -3039,7 +3042,21 @@ async function chooseUnusedWebsiteItem({
       ...item,
       item_key: item?.item_key || createItemKey(item),
     }))
-    .filter((item) => item?.url || item?.title);
+    .filter((item) => item?.url || item?.title)
+    .sort((a, b) => {
+      if (!rule) return 0;
+
+      const scoreDelta = scoreWebsiteItemForRule(b, rule) - scoreWebsiteItemForRule(a, rule);
+
+      if (scoreDelta !== 0) return scoreDelta;
+
+      const aSource = Number(a?.selection_priority || 0);
+      const bSource = Number(b?.selection_priority || 0);
+
+      if (aSource !== bSource) return bSource - aSource;
+
+      return String(a?.title || '').localeCompare(String(b?.title || ''));
+    });
 
   const unusedItems = normalizedItems.filter(
     (item) => !hasWebsiteItemAlreadyBeenUsed(item, usedItems, sourceUrl)
@@ -4281,12 +4298,14 @@ Do not choose a product just because it exists on the website.
 Choose products because they match the campaign intent.
 
 Search strategy:
+- First search the customer site for category, collection, campaign, search-result or landing pages that match the campaign/theme/occasion in the site's own language.
+- Open the most relevant campaign/theme/category area and identify concrete product pages from there.
 - Search for specific product categories that fit the campaign.
 - Search for recipient-based product ideas.
 - Search for occasion-based product ideas.
 - Search for use-case-based product ideas.
 - Search for gift/activity/seasonal/sales intent when relevant.
-- Prefer concrete product pages over category, brand or listing pages.
+- Prefer concrete product pages over category, brand or listing pages in the final result, but use category/campaign pages as research paths.
 
 Product quality rules:
 - Return only real product pages from the allowed customer domain.
@@ -4315,28 +4334,16 @@ Ranking rules:
 - Prefer products with strong emotional, practical, seasonal or gift relevance.
 - Avoid products aimed at the wrong recipient or wrong age group if better options exist.
 - Avoid generic products that only loosely match the theme.
+- If a campaign/theme-specific area on the customer site contains concrete product pages, those concrete products should beat generic homepage products unless there is a clear reason not to.
 - If several products fit, prefer the one that is easiest to explain in a clear, useful and attractive post.
 
-For toy, game and family stores:
-- If the campaign implies a family gift, shared activity or parent/child moment, prefer products that both adults and children can enjoy.
-- Prefer family games, board games, quiz games, party games, creative building, hobby kits, outdoor activities, role play or products with a clear shared-use angle when those fit the campaign.
-- Avoid baby/toddler products if the campaign implies an older child, adult recipient, family activity or gift for a parent.
-- Do not choose character-branded products just because the image is prominent; choose them only if they match the campaign intent.
-
-For beauty, wellness and self-care businesses:
-- If the campaign implies a thoughtful gift or personal treat, prefer products/services connected to relaxation, care, confidence, pampering or visible value.
-- Avoid random everyday items if more emotionally relevant options exist.
-
-For food, grocery, café or restaurant businesses:
-- If the campaign implies celebration, season or gift, prefer products connected to meals, treats, desserts, flowers, drinks, breakfast, dinner, sharing or hosting.
-- Avoid random staples unless the campaign is practical or price-focused.
-
-For fashion, home, decor or lifestyle businesses:
-- Match the product to the occasion, season, recipient, style and likely buying intent.
-- Prefer items with a clear visual or giftable angle.
-
-For sales campaigns:
-- Prefer products with strong demand, high perceived value, gift potential, seasonal relevance or clear buying intent.
+Language-neutral campaign and business-fit rules:
+- Do not use a fixed Swedish or English list of holidays, product words or campaign categories.
+- Infer the campaign meaning from the campaign prompt, the selected/inferred market, the website language, the brand profile and the customer website.
+- Identify the most likely product types, recipients, buyer motivations and use cases for that exact campaign before searching.
+- Search the customer's site for campaign/theme/occasion/category pages in the site's own language, then open concrete product pages from those areas.
+- When a campaign/theme-specific product category exists on the site, products from that area should outrank generic homepage products, generic custom products and broad bestsellers.
+- A product should be chosen because it clearly fits the campaign intent, not merely because it is on the website or has a good image.
 - If discount information is not clearly visible, do not invent a discount.
 - A visible ordinary price is not proof of an offer, sale, deal, discount or campaign price.
 - Do not describe a product as an offer/deal/sale/discount unless the product page clearly says it is discounted or on sale.
@@ -4649,6 +4656,7 @@ async function prepareWebsiteContentForRule({
     sourceUrl: websiteUrl,
     contentType,
     items: sortedCatalogItems,
+    rule,
     usedWebsiteImageUrlsThisRun,
     recentUsedItems,
     allowReuseWhenExhausted: false,
@@ -4704,7 +4712,13 @@ async function prepareWebsiteContentForRule({
         brandProfileId: rule.brand_profile_id,
         sourceUrl: websiteUrl,
         contentType,
-        items: isCampaignScopedWebsiteRule(rule) ? [...sortedCatalogItems, ...webSearchItems] : webSearchItems,
+        items: isCampaignScopedWebsiteRule(rule)
+          ? [
+              ...webSearchItems.map((item) => ({ ...item, selection_priority: 100 })),
+              ...sortedCatalogItems.map((item) => ({ ...item, selection_priority: 10 })),
+            ]
+          : webSearchItems,
+        rule,
         usedWebsiteImageUrlsThisRun,
         recentUsedItems,
         allowReuseWhenExhausted: false,
@@ -4760,7 +4774,14 @@ async function prepareWebsiteContentForRule({
         brandProfileId: rule.brand_profile_id,
         sourceUrl: websiteUrl,
         contentType,
-        items: isCampaignScopedWebsiteRule(rule) ? [...sortedCatalogItems, ...(Array.isArray(webSearchItems) ? webSearchItems : []), ...discoveredItems] : discoveredItems,
+        items: isCampaignScopedWebsiteRule(rule)
+          ? [
+              ...discoveredItems.map((item) => ({ ...item, selection_priority: 100 })),
+              ...(Array.isArray(webSearchItems) ? webSearchItems.map((item) => ({ ...item, selection_priority: 90 })) : []),
+              ...sortedCatalogItems.map((item) => ({ ...item, selection_priority: 10 })),
+            ]
+          : discoveredItems,
+        rule,
         usedWebsiteImageUrlsThisRun,
         recentUsedItems,
         allowReuseWhenExhausted: false,
@@ -4807,6 +4828,7 @@ async function prepareWebsiteContentForRule({
       sourceUrl: websiteUrl,
       contentType,
       items: reusablePool,
+      rule,
       usedWebsiteImageUrlsThisRun,
       recentUsedItems,
       allowReuseWhenExhausted: true,
