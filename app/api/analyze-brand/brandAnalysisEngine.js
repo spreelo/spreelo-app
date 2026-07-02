@@ -951,6 +951,21 @@ export function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
 }
 
 
+function isOpportunityUpcomingOnDate(opportunity, currentDate) {
+  if (!opportunity || !currentDate) {
+    return true;
+  }
+
+  const endDate = opportunity.end_date || opportunity.event_date || opportunity.start_date;
+
+  if (!endDate) {
+    return true;
+  }
+
+  return endDate >= currentDate;
+}
+
+
 // Campaign opportunities must come from AI using the selected market, language and website context.
 // Do not add hardcoded Swedish/English fallback calendars.
 
