@@ -19,6 +19,19 @@ const SETTINGS_DELETE_COPY = {
     deletingMessage: "Deleting your account...",
     errorTypeDelete: "Type {word} to confirm account deletion.",
     confirmDialog: "This will permanently delete your Spreelo account, all brands, posts, content plans, campaign data and social connections. This cannot be undone.",
+    reasonLabel: "Why are you deleting your account?",
+    reasonOptional: "Optional, but helps us improve Spreelo",
+    reasonPlaceholder: "Choose a reason",
+    reasonDetailsLabel: "Anything else you want to tell us?",
+    reasonDetailsPlaceholder: "Optional details",
+    billingNotice: "If you later have an active paid subscription, deletion should also cancel it through the billing provider or ask you to cancel first. Spreelo does not have payments connected yet.",
+    reasonNotUsing: "I do not use Spreelo enough",
+    reasonTooExpensive: "Too expensive",
+    reasonMissingFeature: "Missing a feature I need",
+    reasonHardToUse: "Too hard to use",
+    reasonResults: "The results were not good enough",
+    reasonPrivacy: "Privacy or data concerns",
+    reasonOther: "Other reason",
   },
   sv: {
     confirmation: "Bekräftelse",
@@ -28,6 +41,19 @@ const SETTINGS_DELETE_COPY = {
     deletingMessage: "Raderar ditt konto...",
     errorTypeDelete: "Skriv {word} för att bekräfta kontoradering.",
     confirmDialog: "Detta raderar permanent ditt Spreelo-konto, alla varumärken, inlägg, innehållsplaner, kampanjdata och sociala kopplingar. Detta kan inte ångras.",
+    reasonLabel: "Varför raderar du kontot?",
+    reasonOptional: "Frivilligt, men hjälper oss att förbättra Spreelo",
+    reasonPlaceholder: "Välj en orsak",
+    reasonDetailsLabel: "Vill du berätta något mer?",
+    reasonDetailsPlaceholder: "Frivilliga detaljer",
+    billingNotice: "Om du senare har en aktiv betalprenumeration bör radering även avsluta den hos betalningsleverantören eller be dig avsluta den först. Spreelo har ingen betalning kopplad ännu.",
+    reasonNotUsing: "Jag använder inte Spreelo tillräckligt",
+    reasonTooExpensive: "För dyrt",
+    reasonMissingFeature: "Jag saknar en funktion jag behöver",
+    reasonHardToUse: "För svårt att använda",
+    reasonResults: "Resultatet blev inte tillräckligt bra",
+    reasonPrivacy: "Integritet eller datafrågor",
+    reasonOther: "Annan orsak",
   },
   es: {
     confirmation: "Confirmación",
@@ -239,6 +265,8 @@ export default function Settings() {
   const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [confirmText, setConfirmText] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteReasonDetails, setDeleteReasonDetails] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
   const recommendedLocale = SUPPORTED_UI_LOCALES.some(
@@ -251,6 +279,15 @@ export default function Settings() {
   const deletePlaceholder = getDeleteCopy(locale, "placeholder", deleteConfirmWord, t("settings.confirmPlaceholder", { word: deleteConfirmWord }));
   const deleteButtonLabel = getDeleteCopy(locale, "deleteButton", deleteConfirmWord, t("settings.deleteButton"));
   const deletingAccountLabel = getDeleteCopy(locale, "deletingAccount", deleteConfirmWord, t("settings.deletingAccount"));
+  const deleteReasonOptions = [
+    ["not_using", getDeleteCopy(locale, "reasonNotUsing", deleteConfirmWord, "I do not use Spreelo enough")],
+    ["too_expensive", getDeleteCopy(locale, "reasonTooExpensive", deleteConfirmWord, "Too expensive")],
+    ["missing_feature", getDeleteCopy(locale, "reasonMissingFeature", deleteConfirmWord, "Missing a feature I need")],
+    ["hard_to_use", getDeleteCopy(locale, "reasonHardToUse", deleteConfirmWord, "Too hard to use")],
+    ["results_not_good_enough", getDeleteCopy(locale, "reasonResults", deleteConfirmWord, "The results were not good enough")],
+    ["privacy_data", getDeleteCopy(locale, "reasonPrivacy", deleteConfirmWord, "Privacy or data concerns")],
+    ["other", getDeleteCopy(locale, "reasonOther", deleteConfirmWord, "Other reason")],
+  ];
 
   useEffect(() => {
     async function loadUser() {
@@ -313,7 +350,13 @@ export default function Settings() {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          reason: deleteReason || "not_provided",
+          reason_details: deleteReasonDetails || "",
+          locale,
+        }),
       });
 
       const result = await response.json();
@@ -410,6 +453,36 @@ export default function Settings() {
             placeholder={deletePlaceholder}
             disabled={deletingAccount}
           />
+
+          <label>{getDeleteCopy(locale, "reasonLabel", deleteConfirmWord, "Why are you deleting your account?")}</label>
+          <select
+            className="input"
+            value={deleteReason}
+            onChange={(event) => setDeleteReason(event.target.value)}
+            disabled={deletingAccount}
+          >
+            <option value="">
+              {getDeleteCopy(locale, "reasonPlaceholder", deleteConfirmWord, "Choose a reason")}
+            </option>
+            {deleteReasonOptions.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <p>{getDeleteCopy(locale, "reasonOptional", deleteConfirmWord, "Optional, but helps us improve Spreelo")}</p>
+
+          <label>{getDeleteCopy(locale, "reasonDetailsLabel", deleteConfirmWord, "Anything else you want to tell us?")}</label>
+          <textarea
+            className="input"
+            rows={3}
+            value={deleteReasonDetails}
+            onChange={(event) => setDeleteReasonDetails(event.target.value)}
+            placeholder={getDeleteCopy(locale, "reasonDetailsPlaceholder", deleteConfirmWord, "Optional details")}
+            disabled={deletingAccount}
+          />
+
+          <p>{getDeleteCopy(locale, "billingNotice", deleteConfirmWord, "If you later have an active paid subscription, deletion should also cancel it through the billing provider or ask you to cancel first. Spreelo does not have payments connected yet.")}</p>
 
           <button
             type="button"
