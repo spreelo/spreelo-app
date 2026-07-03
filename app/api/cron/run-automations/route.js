@@ -749,6 +749,42 @@ function selectCarouselProductsFromPool({
     .slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
 }
 
+function getCarouselProductSelectionKey(item, sourceUrl = "") {
+  const normalized = normalizeWebsiteItem(item, item?.url || item?.source_url || sourceUrl);
+
+  if (!normalized || !isValidCarouselProduct(normalized)) {
+    return "";
+  }
+
+  return [
+    normalizeComparableValue(canonicalizeWebsiteProductUrl(normalized.url, sourceUrl) || normalized.url),
+    normalizeComparableValue(normalized.title),
+    normalizeComparableValue(normalized.image_url),
+  ].join("|");
+}
+
+function mergeCarouselProductSelections(primaryItems, fallbackItems, sourceUrl, limit = CAROUSEL_PRODUCT_SLIDE_TARGET) {
+  const selected = [];
+  const seen = new Set();
+
+  for (const item of [...(primaryItems || []), ...(fallbackItems || [])]) {
+    const key = getCarouselProductSelectionKey(item, sourceUrl);
+
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    selected.push(item);
+
+    if (selected.length >= limit) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
 async function prepareCarouselProductsForRule({
   supabase,
   openai,
@@ -950,17 +986,57 @@ async function prepareCarouselProductsForRule({
 
   if (isCampaignRule) {
     const selectedStrongCampaignProducts = getStrongCampaignFitItems(selectedProducts, rule);
+    let campaignProducts = selectedStrongCampaignProducts.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
 
-    if (selectedStrongCampaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+    if (campaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+      const reusableCampaignProducts = selectCarouselProductsFromPool({
+        items: catalogItems,
+        rule,
+        sourceUrl: websiteUrl,
+        recentUsedItems,
+        usedWebsiteImageUrlsThisRun,
+        allowReuseWhenExhausted: true,
+      });
+      const reusableStrongCampaignProducts = getStrongCampaignFitItems(reusableCampaignProducts, rule);
+      const mergedCampaignProducts = mergeCarouselProductSelections(
+        campaignProducts,
+        reusableStrongCampaignProducts,
+        websiteUrl
+      );
+      const addedCampaignProducts = mergedCampaignProducts.slice(campaignProducts.length);
+      const addedReusedCampaignProducts = addedCampaignProducts.filter((item) => (
+        hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, websiteUrl) ||
+        usedWebsiteImageUrlsThisRun.has(normalizeComparableValue(item?.image_url))
+      ));
+
+      if (addedReusedCampaignProducts.length) {
+        cycleNumber += 1;
+        summary.website_items_reused_cycle += 1;
+      }
+
+      campaignProducts = mergedCampaignProducts;
+    }
+
+    if (!campaignProducts.length) {
       throw new Error(
-        `Campaign carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} clearly campaign-relevant products with product images. Found ${selectedStrongCampaignProducts.length}. Spreelo refused to fill the campaign with generic website products.`
+        `Campaign carousel needs at least 1 clearly campaign-relevant product with a product image. Found 0. Spreelo refused to fill the campaign with generic website products.`
       );
     }
 
-    selectedProducts = selectedStrongCampaignProducts.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+    if (campaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+      console.warn("Campaign carousel has fewer strong products than the product-slide target; continuing with a campaign draft instead of pausing the rule", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        selectedCount: campaignProducts.length,
+        requiredCount: CAROUSEL_MIN_PRODUCT_SLIDES,
+      });
+    }
+
+    selectedProducts = campaignProducts;
   }
 
-  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES && !isCampaignRule) {
     throw new Error(
       `Website carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} products with product images. Found ${selectedProducts.length}.`
     );
@@ -1208,8 +1284,13 @@ function sanitizeUnsupportedOfferLanguage(postContent, websiteItem) {
 
 function buildAutomationPrompt(rule) {
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
-  const carouselProducts = getCarouselProducts(rule);
-  const websiteItemText = isCarouselRule(rule) && carouselProducts.length
+  const carouselProducts = getCarouselProducts(rule).filter(isValidCarouselProduct);
+  const hasCarouselProducts = isCarouselRule(rule) && carouselProducts.length > 0;
+  const hasFullProductCarousel = carouselProducts.length >= CAROUSEL_MIN_PRODUCT_SLIDES;
+  const carouselModeInstruction = hasFullProductCarousel
+    ? `This automation rule is supposed to create a product carousel with at least ${CAROUSEL_MIN_PRODUCT_SLIDES} different website products. The caption should introduce the collection and invite the audience to swipe through the carousel. Do not focus only on one product.`
+    : `This automation rule is supposed to create a campaign carousel. Only ${carouselProducts.length} clearly relevant website product${carouselProducts.length === 1 ? "" : "s"} could be safely selected, so use them as campaign-relevant examples and keep the caption focused on the campaign theme. Do not invent additional products.`;
+  const websiteItemText = hasCarouselProducts
     ? `Selected carousel products:\n${formatWebsiteItemsForPrompt(carouselProducts)}`
     : formatWebsiteItemForPrompt(rule.website_item);
   const campaignStrategyText = formatCampaignStrategyForPrompt(rule);
@@ -1225,8 +1306,8 @@ ${
   rule.uses_website_content
     ? `
 Website content mode:
-${isCarouselRule(rule) && carouselProducts.length
-  ? `This automation rule is supposed to create a product carousel with at least ${CAROUSEL_MIN_PRODUCT_SLIDES} different website products. The caption should introduce the collection and invite the audience to swipe through the carousel. Do not focus only on one product.`
+${hasCarouselProducts
+  ? carouselModeInstruction
   : "This automation rule is supposed to promote one concrete product, service, listing, offer or other sellable item from the business website."}
 
 ${websiteItemText}
