@@ -34,8 +34,10 @@ const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
 const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
 const CAROUSEL_MAX_PRODUCT_SLIDES = CAROUSEL_PRODUCT_SLIDE_TARGET + CAROUSEL_OUTRO_SLIDE_COUNT;
 
-const PRODUCT_RESEARCH_MODEL = "gpt-5.5";
 const POST_TEXT_MODEL = "gpt-4.1-mini";
+const PRODUCT_RESEARCH_MODEL = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
+const PRODUCT_RESEARCH_FAST_MODEL =
+  process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL;
 const IMAGE_MODEL = "gpt-image-2";
 const INSTAGRAM_GRAPH_API_VERSION =
   process.env.INSTAGRAM_GRAPH_API_VERSION || "v21.0";
@@ -785,6 +787,14 @@ function mergeCarouselProductSelections(primaryItems, fallbackItems, sourceUrl, 
   return selected;
 }
 
+function hasEnoughCarouselProductsForRule(products, rule) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return (products || []).length >= CAROUSEL_MIN_PRODUCT_SLIDES;
+  }
+
+  return getStrongCampaignFitItems(products, rule).length >= CAROUSEL_MIN_PRODUCT_SLIDES;
+}
+
 async function prepareCarouselProductsForRule({
   supabase,
   openai,
@@ -822,28 +832,93 @@ async function prepareCarouselProductsForRule({
 
   const isCampaignRule = isCampaignScopedWebsiteRule(rule);
 
-  if (isCampaignRule && catalogItems.length) {
+  let selectedProducts = selectCarouselProductsFromPool({
+    items: catalogItems,
+    rule,
+    sourceUrl: websiteUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+    allowReuseWhenExhausted: false,
+  });
+
+  if (isCampaignRule && catalogItems.length && !hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
     catalogItems = await applyAiCampaignFitScores({
       openai,
       rule,
       brandProfile,
       items: catalogItems,
-      maxItems: 80,
+      maxItems: 30,
+      model: PRODUCT_RESEARCH_FAST_MODEL,
+      escalateWhenUncertain: false,
+    });
+
+    selectedProducts = selectCarouselProductsFromPool({
+      items: catalogItems,
+      rule,
+      sourceUrl: websiteUrl,
+      recentUsedItems,
+      usedWebsiteImageUrlsThisRun,
+      allowReuseWhenExhausted: false,
     });
   }
 
-  let selectedProducts = isCampaignRule
-    ? []
-    : selectCarouselProductsFromPool({
-        items: catalogItems,
-        rule,
-        sourceUrl: websiteUrl,
-        recentUsedItems,
-        usedWebsiteImageUrlsThisRun,
-        allowReuseWhenExhausted: false,
+  if (!hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
+    try {
+      const discoveredCandidates = await discoverProductCandidatesFromWebsite({
+        websiteUrl,
+        campaignPrompt: buildCampaignResearchText(rule),
+        usedItems: recentUsedItems,
       });
 
-  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES || isCampaignScopedWebsiteRule(rule)) {
+      if (discoveredCandidates.length) {
+        const discoveredItems = await verifyDiscoveredWebsiteProductCandidates({
+          candidates: discoveredCandidates,
+          websiteUrl,
+          limit: 45,
+        });
+
+        catalogItems = [
+          ...catalogItems.map((item) => ({ ...item, selection_priority: Number(item.selection_priority || 0) || 10 })),
+          ...discoveredItems.map((item) => ({
+            ...item,
+            selection_priority: 90,
+            campaign_fit_source: "campaign_discovery",
+            campaign_fit_score: scoreCampaignFitForRule(item, rule),
+          })),
+        ];
+
+        if (isCampaignRule) {
+          catalogItems = await applyAiCampaignFitScores({
+            openai,
+            rule,
+            brandProfile,
+            items: catalogItems,
+            maxItems: 45,
+            model: PRODUCT_RESEARCH_FAST_MODEL,
+            escalateWhenUncertain: true,
+            escalationMaxItems: 20,
+          });
+        }
+
+        selectedProducts = selectCarouselProductsFromPool({
+          items: catalogItems,
+          rule,
+          sourceUrl: websiteUrl,
+          recentUsedItems,
+          usedWebsiteImageUrlsThisRun,
+          allowReuseWhenExhausted: false,
+        });
+      }
+    } catch (discoveryError) {
+      console.error("Carousel product discovery failed", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        message: discoveryError.message,
+      });
+    }
+  }
+
+  if (!hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
     try {
       const webSearchItems = await findWebsiteProductWithWebSearch({
         openai,
@@ -864,16 +939,6 @@ async function prepareCarouselProductsForRule({
           })),
         ];
 
-        if (isCampaignRule) {
-          catalogItems = await applyAiCampaignFitScores({
-            openai,
-            rule,
-            brandProfile,
-            items: catalogItems,
-            maxItems: 80,
-          });
-        }
-
         selectedProducts = selectCarouselProductsFromPool({
           items: catalogItems,
           rule,
@@ -883,15 +948,16 @@ async function prepareCarouselProductsForRule({
           allowReuseWhenExhausted: false,
         });
 
-        if (selectedProducts.length >= CAROUSEL_MIN_PRODUCT_SLIDES) {
+        if (hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
           summary.website_web_search_success += 1;
         } else {
-          console.log("Carousel web search found products, but not enough usable product images yet", {
+          console.log("Carousel web search found products, but not enough strong campaign product images yet", {
             ruleId: rule.id,
             brandProfileId: rule.brand_profile_id,
             websiteUrl,
             webSearchCount: webSearchItems.length,
             selectedCount: selectedProducts.length,
+            strongSelectedCount: isCampaignRule ? getStrongCampaignFitItems(selectedProducts, rule).length : selectedProducts.length,
             requiredCount: CAROUSEL_MIN_PRODUCT_SLIDES,
           });
         }
@@ -905,58 +971,6 @@ async function prepareCarouselProductsForRule({
       });
 
       summary.website_web_search_failed += 1;
-    }
-  }
-
-  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES || isCampaignScopedWebsiteRule(rule)) {
-    try {
-      const discoveredCandidates = await discoverProductCandidatesFromWebsite({
-        websiteUrl,
-        campaignPrompt: buildCampaignResearchText(rule),
-        usedItems: recentUsedItems,
-      });
-
-      if (discoveredCandidates.length) {
-        const discoveredItems = await verifyDiscoveredWebsiteProductCandidates({
-          candidates: discoveredCandidates,
-          websiteUrl,
-        });
-
-        catalogItems = [
-          ...catalogItems.map((item) => ({ ...item, selection_priority: Number(item.selection_priority || 0) || 10 })),
-          ...discoveredItems.map((item) => ({
-            ...item,
-            selection_priority: 90,
-            campaign_fit_source: "campaign_discovery",
-            campaign_fit_score: scoreCampaignFitForRule(item, rule),
-          })),
-        ];
-
-        if (isCampaignRule) {
-          catalogItems = await applyAiCampaignFitScores({
-            openai,
-            rule,
-            brandProfile,
-            items: catalogItems,
-            maxItems: 80,
-          });
-        }
-
-        selectedProducts = selectCarouselProductsFromPool({
-          items: catalogItems,
-          rule,
-          sourceUrl: websiteUrl,
-          recentUsedItems,
-          usedWebsiteImageUrlsThisRun,
-          allowReuseWhenExhausted: false,
-        });
-      }
-    } catch (discoveryError) {
-      console.error("Carousel product discovery failed", {
-        ruleId: rule.id,
-        brandProfileId: rule.brand_profile_id,
-        message: discoveryError.message,
-      });
     }
   }
 
@@ -3271,48 +3285,27 @@ function formatProductsForCampaignFitPrompt(candidates) {
     .join("\n\n---\n\n");
 }
 
-async function applyAiCampaignFitScores({
+function getReasoningOptionsForModel(model) {
+  return /^gpt-5/i.test(String(model || ""))
+    ? { reasoning: { effort: "medium" } }
+    : {};
+}
+
+async function evaluateCampaignFitCandidates({
   openai,
   rule,
   brandProfile,
-  items,
-  maxItems = 80,
+  candidates,
+  model,
 }) {
-  if (!isCampaignScopedWebsiteRule(rule) || !Array.isArray(items) || items.length === 0) {
-    return items || [];
-  }
-
-  const candidates = items
-    .map((item, index) => ({ item, index }))
-    .filter(({ item }) => item?.title || item?.url || item?.product_url || item?.item_url)
-    .sort((a, b) => {
-      const priorityDelta =
-        Number(b.item?.selection_priority || 0) - Number(a.item?.selection_priority || 0);
-      if (priorityDelta !== 0) return priorityDelta;
-
-      const sourceScoreDelta =
-        Number(b.item?.campaign_fit_score || b.item?.score || 0) -
-        Number(a.item?.campaign_fit_score || a.item?.score || 0);
-      if (sourceScoreDelta !== 0) return sourceScoreDelta;
-
-      return scoreWebsiteItemForRule(b.item, rule) - scoreWebsiteItemForRule(a.item, rule);
-    })
-    .slice(0, maxItems);
-
-  if (!candidates.length) {
-    return items;
-  }
-
   const evaluationByIndex = new Map();
   const batchSize = 20;
 
   for (let start = 0; start < candidates.length; start += batchSize) {
     const batch = candidates.slice(start, start + batchSize);
     const response = await openai.responses.create({
-      model: PRODUCT_RESEARCH_MODEL,
-      reasoning: {
-        effort: "medium",
-      },
+      model,
+      ...getReasoningOptionsForModel(model),
       input: `
 You are validating product relevance for a social media campaign.
 
@@ -3374,20 +3367,27 @@ Return strict JSON only:
         score: normalizeCampaignFitScore(entry?.score),
         verdict: String(entry?.verdict || "").trim(),
         reason: String(entry?.reason || "").trim(),
+        model,
       });
     }
   }
 
+  return evaluationByIndex;
+}
+
+function applyCampaignFitEvaluations(items, evaluationByIndex) {
   return items.map((item, index) => {
     const evaluation = evaluationByIndex.get(index);
 
     if (!evaluation) {
       return {
         ...item,
-        ai_campaign_fit_score: 0,
-        campaign_fit_score: 0,
+        ai_campaign_fit_score:
+          item?.ai_campaign_fit_score === undefined ? null : item.ai_campaign_fit_score,
+        campaign_fit_score: Number(item?.campaign_fit_score || item?.score || 0),
         campaign_fit_source: item?.campaign_fit_source || "ai_campaign_fit_unscored",
-        campaign_fit_reason: "Not evaluated in campaign fit batch.",
+        campaign_fit_reason:
+          item?.campaign_fit_reason || "Not evaluated in campaign fit batch; kept existing heuristic score.",
       };
     }
 
@@ -3395,11 +3395,112 @@ Return strict JSON only:
       ...item,
       ai_campaign_fit_score: evaluation.score,
       campaign_fit_score: evaluation.score,
-      campaign_fit_source: "ai_campaign_fit",
+      campaign_fit_source:
+        evaluation.model === PRODUCT_RESEARCH_MODEL
+          ? "ai_campaign_fit"
+          : "ai_campaign_fit_fast",
       campaign_fit_verdict: evaluation.verdict,
       campaign_fit_reason: evaluation.reason,
     };
   });
+}
+
+function shouldEscalateCampaignFitEvaluation(evaluationByIndex, minimumStrongProducts) {
+  const scores = Array.from(evaluationByIndex.values())
+    .map((entry) => Number(entry?.score || 0))
+    .filter((score) => Number.isFinite(score));
+
+  if (!scores.length) {
+    return true;
+  }
+
+  const strongCount = scores.filter((score) => score >= CAMPAIGN_STRONG_PRODUCT_FIT_SCORE).length;
+  const excellentCount = scores.filter((score) => score >= 90).length;
+
+  return strongCount < minimumStrongProducts || excellentCount === 0;
+}
+
+async function applyAiCampaignFitScores({
+  openai,
+  rule,
+  brandProfile,
+  items,
+  maxItems = 80,
+  model = PRODUCT_RESEARCH_MODEL,
+  escalateWhenUncertain = false,
+  escalationModel = PRODUCT_RESEARCH_MODEL,
+  escalationMaxItems = 20,
+  minimumStrongProducts = CAROUSEL_MIN_PRODUCT_SLIDES,
+}) {
+  if (!isCampaignScopedWebsiteRule(rule) || !Array.isArray(items) || items.length === 0) {
+    return items || [];
+  }
+
+  const candidates = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item?.title || item?.url || item?.product_url || item?.item_url)
+    .sort((a, b) => {
+      const priorityDelta =
+        Number(b.item?.selection_priority || 0) - Number(a.item?.selection_priority || 0);
+      if (priorityDelta !== 0) return priorityDelta;
+
+      const sourceScoreDelta =
+        Number(b.item?.campaign_fit_score || b.item?.score || 0) -
+        Number(a.item?.campaign_fit_score || a.item?.score || 0);
+      if (sourceScoreDelta !== 0) return sourceScoreDelta;
+
+      return scoreWebsiteItemForRule(b.item, rule) - scoreWebsiteItemForRule(a.item, rule);
+    })
+    .slice(0, maxItems);
+
+  if (!candidates.length) {
+    return items;
+  }
+
+  const evaluationByIndex = await evaluateCampaignFitCandidates({
+    openai,
+    rule,
+    brandProfile,
+    candidates,
+    model,
+  });
+
+  if (
+    escalateWhenUncertain &&
+    model !== escalationModel &&
+    shouldEscalateCampaignFitEvaluation(evaluationByIndex, minimumStrongProducts)
+  ) {
+    const escalationCandidates = candidates
+      .map((candidate) => ({
+        ...candidate,
+        currentScore: Number(evaluationByIndex.get(candidate.index)?.score || 0),
+      }))
+      .sort((a, b) => b.currentScore - a.currentScore)
+      .slice(0, escalationMaxItems);
+
+    console.log("Campaign fit scoring escalated to senior product research model", {
+      ruleId: rule?.id,
+      brandProfileId: rule?.brand_profile_id,
+      fastModel: model,
+      escalationModel,
+      candidateCount: candidates.length,
+      escalationCandidateCount: escalationCandidates.length,
+    });
+
+    const escalatedEvaluationByIndex = await evaluateCampaignFitCandidates({
+      openai,
+      rule,
+      brandProfile,
+      candidates: escalationCandidates,
+      model: escalationModel,
+    });
+
+    for (const [index, evaluation] of escalatedEvaluationByIndex.entries()) {
+      evaluationByIndex.set(index, evaluation);
+    }
+  }
+
+  return applyCampaignFitEvaluations(items, evaluationByIndex);
 }
 
 function scoreCampaignFitForRule(item, rule) {
