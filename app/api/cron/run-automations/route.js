@@ -29,7 +29,7 @@ const WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT = 150;
 const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 120;
 const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 18;
 const CAMPAIGN_STRONG_PRODUCT_FIT_SCORE = 80;
-const CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE = 75;
+const CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE = 60;
 const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
 const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
 const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
@@ -5221,9 +5221,8 @@ JSON shape:
   ]
 }
 
-Return up to 15 real product pages only when they are genuinely relevant.
-For campaign carousels, breadth matters, but relevance matters more: return fewer products rather than padding the list with loose, generic or weakly related products.
-If you found concrete products from a campaign/theme/occasion-specific area, do not dilute them with generic giftable, personalized, custom-print or broad bestseller products.
+Return 8 to 15 real product pages if possible when the website has many relevant products.
+For campaign carousels, breadth matters: include enough different concrete product pages that Spreelo can avoid recently used products.
 `.trim(),
   });
 
@@ -6127,11 +6126,10 @@ function buildCarouselOutroImagePrompt(rule, outroSlide, products) {
   const brandName = rule?.brand_profile?.business_name || "the brand";
   const language = rule?.language || rule?.brand_profile?.content_language || "English";
   const productNames = (products || []).slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET).map((item) => item?.title).filter(Boolean).join(", ");
-  const campaignContext = buildCampaignResearchText(rule);
   const headline = normalizeSlideText(outroSlide?.headline || brandName, 80);
   const supportingText = normalizeSlideText(outroSlide?.cta_text || outroSlide?.body || rule?.cta_type || "", 90);
 
-  return `Create a premium square closing slide for a social media carousel. This is the final CTA slide after product slides for ${brandName}. Campaign context: ${campaignContext || "General product campaign"}. The visual mood, scene, colors and styling must clearly fit the campaign context, season, occasion, buyer intent and brand language. If the campaign is seasonal, holiday-based or tied to a cultural occasion, infer suitable tasteful seasonal cues from the campaign context instead of making a generic shop/product background. Use a clean, polished marketing design with a subtle modern background and clear readable text overlay. Write the overlaid text in ${language}. Main overlay text: "${headline}". Supporting overlay text: "${supportingText}". The slide should feel like a professional final call-to-action and may use abstract shapes, elegant composition, soft shadows, geometric shapes, or a tasteful category-inspired scene. If you include any product-like objects, they must be generic, unbranded, non-specific, and not directly identifiable as exact products from the store. Never invent or depict specific catalog items, exact product prints, poster motifs, readable slogan text on products, apparel graphics, packaging artwork, or branded product designs. Do not place the store name or brand logo onto any depicted product. Avoid close-up hero shots of a single product. For stores that sell printed or text-based products such as posters, apparel, mugs, or accessories, do not generate new readable product text or new product artwork. Keep all non-overlay product details subtle, generic, and secondary to the CTA message. Do not show prices, discount claims, or crowded text. Products featured earlier in the carousel: ${productNames || "selected website products"}.`;
+  return `Create a premium square closing slide for a social media carousel. This is the final CTA slide after product slides for ${brandName}. Use a clean, polished marketing design with a subtle modern background and clear readable text overlay. Write the overlaid text in ${language}. Main overlay text: "${headline}". Supporting overlay text: "${supportingText}". The slide should feel like a professional final call-to-action and may use abstract shapes, elegant composition, soft shadows, geometric shapes, or a tasteful category-inspired scene. If you include any product-like objects, they must be generic, unbranded, non-specific, and not directly identifiable as exact products from the store. Never invent or depict specific catalog items, exact product prints, poster motifs, readable slogan text on products, apparel graphics, packaging artwork, or branded product designs. Do not place the store name or brand logo onto any depicted product. Avoid close-up hero shots of a single product. For stores that sell printed or text-based products such as posters, apparel, mugs, or accessories, do not generate new readable product text or new product artwork. Keep all non-overlay product details subtle, generic, and secondary to the CTA message. Do not show prices, discount claims, or crowded text. Products featured earlier in the carousel: ${productNames || "selected website products"}.`;
 }
 
 async function generateCarouselOutroSlideImage(openai, rule, outroSlide, products) {
