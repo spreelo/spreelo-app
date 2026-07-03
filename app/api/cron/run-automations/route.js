@@ -916,6 +916,32 @@ function getCarouselProductSelectionKey(item, sourceUrl = "") {
   ].join("|");
 }
 
+
+function areSameWebsiteItem(a, b, sourceUrl = "") {
+  const aKey = getCarouselProductSelectionKey(a, sourceUrl);
+  const bKey = getCarouselProductSelectionKey(b, sourceUrl);
+
+  if (aKey && bKey && aKey === bKey) {
+    return true;
+  }
+
+  const aUrl = canonicalizeWebsiteProductUrl(a?.url || a?.product_url || a?.item_url || "", sourceUrl);
+  const bUrl = canonicalizeWebsiteProductUrl(b?.url || b?.product_url || b?.item_url || "", sourceUrl);
+
+  if (aUrl && bUrl && normalizeComparableValue(aUrl) === normalizeComparableValue(bUrl)) {
+    return true;
+  }
+
+  const aImage = normalizeComparableValue(a?.image_url);
+  const bImage = normalizeComparableValue(b?.image_url);
+
+  if (aImage && bImage && aImage === bImage) {
+    return true;
+  }
+
+  return false;
+}
+
 function mergeCarouselProductSelections(primaryItems, fallbackItems, sourceUrl, limit = CAROUSEL_PRODUCT_SLIDE_TARGET) {
   const selected = [];
   const seen = new Set();
@@ -1151,13 +1177,12 @@ async function prepareCarouselProductsForRule({
 
   if (isCampaignRule) {
     const selectedStrongCampaignProducts = getStrongCampaignFitItems(selectedProducts, rule);
-    const selectedSupportingCampaignProducts = getSupportingCampaignFitItems(selectedProducts, rule);
+    const selectedSupportingCampaignProducts = getSupportingCampaignFitItems(selectedProducts, rule)
+      .filter((item) => !selectedStrongCampaignProducts.some((strongItem) => areSameWebsiteItem(strongItem, item, websiteUrl)));
+
     let campaignProducts = mergeCarouselProductSelections(
       selectedStrongCampaignProducts,
-      [
-        ...selectedSupportingCampaignProducts,
-        ...selectedProducts,
-      ],
+      selectedSupportingCampaignProducts,
       websiteUrl
     );
 
@@ -1171,20 +1196,36 @@ async function prepareCarouselProductsForRule({
         allowReuseWhenExhausted: true,
       });
       const reusableStrongCampaignProducts = getStrongCampaignFitItems(reusableCampaignProducts, rule);
-      const reusableSupportingCampaignProducts = getSupportingCampaignFitItems(reusableCampaignProducts, rule);
-      const reusableFallbackCampaignProducts = mergeCarouselProductSelections(
+      const reusableSupportingCampaignProducts = getSupportingCampaignFitItems(reusableCampaignProducts, rule)
+        .filter((item) => !reusableStrongCampaignProducts.some((strongItem) => areSameWebsiteItem(strongItem, item, websiteUrl)));
+      const reusableCampaignFitProducts = mergeCarouselProductSelections(
         reusableStrongCampaignProducts,
-        [
-          ...reusableSupportingCampaignProducts,
-          ...reusableCampaignProducts,
-        ],
+        reusableSupportingCampaignProducts,
         websiteUrl
       );
-      const mergedCampaignProducts = mergeCarouselProductSelections(
+      let mergedCampaignProducts = mergeCarouselProductSelections(
         campaignProducts,
-        reusableFallbackCampaignProducts,
+        reusableCampaignFitProducts,
         websiteUrl
       );
+
+      if (mergedCampaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+        const reasonableFallbackProducts = mergeCarouselProductSelections(
+          selectedProducts,
+          [
+            ...reusableCampaignProducts,
+            ...dedupeWebsiteItemsByUrlTitleAndImage(catalogItems),
+          ],
+          websiteUrl
+        );
+
+        mergedCampaignProducts = mergeCarouselProductSelections(
+          mergedCampaignProducts,
+          reasonableFallbackProducts,
+          websiteUrl
+        );
+      }
+
       const addedCampaignProducts = mergedCampaignProducts.slice(campaignProducts.length);
       const addedReusedCampaignProducts = addedCampaignProducts.filter((item) => (
         hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, websiteUrl) ||
@@ -1199,22 +1240,40 @@ async function prepareCarouselProductsForRule({
       campaignProducts = mergedCampaignProducts;
     }
 
-    if (campaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
-      console.warn("Campaign carousel has fewer unique campaign products than the product-slide target; continuing without duplicating product images", {
+    if (campaignProducts.length >= CAROUSEL_MIN_PRODUCT_SLIDES) {
+      console.log("Campaign carousel will use a full product set, prioritizing campaign-relevant products first", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
         websiteUrl,
         selectedCount: campaignProducts.length,
-        requiredCount: CAROUSEL_MIN_PRODUCT_SLIDES,
+      });
+    } else if (campaignProducts.length >= 3) {
+      console.warn("Campaign carousel found fewer than five usable products even after fallback fill; delivering the best available product carousel", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        selectedCount: campaignProducts.length,
+        productSlideTarget: CAROUSEL_PRODUCT_SLIDE_TARGET,
+      });
+    } else if (campaignProducts.length > 0) {
+      console.warn("Campaign carousel found only one or two usable products even after fallback fill; delivering the best available product carousel", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        selectedCount: campaignProducts.length,
+      });
+    } else {
+      console.warn("Campaign carousel found no usable product images after fallback fill; delivering a general campaign carousel", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
       });
     }
 
-    if (campaignProducts.length) {
-      selectedProducts = campaignProducts;
-    }
+    selectedProducts = campaignProducts.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
   }
 
-  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+  if (!isCampaignRule && selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
     const reusableProducts = selectCarouselProductsFromPool({
       items: catalogItems,
       rule,
@@ -1236,7 +1295,7 @@ async function prepareCarouselProductsForRule({
     }
   }
 
-  if (!selectedProducts.length) {
+  if (!isCampaignRule && !selectedProducts.length) {
     const fallbackPool = dedupeWebsiteItemsByUrlTitleAndImage(catalogItems);
     selectedProducts = fallbackPool.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
   }
