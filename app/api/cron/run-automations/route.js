@@ -29,6 +29,7 @@ const WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT = 150;
 const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 120;
 const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 18;
 const CAMPAIGN_STRONG_PRODUCT_FIT_SCORE = 80;
+const CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE = 60;
 const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
 const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
 const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
@@ -624,6 +625,8 @@ function isValidCarouselProduct(item) {
 
 function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
   const seen = new Set();
+  const seenUrls = new Set();
+  const seenImageUrls = new Set();
   const unique = [];
 
   for (const item of items || []) {
@@ -638,12 +641,26 @@ function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
       normalizeComparableValue(normalized.title),
       normalizeComparableValue(normalized.image_url),
     ].join("|");
+    const urlKey = normalizeComparableValue(
+      canonicalizeWebsiteProductUrl(normalized.url, item?.url || item?.source_url || "") || normalized.url
+    );
+    const imageKey = normalizeComparableValue(normalized.image_url);
 
-    if (seen.has(key)) {
+    if (
+      seen.has(key) ||
+      (urlKey && seenUrls.has(urlKey)) ||
+      (imageKey && seenImageUrls.has(imageKey))
+    ) {
       continue;
     }
 
     seen.add(key);
+    if (urlKey) {
+      seenUrls.add(urlKey);
+    }
+    if (imageKey) {
+      seenImageUrls.add(imageKey);
+    }
     unique.push({
       ...item,
       ...normalized,
@@ -1000,7 +1017,12 @@ async function prepareCarouselProductsForRule({
 
   if (isCampaignRule) {
     const selectedStrongCampaignProducts = getStrongCampaignFitItems(selectedProducts, rule);
-    let campaignProducts = selectedStrongCampaignProducts.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+    const selectedSupportingCampaignProducts = getSupportingCampaignFitItems(selectedProducts, rule);
+    let campaignProducts = mergeCarouselProductSelections(
+      selectedStrongCampaignProducts,
+      selectedSupportingCampaignProducts,
+      websiteUrl
+    );
 
     if (campaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
       const reusableCampaignProducts = selectCarouselProductsFromPool({
@@ -1012,9 +1034,15 @@ async function prepareCarouselProductsForRule({
         allowReuseWhenExhausted: true,
       });
       const reusableStrongCampaignProducts = getStrongCampaignFitItems(reusableCampaignProducts, rule);
+      const reusableSupportingCampaignProducts = getSupportingCampaignFitItems(reusableCampaignProducts, rule);
+      const reusableFallbackCampaignProducts = mergeCarouselProductSelections(
+        reusableStrongCampaignProducts,
+        reusableSupportingCampaignProducts,
+        websiteUrl
+      );
       const mergedCampaignProducts = mergeCarouselProductSelections(
         campaignProducts,
-        reusableStrongCampaignProducts,
+        reusableFallbackCampaignProducts,
         websiteUrl
       );
       const addedCampaignProducts = mergedCampaignProducts.slice(campaignProducts.length);
@@ -1038,7 +1066,7 @@ async function prepareCarouselProductsForRule({
     }
 
     if (campaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
-      console.warn("Campaign carousel has fewer strong products than the product-slide target; continuing with a campaign draft instead of pausing the rule", {
+      console.warn("Campaign carousel has fewer unique campaign products than the product-slide target; continuing without duplicating product images", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
         websiteUrl,
@@ -3540,6 +3568,22 @@ function scoreCampaignFitForRule(item, rule) {
 }
 
 function getStrongCampaignFitItems(items, rule) {
+  return getCampaignFitItemsAtOrAboveScore(
+    items,
+    rule,
+    CAMPAIGN_STRONG_PRODUCT_FIT_SCORE
+  );
+}
+
+function getSupportingCampaignFitItems(items, rule) {
+  return getCampaignFitItemsAtOrAboveScore(
+    items,
+    rule,
+    CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE
+  );
+}
+
+function getCampaignFitItemsAtOrAboveScore(items, rule, minimumScore) {
   if (!isCampaignScopedWebsiteRule(rule)) {
     return [];
   }
@@ -3549,7 +3593,7 @@ function getStrongCampaignFitItems(items, rule) {
       ...item,
       campaign_fit_score: scoreCampaignFitForRule(item, rule),
     }))
-    .filter((item) => Number(item.campaign_fit_score || 0) >= CAMPAIGN_STRONG_PRODUCT_FIT_SCORE)
+    .filter((item) => Number(item.campaign_fit_score || 0) >= minimumScore)
     .sort((a, b) => Number(b.campaign_fit_score || 0) - Number(a.campaign_fit_score || 0));
 }
 
@@ -5965,7 +6009,7 @@ async function generateAutomationPost(openai, rule) {
 async function generateCarouselSlides(openai, rule, postContent) {
   const carouselProducts = getCarouselProducts(rule).filter(isValidCarouselProduct);
 
-  if (carouselProducts.length >= CAROUSEL_MIN_PRODUCT_SLIDES) {
+  if (carouselProducts.length > 0) {
     return generateProductCarouselSlides(openai, rule, postContent, carouselProducts);
   }
 
@@ -6243,7 +6287,7 @@ async function saveCarouselSlidesForPost({
   for (let index = 0; index < slides.length; index += 1) {
     const slide = slides[index] || {};
     const isOutroSlide = String(slide.slide_type || '').toLowerCase() === 'product_outro';
-    const sourceSlideImageUrl = slide.image_url || (!isOutroSlide && index === 0 ? imageUrl : null) || (!isOutroSlide ? selectedItem?.image_url : null) || null;
+    const sourceSlideImageUrl = slide.image_url || (!isOutroSlide && index === 0 ? imageUrl || selectedItem?.image_url : null) || null;
     let slideImageUrl = sourceSlideImageUrl;
     let slideStoragePath = !isOutroSlide && index === 0 ? imageStoragePath || null : null;
     let generatedImagePrompt = null;
