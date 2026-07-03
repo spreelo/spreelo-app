@@ -714,7 +714,7 @@ function selectCarouselProductsFromPool({
         lastUsedAtTs,
       };
     })
-    .filter((entry) => allowReuseWhenExhausted || entry.score > -500)
+    .filter((entry) => allowReuseWhenExhausted || (!entry.wasUsedRecently && !entry.imageUsedThisRun))
     .sort((a, b) => {
       if (isCampaignRule && a.campaignFitScore !== b.campaignFitScore) {
         return b.campaignFitScore - a.campaignFitScore;
@@ -4417,7 +4417,30 @@ async function findProductCandidatesFromDiscoveryPages({
 
   return dedupeUrlItems(candidates)
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
-    .slice(0, 12);
+    .slice(0, 60);
+}
+
+function sortFreshProductCandidatesFirst(candidates, usedWebsiteItems, websiteUrl) {
+  const rows = (candidates || []).map((item, index) => ({
+    item,
+    index,
+    wasUsedRecently: hasWebsiteItemAlreadyBeenUsed(item, usedWebsiteItems || [], websiteUrl),
+  }));
+
+  return rows
+    .sort((a, b) => {
+      if (a.wasUsedRecently !== b.wasUsedRecently) {
+        return a.wasUsedRecently ? 1 : -1;
+      }
+
+      const scoreDelta = Number(b.item?.score || 0) - Number(a.item?.score || 0);
+      if (scoreDelta !== 0) {
+        return scoreDelta;
+      }
+
+      return a.index - b.index;
+    })
+    .map((entry) => entry.item);
 }
 
 function getWebsiteOrigin(websiteUrl) {
@@ -5048,7 +5071,8 @@ JSON shape:
   ]
 }
 
-Return 1 to 5 real product pages if possible.
+Return 8 to 15 real product pages if possible when the website has many relevant products.
+For campaign carousels, breadth matters: include enough different concrete product pages that Spreelo can avoid recently used products.
 `.trim(),
   });
 
@@ -5163,7 +5187,7 @@ Return 1 to 5 real product pages if possible.
   }
 
   return {
-    products: dedupeUrlItems(validProducts).slice(0, 5),
+    products: dedupeUrlItems(validProducts).slice(0, 15),
     discoveryPages: dedupeUrlItems(validDiscoveryPages).slice(0, 8),
   };
 }
@@ -5179,7 +5203,7 @@ async function findWebsiteProductWithWebSearch({
   const verifiedItems = [];
   const seenUrls = new Set();
   const seenImages = new Set();
-  const MAX_VERIFIED_ITEMS = 12;
+  const MAX_VERIFIED_ITEMS = 30;
   const campaignPrompt = buildCampaignResearchText(rule);
 
   for (const attempt of attempts) {
@@ -5238,7 +5262,11 @@ async function findWebsiteProductWithWebSearch({
       }
     }
 
-    candidateProducts = dedupeUrlItems(candidateProducts).slice(0, 30);
+    candidateProducts = sortFreshProductCandidatesFirst(
+      dedupeUrlItems(candidateProducts),
+      usedWebsiteItems,
+      websiteUrl
+    ).slice(0, 80);
 
     if (!candidateProducts.length) {
       console.error("Product researcher discovery pages had no usable product candidates", {
