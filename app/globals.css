@@ -18005,3 +18005,199 @@ html body .saved-card-compact {
 .automation-page.campaign-planner-clean *::after {
   scroll-behavior: auto !important;
 }
+
+/* Step 94: compact post-analysis brand logo control. */
+.brand-profile-logo-compact-card {
+  margin: 18px 0 8px;
+  border-radius: 22px;
+  border: 1px solid rgba(219, 231, 246, 0.95);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.brand-profile-logo-compact-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.brand-logo-compact-thumb {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 118, 210, 0.16);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+}
+
+.brand-logo-compact-thumb.has-logo {
+  background:
+    linear-gradient(45deg, rgba(148, 163, 184, 0.12) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(148, 163, 184, 0.12) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(148, 163, 184, 0.12) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(148, 163, 184, 0.12) 75%),
+    #ffffff;
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+}
+
+.brand-logo-compact-thumb img {
+  max-width: 40px;
+  max-height: 40px;
+  object-fit: contain;
+}
+
+.brand-logo-compact-thumb span {
+  font-size: 10px;
+  font-weight: 850;
+  color: #0b66e4;
+  letter-spacing: 0.06em;
+}
+
+.brand-profile-logo-compact-main strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 850;
+  color: #132238;
+  margin-bottom: 3px;
+}
+
+.brand-profile-logo-compact-main p {
+  margin: 0;
+  color: #657890;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.brand-logo-compact-button {
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(11, 102, 228, 0.18);
+  background: #ffffff;
+  color: #064fd1;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(15, 35, 70, 0.05);
+}
+
+.brand-logo-compact-button:hover {
+  background: #f4f9ff;
+  box-shadow: 0 14px 28px rgba(15, 35, 70, 0.08);
+}
+
+.brand-logo-compact-button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.brand-logo-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(8, 20, 40, 0.44);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.brand-logo-modal {
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  position: relative;
+  border-radius: 28px;
+  border: 1px solid rgba(219, 231, 246, 0.98);
+  background: #ffffff;
+  box-shadow: 0 28px 90px rgba(8, 20, 40, 0.26);
+  padding: 28px;
+}
+
+.brand-logo-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(219, 231, 246, 0.95);
+  background: #ffffff;
+  color: #64748b;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.brand-logo-modal-close:hover {
+  background: #f8fbff;
+  color: #132238;
+}
+
+.brand-logo-modal-header {
+  padding-right: 42px;
+  margin-bottom: 18px;
+}
+
+.brand-logo-modal-header h3 {
+  margin: 4px 0 8px;
+  font-size: clamp(22px, 3vw, 30px);
+  color: #132238;
+  letter-spacing: -0.04em;
+}
+
+.brand-logo-modal-header p:last-child {
+  margin: 0;
+  color: #657890;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.brand-logo-upload-panel-modal {
+  margin-top: 0;
+}
+
+.brand-logo-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.brand-logo-upload-button {
+  text-align: center;
+}
+
+.brand-logo-upload-button span {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .brand-profile-logo-compact-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .brand-logo-compact-button {
+    width: 100%;
+  }
+
+  .brand-logo-modal {
+    padding: 22px;
+    border-radius: 24px;
+  }
+}

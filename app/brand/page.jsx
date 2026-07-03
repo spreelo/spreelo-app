@@ -218,7 +218,7 @@ export default function BrandProfile() {
   const [logoEnabledByDefault, setLogoEnabledByDefault] = useState(true);
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoMessage, setLogoMessage] = useState("");
-
+  const [showLogoModal, setShowLogoModal] = useState(false);
 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1294,76 +1294,6 @@ export default function BrandProfile() {
               )}
             </div>
 
-            <div className="brand-profile-form-section brand-logo-section">
-              <div className="brand-profile-section-title">
-                <div>
-                  <h4>{t("brand.logoTitle")}</h4>
-                  <p>{t("brand.logoText")}</p>
-                </div>
-
-                <span>{logoUrl ? t("brand.logoReady") : t("brand.logoOptional")}</span>
-              </div>
-
-              <div className="brand-logo-upload-panel">
-                <div className={`brand-logo-preview ${logoUrl ? "has-logo" : "empty"}`}>
-                  {logoUrl ? (
-                    <img src={logoUrl} alt={t("brand.logoPreviewAlt")} />
-                  ) : (
-                    <div>
-                      <span>PNG</span>
-                      <strong>{t("brand.logoPreviewEmpty")}</strong>
-                    </div>
-                  )}
-                </div>
-
-                <div className="brand-logo-controls">
-                  <div>
-                    <strong>{t("brand.logoUploadTitle")}</strong>
-                    <p>{t("brand.logoUploadText")}</p>
-                  </div>
-
-                  <div className="brand-logo-actions">
-                    <label className="brand-logo-upload-button">
-                      <input
-                        type="file"
-                        accept="image/png,image/webp,image/jpeg"
-                        onChange={handleLogoUpload}
-                        disabled={logoUploading || analyzing || saving || deletingBrand}
-                      />
-                      <span>{logoUploading ? t("brand.logoUploading") : t("brand.logoChooseFile")}</span>
-                    </label>
-
-                    {logoUrl && (
-                      <button
-                        type="button"
-                        className="brand-logo-remove-button"
-                        onClick={handleRemoveLogo}
-                        disabled={logoUploading || analyzing || saving || deletingBrand}
-                      >
-                        {t("brand.logoRemove")}
-                      </button>
-                    )}
-                  </div>
-
-                  <label className="checkbox-row brand-profile-checkbox brand-logo-default-toggle">
-                    <input
-                      type="checkbox"
-                      checked={logoEnabledByDefault}
-                      onChange={handleLogoDefaultChange}
-                      disabled={logoUploading || analyzing || saving || deletingBrand}
-                    />
-                    <span>{t("brand.logoDefaultToggle")}</span>
-                  </label>
-
-                  <p className="brand-profile-field-help">
-                    {t("brand.logoDefaultHelp")}
-                  </p>
-
-                  {logoMessage && <p className="brand-logo-message">{logoMessage}</p>}
-                </div>
-              </div>
-            </div>
-
             {showGeneratedFields && (
               <div className="brand-profile-form-section market">
                 <div className="brand-profile-section-title">
@@ -1457,6 +1387,42 @@ export default function BrandProfile() {
               </div>
             )}
 
+
+            {showGeneratedFields && (
+              <div className="brand-profile-logo-compact-card">
+                <div className="brand-profile-logo-compact-main">
+                  <div className={`brand-logo-compact-thumb ${logoUrl ? "has-logo" : "empty"}`}>
+                    {logoUrl ? (
+                      <img src={logoUrl} alt={t("brand.logoPreviewAlt")} />
+                    ) : (
+                      <span>PNG</span>
+                    )}
+                  </div>
+
+                  <div>
+                    <strong>{t("brand.logoCompactTitle")}</strong>
+                    <p>
+                      {logoUrl
+                        ? t("brand.logoCompactTextReady")
+                        : t("brand.logoCompactTextEmpty")}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="brand-logo-compact-button"
+                  onClick={() => {
+                    setLogoMessage("");
+                    setShowLogoModal(true);
+                  }}
+                  disabled={analyzing || saving || deletingBrand}
+                >
+                  {logoUrl ? t("brand.logoManageButton") : t("brand.logoAddButton")}
+                </button>
+              </div>
+            )}
+
             <button
               className="brand-profile-primary-button"
               type="button"
@@ -1521,6 +1487,105 @@ export default function BrandProfile() {
             </p>
           </section>
         </section>
+
+
+
+        {showLogoModal && (
+          <div className="brand-logo-modal-backdrop" role="presentation">
+            <div
+              className="brand-logo-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="brand-logo-modal-title"
+            >
+              <button
+                type="button"
+                className="brand-logo-modal-close"
+                onClick={() => setShowLogoModal(false)}
+                aria-label={t("brand.logoModalClose")}
+                disabled={logoUploading}
+              >
+                ×
+              </button>
+
+              <div className="brand-logo-modal-header">
+                <p className="dashboard-eyebrow">{t("brand.logoModalEyebrow")}</p>
+                <h3 id="brand-logo-modal-title">{t("brand.logoModalTitle")}</h3>
+                <p>{t("brand.logoModalText")}</p>
+              </div>
+
+              <div className="brand-logo-upload-panel brand-logo-upload-panel-modal">
+                <div className={`brand-logo-preview ${logoUrl ? "has-logo" : "empty"}`}>
+                  {logoUrl ? (
+                    <img src={logoUrl} alt={t("brand.logoPreviewAlt")} />
+                  ) : (
+                    <div>
+                      <span>PNG</span>
+                      <strong>{t("brand.logoPreviewEmpty")}</strong>
+                    </div>
+                  )}
+                </div>
+
+                <div className="brand-logo-controls">
+                  <div>
+                    <strong>{t("brand.logoUploadTitle")}</strong>
+                    <p>{t("brand.logoUploadText")}</p>
+                  </div>
+
+                  <div className="brand-logo-actions">
+                    <label className="brand-logo-upload-button">
+                      <input
+                        type="file"
+                        accept="image/png,image/webp,image/jpeg"
+                        onChange={handleLogoUpload}
+                        disabled={logoUploading || analyzing || saving || deletingBrand}
+                      />
+                      <span>{logoUploading ? t("brand.logoUploading") : t("brand.logoChooseFile")}</span>
+                    </label>
+
+                    {logoUrl && (
+                      <button
+                        type="button"
+                        className="brand-logo-remove-button"
+                        onClick={handleRemoveLogo}
+                        disabled={logoUploading || analyzing || saving || deletingBrand}
+                      >
+                        {t("brand.logoRemove")}
+                      </button>
+                    )}
+                  </div>
+
+                  <label className="checkbox-row brand-profile-checkbox brand-logo-default-toggle">
+                    <input
+                      type="checkbox"
+                      checked={logoEnabledByDefault}
+                      onChange={handleLogoDefaultChange}
+                      disabled={logoUploading || analyzing || saving || deletingBrand}
+                    />
+                    <span>{t("brand.logoDefaultToggle")}</span>
+                  </label>
+
+                  <p className="brand-profile-field-help">
+                    {t("brand.logoDefaultHelp")}
+                  </p>
+
+                  {logoMessage && <p className="brand-logo-message">{logoMessage}</p>}
+                </div>
+              </div>
+
+              <div className="brand-logo-modal-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setShowLogoModal(false)}
+                  disabled={logoUploading}
+                >
+                  {t("brand.logoModalDone")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <section className="danger-zone-card">
           <div>
