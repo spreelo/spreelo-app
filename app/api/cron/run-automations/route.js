@@ -17,6 +17,8 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_TIME_ZONE = "UTC";
 const BATCH_SIZE = 25;
+const CRON_RULE_PROCESSING_LOCK_MINUTES = 15;
+const RECENT_AUTOMATION_DRAFT_BLOCK_HOURS = 6;
 const APP_URL = "https://app.spreelo.com";
 const RESEND_FROM_EMAIL = "Spreelo <noreply@spreelo.com>";
 const WEBSITE_FETCH_TIMEOUT_MS = 12000;
@@ -28,6 +30,10 @@ const WEBSITE_PRODUCT_REUSE_LIMIT = 100;
 const WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT = 150;
 const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 120;
 const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 18;
+const CAROUSEL_AI_SCORE_MAX_ITEMS = 15;
+const CAROUSEL_DISCOVERY_VERIFY_LIMIT = 25;
+const CAROUSEL_WEB_SEARCH_MAX_VERIFIED_ITEMS = 8;
+const CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT = 24;
 const CAMPAIGN_STRONG_PRODUCT_FIT_SCORE = 80;
 const CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE = 60;
 const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
@@ -457,6 +463,134 @@ function getRuleUpdatePayloadAfterSuccess(rule, nowIso, now) {
   return payload;
 }
 
+function addMinutesIso(date, minutes) {
+  return new Date(date.getTime() + minutes * 60 * 1000).toISOString();
+}
+
+function subtractHoursIso(date, hours) {
+  return new Date(date.getTime() - hours * 60 * 60 * 1000).toISOString();
+}
+
+async function claimAutomationRuleForProcessing({ supabase, rule, now }) {
+  const lockUntilIso = addMinutesIso(now, CRON_RULE_PROCESSING_LOCK_MINUTES);
+  const claimStartedIso = new Date().toISOString();
+  let query = supabase
+    .from("automation_rules")
+    .update({
+      next_run_at: lockUntilIso,
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", rule.id)
+    .eq("is_active", true);
+
+  if (rule.next_run_at) {
+    query = query.lte("next_run_at", claimStartedIso);
+  } else {
+    query = query.is("next_run_at", null);
+  }
+
+  const { data, error } = await query.select("id").maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "Could not lock automation rule for processing");
+  }
+
+  return Boolean(data?.id);
+}
+
+async function findRecentAutomationDraftsForRule({ supabase, ruleId, now }) {
+  if (!ruleId) {
+    return [];
+  }
+
+  const sinceIso = subtractHoursIso(now, RECENT_AUTOMATION_DRAFT_BLOCK_HOURS);
+  const { data, error } = await supabase
+    .from("posts")
+    .select("id, status, created_at, content_format, slide_count, slide_generation_status, slide_render_status")
+    .eq("automation_rule_id", ruleId)
+    .in("status", ["pending_approval", "generating"])
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  if (error) {
+    throw new Error(error.message || "Could not check recent automation drafts");
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+function isCompleteAutomationDraft(post) {
+  if (normalizeContentFormat(post?.content_format) !== "carousel") {
+    return post?.status === "pending_approval";
+  }
+
+  return (
+    Number(post?.slide_count || 0) > 0 &&
+    String(post?.slide_generation_status || "").toLowerCase() === "ready"
+  );
+}
+
+function isIncompleteCarouselDraftPost(post) {
+  if (normalizeContentFormat(post?.content_format) !== "carousel") {
+    return false;
+  }
+
+  const slideCount = Number(post?.slide_count || 0);
+  const generationStatus = String(post?.slide_generation_status || "").toLowerCase();
+
+  return slideCount < 1 || generationStatus === "none" || generationStatus === "failed";
+}
+
+async function deleteIncompleteCarouselDrafts({ supabase, posts }) {
+  const postIds = (posts || [])
+    .filter(isIncompleteCarouselDraftPost)
+    .map((post) => post.id)
+    .filter(Boolean);
+
+  if (!postIds.length) {
+    return 0;
+  }
+
+  const { error: slideDeleteError } = await supabase
+    .from("post_slides")
+    .delete()
+    .in("post_id", postIds);
+
+  if (slideDeleteError) {
+    throw new Error(slideDeleteError.message || "Could not delete incomplete carousel slides");
+  }
+
+  const { error } = await supabase.from("posts").delete().in("id", postIds);
+
+  if (error) {
+    throw new Error(error.message || "Could not delete incomplete carousel drafts");
+  }
+
+  return postIds.length;
+}
+
+async function makeCompleteGeneratingDraftVisible({ supabase, post }) {
+  if (!post?.id || post.status !== "generating" || !isCompleteAutomationDraft(post)) {
+    return false;
+  }
+
+  const { error } = await supabase
+    .from("posts")
+    .update({
+      status: "pending_approval",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", post.id);
+
+  if (error) {
+    throw new Error(error.message || "Could not recover completed carousel draft");
+  }
+
+  return true;
+}
+
 function getLanguageInstruction(language) {
   if (!language || language === "Auto") {
     return `
@@ -805,11 +939,7 @@ function mergeCarouselProductSelections(primaryItems, fallbackItems, sourceUrl, 
 }
 
 function hasEnoughCarouselProductsForRule(products, rule) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
-    return (products || []).length >= CAROUSEL_MIN_PRODUCT_SLIDES;
-  }
-
-  return getStrongCampaignFitItems(products, rule).length >= CAROUSEL_MIN_PRODUCT_SLIDES;
+  return (products || []).filter(isValidCarouselProduct).length >= CAROUSEL_MIN_PRODUCT_SLIDES;
 }
 
 async function prepareCarouselProductsForRule({
@@ -858,13 +988,17 @@ async function prepareCarouselProductsForRule({
     allowReuseWhenExhausted: false,
   });
 
-  if (isCampaignRule && catalogItems.length && !hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
+  if (
+    isCampaignRule &&
+    catalogItems.length &&
+    getSupportingCampaignFitItems(selectedProducts, rule).length < CAROUSEL_MIN_PRODUCT_SLIDES
+  ) {
     catalogItems = await applyAiCampaignFitScores({
       openai,
       rule,
       brandProfile,
       items: catalogItems,
-      maxItems: 30,
+      maxItems: CAROUSEL_AI_SCORE_MAX_ITEMS,
       model: PRODUCT_RESEARCH_FAST_MODEL,
       escalateWhenUncertain: false,
     });
@@ -891,7 +1025,7 @@ async function prepareCarouselProductsForRule({
         const discoveredItems = await verifyDiscoveredWebsiteProductCandidates({
           candidates: discoveredCandidates,
           websiteUrl,
-          limit: 45,
+          limit: CAROUSEL_DISCOVERY_VERIFY_LIMIT,
         });
 
         catalogItems = [
@@ -910,10 +1044,10 @@ async function prepareCarouselProductsForRule({
             rule,
             brandProfile,
             items: catalogItems,
-            maxItems: 45,
+            maxItems: CAROUSEL_AI_SCORE_MAX_ITEMS,
             model: PRODUCT_RESEARCH_FAST_MODEL,
-            escalateWhenUncertain: true,
-            escalationMaxItems: 20,
+            escalateWhenUncertain: false,
+            escalationMaxItems: 0,
           });
         }
 
@@ -1020,7 +1154,10 @@ async function prepareCarouselProductsForRule({
     const selectedSupportingCampaignProducts = getSupportingCampaignFitItems(selectedProducts, rule);
     let campaignProducts = mergeCarouselProductSelections(
       selectedStrongCampaignProducts,
-      selectedSupportingCampaignProducts,
+      [
+        ...selectedSupportingCampaignProducts,
+        ...selectedProducts,
+      ],
       websiteUrl
     );
 
@@ -1037,7 +1174,10 @@ async function prepareCarouselProductsForRule({
       const reusableSupportingCampaignProducts = getSupportingCampaignFitItems(reusableCampaignProducts, rule);
       const reusableFallbackCampaignProducts = mergeCarouselProductSelections(
         reusableStrongCampaignProducts,
-        reusableSupportingCampaignProducts,
+        [
+          ...reusableSupportingCampaignProducts,
+          ...reusableCampaignProducts,
+        ],
         websiteUrl
       );
       const mergedCampaignProducts = mergeCarouselProductSelections(
@@ -1059,12 +1199,6 @@ async function prepareCarouselProductsForRule({
       campaignProducts = mergedCampaignProducts;
     }
 
-    if (!campaignProducts.length) {
-      throw new Error(
-        `Campaign carousel needs at least 1 clearly campaign-relevant product with a product image. Found 0. Spreelo refused to fill the campaign with generic website products.`
-      );
-    }
-
     if (campaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
       console.warn("Campaign carousel has fewer unique campaign products than the product-slide target; continuing without duplicating product images", {
         ruleId: rule.id,
@@ -1075,13 +1209,36 @@ async function prepareCarouselProductsForRule({
       });
     }
 
-    selectedProducts = campaignProducts;
+    if (campaignProducts.length) {
+      selectedProducts = campaignProducts;
+    }
   }
 
-  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES && !isCampaignRule) {
-    throw new Error(
-      `Website carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} products with product images. Found ${selectedProducts.length}.`
+  if (selectedProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+    const reusableProducts = selectCarouselProductsFromPool({
+      items: catalogItems,
+      rule,
+      sourceUrl: websiteUrl,
+      recentUsedItems,
+      usedWebsiteImageUrlsThisRun,
+      allowReuseWhenExhausted: true,
+    });
+    const mergedProducts = mergeCarouselProductSelections(
+      selectedProducts,
+      reusableProducts,
+      websiteUrl
     );
+
+    if (mergedProducts.length > selectedProducts.length) {
+      cycleNumber += 1;
+      summary.website_items_reused_cycle += 1;
+      selectedProducts = mergedProducts;
+    }
+  }
+
+  if (!selectedProducts.length) {
+    const fallbackPool = dedupeWebsiteItemsByUrlTitleAndImage(catalogItems);
+    selectedProducts = fallbackPool.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
   }
 
   for (const product of selectedProducts) {
@@ -1589,6 +1746,10 @@ function createEmptySummary() {
     processed: 0,
     generated: 0,
     skipped: 0,
+    skipped_locked: 0,
+    skipped_existing_draft: 0,
+    recovered_completed_drafts: 0,
+    cleaned_incomplete_carousel_drafts: 0,
     errors: 0,
     warnings: 0,
     pending_approval: 0,
@@ -3315,7 +3476,7 @@ function formatProductsForCampaignFitPrompt(candidates) {
 
 function getReasoningOptionsForModel(model) {
   return /^gpt-5/i.test(String(model || ""))
-    ? { reasoning: { effort: "medium" } }
+    ? { reasoning: { effort: "low" } }
     : {};
 }
 
@@ -5077,7 +5238,7 @@ const response = await openai.responses.create({
   tools: [{ type: "web_search" }],
   tool_choice: "required",
   reasoning: {
-    effort: "medium",
+    effort: "low",
   },
   input: `
 You are a product researcher for a social media automation app.
@@ -5221,8 +5382,8 @@ JSON shape:
   ]
 }
 
-Return 8 to 15 real product pages if possible when the website has many relevant products.
-For campaign carousels, breadth matters: include enough different concrete product pages that Spreelo can avoid recently used products.
+Return 5 to 8 real product pages if possible.
+For campaign carousels, stop once you have enough concrete product pages for a useful carousel. Do not keep searching for perfect products when five good-enough products are available.
 `.trim(),
   });
 
@@ -5337,8 +5498,8 @@ For campaign carousels, breadth matters: include enough different concrete produ
   }
 
   return {
-    products: dedupeUrlItems(validProducts).slice(0, 15),
-    discoveryPages: dedupeUrlItems(validDiscoveryPages).slice(0, 8),
+    products: dedupeUrlItems(validProducts).slice(0, 8),
+    discoveryPages: dedupeUrlItems(validDiscoveryPages).slice(0, 4),
   };
 }
 
@@ -5349,11 +5510,11 @@ async function findWebsiteProductWithWebSearch({
   websiteUrl,
   usedWebsiteItems = [],
 }) {
-  const attempts = ["best_match", "backup_broad"];
+  const attempts = ["best_match"];
   const verifiedItems = [];
   const seenUrls = new Set();
   const seenImages = new Set();
-  const MAX_VERIFIED_ITEMS = 30;
+  const MAX_VERIFIED_ITEMS = CAROUSEL_WEB_SEARCH_MAX_VERIFIED_ITEMS;
   const campaignPrompt = buildCampaignResearchText(rule);
 
   for (const attempt of attempts) {
@@ -5416,7 +5577,7 @@ async function findWebsiteProductWithWebSearch({
       dedupeUrlItems(candidateProducts),
       usedWebsiteItems,
       websiteUrl
-    ).slice(0, 80);
+    ).slice(0, CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT);
 
     if (!candidateProducts.length) {
       console.error("Product researcher discovery pages had no usable product candidates", {
@@ -7725,6 +7886,56 @@ export async function GET(request) {
           continue;
         }
 
+        const claimed = await claimAutomationRuleForProcessing({
+          supabase,
+          rule,
+          now,
+        });
+
+        if (!claimed) {
+          summary.skipped += 1;
+          summary.skipped_locked += 1;
+          continue;
+        }
+
+        const recentDrafts = await findRecentAutomationDraftsForRule({
+          supabase,
+          ruleId: rule.id,
+          now,
+        });
+
+        const cleanedIncompleteDrafts = await deleteIncompleteCarouselDrafts({
+          supabase,
+          posts: recentDrafts,
+        });
+
+        if (cleanedIncompleteDrafts > 0) {
+          summary.cleaned_incomplete_carousel_drafts += cleanedIncompleteDrafts;
+        }
+
+        const existingCompleteDraft = recentDrafts.find(isCompleteAutomationDraft);
+
+        if (existingCompleteDraft) {
+          const recovered = await makeCompleteGeneratingDraftVisible({
+            supabase,
+            post: existingCompleteDraft,
+          });
+
+          if (recovered) {
+            summary.recovered_completed_drafts += 1;
+          }
+
+          await setRuleError(
+            supabase,
+            rule.id,
+            "Skipped because this automation rule already has a recent completed draft awaiting review."
+          );
+
+          summary.skipped += 1;
+          summary.skipped_existing_draft += 1;
+          continue;
+        }
+
 
         const creditCost = Number(rule.credit_cost || 1);
 
@@ -7790,18 +8001,10 @@ let useWebsiteImage = false;
             const message = carouselError.message ||
               `Website carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} products with product images.`;
 
-            await supabase
-              .from("automation_rules")
-              .update({
-                is_active: false,
-                next_run_at: null,
-                last_error: message,
-                updated_at: nowIso,
-              })
-              .eq("id", rule.id);
+            await setRuleError(supabase, rule.id, message);
 
             summary.skipped += 1;
-            summary.carousel_generation_paused += 1;
+            summary.website_content_failed += 1;
             continue;
           }
         } else if (rule.uses_website_content) {
@@ -7855,7 +8058,8 @@ let useWebsiteImage = false;
 
     const approvalRequired = true;
 const approvalToken = crypto.randomBytes(32).toString("hex");
-const postStatus = "pending_approval";
+const postStatus = isCarouselRule(rule) ? "generating" : "pending_approval";
+let effectivePostStatus = postStatus;
 const wantsImage = Boolean(rule.generate_image);
 
 const { data: post, error: postError } = await supabase
@@ -8074,6 +8278,23 @@ product_research_model_used: rule.uses_website_content
               imageUrl,
               imageStoragePath,
             });
+
+            const { error: carouselReadyStatusError } = await supabase
+              .from("posts")
+              .update({
+                status: "pending_approval",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", post.id);
+
+            if (carouselReadyStatusError) {
+              throw new Error(
+                carouselReadyStatusError.message ||
+                  "Could not mark carousel draft ready for approval"
+              );
+            }
+
+            effectivePostStatus = "pending_approval";
           } catch (carouselSlideError) {
             await supabase.from("post_slides").delete().eq("post_id", post.id);
             await supabase.from("posts").delete().eq("id", post.id);
@@ -8121,7 +8342,7 @@ product_research_model_used: rule.uses_website_content
           }
         }
 
-        if (postStatus === "pending_approval") {
+        if (effectivePostStatus === "pending_approval") {
           if (!resendApiKey) {
             summary.warnings += 1;
             summary.emails_failed += 1;
@@ -8217,11 +8438,11 @@ product_research_model_used: rule.uses_website_content
 
         summary.generated += 1;
 
-        if (postStatus === "pending_approval") {
+        if (effectivePostStatus === "pending_approval") {
           summary.pending_approval += 1;
         }
 
-      if (postStatus === "approved") {
+      if (effectivePostStatus === "approved") {
   summary.approved += 1;
 }
       } catch (error) {
