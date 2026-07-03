@@ -3325,6 +3325,8 @@ Important:
 - A concrete product page that clearly fits the campaign should score high.
 - A generic category, collection, search, brand, guide or landing page must score 0 even if its title matches the campaign.
 - A broad custom product or unrelated bestseller must score low when more specific campaign products exist.
+- Named occasion priority: if the campaign is built around a specific holiday, season, event, theme day or cultural occasion, products whose title, URL, description, image context or page context directly references that exact occasion in the website's own language must beat generic gifts, personalized products, bestsellers, pet portraits, custom-print items or broad category items.
+- Generic gift or personalized products can be strong only when no more explicit occasion-specific products are available in the candidate batch.
 - Prefer products that naturally support the campaign reason to buy, not products that merely share generic words with the prompt.
 - Do not reward generic words such as product, shop, buy, custom, print, collection, gift, offer, post or social media unless the product itself clearly fits the campaign.
 
@@ -4910,7 +4912,7 @@ async function findProductUrlWithWebSearch({
   }
 
   const websiteHost = getHostnameWithoutWww(websiteUrl);
-  const campaignPrompt = String(rule?.prompt || "").trim();
+  const campaignPrompt = buildCampaignResearchText(rule) || String(rule?.prompt || "").trim();
 
   if (!websiteHost) {
     return {
@@ -4997,6 +4999,7 @@ Do not choose a product just because it exists on the website.
 Choose products because they match the campaign intent.
 
 Search strategy:
+- First infer the customer's website language and the local words the website is likely to use for the campaign/holiday/season/occasion. Use those local-language terms in search queries before generic gift or product searches.
 - First search the customer site for category, collection, campaign, search-result or landing pages that match the campaign/theme/occasion in the site's own language.
 - Open the most relevant campaign/theme/category area and identify concrete product pages from there.
 - Search for specific product categories that fit the campaign.
@@ -5034,6 +5037,8 @@ Ranking rules:
 - Prefer products with strong emotional, practical, seasonal or gift relevance.
 - Avoid products aimed at the wrong recipient or wrong age group if better options exist.
 - Avoid generic products that only loosely match the theme.
+- If the campaign has a specific named holiday, season, event, theme day or cultural occasion, products whose own title, URL, product image context or product page text directly references that occasion must be ranked before generic giftable/personalized/custom products.
+- Generic giftable products, personalized products, pet portraits, custom-print products and broad bestsellers are fallback choices only when no concrete occasion-specific product pages can be found.
 - If a campaign/theme-specific area on the customer site contains concrete product pages, those concrete products should beat generic homepage products unless there is a clear reason not to.
 - If several products fit, prefer the one that is easiest to explain in a clear, useful and attractive post.
 
