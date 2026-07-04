@@ -1153,9 +1153,6 @@ async function prepareCarouselProductsForRule({
   }
 
   let triedStoreSearchForCampaign = false;
-  let themeLockedCampaignItems = isCampaignRule
-    ? getDirectThemeLockedCampaignItems(catalogItems, rule)
-    : [];
 
   async function mergeStoreSearchCandidatesIntoCatalog({
     selectionPriority = 75,
@@ -1184,47 +1181,21 @@ async function prepareCarouselProductsForRule({
         return false;
       }
 
-      const directThemeStoreSearchItems = getDirectThemeLockedCampaignItems(
-        storeSearchItems,
-        rule
-      );
-      const hasEnoughDirectThemeStoreItems =
-        directThemeStoreSearchItems.length >= CAROUSEL_MIN_PRODUCT_SLIDES;
-      const storeSearchItemsForCatalog = hasEnoughDirectThemeStoreItems
-        ? directThemeStoreSearchItems
-        : storeSearchItems;
-
-      if (directThemeStoreSearchItems.length) {
-        themeLockedCampaignItems = mergeCarouselProductSelections(
-          themeLockedCampaignItems,
-          directThemeStoreSearchItems,
-          websiteUrl,
-          WEBSITE_STORE_SEARCH_VERIFY_LIMIT
-        );
-      }
-
       catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
-        ...storeSearchItemsForCatalog.map((item) => {
-          const directThemeMatch = itemDirectlyMatchesThemeLock(item, rule);
+        ...storeSearchItems.map((item) => {
           const campaignFitScore = scoreCampaignFitForRule(item, rule);
           const primaryMatchCount = countPrimaryCampaignTermMatches(item, rule);
-          const safeSelectionPriority = directThemeMatch
-            ? 280
-            : primaryMatchCount > 0
+          const safeSelectionPriority = primaryMatchCount > 0
             ? Math.max(selectionPriority, 140)
             : selectionPriority;
 
           return {
             ...item,
             selection_priority: Math.max(Number(item.selection_priority || 0), safeSelectionPriority),
-            campaign_fit_source: directThemeMatch
-              ? "store_search_theme_locked"
-              : item.campaign_fit_source || "store_search",
+            campaign_fit_source: item.campaign_fit_source || "store_search",
             campaign_fit_score: Math.max(
               Number(item.campaign_fit_score || 0),
-              directThemeMatch
-                ? CAMPAIGN_STRONG_PRODUCT_FIT_SCORE + 35
-                : campaignFitScore + scoreBonus
+              campaignFitScore + scoreBonus
             ),
           };
         }),
@@ -1240,8 +1211,6 @@ async function prepareCarouselProductsForRule({
         websiteUrl,
         storeSearchCandidateCount: storeSearchCandidates.length,
         storeSearchItemCount: storeSearchItems.length,
-        directThemeStoreSearchItemCount: directThemeStoreSearchItems.length,
-        usingDirectThemeOnly: hasEnoughDirectThemeStoreItems,
       });
 
       return true;
@@ -1261,53 +1230,14 @@ async function prepareCarouselProductsForRule({
     await mergeStoreSearchCandidatesIntoCatalog();
   }
 
-  let selectedProducts = [];
-
-  if (isCampaignRule && themeLockedCampaignItems.length >= CAROUSEL_MIN_PRODUCT_SLIDES) {
-    const freshThemeLockedProducts = selectCarouselProductsFromPool({
-      items: themeLockedCampaignItems,
-      rule,
-      sourceUrl: websiteUrl,
-      recentUsedItems,
-      usedWebsiteImageUrlsThisRun,
-      allowReuseWhenExhausted: false,
-    });
-    const reusableThemeLockedProducts = selectCarouselProductsFromPool({
-      items: themeLockedCampaignItems,
-      rule,
-      sourceUrl: websiteUrl,
-      recentUsedItems,
-      usedWebsiteImageUrlsThisRun,
-      allowReuseWhenExhausted: true,
-    });
-
-    selectedProducts = fillCarouselProductSelection(
-      freshThemeLockedProducts,
-      [
-        themeLockedCampaignItems,
-        reusableThemeLockedProducts,
-      ],
-      websiteUrl
-    );
-
-    console.log("Campaign carousel preselected direct theme-locked products", {
-      ruleId: rule.id,
-      brandProfileId: rule.brand_profile_id,
-      websiteUrl,
-      themeLockedCount: themeLockedCampaignItems.length,
-      freshSelectedCount: freshThemeLockedProducts.length,
-      selectedCount: selectedProducts.length,
-    });
-  } else {
-    selectedProducts = selectCarouselProductsFromPool({
-      items: catalogItems,
-      rule,
-      sourceUrl: websiteUrl,
-      recentUsedItems,
-      usedWebsiteImageUrlsThisRun,
-      allowReuseWhenExhausted: false,
-    });
-  }
+  let selectedProducts = selectCarouselProductsFromPool({
+    items: catalogItems,
+    rule,
+    sourceUrl: websiteUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+    allowReuseWhenExhausted: false,
+  });
 
   if (isCampaignRule && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET && catalogItems.length) {
     const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
@@ -1609,49 +1539,31 @@ async function prepareCarouselProductsForRule({
   }
 
   if (isCampaignRule) {
-    const directThemeLockedCatalogItems = getDirectThemeLockedCampaignItems(
+    const primaryCampaignMatchedItems = getPrimaryCampaignMatchedItems(
       [
-        ...themeLockedCampaignItems,
         ...selectedProducts,
         ...catalogItems,
       ],
       rule
     );
-    const useDirectThemeLockedItems =
-      directThemeLockedCatalogItems.length >= CAROUSEL_MIN_PRODUCT_SLIDES;
-    const primaryCampaignMatchedItems = useDirectThemeLockedItems
-      ? directThemeLockedCatalogItems
-      : getPrimaryCampaignMatchedItems(
-          [
-            ...selectedProducts,
-            ...catalogItems,
-          ],
-          rule
-        );
     const prioritizedPrimaryCampaignMatchedItems = primaryCampaignMatchedItems.map((item) => ({
       ...item,
-      selection_priority: Math.max(Number(item.selection_priority || 0), useDirectThemeLockedItems ? 300 : 220),
-      campaign_fit_source: useDirectThemeLockedItems
-        ? item.campaign_fit_source || "direct_theme_lock"
-        : item.campaign_fit_source || "primary_campaign_term_match",
-      campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), useDirectThemeLockedItems ? 115 : 90),
+      selection_priority: Math.max(Number(item.selection_priority || 0), 220),
+      campaign_fit_source: item.campaign_fit_source || "primary_campaign_term_match",
+      campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), 90),
     }));
-    const selectedStrongCampaignProducts = getStrongCampaignFitItems(selectedProducts, rule);
-    const selectedSupportingCampaignProducts = getSupportingCampaignFitItems(selectedProducts, rule)
-      .filter((item) => !selectedStrongCampaignProducts.some((strongItem) => areSameWebsiteItem(strongItem, item, websiteUrl)));
+    const selectedSafeCampaignProducts = getSafeCampaignProductCandidates(selectedProducts, rule);
     const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
-      items: useDirectThemeLockedItems ? directThemeLockedCatalogItems : catalogItems,
+      items: catalogItems,
       rule,
       sourceUrl: websiteUrl,
       recentUsedItems,
       usedWebsiteImageUrlsThisRun,
     });
-    const freshPrimaryCampaignFallbackProducts = useDirectThemeLockedItems
-      ? freshCampaignFallbackProducts
-      : getPrimaryCampaignMatchedItems(
-          freshCampaignFallbackProducts,
-          rule
-        );
+    const freshPrimaryCampaignFallbackProducts = getSafeCampaignProductCandidates(
+      freshCampaignFallbackProducts,
+      rule
+    );
 
     const freshPrimaryCampaignProducts = prioritizedPrimaryCampaignMatchedItems.length
       ? selectCarouselProductsFromPool({
@@ -1680,46 +1592,33 @@ async function prepareCarouselProductsForRule({
           freshPrimaryCampaignProducts,
           [
             freshPrimaryCampaignFallbackProducts,
-            freshCampaignFallbackProducts,
             reusablePrimaryCampaignProducts,
             prioritizedPrimaryCampaignMatchedItems,
           ],
           websiteUrl
         )
       : fillCarouselProductSelection(
-          mergeCarouselProductSelections(
-            selectedStrongCampaignProducts,
-            selectedSupportingCampaignProducts,
-            websiteUrl
-          ),
+          selectedSafeCampaignProducts,
           [
-            freshCampaignFallbackProducts,
+            freshPrimaryCampaignFallbackProducts,
           ],
           websiteUrl
         );
 
     if (campaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
       const reusableCampaignProducts = selectCarouselProductsFromPool({
-        items: useDirectThemeLockedItems ? directThemeLockedCatalogItems : catalogItems,
+        items: catalogItems,
         rule,
         sourceUrl: websiteUrl,
         recentUsedItems,
         usedWebsiteImageUrlsThisRun,
         allowReuseWhenExhausted: true,
       });
-      const reusableStrongCampaignProducts = getStrongCampaignFitItems(reusableCampaignProducts, rule);
-      const reusableSupportingCampaignProducts = getSupportingCampaignFitItems(reusableCampaignProducts, rule)
-        .filter((item) => !reusableStrongCampaignProducts.some((strongItem) => areSameWebsiteItem(strongItem, item, websiteUrl)));
-      const reusableCampaignFitProducts = mergeCarouselProductSelections(
-        reusableStrongCampaignProducts,
-        reusableSupportingCampaignProducts,
-        websiteUrl
-      );
+      const reusableCampaignFitProducts = getSafeCampaignProductCandidates(reusableCampaignProducts, rule);
       let mergedCampaignProducts = fillCarouselProductSelection(
         campaignProducts,
         [
           freshPrimaryCampaignFallbackProducts,
-          freshCampaignFallbackProducts,
           reusableCampaignFitProducts,
         ],
         websiteUrl
@@ -1734,7 +1633,6 @@ async function prepareCarouselProductsForRule({
           campaignProducts,
           [
             freshPrimaryCampaignFallbackProducts,
-            freshCampaignFallbackProducts,
             reusablePrimaryCampaignProducts,
             prioritizedPrimaryCampaignMatchedItems,
           ],
@@ -1798,25 +1696,15 @@ async function prepareCarouselProductsForRule({
   }
 
   if (isCampaignRule && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
-    const directThemeLockedFillItems = getDirectThemeLockedCampaignItems(
-      [
-        ...themeLockedCampaignItems,
-        ...selectedProducts,
-        ...catalogItems,
-      ],
-      rule
-    );
-    const useDirectThemeLockedFill =
-      directThemeLockedFillItems.length >= CAROUSEL_MIN_PRODUCT_SLIDES;
     const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
-      items: useDirectThemeLockedFill ? directThemeLockedFillItems : catalogItems,
+      items: catalogItems,
       rule,
       sourceUrl: websiteUrl,
       recentUsedItems,
       usedWebsiteImageUrlsThisRun,
     });
     const reusableCampaignProducts = selectCarouselProductsFromPool({
-      items: useDirectThemeLockedFill ? directThemeLockedFillItems : catalogItems,
+      items: catalogItems,
       rule,
       sourceUrl: websiteUrl,
       recentUsedItems,
@@ -1826,17 +1714,9 @@ async function prepareCarouselProductsForRule({
     const filledCampaignProducts = fillCarouselProductSelection(
       selectedProducts,
       [
-        useDirectThemeLockedFill
-          ? freshCampaignFallbackProducts
-          : getPrimaryCampaignMatchedItems(freshCampaignFallbackProducts, rule),
-        freshCampaignFallbackProducts,
-        useDirectThemeLockedFill
-          ? reusableCampaignProducts
-          : getPrimaryCampaignMatchedItems(reusableCampaignProducts, rule),
-        getStrongCampaignFitItems(reusableCampaignProducts, rule),
-        useDirectThemeLockedFill
-          ? directThemeLockedFillItems
-          : getPrimaryCampaignMatchedItems(catalogItems, rule),
+        getSafeCampaignProductCandidates(freshCampaignFallbackProducts, rule),
+        getSafeCampaignProductCandidates(reusableCampaignProducts, rule),
+        getSafeCampaignProductCandidates(catalogItems, rule),
       ],
       websiteUrl
     );
@@ -4385,12 +4265,7 @@ function extractCompactPrimaryCampaignRoots(explicitTerms) {
     if (isUsefulShortCampaignRoot(prefix)) {
       sharedRoots.push(prefix);
     } else if (prefix.length > 6) {
-      const compactRoot = prefix.slice(0, 3);
-
-      if (isUsefulShortCampaignRoot(compactRoot)) {
-        sharedRoots.push(compactRoot);
-        sharedRoots.push(prefix);
-      }
+      sharedRoots.push(prefix);
     }
   }
 
@@ -4473,132 +4348,6 @@ function getWebsiteItemCampaignText(item) {
     .join(" ");
 }
 
-function getWebsiteItemDirectCampaignText(item) {
-  return [
-    item?.title,
-    item?.url,
-    item?.product_url,
-    item?.item_url,
-    item?.source_url,
-    item?.description,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
-function isCampaignTermRelatedToCompactRoots(term, roots) {
-  const normalizedTerm = normalizeSearchText(term).trim();
-  const tokens = tokenizeSearchText(normalizedTerm);
-
-  if (!normalizedTerm || !Array.isArray(roots) || !roots.length) {
-    return false;
-  }
-
-  return roots.some((root) => (
-    normalizedTerm === root ||
-    hasCampaignPhraseMatch(normalizedTerm, root) ||
-    tokens.some((token) => token.startsWith(root) && token.length >= root.length + 2)
-  ));
-}
-
-function getThemeLockCampaignTerms(rule) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
-    return [];
-  }
-
-  const explicitTerms = extractExplicitCampaignMatchTerms(rule);
-  const compactPrimaryRoots = extractCompactPrimaryCampaignRoots(explicitTerms);
-  const fallbackPrimaryTerms = explicitTerms.length ? [] : extractPrimaryCampaignTerms(rule);
-  const rootRelatedExplicitTerms = compactPrimaryRoots.length
-    ? explicitTerms.filter((term) => isCampaignTermRelatedToCompactRoots(term, compactPrimaryRoots))
-    : explicitTerms;
-
-  return collectUniqueTerms(
-    [
-      ...rootRelatedExplicitTerms,
-      ...compactPrimaryRoots,
-      ...fallbackPrimaryTerms,
-    ],
-    24
-  ).filter((term) => {
-    const normalizedTerm = normalizeSearchText(term).trim();
-
-    return (
-      normalizedTerm.length >= 3 &&
-      !/^\d+$/.test(normalizedTerm) &&
-      (normalizedTerm.length >= 5 || isUsefulShortCampaignRoot(normalizedTerm))
-    );
-  });
-}
-
-function itemDirectlyMatchesThemeLock(item, rule) {
-  const terms = getThemeLockCampaignTerms(rule);
-
-  if (!terms.length) {
-    return false;
-  }
-
-  const directText = getWebsiteItemDirectCampaignText(item);
-  const normalizedText = normalizeSearchText(directText);
-  const tokens = tokenizeSearchText(directText);
-
-  if (!normalizedText || !tokens.length) {
-    return false;
-  }
-
-  for (const term of terms) {
-    const normalizedTerm = normalizeSearchText(term).trim();
-
-    if (!normalizedTerm) {
-      continue;
-    }
-
-    if (hasCampaignPhraseMatch(directText, normalizedTerm)) {
-      return true;
-    }
-
-    if (normalizedTerm.length >= 5 && normalizedText.includes(normalizedTerm)) {
-      return true;
-    }
-
-    if (
-      isUsefulShortCampaignRoot(normalizedTerm) &&
-      tokens.some((token) => token.startsWith(normalizedTerm) && token.length >= normalizedTerm.length + 2)
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function getDirectThemeLockedCampaignItems(items, rule) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
-    return [];
-  }
-
-  return dedupeWebsiteItemsByUrlTitleAndImage(items)
-    .filter((item) => itemDirectlyMatchesThemeLock(item, rule))
-    .map((item) => ({
-      ...item,
-      selection_priority: Math.max(Number(item.selection_priority || 0), 280),
-      campaign_fit_source: item.campaign_fit_source || "direct_theme_lock",
-      campaign_fit_score: Math.max(
-        Number(item.campaign_fit_score || 0),
-        scoreCampaignFitForRule(item, rule),
-        CAMPAIGN_STRONG_PRODUCT_FIT_SCORE + 30
-      ),
-    }))
-    .sort((a, b) => {
-      const matchDelta =
-        countPrimaryCampaignTermMatches(b, rule) -
-        countPrimaryCampaignTermMatches(a, rule);
-      if (matchDelta !== 0) return matchDelta;
-
-      return scoreCampaignFitForRule(b, rule) - scoreCampaignFitForRule(a, rule);
-    });
-}
-
 function countPrimaryCampaignTermMatches(item, rule) {
   const terms = extractPrimaryCampaignTerms(rule);
 
@@ -4664,6 +4413,28 @@ function getPrimaryCampaignMatchedItems(items, rule) {
 
       return scoreWebsiteItemForRule(b, rule) - scoreWebsiteItemForRule(a, rule);
     });
+}
+
+function getSafeCampaignProductCandidates(items, rule) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return [];
+  }
+
+  const explicitTerms = extractExplicitCampaignMatchTerms(rule);
+  const primaryMatchedItems = getPrimaryCampaignMatchedItems(items, rule);
+
+  // When the campaign has AI-generated product_match_terms, those terms are the
+  // safe filter. Store search, catalog history, and AI scores can support the
+  // ranking, but they must not turn generic products into campaign product cards.
+  if (explicitTerms.length) {
+    return primaryMatchedItems;
+  }
+
+  if (primaryMatchedItems.length) {
+    return primaryMatchedItems;
+  }
+
+  return getStrongCampaignFitItems(items, rule);
 }
 
 function getAiCampaignFitScore(item) {
@@ -6080,16 +5851,12 @@ function buildCampaignDiscoverySearches(campaignPrompt) {
   const searches = [];
 
   const safeRootTerms = extractCompactPrimaryCampaignRoots(explicitTerms);
-  const rootRelatedExplicitTerms = safeRootTerms.length
-    ? explicitTerms.filter((term) => isCampaignTermRelatedToCompactRoots(term, safeRootTerms))
-    : explicitTerms;
+  for (const term of [...explicitTerms, ...terms].slice(0, 8)) {
+    addCampaignSearchVariants(searches, term, { allowShortRoot: false });
+  }
 
   for (const rootTerm of safeRootTerms) {
     addCampaignSearchVariants(searches, rootTerm, { allowShortRoot: false });
-  }
-
-  for (const term of [...rootRelatedExplicitTerms, ...terms].slice(0, 8)) {
-    addCampaignSearchVariants(searches, term, { allowShortRoot: false });
   }
 
   const normalizedPrompt = normalizeSearchText(campaignPrompt);
