@@ -3972,13 +3972,74 @@ function normalizeSearchText(value) {
 function extractPromptLineValue(prompt, label) {
   const escapedLabel = String(label || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = String(prompt || "").match(
-    new RegExp(`^${escapedLabel}:\\s*(.+)$`, "im")
+    new RegExp(`^\\s*(?:[-*]\\s*)?${escapedLabel}:\\s*(.+)$`, "im")
   );
 
   return match?.[1]?.trim() || "";
 }
 
+function splitCampaignTermLine(value) {
+  return String(value || "")
+    .split(/[,;|\n]+/u)
+    .map((term) => normalizeSearchText(term).trim())
+    .filter((term) => term.length >= 2 && term.length <= 70 && !/^\d+$/.test(term));
+}
+
+function collectUniqueTerms(terms, limit = 24) {
+  const seen = new Set();
+  const unique = [];
+
+  for (const term of terms || []) {
+    const normalized = normalizeSearchText(term).trim();
+
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    unique.push(normalized);
+
+    if (unique.length >= limit) {
+      break;
+    }
+  }
+
+  return unique;
+}
+
+function extractExplicitCampaignMatchTerms(rule) {
+  const prompt = String(rule?.prompt || "");
+  return collectUniqueTerms(
+    [
+      ...splitCampaignTermLine(rule?.product_match_terms),
+      ...splitCampaignTermLine(rule?.product_search_queries),
+      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Product match terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Campaign product match terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Product terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Product search queries")),
+      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Search queries")),
+      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Local search queries")),
+    ],
+    30
+  );
+}
+
+function extractCampaignAvoidTerms(rule) {
+  const prompt = String(rule?.prompt || "");
+  return collectUniqueTerms(
+    [
+      ...splitCampaignTermLine(rule?.product_avoid_terms),
+      ...splitCampaignTermLine(rule?.avoid_terms),
+      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Avoid product terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Avoid terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Campaign avoid terms")),
+    ],
+    30
+  );
+}
+
 function extractCampaignTerms(rule) {
+  const explicitTerms = extractExplicitCampaignMatchTerms(rule);
   const prompt = String(rule?.prompt || "");
   const source = [
     rule?.name,
@@ -4003,13 +4064,13 @@ function extractCampaignTerms(rule) {
   const seen = new Set();
   const terms = [];
 
-  for (const word of rawWords) {
+  for (const word of [...explicitTerms, ...rawWords]) {
     if (seen.has(word)) {
       continue;
     }
     seen.add(word);
     terms.push(word);
-    if (terms.length >= 12) {
+    if (terms.length >= 24) {
       break;
     }
   }
@@ -4018,6 +4079,7 @@ function extractCampaignTerms(rule) {
 }
 
 function extractPrimaryCampaignTerms(rule) {
+  const explicitTerms = extractExplicitCampaignMatchTerms(rule);
   const prompt = String(rule?.prompt || "");
   const source = [
     rule?.name,
@@ -4037,13 +4099,13 @@ function extractPrimaryCampaignTerms(rule) {
   const seen = new Set();
   const terms = [];
 
-  for (const word of rawWords) {
+  for (const word of [...explicitTerms, ...rawWords]) {
     if (seen.has(word)) {
       continue;
     }
     seen.add(word);
     terms.push(word);
-    if (terms.length >= 6) {
+    if (terms.length >= 10) {
       break;
     }
   }
@@ -4391,13 +4453,11 @@ function scoreCampaignFitForRule(item, rule) {
 
   const aiScore = getAiCampaignFitScore(item);
 
-  if (aiScore !== null) {
-    return aiScore;
-  }
-
   const terms = extractCampaignTerms(rule);
-  if (!terms.length) {
-    return Number(item?.campaign_fit_score || 0);
+  const explicitTerms = extractExplicitCampaignMatchTerms(rule);
+  const avoidTerms = extractCampaignAvoidTerms(rule);
+  if (!terms.length && !avoidTerms.length) {
+    return aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
   }
 
   const title = normalizeSearchText(item?.title);
@@ -4405,19 +4465,29 @@ function scoreCampaignFitForRule(item, rule) {
   const description = normalizeSearchText(item?.description);
   const reason = normalizeSearchText(item?.reason);
   const source = normalizeSearchText(item?.catalog_source || item?.discovery_source || item?.campaign_fit_source);
-  let score = Number(item?.campaign_fit_score || 0);
+  const haystack = `${title} ${url} ${description} ${reason}`;
+  let score = aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
 
   for (const term of terms) {
-    if (title.includes(term)) score += 45;
-    if (url.includes(term)) score += 45;
-    if (description.includes(term)) score += 12;
-    if (reason.includes(term)) score += 10;
+    const isExplicit = explicitTerms.includes(term);
+    if (title.includes(term)) score += isExplicit ? 65 : 35;
+    if (url.includes(term)) score += isExplicit ? 65 : 35;
+    if (description.includes(term)) score += isExplicit ? 18 : 8;
+    if (reason.includes(term)) score += isExplicit ? 16 : 8;
+  }
+
+  for (const avoidTerm of avoidTerms) {
+    if (!avoidTerm) continue;
+    if (title.includes(avoidTerm)) score -= 90;
+    if (url.includes(avoidTerm)) score -= 90;
+    if (description.includes(avoidTerm)) score -= 35;
+    if (haystack.includes(avoidTerm)) score -= 20;
   }
 
   if (source.includes("ai_campaign_research")) score += 25;
   if (source.includes("campaign")) score += 12;
 
-  return score;
+  return Math.max(score, -200);
 }
 
 function getStrongCampaignFitItems(items, rule) {
@@ -5460,17 +5530,20 @@ function makeSearchSlug(value) {
 }
 
 function buildCampaignDiscoverySearches(campaignPrompt) {
-  const terms = extractCampaignTerms({ prompt: campaignPrompt });
+  const rule = { prompt: campaignPrompt };
+  const explicitTerms = extractExplicitCampaignMatchTerms(rule);
+  const terms = extractCampaignTerms(rule);
   const searches = [];
 
-  for (const term of terms.slice(0, 8)) {
+  for (const term of [...explicitTerms, ...terms].slice(0, 8)) {
     const slug = makeSearchSlug(term);
     if (slug) searches.push(slug);
   }
 
   const normalizedPrompt = normalizeSearchText(campaignPrompt);
   const phrase = makeSearchSlug(normalizedPrompt.split(/\s+/).slice(0, 4).join(" "));
-  if (phrase) searches.unshift(phrase);
+  if (phrase && !explicitTerms.length) searches.unshift(phrase);
+  if (phrase && explicitTerms.length) searches.push(phrase);
 
   return Array.from(new Set(searches)).slice(0, 10);
 }

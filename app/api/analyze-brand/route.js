@@ -593,6 +593,34 @@ function normalizeRecommendedAngles(value) {
     .slice(0, 10);
 }
 
+function normalizeCampaignTerms(value) {
+  const rawTerms = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/[,;|\n]+/u)
+    : [];
+  const seen = new Set();
+  const terms = [];
+
+  for (const rawTerm of rawTerms) {
+    const term = String(rawTerm || "").replace(/\s+/g, " ").trim();
+    const key = term.toLocaleLowerCase();
+
+    if (!term || key.length < 2 || /^\d+$/.test(key) || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    terms.push(term.slice(0, 70));
+
+    if (terms.length >= 24) {
+      break;
+    }
+  }
+
+  return terms;
+}
+
 function normalizeCampaignBlueprint(rawOpportunity) {
   const recommendedAngles = normalizeRecommendedAngles(
     rawOpportunity?.recommended_angles || rawOpportunity?.campaign_angles
@@ -616,6 +644,8 @@ function normalizeCampaignBlueprint(rawOpportunity) {
     tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
     cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
     image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
+    product_match_terms: normalizeCampaignTerms(rawOpportunity?.product_match_terms),
+    avoid_terms: normalizeCampaignTerms(rawOpportunity?.avoid_terms),
   };
 }
 function hasProductBasedWebsiteEvidence(evidenceText) {
@@ -1256,7 +1286,7 @@ async function replaceBrandCampaignOpportunities({
     .from("brand_campaign_opportunities")
     .insert(rows)
         .select(
-      "id, title, event_date, event_year, slug, website_content_fit, website_content_strategy, website_product_selection_hint, campaign_category, campaign_goal, target_customer_need, recommended_angles"
+      "id, title, event_date, event_year, slug, website_content_fit, website_content_strategy, website_product_selection_hint, campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, campaign_blueprint"
     );
 
   if (error) {
@@ -1384,6 +1414,8 @@ Return JSON only in this exact shape:
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
+      "product_match_terms": ["Short product/category/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
+      "avoid_terms": ["Short product/category/search terms that indicate products to avoid for this campaign when better matches exist"],
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
       "sales_score": 1,
@@ -1453,6 +1485,10 @@ Rules:
 - Earlier post_plan items should prepare the audience before the event.
 - Every post_plan item should include timing_anchor. For exact event_date campaigns use "event" or "before_start". For start_date/end_date campaigns use "before_start", "start", "middle" or "end" to control when the post should be scheduled.
 - Every campaign opportunity must include a strategic campaign blueprint using campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, tone_guidance, cta_guidance and image_guidance.
+- For every campaign opportunity, create product_match_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
+- product_match_terms must contain concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include the campaign name, local-language synonyms, common imported/English terms when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
+- avoid_terms must contain broad or misleading product categories that should not be selected when better campaign-specific products exist. Do not over-block the whole store; only list clearly unsafe or irrelevant categories for this exact campaign.
+- Keep product_match_terms and avoid_terms short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
 - The campaign blueprint should explain how this campaign should move the audience from interest to action.
 - recommended_angles should contain the best marketing angles for the recommended_post_count.
 - Use these standard marketing angles when possible: awareness, engagement, product_discovery, product_push, trust, offer, urgency. Use offer only when there is a verified offer/sale/discount or a widely recognized shopping period; otherwise use product_discovery or product_push.
@@ -1475,6 +1511,10 @@ Rules:
 - Do not make every post a reminder. Each post should have a distinct role in the campaign sequence.
 - Do not make early posts too salesy. Do not make final posts too vague.
 - Every campaign opportunity must include a strategic campaign blueprint using campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, tone_guidance, cta_guidance and image_guidance.
+- For every campaign opportunity, create product_match_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
+- product_match_terms must contain concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include the campaign name, local-language synonyms, common imported/English terms when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
+- avoid_terms must contain broad or misleading product categories that should not be selected when better campaign-specific products exist. Do not over-block the whole store; only list clearly unsafe or irrelevant categories for this exact campaign.
+- Keep product_match_terms and avoid_terms short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
 - The campaign blueprint should explain how this campaign should move the audience from interest to action.
 - recommended_angles should contain the best marketing angles for the recommended_post_count.
 - Use these standard marketing angles when possible: awareness, engagement, product_discovery, product_push, trust, offer, urgency. Use offer only when there is a verified offer/sale/discount or a widely recognized shopping period; otherwise use product_discovery or product_push.
@@ -1724,6 +1764,8 @@ Return JSON only in this exact shape:
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
+      "product_match_terms": ["Short product/category/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
+      "avoid_terms": ["Short product/category/search terms that indicate products to avoid for this campaign when better matches exist"],
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
       "sales_score": 1,

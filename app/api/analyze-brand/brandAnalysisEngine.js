@@ -794,6 +794,34 @@ export function normalizeRecommendedAngles(value) {
     .slice(0, 10);
 }
 
+export function normalizeCampaignTerms(value) {
+  const rawTerms = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/[,;|\n]+/u)
+    : [];
+  const seen = new Set();
+  const terms = [];
+
+  for (const rawTerm of rawTerms) {
+    const term = String(rawTerm || "").replace(/\s+/g, " ").trim();
+    const key = term.toLocaleLowerCase();
+
+    if (!term || key.length < 2 || /^\d+$/.test(key) || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    terms.push(term.slice(0, 70));
+
+    if (terms.length >= 24) {
+      break;
+    }
+  }
+
+  return terms;
+}
+
 export function normalizeCampaignBlueprint(rawOpportunity) {
   const recommendedAngles = normalizeRecommendedAngles(
     rawOpportunity?.recommended_angles || rawOpportunity?.campaign_angles
@@ -817,6 +845,8 @@ export function normalizeCampaignBlueprint(rawOpportunity) {
     tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
     cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
     image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
+    product_match_terms: normalizeCampaignTerms(rawOpportunity?.product_match_terms),
+    avoid_terms: normalizeCampaignTerms(rawOpportunity?.avoid_terms),
   };
 }
 
@@ -1294,6 +1324,8 @@ Return JSON only in this exact shape:
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
+      "product_match_terms": ["Short product/category/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
+      "avoid_terms": ["Short product/category/search terms that indicate products to avoid for this campaign when better matches exist"],
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
       "sales_score": 1,
@@ -1358,6 +1390,10 @@ Campaign timing:
 Campaign strategy:
 - Every campaign must be genuinely useful for this business, industry, market and audience.
 - Every campaign must include a strategic campaign blueprint.
+- For every campaign_opportunity, create product_match_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
+- product_match_terms must contain concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include the campaign name, local-language synonyms, common imported/English terms when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
+- avoid_terms must contain broad or misleading product categories that should not be selected when better campaign-specific products exist. Do not over-block the whole store; only list clearly unsafe or irrelevant categories for this exact campaign.
+- Keep product_match_terms and avoid_terms short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
 - Every campaign should move the audience from interest to action.
 - Keep each campaign object compact. Do not create long schedule explanations or finished post copy in this analysis.
 - recommended_post_count must be between 1 and 10.
@@ -1538,6 +1574,8 @@ Return JSON only in this exact shape:
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
+      "product_match_terms": ["Short product/category/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
+      "avoid_terms": ["Short product/category/search terms that indicate products to avoid for this campaign when better matches exist"],
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
       "sales_score": 1,
@@ -1602,6 +1640,10 @@ Campaign timing:
 Campaign strategy:
 - Every campaign must be genuinely useful for this business, industry, market and audience.
 - Every campaign must include a strategic campaign blueprint.
+- For every campaign_opportunity, create product_match_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
+- product_match_terms must contain concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include the campaign name, local-language synonyms, common imported/English terms when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
+- avoid_terms must contain broad or misleading product categories that should not be selected when better campaign-specific products exist. Do not over-block the whole store; only list clearly unsafe or irrelevant categories for this exact campaign.
+- Keep product_match_terms and avoid_terms short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
 - Every campaign should move the audience from interest to action.
 - Keep each campaign object compact. Do not create long schedule explanations or finished post copy in this analysis.
 - recommended_post_count must be between 1 and 10.
@@ -1867,7 +1909,7 @@ export async function replaceBrandCampaignOpportunities({
     .from("brand_campaign_opportunities")
     .insert(rows)
     .select(
-      "id, title, event_date, event_year, slug, website_content_fit, website_content_strategy, website_product_selection_hint, campaign_category, campaign_goal, target_customer_need, recommended_angles"
+      "id, title, event_date, event_year, slug, website_content_fit, website_content_strategy, website_product_selection_hint, campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, campaign_blueprint"
     );
 
   if (error) {

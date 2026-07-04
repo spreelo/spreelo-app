@@ -70,6 +70,80 @@ function normalizeShortText(value, maxLength = 600) {
   return text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text;
 }
 
+function normalizeTermArray(value, maxItems = 16, maxLength = 60) {
+  const rawTerms = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/[,;|\n]+/u)
+    : [];
+  const seen = new Set();
+  const terms = [];
+
+  for (const rawTerm of rawTerms) {
+    const term = String(rawTerm || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, maxLength);
+    const key = term.toLocaleLowerCase();
+
+    if (!term || key.length < 2 || /^\d+$/.test(key) || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    terms.push(term);
+
+    if (terms.length >= maxItems) {
+      break;
+    }
+  }
+
+  return terms;
+}
+
+function getCampaignProductTerms(campaign, key) {
+  const directTerms = Array.isArray(campaign?.[key]) ? campaign[key] : [];
+  const blueprintTerms = Array.isArray(campaign?.campaign_blueprint?.[key])
+    ? campaign.campaign_blueprint[key]
+    : [];
+
+  return normalizeTermArray([...directTerms, ...blueprintTerms], 24);
+}
+
+function formatTermLine(label, terms) {
+  return terms?.length ? `${label}: ${terms.join(", ")}` : "";
+}
+
+function appendProductSearchMetadataToGuidance(baseGuidance, item) {
+  const productMatchTerms = normalizeTermArray(item?.product_match_terms);
+  const productSearchQueries = normalizeTermArray(item?.product_search_queries);
+  const productAvoidTerms = normalizeTermArray(item?.product_avoid_terms || item?.avoid_terms);
+  const productSearchIntent = normalizeShortText(item?.product_search_intent || "", 180);
+  const lines = [
+    normalizeShortText(baseGuidance || "", 700),
+    formatTermLine("Product match terms", productMatchTerms),
+    formatTermLine("Product search queries", productSearchQueries),
+    formatTermLine("Avoid product terms", productAvoidTerms),
+    productSearchIntent ? `Product search intent: ${productSearchIntent}` : "",
+  ].filter(Boolean);
+
+  return normalizeShortText(lines.join("\n"), 1200);
+}
+
+function formatCampaignProductTermGuidance(campaign) {
+  const productMatchTerms = getCampaignProductTerms(campaign, "product_match_terms");
+  const avoidTerms = getCampaignProductTerms(campaign, "avoid_terms");
+
+  return [
+    productMatchTerms.length
+      ? `- Product match terms: ${productMatchTerms.join(", ")}`
+      : "- Product match terms: not provided",
+    avoidTerms.length
+      ? `- Avoid product terms: ${avoidTerms.join(", ")}`
+      : "- Avoid product terms: not provided",
+  ].join("\n");
+}
+
 function getDefaultCampaignCount(campaign) {
   const eventType = String(campaign?.event_type || "").toLowerCase();
   const category = String(campaign?.campaign_category || "").toLowerCase();
@@ -114,6 +188,28 @@ function normalizePlan(rawPlan, campaign) {
         allowedContentModes,
         marketingAngle === "product_push" || marketingAngle === "offer" ? "website_product" : "generic_campaign"
       );
+      const productMatchTerms = normalizeTermArray(
+        item?.product_match_terms || item?.match_terms || item?.campaign_match_terms
+      );
+      const productSearchQueries = normalizeTermArray(
+        item?.product_search_queries || item?.search_queries || item?.local_search_queries
+      );
+      const productAvoidTerms = normalizeTermArray(
+        item?.product_avoid_terms || item?.avoid_terms || item?.negative_terms
+      );
+      const productSearchIntent = normalizeShortText(
+        item?.product_search_intent || item?.search_intent || "",
+        180
+      );
+      const productSelectionGuidance = appendProductSearchMetadataToGuidance(
+        item?.product_selection_guidance || "",
+        {
+          product_match_terms: productMatchTerms,
+          product_search_queries: productSearchQueries,
+          product_avoid_terms: productAvoidTerms,
+          product_search_intent: productSearchIntent,
+        }
+      );
 
       return {
         role: normalizeShortText(item?.role || item?.title || `Campaign post ${index + 1}`, 120),
@@ -129,7 +225,12 @@ function normalizePlan(rawPlan, campaign) {
         scheduled_date: normalizeDate(item?.scheduled_date || item?.publish_date || item?.recommended_date),
         publish_time: /^\d{2}:\d{2}$/.test(String(item?.publish_time || "")) ? item.publish_time : "",
         days_before_event: typeof item?.days_before_event === "number" ? item.days_before_event : null,
-        product_selection_guidance: normalizeShortText(item?.product_selection_guidance || "", 700),
+        product_selection_guidance: productSelectionGuidance,
+        product_match_terms: productMatchTerms,
+        product_search_queries: productSearchQueries,
+        product_avoid_terms: productAvoidTerms,
+        avoid_terms: productAvoidTerms,
+        product_search_intent: productSearchIntent,
         visual_direction: normalizeShortText(item?.visual_direction || item?.image_direction || "", 500),
       };
     })
@@ -177,6 +278,11 @@ function buildFallbackPlan(campaign) {
       publish_time: "",
       days_before_event: null,
       product_selection_guidance: "",
+      product_match_terms: getCampaignProductTerms(campaign, "product_match_terms"),
+      product_search_queries: [],
+      product_avoid_terms: getCampaignProductTerms(campaign, "avoid_terms"),
+      avoid_terms: getCampaignProductTerms(campaign, "avoid_terms"),
+      product_search_intent: "",
       visual_direction: "",
     })),
   };
@@ -265,6 +371,7 @@ Campaign:
 - Customer need: ${campaign.target_customer_need || ""}
 - Relevance reason: ${campaign.relevance_reason || ""}
 - Product selection guidance: ${campaign.product_selection_guidance || campaign.website_product_selection_hint || ""}
+${formatCampaignProductTermGuidance(campaign)}
 - Website content fit: ${campaign.website_content_fit || ""}
 - Website content strategy: ${campaign.website_content_strategy || ""}
 - Recommended post count from calendar: ${campaign.recommended_post_count || "not set"}
@@ -289,6 +396,10 @@ Return JSON in this exact shape:
       "publish_time": "HH:MM or empty string",
       "days_before_event": 14,
       "product_selection_guidance": "What product/service/category should this post use, and what to avoid",
+      "product_match_terms": ["Short local-language product/category/search terms that identify products that truly fit this post"],
+      "product_search_queries": ["Short store-search queries to try first on the website search/category search"],
+      "product_avoid_terms": ["Short product/category/search terms that should be avoided for this post when better matches exist"],
+      "product_search_intent": "Short internal explanation of what the product finder should prioritize",
       "visual_direction": "What type of visual should support this post"
     }
   ]
@@ -304,6 +415,12 @@ Strategic rules:
 - Choose publish_date and publish_time when there is enough date information. Use empty string only if the client scheduler should decide.
 - Times must fit the post's job: inspiration can be morning/midday, product/offer often lunch/afternoon, urgency often late afternoon/evening, relationship/event-day content can be morning or evening depending on context.
 - Choose content_source_mode with care. Do not use website_product unless the business likely has concrete products/items. Use website_carousel when multiple ideas/options/products should be compared. Use ai_image_overlay or ai_image_text for emotional, seasonal, deadline or awareness posts.
+- For every post that uses website_product, website_service, mixed_campaign_and_website or website_carousel, create product_match_terms, product_search_queries, product_avoid_terms and product_search_intent.
+- Product terms must be created dynamically for this exact campaign, country, market, language and brand. Do not rely on a fixed Swedish or English keyword list.
+- product_match_terms and product_search_queries should include the local occasion/theme name, common local synonyms, likely category words, recipient/use-case words and imported/English terms only when customers in that market would realistically use them.
+- product_avoid_terms should block nearby but wrong products or broad categories when better campaign-specific products exist. Do not over-block the whole store.
+- Keep product terms compact. Avoid broad filler like "product", "shop", "gift" or "present" unless that word is truly central to the campaign search.
+- Carry these product terms into product_selection_guidance as readable internal lines so later generation can use them.
 - Do not invent discounts, shipping deadlines, stock, guarantees, reviews or product facts not supported by the business/campaign context.
 - Do not create generic filler. Each post must have a different role and clear reason.
 - Return JSON only.

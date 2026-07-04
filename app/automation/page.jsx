@@ -2460,6 +2460,79 @@ function getCampaignStrategyInstruction(postPlanItem) {
     .join(" ");
 }
 
+function normalizeCampaignTermList(value, maxItems = 24) {
+  const rawTerms = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/[,;|\n]+/u)
+    : [];
+  const seen = new Set();
+  const terms = [];
+
+  for (const rawTerm of rawTerms) {
+    const term = String(rawTerm || "").replace(/\s+/g, " ").trim();
+    const key = term.toLocaleLowerCase();
+
+    if (!term || key.length < 2 || /^\d+$/.test(key) || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    terms.push(term);
+
+    if (terms.length >= maxItems) {
+      break;
+    }
+  }
+
+  return terms;
+}
+
+function getCampaignProductTerms(campaign, key) {
+  const directTerms = normalizeCampaignTermList(campaign?.[key]);
+  const blueprintTerms = normalizeCampaignTermList(campaign?.campaign_blueprint?.[key]);
+
+  return normalizeCampaignTermList([...directTerms, ...blueprintTerms]);
+}
+
+function formatCampaignProductTermGuidance(campaign, postPlanItem = {}) {
+  const productMatchTerms = normalizeCampaignTermList([
+    ...normalizeCampaignTermList(postPlanItem?.product_match_terms),
+    ...getCampaignProductTerms(campaign, "product_match_terms"),
+  ]);
+  const productSearchQueries = normalizeCampaignTermList(
+    postPlanItem?.product_search_queries
+  );
+  const avoidTerms = normalizeCampaignTermList([
+    ...normalizeCampaignTermList(postPlanItem?.product_avoid_terms || postPlanItem?.avoid_terms),
+    ...getCampaignProductTerms(campaign, "avoid_terms"),
+  ]);
+  const searchIntent = String(postPlanItem?.product_search_intent || "").trim();
+
+  if (
+    !productMatchTerms.length &&
+    !productSearchQueries.length &&
+    !avoidTerms.length &&
+    !searchIntent
+  ) {
+    return "";
+  }
+
+  return [
+    productMatchTerms.length
+      ? `Product match terms: ${productMatchTerms.join(", ")}`
+      : "",
+    productSearchQueries.length
+      ? `Product search queries: ${productSearchQueries.join(", ")}`
+      : "",
+    avoidTerms.length ? `Avoid product terms: ${avoidTerms.join(", ")}` : "",
+    searchIntent ? `Product search intent: ${searchIntent}` : "",
+    "Use these as internal product-selection filters only. Do not show them as finished copy. If a product clearly matches avoid terms and does not strongly match the campaign, avoid it when better matches exist.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function getCampaignDateLabel(campaign) {
   if (campaign?.event_date) {
     return campaign.event_date;
@@ -3752,6 +3825,9 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
       ? `Strategic instruction: ${postPlanItem.strategy_notes}`
       : "",
     postPlanItem?.timing_note ? `Timing note: ${postPlanItem.timing_note}` : "",
+    postPlanItem?.product_selection_guidance
+      ? `Product selection guidance: ${postPlanItem.product_selection_guidance}`
+      : "",
     `Post role: ${postRole}.`,
     `Post purpose: ${postPurpose}.`,
     `Campaign: ${campaignTitle}.`,
@@ -3760,6 +3836,7 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
     timingInstruction,
     `Campaign context: ${campaignContext}`,
     getCampaignSourceInstruction(sourceMode, campaign),
+    formatCampaignProductTermGuidance(campaign, postPlanItem),
     relevanceReason ? `Why this fits the brand: ${relevanceReason}` : "",
     languageInstruction,
     "This post must clearly lift up the campaign theme, day or celebration.",
@@ -3847,6 +3924,10 @@ function buildCampaignImagePrompt(campaign, postPlanItem, index) {
     campaign?.product_selection_guidance
       ? `Product selection guidance: ${campaign.product_selection_guidance}.`
       : "",
+    postPlanItem?.product_selection_guidance
+      ? `Post product selection guidance: ${postPlanItem.product_selection_guidance}.`
+      : "",
+    formatCampaignProductTermGuidance(campaign, postPlanItem),
     "Make the image feel professional, clean and suitable for a small business social media post.",
     "Do not include fake logos, fake discounts, fake reviews or fake guarantees.",
     "If text is used in the image, keep it short, clear and correctly spelled.",
