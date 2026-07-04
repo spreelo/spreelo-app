@@ -1155,8 +1155,8 @@ async function prepareCarouselProductsForRule({
   let triedStoreSearchForCampaign = false;
 
   async function mergeStoreSearchCandidatesIntoCatalog({
-    selectionPriority = 240,
-    scoreBonus = 95,
+    selectionPriority = 75,
+    scoreBonus = 0,
   } = {}) {
     triedStoreSearchForCampaign = true;
 
@@ -1182,16 +1182,23 @@ async function prepareCarouselProductsForRule({
       }
 
       catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
-        ...storeSearchItems.map((item) => ({
-          ...item,
-          selection_priority: Math.max(Number(item.selection_priority || 0), selectionPriority),
-          campaign_fit_source: item.campaign_fit_source || "store_search",
-          campaign_fit_score: Math.max(
-            Number(item.campaign_fit_score || 0),
-            scoreCampaignFitForRule(item, rule) + scoreBonus,
-            CAMPAIGN_STRONG_PRODUCT_FIT_SCORE + 35
-          ),
-        })),
+        ...storeSearchItems.map((item) => {
+          const campaignFitScore = scoreCampaignFitForRule(item, rule);
+          const primaryMatchCount = countPrimaryCampaignTermMatches(item, rule);
+          const safeSelectionPriority = primaryMatchCount > 0
+            ? Math.max(selectionPriority, 140)
+            : selectionPriority;
+
+          return {
+            ...item,
+            selection_priority: Math.max(Number(item.selection_priority || 0), safeSelectionPriority),
+            campaign_fit_source: item.campaign_fit_source || "store_search",
+            campaign_fit_score: Math.max(
+              Number(item.campaign_fit_score || 0),
+              campaignFitScore + scoreBonus
+            ),
+          };
+        }),
         ...catalogItems.map((item) => ({
           ...item,
           selection_priority: Number(item.selection_priority || 0) || 10,
@@ -1272,12 +1279,17 @@ async function prepareCarouselProductsForRule({
         if (storeSearchItems.length) {
           catalogItems = [
             ...catalogItems.map((item) => ({ ...item, selection_priority: Number(item.selection_priority || 0) || 10 })),
-            ...storeSearchItems.map((item) => ({
-              ...item,
-              selection_priority: 130,
-              campaign_fit_source: item.campaign_fit_source || "store_search",
-              campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), scoreCampaignFitForRule(item, rule) + 35),
-            })),
+            ...storeSearchItems.map((item) => {
+              const campaignFitScore = scoreCampaignFitForRule(item, rule);
+              const primaryMatchCount = countPrimaryCampaignTermMatches(item, rule);
+
+              return {
+                ...item,
+                selection_priority: primaryMatchCount > 0 ? 120 : 65,
+                campaign_fit_source: item.campaign_fit_source || "store_search",
+                campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), campaignFitScore),
+              };
+            }),
           ];
 
           selectedProducts = selectCarouselProductsFromPool({
@@ -1628,16 +1640,17 @@ async function prepareCarouselProductsForRule({
       );
 
       if (mergedCampaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
-        const reasonableFallbackProducts = fillCarouselProductSelection(
+        // Safe delivery: do not fill campaign product slides with generic catalog
+        // products. If we have fewer than enough campaign-fit products, the
+        // carousel generator can still deliver with fewer products plus CTA/general
+        // campaign slides, but product cards must remain theme-relevant.
+        const safeCampaignFallbackProducts = fillCarouselProductSelection(
           campaignProducts,
           [
             freshPrimaryCampaignFallbackProducts,
             freshCampaignFallbackProducts,
             reusablePrimaryCampaignProducts,
             prioritizedPrimaryCampaignMatchedItems,
-            selectedProducts,
-            reusableCampaignProducts,
-            dedupeWebsiteItemsByUrlTitleAndImage(catalogItems),
           ],
           websiteUrl
         );
@@ -1645,7 +1658,7 @@ async function prepareCarouselProductsForRule({
         mergedCampaignProducts = fillCarouselProductSelection(
           mergedCampaignProducts,
           [
-            reasonableFallbackProducts,
+            safeCampaignFallbackProducts,
           ],
           websiteUrl
         );
@@ -1719,9 +1732,9 @@ async function prepareCarouselProductsForRule({
       [
         getPrimaryCampaignMatchedItems(freshCampaignFallbackProducts, rule),
         freshCampaignFallbackProducts,
-        reusableCampaignProducts,
+        getPrimaryCampaignMatchedItems(reusableCampaignProducts, rule),
+        getStrongCampaignFitItems(reusableCampaignProducts, rule),
         getPrimaryCampaignMatchedItems(catalogItems, rule),
-        dedupeWebsiteItemsByUrlTitleAndImage(catalogItems),
       ],
       websiteUrl
     );
@@ -4149,8 +4162,95 @@ function extractCampaignTerms(rule) {
   return terms;
 }
 
+function getCommonPrefix(values) {
+  const words = (values || []).filter(Boolean);
+
+  if (!words.length) {
+    return "";
+  }
+
+  let prefix = words[0];
+
+  for (const word of words.slice(1)) {
+    let index = 0;
+    const maxLength = Math.min(prefix.length, word.length);
+
+    while (index < maxLength && prefix[index] === word[index]) {
+      index += 1;
+    }
+
+    prefix = prefix.slice(0, index);
+
+    if (!prefix) {
+      break;
+    }
+  }
+
+  return prefix;
+}
+
+function getCampaignTermWords(terms) {
+  return (terms || [])
+    .flatMap((term) =>
+      normalizeSearchText(term)
+        .split(/[^\p{L}\p{N}]+/u)
+        .map((word) => word.trim())
+    )
+    .filter((word) => word.length >= 3 && !/^\d+$/.test(word));
+}
+
+function isUsefulShortCampaignRoot(term) {
+  const value = normalizeSearchText(term).trim();
+
+  return (
+    value.length >= 3 &&
+    value.length <= 6 &&
+    !/^\d+$/.test(value) &&
+    !weakShortSearchRoots.has(value)
+  );
+}
+
+function extractCompactPrimaryCampaignRoots(explicitTerms) {
+  const words = getCampaignTermWords(explicitTerms);
+  const directShortTerms = words.filter(isUsefulShortCampaignRoot);
+  const groupedByPrefix = new Map();
+
+  for (const word of words.filter((term) => term.length >= 6)) {
+    const key = word.slice(0, 3);
+
+    if (!isUsefulShortCampaignRoot(key)) {
+      continue;
+    }
+
+    if (!groupedByPrefix.has(key)) {
+      groupedByPrefix.set(key, []);
+    }
+
+    groupedByPrefix.get(key).push(word);
+  }
+
+  const sharedRoots = [];
+
+  for (const group of groupedByPrefix.values()) {
+    if (group.length < 2) {
+      continue;
+    }
+
+    const prefix = getCommonPrefix(group);
+
+    if (isUsefulShortCampaignRoot(prefix)) {
+      sharedRoots.push(prefix);
+    } else if (prefix.length > 6) {
+      sharedRoots.push(prefix);
+    }
+  }
+
+  return collectUniqueTerms([...directShortTerms, ...sharedRoots], 8);
+}
+
 function extractPrimaryCampaignTerms(rule) {
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
+  const compactPrimaryRoots = extractCompactPrimaryCampaignRoots(explicitTerms);
   const prompt = String(rule?.prompt || "");
   const source = [
     rule?.name,
@@ -4170,7 +4270,7 @@ function extractPrimaryCampaignTerms(rule) {
   const seen = new Set();
   const terms = [];
 
-  for (const word of [...explicitTerms, ...rawWords]) {
+  for (const word of [...explicitTerms, ...compactPrimaryRoots, ...rawWords]) {
     if (seen.has(word)) {
       continue;
     }
@@ -4221,6 +4321,14 @@ function countPrimaryCampaignTermMatches(item, rule) {
 
   for (const term of terms) {
     if (tokenSet.has(term)) {
+      matches += 1;
+      continue;
+    }
+
+    if (
+      isUsefulShortCampaignRoot(term) &&
+      tokens.some((token) => token.startsWith(term) && token.length >= term.length + 2)
+    ) {
       matches += 1;
       continue;
     }
