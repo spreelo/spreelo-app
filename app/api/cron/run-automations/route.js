@@ -1391,12 +1391,16 @@ async function prepareCarouselProductsForRule({
     }
   }
 
-  if (!hasLockedCampaignSearchPool && !hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
+  if (
+    (!hasLockedCampaignSearchPool && !hasEnoughCarouselProductsForRule(selectedProducts, rule)) ||
+    (isCampaignRule && hasLockedCampaignSearchPool && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET)
+  ) {
     try {
       const discoveredCandidates = await discoverProductCandidatesFromWebsite({
         websiteUrl,
         campaignPrompt: buildCampaignResearchText(rule),
         usedItems: recentUsedItems,
+        fastCampaignContinuation: isCampaignRule && hasLockedCampaignSearchPool,
       });
 
       if (discoveredCandidates.length) {
@@ -1406,15 +1410,43 @@ async function prepareCarouselProductsForRule({
           limit: CAROUSEL_DISCOVERY_VERIFY_LIMIT,
         });
 
+        const enrichedDiscoveredItems = discoveredItems.map((item) => ({
+          ...item,
+          selection_priority: 90,
+          campaign_fit_source: item.campaign_fit_source || "campaign_discovery",
+          campaign_fit_score: scoreCampaignFitForRule(item, rule),
+        }));
+
         catalogItems = [
           ...catalogItems.map((item) => ({ ...item, selection_priority: Number(item.selection_priority || 0) || 10 })),
-          ...discoveredItems.map((item) => ({
-            ...item,
-            selection_priority: 90,
-            campaign_fit_source: "campaign_discovery",
-            campaign_fit_score: scoreCampaignFitForRule(item, rule),
-          })),
+          ...enrichedDiscoveredItems,
         ];
+
+        if (isCampaignRule && hasLockedCampaignSearchPool && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+          const safeDiscoveredCampaignItems = getSafeCampaignProductCandidates(enrichedDiscoveredItems, rule)
+            .map((item) => ({
+              ...item,
+              selection_priority: Math.max(Number(item.selection_priority || 0), 230),
+              campaign_fit_source: item.campaign_fit_source || "campaign_continued_discovery",
+              campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), scoreCampaignFitForRule(item, rule) + 20),
+            }));
+
+          if (safeDiscoveredCampaignItems.length) {
+            lockedCampaignSearchPoolItems = dedupeWebsiteItemsByUrlTitleAndImage([
+              ...lockedCampaignSearchPoolItems,
+              ...safeDiscoveredCampaignItems,
+            ]);
+
+            console.log("Campaign locked search pool extended from continued discovery", {
+              ruleId: rule.id,
+              brandProfileId: rule.brand_profile_id,
+              websiteUrl,
+              previousSelectedCount: selectedProducts.length,
+              addedSafeCount: safeDiscoveredCampaignItems.length,
+              lockedPoolCount: lockedCampaignSearchPoolItems.length,
+            });
+          }
+        }
 
         selectedProducts = selectCarouselProductsFromPool({
           items: getCampaignSelectionItems(),
@@ -4797,6 +4829,10 @@ function isLikelyGenericCustomTemplateProduct(item) {
     /\beget\s+tryck\b/u,
     /\bpersonligt\s+tryck\b/u,
     /\bdesigna\s+sjalv\b/u,
+    /\bdesigna\s+dina\s+egna\b/u,
+    /\btryckta\s+klader\b/u,
+    /\bskapa\s+din\s+unika\b/u,
+    /\begna\s+tryckta\b/u,
     /\btryck\s+har\b/u,
     /\byour\s+(?:text|logo|design|print)\b/u,
     /\badd\s+your\s+(?:text|logo|design)\b/u,
@@ -7178,6 +7214,7 @@ async function discoverProductCandidatesFromWebsite({
   websiteUrl,
   campaignPrompt,
   usedItems = [],
+  fastCampaignContinuation = false,
 }) {
   const candidates = [];
   const usedComparable = new Set(
@@ -7189,6 +7226,8 @@ async function discoverProductCandidatesFromWebsite({
   const sitemapCandidates = await discoverProductsFromSitemaps({
     websiteUrl,
     campaignPrompt,
+    maxSitemaps: fastCampaignContinuation ? 6 : 12,
+    maxCandidates: fastCampaignContinuation ? 50 : 80,
   });
   candidates.push(...sitemapCandidates);
 
@@ -7206,7 +7245,7 @@ async function discoverProductCandidatesFromWebsite({
 
   const discoveryUrls = buildLikelyDiscoveryUrls(websiteUrl, campaignPrompt).slice(
     0,
-    WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT
+    fastCampaignContinuation ? Math.min(8, WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT) : WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT
   );
 
   for (const discoveryUrl of discoveryUrls) {
@@ -7248,7 +7287,7 @@ async function discoverProductCandidatesFromWebsite({
   return dedupeUrlItems(candidates)
     .filter((item) => !usedComparable.has(normalizeComparableValue(item.url)))
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
-    .slice(0, WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT);
+    .slice(0, fastCampaignContinuation ? 45 : WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT);
 }
 
 async function verifyDiscoveredWebsiteProductCandidates({
