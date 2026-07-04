@@ -3982,6 +3982,7 @@ function buildCampaignResearchText(rule) {
   return [
     rule?.name,
     rule?.prompt,
+    rule?.image_prompt,
     rule?.campaign_goal,
     rule?.marketing_angle,
     rule?.target_customer_need,
@@ -4112,6 +4113,7 @@ function collectUniqueTerms(terms, limit = 24) {
 
 function extractExplicitCampaignMatchTerms(rule) {
   const prompt = String(rule?.prompt || "");
+  const imagePrompt = String(rule?.image_prompt || "");
   return collectUniqueTerms(
     [
       ...splitCampaignTermLine(rule?.product_match_terms),
@@ -4122,6 +4124,12 @@ function extractExplicitCampaignMatchTerms(rule) {
       ...splitCampaignTermLine(extractPromptLineValue(prompt, "Product search queries")),
       ...splitCampaignTermLine(extractPromptLineValue(prompt, "Search queries")),
       ...splitCampaignTermLine(extractPromptLineValue(prompt, "Local search queries")),
+      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Product match terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Campaign product match terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Product terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Product search queries")),
+      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Search queries")),
+      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Local search queries")),
     ],
     30
   );
@@ -4129,6 +4137,7 @@ function extractExplicitCampaignMatchTerms(rule) {
 
 function extractCampaignAvoidTerms(rule) {
   const prompt = String(rule?.prompt || "");
+  const imagePrompt = String(rule?.image_prompt || "");
   return collectUniqueTerms(
     [
       ...splitCampaignTermLine(rule?.product_avoid_terms),
@@ -4136,6 +4145,9 @@ function extractCampaignAvoidTerms(rule) {
       ...splitCampaignTermLine(extractPromptLineValue(prompt, "Avoid product terms")),
       ...splitCampaignTermLine(extractPromptLineValue(prompt, "Avoid terms")),
       ...splitCampaignTermLine(extractPromptLineValue(prompt, "Campaign avoid terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Avoid product terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Avoid terms")),
+      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Campaign avoid terms")),
     ],
     30
   );
@@ -4375,14 +4387,52 @@ function getWebsiteItemDirectCampaignText(item) {
     .join(" ");
 }
 
+function isLikelyGenericCustomTemplateProduct(item) {
+  const directText = normalizeSearchText(getWebsiteItemDirectCampaignText(item));
+
+  if (!directText) {
+    return false;
+  }
+
+  const genericTemplatePatterns = [
+    /\bditt\s+tryck\b/u,
+    /\beget\s+tryck\b/u,
+    /\bpersonligt\s+tryck\b/u,
+    /\bdesigna\s+sjalv\b/u,
+    /\btryck\s+har\b/u,
+    /\byour\s+(?:text|logo|design|print)\b/u,
+    /\badd\s+your\s+(?:text|logo|design)\b/u,
+    /\bcustom\s+(?:text|logo|design|print)\b/u,
+    /\bpersonalized\s+(?:text|logo|design|print)\b/u,
+    /\bdesign\s+your\s+own\b/u,
+  ];
+
+  return genericTemplatePatterns.some((pattern) => pattern.test(directText));
+}
+
+function preferConcreteCampaignProducts(items) {
+  const dedupedItems = dedupeWebsiteItemsByUrlTitleAndImage(items);
+  const concreteItems = dedupedItems.filter((item) => !isLikelyGenericCustomTemplateProduct(item));
+
+  return concreteItems.length ? concreteItems : [];
+}
+
 
 function getCampaignAnchorSourceText(rule) {
   const prompt = String(rule?.prompt || "");
+  const imagePrompt = String(rule?.image_prompt || "");
 
   return [
     rule?.name,
     extractPromptLineValue(prompt, "Campaign"),
+    extractPromptLineValue(prompt, "Campaign title"),
+    extractPromptLineValue(prompt, "Campaign name"),
     extractPromptLineValue(prompt, "Campaign context"),
+    extractPromptLineValue(prompt, "Product selection guidance"),
+    extractPromptLineValue(imagePrompt, "Campaign"),
+    extractPromptLineValue(imagePrompt, "Campaign title"),
+    extractPromptLineValue(imagePrompt, "Campaign name"),
+    extractPromptLineValue(imagePrompt, "Campaign context"),
     rule?.campaign_goal,
   ]
     .filter(Boolean)
@@ -4613,33 +4663,36 @@ function getSafeCampaignProductCandidates(items, rule) {
   }
 
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
+  const anchorTerms = extractCampaignAnchorTerms(rule);
   const anchorMatchedItems = getCampaignAnchorMatchedItems(items, rule);
   const primaryMatchedItems = getPrimaryCampaignMatchedItems(items, rule);
+  const concreteAnchorMatchedItems = preferConcreteCampaignProducts(anchorMatchedItems);
+  const concretePrimaryMatchedItems = preferConcreteCampaignProducts(primaryMatchedItems);
 
   // When a campaign has AI-generated product_match_terms and we can derive
   // campaign anchors from the campaign title/context, the anchor match is the
   // hard product-card guard. This prevents broad terms such as personal, gift,
   // print or design from letting generic products into a Christmas/Halloween/etc
   // campaign carousel.
-  if (explicitTerms.length && extractCampaignAnchorTerms(rule).length) {
-    return anchorMatchedItems;
+  if (explicitTerms.length && anchorTerms.length) {
+    return concreteAnchorMatchedItems;
   }
 
   // If we have dynamic terms but no reliable anchor, keep the previous safe
   // behavior: exact/dynamic term matches only, not generic catalog fallback.
   if (explicitTerms.length) {
-    return primaryMatchedItems;
+    return concretePrimaryMatchedItems;
   }
 
-  if (anchorMatchedItems.length) {
-    return anchorMatchedItems;
+  if (concreteAnchorMatchedItems.length) {
+    return concreteAnchorMatchedItems;
   }
 
-  if (primaryMatchedItems.length) {
-    return primaryMatchedItems;
+  if (concretePrimaryMatchedItems.length) {
+    return concretePrimaryMatchedItems;
   }
 
-  return getStrongCampaignFitItems(items, rule);
+  return preferConcreteCampaignProducts(getStrongCampaignFitItems(items, rule));
 }
 
 function getAiCampaignFitScore(item) {

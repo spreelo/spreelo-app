@@ -1415,6 +1415,10 @@ campaignPostCount: overrides.campaignPostCount || null,
 campaignGoal: overrides.campaignGoal || "",
 targetCustomerNeed: overrides.targetCustomerNeed || "",
 strategyNotes: overrides.strategyNotes || "",
+productMatchTerms: normalizeCampaignTermList(overrides.productMatchTerms, 30),
+productSearchQueries: normalizeCampaignTermList(overrides.productSearchQueries, 30),
+productAvoidTerms: normalizeCampaignTermList(overrides.productAvoidTerms, 30),
+productSearchIntent: overrides.productSearchIntent || "",
 dateLocked: Boolean(overrides.dateLocked),
   };
 }
@@ -2486,6 +2490,68 @@ function normalizeCampaignTermList(value, maxItems = 24) {
   }
 
   return terms;
+}
+
+function getPromptLineValue(prompt, label) {
+  const escapedLabel = String(label || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = String(prompt || "").match(
+    new RegExp(`^\\s*(?:[-*]\\s*)?${escapedLabel}:\\s*(.+)$`, "im")
+  );
+
+  return match?.[1]?.trim() || "";
+}
+
+function getSlotProductMetadata(slot = {}) {
+  const prompt = String(slot?.prompt || "");
+
+  return {
+    productMatchTerms: normalizeCampaignTermList(
+      slot.productMatchTerms?.length
+        ? slot.productMatchTerms
+        : getPromptLineValue(prompt, "Product match terms"),
+      30
+    ),
+    productSearchQueries: normalizeCampaignTermList(
+      slot.productSearchQueries?.length
+        ? slot.productSearchQueries
+        : getPromptLineValue(prompt, "Product search queries"),
+      30
+    ),
+    productAvoidTerms: normalizeCampaignTermList(
+      slot.productAvoidTerms?.length
+        ? slot.productAvoidTerms
+        : getPromptLineValue(prompt, "Avoid product terms"),
+      30
+    ),
+    productSearchIntent:
+      slot.productSearchIntent ||
+      getPromptLineValue(prompt, "Product search intent") ||
+      "",
+  };
+}
+
+const productMetadataColumnNames = [
+  "product_match_terms",
+  "product_search_queries",
+  "product_avoid_terms",
+  "avoid_terms",
+  "product_search_intent",
+];
+
+function stripProductMetadataColumns(row) {
+  const cleaned = { ...(row || {}) };
+
+  for (const columnName of productMetadataColumnNames) {
+    delete cleaned[columnName];
+  }
+
+  return cleaned;
+}
+
+function isProductMetadataColumnError(error) {
+  const message = String(error?.message || "");
+
+  return productMetadataColumnNames.some((columnName) => message.includes(columnName));
 }
 
 function getCampaignProductTerms(campaign, key) {
@@ -6572,6 +6638,7 @@ const rows = slots.map((slot) => {
         slot.startDate,
         selectedTimeZone
       );
+      const productMetadata = getSlotProductMetadata(slot);
 
       return {
         user_id: user.id,
@@ -6626,6 +6693,19 @@ ${slot.campaignSummary}`
         campaign_goal: slot.campaignGoal || null,
         target_customer_need: slot.targetCustomerNeed || null,
         strategy_notes: slot.strategyNotes || null,
+        product_match_terms: productMetadata.productMatchTerms.length
+          ? productMetadata.productMatchTerms
+          : null,
+        product_search_queries: productMetadata.productSearchQueries.length
+          ? productMetadata.productSearchQueries
+          : null,
+        product_avoid_terms: productMetadata.productAvoidTerms.length
+          ? productMetadata.productAvoidTerms
+          : null,
+        avoid_terms: productMetadata.productAvoidTerms.length
+          ? productMetadata.productAvoidTerms
+          : null,
+        product_search_intent: productMetadata.productSearchIntent || null,
 
         updated_at: new Date().toISOString(),
       };
@@ -6633,13 +6713,26 @@ ${slot.campaignSummary}`
 
     if (editingRuleId) {
       const row = rows[0];
-      const { data: updatedRules, error } = await supabase
+      let { data: updatedRules, error } = await supabase
         .from("automation_rules")
         .update(row)
         .eq("id", editingRuleId)
         .eq("user_id", user.id)
         .eq("brand_profile_id", selectedBrandId)
         .select("*");
+
+      if (error && isProductMetadataColumnError(error)) {
+        const retryResult = await supabase
+          .from("automation_rules")
+          .update(stripProductMetadataColumns(row))
+          .eq("id", editingRuleId)
+          .eq("user_id", user.id)
+          .eq("brand_profile_id", selectedBrandId)
+          .select("*");
+
+        updatedRules = retryResult.data;
+        error = retryResult.error;
+      }
 
       if (error) {
         setMessage(error.message);
@@ -6669,10 +6762,20 @@ ${slot.campaignSummary}`
       return;
     }
 
-    const { data: insertedRules, error } = await supabase
+    let { data: insertedRules, error } = await supabase
   .from("automation_rules")
   .insert(rows)
   .select("*");
+
+    if (error && isProductMetadataColumnError(error)) {
+      const retryResult = await supabase
+        .from("automation_rules")
+        .insert(rows.map(stripProductMetadataColumns))
+        .select("*");
+
+      insertedRules = retryResult.data;
+      error = retryResult.error;
+    }
 
       if (error) {
       setMessage(error.message);
