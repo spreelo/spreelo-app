@@ -1152,6 +1152,77 @@ async function prepareCarouselProductsForRule({
     }
   }
 
+  let triedStoreSearchForCampaign = false;
+
+  async function mergeStoreSearchCandidatesIntoCatalog({
+    selectionPriority = 240,
+    scoreBonus = 95,
+  } = {}) {
+    triedStoreSearchForCampaign = true;
+
+    try {
+      const storeSearchCandidates = await discoverProductCandidatesFromStoreSearch({
+        websiteUrl,
+        campaignPrompt: buildCampaignResearchText(rule),
+        usedItems: recentUsedItems,
+      });
+
+      if (!storeSearchCandidates.length) {
+        return false;
+      }
+
+      const storeSearchItems = await verifyDiscoveredWebsiteProductCandidates({
+        candidates: storeSearchCandidates,
+        websiteUrl,
+        limit: WEBSITE_STORE_SEARCH_VERIFY_LIMIT,
+      });
+
+      if (!storeSearchItems.length) {
+        return false;
+      }
+
+      catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
+        ...storeSearchItems.map((item) => ({
+          ...item,
+          selection_priority: Math.max(Number(item.selection_priority || 0), selectionPriority),
+          campaign_fit_source: item.campaign_fit_source || "store_search",
+          campaign_fit_score: Math.max(
+            Number(item.campaign_fit_score || 0),
+            scoreCampaignFitForRule(item, rule) + scoreBonus,
+            CAMPAIGN_STRONG_PRODUCT_FIT_SCORE + 35
+          ),
+        })),
+        ...catalogItems.map((item) => ({
+          ...item,
+          selection_priority: Number(item.selection_priority || 0) || 10,
+        })),
+      ]);
+
+      console.log("Campaign carousel products merged from store search before catalog selection", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        storeSearchCandidateCount: storeSearchCandidates.length,
+        storeSearchItemCount: storeSearchItems.length,
+      });
+
+      return true;
+    } catch (error) {
+      console.log("Store search preselection failed for campaign carousel", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        message: error.message,
+      });
+
+      return false;
+    }
+  }
+
+  if (isCampaignRule) {
+    await mergeStoreSearchCandidatesIntoCatalog();
+  }
+
   let selectedProducts = selectCarouselProductsFromPool({
     items: catalogItems,
     rule,
@@ -1183,7 +1254,7 @@ async function prepareCarouselProductsForRule({
     }
   }
 
-  if (!hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
+  if (!hasEnoughCarouselProductsForRule(selectedProducts, rule) && !triedStoreSearchForCampaign) {
     try {
       const storeSearchCandidates = await discoverProductCandidatesFromStoreSearch({
         websiteUrl,
@@ -5529,6 +5600,49 @@ function makeSearchSlug(value) {
     .slice(0, 80);
 }
 
+const weakShortSearchRoots = new Set([
+  "and",
+  "att",
+  "den",
+  "det",
+  "dit",
+  "din",
+  "for",
+  "med",
+  "och",
+  "per",
+  "pre",
+  "pro",
+  "the",
+  "til",
+  "till",
+]);
+
+function addCampaignSearchVariants(searches, value, { allowShortRoot = false } = {}) {
+  const slug = makeSearchSlug(value);
+
+  if (slug) {
+    searches.push(slug);
+  }
+
+  const words = normalizeSearchText(value)
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 4 && !/^\d+$/.test(word));
+
+  for (const word of words) {
+    searches.push(makeSearchSlug(word));
+
+    if (allowShortRoot && word.length >= 8) {
+      const shortRoot = word.slice(0, 3);
+
+      if (!weakShortSearchRoots.has(shortRoot)) {
+        searches.push(shortRoot);
+      }
+    }
+  }
+}
+
 function buildCampaignDiscoverySearches(campaignPrompt) {
   const rule = { prompt: campaignPrompt };
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
@@ -5536,8 +5650,7 @@ function buildCampaignDiscoverySearches(campaignPrompt) {
   const searches = [];
 
   for (const term of [...explicitTerms, ...terms].slice(0, 8)) {
-    const slug = makeSearchSlug(term);
-    if (slug) searches.push(slug);
+    addCampaignSearchVariants(searches, term, { allowShortRoot: true });
   }
 
   const normalizedPrompt = normalizeSearchText(campaignPrompt);
@@ -5545,7 +5658,7 @@ function buildCampaignDiscoverySearches(campaignPrompt) {
   if (phrase && !explicitTerms.length) searches.unshift(phrase);
   if (phrase && explicitTerms.length) searches.push(phrase);
 
-  return Array.from(new Set(searches)).slice(0, 10);
+  return Array.from(new Set(searches.filter(Boolean))).slice(0, 12);
 }
 
 function buildLikelyDiscoveryUrls(websiteUrl, campaignPrompt = "") {
@@ -5587,7 +5700,7 @@ function buildStoreSearchQueries(campaignPrompt) {
     .map((search) => String(search || "").trim())
     .filter(Boolean);
 
-  return Array.from(new Set(searches)).slice(0, 5);
+  return Array.from(new Set(searches)).slice(0, 8);
 }
 
 function buildStoreSearchUrls(websiteUrl, campaignPrompt = "") {
@@ -5599,14 +5712,23 @@ function buildStoreSearchUrls(websiteUrl, campaignPrompt = "") {
     return [];
   }
 
-  for (const query of queries) {
+  const queryParts = queries.map((query) => {
     const queryText = query.replace(/-/g, " ");
     const encoded = encodeURIComponent(queryText);
     const slug = encodeURIComponent(query);
 
+    return { query, encoded, slug };
+  });
+
+  for (const { encoded } of queryParts) {
     urls.push(
       `${origin}/search?q=${encoded}`,
-      `${origin}/search?type=product&q=${encoded}`,
+      `${origin}/search?type=product&q=${encoded}`
+    );
+  }
+
+  for (const { encoded, slug } of queryParts) {
+    urls.push(
       `${origin}/search?options[prefix]=last&q=${encoded}`,
       `${origin}/search?query=${encoded}`,
       `${origin}/search?s=${encoded}`,

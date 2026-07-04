@@ -144,6 +144,19 @@ function formatCampaignProductTermGuidance(campaign) {
   ].join("\n");
 }
 
+function planHasProductSearchMetadata(postPlan) {
+  return (Array.isArray(postPlan) ? postPlan : []).some((item) => {
+    const guidance = String(item?.product_selection_guidance || "");
+
+    return (
+      normalizeTermArray(item?.product_match_terms).length > 0 ||
+      normalizeTermArray(item?.product_search_queries).length > 0 ||
+      normalizeTermArray(item?.product_avoid_terms || item?.avoid_terms).length > 0 ||
+      /product match terms|product search queries|avoid product terms/i.test(guidance)
+    );
+  });
+}
+
 function getDefaultCampaignCount(campaign) {
   const eventType = String(campaign?.event_type || "").toLowerCase();
   const category = String(campaign?.campaign_category || "").toLowerCase();
@@ -338,7 +351,11 @@ export async function POST(request) {
       return Response.json({ error: campaignError?.message || "Campaign not found." }, { status: 404 });
     }
 
-    if (Array.isArray(campaign.post_plan) && campaign.post_plan.length > 0) {
+    if (
+      Array.isArray(campaign.post_plan) &&
+      campaign.post_plan.length > 0 &&
+      planHasProductSearchMetadata(campaign.post_plan)
+    ) {
       return Response.json({ campaign, post_plan: campaign.post_plan, source: "database" });
     }
 
@@ -418,6 +435,8 @@ Strategic rules:
 - For every post that uses website_product, website_service, mixed_campaign_and_website or website_carousel, create product_match_terms, product_search_queries, product_avoid_terms and product_search_intent.
 - Product terms must be created dynamically for this exact campaign, country, market, language and brand. Do not rely on a fixed Swedish or English keyword list.
 - product_match_terms and product_search_queries should include the local occasion/theme name, common local synonyms, likely category words, recipient/use-case words and imported/English terms only when customers in that market would realistically use them.
+- If the campaign title contains a compact theme word or compound word, include the shortest useful store-search root as one query. Example: if the local title contains a Christmas compound, include the local root term customers would search for on that store, not only broad gift/present phrases.
+- Product search queries must be suitable for a website search box. Prefer 1-2 word queries that can find exact campaign products before broad category or gift-intent products.
 - product_avoid_terms should block nearby but wrong products or broad categories when better campaign-specific products exist. Do not over-block the whole store.
 - Keep product terms compact. Avoid broad filler like "product", "shop", "gift" or "present" unless that word is truly central to the campaign search.
 - Carry these product terms into product_selection_guidance as readable internal lines so later generation can use them.
