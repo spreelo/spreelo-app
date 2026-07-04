@@ -38,6 +38,8 @@ const CAROUSEL_WEB_SEARCH_MAX_VERIFIED_ITEMS = 8;
 const CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT = 24;
 const CAMPAIGN_STRONG_PRODUCT_FIT_SCORE = 80;
 const CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE = 60;
+const CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE = 60;
+const CAMPAIGN_USED_REUSE_SCORE_BUFFER = 0;
 const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
 const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
 const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
@@ -757,7 +759,12 @@ function getCarouselProducts(rule) {
 }
 
 function isValidCarouselProduct(item) {
-  return Boolean(item?.title && item?.url && item?.image_url);
+  return Boolean(
+    item?.title &&
+    item?.url &&
+    item?.image_url &&
+    !isBadProductImageUrl(item.image_url)
+  );
 }
 
 function hasWebsiteItemCatalogUsage(item) {
@@ -1069,6 +1076,202 @@ function getFreshCarouselProductCandidates({
       return String(a.item?.title || "").localeCompare(String(b.item?.title || ""));
     })
     .map((entry) => entry.item);
+}
+
+function getFreshSafeCampaignProductCandidates({
+  items,
+  rule,
+  sourceUrl,
+  recentUsedItems = [],
+  usedWebsiteImageUrlsThisRun = new Set(),
+}) {
+  const freshItems = getFreshCarouselProductCandidates({
+    items,
+    rule,
+    sourceUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+  });
+
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return freshItems;
+  }
+
+  return getSafeCampaignProductCandidates(freshItems, rule);
+}
+
+
+function getCampaignCandidateUsageState(item, recentUsedItems, sourceUrl, usedWebsiteImageUrlsThisRun = new Set()) {
+  return {
+    wasUsedRecently:
+      hasWebsiteItemCatalogUsage(item) ||
+      hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, sourceUrl),
+    imageUsedThisRun: usedWebsiteImageUrlsThisRun.has(normalizeComparableValue(item?.image_url)),
+  };
+}
+
+function getCampaignProductTier(score) {
+  if (score >= 90) return "strong";
+  if (score >= 75) return "near";
+  if (score >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) return "fallback";
+  return "reject";
+}
+
+function buildCampaignScoredProductCandidates({
+  items,
+  rule,
+  sourceUrl,
+  recentUsedItems = [],
+  usedWebsiteImageUrlsThisRun = new Set(),
+}) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return [];
+  }
+
+  return dedupeWebsiteItemsByUrlTitleAndImage(items)
+    .filter(isValidCarouselProduct)
+    .map((item) => {
+      const campaignFitScore = scoreCampaignFitForRule(item, rule);
+      const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
+      const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
+      const anchorMatches = countCampaignAnchorTermMatches(item, rule);
+      const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
+      const { wasUsedRecently, imageUsedThisRun } = getCampaignCandidateUsageState(
+        item,
+        recentUsedItems,
+        sourceUrl,
+        usedWebsiteImageUrlsThisRun
+      );
+      const usageCount = Number(item?.times_used || 0);
+      const lastUsedAtTs = item?.last_used_at ? Date.parse(item.last_used_at) : 0;
+      const selectionPriority = Number(item?.selection_priority || 0);
+      const score = campaignFitScore + Math.min(selectionPriority / 10, 30);
+
+      return {
+        ...item,
+        campaign_fit_score: campaignFitScore,
+        campaign_selection_score: score,
+        campaign_product_tier: getCampaignProductTier(campaignFitScore),
+        campaign_theme_term_matches: themeMatches,
+        campaign_source_theme_matches: sourceThemeMatches,
+        campaign_anchor_term_matches: anchorMatches,
+        primary_campaign_term_matches: primaryMatches,
+        campaign_was_used_recently: wasUsedRecently,
+        campaign_image_used_this_run: imageUsedThisRun,
+        times_used: usageCount,
+        last_used_at: item?.last_used_at || null,
+        _campaignSort: {
+          score,
+          campaignFitScore,
+          themeMatches,
+          sourceThemeMatches,
+          anchorMatches,
+          primaryMatches,
+          wasUsedRecently,
+          imageUsedThisRun,
+          usageCount,
+          lastUsedAtTs,
+          selectionPriority,
+        },
+      };
+    })
+    .filter((item) => Number(item.campaign_fit_score || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE)
+    .sort(compareCampaignScoredCandidates);
+}
+
+function compareCampaignScoredCandidates(a, b) {
+  const aSort = a?._campaignSort || {};
+  const bSort = b?._campaignSort || {};
+
+  const scoreDelta = Number(bSort.campaignFitScore || b?.campaign_fit_score || 0) - Number(aSort.campaignFitScore || a?.campaign_fit_score || 0);
+  if (scoreDelta !== 0) return scoreDelta;
+
+  const themeDelta = Number(bSort.themeMatches || 0) - Number(aSort.themeMatches || 0);
+  if (themeDelta !== 0) return themeDelta;
+
+  const sourceThemeDelta = Number(bSort.sourceThemeMatches || 0) - Number(aSort.sourceThemeMatches || 0);
+  if (sourceThemeDelta !== 0) return sourceThemeDelta;
+
+  const anchorDelta = Number(bSort.anchorMatches || 0) - Number(aSort.anchorMatches || 0);
+  if (anchorDelta !== 0) return anchorDelta;
+
+  const primaryDelta = Number(bSort.primaryMatches || 0) - Number(aSort.primaryMatches || 0);
+  if (primaryDelta !== 0) return primaryDelta;
+
+  const selectionDelta = Number(bSort.selectionPriority || 0) - Number(aSort.selectionPriority || 0);
+  if (selectionDelta !== 0) return selectionDelta;
+
+  const usageDelta = Number(aSort.usageCount || 0) - Number(bSort.usageCount || 0);
+  if (usageDelta !== 0) return usageDelta;
+
+  const lastUsedDelta = Number(aSort.lastUsedAtTs || 0) - Number(bSort.lastUsedAtTs || 0);
+  if (lastUsedDelta !== 0) return lastUsedDelta;
+
+  return String(a?.title || "").localeCompare(String(b?.title || ""));
+}
+
+function selectCampaignCarouselProductsByScoreTiers({
+  items,
+  rule,
+  sourceUrl,
+  recentUsedItems = [],
+  usedWebsiteImageUrlsThisRun = new Set(),
+  limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
+}) {
+  const candidates = buildCampaignScoredProductCandidates({
+    items,
+    rule,
+    sourceUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+  });
+
+  const selected = [];
+
+  function alreadySelected(candidate) {
+    return selected.some((selectedItem) => areSameWebsiteItem(selectedItem, candidate, sourceUrl));
+  }
+
+  function hasUnusedSameOrBetterCandidate(candidate) {
+    const candidateScore = Number(candidate?.campaign_fit_score || 0);
+
+    return candidates.some((other) => {
+      if (alreadySelected(other) || areSameWebsiteItem(other, candidate, sourceUrl)) {
+        return false;
+      }
+
+      const otherState = other?._campaignSort || {};
+      const otherUsed = Boolean(otherState.wasUsedRecently || otherState.imageUsedThisRun);
+
+      return !otherUsed && Number(other.campaign_fit_score || 0) + CAMPAIGN_USED_REUSE_SCORE_BUFFER >= candidateScore;
+    });
+  }
+
+  for (const candidate of candidates) {
+    if (selected.length >= limit) break;
+    if (alreadySelected(candidate)) continue;
+
+    const state = candidate?._campaignSort || {};
+    const used = Boolean(state.wasUsedRecently || state.imageUsedThisRun);
+
+    // A reused campaign product is allowed only after we know there is no
+    // unused product left with the same or higher campaign score.
+    if (used && hasUnusedSameOrBetterCandidate(candidate)) {
+      continue;
+    }
+
+    selected.push(candidate);
+  }
+
+  if (selected.length < limit) {
+    for (const candidate of candidates) {
+      if (selected.length >= limit) break;
+      if (alreadySelected(candidate)) continue;
+      selected.push(candidate);
+    }
+  }
+
+  return selected.slice(0, limit).map(({ _campaignSort, ...item }) => item);
 }
 
 function hasEnoughCarouselProductsForRule(products, rule) {
@@ -1619,210 +1822,43 @@ async function prepareCarouselProductsForRule({
   }
 
   if (isCampaignRule) {
-    const campaignCandidateUniverse = hasLockedCampaignSearchPool
-      ? [
-          ...selectedProducts,
-          ...lockedCampaignSearchPoolItems,
-        ]
-      : [
-          ...selectedProducts,
-          ...catalogItems,
-        ];
-    const primaryCampaignMatchedItems = getSafeCampaignProductCandidates(
-      campaignCandidateUniverse,
-      rule
-    );
-    const prioritizedPrimaryCampaignMatchedItems = primaryCampaignMatchedItems.map((item) => ({
-      ...item,
-      selection_priority: Math.max(Number(item.selection_priority || 0), 220),
-      campaign_fit_source: item.campaign_fit_source || "primary_campaign_term_match",
-      campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), 90),
-    }));
-    const selectedSafeCampaignProducts = getSafeCampaignProductCandidates(selectedProducts, rule);
-    const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
-      items: getCampaignSelectionItems(),
+    const campaignCandidateUniverse = dedupeWebsiteItemsByUrlTitleAndImage([
+      ...selectedProducts,
+      ...lockedCampaignSearchPoolItems,
+      ...getCampaignSelectionItems(),
+      ...catalogItems,
+    ]);
+
+    selectedProducts = selectCampaignCarouselProductsByScoreTiers({
+      items: campaignCandidateUniverse,
       rule,
       sourceUrl: websiteUrl,
       recentUsedItems,
       usedWebsiteImageUrlsThisRun,
+      limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
     });
-    const freshPrimaryCampaignFallbackProducts = getSafeCampaignProductCandidates(
-      freshCampaignFallbackProducts,
-      rule
-    );
 
-    const freshPrimaryCampaignProducts = prioritizedPrimaryCampaignMatchedItems.length
-      ? selectCarouselProductsFromPool({
-          items: prioritizedPrimaryCampaignMatchedItems,
-          rule,
-          sourceUrl: websiteUrl,
-          recentUsedItems,
-          usedWebsiteImageUrlsThisRun,
-          allowReuseWhenExhausted: false,
-        })
-      : [];
-
-    const reusablePrimaryCampaignProducts = prioritizedPrimaryCampaignMatchedItems.length
-      ? selectCarouselProductsFromPool({
-          items: prioritizedPrimaryCampaignMatchedItems,
-          rule,
-          sourceUrl: websiteUrl,
-          recentUsedItems,
-          usedWebsiteImageUrlsThisRun,
-          allowReuseWhenExhausted: true,
-        })
-      : [];
-
-    let campaignProducts = prioritizedPrimaryCampaignMatchedItems.length
-      ? fillCarouselProductSelection(
-          freshPrimaryCampaignProducts,
-          [
-            freshPrimaryCampaignFallbackProducts,
-            reusablePrimaryCampaignProducts,
-            prioritizedPrimaryCampaignMatchedItems,
-          ],
-          websiteUrl
-        )
-      : fillCarouselProductSelection(
-          selectedSafeCampaignProducts,
-          [
-            freshPrimaryCampaignFallbackProducts,
-          ],
-          websiteUrl
-        );
-
-    if (campaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
-      const reusableCampaignProducts = selectCarouselProductsFromPool({
-        items: getCampaignSelectionItems(),
-        rule,
-        sourceUrl: websiteUrl,
-        recentUsedItems,
-        usedWebsiteImageUrlsThisRun,
-        allowReuseWhenExhausted: true,
-      });
-      const reusableCampaignFitProducts = getSafeCampaignProductCandidates(reusableCampaignProducts, rule);
-      let mergedCampaignProducts = fillCarouselProductSelection(
-        campaignProducts,
-        [
-          freshPrimaryCampaignFallbackProducts,
-          reusableCampaignFitProducts,
-        ],
-        websiteUrl
-      );
-
-      if (mergedCampaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
-        // Safe delivery: do not fill campaign product slides with generic catalog
-        // products. If we have fewer than enough campaign-fit products, the
-        // carousel generator can still deliver with fewer products plus CTA/general
-        // campaign slides, but product cards must remain theme-relevant.
-        const safeCampaignFallbackProducts = fillCarouselProductSelection(
-          campaignProducts,
-          [
-            freshPrimaryCampaignFallbackProducts,
-            reusablePrimaryCampaignProducts,
-            prioritizedPrimaryCampaignMatchedItems,
-          ],
-          websiteUrl
-        );
-
-        mergedCampaignProducts = fillCarouselProductSelection(
-          mergedCampaignProducts,
-          [
-            safeCampaignFallbackProducts,
-          ],
-          websiteUrl
-        );
-      }
-
-      const addedCampaignProducts = mergedCampaignProducts.slice(campaignProducts.length);
-      const addedReusedCampaignProducts = addedCampaignProducts.filter((item) => (
-        hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, websiteUrl) ||
-        usedWebsiteImageUrlsThisRun.has(normalizeComparableValue(item?.image_url))
-      ));
-
-      if (addedReusedCampaignProducts.length) {
-        cycleNumber += 1;
-        summary.website_items_reused_cycle += 1;
-      }
-
-      campaignProducts = mergedCampaignProducts;
-    }
-
-    if (campaignProducts.length >= CAROUSEL_MIN_PRODUCT_SLIDES) {
-      console.log("Campaign carousel will use a full product set, prioritizing campaign-relevant products first", {
+    if (selectedProducts.length >= CAROUSEL_PRODUCT_SLIDE_TARGET) {
+      console.log("Campaign carousel selected five products with score tiers and reuse guard", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
         websiteUrl,
-        selectedCount: campaignProducts.length,
+        selectedCount: selectedProducts.length,
+        strongCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= 90).length,
+        nearCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= 75 && Number(item.campaign_fit_score || 0) < 90).length,
+        fallbackCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE && Number(item.campaign_fit_score || 0) < 75).length,
+        reusedCount: selectedProducts.filter((item) => Boolean(item.campaign_was_used_recently || item.campaign_image_used_this_run)).length,
         lockedSearchPool: hasLockedCampaignSearchPool,
-      });
-    } else if (campaignProducts.length >= 3) {
-      console.warn("Campaign carousel found fewer than five usable products even after fallback fill; delivering the best available product carousel", {
-        ruleId: rule.id,
-        brandProfileId: rule.brand_profile_id,
-        websiteUrl,
-        selectedCount: campaignProducts.length,
-        productSlideTarget: CAROUSEL_PRODUCT_SLIDE_TARGET,
-        lockedSearchPool: hasLockedCampaignSearchPool,
-      });
-    } else if (campaignProducts.length > 0) {
-      console.warn("Campaign carousel found only one or two usable products even after fallback fill; delivering the best available product carousel", {
-        ruleId: rule.id,
-        brandProfileId: rule.brand_profile_id,
-        websiteUrl,
-        selectedCount: campaignProducts.length,
       });
     } else {
-      console.warn("Campaign carousel found no usable product images after fallback fill; delivering a general campaign carousel", {
+      console.warn("Campaign carousel could not find five products above the minimum campaign score", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
         websiteUrl,
+        selectedCount: selectedProducts.length,
+        minimumScore: CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
+        lockedSearchPool: hasLockedCampaignSearchPool,
       });
-    }
-
-    selectedProducts = campaignProducts.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
-  }
-
-  if (isCampaignRule && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
-    const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
-      items: getCampaignSelectionItems(),
-      rule,
-      sourceUrl: websiteUrl,
-      recentUsedItems,
-      usedWebsiteImageUrlsThisRun,
-    });
-    const reusableCampaignProducts = selectCarouselProductsFromPool({
-      items: getCampaignSelectionItems(),
-      rule,
-      sourceUrl: websiteUrl,
-      recentUsedItems,
-      usedWebsiteImageUrlsThisRun,
-      allowReuseWhenExhausted: true,
-    });
-    const filledCampaignProducts = fillCarouselProductSelection(
-      selectedProducts,
-      [
-        getSafeCampaignProductCandidates(freshCampaignFallbackProducts, rule),
-        getSafeCampaignProductCandidates(reusableCampaignProducts, rule),
-        hasLockedCampaignSearchPool ? [] : getSafeCampaignProductCandidates(catalogItems, rule),
-      ],
-      websiteUrl
-    );
-
-    if (filledCampaignProducts.length > selectedProducts.length) {
-      const addedReusedProducts = filledCampaignProducts
-        .slice(selectedProducts.length)
-        .filter((item) => (
-          hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, websiteUrl) ||
-          usedWebsiteImageUrlsThisRun.has(normalizeComparableValue(item?.image_url))
-        ));
-
-      if (addedReusedProducts.length) {
-        cycleNumber += 1;
-        summary.website_items_reused_cycle += 1;
-      }
-
-      selectedProducts = filledCampaignProducts.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
     }
   }
 
@@ -2420,13 +2456,6 @@ function buildCarouselEmailPreviewHtml(carouselSlides = []) {
               <img src="${escapeHtml(slide.image_url || '')}" alt="${escapeHtml(slide.headline || 'Carousel slide')}" style="display:block;width:100%;height:auto;max-height:180px;object-fit:contain;background:#f8fafc;" />
             </td>
           </tr>
-          ${slide.headline ? `
-          <tr>
-            <td style="padding:10px 10px 12px;font-size:12px;line-height:1.45;color:#111827;font-weight:700;">
-              ${escapeHtml(slide.headline)}
-            </td>
-          </tr>
-          ` : ''}
         </table>
       </div>
     `)
@@ -5493,6 +5522,10 @@ function scoreCampaignFitForRule(item, rule) {
   if (source.includes("ai_campaign_research")) score += 25;
   if (source.includes("campaign")) score += 12;
 
+  if (isLikelyGenericCustomTemplateProduct(item) && themeMatches === 0 && sourceThemeMatches === 0 && anchorMatches === 0) {
+    score -= 160;
+  }
+
   return Math.max(score, -200);
 }
 
@@ -5781,6 +5814,11 @@ function isBadProductImageUrl(value) {
     lowerUrl.includes("icon") ||
     lowerUrl.includes("sprite") ||
     lowerUrl.includes("placeholder") ||
+    lowerUrl.includes("no-image") ||
+    lowerUrl.includes("no_image") ||
+    lowerUrl.includes("missing-image") ||
+    lowerUrl.includes("blank") ||
+    lowerUrl.includes("default-image") ||
     lowerUrl.includes("banner") ||
     lowerUrl.includes("hero") ||
     lowerUrl.includes("background") ||
@@ -8483,13 +8521,7 @@ function buildFallbackProductCarouselSlides(rule, products, postContent = "") {
   const productSlides = selectedProducts.map((product, index) => ({
     slide_type: index === 0 ? "product_hook" : "product",
     headline: normalizeSlideText(product.title || `Product ${index + 1}`, 90),
-    body: normalizeSlideText(
-      product.description ||
-        (index === 0
-          ? "Swipe through a few selected products from the website."
-          : "A selected product from the website."),
-      190
-    ),
+    body: "",
     cta_text: "",
     product_url: product.url || null,
     image_url: product.image_url || null,
@@ -8579,6 +8611,7 @@ Rules:
 - Create exactly ${selectedProducts.length} product slides in the same order as the selected products.
 - Then create 1 final outro slide that acts as a closing CTA for the whole carousel.
 - Every product slide must focus on its matching product only.
+- Product slides should use the product title as the main text. Leave product slide body text empty unless a short factual detail is essential and directly belongs to that exact product.
 - Write in the selected post language.
 - Keep text short enough for a social media carousel.
 - Use only facts from the product list and brand profile.
@@ -8611,7 +8644,7 @@ Return JSON exactly in this shape:
       return {
         slide_type: index === 0 ? "product_hook" : "product",
         headline: normalizeSlideText(slide.headline || slide.title || product.title || `Product ${index + 1}`, 90),
-        body: normalizeSlideText(slide.body || slide.text || product.description || "", 210),
+        body: "",
         cta_text: normalizeSlideText(slide.cta_text || slide.cta || "", 80),
         product_url: product.url || null,
         image_url: product.image_url || null,
