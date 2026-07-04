@@ -826,6 +826,12 @@ export function normalizeCampaignBlueprint(rawOpportunity) {
   const recommendedAngles = normalizeRecommendedAngles(
     rawOpportunity?.recommended_angles || rawOpportunity?.campaign_angles
   );
+  const inferredTerms = inferCampaignProductTermsFromOpportunity(rawOpportunity);
+  const productMatchTerms = normalizeCampaignTerms(rawOpportunity?.product_match_terms);
+  const avoidTerms = normalizeCampaignTerms(rawOpportunity?.avoid_terms);
+
+  addUniqueCampaignTerms(productMatchTerms, inferredTerms.matchTerms);
+  addUniqueCampaignTerms(avoidTerms, inferredTerms.avoidTerms);
 
   return {
     campaign_category: normalizeCampaignCategory(
@@ -845,8 +851,8 @@ export function normalizeCampaignBlueprint(rawOpportunity) {
     tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
     cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
     image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
-    product_match_terms: normalizeCampaignTerms(rawOpportunity?.product_match_terms),
-    avoid_terms: normalizeCampaignTerms(rawOpportunity?.avoid_terms),
+    product_match_terms: productMatchTerms,
+    avoid_terms: avoidTerms,
   };
 }
 

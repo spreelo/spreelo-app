@@ -4354,9 +4354,116 @@ function collectUniqueTerms(terms, limit = 24) {
   return unique;
 }
 
+function getCampaignThemeSourceText(rule) {
+  const prompt = String(rule?.prompt || "");
+
+  return normalizeSearchText([
+    rule?.name,
+    extractPromptLineValue(prompt, "Campaign"),
+    extractPromptLineValue(prompt, "Campaign context"),
+    extractPromptLineValue(prompt, "Product selection hint"),
+    extractPromptLineValue(prompt, "Product search intent"),
+    rule?.campaign_goal,
+    rule?.target_customer_need,
+    rule?.strategy_notes,
+    rule?.marketing_angle,
+    prompt,
+  ].filter(Boolean).join(" "));
+}
+
+function hasAnyCampaignThemeToken(text, tokens) {
+  return (tokens || []).some((token) => {
+    const value = normalizeSearchText(token).trim();
+    return value && (text.includes(value) || new RegExp(`\b${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\b`, "i").test(text));
+  });
+}
+
+function inferCampaignThemeProductTerms(rule) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return { matchTerms: [], avoidTerms: [], searchQueries: [], searchIntent: "" };
+  }
+
+  const text = getCampaignThemeSourceText(rule);
+  const matchTerms = [];
+  const avoidTerms = [];
+  const searchQueries = [];
+  let searchIntent = "";
+
+  const addTheme = ({ detect, match = [], avoid = [], queries = [], intent = "" }) => {
+    if (!hasAnyCampaignThemeToken(text, detect)) return;
+    matchTerms.push(...match);
+    avoidTerms.push(...avoid);
+    searchQueries.push(...queries);
+    if (!searchIntent && intent) searchIntent = intent;
+  };
+
+  addTheme({
+    detect: [
+      "jul", "julafton", "julklapp", "julpynt", "juldekoration",
+      "christmas", "xmas", "navidad", "noel", "weihnacht",
+      "nyar", "nyars", "nyarsdekoration", "new year", "nye", "reveillon"
+    ],
+    match: [
+      "jul", "julafton", "julpynt", "juldekoration", "juldekorationer", "julgransdekoration",
+      "nyar", "nyars", "nyarsdekoration", "nyarsdekorationer", "glitter", "festdekoration", "partydekoration",
+      "christmas", "christmas decoration", "christmas decorations", "xmas", "new year", "new year decoration", "new year decorations"
+    ],
+    avoid: [
+      "halloween", "skrack", "horror", "latexmask", "mask", "peruk", "kostym", "utkladnad",
+      "oktoberfest", "sommar", "summer", "easter", "pask"
+    ],
+    queries: [
+      "juldekoration", "julpynt", "nyarsdekoration", "festdekoration", "glitter",
+      "christmas decoration", "new year decoration", "party decoration"
+    ],
+    intent: "Find concrete Christmas and New Year decoration products or party decoration products that visibly fit the Christmas/New Year campaign theme. Do not select Halloween, horror, mask, costume, latex or generic masquerade products.",
+  });
+
+  addTheme({
+    detect: ["halloween", "alla helgons", "pumpa", "pumpkin", "spooky", "skrack", "horror"],
+    match: ["halloween", "pumpa", "pumpkin", "spooky", "skrack", "horror", "halloween decoration", "halloweendekoration"],
+    avoid: ["jul", "christmas", "nyar", "new year", "student", "summer", "sommar"],
+    queries: ["halloween", "halloweendekoration", "pumpkin", "spooky decoration", "halloween decoration"],
+    intent: "Find concrete Halloween-themed products. Do not select unrelated seasonal or generic party products when Halloween-specific products exist.",
+  });
+
+  addTheme({
+    detect: ["fars dag", "father", "father's day", "fathers day", "pappa", "dad"],
+    match: ["fars dag", "pappa", "dad", "father", "father's day", "present till pappa", "gift for dad"],
+    avoid: ["mors dag", "mother", "mom", "baby", "bebis", "halloween"],
+    queries: ["fars dag", "present till pappa", "gift for dad", "father's day gift"],
+    intent: "Find products that make sense as Father's Day gifts or activities for dads. Avoid products aimed at the wrong recipient.",
+  });
+
+  addTheme({
+    detect: ["mors dag", "mother", "mother's day", "mothers day", "mamma", "mom"],
+    match: ["mors dag", "mamma", "mom", "mother", "mother's day", "present till mamma", "gift for mom"],
+    avoid: ["fars dag", "father", "dad", "halloween"],
+    queries: ["mors dag", "present till mamma", "gift for mom", "mother's day gift"],
+    intent: "Find products that make sense as Mother's Day gifts. Avoid products aimed at the wrong recipient.",
+  });
+
+  addTheme({
+    detect: ["alla hjartans", "valentine", "valentine's", "love", "karlek"],
+    match: ["alla hjartans dag", "valentine", "valentine's day", "karlek", "love", "romantic"],
+    avoid: ["halloween", "jul", "christmas", "father", "mother"],
+    queries: ["alla hjartans dag", "valentine gift", "romantic gift", "love"],
+    intent: "Find products that visibly fit Valentine's Day, love or romantic gifting.",
+  });
+
+  return {
+    matchTerms: collectUniqueTerms(matchTerms, 30),
+    avoidTerms: collectUniqueTerms(avoidTerms, 30),
+    searchQueries: collectUniqueTerms(searchQueries, 18),
+    searchIntent,
+  };
+}
+
 function extractExplicitCampaignMatchTerms(rule) {
   const prompt = String(rule?.prompt || "");
   const imagePrompt = String(rule?.image_prompt || "");
+  const inferred = inferCampaignThemeProductTerms(rule);
+
   return collectUniqueTerms(
     [
       ...splitCampaignTermLine(rule?.product_match_terms),
@@ -4373,6 +4480,8 @@ function extractExplicitCampaignMatchTerms(rule) {
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Product search queries")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Search queries")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Local search queries")),
+      ...inferred.matchTerms,
+      ...inferred.searchQueries,
     ],
     30
   );
@@ -4381,6 +4490,8 @@ function extractExplicitCampaignMatchTerms(rule) {
 function extractCampaignAvoidTerms(rule) {
   const prompt = String(rule?.prompt || "");
   const imagePrompt = String(rule?.image_prompt || "");
+  const inferred = inferCampaignThemeProductTerms(rule);
+
   return collectUniqueTerms(
     [
       ...splitCampaignTermLine(rule?.product_avoid_terms),
@@ -4391,6 +4502,7 @@ function extractCampaignAvoidTerms(rule) {
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Avoid product terms")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Avoid terms")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Campaign avoid terms")),
+      ...inferred.avoidTerms,
     ],
     30
   );
@@ -8335,16 +8447,25 @@ async function saveCarouselWebsiteContentHistory({
   websiteItems,
   cycleNumber,
 }) {
-  if (!isCarouselRule(rule) || !Array.isArray(websiteItems) || !websiteItems.length || !sourceUrl) {
+  if (!isCarouselRule(rule) || !Array.isArray(websiteItems) || !websiteItems.length) {
     return;
   }
+
+  const resolvedSourceUrl =
+    sourceUrl ||
+    rule?.brand_profile?.website_product_source_url ||
+    rule?.brand_profile?.website_url ||
+    rule?.website_url ||
+    websiteItems.find((item) => item?.source_url)?.source_url ||
+    websiteItems.find((item) => item?.url)?.url ||
+    null;
 
   const rows = websiteItems.map((websiteItem, index) => ({
     user_id: rule.user_id,
     brand_profile_id: rule.brand_profile_id,
     automation_rule_id: rule.id,
     post_id: postId,
-    source_url: sourceUrl,
+    source_url: resolvedSourceUrl || websiteItem.source_url || websiteItem.url || null,
     source_type: "website",
     content_type: rule.content_type_id || "carousel_website_item",
     item_key: websiteItem.item_key || createItemKey(websiteItem),
