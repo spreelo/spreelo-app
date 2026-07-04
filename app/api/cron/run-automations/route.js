@@ -2224,6 +2224,8 @@ Post type: ${rule.post_type || "General post"}
 Language context: ${rule.language || "Auto"}
 Website URL: ${rule.brand_profile?.website_url || "Not provided"}
 
+${formatCampaignVisualContextForPrompt(rule)}
+
 Selected visual concept:
 ${visualConcept.name}
 
@@ -2270,6 +2272,8 @@ Image quality rules:
 - Do not use cartoon style unless explicitly requested.
 - Make the image suitable for both Facebook and Instagram feed use.
 - Keep the image clean, premium and easy to understand at a glance.
+- If this is a campaign, holiday, seasonal or event post, the image must clearly support that campaign theme. Use the Campaign visual context and match terms above as the primary theme. Do not create a generic unrelated image.
+- If the campaign is about a specific occasion but no verified product image is used, create a broader themed campaign/lifestyle image for that occasion rather than unrelated products or random decorations.
 
 Product image safety rules:
 - If this post is based on a specific website item but no real website image is being used, do not recreate, imitate or invent a product image.
@@ -3948,6 +3952,30 @@ function isCampaignScopedWebsiteRule(rule) {
   );
 }
 
+function formatCampaignVisualContextForPrompt(rule) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return "";
+  }
+
+  const matchTerms = extractExplicitCampaignMatchTerms(rule).slice(0, 16);
+  const avoidTerms = extractCampaignAvoidTerms(rule).slice(0, 12);
+  const campaignTheme = [
+    rule?.name,
+    rule?.campaign_goal,
+    rule?.target_customer_need,
+    rule?.marketing_angle,
+    extractPromptLineValue(rule?.prompt, "Campaign"),
+    extractPromptLineValue(rule?.prompt, "Campaign context"),
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  return `Campaign visual context:
+${campaignTheme || "Campaign theme not explicitly named."}
+Product/theme match terms: ${matchTerms.length ? matchTerms.join(", ") : "Not provided"}
+Avoid visual/product terms: ${avoidTerms.length ? avoidTerms.join(", ") : "Not provided"}`;
+}
+
 function getWebsiteCatalogDiscoverySource(baseSource, rule) {
   const cleanSource = String(baseSource || "live_research").trim() || "live_research";
   return isCampaignScopedWebsiteRule(rule)
@@ -4211,9 +4239,18 @@ function isUsefulShortCampaignRoot(term) {
 }
 
 function extractCompactPrimaryCampaignRoots(explicitTerms) {
-  const words = getCampaignTermWords(explicitTerms);
-  const directShortTerms = words.filter(isUsefulShortCampaignRoot);
+  const normalizedExplicitTerms = collectUniqueTerms(explicitTerms, 40);
+  const words = getCampaignTermWords(normalizedExplicitTerms);
   const groupedByPrefix = new Map();
+
+  // Only keep very short direct terms when AI explicitly supplied that exact
+  // term as a campaign/product match term. This keeps useful cases like "jul"
+  // while avoiding accidental roots from broad words such as "article" or
+  // "custom".
+  const directShortTerms = words.filter((word) =>
+    isUsefulShortCampaignRoot(word) &&
+    normalizedExplicitTerms.some((term) => term === word)
+  );
 
   for (const word of words.filter((term) => term.length >= 6)) {
     const key = word.slice(0, 3);
@@ -4223,15 +4260,20 @@ function extractCompactPrimaryCampaignRoots(explicitTerms) {
     }
 
     if (!groupedByPrefix.has(key)) {
-      groupedByPrefix.set(key, []);
+      groupedByPrefix.set(key, new Set());
     }
 
-    groupedByPrefix.get(key).push(word);
+    groupedByPrefix.get(key).add(word);
   }
 
   const sharedRoots = [];
 
-  for (const group of groupedByPrefix.values()) {
+  for (const groupSet of groupedByPrefix.values()) {
+    const group = Array.from(groupSet);
+
+    // A short root is useful only when several explicit AI-created terms point
+    // to the same theme root, for example julklapp/jultröja/julmotiv -> jul.
+    // A single long term must not create a broad three-letter root by itself.
     if (group.length < 2) {
       continue;
     }
@@ -4284,6 +4326,22 @@ function extractPrimaryCampaignTerms(rule) {
   return terms;
 }
 
+function getPrimaryCampaignShortRoots(rule) {
+  return new Set(extractCompactPrimaryCampaignRoots(extractExplicitCampaignMatchTerms(rule)));
+}
+
+function hasCampaignPhraseMatch(text, term) {
+  const normalizedText = normalizeSearchText(text);
+  const normalizedTerm = normalizeSearchText(term).trim();
+
+  if (!normalizedText || !normalizedTerm) {
+    return false;
+  }
+
+  const escapedTerm = normalizedTerm.replace(/[.*+?^${}()|[\]\]/g, "\$&");
+  return new RegExp(`(^|[^\p{L}\p{N}])${escapedTerm}([^\p{L}\p{N}]|$)`, "u").test(normalizedText);
+}
+
 function tokenizeSearchText(value) {
   return normalizeSearchText(value)
     .split(/[^\p{L}\p{N}]+/u)
@@ -4315,18 +4373,28 @@ function countPrimaryCampaignTermMatches(item, rule) {
     return 0;
   }
 
-  const tokens = tokenizeSearchText(getWebsiteItemCampaignText(item));
+  const campaignText = getWebsiteItemCampaignText(item);
+  const tokens = tokenizeSearchText(campaignText);
   const tokenSet = new Set(tokens);
+  const shortRoots = getPrimaryCampaignShortRoots(rule);
   let matches = 0;
 
   for (const term of terms) {
-    if (tokenSet.has(term)) {
+    if (!term) {
+      continue;
+    }
+
+    if (tokenSet.has(term) || hasCampaignPhraseMatch(campaignText, term)) {
       matches += 1;
       continue;
     }
 
+    // Short root matching is only a support signal. It is allowed for explicit
+    // short roots such as "jul" or for roots shared by several AI terms. It must
+    // not turn every product that shares a random three-letter prefix into a
+    // strong campaign match.
     if (
-      isUsefulShortCampaignRoot(term) &&
+      shortRoots.has(term) &&
       tokens.some((token) => token.startsWith(term) && token.length >= term.length + 2)
     ) {
       matches += 1;
@@ -4647,8 +4715,29 @@ function scoreCampaignFitForRule(item, rule) {
   const haystack = `${title} ${url} ${description} ${reason}`;
   let score = aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
 
+  const shortRoots = getPrimaryCampaignShortRoots(rule);
+  const titleTokens = tokenizeSearchText(title);
+  const urlTokens = tokenizeSearchText(url);
+  const descriptionTokens = tokenizeSearchText(description);
+  const reasonTokens = tokenizeSearchText(reason);
+
   for (const term of terms) {
     const isExplicit = explicitTerms.includes(term);
+    const isShortRoot = shortRoots.has(term);
+
+    if (isShortRoot) {
+      const titleRootMatch = titleTokens.some((token) => token.startsWith(term) && token.length >= term.length + 2);
+      const urlRootMatch = urlTokens.some((token) => token.startsWith(term) && token.length >= term.length + 2);
+      const descriptionRootMatch = descriptionTokens.some((token) => token.startsWith(term) && token.length >= term.length + 2);
+      const reasonRootMatch = reasonTokens.some((token) => token.startsWith(term) && token.length >= term.length + 2);
+
+      if (titleRootMatch) score += 48;
+      if (urlRootMatch) score += 42;
+      if (descriptionRootMatch) score += 10;
+      if (reasonRootMatch) score += 8;
+      continue;
+    }
+
     if (title.includes(term)) score += isExplicit ? 65 : 35;
     if (url.includes(term)) score += isExplicit ? 65 : 35;
     if (description.includes(term)) score += isExplicit ? 18 : 8;
@@ -5757,8 +5846,13 @@ function buildCampaignDiscoverySearches(campaignPrompt) {
   const terms = extractCampaignTerms(rule);
   const searches = [];
 
+  const safeRootTerms = extractCompactPrimaryCampaignRoots(explicitTerms);
   for (const term of [...explicitTerms, ...terms].slice(0, 8)) {
-    addCampaignSearchVariants(searches, term, { allowShortRoot: true });
+    addCampaignSearchVariants(searches, term, { allowShortRoot: false });
+  }
+
+  for (const rootTerm of safeRootTerms) {
+    addCampaignSearchVariants(searches, rootTerm, { allowShortRoot: false });
   }
 
   const normalizedPrompt = normalizeSearchText(campaignPrompt);
@@ -7564,8 +7658,9 @@ function buildCarouselOutroImagePrompt(rule, outroSlide, products) {
   const productNames = (products || []).slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET).map((item) => item?.title).filter(Boolean).join(", ");
   const headline = normalizeSlideText(outroSlide?.headline || brandName, 80);
   const supportingText = normalizeSlideText(outroSlide?.cta_text || outroSlide?.body || rule?.cta_type || "", 90);
+  const campaignVisualContext = formatCampaignVisualContextForPrompt(rule) || "Campaign visual context: General brand CTA.";
 
-  return `Create a premium square closing slide for a social media carousel. This is the final CTA slide after product slides for ${brandName}. Use a clean, polished marketing design with a subtle modern background and clear readable text overlay. Write the overlaid text in ${language}. Main overlay text: "${headline}". Supporting overlay text: "${supportingText}". The slide should feel like a professional final call-to-action and may use abstract shapes, elegant composition, soft shadows, geometric shapes, or a tasteful category-inspired scene. If you include any product-like objects, they must be generic, unbranded, non-specific, and not directly identifiable as exact products from the store. Never invent or depict specific catalog items, exact product prints, poster motifs, readable slogan text on products, apparel graphics, packaging artwork, or branded product designs. Do not place the store name or brand logo onto any depicted product. Avoid close-up hero shots of a single product. For stores that sell printed or text-based products such as posters, apparel, mugs, or accessories, do not generate new readable product text or new product artwork. Keep all non-overlay product details subtle, generic, and secondary to the CTA message. Do not show prices, discount claims, or crowded text. Products featured earlier in the carousel: ${productNames || "selected website products"}.`;
+  return `Create a premium square closing slide for a social media carousel. This is the final CTA slide after product slides for ${brandName}. Use a clean, polished marketing design with a subtle modern background and clear readable text overlay. Write the overlaid text in ${language}. Main overlay text: "${headline}". Supporting overlay text: "${supportingText}". ${campaignVisualContext}. If this carousel is connected to a campaign, holiday, season, shopping event or theme, the closing image must clearly match that theme and must not look generic or unrelated. The slide should feel like a professional final call-to-action and may use abstract shapes, elegant composition, soft shadows, geometric shapes, or a tasteful category-inspired scene. If you include any product-like objects, they must be generic, unbranded, non-specific, and not directly identifiable as exact products from the store. Never invent or depict specific catalog items, exact product prints, poster motifs, readable slogan text on products, apparel graphics, packaging artwork, or branded product designs. Do not place the store name or brand logo onto any depicted product. Avoid close-up hero shots of a single product. For stores that sell printed or text-based products such as posters, apparel, mugs, or accessories, do not generate new readable product text or new product artwork. Keep all non-overlay product details subtle, generic, and secondary to the CTA message. Do not show prices, discount claims, or crowded text. Products featured earlier in the carousel: ${productNames || "selected website products"}.`;
 }
 
 async function generateCarouselOutroSlideImage(openai, rule, outroSlide, products) {
