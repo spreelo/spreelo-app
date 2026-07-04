@@ -822,6 +822,124 @@ export function normalizeCampaignTerms(value) {
   return terms;
 }
 
+
+function addUniqueCampaignTerms(target, values, limit = 24) {
+  if (!Array.isArray(target)) return target;
+
+  const existing = new Set(
+    target
+      .map((value) => String(value || "").toLocaleLowerCase().trim())
+      .filter(Boolean)
+  );
+
+  for (const rawValue of Array.isArray(values) ? values : []) {
+    const value = String(rawValue || "").replace(/\s+/g, " ").trim();
+    const key = value.toLocaleLowerCase();
+
+    if (!value || key.length < 2 || /^\d+$/.test(key) || existing.has(key)) {
+      continue;
+    }
+
+    target.push(value.slice(0, 70));
+    existing.add(key);
+
+    if (target.length >= limit) {
+      break;
+    }
+  }
+
+  return target;
+}
+
+function normalizeCampaignThemeTextForAnalysis(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[åä]/gi, "a")
+    .replace(/[ö]/gi, "o")
+    .toLocaleLowerCase();
+}
+
+function hasAnyCampaignThemeTokenForAnalysis(text, tokens) {
+  const normalizedText = normalizeCampaignThemeTextForAnalysis(text);
+
+  return (Array.isArray(tokens) ? tokens : []).some((token) => {
+    const normalizedToken = normalizeCampaignThemeTextForAnalysis(token).trim();
+    return normalizedToken && normalizedText.includes(normalizedToken);
+  });
+}
+
+function inferCampaignProductTermsFromOpportunity(rawOpportunity) {
+  const text = [
+    rawOpportunity?.title,
+    rawOpportunity?.name,
+    rawOpportunity?.campaign_title,
+    rawOpportunity?.event_name,
+    rawOpportunity?.description,
+    rawOpportunity?.website_content_strategy,
+    rawOpportunity?.website_product_selection_hint,
+    rawOpportunity?.website_content_fit,
+    rawOpportunity?.product_selection_guidance,
+    rawOpportunity?.campaign_goal,
+    rawOpportunity?.target_customer_need,
+    Array.isArray(rawOpportunity?.recommended_angles) ? rawOpportunity.recommended_angles.join(" ") : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const matchTerms = [];
+  const avoidTerms = [];
+
+  const addTheme = ({ detect, match = [], avoid = [] }) => {
+    if (!hasAnyCampaignThemeTokenForAnalysis(text, detect)) return;
+    addUniqueCampaignTerms(matchTerms, match, 30);
+    addUniqueCampaignTerms(avoidTerms, avoid, 30);
+  };
+
+  addTheme({
+    detect: [
+      "jul", "julafton", "julklapp", "julpynt", "juldekoration", "christmas", "xmas",
+      "nyar", "nyars", "nyarsdekoration", "new year", "nye",
+    ],
+    match: [
+      "jul", "julafton", "julklapp", "julpynt", "juldekoration", "juldekorationer",
+      "julgransdekoration", "nyår", "nyårsdekoration", "nyårsdekorationer", "glitter",
+      "festdekoration", "partydekoration", "christmas", "christmas decoration",
+      "christmas decorations", "xmas", "new year", "new year decoration", "new year decorations",
+    ],
+    avoid: [
+      "halloween", "skräck", "horror", "latexmask", "mask", "peruk", "kostym",
+      "utklädnad", "oktoberfest", "sommar", "summer", "easter", "påsk",
+    ],
+  });
+
+  addTheme({
+    detect: ["halloween", "alla helgons", "pumpa", "pumpkin", "spooky", "skräck", "horror"],
+    match: ["halloween", "pumpa", "pumpkin", "spooky", "skräck", "horror", "halloween decoration", "halloweendekoration"],
+    avoid: ["jul", "christmas", "nyår", "new year", "student", "summer", "sommar"],
+  });
+
+  addTheme({
+    detect: ["fars dag", "father", "father's day", "fathers day", "pappa", "dad"],
+    match: ["fars dag", "pappa", "dad", "father", "father's day", "present till pappa", "gift for dad"],
+    avoid: ["mors dag", "mother", "mom", "baby", "bebis", "halloween"],
+  });
+
+  addTheme({
+    detect: ["mors dag", "mother", "mother's day", "mothers day", "mamma", "mom"],
+    match: ["mors dag", "mamma", "mom", "mother", "mother's day", "present till mamma", "gift for mom"],
+    avoid: ["fars dag", "father", "dad", "halloween"],
+  });
+
+  addTheme({
+    detect: ["alla hjärtans", "alla hjartans", "valentine", "valentine's", "love", "kärlek", "karlek"],
+    match: ["alla hjärtans dag", "valentine", "valentine's day", "kärlek", "love", "romantic"],
+    avoid: ["halloween", "jul", "christmas", "father", "mother"],
+  });
+
+  return { matchTerms, avoidTerms };
+}
+
 export function normalizeCampaignBlueprint(rawOpportunity) {
   const recommendedAngles = normalizeRecommendedAngles(
     rawOpportunity?.recommended_angles || rawOpportunity?.campaign_angles
