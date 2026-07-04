@@ -4387,6 +4387,226 @@ function getWebsiteItemDirectCampaignText(item) {
     .join(" ");
 }
 
+function getCampaignTitleCandidates(rule) {
+  const prompt = String(rule?.prompt || "");
+  const imagePrompt = String(rule?.image_prompt || "");
+
+  return collectUniqueTerms(
+    [
+      rule?.name,
+      extractPromptLineValue(prompt, "Campaign"),
+      extractPromptLineValue(prompt, "Campaign title"),
+      extractPromptLineValue(prompt, "Campaign name"),
+      extractPromptLineValue(imagePrompt, "Campaign"),
+      extractPromptLineValue(imagePrompt, "Campaign title"),
+      extractPromptLineValue(imagePrompt, "Campaign name"),
+    ].filter(Boolean),
+    8
+  );
+}
+
+function getCampaignCoreTitleSegment(value) {
+  const text = String(value || "").trim();
+
+  if (!text) {
+    return "";
+  }
+
+  return text.split(/\s+(?:-|\u2013|\u2014)\s+|\s*(?::|\||\u2022)\s*/u)[0]?.trim() || text;
+}
+
+function getCompactCampaignThemeRoot(word) {
+  const value = normalizeSearchText(word).trim();
+
+  // Long compound campaign words often contain the useful search root at the
+  // beginning, for example julklappsguide -> jul. Keep this generic and only
+  // use it for longer words so ordinary short words do not become noisy roots.
+  if (value.length < 10) {
+    return "";
+  }
+
+  const root = value.slice(0, 3);
+
+  return isUsefulShortCampaignRoot(root) ? root : "";
+}
+
+function extractCampaignCoreThemeTerms(rule) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return [];
+  }
+
+  const explicitTerms = extractExplicitCampaignMatchTerms(rule);
+  const explicitRoots = extractCompactPrimaryCampaignRoots(explicitTerms);
+  const titleCandidates = getCampaignTitleCandidates(rule);
+  const terms = [...explicitRoots];
+
+  for (const candidate of titleCandidates) {
+    const segment = getCampaignCoreTitleSegment(candidate);
+    const words = tokenizeSearchText(segment)
+      .filter((word) => word.length >= 3 && !/^\d+$/.test(word));
+
+    const phraseWords = words.filter((word) => word.length >= 3).slice(0, 3);
+
+    if (phraseWords.length >= 2) {
+      terms.push(phraseWords.join(" "));
+    }
+
+    for (const word of words.slice(0, 3)) {
+      if (word.length >= 4 && !weakShortSearchRoots.has(word)) {
+        terms.push(word);
+      }
+
+      const compactRoot = getCompactCampaignThemeRoot(word);
+
+      if (compactRoot) {
+        terms.push(compactRoot);
+      }
+    }
+  }
+
+  return collectUniqueTerms(terms, 10);
+}
+
+function countCampaignThemeTermMatchesInText(value, rule) {
+  const terms = extractCampaignCoreThemeTerms(rule);
+
+  if (!terms.length) {
+    return 0;
+  }
+
+  const campaignText = normalizeSearchText(value);
+  const tokenSet = new Set(tokenizeSearchText(campaignText));
+  const shortRoots = new Set(terms.filter(isUsefulShortCampaignRoot));
+  let matches = 0;
+
+  for (const term of terms) {
+    if (hasStrongCampaignTermMatchAgainstTokens({ campaignText, tokens: tokenSet, term, shortRoots })) {
+      matches += 1;
+    }
+  }
+
+  return matches;
+}
+
+function countCampaignCoreThemeTermMatches(item, rule) {
+  return countCampaignThemeTermMatchesInText(getWebsiteItemDirectCampaignText(item), rule);
+}
+
+function getWebsiteItemCampaignSourceText(item) {
+  const sourceValues = [
+    item?.source_page_url,
+    item?.source_url,
+    item?.website_url,
+    item?.catalog_source_url,
+    item?.discovery_url,
+    item?.reason,
+    item?.catalog_source,
+    item?.discovery_source,
+    item?.campaign_fit_source,
+  ].filter(Boolean);
+
+  return sourceValues
+    .flatMap((value) => {
+      const raw = String(value || "");
+      const plusAsSpace = raw.replace(/\+/g, " ");
+
+      try {
+        return [raw, decodeURIComponent(plusAsSpace)];
+      } catch {
+        return [raw, plusAsSpace];
+      }
+    })
+    .join(" ");
+}
+
+function isLikelyCampaignFocusedSourceText(value) {
+  const text = normalizeSearchText(value);
+
+  if (!text) {
+    return false;
+  }
+
+  return /(^|[\s/_.?=&-])(collection|collections|category|categories|kategori|kategorier|produktkategori|search|sok|sokning|products)([\s/_.?=&-]|$)/u.test(text);
+}
+
+function countCampaignSourceThemeMatches(item, rule) {
+  const sourceText = getWebsiteItemCampaignSourceText(item);
+
+  if (!isLikelyCampaignFocusedSourceText(sourceText)) {
+    return 0;
+  }
+
+  return countCampaignThemeTermMatchesInText(sourceText, rule);
+}
+
+function getCampaignThemeSourceLockedItems(items, rule) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return [];
+  }
+
+  if (!extractCampaignCoreThemeTerms(rule).length) {
+    return [];
+  }
+
+  return dedupeWebsiteItemsByUrlTitleAndImage(items)
+    .map((item) => ({
+      ...item,
+      campaign_source_theme_matches: countCampaignSourceThemeMatches(item, rule),
+      campaign_theme_term_matches: countCampaignCoreThemeTermMatches(item, rule),
+      primary_campaign_term_matches: countPrimaryCampaignTermMatches(item, rule),
+    }))
+    .filter((item) => Number(item.campaign_source_theme_matches || 0) > 0)
+    .sort((a, b) => {
+      const sourceDelta =
+        Number(b.campaign_source_theme_matches || 0) -
+        Number(a.campaign_source_theme_matches || 0);
+      if (sourceDelta !== 0) return sourceDelta;
+
+      const themeDelta =
+        Number(b.campaign_theme_term_matches || 0) -
+        Number(a.campaign_theme_term_matches || 0);
+      if (themeDelta !== 0) return themeDelta;
+
+      const primaryDelta =
+        Number(b.primary_campaign_term_matches || 0) -
+        Number(a.primary_campaign_term_matches || 0);
+      if (primaryDelta !== 0) return primaryDelta;
+
+      return scoreWebsiteItemForRule(b, rule) - scoreWebsiteItemForRule(a, rule);
+    });
+}
+
+function getCampaignThemeMatchedItems(items, rule) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return [];
+  }
+
+  if (!extractCampaignCoreThemeTerms(rule).length) {
+    return [];
+  }
+
+  return dedupeWebsiteItemsByUrlTitleAndImage(items)
+    .map((item) => ({
+      ...item,
+      campaign_theme_term_matches: countCampaignCoreThemeTermMatches(item, rule),
+      primary_campaign_term_matches: countPrimaryCampaignTermMatches(item, rule),
+    }))
+    .filter((item) => Number(item.campaign_theme_term_matches || 0) > 0)
+    .sort((a, b) => {
+      const themeDelta =
+        Number(b.campaign_theme_term_matches || 0) -
+        Number(a.campaign_theme_term_matches || 0);
+      if (themeDelta !== 0) return themeDelta;
+
+      const primaryDelta =
+        Number(b.primary_campaign_term_matches || 0) -
+        Number(a.primary_campaign_term_matches || 0);
+      if (primaryDelta !== 0) return primaryDelta;
+
+      return scoreWebsiteItemForRule(b, rule) - scoreWebsiteItemForRule(a, rule);
+    });
+}
+
 function isLikelyGenericCustomTemplateProduct(item) {
   const directText = normalizeSearchText(getWebsiteItemDirectCampaignText(item));
 
@@ -4664,10 +4884,27 @@ function getSafeCampaignProductCandidates(items, rule) {
 
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
   const anchorTerms = extractCampaignAnchorTerms(rule);
+  const themeTerms = extractCampaignCoreThemeTerms(rule);
+  const themeSourceLockedItems = getCampaignThemeSourceLockedItems(items, rule);
+  const themeMatchedItems = getCampaignThemeMatchedItems(items, rule);
   const anchorMatchedItems = getCampaignAnchorMatchedItems(items, rule);
   const primaryMatchedItems = getPrimaryCampaignMatchedItems(items, rule);
+  const concreteThemeSourceLockedItems = preferConcreteCampaignProducts(themeSourceLockedItems);
+  const concreteThemeMatchedItems = preferConcreteCampaignProducts(themeMatchedItems);
   const concreteAnchorMatchedItems = preferConcreteCampaignProducts(anchorMatchedItems);
   const concretePrimaryMatchedItems = preferConcreteCampaignProducts(primaryMatchedItems);
+
+  // A campaign title often contains the true occasion/theme while the rest of
+  // the prompt contains broad buying intent such as gift, personal or design.
+  // If we can find products or campaign-focused sources matching that core
+  // theme, keep the carousel locked there before allowing broad gift terms.
+  if (themeTerms.length && concreteThemeSourceLockedItems.length) {
+    return concreteThemeSourceLockedItems;
+  }
+
+  if (themeTerms.length && concreteThemeMatchedItems.length) {
+    return concreteThemeMatchedItems;
+  }
 
   // When a campaign has AI-generated product_match_terms and we can derive
   // campaign anchors from the campaign title/context, the anchor match is the
@@ -4965,9 +5202,12 @@ function scoreCampaignFitForRule(item, rule) {
   const terms = extractCampaignTerms(rule);
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
   const avoidTerms = extractCampaignAvoidTerms(rule);
+  const themeTerms = extractCampaignCoreThemeTerms(rule);
+  const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
+  const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
   const anchorMatches = countCampaignAnchorTermMatches(item, rule);
   const anchorTerms = extractCampaignAnchorTerms(rule);
-  if (!terms.length && !avoidTerms.length && !anchorTerms.length) {
+  if (!terms.length && !avoidTerms.length && !anchorTerms.length && !themeTerms.length) {
     return aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
   }
 
@@ -4980,6 +5220,16 @@ function scoreCampaignFitForRule(item, rule) {
   let score = aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
 
   const shortRoots = getPrimaryCampaignShortRoots(rule);
+
+  if (themeMatches > 0) {
+    score += 125 + themeMatches * 45;
+  } else if (sourceThemeMatches > 0) {
+    score += 95 + sourceThemeMatches * 30;
+  } else if (themeTerms.length) {
+    // Once a clear campaign theme exists, broad gift/personal terms should not
+    // outrank products that actually carry the occasion/theme.
+    score -= 120;
+  }
 
   if (anchorMatches > 0) {
     score += 90 + anchorMatches * 35;
@@ -6120,11 +6370,16 @@ function buildCampaignDiscoverySearches(campaignPrompt) {
   const terms = extractCampaignTerms(rule);
   const searches = [];
 
+  const coreThemeTerms = extractCampaignCoreThemeTerms(rule);
   const anchorTerms = extractCampaignAnchorTerms(rule);
   const safeRootTerms = extractCompactPrimaryCampaignRoots(explicitTerms);
   const rootRelatedExplicitTerms = safeRootTerms.length
     ? explicitTerms.filter((term) => isCampaignTermRelatedToCompactRoots(term, safeRootTerms))
     : explicitTerms;
+
+  for (const coreThemeTerm of coreThemeTerms) {
+    addCampaignSearchVariants(searches, coreThemeTerm, { allowShortRoot: false });
+  }
 
   for (const anchorTerm of anchorTerms) {
     addCampaignSearchVariants(searches, anchorTerm, { allowShortRoot: false });
