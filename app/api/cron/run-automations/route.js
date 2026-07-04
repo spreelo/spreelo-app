@@ -4348,6 +4348,141 @@ function getWebsiteItemCampaignText(item) {
     .join(" ");
 }
 
+
+function getCampaignAnchorSourceText(rule) {
+  const prompt = String(rule?.prompt || "");
+
+  return [
+    rule?.name,
+    extractPromptLineValue(prompt, "Campaign"),
+    extractPromptLineValue(prompt, "Campaign context"),
+    rule?.campaign_goal,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function extractCampaignAnchorTerms(rule) {
+  const source = normalizeSearchText(getCampaignAnchorSourceText(rule));
+  const explicitTerms = extractExplicitCampaignMatchTerms(rule);
+  const explicitWords = new Set(getCampaignTermWords(explicitTerms));
+  const sourceWords = source
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 4 && !/^\d+$/.test(word) && !weakShortSearchRoots.has(word));
+
+  const anchors = [];
+  const seen = new Set();
+
+  for (const word of sourceWords) {
+    const supportedByExplicitTerm = explicitWords.has(word) || Array.from(explicitWords).some((explicitWord) => {
+      if (!explicitWord || explicitWord.length < 4 || word.length < 4) return false;
+      const minLength = Math.min(explicitWord.length, word.length);
+      const commonLength = getCommonPrefix([explicitWord, word]).length;
+      return commonLength >= Math.min(6, minLength) || commonLength >= Math.ceil(minLength * 0.75);
+    });
+
+    // Prefer campaign-title/context terms that AI also reflected in the dynamic
+    // product_match_terms. This keeps generic business words from becoming hard
+    // product filters while still allowing language-specific roots such as
+    // julklapp/julklappar or natal/natalino to work without hardcoding them.
+    if (!supportedByExplicitTerm && explicitTerms.length) {
+      continue;
+    }
+
+    if (!seen.has(word)) {
+      anchors.push(word);
+      seen.add(word);
+    }
+
+    if (anchors.length >= 8) break;
+  }
+
+  return anchors;
+}
+
+function hasStrongCampaignTermMatchAgainstTokens({ campaignText, tokens, term, shortRoots }) {
+  if (!term) return false;
+
+  if (tokens.has(term) || hasCampaignPhraseMatch(campaignText, term)) {
+    return true;
+  }
+
+  if (
+    shortRoots?.has(term) &&
+    Array.from(tokens).some((token) => token.startsWith(term) && token.length >= term.length + 2)
+  ) {
+    return true;
+  }
+
+  if (term.length >= 6) {
+    for (const token of tokens) {
+      if (!token || token.length < 4) continue;
+      const minLength = Math.min(token.length, term.length);
+      const commonLength = getCommonPrefix([token, term]).length;
+
+      // Handles normal inflections/plurals without requiring language-specific
+      // rules, for example julklapp/julklappar or natal/natalino. This is a
+      // support for the campaign anchor, not a generic substring match.
+      if (commonLength >= Math.min(7, minLength) || commonLength >= Math.ceil(minLength * 0.8)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function countCampaignAnchorTermMatches(item, rule) {
+  const terms = extractCampaignAnchorTerms(rule);
+
+  if (!terms.length) {
+    return 0;
+  }
+
+  const campaignText = getWebsiteItemCampaignText(item);
+  const tokenSet = new Set(tokenizeSearchText(campaignText));
+  const shortRoots = getPrimaryCampaignShortRoots(rule);
+  let matches = 0;
+
+  for (const term of terms) {
+    if (hasStrongCampaignTermMatchAgainstTokens({ campaignText, tokens: tokenSet, term, shortRoots })) {
+      matches += 1;
+    }
+  }
+
+  return matches;
+}
+
+function getCampaignAnchorMatchedItems(items, rule) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return [];
+  }
+
+  const anchorTerms = extractCampaignAnchorTerms(rule);
+
+  if (!anchorTerms.length) {
+    return [];
+  }
+
+  return dedupeWebsiteItemsByUrlTitleAndImage(items)
+    .map((item) => ({
+      ...item,
+      campaign_anchor_term_matches: countCampaignAnchorTermMatches(item, rule),
+      primary_campaign_term_matches: countPrimaryCampaignTermMatches(item, rule),
+    }))
+    .filter((item) => Number(item.campaign_anchor_term_matches || 0) > 0)
+    .sort((a, b) => {
+      const anchorDelta = Number(b.campaign_anchor_term_matches || 0) - Number(a.campaign_anchor_term_matches || 0);
+      if (anchorDelta !== 0) return anchorDelta;
+
+      const primaryDelta = Number(b.primary_campaign_term_matches || 0) - Number(a.primary_campaign_term_matches || 0);
+      if (primaryDelta !== 0) return primaryDelta;
+
+      return scoreWebsiteItemForRule(b, rule) - scoreWebsiteItemForRule(a, rule);
+    });
+}
+
 function countPrimaryCampaignTermMatches(item, rule) {
   const terms = extractPrimaryCampaignTerms(rule);
 
@@ -4366,27 +4501,12 @@ function countPrimaryCampaignTermMatches(item, rule) {
       continue;
     }
 
-    if (tokenSet.has(term) || hasCampaignPhraseMatch(campaignText, term)) {
-      matches += 1;
-      continue;
-    }
-
-    // Short root matching is only a support signal. It is allowed for explicit
-    // short roots such as "jul" or for roots shared by several AI terms. It must
-    // not turn every product that shares a random three-letter prefix into a
-    // strong campaign match.
-    if (
-      shortRoots.has(term) &&
-      tokens.some((token) => token.startsWith(term) && token.length >= term.length + 2)
-    ) {
-      matches += 1;
-      continue;
-    }
-
-    if (
-      term.length >= 7 &&
-      tokens.some((token) => token.length >= term.length + 3 && token.includes(term))
-    ) {
+    if (hasStrongCampaignTermMatchAgainstTokens({
+      campaignText,
+      tokens: tokenSet,
+      term,
+      shortRoots,
+    })) {
       matches += 1;
     }
   }
@@ -4421,13 +4541,26 @@ function getSafeCampaignProductCandidates(items, rule) {
   }
 
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
+  const anchorMatchedItems = getCampaignAnchorMatchedItems(items, rule);
   const primaryMatchedItems = getPrimaryCampaignMatchedItems(items, rule);
 
-  // When the campaign has AI-generated product_match_terms, those terms are the
-  // safe filter. Store search, catalog history, and AI scores can support the
-  // ranking, but they must not turn generic products into campaign product cards.
+  // When a campaign has AI-generated product_match_terms and we can derive
+  // campaign anchors from the campaign title/context, the anchor match is the
+  // hard product-card guard. This prevents broad terms such as personal, gift,
+  // print or design from letting generic products into a Christmas/Halloween/etc
+  // campaign carousel.
+  if (explicitTerms.length && extractCampaignAnchorTerms(rule).length) {
+    return anchorMatchedItems;
+  }
+
+  // If we have dynamic terms but no reliable anchor, keep the previous safe
+  // behavior: exact/dynamic term matches only, not generic catalog fallback.
   if (explicitTerms.length) {
     return primaryMatchedItems;
+  }
+
+  if (anchorMatchedItems.length) {
+    return anchorMatchedItems;
   }
 
   if (primaryMatchedItems.length) {
@@ -4707,7 +4840,9 @@ function scoreCampaignFitForRule(item, rule) {
   const terms = extractCampaignTerms(rule);
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
   const avoidTerms = extractCampaignAvoidTerms(rule);
-  if (!terms.length && !avoidTerms.length) {
+  const anchorMatches = countCampaignAnchorTermMatches(item, rule);
+  const anchorTerms = extractCampaignAnchorTerms(rule);
+  if (!terms.length && !avoidTerms.length && !anchorTerms.length) {
     return aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
   }
 
@@ -4720,6 +4855,16 @@ function scoreCampaignFitForRule(item, rule) {
   let score = aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
 
   const shortRoots = getPrimaryCampaignShortRoots(rule);
+
+  if (anchorMatches > 0) {
+    score += 90 + anchorMatches * 35;
+  } else if (explicitTerms.length && anchorTerms.length) {
+    // Dynamic broad terms can still help ranking after an anchor matched, but
+    // without an anchor they must not promote a generic product into a themed
+    // campaign card.
+    score -= 80;
+  }
+
   const titleTokens = tokenizeSearchText(title);
   const urlTokens = tokenizeSearchText(url);
   const descriptionTokens = tokenizeSearchText(description);
