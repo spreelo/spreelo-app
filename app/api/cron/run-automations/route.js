@@ -1230,8 +1230,16 @@ async function prepareCarouselProductsForRule({
     await mergeStoreSearchCandidatesIntoCatalog();
   }
 
+  const getCampaignSelectionItems = () => {
+    if (!isCampaignRule) {
+      return catalogItems;
+    }
+
+    return getSafeCampaignProductCandidates(catalogItems, rule);
+  };
+
   let selectedProducts = selectCarouselProductsFromPool({
-    items: catalogItems,
+    items: getCampaignSelectionItems(),
     rule,
     sourceUrl: websiteUrl,
     recentUsedItems,
@@ -1241,7 +1249,7 @@ async function prepareCarouselProductsForRule({
 
   if (isCampaignRule && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET && catalogItems.length) {
     const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
-      items: catalogItems,
+      items: getCampaignSelectionItems(),
       rule,
       sourceUrl: websiteUrl,
       recentUsedItems,
@@ -1293,7 +1301,7 @@ async function prepareCarouselProductsForRule({
           ];
 
           selectedProducts = selectCarouselProductsFromPool({
-            items: catalogItems,
+            items: getCampaignSelectionItems(),
             rule,
             sourceUrl: websiteUrl,
             recentUsedItems,
@@ -1303,7 +1311,7 @@ async function prepareCarouselProductsForRule({
 
           if (isCampaignRule && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
             const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
-              items: catalogItems,
+              items: getCampaignSelectionItems(),
               rule,
               sourceUrl: websiteUrl,
               recentUsedItems,
@@ -1371,7 +1379,7 @@ async function prepareCarouselProductsForRule({
         ];
 
         selectedProducts = selectCarouselProductsFromPool({
-          items: catalogItems,
+          items: getCampaignSelectionItems(),
           rule,
           sourceUrl: websiteUrl,
           recentUsedItems,
@@ -1390,7 +1398,7 @@ async function prepareCarouselProductsForRule({
 
   if (isCampaignRule && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET && catalogItems.length) {
     const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
-      items: catalogItems,
+      items: getCampaignSelectionItems(),
       rule,
       sourceUrl: websiteUrl,
       recentUsedItems,
@@ -1414,6 +1422,7 @@ async function prepareCarouselProductsForRule({
     !hasEnoughCarouselProductsForRule(selectedProducts, rule) &&
     isCampaignRule &&
     catalogItems.length &&
+    extractCampaignAnchorTerms(rule).length === 0 &&
     getSupportingCampaignFitItems(selectedProducts, rule).length < CAROUSEL_MIN_PRODUCT_SLIDES
   ) {
     catalogItems = await applyAiCampaignFitScores({
@@ -1427,7 +1436,7 @@ async function prepareCarouselProductsForRule({
     });
 
     selectedProducts = selectCarouselProductsFromPool({
-      items: catalogItems,
+      items: getCampaignSelectionItems(),
       rule,
       sourceUrl: websiteUrl,
       recentUsedItems,
@@ -1437,7 +1446,7 @@ async function prepareCarouselProductsForRule({
 
     if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
       const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
-        items: catalogItems,
+        items: getCampaignSelectionItems(),
         rule,
         sourceUrl: websiteUrl,
         recentUsedItems,
@@ -1480,7 +1489,7 @@ async function prepareCarouselProductsForRule({
         ];
 
         selectedProducts = selectCarouselProductsFromPool({
-          items: catalogItems,
+          items: getCampaignSelectionItems(),
           rule,
           sourceUrl: websiteUrl,
           recentUsedItems,
@@ -1539,7 +1548,7 @@ async function prepareCarouselProductsForRule({
   }
 
   if (isCampaignRule) {
-    const primaryCampaignMatchedItems = getPrimaryCampaignMatchedItems(
+    const primaryCampaignMatchedItems = getSafeCampaignProductCandidates(
       [
         ...selectedProducts,
         ...catalogItems,
@@ -1554,7 +1563,7 @@ async function prepareCarouselProductsForRule({
     }));
     const selectedSafeCampaignProducts = getSafeCampaignProductCandidates(selectedProducts, rule);
     const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
-      items: catalogItems,
+      items: getCampaignSelectionItems(),
       rule,
       sourceUrl: websiteUrl,
       recentUsedItems,
@@ -1607,7 +1616,7 @@ async function prepareCarouselProductsForRule({
 
     if (campaignProducts.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
       const reusableCampaignProducts = selectCarouselProductsFromPool({
-        items: catalogItems,
+        items: getCampaignSelectionItems(),
         rule,
         sourceUrl: websiteUrl,
         recentUsedItems,
@@ -1697,14 +1706,14 @@ async function prepareCarouselProductsForRule({
 
   if (isCampaignRule && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
     const freshCampaignFallbackProducts = getFreshCarouselProductCandidates({
-      items: catalogItems,
+      items: getCampaignSelectionItems(),
       rule,
       sourceUrl: websiteUrl,
       recentUsedItems,
       usedWebsiteImageUrlsThisRun,
     });
     const reusableCampaignProducts = selectCarouselProductsFromPool({
-      items: catalogItems,
+      items: getCampaignSelectionItems(),
       rule,
       sourceUrl: websiteUrl,
       recentUsedItems,
@@ -4265,7 +4274,12 @@ function extractCompactPrimaryCampaignRoots(explicitTerms) {
     if (isUsefulShortCampaignRoot(prefix)) {
       sharedRoots.push(prefix);
     } else if (prefix.length > 6) {
-      sharedRoots.push(prefix);
+      const compactRoot = prefix.slice(0, 3);
+
+      if (isUsefulShortCampaignRoot(compactRoot)) {
+        sharedRoots.push(compactRoot);
+        sharedRoots.push(prefix);
+      }
     }
   }
 
@@ -4348,35 +4362,52 @@ function getWebsiteItemCampaignText(item) {
     .join(" ");
 }
 
+function getWebsiteItemDirectCampaignText(item) {
+  return [
+    item?.title,
+    item?.url,
+    item?.product_url,
+    item?.item_url,
+    item?.source_url,
+    item?.description,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 
 function getCampaignAnchorSourceText(rule) {
   const prompt = String(rule?.prompt || "");
-  const rawCandidates = [
+
+  return [
     rule?.name,
     extractPromptLineValue(prompt, "Campaign"),
-    extractPromptLineValue(prompt, "Campaign title"),
-    extractPromptLineValue(prompt, "Campaign name"),
+    extractPromptLineValue(prompt, "Campaign context"),
+    rule?.campaign_goal,
   ]
     .filter(Boolean)
-    .map((value) => String(value).trim())
-    .filter(Boolean);
+    .join(" ");
+}
 
-  const focusedCandidates = rawCandidates
-    .map((value) => {
-      // Use only the first title segment as the hard campaign anchor.
-      // Example: "Julklappsguide – personliga presenter" should anchor on
-      // "Julklappsguide", not broad words like "personliga" or "presenter".
-      const firstSegment = value.split(/\s+[–—-]\s+|:|\||•/u)[0]?.trim();
-      return firstSegment || value;
-    })
-    .filter(Boolean);
+function isCampaignTermRelatedToCompactRoots(term, roots) {
+  const normalizedTerm = normalizeSearchText(term).trim();
+  const tokens = tokenizeSearchText(normalizedTerm);
 
-  return focusedCandidates.join(" ");
+  if (!normalizedTerm || !Array.isArray(roots) || !roots.length) {
+    return false;
+  }
+
+  return roots.some((root) => (
+    normalizedTerm === root ||
+    hasCampaignPhraseMatch(normalizedTerm, root) ||
+    tokens.some((token) => token.startsWith(root) && token.length >= root.length + 2)
+  ));
 }
 
 function extractCampaignAnchorTerms(rule) {
   const source = normalizeSearchText(getCampaignAnchorSourceText(rule));
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
+  const compactPrimaryRoots = extractCompactPrimaryCampaignRoots(explicitTerms);
   const explicitWords = new Set(getCampaignTermWords(explicitTerms));
   const sourceWords = source
     .split(/[^\p{L}\p{N}]+/u)
@@ -4386,11 +4417,33 @@ function extractCampaignAnchorTerms(rule) {
   const anchors = [];
   const seen = new Set();
 
+  for (const root of compactPrimaryRoots) {
+    if (!seen.has(root)) {
+      anchors.push(root);
+      seen.add(root);
+    }
+  }
+
   for (const word of sourceWords) {
+    if (compactPrimaryRoots.length && !isCampaignTermRelatedToCompactRoots(word, compactPrimaryRoots)) {
+      continue;
+    }
+
+    const derivedRootTerms = [];
     const supportedByExplicitTerm = explicitWords.has(word) || Array.from(explicitWords).some((explicitWord) => {
       if (!explicitWord || explicitWord.length < 4 || word.length < 4) return false;
       const minLength = Math.min(explicitWord.length, word.length);
-      const commonLength = getCommonPrefix([explicitWord, word]).length;
+      const commonPrefix = getCommonPrefix([explicitWord, word]);
+      const commonLength = commonPrefix.length;
+
+      if (commonLength >= Math.min(6, minLength) || commonLength >= Math.ceil(minLength * 0.75)) {
+        const compactRoot = commonPrefix.slice(0, 3);
+
+        if (commonPrefix.length > 6 && isUsefulShortCampaignRoot(compactRoot)) {
+          derivedRootTerms.push(compactRoot, commonPrefix);
+        }
+      }
+
       return commonLength >= Math.min(6, minLength) || commonLength >= Math.ceil(minLength * 0.75);
     });
 
@@ -4400,6 +4453,13 @@ function extractCampaignAnchorTerms(rule) {
     // julklapp/julklappar or natal/natalino to work without hardcoding them.
     if (!supportedByExplicitTerm && explicitTerms.length) {
       continue;
+    }
+
+    for (const derivedRootTerm of derivedRootTerms) {
+      if (!seen.has(derivedRootTerm)) {
+        anchors.push(derivedRootTerm);
+        seen.add(derivedRootTerm);
+      }
     }
 
     if (!seen.has(word)) {
@@ -4452,7 +4512,7 @@ function countCampaignAnchorTermMatches(item, rule) {
     return 0;
   }
 
-  const campaignText = getWebsiteItemCampaignText(item);
+  const campaignText = getWebsiteItemDirectCampaignText(item);
   const tokenSet = new Set(tokenizeSearchText(campaignText));
   const shortRoots = getPrimaryCampaignShortRoots(rule);
   let matches = 0;
@@ -4502,7 +4562,7 @@ function countPrimaryCampaignTermMatches(item, rule) {
     return 0;
   }
 
-  const campaignText = getWebsiteItemCampaignText(item);
+  const campaignText = getWebsiteItemDirectCampaignText(item);
   const tokens = tokenizeSearchText(campaignText);
   const tokenSet = new Set(tokens);
   const shortRoots = getPrimaryCampaignShortRoots(rule);
@@ -6007,13 +6067,22 @@ function buildCampaignDiscoverySearches(campaignPrompt) {
   const terms = extractCampaignTerms(rule);
   const searches = [];
 
+  const anchorTerms = extractCampaignAnchorTerms(rule);
   const safeRootTerms = extractCompactPrimaryCampaignRoots(explicitTerms);
-  for (const term of [...explicitTerms, ...terms].slice(0, 8)) {
-    addCampaignSearchVariants(searches, term, { allowShortRoot: false });
+  const rootRelatedExplicitTerms = safeRootTerms.length
+    ? explicitTerms.filter((term) => isCampaignTermRelatedToCompactRoots(term, safeRootTerms))
+    : explicitTerms;
+
+  for (const anchorTerm of anchorTerms) {
+    addCampaignSearchVariants(searches, anchorTerm, { allowShortRoot: false });
   }
 
   for (const rootTerm of safeRootTerms) {
     addCampaignSearchVariants(searches, rootTerm, { allowShortRoot: false });
+  }
+
+  for (const term of [...rootRelatedExplicitTerms, ...terms].slice(0, 8)) {
+    addCampaignSearchVariants(searches, term, { allowShortRoot: false });
   }
 
   const normalizedPrompt = normalizeSearchText(campaignPrompt);
