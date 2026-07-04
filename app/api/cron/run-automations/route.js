@@ -4338,7 +4338,7 @@ function hasCampaignPhraseMatch(text, term) {
     return false;
   }
 
-  const escapedTerm = normalizedTerm.replace(/[.*+?^${}()|[\]\]/g, "\$&");
+  const escapedTerm = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(^|[^\p{L}\p{N}])${escapedTerm}([^\p{L}\p{N}]|$)`, "u").test(normalizedText);
 }
 
