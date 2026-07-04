@@ -4351,15 +4351,27 @@ function getWebsiteItemCampaignText(item) {
 
 function getCampaignAnchorSourceText(rule) {
   const prompt = String(rule?.prompt || "");
-
-  return [
+  const rawCandidates = [
     rule?.name,
     extractPromptLineValue(prompt, "Campaign"),
-    extractPromptLineValue(prompt, "Campaign context"),
-    rule?.campaign_goal,
+    extractPromptLineValue(prompt, "Campaign title"),
+    extractPromptLineValue(prompt, "Campaign name"),
   ]
     .filter(Boolean)
-    .join(" ");
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+
+  const focusedCandidates = rawCandidates
+    .map((value) => {
+      // Use only the first title segment as the hard campaign anchor.
+      // Example: "Julklappsguide – personliga presenter" should anchor on
+      // "Julklappsguide", not broad words like "personliga" or "presenter".
+      const firstSegment = value.split(/\s+[–—-]\s+|:|\||•/u)[0]?.trim();
+      return firstSegment || value;
+    })
+    .filter(Boolean);
+
+  return focusedCandidates.join(" ");
 }
 
 function extractCampaignAnchorTerms(rule) {
