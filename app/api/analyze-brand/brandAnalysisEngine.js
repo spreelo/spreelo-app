@@ -834,9 +834,9 @@ Create compact, campaign-specific product metadata that helps a website product 
 Rules:
 - Work in the business/customer language and market. Do not default to Swedish or English unless the website/market uses those terms.
 - Do not use hardcoded holiday dictionaries. Infer terms from the campaign, market, business type, website evidence and product/category hints below.
-- product_match_terms: 8 to 16 concrete product/category/use-case/search terms likely to appear in product titles, category names, URLs or customer searches for items that truly fit the campaign.
-- product_search_queries: 3 to 8 short website search/category queries to try first.
-- product_avoid_terms: 4 to 12 broad nearby-but-wrong product/category terms when there are obvious risks. Use [] only if there are no clear wrong nearby categories.
+- product_match_terms: 10 to 20 concrete product/category/use-case/search terms likely to appear in product titles, category names, URLs or customer searches for items that truly fit the campaign.
+- product_search_queries: 5 to 10 short website search/category queries to try first.
+- product_avoid_terms: 6 to 15 broad nearby-but-wrong product/category terms when there are obvious risks. Use [] only if there are no clear wrong nearby categories.
 - Do not invent exact product names unless they are supported by the provided website hints. Category/search terms are fine.
 - Do not over-block the store. Avoid terms should prevent bad substitutions, not ban everything outside one narrow word.
 - If a campaign is product-based, never return empty product_match_terms or empty product_search_queries.
@@ -1688,9 +1688,9 @@ Return JSON only in this exact shape:
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
-      "product_match_terms": ["8-16 compact product/category/use-case/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
-      "product_search_queries": ["3-8 short website search/category queries to find matching items for this campaign"],
-      "product_avoid_terms": ["4-12 broad nearby-but-wrong product/category/search terms that should be avoided for this campaign when better matching products exist"],
+      "product_match_terms": ["10-20 compact product/category/use-case/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
+      "product_search_queries": ["5-10 short website search/category queries to find matching items for this campaign"],
+      "product_avoid_terms": ["6-15 broad nearby-but-wrong product/category/search terms that should be avoided for this campaign when better matching products exist"],
       "avoid_terms": ["Same values as product_avoid_terms for compatibility"],
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
@@ -1756,13 +1756,13 @@ Campaign timing:
 Campaign strategy:
 - Every campaign must be genuinely useful for this business, industry, market and audience.
 - Every campaign must include a strategic campaign blueprint.
-- For every campaign_opportunity that uses website_content_strategy "product" or "service", create product_match_terms, product_search_queries, product_avoid_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
+- For every campaign_opportunity that uses website_content_strategy "product" or "service", create product_match_terms, product_search_queries, product_avoid_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy. They must be broad enough to find several different matching products over repeated posts, but still specific to the campaign.
 - Use the compact product/category hints from the website and the checked context pages when creating these terms. The terms should reflect what this business appears to sell, not a generic holiday dictionary.
-- product_match_terms must contain 8-16 concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms, common imported terms only when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
-- product_search_queries must contain 3-8 short website search/category queries the product engine should try first.
-- product_avoid_terms and avoid_terms must contain 4-12 broad or misleading nearby product categories that should not be selected when better campaign-specific products exist. Use [] only if there are no obvious nearby wrong product groups.
+- product_match_terms must contain 10-20 concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms, common imported terms only when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
+- product_search_queries must contain 5-10 short website search/category queries the product engine should try first.
+- product_avoid_terms and avoid_terms must contain 6-15 broad or misleading nearby product categories that should not be selected when better campaign-specific products exist. Use [] only if there are no obvious nearby wrong product groups.
 - Keep these fields short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
-- These fields are used directly by the product engine, so never leave product_match_terms or product_search_queries empty for product/service-based campaigns.
+- These fields are used directly by the product engine, so never leave product_match_terms or product_search_queries empty for product/service-based campaigns. Create enough specific, non-overlapping terms to support product rotation across multiple posts without repeating the same products.
 - Every campaign should move the audience from interest to action.
 - Keep each campaign object compact. Do not create long schedule explanations or finished post copy in this analysis.
 - recommended_post_count must be between 1 and 10.
@@ -1965,9 +1965,9 @@ Return JSON only in this exact shape:
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
-      "product_match_terms": ["8-16 compact product/category/use-case/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
-      "product_search_queries": ["3-8 short website search/category queries to find matching items for this campaign"],
-      "product_avoid_terms": ["4-12 broad nearby-but-wrong product/category/search terms that should be avoided for this campaign when better matching products exist"],
+      "product_match_terms": ["10-20 compact product/category/use-case/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
+      "product_search_queries": ["5-10 short website search/category queries to find matching items for this campaign"],
+      "product_avoid_terms": ["6-15 broad nearby-but-wrong product/category/search terms that should be avoided for this campaign when better matching products exist"],
       "avoid_terms": ["Same values as product_avoid_terms for compatibility"],
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
@@ -2033,13 +2033,13 @@ Campaign timing:
 Campaign strategy:
 - Every campaign must be genuinely useful for this business, industry, market and audience.
 - Every campaign must include a strategic campaign blueprint.
-- For every campaign_opportunity that uses website_content_strategy "product" or "service", create product_match_terms, product_search_queries, product_avoid_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
+- For every campaign_opportunity that uses website_content_strategy "product" or "service", create product_match_terms, product_search_queries, product_avoid_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy. They must be broad enough to find several different matching products over repeated posts, but still specific to the campaign.
 - Use the compact product/category hints from the website and the checked context pages when creating these terms. The terms should reflect what this business appears to sell, not a generic holiday dictionary.
-- product_match_terms must contain 8-16 concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms, common imported terms only when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
-- product_search_queries must contain 3-8 short website search/category queries the product engine should try first.
-- product_avoid_terms and avoid_terms must contain 4-12 broad or misleading nearby product categories that should not be selected when better campaign-specific products exist. Use [] only if there are no obvious nearby wrong product groups.
+- product_match_terms must contain 10-20 concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms, common imported terms only when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
+- product_search_queries must contain 5-10 short website search/category queries the product engine should try first.
+- product_avoid_terms and avoid_terms must contain 6-15 broad or misleading nearby product categories that should not be selected when better campaign-specific products exist. Use [] only if there are no obvious nearby wrong product groups.
 - Keep these fields short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
-- These fields are used directly by the product engine, so never leave product_match_terms or product_search_queries empty for product/service-based campaigns.
+- These fields are used directly by the product engine, so never leave product_match_terms or product_search_queries empty for product/service-based campaigns. Create enough specific, non-overlapping terms to support product rotation across multiple posts without repeating the same products.
 - Every campaign should move the audience from interest to action.
 - Keep each campaign object compact. Do not create long schedule explanations or finished post copy in this analysis.
 - recommended_post_count must be between 1 and 10.

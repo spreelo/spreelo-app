@@ -32,7 +32,7 @@ const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 120;
 const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 18;
 const WEBSITE_STORE_SEARCH_FETCH_LIMIT = 14;
 const WEBSITE_STORE_SEARCH_VERIFY_LIMIT = 18;
-const CAROUSEL_AI_SCORE_MAX_ITEMS = 15;
+const CAROUSEL_AI_SCORE_MAX_ITEMS = 25;
 const CAROUSEL_DISCOVERY_VERIFY_LIMIT = 25;
 const CAROUSEL_WEB_SEARCH_MAX_VERIFIED_ITEMS = 8;
 const CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT = 24;
@@ -45,6 +45,7 @@ const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
 const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
 const CAROUSEL_MAX_PRODUCT_SLIDES = CAROUSEL_PRODUCT_SLIDE_TARGET + CAROUSEL_OUTRO_SLIDE_COUNT;
 const CAMPAIGN_LOCKED_SEARCH_POOL_MIN_ITEMS = 3;
+const CAMPAIGN_REUSE_EXHAUSTION_MIN_DISCOVERY_ATTEMPTS = 2;
 
 const POST_TEXT_MODEL = "gpt-4.1-mini";
 const PRODUCT_RESEARCH_MODEL = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
@@ -1217,6 +1218,7 @@ function selectCampaignCarouselProductsByScoreTiers({
   recentUsedItems = [],
   usedWebsiteImageUrlsThisRun = new Set(),
   limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
+  allowUsedAfterExhausted = false,
 }) {
   const candidates = buildCampaignScoredProductCandidates({
     items,
@@ -1232,21 +1234,6 @@ function selectCampaignCarouselProductsByScoreTiers({
     return selected.some((selectedItem) => areSameWebsiteItem(selectedItem, candidate, sourceUrl));
   }
 
-  function hasUnusedSameOrBetterCandidate(candidate) {
-    const candidateScore = Number(candidate?.campaign_fit_score || 0);
-
-    return candidates.some((other) => {
-      if (alreadySelected(other) || areSameWebsiteItem(other, candidate, sourceUrl)) {
-        return false;
-      }
-
-      const otherState = other?._campaignSort || {};
-      const otherUsed = Boolean(otherState.wasUsedRecently || otherState.imageUsedThisRun);
-
-      return !otherUsed && Number(other.campaign_fit_score || 0) + CAMPAIGN_USED_REUSE_SCORE_BUFFER >= candidateScore;
-    });
-  }
-
   for (const candidate of candidates) {
     if (selected.length >= limit) break;
     if (alreadySelected(candidate)) continue;
@@ -1254,24 +1241,38 @@ function selectCampaignCarouselProductsByScoreTiers({
     const state = candidate?._campaignSort || {};
     const used = Boolean(state.wasUsedRecently || state.imageUsedThisRun);
 
-    // A reused campaign product is allowed only after we know there is no
-    // unused product left with the same or higher campaign score.
-    if (used && hasUnusedSameOrBetterCandidate(candidate)) {
+    // Campaign carousels must rotate products hard. A used product may not be
+    // selected again while this selection pass is still looking for fresh
+    // campaign-relevant products. Reuse is only allowed by the caller after the
+    // catalog + store search + live discovery/web search paths have failed to
+    // find enough fresh matching products.
+    if (used && !allowUsedAfterExhausted) {
       continue;
     }
 
     selected.push(candidate);
   }
 
-  if (selected.length < limit) {
-    for (const candidate of candidates) {
-      if (selected.length >= limit) break;
-      if (alreadySelected(candidate)) continue;
-      selected.push(candidate);
-    }
-  }
-
   return selected.slice(0, limit).map(({ _campaignSort, ...item }) => item);
+}
+
+function countFreshCampaignCarouselCandidates({
+  items,
+  rule,
+  sourceUrl,
+  recentUsedItems = [],
+  usedWebsiteImageUrlsThisRun = new Set(),
+}) {
+  return buildCampaignScoredProductCandidates({
+    items,
+    rule,
+    sourceUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+  }).filter((candidate) => {
+    const state = candidate?._campaignSort || {};
+    return !state.wasUsedRecently && !state.imageUsedThisRun;
+  }).length;
 }
 
 function hasEnoughCarouselProductsForRule(products, rule) {
@@ -1359,6 +1360,7 @@ async function prepareCarouselProductsForRule({
   let triedStoreSearchForCampaign = false;
   let lockedCampaignSearchPoolItems = [];
   let hasLockedCampaignSearchPool = false;
+  let campaignFreshDiscoveryAttempts = 0;
 
   async function buildLockedCampaignSearchPool({
     selectionPriority = 75,
@@ -1371,7 +1373,7 @@ async function prepareCarouselProductsForRule({
         websiteUrl,
         campaignPrompt: buildCampaignResearchText(rule),
         usedItems: recentUsedItems,
-        excludeUsed: false,
+        excludeUsed: true,
       });
 
       if (!storeSearchCandidates.length) {
@@ -1429,12 +1431,11 @@ async function prepareCarouselProductsForRule({
         recentUsedItems,
         usedWebsiteImageUrlsThisRun,
       });
-      const lockableSearchPoolItems = freshSafeStoreSearchPoolItems.length >= CAMPAIGN_LOCKED_SEARCH_POOL_MIN_ITEMS
-        ? freshSafeStoreSearchPoolItems
-        : safeStoreSearchPoolItems;
-
-      if (lockableSearchPoolItems.length >= CAMPAIGN_LOCKED_SEARCH_POOL_MIN_ITEMS) {
-        lockedCampaignSearchPoolItems = lockableSearchPoolItems;
+      // Lock only a fresh pool. If the store search only returns already-used
+      // products, keep them in the broader catalog for later exhaustion checks,
+      // but do not lock the carousel to a used set.
+      if (freshSafeStoreSearchPoolItems.length >= CAMPAIGN_LOCKED_SEARCH_POOL_MIN_ITEMS) {
+        lockedCampaignSearchPoolItems = freshSafeStoreSearchPoolItems;
         hasLockedCampaignSearchPool = true;
       }
 
@@ -1512,6 +1513,9 @@ async function prepareCarouselProductsForRule({
 
   if (!hasLockedCampaignSearchPool && !hasEnoughCarouselProductsForRule(selectedProducts, rule) && !triedStoreSearchForCampaign) {
     try {
+      if (isCampaignRule) {
+        campaignFreshDiscoveryAttempts += 1;
+      }
       const storeSearchCandidates = await discoverProductCandidatesFromStoreSearch({
         websiteUrl,
         campaignPrompt: buildCampaignResearchText(rule),
@@ -1599,6 +1603,9 @@ async function prepareCarouselProductsForRule({
     (isCampaignRule && hasLockedCampaignSearchPool && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET)
   ) {
     try {
+      if (isCampaignRule) {
+        campaignFreshDiscoveryAttempts += 1;
+      }
       const discoveredCandidates = await discoverProductCandidatesFromWebsite({
         websiteUrl,
         campaignPrompt: buildCampaignResearchText(rule),
@@ -1743,6 +1750,9 @@ async function prepareCarouselProductsForRule({
 
   if (!hasLockedCampaignSearchPool && !hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
     try {
+      if (isCampaignRule) {
+        campaignFreshDiscoveryAttempts += 1;
+      }
       const webSearchItems = await findWebsiteProductWithWebSearch({
         openai,
         brandProfile,
@@ -1829,6 +1839,14 @@ async function prepareCarouselProductsForRule({
       ...catalogItems,
     ]);
 
+    const freshCandidateCount = countFreshCampaignCarouselCandidates({
+      items: campaignCandidateUniverse,
+      rule,
+      sourceUrl: websiteUrl,
+      recentUsedItems,
+      usedWebsiteImageUrlsThisRun,
+    });
+
     selectedProducts = selectCampaignCarouselProductsByScoreTiers({
       items: campaignCandidateUniverse,
       rule,
@@ -1836,26 +1854,55 @@ async function prepareCarouselProductsForRule({
       recentUsedItems,
       usedWebsiteImageUrlsThisRun,
       limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+      allowUsedAfterExhausted: false,
     });
 
+    const allowCampaignReuseAfterExhausted =
+      selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET &&
+      freshCandidateCount < CAROUSEL_PRODUCT_SLIDE_TARGET &&
+      campaignFreshDiscoveryAttempts >= CAMPAIGN_REUSE_EXHAUSTION_MIN_DISCOVERY_ATTEMPTS;
+
+    if (allowCampaignReuseAfterExhausted) {
+      const recycledProducts = selectCampaignCarouselProductsByScoreTiers({
+        items: campaignCandidateUniverse,
+        rule,
+        sourceUrl: websiteUrl,
+        recentUsedItems,
+        usedWebsiteImageUrlsThisRun,
+        limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+        allowUsedAfterExhausted: true,
+      });
+
+      if (recycledProducts.length > selectedProducts.length) {
+        cycleNumber += 1;
+        summary.website_items_reused_cycle += 1;
+        selectedProducts = recycledProducts;
+      }
+    }
+
     if (selectedProducts.length >= CAROUSEL_PRODUCT_SLIDE_TARGET) {
-      console.log("Campaign carousel selected five products with score tiers and reuse guard", {
+      console.log("Campaign carousel selected products with strict fresh-first reuse guard", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
         websiteUrl,
         selectedCount: selectedProducts.length,
+        freshCandidateCount,
+        discoveryAttempts: campaignFreshDiscoveryAttempts,
         strongCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= 90).length,
         nearCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= 75 && Number(item.campaign_fit_score || 0) < 90).length,
         fallbackCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE && Number(item.campaign_fit_score || 0) < 75).length,
         reusedCount: selectedProducts.filter((item) => Boolean(item.campaign_was_used_recently || item.campaign_image_used_this_run)).length,
+        reuseAfterExhausted: allowCampaignReuseAfterExhausted,
         lockedSearchPool: hasLockedCampaignSearchPool,
       });
     } else {
-      console.warn("Campaign carousel could not find five products above the minimum campaign score", {
+      console.warn("Campaign carousel could not find five fresh products above the minimum campaign score", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
         websiteUrl,
         selectedCount: selectedProducts.length,
+        freshCandidateCount,
+        discoveryAttempts: campaignFreshDiscoveryAttempts,
         minimumScore: CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
         lockedSearchPool: hasLockedCampaignSearchPool,
       });
