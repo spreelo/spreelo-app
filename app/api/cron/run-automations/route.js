@@ -32,14 +32,15 @@ const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 120;
 const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 18;
 const WEBSITE_STORE_SEARCH_FETCH_LIMIT = 14;
 const WEBSITE_STORE_SEARCH_VERIFY_LIMIT = 18;
-const CAROUSEL_AI_SCORE_MAX_ITEMS = 25;
+const CAMPAIGN_STORE_SEARCH_QUERY_LIMIT = 12;
+const CAMPAIGN_SEARCH_FORM_QUERY_LIMIT = 4;
+const CAROUSEL_AI_SCORE_MAX_ITEMS = 15;
 const CAROUSEL_DISCOVERY_VERIFY_LIMIT = 25;
 const CAROUSEL_WEB_SEARCH_MAX_VERIFIED_ITEMS = 8;
 const CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT = 24;
 const CAMPAIGN_STRONG_PRODUCT_FIT_SCORE = 80;
 const CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE = 60;
 const CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE = 60;
-const CAMPAIGN_USED_REUSE_SCORE_BUFFER = 0;
 const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
 const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
 const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
@@ -776,10 +777,55 @@ function hasWebsiteItemCatalogUsage(item) {
   );
 }
 
+function mergeWebsiteItemDuplicateMetadata(existingItem, incomingItem) {
+  if (!existingItem || !incomingItem) {
+    return existingItem || incomingItem;
+  }
+
+  const existingLastUsedAt = existingItem.last_used_at ? Date.parse(existingItem.last_used_at) : 0;
+  const incomingLastUsedAt = incomingItem.last_used_at ? Date.parse(incomingItem.last_used_at) : 0;
+
+  existingItem.times_used = Math.max(
+    Number(existingItem.times_used || 0),
+    Number(incomingItem.times_used || 0)
+  );
+
+  if (incomingLastUsedAt > existingLastUsedAt) {
+    existingItem.last_used_at = incomingItem.last_used_at;
+  }
+
+  existingItem.selection_priority = Math.max(
+    Number(existingItem.selection_priority || 0),
+    Number(incomingItem.selection_priority || 0)
+  );
+  existingItem.campaign_fit_score = Math.max(
+    Number(existingItem.campaign_fit_score || 0),
+    Number(incomingItem.campaign_fit_score || 0)
+  );
+
+  if (!existingItem.catalog_source && incomingItem.catalog_source) {
+    existingItem.catalog_source = incomingItem.catalog_source;
+  }
+  if (!existingItem.discovery_source && incomingItem.discovery_source) {
+    existingItem.discovery_source = incomingItem.discovery_source;
+  }
+  if (!existingItem.campaign_fit_source && incomingItem.campaign_fit_source) {
+    existingItem.campaign_fit_source = incomingItem.campaign_fit_source;
+  }
+  if (!existingItem.item_key && incomingItem.item_key) {
+    existingItem.item_key = incomingItem.item_key;
+  }
+
+  return existingItem;
+}
+
 function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
   const seen = new Set();
   const seenUrls = new Set();
   const seenImageUrls = new Set();
+  const existingByKey = new Map();
+  const existingByUrl = new Map();
+  const existingByImage = new Map();
   const unique = [];
 
   for (const item of items || []) {
@@ -804,6 +850,15 @@ function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
       (urlKey && seenUrls.has(urlKey)) ||
       (imageKey && seenImageUrls.has(imageKey))
     ) {
+      const existingItem =
+        existingByKey.get(key) ||
+        (urlKey ? existingByUrl.get(urlKey) : null) ||
+        (imageKey ? existingByImage.get(imageKey) : null);
+
+      if (existingItem) {
+        mergeWebsiteItemDuplicateMetadata(existingItem, item);
+      }
+
       continue;
     }
 
@@ -830,6 +885,13 @@ function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
       campaign_fit_verdict: item.campaign_fit_verdict || null,
       campaign_fit_reason: item.campaign_fit_reason || null,
     });
+    existingByKey.set(key, unique[unique.length - 1]);
+    if (urlKey) {
+      existingByUrl.set(urlKey, unique[unique.length - 1]);
+    }
+    if (imageKey) {
+      existingByImage.set(imageKey, unique[unique.length - 1]);
+    }
   }
 
   return unique;
@@ -1228,29 +1290,34 @@ function selectCampaignCarouselProductsByScoreTiers({
     usedWebsiteImageUrlsThisRun,
   });
 
+  const freshCandidates = candidates.filter((candidate) => {
+    const state = candidate?._campaignSort || {};
+    return !state.wasUsedRecently && !state.imageUsedThisRun;
+  });
+  const reusableCandidates = candidates.filter((candidate) => {
+    const state = candidate?._campaignSort || {};
+    return Boolean(state.wasUsedRecently || state.imageUsedThisRun);
+  });
   const selected = [];
 
   function alreadySelected(candidate) {
     return selected.some((selectedItem) => areSameWebsiteItem(selectedItem, candidate, sourceUrl));
   }
 
-  for (const candidate of candidates) {
-    if (selected.length >= limit) break;
-    if (alreadySelected(candidate)) continue;
-
-    const state = candidate?._campaignSort || {};
-    const used = Boolean(state.wasUsedRecently || state.imageUsedThisRun);
-
-    // Campaign carousels must rotate products hard. A used product may not be
-    // selected again while this selection pass is still looking for fresh
-    // campaign-relevant products. Reuse is only allowed by the caller after the
-    // catalog + store search + live discovery/web search paths have failed to
-    // find enough fresh matching products.
-    if (used && !allowUsedAfterExhausted) {
-      continue;
+  function addCandidates(candidatePool) {
+    for (const candidate of candidatePool) {
+      if (selected.length >= limit) break;
+      if (alreadySelected(candidate)) continue;
+      selected.push(candidate);
     }
+  }
 
-    selected.push(candidate);
+  // Campaign carousels must rotate through fresh matching products before
+  // reusing old winners. Reuse is only a delivery fallback after every fresh
+  // candidate in the current campaign universe has been considered.
+  addCandidates(freshCandidates);
+  if (allowUsedAfterExhausted) {
+    addCandidates(reusableCandidates);
   }
 
   return selected.slice(0, limit).map(({ _campaignSort, ...item }) => item);
@@ -1367,6 +1434,9 @@ async function prepareCarouselProductsForRule({
     scoreBonus = 0,
   } = {}) {
     triedStoreSearchForCampaign = true;
+    if (isCampaignRule) {
+      campaignFreshDiscoveryAttempts += 1;
+    }
 
     try {
       const storeSearchCandidates = await discoverProductCandidatesFromStoreSearch({
@@ -1431,9 +1501,9 @@ async function prepareCarouselProductsForRule({
         recentUsedItems,
         usedWebsiteImageUrlsThisRun,
       });
-      // Lock only a fresh pool. If the store search only returns already-used
-      // products, keep them in the broader catalog for later exhaustion checks,
-      // but do not lock the carousel to a used set.
+
+      // Lock only a fresh campaign pool. Already-used store-search matches stay
+      // available later as delivery fallback, but must not steer the first pick.
       if (freshSafeStoreSearchPoolItems.length >= CAMPAIGN_LOCKED_SEARCH_POOL_MIN_ITEMS) {
         lockedCampaignSearchPoolItems = freshSafeStoreSearchPoolItems;
         hasLockedCampaignSearchPool = true;
@@ -1474,7 +1544,18 @@ async function prepareCarouselProductsForRule({
     }
 
     if (hasLockedCampaignSearchPool) {
-      return lockedCampaignSearchPoolItems;
+      const freshSafeCatalogItems = getFreshCarouselProductCandidates({
+        items: getSafeCampaignProductCandidates(catalogItems, rule),
+        rule,
+        sourceUrl: websiteUrl,
+        recentUsedItems,
+        usedWebsiteImageUrlsThisRun,
+      });
+
+      return dedupeWebsiteItemsByUrlTitleAndImage([
+        ...lockedCampaignSearchPoolItems,
+        ...freshSafeCatalogItems,
+      ]);
     }
 
     return getSafeCampaignProductCandidates(catalogItems, rule);
@@ -1880,8 +1961,28 @@ async function prepareCarouselProductsForRule({
       }
     }
 
+    if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET && allowCampaignReuseAfterExhausted) {
+      const deliveryFallbackProducts = selectCarouselProductsFromPool({
+        items: catalogItems,
+        rule,
+        sourceUrl: websiteUrl,
+        recentUsedItems,
+        usedWebsiteImageUrlsThisRun,
+        allowReuseWhenExhausted: true,
+      });
+      const mergedProducts = mergeCarouselProductSelections(
+        selectedProducts,
+        deliveryFallbackProducts,
+        websiteUrl
+      );
+
+      if (mergedProducts.length > selectedProducts.length) {
+        selectedProducts = mergedProducts;
+      }
+    }
+
     if (selectedProducts.length >= CAROUSEL_PRODUCT_SLIDE_TARGET) {
-      console.log("Campaign carousel selected products with strict fresh-first reuse guard", {
+      console.log("Campaign carousel selected five products with strict fresh-first reuse guard", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
         websiteUrl,
@@ -1896,7 +1997,7 @@ async function prepareCarouselProductsForRule({
         lockedSearchPool: hasLockedCampaignSearchPool,
       });
     } else {
-      console.warn("Campaign carousel could not find five fresh products above the minimum campaign score", {
+      console.warn("Campaign carousel could not find five products above the minimum campaign score", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
         websiteUrl,
@@ -4269,8 +4370,22 @@ function getWebsiteCatalogUsedSource(rule) {
 }
 
 function buildCampaignResearchText(rule) {
+  const productMatchTerms = splitCampaignTermLine(rule?.product_match_terms).slice(0, 16);
+  const productSearchQueries = splitCampaignTermLine(rule?.product_search_queries).slice(0, 8);
+  const productAvoidTerms = collectUniqueTerms(
+    [
+      ...splitCampaignTermLine(rule?.product_avoid_terms),
+      ...splitCampaignTermLine(rule?.avoid_terms),
+    ],
+    12
+  );
+
   return [
     rule?.name,
+    productSearchQueries.length ? `Product search queries: ${productSearchQueries.join(", ")}` : "",
+    productMatchTerms.length ? `Campaign product match terms: ${productMatchTerms.join(", ")}` : "",
+    productAvoidTerms.length ? `Avoid product terms: ${productAvoidTerms.join(", ")}` : "",
+    rule?.product_search_intent ? `Product search intent: ${rule.product_search_intent}` : "",
     rule?.prompt,
     rule?.image_prompt,
     rule?.campaign_goal,
@@ -6737,7 +6852,7 @@ function buildCampaignDiscoverySearches(campaignPrompt) {
   if (phrase && !explicitTerms.length) searches.unshift(phrase);
   if (phrase && explicitTerms.length) searches.push(phrase);
 
-  return Array.from(new Set(searches.filter(Boolean))).slice(0, 12);
+  return Array.from(new Set(searches.filter(Boolean))).slice(0, CAMPAIGN_STORE_SEARCH_QUERY_LIMIT);
 }
 
 function buildLikelyDiscoveryUrls(websiteUrl, campaignPrompt = "") {
@@ -6779,7 +6894,7 @@ function buildStoreSearchQueries(campaignPrompt) {
     .map((search) => String(search || "").trim())
     .filter(Boolean);
 
-  return Array.from(new Set(searches)).slice(0, 8);
+  return Array.from(new Set(searches)).slice(0, CAMPAIGN_STORE_SEARCH_QUERY_LIMIT);
 }
 
 function buildStoreSearchUrls(websiteUrl, campaignPrompt = "") {
@@ -6829,7 +6944,7 @@ function extractSearchFormUrlsFromHtml({
   pageUrl,
   campaignPrompt,
 }) {
-  const queries = buildStoreSearchQueries(campaignPrompt).slice(0, 3);
+  const queries = buildStoreSearchQueries(campaignPrompt).slice(0, CAMPAIGN_SEARCH_FORM_QUERY_LIMIT);
 
   if (!queries.length) {
     return [];
