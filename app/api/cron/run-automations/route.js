@@ -2050,6 +2050,20 @@ async function prepareCarouselProductsForRule({
     discoverySource: getWebsiteCatalogDiscoverySource("selected", rule),
   });
 
+  await Promise.all(
+    selectedProducts.map((product) =>
+      markWebsiteProductCatalogItemUsed({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        productUrl: product.url,
+        sourceUrl: websiteUrl,
+        websiteItem: product,
+        usedSource: getWebsiteCatalogUsedSource(rule),
+      })
+    )
+  );
+
   summary.website_items_found += selectedProducts.length;
   summary.website_content_success += 1;
   summary.website_image_used += selectedProducts.length;
@@ -3976,6 +3990,68 @@ async function getUsedWebsiteItems({
   return data || [];
 }
 
+async function getRecentPostSlideWebsiteItems({
+  supabase,
+  userId,
+  brandProfileId,
+  limit = WEBSITE_PRODUCT_REUSE_LIMIT,
+}) {
+  const { data: posts, error: postsError } = await supabase
+    .from("posts")
+    .select("id, created_at")
+    .eq("user_id", userId)
+    .eq("brand_profile_id", brandProfileId)
+    .order("created_at", { ascending: false })
+    .limit(Math.max(10, Math.min(limit, 80)));
+
+  if (postsError || !posts?.length) {
+    if (postsError) {
+      console.error("Could not load recent posts for carousel product rotation", {
+        brandProfileId,
+        message: postsError.message,
+        code: postsError.code,
+      });
+    }
+
+    return [];
+  }
+
+  const postIds = posts.map((post) => post.id).filter(Boolean);
+
+  if (!postIds.length) {
+    return [];
+  }
+
+  const { data: slides, error: slidesError } = await supabase
+    .from("post_slides")
+    .select("post_id, product_url, image_url, headline")
+    .in("post_id", postIds)
+    .not("product_url", "is", null)
+    .limit(Math.max(20, Math.min(limit * 6, 480)));
+
+  if (slidesError) {
+    console.error("Could not load recent carousel slides for product rotation", {
+      brandProfileId,
+      message: slidesError.message,
+      code: slidesError.code,
+    });
+
+    return [];
+  }
+
+  return (slides || [])
+    .filter((slide) => slide?.product_url || slide?.image_url)
+    .map((slide) => ({
+      item_key: slide.product_url ? createItemKey({ url: slide.product_url }) : "",
+      item_url: slide.product_url || null,
+      item_title: slide.headline || null,
+      item_image_url: slide.image_url || null,
+      content_type: "carousel_slide",
+      created_at:
+        posts.find((post) => post.id === slide.post_id)?.created_at || null,
+    }));
+}
+
 async function getRecentUsedWebsiteItems({
   supabase,
   userId,
@@ -3986,7 +4062,7 @@ async function getRecentUsedWebsiteItems({
 }) {
   // Product rotation must be shared across normal website posts and carousels.
   // Otherwise a product used in a carousel can immediately reappear in a single-product post.
-  return getUsedWebsiteItems({
+  const historyItems = await getUsedWebsiteItems({
     supabase,
     userId,
     brandProfileId,
@@ -3994,6 +4070,15 @@ async function getRecentUsedWebsiteItems({
     contentType: null,
     limit,
   });
+
+  const slideItems = await getRecentPostSlideWebsiteItems({
+    supabase,
+    userId,
+    brandProfileId,
+    limit,
+  });
+
+  return [...historyItems, ...slideItems];
 }
 
 function hasWebsiteItemAlreadyBeenUsed(item, usedItems, sourceUrl) {
@@ -4251,71 +4336,193 @@ async function upsertWebsiteProductCatalogItems({
     .from("website_product_catalog")
     .upsert(rows, { onConflict: "brand_profile_id,product_url" });
 
-  if (error) {
-    console.error("Could not upsert website product catalog items", {
-      brandProfileId,
-      sourceUrl,
-      count: rows.length,
-      message: error.message,
-      code: error.code,
-    });
+  if (!error) {
+    return;
+  }
+
+  console.error("Could not bulk upsert website product catalog items; falling back to row upsert", {
+    brandProfileId,
+    sourceUrl,
+    count: rows.length,
+    message: error.message,
+    code: error.code,
+  });
+
+  for (const row of rows) {
+    const { data: existingRows, error: readError } = await supabase
+      .from("website_product_catalog")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("brand_profile_id", brandProfileId)
+      .eq("product_url", row.product_url)
+      .limit(10);
+
+    if (readError) {
+      console.error("Could not read website product catalog row during fallback upsert", {
+        brandProfileId,
+        productUrl: row.product_url,
+        message: readError.message,
+        code: readError.code,
+      });
+      continue;
+    }
+
+    if (existingRows?.length) {
+      const { user_id, brand_profile_id, product_url, ...updatePayload } = row;
+      const { error: updateError } = await supabase
+        .from("website_product_catalog")
+        .update({
+          ...updatePayload,
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", existingRows.map((existingRow) => existingRow.id));
+
+      if (updateError) {
+        console.error("Could not update website product catalog row during fallback upsert", {
+          brandProfileId,
+          productUrl: row.product_url,
+          message: updateError.message,
+          code: updateError.code,
+        });
+      }
+
+      continue;
+    }
+
+    const { error: insertError } = await supabase
+      .from("website_product_catalog")
+      .insert(row);
+
+    if (insertError) {
+      console.error("Could not insert website product catalog row during fallback upsert", {
+        brandProfileId,
+        productUrl: row.product_url,
+        message: insertError.message,
+        code: insertError.code,
+      });
+    }
   }
 }
 
 async function markWebsiteProductCatalogItemUsed({
   supabase,
+  userId,
   brandProfileId,
   productUrl,
+  sourceUrl = "",
+  websiteItem = null,
   usedSource = null,
 }) {
   if (!brandProfileId || !productUrl) {
     return;
   }
 
-  const canonicalProductUrl = canonicalizeWebsiteProductUrl(productUrl, productUrl) || productUrl;
+  const canonicalProductUrl =
+    canonicalizeWebsiteProductUrl(productUrl, sourceUrl || productUrl) || productUrl;
+  const normalizedWebsiteItem = websiteItem
+    ? normalizeWebsiteItem(websiteItem, sourceUrl || productUrl)
+    : null;
+  const matchRowsById = new Map();
 
-  const { data, error: readError } = await supabase
-    .from("website_product_catalog")
-    .select("id, times_used, discovery_source")
-    .eq("brand_profile_id", brandProfileId)
-    .eq("product_url", canonicalProductUrl)
-    .limit(1);
+  async function collectMatchingRows(queryBuilder, matchType) {
+    const { data, error } = await queryBuilder.limit(25);
 
-  if (readError || !data?.[0]?.id) {
-    if (readError) {
+    if (error) {
       console.error("Could not read website product catalog usage", {
         brandProfileId,
         productUrl: canonicalProductUrl,
-        message: readError.message,
-        code: readError.code,
+        matchType,
+        message: error.message,
+        code: error.code,
       });
+      return;
     }
 
+    for (const row of data || []) {
+      if (row?.id) {
+        matchRowsById.set(row.id, row);
+      }
+    }
+  }
+
+  let baseQuery = supabase
+    .from("website_product_catalog")
+    .select("id, times_used, discovery_source")
+    .eq("brand_profile_id", brandProfileId)
+    .eq("product_url", canonicalProductUrl);
+
+  if (userId) {
+    baseQuery = baseQuery.eq("user_id", userId);
+  }
+
+  await collectMatchingRows(baseQuery, "product_url");
+
+  const imageUrl = normalizedWebsiteItem?.image_url || websiteItem?.image_url || "";
+  if (imageUrl) {
+    let imageQuery = supabase
+      .from("website_product_catalog")
+      .select("id, times_used, discovery_source")
+      .eq("brand_profile_id", brandProfileId)
+      .eq("image_url", imageUrl);
+
+    if (userId) {
+      imageQuery = imageQuery.eq("user_id", userId);
+    }
+
+    await collectMatchingRows(imageQuery, "image_url");
+  }
+
+  const title = normalizedWebsiteItem?.title || websiteItem?.title || "";
+  if (title) {
+    let titleQuery = supabase
+      .from("website_product_catalog")
+      .select("id, times_used, discovery_source")
+      .eq("brand_profile_id", brandProfileId)
+      .eq("title", title);
+
+    if (userId) {
+      titleQuery = titleQuery.eq("user_id", userId);
+    }
+
+    await collectMatchingRows(titleQuery, "title");
+  }
+
+  const matchingRows = Array.from(matchRowsById.values());
+
+  if (!matchingRows.length) {
+    console.warn("Could not find website product catalog row to mark used", {
+      brandProfileId,
+      productUrl: canonicalProductUrl,
+      title: title || null,
+    });
     return;
   }
 
-  const updatePayload = {
-    times_used: Number(data[0].times_used || 0) + 1,
-    last_used_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  for (const row of matchingRows) {
+    const updatePayload = {
+      times_used: Number(row.times_used || 0) + 1,
+      last_used_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
 
-  if (usedSource) {
-    updatePayload.discovery_source = usedSource;
-  }
+    if (usedSource) {
+      updatePayload.discovery_source = usedSource;
+    }
 
-  const { error: updateError } = await supabase
-    .from("website_product_catalog")
-    .update(updatePayload)
-    .eq("id", data[0].id);
+    const { error: updateError } = await supabase
+      .from("website_product_catalog")
+      .update(updatePayload)
+      .eq("id", row.id);
 
-  if (updateError) {
-    console.error("Could not update website product catalog usage", {
-      brandProfileId,
-      productUrl,
-      message: updateError.message,
-      code: updateError.code,
-    });
+    if (updateError) {
+      console.error("Could not update website product catalog usage", {
+        brandProfileId,
+        productUrl,
+        rowId: row.id,
+        message: updateError.message,
+        code: updateError.code,
+      });
+    }
   }
 }
 
@@ -8559,16 +8766,8 @@ async function saveCarouselWebsiteContentHistory({
     throw new Error(error.message || "Could not save carousel website content history");
   }
 
-  await Promise.all(
-    websiteItems.map((websiteItem) =>
-      markWebsiteProductCatalogItemUsed({
-        supabase,
-        brandProfileId: rule.brand_profile_id,
-        productUrl: websiteItem.url,
-        usedSource: getWebsiteCatalogUsedSource(rule),
-      })
-    )
-  );
+  // Carousel products are reserved when selected, before slides/email are built.
+  // website_content_history remains the audit trail and a secondary rotation source.
 }
 
 async function saveWebsiteContentHistory({
@@ -8605,8 +8804,11 @@ async function saveWebsiteContentHistory({
 
   await markWebsiteProductCatalogItemUsed({
     supabase,
+    userId: rule.user_id,
     brandProfileId: rule.brand_profile_id,
     productUrl: websiteItem.url,
+    sourceUrl,
+    websiteItem,
     usedSource: getWebsiteCatalogUsedSource(rule),
   });
 }
