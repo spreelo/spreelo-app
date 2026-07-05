@@ -7,6 +7,8 @@ export const WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS = 5000;
 export const WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS = 3500;
 export const MAX_CAMPAIGN_OPPORTUNITIES = 12;
 export const WEBSITE_MAX_CONTEXT_LINK_CANDIDATES = 60;
+export const WEBSITE_PRODUCT_ASSORTMENT_HINT_MAX_ITEMS = 80;
+export const WEBSITE_PRODUCT_METADATA_REPAIR_MAX_OPPORTUNITIES = 12;
 
 export function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
@@ -661,6 +663,280 @@ ${candidate.text || ""}
     .join("\n\n---\n\n");
 }
 
+
+function addAssortmentHint(hints, value, sourceUrl = "") {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+
+  if (!text || text.length < 2 || text.length > 180) {
+    return;
+  }
+
+  const key = text.toLocaleLowerCase();
+
+  if (hints.seen.has(key)) {
+    return;
+  }
+
+  hints.seen.add(key);
+  hints.items.push({ text, source_url: sourceUrl || "" });
+}
+
+export function buildProductAssortmentHints({ html, websiteUrl, productSourceCandidates }) {
+  const hints = { seen: new Set(), items: [] };
+  const links = extractProductSourceLinks(html, websiteUrl).slice(0, 120);
+
+  for (const link of links) {
+    addAssortmentHint(hints, link.text, link.url);
+
+    if (hints.items.length >= WEBSITE_PRODUCT_ASSORTMENT_HINT_MAX_ITEMS) {
+      break;
+    }
+  }
+
+  for (const candidate of Array.isArray(productSourceCandidates) ? productSourceCandidates : []) {
+    addAssortmentHint(hints, candidate.title, candidate.url);
+    addAssortmentHint(hints, candidate.description, candidate.url);
+
+    const text = String(candidate.text || "");
+    const lines = text
+      .split(/[\n.?!•|]+/u)
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .filter((line) => line.length >= 3 && line.length <= 140)
+      .slice(0, 18);
+
+    for (const line of lines) {
+      addAssortmentHint(hints, line, candidate.url);
+
+      if (hints.items.length >= WEBSITE_PRODUCT_ASSORTMENT_HINT_MAX_ITEMS) {
+        break;
+      }
+    }
+
+    if (hints.items.length >= WEBSITE_PRODUCT_ASSORTMENT_HINT_MAX_ITEMS) {
+      break;
+    }
+  }
+
+  return hints.items.slice(0, WEBSITE_PRODUCT_ASSORTMENT_HINT_MAX_ITEMS);
+}
+
+export function formatProductAssortmentHintsForPrompt(hints) {
+  const items = Array.isArray(hints) ? hints : [];
+
+  if (!items.length) {
+    return "No compact product/category hints could be extracted from the checked website pages.";
+  }
+
+  return items
+    .slice(0, WEBSITE_PRODUCT_ASSORTMENT_HINT_MAX_ITEMS)
+    .map((item, index) => {
+      const source = item.source_url ? ` Source: ${item.source_url}` : "";
+      return `${index + 1}. ${item.text}${source}`;
+    })
+    .join("\n");
+}
+
+function campaignNeedsProductMetadata(opportunity) {
+  const strategy = String(opportunity?.website_content_strategy || "").toLowerCase().trim();
+
+  if (!["product", "service"].includes(strategy)) {
+    return false;
+  }
+
+  const matchTerms = normalizeCampaignTerms(opportunity?.product_match_terms);
+  const blueprintMatchTerms = normalizeCampaignTerms(opportunity?.campaign_blueprint?.product_match_terms);
+  const searchQueries = normalizeCampaignTerms(
+    opportunity?.product_search_queries || opportunity?.campaign_blueprint?.product_search_queries
+  );
+
+  return matchTerms.length === 0 && blueprintMatchTerms.length === 0 && searchQueries.length === 0;
+}
+
+function mergeCampaignProductMetadata(opportunity, metadata) {
+  if (!opportunity || !metadata) {
+    return opportunity;
+  }
+
+  const productMatchTerms = normalizeCampaignTerms(metadata.product_match_terms);
+  const productSearchQueries = normalizeCampaignTerms(
+    metadata.product_search_queries || metadata.search_queries || metadata.local_search_queries
+  );
+  const productAvoidTerms = normalizeCampaignTerms(
+    metadata.product_avoid_terms || metadata.avoid_terms || metadata.negative_terms
+  );
+  const productSelectionGuidance = normalizeShortText(
+    metadata.product_selection_guidance || opportunity.product_selection_guidance,
+    700
+  );
+  const websiteProductSelectionHint = normalizeWebsiteProductSelectionHint(
+    metadata.website_product_selection_hint || opportunity.website_product_selection_hint
+  );
+
+  const merged = {
+    ...opportunity,
+    product_match_terms: productMatchTerms.length ? productMatchTerms : opportunity.product_match_terms,
+    product_search_queries: productSearchQueries.length ? productSearchQueries : opportunity.product_search_queries,
+    product_avoid_terms: productAvoidTerms.length ? productAvoidTerms : opportunity.product_avoid_terms,
+    avoid_terms: productAvoidTerms.length ? productAvoidTerms : opportunity.avoid_terms,
+    product_selection_guidance: productSelectionGuidance || opportunity.product_selection_guidance,
+    website_product_selection_hint: websiteProductSelectionHint || opportunity.website_product_selection_hint,
+  };
+
+  merged.campaign_blueprint = normalizeCampaignBlueprint(merged);
+
+  return merged;
+}
+
+async function repairCampaignProductMetadataWithOpenAI({
+  openai,
+  campaignOpportunities,
+  websiteProductMode,
+  businessName,
+  websiteUrl,
+  contentMarket,
+  countryCode,
+  contentLanguage,
+  industry,
+  targetAudience,
+  visibleText,
+  productSourceCandidateText,
+  productAssortmentHintText,
+}) {
+  const opportunities = Array.isArray(campaignOpportunities) ? campaignOpportunities : [];
+  const needsRepair = opportunities
+    .map((opportunity, index) => ({ opportunity, index }))
+    .filter(({ opportunity }) => campaignNeedsProductMetadata(opportunity))
+    .slice(0, WEBSITE_PRODUCT_METADATA_REPAIR_MAX_OPPORTUNITIES);
+
+  if (!openai || !websiteProductMode?.available || !needsRepair.length) {
+    return opportunities;
+  }
+
+  try {
+    const repairRows = needsRepair
+      .map(({ opportunity, index }) => `${index + 1}. Title: ${opportunity.title}\nStrategy: ${opportunity.website_content_strategy}\nGoal: ${opportunity.campaign_goal || ""}\nNeed: ${opportunity.target_customer_need || ""}\nGuidance: ${opportunity.product_selection_guidance || opportunity.website_product_selection_hint || ""}`)
+      .join("\n\n");
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4.1-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You repair missing product-selection metadata for a global social media automation tool. Return strict JSON only.",
+        },
+        {
+          role: "user",
+          content: `
+Some product-based campaign opportunities are missing product_match_terms/product_search_queries.
+Create compact, campaign-specific product metadata that helps a website product engine find matching items.
+
+Rules:
+- Work in the business/customer language and market. Do not default to Swedish or English unless the website/market uses those terms.
+- Do not use hardcoded holiday dictionaries. Infer terms from the campaign, market, business type, website evidence and product/category hints below.
+- product_match_terms: 8 to 16 concrete product/category/use-case/search terms likely to appear in product titles, category names, URLs or customer searches for items that truly fit the campaign.
+- product_search_queries: 3 to 8 short website search/category queries to try first.
+- product_avoid_terms: 4 to 12 broad nearby-but-wrong product/category terms when there are obvious risks. Use [] only if there are no clear wrong nearby categories.
+- Do not invent exact product names unless they are supported by the provided website hints. Category/search terms are fine.
+- Do not over-block the store. Avoid terms should prevent bad substitutions, not ban everything outside one narrow word.
+- If a campaign is product-based, never return empty product_match_terms or empty product_search_queries.
+
+Business:
+${businessName || "Not provided"}
+
+Website:
+${websiteUrl}
+
+Market/country/language:
+${contentMarket || "Not provided"} / ${countryCode || "Not provided"} / ${contentLanguage || "Use website language"}
+
+Industry:
+${industry || "Not provided"}
+
+Target audience:
+${targetAudience || "Not provided"}
+
+Compact product/category hints from the website:
+${productAssortmentHintText || "Not available"}
+
+Additional checked website pages:
+${truncateText(productSourceCandidateText, 12000)}
+
+Homepage/context excerpt:
+${truncateText(visibleText, 6000)}
+
+Campaigns to repair:
+${repairRows}
+
+Return JSON only:
+{
+  "campaigns": [
+    {
+      "index": 1,
+      "title": "same title",
+      "product_match_terms": ["term"],
+      "product_search_queries": ["query"],
+      "product_avoid_terms": ["term"],
+      "product_selection_guidance": "Short guidance for selecting matching products and avoiding weak substitutions.",
+      "website_product_selection_hint": "Short product-selection hint."
+    }
+  ]
+}
+`.trim(),
+        },
+      ],
+      temperature: 0.1,
+      response_format: { type: "json_object" },
+      max_completion_tokens: 5000,
+    });
+
+    const content = completion.choices?.[0]?.message?.content || "";
+    const parsed = await parseOpenAIJsonWithRepair({
+      openai,
+      content,
+      contextLabel: "campaign product metadata repair response",
+      expectedShapeDescription: `
+{
+  "campaigns": [
+    {
+      "index": 1,
+      "title": "",
+      "product_match_terms": [],
+      "product_search_queries": [],
+      "product_avoid_terms": [],
+      "product_selection_guidance": "",
+      "website_product_selection_hint": ""
+    }
+  ]
+}
+`.trim(),
+    });
+
+    const repairsByIndex = new Map();
+
+    for (const repair of Array.isArray(parsed?.campaigns) ? parsed.campaigns : []) {
+      const index = Number.parseInt(repair?.index, 10) - 1;
+
+      if (Number.isInteger(index) && index >= 0) {
+        repairsByIndex.set(index, repair);
+      }
+    }
+
+    return opportunities.map((opportunity, index) =>
+      repairsByIndex.has(index)
+        ? mergeCampaignProductMetadata(opportunity, repairsByIndex.get(index))
+        : opportunity
+    );
+  } catch (error) {
+    console.error("Could not repair campaign product metadata with AI", {
+      websiteUrl,
+      message: error.message,
+    });
+
+    return opportunities;
+  }
+}
+
 export function slugify(value) {
   const normalized = String(value || "")
     .toLowerCase()
@@ -860,7 +1136,16 @@ export function normalizeCampaignBlueprint(rawOpportunity) {
     rawOpportunity?.recommended_angles || rawOpportunity?.campaign_angles
   );
   const productMatchTerms = normalizeCampaignTerms(rawOpportunity?.product_match_terms);
-  const avoidTerms = normalizeCampaignTerms(rawOpportunity?.avoid_terms);
+  const productSearchQueries = normalizeCampaignTerms(
+    rawOpportunity?.product_search_queries ||
+      rawOpportunity?.search_queries ||
+      rawOpportunity?.local_search_queries
+  );
+  const avoidTerms = normalizeCampaignTerms(
+    rawOpportunity?.avoid_terms ||
+      rawOpportunity?.product_avoid_terms ||
+      rawOpportunity?.negative_terms
+  );
 
   return {
     campaign_category: normalizeCampaignCategory(
@@ -877,10 +1162,28 @@ export function normalizeCampaignBlueprint(rawOpportunity) {
         rawOpportunity?.website_product_selection_hint,
       700
     ),
+    product_match_terms: normalizeCampaignTerms(rawOpportunity?.product_match_terms),
+    product_search_queries: normalizeCampaignTerms(
+      rawOpportunity?.product_search_queries ||
+        rawOpportunity?.search_queries ||
+        rawOpportunity?.local_search_queries
+    ),
+    product_avoid_terms: normalizeCampaignTerms(
+      rawOpportunity?.product_avoid_terms ||
+        rawOpportunity?.avoid_terms ||
+        rawOpportunity?.negative_terms
+    ),
+    avoid_terms: normalizeCampaignTerms(
+      rawOpportunity?.avoid_terms ||
+        rawOpportunity?.product_avoid_terms ||
+        rawOpportunity?.negative_terms
+    ),
     tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
     cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
     image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
     product_match_terms: productMatchTerms,
+    product_search_queries: productSearchQueries,
+    product_avoid_terms: avoidTerms,
     avoid_terms: avoidTerms,
   };
 }
@@ -1007,6 +1310,22 @@ export function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
       rawOpportunity?.product_selection_guidance ||
         rawOpportunity?.website_product_selection_hint,
       700
+    ),
+    product_match_terms: normalizeCampaignTerms(rawOpportunity?.product_match_terms),
+    product_search_queries: normalizeCampaignTerms(
+      rawOpportunity?.product_search_queries ||
+        rawOpportunity?.search_queries ||
+        rawOpportunity?.local_search_queries
+    ),
+    product_avoid_terms: normalizeCampaignTerms(
+      rawOpportunity?.product_avoid_terms ||
+        rawOpportunity?.avoid_terms ||
+        rawOpportunity?.negative_terms
+    ),
+    avoid_terms: normalizeCampaignTerms(
+      rawOpportunity?.avoid_terms ||
+        rawOpportunity?.product_avoid_terms ||
+        rawOpportunity?.negative_terms
     ),
     tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
     cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
@@ -1258,6 +1577,13 @@ export async function analyzeWebsiteWithOpenAI({
   const visibleText = truncateText(stripHtmlToText(html), WEBSITE_MAX_TEXT_CHARS);
   const productSourceCandidateText =
     formatProductSourceCandidatesForPrompt(productSourceCandidates);
+  const productAssortmentHints = buildProductAssortmentHints({
+    html,
+    websiteUrl,
+    productSourceCandidates,
+  });
+  const productAssortmentHintText =
+    formatProductAssortmentHintsForPrompt(productAssortmentHints);
   const productModeEvidenceText = [
     title,
     description,
@@ -1316,6 +1642,9 @@ ${description || "Not found"}
 Visible website text:
 ${visibleText}
 
+Compact product/category hints extracted from website links and checked pages:
+${productAssortmentHintText}
+
 Additional website context pages checked:
 ${productSourceCandidateText}
 
@@ -1359,8 +1688,10 @@ Return JSON only in this exact shape:
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
-      "product_match_terms": ["Short product/category/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
-      "avoid_terms": ["Short product/category/search terms that indicate products to avoid for this campaign when better matches exist"],
+      "product_match_terms": ["8-16 compact product/category/use-case/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
+      "product_search_queries": ["3-8 short website search/category queries to find matching items for this campaign"],
+      "product_avoid_terms": ["4-12 broad nearby-but-wrong product/category/search terms that should be avoided for this campaign when better matching products exist"],
+      "avoid_terms": ["Same values as product_avoid_terms for compatibility"],
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
       "sales_score": 1,
@@ -1425,11 +1756,13 @@ Campaign timing:
 Campaign strategy:
 - Every campaign must be genuinely useful for this business, industry, market and audience.
 - Every campaign must include a strategic campaign blueprint.
-- For every campaign_opportunity, create product_match_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
-- product_match_terms must contain concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include the campaign name, local-language synonyms, common imported/English terms when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
-- avoid_terms must contain broad or misleading product categories that should not be selected when better campaign-specific products exist. Do not over-block the whole store; only list clearly unsafe or irrelevant categories for this exact campaign.
-- Keep product_match_terms and avoid_terms short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
-- These terms are used directly by the product engine, so do not leave product_match_terms empty for product-based campaigns. If avoid_terms are not relevant, use an empty array, but if the campaign has obvious non-matching product groups, list those in the same local/customer language.
+- For every campaign_opportunity that uses website_content_strategy "product" or "service", create product_match_terms, product_search_queries, product_avoid_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
+- Use the compact product/category hints from the website and the checked context pages when creating these terms. The terms should reflect what this business appears to sell, not a generic holiday dictionary.
+- product_match_terms must contain 8-16 concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms, common imported terms only when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
+- product_search_queries must contain 3-8 short website search/category queries the product engine should try first.
+- product_avoid_terms and avoid_terms must contain 4-12 broad or misleading nearby product categories that should not be selected when better campaign-specific products exist. Use [] only if there are no obvious nearby wrong product groups.
+- Keep these fields short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
+- These fields are used directly by the product engine, so never leave product_match_terms or product_search_queries empty for product/service-based campaigns.
 - Every campaign should move the audience from interest to action.
 - Keep each campaign object compact. Do not create long schedule explanations or finished post copy in this analysis.
 - recommended_post_count must be between 1 and 10.
@@ -1505,27 +1838,49 @@ Accuracy:
     throw new Error("Spreelo could not read the analysis result correctly.");
   }
 
-  return {
-    market_setup: normalizeMarketSetup(
-      parsed.market_setup,
-      parsed.profile.detected_language
-    ),
-    profile: {
-      business_name: String(
-        parsed.profile.business_name || businessName || ""
-      ).trim(),
-      industry: String(parsed.profile.industry || "").trim(),
-      target_audience: String(parsed.profile.target_audience || "").trim(),
-      detected_language: String(parsed.profile.detected_language || "").trim(),
-    },
-    website_product_mode: normalizeWebsiteProductMode(
-      parsed.website_product_mode,
-      websiteUrl,
-      productModeEvidenceText
-    ),
-    campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
+  const normalizedMarketSetup = normalizeMarketSetup(
+    parsed.market_setup,
+    parsed.profile.detected_language
+  );
+  const normalizedProfile = {
+    business_name: String(
+      parsed.profile.business_name || businessName || ""
+    ).trim(),
+    industry: String(parsed.profile.industry || "").trim(),
+    target_audience: String(parsed.profile.target_audience || "").trim(),
+    detected_language: String(parsed.profile.detected_language || "").trim(),
+  };
+  const normalizedWebsiteProductMode = normalizeWebsiteProductMode(
+    parsed.website_product_mode,
+    websiteUrl,
+    productModeEvidenceText
+  );
+  const campaignOpportunities = await repairCampaignProductMetadataWithOpenAI({
+    openai,
+    campaignOpportunities: Array.isArray(parsed.campaign_opportunities)
       ? parsed.campaign_opportunities
       : [],
+    websiteProductMode: normalizedWebsiteProductMode,
+    businessName: normalizedProfile.business_name || businessName,
+    websiteUrl,
+    contentMarket: normalizedMarketSetup.content_market || contentMarket,
+    countryCode: normalizedMarketSetup.country_code || countryCode,
+    contentLanguage:
+      normalizedMarketSetup.content_language ||
+      contentLanguage ||
+      normalizedProfile.detected_language,
+    industry: normalizedProfile.industry,
+    targetAudience: normalizedProfile.target_audience,
+    visibleText,
+    productSourceCandidateText,
+    productAssortmentHintText,
+  });
+
+  return {
+    market_setup: normalizedMarketSetup,
+    profile: normalizedProfile,
+    website_product_mode: normalizedWebsiteProductMode,
+    campaign_opportunities: campaignOpportunities,
   };
 }
 
@@ -1610,8 +1965,10 @@ Return JSON only in this exact shape:
       "tone_guidance": "How the campaign should sound and feel",
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
-      "product_match_terms": ["Short product/category/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
-      "avoid_terms": ["Short product/category/search terms that indicate products to avoid for this campaign when better matches exist"],
+      "product_match_terms": ["8-16 compact product/category/use-case/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
+      "product_search_queries": ["3-8 short website search/category queries to find matching items for this campaign"],
+      "product_avoid_terms": ["4-12 broad nearby-but-wrong product/category/search terms that should be avoided for this campaign when better matching products exist"],
+      "avoid_terms": ["Same values as product_avoid_terms for compatibility"],
       "relevance_reason": "Why this opportunity fits this specific business",
       "relevance_score": 1,
       "sales_score": 1,
@@ -1676,11 +2033,13 @@ Campaign timing:
 Campaign strategy:
 - Every campaign must be genuinely useful for this business, industry, market and audience.
 - Every campaign must include a strategic campaign blueprint.
-- For every campaign_opportunity, create product_match_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
-- product_match_terms must contain concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include the campaign name, local-language synonyms, common imported/English terms when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
-- avoid_terms must contain broad or misleading product categories that should not be selected when better campaign-specific products exist. Do not over-block the whole store; only list clearly unsafe or irrelevant categories for this exact campaign.
-- Keep product_match_terms and avoid_terms short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
-- These terms are used directly by the product engine, so do not leave product_match_terms empty for product-based campaigns. If avoid_terms are not relevant, use an empty array, but if the campaign has obvious non-matching product groups, list those in the same local/customer language.
+- For every campaign_opportunity that uses website_content_strategy "product" or "service", create product_match_terms, product_search_queries, product_avoid_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
+- Use the compact product/category hints from the website and the checked context pages when creating these terms. The terms should reflect what this business appears to sell, not a generic holiday dictionary.
+- product_match_terms must contain 8-16 concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms, common imported terms only when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
+- product_search_queries must contain 3-8 short website search/category queries the product engine should try first.
+- product_avoid_terms and avoid_terms must contain 4-12 broad or misleading nearby product categories that should not be selected when better campaign-specific products exist. Use [] only if there are no obvious nearby wrong product groups.
+- Keep these fields short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
+- These fields are used directly by the product engine, so never leave product_match_terms or product_search_queries empty for product/service-based campaigns.
 - Every campaign should move the audience from interest to action.
 - Keep each campaign object compact. Do not create long schedule explanations or finished post copy in this analysis.
 - recommended_post_count must be between 1 and 10.
