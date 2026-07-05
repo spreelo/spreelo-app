@@ -975,6 +975,21 @@ export default function BrandProfile() {
     }
   }
 
+  async function deletePostSlidesForPosts(postIds) {
+    if (!Array.isArray(postIds) || postIds.length === 0) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("post_slides")
+      .delete()
+      .in("post_id", postIds);
+
+    if (error) {
+      throw new Error(`post_slides: ${error.message}`);
+    }
+  }
+
   async function deleteWebsiteContentHistory(ruleIds, postIds) {
     if (ruleIds.length > 0) {
       const { error } = await supabase
@@ -1053,6 +1068,7 @@ export default function BrandProfile() {
         .filter(Boolean);
 
       await deleteWebsiteContentHistory(ruleIds, postIds);
+      await deletePostSlidesForPosts(postIds);
 
       if (imagePaths.length > 0) {
         const { error: storageDeleteError } = await supabase.storage
@@ -1073,6 +1089,12 @@ export default function BrandProfile() {
           throw new Error(`${BRAND_ASSETS_BUCKET} storage: ${logoDeleteError.message}`);
         }
       }
+
+      await deleteRowsByColumn(
+        "website_product_catalog",
+        "brand_profile_id",
+        brandProfileId
+      );
 
       await deleteRowsByColumn(
         "brand_campaign_opportunities",

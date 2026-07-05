@@ -4378,92 +4378,13 @@ function hasAnyCampaignThemeToken(text, tokens) {
   });
 }
 
-function inferCampaignThemeProductTerms(rule) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
-    return { matchTerms: [], avoidTerms: [], searchQueries: [], searchIntent: "" };
-  }
-
-  const text = getCampaignThemeSourceText(rule);
-  const matchTerms = [];
-  const avoidTerms = [];
-  const searchQueries = [];
-  let searchIntent = "";
-
-  const addTheme = ({ detect, match = [], avoid = [], queries = [], intent = "" }) => {
-    if (!hasAnyCampaignThemeToken(text, detect)) return;
-    matchTerms.push(...match);
-    avoidTerms.push(...avoid);
-    searchQueries.push(...queries);
-    if (!searchIntent && intent) searchIntent = intent;
-  };
-
-  addTheme({
-    detect: [
-      "jul", "julafton", "julklapp", "julpynt", "juldekoration",
-      "christmas", "xmas", "navidad", "noel", "weihnacht",
-      "nyar", "nyars", "nyarsdekoration", "new year", "nye", "reveillon"
-    ],
-    match: [
-      "jul", "julafton", "julpynt", "juldekoration", "juldekorationer", "julgransdekoration",
-      "nyar", "nyars", "nyarsdekoration", "nyarsdekorationer", "glitter", "festdekoration", "partydekoration",
-      "christmas", "christmas decoration", "christmas decorations", "xmas", "new year", "new year decoration", "new year decorations"
-    ],
-    avoid: [
-      "halloween", "skrack", "horror", "latexmask", "mask", "peruk", "kostym", "utkladnad",
-      "oktoberfest", "sommar", "summer", "easter", "pask"
-    ],
-    queries: [
-      "juldekoration", "julpynt", "nyarsdekoration", "festdekoration", "glitter",
-      "christmas decoration", "new year decoration", "party decoration"
-    ],
-    intent: "Find concrete Christmas and New Year decoration products or party decoration products that visibly fit the Christmas/New Year campaign theme. Do not select Halloween, horror, mask, costume, latex or generic masquerade products.",
-  });
-
-  addTheme({
-    detect: ["halloween", "alla helgons", "pumpa", "pumpkin", "spooky", "skrack", "horror"],
-    match: ["halloween", "pumpa", "pumpkin", "spooky", "skrack", "horror", "halloween decoration", "halloweendekoration"],
-    avoid: ["jul", "christmas", "nyar", "new year", "student", "summer", "sommar"],
-    queries: ["halloween", "halloweendekoration", "pumpkin", "spooky decoration", "halloween decoration"],
-    intent: "Find concrete Halloween-themed products. Do not select unrelated seasonal or generic party products when Halloween-specific products exist.",
-  });
-
-  addTheme({
-    detect: ["fars dag", "father", "father's day", "fathers day", "pappa", "dad"],
-    match: ["fars dag", "pappa", "dad", "father", "father's day", "present till pappa", "gift for dad"],
-    avoid: ["mors dag", "mother", "mom", "baby", "bebis", "halloween"],
-    queries: ["fars dag", "present till pappa", "gift for dad", "father's day gift"],
-    intent: "Find products that make sense as Father's Day gifts or activities for dads. Avoid products aimed at the wrong recipient.",
-  });
-
-  addTheme({
-    detect: ["mors dag", "mother", "mother's day", "mothers day", "mamma", "mom"],
-    match: ["mors dag", "mamma", "mom", "mother", "mother's day", "present till mamma", "gift for mom"],
-    avoid: ["fars dag", "father", "dad", "halloween"],
-    queries: ["mors dag", "present till mamma", "gift for mom", "mother's day gift"],
-    intent: "Find products that make sense as Mother's Day gifts. Avoid products aimed at the wrong recipient.",
-  });
-
-  addTheme({
-    detect: ["alla hjartans", "valentine", "valentine's", "love", "karlek"],
-    match: ["alla hjartans dag", "valentine", "valentine's day", "karlek", "love", "romantic"],
-    avoid: ["halloween", "jul", "christmas", "father", "mother"],
-    queries: ["alla hjartans dag", "valentine gift", "romantic gift", "love"],
-    intent: "Find products that visibly fit Valentine's Day, love or romantic gifting.",
-  });
-
-  return {
-    matchTerms: collectUniqueTerms(matchTerms, 30),
-    avoidTerms: collectUniqueTerms(avoidTerms, 30),
-    searchQueries: collectUniqueTerms(searchQueries, 18),
-    searchIntent,
-  };
-}
+// Campaign product terms come from AI-generated metadata saved on the rule
+// and/or prompt context. Do not infer localized theme words in code; Spreelo
+// must work globally across languages and markets.
 
 function extractExplicitCampaignMatchTerms(rule) {
   const prompt = String(rule?.prompt || "");
   const imagePrompt = String(rule?.image_prompt || "");
-  const inferred = inferCampaignThemeProductTerms(rule);
-
   return collectUniqueTerms(
     [
       ...splitCampaignTermLine(rule?.product_match_terms),
@@ -4480,8 +4401,6 @@ function extractExplicitCampaignMatchTerms(rule) {
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Product search queries")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Search queries")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Local search queries")),
-      ...inferred.matchTerms,
-      ...inferred.searchQueries,
     ],
     30
   );
@@ -4490,8 +4409,6 @@ function extractExplicitCampaignMatchTerms(rule) {
 function extractCampaignAvoidTerms(rule) {
   const prompt = String(rule?.prompt || "");
   const imagePrompt = String(rule?.image_prompt || "");
-  const inferred = inferCampaignThemeProductTerms(rule);
-
   return collectUniqueTerms(
     [
       ...splitCampaignTermLine(rule?.product_avoid_terms),
@@ -4502,7 +4419,6 @@ function extractCampaignAvoidTerms(rule) {
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Avoid product terms")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Avoid terms")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Campaign avoid terms")),
-      ...inferred.avoidTerms,
     ],
     30
   );
@@ -4602,9 +4518,8 @@ function extractCompactPrimaryCampaignRoots(explicitTerms) {
   const groupedByPrefix = new Map();
 
   // Only keep very short direct terms when AI explicitly supplied that exact
-  // term as a campaign/product match term. This keeps useful cases like "jul"
-  // while avoiding accidental roots from broad words such as "article" or
-  // "custom".
+  // term as a campaign/product match term. This avoids accidental roots from
+  // broad business words while staying language-neutral.
   const directShortTerms = words.filter((word) =>
     isUsefulShortCampaignRoot(word) &&
     normalizedExplicitTerms.some((term) => term === word)
@@ -4630,8 +4545,8 @@ function extractCompactPrimaryCampaignRoots(explicitTerms) {
     const group = Array.from(groupSet);
 
     // A short root is useful only when several explicit AI-created terms point
-    // to the same theme root, for example julklapp/jultröja/julmotiv -> jul.
-    // A single long term must not create a broad three-letter root by itself.
+    // to the same theme root. A single long term must not create a broad
+    // three-letter root by itself.
     if (group.length < 2) {
       continue;
     }
@@ -4773,9 +4688,9 @@ function getCampaignCoreTitleSegment(value) {
 function getCompactCampaignThemeRoot(word) {
   const value = normalizeSearchText(word).trim();
 
-  // Long compound campaign words often contain the useful search root at the
-  // beginning, for example julklappsguide -> jul. Keep this generic and only
-  // use it for longer words so ordinary short words do not become noisy roots.
+  // Long compound campaign words can contain the useful search root at the
+  // beginning. Keep this generic and only use it for longer words so ordinary
+  // short words do not become noisy roots.
   if (value.length < 10) {
     return "";
   }
@@ -5074,8 +4989,8 @@ function extractCampaignAnchorTerms(rule) {
 
     // Prefer campaign-title/context terms that AI also reflected in the dynamic
     // product_match_terms. This keeps generic business words from becoming hard
-    // product filters while still allowing language-specific roots such as
-    // julklapp/julklappar or natal/natalino to work without hardcoding them.
+    // product filters while still allowing language-specific roots without
+    // hardcoding any theme language.
     if (!supportedByExplicitTerm && explicitTerms.length) {
       continue;
     }
@@ -5119,8 +5034,8 @@ function hasStrongCampaignTermMatchAgainstTokens({ campaignText, tokens, term, s
       const commonLength = getCommonPrefix([token, term]).length;
 
       // Handles normal inflections/plurals without requiring language-specific
-      // rules, for example julklapp/julklappar or natal/natalino. This is a
-      // support for the campaign anchor, not a generic substring match.
+      // rules. This is a support for the campaign anchor, not a generic
+      // substring match.
       if (commonLength >= Math.min(7, minLength) || commonLength >= Math.ceil(minLength * 0.8)) {
         return true;
       }
