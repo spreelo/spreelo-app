@@ -805,7 +805,7 @@ export default function Home() {
 
             <div className="dashboard-layout">
               <main className="dashboard-main">
-                <section className="dashboard-card">
+                <section className="dashboard-card dashboard-plan-hub-card">
                   <div className="dashboard-card-header">
                     <div>
                       <p>{t("dashboard.upcomingEyebrow")}</p>
@@ -856,6 +856,148 @@ export default function Home() {
                       ))}
                     </div>
                   )}
+
+                  <div className="dashboard-plan-hub-divider" />
+
+                  <div className="dashboard-plan-hub-section dashboard-content-plans-card">
+                    <div className="saved-header">
+                      <div>
+                        <p>{t("dashboard.contentPlansEyebrow")}</p>
+                        <h3>{t("dashboard.contentPlansTitle")}</h3>
+                      </div>
+
+                      <a className="secondary-button" href="/automation">
+                        {t("dashboard.newContentPlan")}
+                      </a>
+                    </div>
+
+                    {loading ? (
+                      <div className="dashboard-empty">
+                        <h4>{t("dashboard.loadingContentPlansTitle")}</h4>
+                        <p>{t("dashboard.loadingUpcomingText")}</p>
+                      </div>
+                    ) : dashboardContentPlans.length === 0 ? (
+                      <div className="dashboard-empty">
+                        <h4>{t("dashboard.noContentPlansTitle")}</h4>
+                        <p>{t("dashboard.noContentPlansText")}</p>
+                        <a href="/automation">{t("dashboard.createContentPlan")}</a>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="dashboard-plan-toolbar">
+                          <div>
+                            <button
+                              type="button"
+                              className="dashboard-inline-action"
+                              onClick={
+                                allVisibleContentPlansSelected
+                                  ? clearSelectedContentPlans
+                                  : selectVisibleContentPlans
+                              }
+                            >
+                              {allVisibleContentPlansSelected
+                                ? t("dashboard.clear")
+                                : t("dashboard.selectVisible")}
+                            </button>
+
+                            {selectedContentPlanIds.length > 0 && (
+                              <span className="dashboard-selection-count">
+                                {t("dashboard.contentPlansSelected", {
+                                  count: selectedContentPlanIds.length,
+                                })}
+                              </span>
+                            )}
+                          </div>
+
+                          {selectedContentPlanIds.length > 0 && (
+                            <button
+                              type="button"
+                              className="dashboard-delete-button"
+                              disabled={contentPlanActionLoading}
+                              onClick={() => deleteContentPlans(selectedContentPlanIds)}
+                            >
+                              {contentPlanActionLoading
+                                ? t("dashboard.deleting")
+                                : t("dashboard.deleteSelected")}
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="dashboard-plan-list">
+                          {visibleDashboardContentPlans.map((rule) => {
+                            const status = getContentPlanStatus(rule, t);
+
+                            return (
+                              <article className="dashboard-plan-row" key={rule.id}>
+                                <label className="dashboard-plan-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedContentPlanIds.includes(rule.id)}
+                                    onChange={() => toggleContentPlanSelection(rule.id)}
+                                    aria-label={t("dashboard.selectContentPlan")}
+                                  />
+                                </label>
+
+                                <div className="dashboard-plan-main">
+                                  <div className="dashboard-plan-title-row">
+                                    <h4>{formatPlanName(rule, t)}</h4>
+                                    <span
+                                      className={`dashboard-plan-status dashboard-plan-status-${status.key}`}
+                                    >
+                                      {status.label}
+                                    </span>
+                                  </div>
+                                  <p>
+                                    {getContentPlanSummary(rule, t)}
+                                  </p>
+                                </div>
+
+                                <div className="dashboard-plan-meta">
+                                  <span>{formatScheduleType(rule.schedule_type, t)}</span>
+                                  <strong>{formatDate(getPlanNextDate(rule), t)}</strong>
+                                </div>
+
+                                <div className="dashboard-plan-actions">
+                                  <a href={`/automation?plan=${encodeURIComponent(rule.primary_rule_id || rule.id)}`}>
+                                    {t("dashboard.manage")}
+                                  </a>
+                                  <button
+                                    type="button"
+                                    className="dashboard-plan-delete"
+                                    disabled={contentPlanActionLoading}
+                                    onClick={() => deleteContentPlans([rule.id])}
+                                  >
+                                    {t("dashboard.delete")}
+                                  </button>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+
+                        {dashboardContentPlans.length > CONTENT_PLANS_PREVIEW_LIMIT && (
+                          <div className="dashboard-plan-footer">
+                            <button
+                              type="button"
+                              className="show-more-rules"
+                              onClick={() => {
+                                setShowAllContentPlans((current) => !current);
+                                clearSelectedContentPlans();
+                              }}
+                            >
+                              {showAllContentPlans
+                                ? t("dashboard.showLess")
+                                : t("dashboard.showAllContentPlans", {
+                                    count:
+                                      dashboardContentPlans.length -
+                                      CONTENT_PLANS_PREVIEW_LIMIT,
+                                  })}
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </section>
 
                 <section
@@ -1056,145 +1198,6 @@ export default function Home() {
                   )}
                 </section>
 
-                <section className="dashboard-card saved-card-compact dashboard-content-plans-card">
-                  <div className="saved-header">
-                    <div>
-                      <p>{t("dashboard.contentPlansEyebrow")}</p>
-                      <h3>{t("dashboard.contentPlansTitle")}</h3>
-                    </div>
-
-                    <a className="secondary-button" href="/automation">
-                      {t("dashboard.newContentPlan")}
-                    </a>
-                  </div>
-
-                  {loading ? (
-                    <div className="dashboard-empty">
-                      <h4>{t("dashboard.loadingContentPlansTitle")}</h4>
-                      <p>{t("dashboard.loadingUpcomingText")}</p>
-                    </div>
-                  ) : dashboardContentPlans.length === 0 ? (
-                    <div className="dashboard-empty">
-                      <h4>{t("dashboard.noContentPlansTitle")}</h4>
-                      <p>{t("dashboard.noContentPlansText")}</p>
-                      <a href="/automation">{t("dashboard.createContentPlan")}</a>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="dashboard-plan-toolbar">
-                        <div>
-                          <button
-                            type="button"
-                            className="dashboard-inline-action"
-                            onClick={
-                              allVisibleContentPlansSelected
-                                ? clearSelectedContentPlans
-                                : selectVisibleContentPlans
-                            }
-                          >
-                            {allVisibleContentPlansSelected
-                              ? t("dashboard.clear")
-                              : t("dashboard.selectVisible")}
-                          </button>
-
-                          {selectedContentPlanIds.length > 0 && (
-                            <span className="dashboard-selection-count">
-                              {t("dashboard.contentPlansSelected", {
-                                count: selectedContentPlanIds.length,
-                              })}
-                            </span>
-                          )}
-                        </div>
-
-                        {selectedContentPlanIds.length > 0 && (
-                          <button
-                            type="button"
-                            className="dashboard-delete-button"
-                            disabled={contentPlanActionLoading}
-                            onClick={() => deleteContentPlans(selectedContentPlanIds)}
-                          >
-                            {contentPlanActionLoading
-                              ? t("dashboard.deleting")
-                              : t("dashboard.deleteSelected")}
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="dashboard-plan-list">
-                        {visibleDashboardContentPlans.map((rule) => {
-                          const status = getContentPlanStatus(rule, t);
-
-                          return (
-                            <article className="dashboard-plan-row" key={rule.id}>
-                              <label className="dashboard-plan-check">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedContentPlanIds.includes(rule.id)}
-                                  onChange={() => toggleContentPlanSelection(rule.id)}
-                                  aria-label={t("dashboard.selectContentPlan")}
-                                />
-                              </label>
-
-                              <div className="dashboard-plan-main">
-                                <div className="dashboard-plan-title-row">
-                                  <h4>{formatPlanName(rule, t)}</h4>
-                                  <span
-                                    className={`dashboard-plan-status dashboard-plan-status-${status.key}`}
-                                  >
-                                    {status.label}
-                                  </span>
-                                </div>
-                                <p>
-                                  {getContentPlanSummary(rule, t)}
-                                </p>
-                              </div>
-
-                              <div className="dashboard-plan-meta">
-                                <span>{formatScheduleType(rule.schedule_type, t)}</span>
-                                <strong>{formatDate(getPlanNextDate(rule), t)}</strong>
-                              </div>
-
-                              <div className="dashboard-plan-actions">
-                                <a href={`/automation?plan=${encodeURIComponent(rule.primary_rule_id || rule.id)}`}>
-                                  {t("dashboard.manage")}
-                                </a>
-                                <button
-                                  type="button"
-                                  className="dashboard-plan-delete"
-                                  disabled={contentPlanActionLoading}
-                                  onClick={() => deleteContentPlans([rule.id])}
-                                >
-                                  {t("dashboard.delete")}
-                                </button>
-                              </div>
-                            </article>
-                          );
-                        })}
-                      </div>
-
-                      {dashboardContentPlans.length > CONTENT_PLANS_PREVIEW_LIMIT && (
-                        <div className="dashboard-plan-footer">
-                          <button
-                            type="button"
-                            className="show-more-rules"
-                            onClick={() => {
-                              setShowAllContentPlans((current) => !current);
-                              clearSelectedContentPlans();
-                            }}
-                          >
-                            {showAllContentPlans
-                              ? t("dashboard.showLess")
-                              : t("dashboard.showAllContentPlans", {
-                                  count:
-                                    dashboardContentPlans.length -
-                                    CONTENT_PLANS_PREVIEW_LIMIT,
-                                })}
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </section>
               </main>
 
               <aside className="dashboard-sidebar">

@@ -1,6 +1,37 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  BookOpen,
+  CalendarClock,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  ClipboardList,
+  CreditCard,
+  HelpCircle,
+  Layers,
+  Lightbulb,
+  ListChecks,
+  MailCheck,
+  MapPin,
+  Globe2,
+  Languages,
+  PenLine,
+  Puzzle,
+  Repeat2,
+  Scale,
+  Send,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  Target,
+  Trophy,
+  Video,
+  WandSparkles,
+  Wrench,
+} from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
@@ -398,6 +429,78 @@ const slotTypeIcons = {
 function getSlotTypeIcon(slot) {
   if (!slot) return slotTypeIcons.custom;
   return slotTypeIcons[slot.contentTypeId] || slotTypeIcons.custom;
+}
+
+const slotTypeIconComponents = {
+  website_item: ShoppingBag,
+  carousel_website_item: Layers,
+  problem_solution: Puzzle,
+  tips: Lightbulb,
+  mistakes: AlertTriangle,
+  faq: HelpCircle,
+  behind_scenes: Video,
+  checklist: ListChecks,
+  service_focus: Wrench,
+  case_example: Trophy,
+  myth_fact: Sparkles,
+  local: MapPin,
+  seasonal: CalendarDays,
+  comparison: Scale,
+  mini_guide: BookOpen,
+  manual_prompt: PenLine,
+  custom: PenLine,
+};
+
+function SlotTypeGlyph({ slot }) {
+  const Icon =
+    slotTypeIconComponents[slot?.contentTypeId] || slotTypeIconComponents.custom;
+
+  return <Icon size={15} strokeWidth={2.1} aria-hidden="true" />;
+}
+
+const howItWorksIconComponents = {
+  create: WandSparkles,
+  channels: Send,
+  approval: MailCheck,
+  manage: Clock3,
+};
+
+function PlannerHowIcon({ type }) {
+  const Icon = howItWorksIconComponents[type] || Sparkles;
+
+  return (
+    <span className={`planner-how-icon planner-how-icon-${type}`}>
+      <Icon size={16} strokeWidth={2.1} aria-hidden="true" />
+    </span>
+  );
+}
+
+const plannerSummaryIconComponents = {
+  title: ClipboardList,
+  goal: Target,
+  posts: ListChecks,
+  start: CalendarClock,
+  platform: Globe2,
+  language: Languages,
+  repeat: Repeat2,
+  timezone: Clock3,
+  approval: ShieldCheck,
+  ready: CheckCircle2,
+  credits: CreditCard,
+};
+
+function PlannerSummaryIcon({ type, success = false }) {
+  const Icon = plannerSummaryIconComponents[type] || Sparkles;
+
+  return (
+    <span
+      className={`planner-summary-icon planner-summary-icon-${type}${
+        success ? " success" : ""
+      }`}
+    >
+      <Icon size={15} strokeWidth={2.1} aria-hidden="true" />
+    </span>
+  );
 }
 
 const recommendedContentTypeIds = [
@@ -7520,7 +7623,7 @@ setRules((currentRules) =>
                     className={`planner-post-type-icon type-${slot.contentTypeId || "custom"}`}
                     aria-hidden="true"
                   >
-                    {getSlotTypeIcon(slot)}
+                    <SlotTypeGlyph slot={slot} />
                   </span>
 
                   <strong>
@@ -7945,24 +8048,28 @@ setRules((currentRules) =>
               <div className="planner-how-it-works-grid">
                 <div>
                   <span>✦</span>
+                  <PlannerHowIcon type="create" />
                   <strong>{t("automation.howItWorksAutomaticTitle")}</strong>
                   <p>{t("automation.howItWorksAutomaticText")}</p>
                 </div>
 
                 <div>
                   <span>🌐</span>
+                  <PlannerHowIcon type="channels" />
                   <strong>{t("automation.howItWorksChannelsTitle")}</strong>
                   <p>{t("automation.howItWorksChannelsText")}</p>
                 </div>
 
                 <div>
                   <span>✉</span>
+                  <PlannerHowIcon type="approval" />
                   <strong>{t("automation.howItWorksApprovalTitle")}</strong>
                   <p>{t("automation.howItWorksApprovalText")}</p>
                 </div>
 
                 <div>
                   <span>⌘</span>
+                  <PlannerHowIcon type="manage" />
                   <strong>{t("automation.howItWorksManageTitle")}</strong>
                   <p>{t("automation.howItWorksManageText")}</p>
                 </div>
@@ -8207,7 +8314,7 @@ setRules((currentRules) =>
                    <aside className="planner-sidebar">
                       <section className="planner-summary-card">
               <div className="planner-sidebar-title planner-summary-title">
-                <span>▤</span>
+                <PlannerSummaryIcon type="title" />
                 <div>
                   <h3>{safePlannerText("planSummary")}</h3>
                   <p>{safePlannerText("readyToCreate")}</p>
@@ -8217,7 +8324,7 @@ setRules((currentRules) =>
               <div className="planner-summary-list premium">
                 {planCreationMode === "auto" && (
                   <div className="planner-summary-item">
-                    <span className="planner-summary-icon">◎</span>
+                    <PlannerSummaryIcon type="goal" />
                     <div>
                       <span>{t("automation.goal")}</span>
                       <strong>{translateAutoPlanGoalLabel(autoPlanGoal)}</strong>
@@ -8227,7 +8334,7 @@ setRules((currentRules) =>
 
 
 <div className="planner-summary-item">
-  <span className="planner-summary-icon">▦</span>
+  <PlannerSummaryIcon type="posts" />
   <div>
     <span>
       {scheduleType === "weekly" && planCreationMode !== "campaign"
@@ -8240,7 +8347,7 @@ setRules((currentRules) =>
   </div>
 </div>
                 <div className="planner-summary-item">
-                  <span className="planner-summary-icon">◷</span>
+                  <PlannerSummaryIcon type="start" />
                   <div>
                     <span>{t("automation.start")}</span>
                     <strong>
@@ -8252,7 +8359,7 @@ setRules((currentRules) =>
 
 
                 <div className="planner-summary-item">
-                  <span className="planner-summary-icon">🌐</span>
+                  <PlannerSummaryIcon type="platform" />
                   <div>
                     <span>{t("automation.platform")}</span>
                     <div className="planner-social-icon-row mini">
@@ -8273,7 +8380,7 @@ setRules((currentRules) =>
                 </div>
 
                 <div className="planner-summary-item">
-                  <span className="planner-summary-icon">✧</span>
+                  <PlannerSummaryIcon type="language" />
                   <div>
                     <span>{safePlannerText("languageForPosts")}</span>
                     <strong>{getLanguageDisplayLabel(language)}</strong>
@@ -8281,7 +8388,7 @@ setRules((currentRules) =>
                 </div>
 
                 <div className="planner-summary-item">
-                  <span className="planner-summary-icon">↻</span>
+                  <PlannerSummaryIcon type="repeat" />
                   <div>
                     <span>{safePlannerText("repeatFull")}</span>
                     <strong>{translateScheduleType(scheduleType)}</strong>
@@ -8289,7 +8396,7 @@ setRules((currentRules) =>
                 </div>
 
                 <div className="planner-summary-item">
-                  <span className="planner-summary-icon">⏱</span>
+                  <PlannerSummaryIcon type="timezone" />
                   <div>
                     <span>{t("automation.timezone")}</span>
                     <strong>{timeZone}</strong>
@@ -8297,7 +8404,7 @@ setRules((currentRules) =>
                 </div>
 
                 <div className="planner-summary-item">
-                  <span className="planner-summary-icon success">✓</span>
+                  <PlannerSummaryIcon type="approval" success />
                   <div>
                     <span>{t("automation.approval")}</span>
                     <strong>{t("automation.approvalAlwaysRequired")}</strong>
@@ -8307,7 +8414,7 @@ setRules((currentRules) =>
               </div>
 
               <div className="planner-summary-status">
-                <span>✓</span>
+                <PlannerSummaryIcon type="ready" success />
                 <div>
                   <strong>{t("automation.planIsReady")}</strong>
                   <p>{t("automation.planReadyText")}</p>
@@ -8323,7 +8430,7 @@ setRules((currentRules) =>
 
             <section className="planner-credits-card">
               <div className="planner-sidebar-title">
-                <span>ⓘ</span>
+                <PlannerSummaryIcon type="credits" />
                 <h3>{t("automation.credits")}</h3>
               </div>
 
