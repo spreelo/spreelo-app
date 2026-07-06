@@ -49,6 +49,12 @@ const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
 const CAROUSEL_MAX_PRODUCT_SLIDES = CAROUSEL_PRODUCT_SLIDE_TARGET + CAROUSEL_OUTRO_SLIDE_COUNT;
 const CAMPAIGN_LOCKED_SEARCH_POOL_MIN_ITEMS = 3;
 const CAMPAIGN_REUSE_EXHAUSTION_MIN_DISCOVERY_ATTEMPTS = 2;
+const WEBSITE_TEXT_INTENT_MATCH_TERM_LIMIT = 18;
+const WEBSITE_TEXT_INTENT_QUERY_LIMIT = 10;
+const WEBSITE_TEXT_INTENT_AVOID_LIMIT = 12;
+const WEBSITE_TEXT_INTENT_AI_MIN_SIGNAL_TERMS = 2;
+const WEBSITE_TEXT_INTENT_AI_SCORE_MAX_ITEMS = 25;
+const WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT = 12;
 
 const POST_TEXT_MODEL = "gpt-4.1-mini";
 const PRODUCT_RESEARCH_MODEL = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
@@ -4548,6 +4554,23 @@ function isCampaignScopedWebsiteRule(rule) {
   );
 }
 
+function hasProductSearchMetadata(rule) {
+  return Boolean(
+    splitCampaignTermLine(rule?.product_match_terms).length ||
+      splitCampaignTermLine(rule?.product_search_queries).length ||
+      splitCampaignTermLine(rule?.product_avoid_terms).length ||
+      splitCampaignTermLine(rule?.avoid_terms).length ||
+      String(rule?.product_search_intent || "").trim()
+  );
+}
+
+function isProductIntentScopedWebsiteRule(rule) {
+  return Boolean(
+    isCampaignScopedWebsiteRule(rule) ||
+      hasProductSearchMetadata(rule)
+  );
+}
+
 function formatCampaignVisualContextForPrompt(rule) {
   if (!isCampaignScopedWebsiteRule(rule)) {
     return "";
@@ -4574,13 +4597,28 @@ Avoid visual/product terms: ${avoidTerms.length ? avoidTerms.join(", ") : "Not p
 
 function getWebsiteCatalogDiscoverySource(baseSource, rule) {
   const cleanSource = String(baseSource || "live_research").trim() || "live_research";
-  return isCampaignScopedWebsiteRule(rule)
-    ? `campaign_${cleanSource}`
-    : `general_${cleanSource}`;
+
+  if (isCampaignScopedWebsiteRule(rule)) {
+    return `campaign_${cleanSource}`;
+  }
+
+  if (isProductIntentScopedWebsiteRule(rule)) {
+    return `intent_${cleanSource}`;
+  }
+
+  return `general_${cleanSource}`;
 }
 
 function getWebsiteCatalogUsedSource(rule) {
-  return isCampaignScopedWebsiteRule(rule) ? "campaign_used" : "general_used";
+  if (isCampaignScopedWebsiteRule(rule)) {
+    return "campaign_used";
+  }
+
+  if (isProductIntentScopedWebsiteRule(rule)) {
+    return "intent_used";
+  }
+
+  return "general_used";
 }
 
 function buildCampaignResearchText(rule) {
@@ -4635,7 +4673,7 @@ function filterWebsiteCatalogItemsForRule(items, rule) {
     return !isLikelyBadDiscoveryPageUrl(itemUrl, sourceUrl);
   });
 
-  if (isCampaignScopedWebsiteRule(rule)) {
+  if (isProductIntentScopedWebsiteRule(rule)) {
     return sourceItems;
   }
 
@@ -4728,6 +4766,417 @@ function collectUniqueTerms(terms, limit = 24) {
   }
 
   return unique;
+}
+
+const genericWebsiteTextIntentTokens = new Set([
+  "automation",
+  "availability",
+  "available",
+  "based",
+  "banner",
+  "banners",
+  "brand",
+  "business",
+  "build",
+  "campaign",
+  "caption",
+  "clear",
+  "clearly",
+  "concrete",
+  "connected",
+  "content",
+  "create",
+  "customer",
+  "customers",
+  "decorative",
+  "destination",
+  "discount",
+  "discounts",
+  "draft",
+  "educate",
+  "focused",
+  "followers",
+  "found",
+  "from",
+  "guarantee",
+  "guarantees",
+  "helpful",
+  "hero",
+  "hours",
+  "identify",
+  "image",
+  "images",
+  "information",
+  "instead",
+  "invent",
+  "item",
+  "listing",
+  "logos",
+  "media",
+  "mode",
+  "more",
+  "offer",
+  "opening",
+  "post",
+  "prices",
+  "product",
+  "profile",
+  "promote",
+  "promotes",
+  "push",
+  "professional",
+  "relevant",
+  "rule",
+  "sales",
+  "selected",
+  "sell",
+  "sellable",
+  "service",
+  "social",
+  "something",
+  "specific",
+  "stay",
+  "strong",
+  "trust",
+  "trustworthy",
+  "unrelated",
+  "visible",
+  "website",
+  "webbplats",
+  "hemsida",
+  "inlagg",
+  "kampanj",
+  "konkret",
+  "produkt",
+  "produkter",
+  "profil",
+  "salj",
+  "skapa",
+  "tjanst",
+  "tjanster",
+  "utkast",
+]);
+
+function stripDefaultWebsiteTextPromptNoise(value) {
+  return String(value || "")
+    .replace(/this post is part of a strategic content sequence for the goal:[^\n\r.]*\.?/gi, " ")
+    .replace(/^post role:\s*.+$/gim, " ")
+    .replace(/^strategic purpose:\s*.+$/gim, " ")
+    .replace(/^marketing angle:\s*.+$/gim, " ")
+    .replace(/^customer stage:\s*.+$/gim, " ")
+    .replace(/^cta strength:\s*.+$/gim, " ")
+    .replace(/make this post clearly different from the other posts in the plan\.?/gi, " ")
+    .replace(/do not just create a generic mixed post\.?/gi, " ")
+    .replace(/if website products are used, choose products that fit this exact role and audience need, not random products from the website\.?/gi, " ")
+    .replace(/use the website url from the brand profile\.?/gi, " ")
+    .replace(/identify one concrete product, service, listing, offer or other sellable item from the website\.?/gi, " ")
+    .replace(/create a social media post that promotes that specific item in a helpful, trustworthy and sales-focused way\.?/gi, " ")
+    .replace(/use only information that clearly appears on the website\.?/gi, " ")
+    .replace(/do not invent prices, discounts, guarantees, opening hours, features or availability\.?/gi, " ")
+    .replace(/use a relevant image connected to the selected website item if one can be found\.?/gi, " ")
+    .replace(/avoid logos, banners, hero images, decorative icons and unrelated images\.?/gi, " ")
+    .replace(/if no clearly relevant product, service, listing or offer image can be found, create a professional ai image based on the selected item instead\.?/gi, " ");
+}
+
+function isUsefulWebsiteTextIntentToken(token) {
+  const value = normalizeSearchText(token).trim();
+
+  return (
+    value.length >= 3 &&
+    value.length <= 34 &&
+    !/^\d+$/.test(value) &&
+    !weakShortSearchRoots.has(value) &&
+    !genericWebsiteTextIntentTokens.has(value)
+  );
+}
+
+function extractWebsiteTextIntentTermsFromText(value, limit = WEBSITE_TEXT_INTENT_MATCH_TERM_LIMIT) {
+  const normalized = normalizeSearchText(stripDefaultWebsiteTextPromptNoise(value))
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/\bwww\.\S+/g, " ");
+  const segments = normalized
+    .split(/[\n\r.!?;:|()[\]{}<>]+/u)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const terms = [];
+
+  for (const segment of segments) {
+    const tokens = segment
+      .split(/[^\p{L}\p{N}]+/u)
+      .map((token) => token.trim())
+      .filter(isUsefulWebsiteTextIntentToken);
+
+    if (!tokens.length) {
+      continue;
+    }
+
+    for (let index = 0; index < tokens.length; index += 1) {
+      const threeWordPhrase = tokens.slice(index, index + 3);
+      const twoWordPhrase = tokens.slice(index, index + 2);
+
+      if (threeWordPhrase.length === 3) {
+        terms.push(threeWordPhrase.join(" "));
+      }
+
+      if (twoWordPhrase.length === 2) {
+        terms.push(twoWordPhrase.join(" "));
+      }
+    }
+
+    terms.push(...tokens);
+  }
+
+  return collectUniqueTerms(terms, limit);
+}
+
+function getWebsiteTextIntentSourceText(rule) {
+  const prompt = String(rule?.prompt || "");
+  const imagePrompt = String(rule?.image_prompt || "");
+
+  return [
+    rule?.name,
+    stripDefaultWebsiteTextPromptNoise(prompt),
+    stripDefaultWebsiteTextPromptNoise(imagePrompt),
+    extractPromptLineValue(prompt, "Campaign"),
+    extractPromptLineValue(prompt, "Campaign context"),
+    extractPromptLineValue(prompt, "Product selection hint"),
+    extractPromptLineValue(prompt, "Product search intent"),
+    rule?.campaign_goal,
+    rule?.target_customer_need,
+    rule?.marketing_angle,
+    rule?.strategy_notes,
+    rule?.product_search_intent,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function normalizeWebsiteTextIntentMetadata(metadata = {}) {
+  return {
+    productMatchTerms: collectUniqueTerms(
+      [
+        ...splitCampaignTermLine(metadata.product_match_terms),
+        ...splitCampaignTermLine(metadata.productMatchTerms),
+        ...(Array.isArray(metadata.product_match_terms) ? metadata.product_match_terms : []),
+        ...(Array.isArray(metadata.productMatchTerms) ? metadata.productMatchTerms : []),
+      ],
+      WEBSITE_TEXT_INTENT_MATCH_TERM_LIMIT
+    ),
+    productSearchQueries: collectUniqueTerms(
+      [
+        ...splitCampaignTermLine(metadata.product_search_queries),
+        ...splitCampaignTermLine(metadata.productSearchQueries),
+        ...(Array.isArray(metadata.product_search_queries) ? metadata.product_search_queries : []),
+        ...(Array.isArray(metadata.productSearchQueries) ? metadata.productSearchQueries : []),
+      ],
+      WEBSITE_TEXT_INTENT_QUERY_LIMIT
+    ),
+    productAvoidTerms: collectUniqueTerms(
+      [
+        ...splitCampaignTermLine(metadata.product_avoid_terms),
+        ...splitCampaignTermLine(metadata.productAvoidTerms),
+        ...splitCampaignTermLine(metadata.avoid_terms),
+        ...(Array.isArray(metadata.product_avoid_terms) ? metadata.product_avoid_terms : []),
+        ...(Array.isArray(metadata.productAvoidTerms) ? metadata.productAvoidTerms : []),
+        ...(Array.isArray(metadata.avoid_terms) ? metadata.avoid_terms : []),
+      ],
+      WEBSITE_TEXT_INTENT_AVOID_LIMIT
+    ),
+    productSearchIntent: String(
+      metadata.product_search_intent ||
+        metadata.productSearchIntent ||
+        ""
+    ).trim(),
+  };
+}
+
+function buildDeterministicWebsiteTextProductIntent(rule) {
+  const sourceText = getWebsiteTextIntentSourceText(rule);
+  const inferredTerms = extractWebsiteTextIntentTermsFromText(sourceText);
+  const existingMetadata = normalizeWebsiteTextIntentMetadata({
+    product_match_terms: rule?.product_match_terms,
+    product_search_queries: rule?.product_search_queries,
+    product_avoid_terms: rule?.product_avoid_terms,
+    avoid_terms: rule?.avoid_terms,
+    product_search_intent: rule?.product_search_intent,
+  });
+  const productMatchTerms = collectUniqueTerms(
+    [
+      ...existingMetadata.productMatchTerms,
+      ...inferredTerms,
+    ],
+    WEBSITE_TEXT_INTENT_MATCH_TERM_LIMIT
+  );
+  const productSearchQueries = collectUniqueTerms(
+    [
+      ...existingMetadata.productSearchQueries,
+      ...inferredTerms.slice(0, WEBSITE_TEXT_INTENT_QUERY_LIMIT),
+    ],
+    WEBSITE_TEXT_INTENT_QUERY_LIMIT
+  );
+  const productAvoidTerms = existingMetadata.productAvoidTerms;
+  const productSearchIntent =
+    existingMetadata.productSearchIntent ||
+    (productMatchTerms.length
+      ? `Prioritize concrete website products matching: ${productMatchTerms.slice(0, 8).join(", ")}.`
+      : "");
+
+  return {
+    productMatchTerms,
+    productSearchQueries,
+    productAvoidTerms,
+    productSearchIntent,
+    hasSpecificIntent:
+      hasProductSearchMetadata(rule) ||
+      inferredTerms.length >= WEBSITE_TEXT_INTENT_AI_MIN_SIGNAL_TERMS,
+  };
+}
+
+function applyWebsiteTextProductIntentToRule(rule, intentMetadata) {
+  const normalized = normalizeWebsiteTextIntentMetadata({
+    product_match_terms: intentMetadata.productMatchTerms,
+    product_search_queries: intentMetadata.productSearchQueries,
+    product_avoid_terms: intentMetadata.productAvoidTerms,
+    product_search_intent: intentMetadata.productSearchIntent,
+  });
+
+  if (
+    !normalized.productMatchTerms.length &&
+    !normalized.productSearchQueries.length &&
+    !normalized.productAvoidTerms.length &&
+    !normalized.productSearchIntent
+  ) {
+    return rule;
+  }
+
+  return {
+    ...rule,
+    product_match_terms: normalized.productMatchTerms.join(", "),
+    product_search_queries: normalized.productSearchQueries.join(", "),
+    product_avoid_terms: normalized.productAvoidTerms.join(", "),
+    product_search_intent: normalized.productSearchIntent || rule?.product_search_intent || null,
+    website_text_product_intent_applied: true,
+  };
+}
+
+async function generateWebsiteTextProductIntentWithAi({
+  openai,
+  rule,
+  brandProfile,
+  deterministicIntent,
+}) {
+  if (!openai || !deterministicIntent?.hasSpecificIntent) {
+    return null;
+  }
+
+  const response = await openai.responses.create({
+    model: PRODUCT_RESEARCH_FAST_MODEL,
+    ...getReasoningOptionsForModel(PRODUCT_RESEARCH_FAST_MODEL),
+    input: `
+You create product search metadata for a social media automation product finder.
+
+Goal:
+The app must select one real website product/service/listing that fits the user's website post prompt.
+
+Rules:
+- Do not use fixed holiday lists or hardcoded Swedish/English campaign words.
+- Infer meaning from the brand, language, market, prompt and any existing seed terms.
+- Return local-language website search terms that a real store search box could use.
+- Prefer short exact terms, category terms, recipient/use-case terms and theme terms.
+- Avoid generic words like product, website, post, campaign, custom or offer unless they are truly part of the customer's product vocabulary.
+- If the prompt has no specific theme, occasion, recipient, category or product intent, return empty arrays.
+
+Brand profile:
+${formatBrandProfileForPrompt(brandProfile)}
+
+Automation name:
+${rule?.name || ""}
+
+Automation prompt:
+${stripDefaultWebsiteTextPromptNoise(rule?.prompt || "")}
+
+Image prompt:
+${stripDefaultWebsiteTextPromptNoise(rule?.image_prompt || "")}
+
+Existing inferred terms:
+${deterministicIntent.productMatchTerms.join(", ") || "None"}
+
+Return strict JSON only:
+{
+  "product_match_terms": ["5-12 short terms"],
+  "product_search_queries": ["3-8 short store-search queries"],
+  "product_avoid_terms": ["0-8 short avoid terms"],
+  "product_search_intent": "One short internal sentence"
+}
+    `.trim(),
+  });
+
+  const parsed = safeJsonParse(response.output_text || "");
+  return normalizeWebsiteTextIntentMetadata(parsed);
+}
+
+async function resolveWebsiteTextProductIntentRule({
+  openai,
+  rule,
+  brandProfile,
+}) {
+  if (!rule?.uses_website_content || isCarouselRule(rule)) {
+    return rule;
+  }
+
+  const deterministicIntent = buildDeterministicWebsiteTextProductIntent(rule);
+
+  if (!deterministicIntent.hasSpecificIntent) {
+    return rule;
+  }
+
+  let aiIntent = null;
+
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    try {
+      aiIntent = await generateWebsiteTextProductIntentWithAi({
+        openai,
+        rule,
+        brandProfile,
+        deterministicIntent,
+      });
+    } catch (error) {
+      console.log("Website text product-intent AI expansion failed; using deterministic terms", {
+        ruleId: rule?.id,
+        brandProfileId: rule?.brand_profile_id,
+        message: error.message,
+      });
+    }
+  }
+
+  const mergedIntent = {
+    productMatchTerms: collectUniqueTerms(
+      [
+        ...(aiIntent?.productMatchTerms || []),
+        ...deterministicIntent.productMatchTerms,
+      ],
+      WEBSITE_TEXT_INTENT_MATCH_TERM_LIMIT
+    ),
+    productSearchQueries: collectUniqueTerms(
+      [
+        ...(aiIntent?.productSearchQueries || []),
+        ...deterministicIntent.productSearchQueries,
+      ],
+      WEBSITE_TEXT_INTENT_QUERY_LIMIT
+    ),
+    productAvoidTerms: collectUniqueTerms(
+      [
+        ...(aiIntent?.productAvoidTerms || []),
+        ...deterministicIntent.productAvoidTerms,
+      ],
+      WEBSITE_TEXT_INTENT_AVOID_LIMIT
+    ),
+    productSearchIntent:
+      aiIntent?.productSearchIntent ||
+      deterministicIntent.productSearchIntent,
+  };
+
+  return applyWebsiteTextProductIntentToRule(rule, mergedIntent);
 }
 
 function getCampaignThemeSourceText(rule) {
@@ -5182,7 +5631,7 @@ function countCampaignSourceThemeMatches(item, rule) {
 }
 
 function getCampaignThemeSourceLockedItems(items, rule) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
+  if (!isProductIntentScopedWebsiteRule(rule)) {
     return [];
   }
 
@@ -5219,7 +5668,7 @@ function getCampaignThemeSourceLockedItems(items, rule) {
 }
 
 function getCampaignThemeMatchedItems(items, rule) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
+  if (!isProductIntentScopedWebsiteRule(rule)) {
     return [];
   }
 
@@ -5443,7 +5892,7 @@ function countCampaignAnchorTermMatches(item, rule) {
 }
 
 function getCampaignAnchorMatchedItems(items, rule) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
+  if (!isProductIntentScopedWebsiteRule(rule)) {
     return [];
   }
 
@@ -5503,7 +5952,7 @@ function countPrimaryCampaignTermMatches(item, rule) {
 }
 
 function getPrimaryCampaignMatchedItems(items, rule) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
+  if (!isProductIntentScopedWebsiteRule(rule)) {
     return [];
   }
 
@@ -5524,7 +5973,7 @@ function getPrimaryCampaignMatchedItems(items, rule) {
 }
 
 function getSafeCampaignProductCandidates(items, rule) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
+  if (!isProductIntentScopedWebsiteRule(rule)) {
     return [];
   }
 
@@ -5767,7 +6216,7 @@ async function applyAiCampaignFitScores({
   escalationMaxItems = 20,
   minimumStrongProducts = CAROUSEL_MIN_PRODUCT_SLIDES,
 }) {
-  if (!isCampaignScopedWebsiteRule(rule) || !Array.isArray(items) || items.length === 0) {
+  if (!isProductIntentScopedWebsiteRule(rule) || !Array.isArray(items) || items.length === 0) {
     return items || [];
   }
 
@@ -5839,7 +6288,7 @@ async function applyAiCampaignFitScores({
 }
 
 function scoreCampaignFitForRule(item, rule) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
+  if (!isProductIntentScopedWebsiteRule(rule)) {
     return 0;
   }
 
@@ -5949,7 +6398,7 @@ function getSupportingCampaignFitItems(items, rule) {
 }
 
 function getCampaignFitItemsAtOrAboveScore(items, rule, minimumScore) {
-  if (!isCampaignScopedWebsiteRule(rule)) {
+  if (!isProductIntentScopedWebsiteRule(rule)) {
     return [];
   }
 
@@ -5977,7 +6426,7 @@ function scoreWebsiteItemForRule(item, rule) {
     }
   }
 
-  if (isCampaignScopedWebsiteRule(rule)) {
+  if (isProductIntentScopedWebsiteRule(rule)) {
     score += scoreCampaignFitForRule(item, rule);
   }
 
@@ -5987,6 +6436,14 @@ function scoreWebsiteItemForRule(item, rule) {
   score -= Math.min(Number(item?.times_used || 0), 20);
 
   return score;
+}
+
+function isAcceptableWebsiteTextProductSelection(item, rule) {
+  if (!isProductIntentScopedWebsiteRule(rule)) {
+    return true;
+  }
+
+  return scoreCampaignFitForRule(item, rule) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE;
 }
 
 async function chooseUnusedWebsiteItem({
@@ -8233,6 +8690,8 @@ async function findWebsiteProductWithWebSearch({
   rule,
   websiteUrl,
   usedWebsiteItems = [],
+  fitModel = PRODUCT_RESEARCH_MODEL,
+  fitMinimumStrongProducts = CAROUSEL_MIN_PRODUCT_SLIDES,
 }) {
   const attempts = ["best_match"];
   const verifiedItems = [];
@@ -8388,6 +8847,8 @@ async function findWebsiteProductWithWebSearch({
             brandProfile,
             items: verifiedItems,
             maxItems: MAX_VERIFIED_ITEMS,
+            model: fitModel,
+            minimumStrongProducts: fitMinimumStrongProducts,
           });
         }
       } catch (candidateError) {
@@ -8420,6 +8881,8 @@ async function findWebsiteProductWithWebSearch({
     brandProfile,
     items: verifiedItems,
     maxItems: MAX_VERIFIED_ITEMS,
+    model: fitModel,
+    minimumStrongProducts: fitMinimumStrongProducts,
   });
 }
 function createSafeWebsiteCampaignFallbackItem({ brandProfile, rule, websiteUrl }) {
@@ -8476,13 +8939,21 @@ async function prepareWebsiteContentForRule({
       websiteSourceUrl: null,
       websiteCycleNumber: null,
       useWebsiteImage: false,
+      websiteRule: rule,
     };
   }
 
   summary.website_content_rules += 1;
 
+  rule = await resolveWebsiteTextProductIntentRule({
+    openai,
+    rule,
+    brandProfile,
+  });
+
   const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
   const contentType = rule.content_type_id || "website_item";
+  const productIntentScoped = isProductIntentScopedWebsiteRule(rule);
 
   if (!websiteUrl) {
     throw new Error("This automation requires a website URL in Brand profile");
@@ -8507,13 +8978,15 @@ async function prepareWebsiteContentForRule({
     rule
   );
 
-  if (isCampaignScopedWebsiteRule(rule) && catalogItems.length) {
+  if (productIntentScoped && catalogItems.length) {
     catalogItems = await applyAiCampaignFitScores({
       openai,
       rule,
       brandProfile,
       items: catalogItems,
-      maxItems: 80,
+      maxItems: WEBSITE_TEXT_INTENT_AI_SCORE_MAX_ITEMS,
+      model: PRODUCT_RESEARCH_FAST_MODEL,
+      minimumStrongProducts: 1,
     });
   }
 
@@ -8534,7 +9007,7 @@ async function prepareWebsiteContentForRule({
     allowReuseWhenExhausted: false,
   });
 
-  if (catalogSelection?.item && !isCampaignScopedWebsiteRule(rule)) {
+  if (catalogSelection?.item && !productIntentScoped) {
     console.log("Website product selected from product catalog", {
       ruleId: rule.id,
       brandProfileId: rule.brand_profile_id,
@@ -8553,11 +9026,12 @@ async function prepareWebsiteContentForRule({
       websiteSourceUrl: websiteUrl,
       websiteCycleNumber: catalogSelection.cycleNumber,
       useWebsiteImage: catalogSelection.useWebsiteImage,
+      websiteRule: rule,
     };
   }
 
-  if (catalogSelection?.item && isCampaignScopedWebsiteRule(rule)) {
-    console.log("Campaign website rule found a catalog match, but will still run live product research before final selection", {
+  if (catalogSelection?.item && productIntentScoped) {
+    console.log("Website text product-intent rule found a catalog match, but will still run focused product research before final selection", {
       ruleId: rule.id,
       brandProfileId: rule.brand_profile_id,
       websiteUrl,
@@ -8569,12 +9043,99 @@ async function prepareWebsiteContentForRule({
   }
 
   try {
+    if (productIntentScoped) {
+      try {
+        const storeSearchCandidates = await discoverProductCandidatesFromStoreSearch({
+          websiteUrl,
+          campaignPrompt: buildCampaignResearchText(rule),
+          usedItems: recentUsedItems,
+          excludeUsed: true,
+        });
+
+        if (storeSearchCandidates.length) {
+          let storeSearchItems = await verifyDiscoveredWebsiteProductCandidates({
+            candidates: storeSearchCandidates,
+            websiteUrl,
+            limit: WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT,
+          });
+
+          if (storeSearchItems.length) {
+            storeSearchItems = await applyAiCampaignFitScores({
+              openai,
+              rule,
+              brandProfile,
+              items: storeSearchItems.map((item) => ({
+                ...item,
+                selection_priority: 130,
+                campaign_fit_source: item.campaign_fit_source || "website_text_store_search",
+                campaign_fit_score: scoreCampaignFitForRule(item, rule) + 25,
+              })),
+              maxItems: WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT,
+              model: PRODUCT_RESEARCH_FAST_MODEL,
+              minimumStrongProducts: 1,
+            });
+
+            const storeSearchSelection = await chooseUnusedWebsiteItem({
+              supabase,
+              userId: rule.user_id,
+              brandProfileId: rule.brand_profile_id,
+              sourceUrl: websiteUrl,
+              contentType,
+              items: [
+                ...storeSearchItems,
+                ...getSafeCampaignProductCandidates(sortedCatalogItems, rule).map((item) => ({
+                  ...item,
+                  selection_priority: 30,
+                })),
+              ],
+              rule,
+              usedWebsiteImageUrlsThisRun,
+              recentUsedItems,
+              allowReuseWhenExhausted: false,
+            });
+
+            if (storeSearchSelection?.item && isAcceptableWebsiteTextProductSelection(storeSearchSelection.item, rule)) {
+              await upsertWebsiteProductCatalogItems({
+                supabase,
+                userId: rule.user_id,
+                brandProfileId: rule.brand_profile_id,
+                sourceUrl: websiteUrl,
+                items: [storeSearchSelection.item],
+                discoverySource: getWebsiteCatalogDiscoverySource("store_search", rule),
+              });
+
+              summary.website_items_found += 1;
+              summary.website_content_success += 1;
+              summary.website_web_search_success += 1;
+
+              return {
+                websiteItem: storeSearchSelection.item,
+                websiteSourceUrl: websiteUrl,
+                websiteCycleNumber: storeSearchSelection.cycleNumber,
+                useWebsiteImage: storeSearchSelection.useWebsiteImage,
+                websiteRule: rule,
+              };
+            }
+          }
+        }
+      } catch (storeSearchError) {
+        console.log("Website text store-search product discovery failed", {
+          ruleId: rule.id,
+          brandProfileId: rule.brand_profile_id,
+          websiteUrl,
+          message: storeSearchError.message,
+        });
+      }
+    }
+
     const webSearchItems = await findWebsiteProductWithWebSearch({
       openai,
       brandProfile,
       rule,
       websiteUrl,
       usedWebsiteItems: recentUsedItems,
+      fitModel: productIntentScoped ? PRODUCT_RESEARCH_FAST_MODEL : PRODUCT_RESEARCH_MODEL,
+      fitMinimumStrongProducts: productIntentScoped ? 1 : CAROUSEL_MIN_PRODUCT_SLIDES,
     });
 
     if (Array.isArray(webSearchItems) && webSearchItems.length) {
@@ -8584,15 +9145,15 @@ async function prepareWebsiteContentForRule({
         brandProfileId: rule.brand_profile_id,
         sourceUrl: websiteUrl,
         contentType,
-        items: isCampaignScopedWebsiteRule(rule)
+        items: productIntentScoped
           ? [
               ...webSearchItems.map((item) => ({
                 ...item,
                 selection_priority: 100,
-                campaign_fit_source: "ai_campaign_research",
+                campaign_fit_source: isCampaignScopedWebsiteRule(rule) ? "ai_campaign_research" : "ai_product_intent_research",
                 campaign_fit_score: scoreCampaignFitForRule(item, rule) + 40,
               })),
-              ...getStrongCampaignFitItems(sortedCatalogItems, rule).map((item) => ({ ...item, selection_priority: 10 })),
+              ...getSafeCampaignProductCandidates(sortedCatalogItems, rule).map((item) => ({ ...item, selection_priority: 10 })),
             ]
           : webSearchItems,
         rule,
@@ -8601,7 +9162,7 @@ async function prepareWebsiteContentForRule({
         allowReuseWhenExhausted: false,
       });
 
-      if (selected?.item && (!isCampaignScopedWebsiteRule(rule) || scoreCampaignFitForRule(selected.item, rule) >= CAMPAIGN_STRONG_PRODUCT_FIT_SCORE)) {
+      if (selected?.item && isAcceptableWebsiteTextProductSelection(selected.item, rule)) {
         await upsertWebsiteProductCatalogItems({
           supabase,
           userId: rule.user_id,
@@ -8620,6 +9181,7 @@ async function prepareWebsiteContentForRule({
           websiteSourceUrl: websiteUrl,
           websiteCycleNumber: selected.cycleNumber,
           useWebsiteImage: selected.useWebsiteImage,
+          websiteRule: rule,
         };
       }
 
@@ -8645,13 +9207,15 @@ async function prepareWebsiteContentForRule({
         websiteUrl,
       });
 
-      if (isCampaignScopedWebsiteRule(rule) && discoveredItems.length) {
+      if (productIntentScoped && discoveredItems.length) {
         discoveredItems = await applyAiCampaignFitScores({
           openai,
           rule,
           brandProfile,
           items: discoveredItems,
-          maxItems: WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT,
+          maxItems: WEBSITE_TEXT_INTENT_AI_SCORE_MAX_ITEMS,
+          model: PRODUCT_RESEARCH_FAST_MODEL,
+          minimumStrongProducts: 1,
         });
       }
 
@@ -8661,21 +9225,21 @@ async function prepareWebsiteContentForRule({
         brandProfileId: rule.brand_profile_id,
         sourceUrl: websiteUrl,
         contentType,
-        items: isCampaignScopedWebsiteRule(rule)
+        items: productIntentScoped
           ? [
               ...discoveredItems.map((item) => ({
                 ...item,
                 selection_priority: 100,
-                campaign_fit_source: "campaign_discovery",
+                campaign_fit_source: isCampaignScopedWebsiteRule(rule) ? "campaign_discovery" : "product_intent_discovery",
                 campaign_fit_score: scoreCampaignFitForRule(item, rule),
               })),
               ...(Array.isArray(webSearchItems) ? webSearchItems.map((item) => ({
                 ...item,
                 selection_priority: 90,
-                campaign_fit_source: "ai_campaign_research",
+                campaign_fit_source: isCampaignScopedWebsiteRule(rule) ? "ai_campaign_research" : "ai_product_intent_research",
                 campaign_fit_score: scoreCampaignFitForRule(item, rule) + 40,
               })) : []),
-              ...getStrongCampaignFitItems(sortedCatalogItems, rule).map((item) => ({ ...item, selection_priority: 10 })),
+              ...getSafeCampaignProductCandidates(sortedCatalogItems, rule).map((item) => ({ ...item, selection_priority: 10 })),
             ]
           : discoveredItems,
         rule,
@@ -8684,7 +9248,7 @@ async function prepareWebsiteContentForRule({
         allowReuseWhenExhausted: false,
       });
 
-      if (discoveredSelection?.item && (!isCampaignScopedWebsiteRule(rule) || scoreCampaignFitForRule(discoveredSelection.item, rule) >= CAMPAIGN_STRONG_PRODUCT_FIT_SCORE)) {
+      if (discoveredSelection?.item && isAcceptableWebsiteTextProductSelection(discoveredSelection.item, rule)) {
         await upsertWebsiteProductCatalogItems({
           supabase,
           userId: rule.user_id,
@@ -8713,14 +9277,15 @@ async function prepareWebsiteContentForRule({
           websiteSourceUrl: websiteUrl,
           websiteCycleNumber: discoveredSelection.cycleNumber,
           useWebsiteImage: discoveredSelection.useWebsiteImage,
+          websiteRule: rule,
         };
       }
     }
 
-    const reusablePool = isCampaignScopedWebsiteRule(rule)
+    const reusablePool = productIntentScoped
       ? [
-          ...getStrongCampaignFitItems(sortedCatalogItems, rule),
-          ...(Array.isArray(webSearchItems) ? getStrongCampaignFitItems(webSearchItems, rule) : []),
+          ...getSafeCampaignProductCandidates(sortedCatalogItems, rule),
+          ...(Array.isArray(webSearchItems) ? getSafeCampaignProductCandidates(webSearchItems, rule) : []),
         ]
       : [...sortedCatalogItems, ...(Array.isArray(webSearchItems) ? webSearchItems : [])];
     const reuseSelection = await chooseUnusedWebsiteItem({
@@ -8736,7 +9301,7 @@ async function prepareWebsiteContentForRule({
       allowReuseWhenExhausted: true,
     });
 
-    if (reuseSelection?.item && (!isCampaignScopedWebsiteRule(rule) || scoreCampaignFitForRule(reuseSelection.item, rule) >= CAMPAIGN_STRONG_PRODUCT_FIT_SCORE)) {
+    if (reuseSelection?.item && isAcceptableWebsiteTextProductSelection(reuseSelection.item, rule)) {
       await upsertWebsiteProductCatalogItems({
         supabase,
         userId: rule.user_id,
@@ -8759,6 +9324,7 @@ async function prepareWebsiteContentForRule({
         websiteSourceUrl: websiteUrl,
         websiteCycleNumber: reuseSelection.cycleNumber,
         useWebsiteImage: reuseSelection.useWebsiteImage,
+        websiteRule: rule,
       };
     }
   } catch (webSearchError) {
@@ -10711,6 +11277,7 @@ let websiteItems = [];
 let websiteSourceUrl = null;
 let websiteCycleNumber = null;
 let useWebsiteImage = false;
+let websitePreparedRule = rule;
 
         if (isCarouselRule(rule)) {
           try {
@@ -10728,6 +11295,7 @@ let useWebsiteImage = false;
             websiteSourceUrl = preparedCarouselProducts.websiteSourceUrl;
             websiteCycleNumber = preparedCarouselProducts.websiteCycleNumber;
             useWebsiteImage = Boolean(preparedCarouselProducts.useWebsiteImage);
+            websitePreparedRule = rule;
           } catch (carouselError) {
             const message = carouselError.message ||
               `Website carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} products with product images.`;
@@ -10752,6 +11320,7 @@ let useWebsiteImage = false;
             websiteSourceUrl = preparedWebsiteContent.websiteSourceUrl;
             websiteCycleNumber = preparedWebsiteContent.websiteCycleNumber;
             useWebsiteImage = Boolean(preparedWebsiteContent.useWebsiteImage);
+            websitePreparedRule = preparedWebsiteContent.websiteRule || rule;
           } catch (websiteError) {
             summary.website_content_failed += 1;
 
@@ -10760,7 +11329,7 @@ let useWebsiteImage = false;
         }
 
         const ruleWithBrandProfile = {
-          ...rule,
+          ...websitePreparedRule,
           brand_profile: brandProfile,
           website_item: websiteItem,
           website_items: websiteItems,
@@ -11056,7 +11625,7 @@ product_research_model_used: rule.uses_website_content
           try {
             await saveWebsiteContentHistory({
               supabase,
-              rule,
+              rule: websitePreparedRule,
               postId: post.id,
               sourceUrl: websiteSourceUrl,
               websiteItem,
