@@ -7529,44 +7529,17 @@ setRules((currentRules) =>
                       : displayLabel}
                   </strong>
 
-                  {hasStrategyInfo && (
+                  {hasStrategyInfo && slot.strategyNotes && (
                     <button
                       type="button"
                       className="strategy-info-button"
                       aria-label={t("automation.showCampaignStrategy")}
                     >
                       i
-                      <span className="strategy-info-popover">
-                        <span className="strategy-info-title">
-                          {t("automation.strategyForThisPost")}
+                      <span className="strategy-info-popover simple-strategy-info-popover">
+                        <span className="strategy-info-note">
+                          {slot.strategyNotes}
                         </span>
-
-                        <span>
-                          <strong>{t("automation.audience")}:</strong>{" "}
-                          {getCustomerStageLabel(slot.customerStage)}
-                        </span>
-
-                        <span>
-                          <strong>{t("automation.angle")}:</strong>{" "}
-                          {getCampaignAngleLabel(slot.marketingAngle)}
-                        </span>
-
-                        <span>
-                          <strong>{t("automation.cta")}:</strong>{" "}
-                          {getCtaStrengthLabel(slot.ctaStrength)}
-                        </span>
-
-                        {slot.campaignPhase && (
-                          <span>
-                            <strong>{t("automation.phase")}:</strong> {slot.campaignPhase}
-                          </span>
-                        )}
-
-                        {slot.strategyNotes && (
-                          <span className="strategy-info-note">
-                            {slot.strategyNotes}
-                          </span>
-                        )}
                       </span>
                     </button>
                   )}
