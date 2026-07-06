@@ -1,7 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
-import { normalizeSingleContentLanguage } from "../../../lib/contentLanguage.js";
+import {
+  inferContentLanguageFromWebsiteSignals,
+  normalizeSingleContentLanguage,
+} from "../../../lib/contentLanguage.js";
 
 export const dynamic = "force-dynamic";
 
@@ -2067,13 +2070,22 @@ if (websiteUrl) {
   finalWebsiteUrl = website.url;
 
   if (!requestedContentLanguage) {
-    const languageDetection = await detectWebsiteLanguageWithOpenAI({
-      openai,
-      websiteUrl: website.url,
-      html: website.html,
-    });
+    const deterministicLanguage = inferContentLanguageFromWebsiteSignals(
+      website.url,
+      website.html
+    );
 
-    detectedWebsiteContentLanguage = languageDetection.language || "";
+    if (deterministicLanguage) {
+      detectedWebsiteContentLanguage = deterministicLanguage;
+    } else {
+      const languageDetection = await detectWebsiteLanguageWithOpenAI({
+        openai,
+        websiteUrl: website.url,
+        html: website.html,
+      });
+
+      detectedWebsiteContentLanguage = languageDetection.language || "";
+    }
   }
 
   const productSourceCandidates = await fetchProductSourceCandidates({

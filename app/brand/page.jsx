@@ -35,6 +35,7 @@ const marketOptions = [
   { label: "Austria", countryCode: "AT", language: "German" },
   { label: "Switzerland", countryCode: "CH", language: "German" },
   { label: "Poland", countryCode: "PL", language: "Polish" },
+  { label: "Europe", countryCode: "EU", language: "English" },
 
   { label: "United Arab Emirates", countryCode: "AE", language: "English" },
   { label: "Singapore", countryCode: "SG", language: "English" },
@@ -73,6 +74,16 @@ function getLanguageOptionLabel(t, language) {
   }
 
   return normalizedLanguage || "English";
+}
+
+function getMarketOptionLabel(t, market) {
+  const translatedLabel = t(`brand.market.${market.countryCode}`);
+
+  if (translatedLabel && !translatedLabel.startsWith("brand.market.")) {
+    return translatedLabel;
+  }
+
+  return market.label || market.countryCode || "International / Global";
 }
 
 const analysisProgressStages = [
@@ -1381,7 +1392,7 @@ export default function BrandProfile() {
                           key={`${market.countryCode}-${market.label}`}
                           value={market.label}
                         >
-                          {t(`brand.market.${market.countryCode}`)}
+                          {getMarketOptionLabel(t, market)}
                         </option>
                       ))}
                     </select>

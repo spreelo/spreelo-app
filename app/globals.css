@@ -18226,3 +18226,81 @@ html body .saved-card-compact {
   font-size: 11px;
   font-weight: 800;
 }
+
+/* Step 63: make campaign strategy info popovers stable inside responsive planner rows. */
+.automation-page .planner-post-title-row .strategy-info-button {
+  position: relative !important;
+  overflow: visible !important;
+  flex: 0 0 19px !important;
+  z-index: 40 !important;
+}
+
+.automation-page .planner-post-title-row .strategy-info-button .strategy-info-popover {
+  position: absolute !important;
+  left: calc(100% + 10px) !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 300px !important;
+  min-width: 260px !important;
+  max-width: min(320px, calc(100vw - 48px)) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  z-index: 99999 !important;
+  box-sizing: border-box !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: initial !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .automation-page .planner-post-title-row .strategy-info-button:hover .strategy-info-popover {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+
+.automation-page .planner-post-title-row .strategy-info-button .strategy-info-popover::before {
+  top: 50% !important;
+  left: -6px !important;
+  transform: translateY(-50%) rotate(45deg) !important;
+}
+
+.automation-page .planner-post-title-row .strategy-info-button .strategy-info-popover,
+.automation-page .planner-post-title-row .strategy-info-button .strategy-info-popover span,
+.automation-page .planner-post-title-row .strategy-info-button .strategy-info-popover strong {
+  line-height: 1.45 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: initial !important;
+}
+
+.automation-page .planner-post-title-row .strategy-info-button .strategy-info-popover span {
+  display: block !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.82) !important;
+  font-size: 12px !important;
+}
+
+.automation-page .planner-post-title-row .strategy-info-button .strategy-info-popover .strategy-info-title {
+  display: block !important;
+  margin: 0 !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.automation-page .planner-post-table,
+.automation-page .planner-post-row,
+.automation-page .planner-post-mainline,
+.automation-page .planner-post-title,
+.automation-page .planner-post-title-row {
+  overflow: visible !important;
+}

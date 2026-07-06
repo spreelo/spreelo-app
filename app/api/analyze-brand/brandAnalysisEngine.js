@@ -1,6 +1,10 @@
 import OpenAI from "openai";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
-import { normalizeSingleContentLanguage } from "../../../lib/contentLanguage.js";
+import {
+  inferContentLanguageFromWebsiteSignals,
+  inferMarketSetupFromWebsiteSignals,
+  normalizeSingleContentLanguage,
+} from "../../../lib/contentLanguage.js";
 
 export const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 export const WEBSITE_MAX_TEXT_CHARS = 8000;
@@ -2367,6 +2371,7 @@ export async function runBrandAnalysisJob({
   let analysis;
   let finalWebsiteUrl = websiteUrl;
   let detectedWebsiteContentLanguage = "";
+  let detectedWebsiteMarketSetup = null;
 
   if (websiteUrl) {
     await updateJob({
@@ -2377,6 +2382,7 @@ export async function runBrandAnalysisJob({
 
     const website = await fetchWebsiteHtml(websiteUrl);
     finalWebsiteUrl = website.url;
+    detectedWebsiteMarketSetup = inferMarketSetupFromWebsiteSignals(website.url, website.html);
 
     if (!requestedContentLanguage) {
       await updateJob({
@@ -2385,9 +2391,10 @@ export async function runBrandAnalysisJob({
         progress: 25,
       });
 
-      // Keep the first analysis fast: the main brand analysis prompt detects the
-      // customer-facing language, so we avoid a separate OpenAI request here.
-      detectedWebsiteContentLanguage = "";
+      detectedWebsiteContentLanguage = inferContentLanguageFromWebsiteSignals(
+        website.url,
+        website.html
+      );
     }
 
     await updateJob({
@@ -2415,10 +2422,10 @@ export async function runBrandAnalysisJob({
       html: website.html,
       productSourceCandidates,
       brandDescription,
-      contentMarket,
-      countryCode,
+      contentMarket: detectedWebsiteMarketSetup?.contentMarket || contentMarket,
+      countryCode: detectedWebsiteMarketSetup?.countryCode || countryCode,
       contentLanguage:
-        requestedContentLanguage || detectedWebsiteContentLanguage,
+        requestedContentLanguage || detectedWebsiteMarketSetup?.contentLanguage || detectedWebsiteContentLanguage,
       currentDate,
       campaignCalendarYear,
     });
@@ -2451,13 +2458,18 @@ export async function runBrandAnalysisJob({
   const detectedMarketSetup = analysis.market_setup || {};
 
   const finalContentMarket =
-    detectedMarketSetup.contentMarket || contentMarket || "";
+    detectedWebsiteMarketSetup?.contentMarket ||
+    detectedMarketSetup.contentMarket ||
+    contentMarket ||
+    "";
 
-  const finalCountryCode = detectedMarketSetup.countryCode || countryCode || "";
+  const finalCountryCode =
+    detectedWebsiteMarketSetup?.countryCode || detectedMarketSetup.countryCode || countryCode || "";
 
   const finalContentLanguage = normalizeSingleContentLanguage(
     getDefaultLanguage(
       requestedContentLanguage ||
+        detectedWebsiteMarketSetup?.contentLanguage ||
         detectedWebsiteContentLanguage ||
         detectedMarketSetup.contentLanguage,
       profile.detected_language

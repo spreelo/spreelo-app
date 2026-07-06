@@ -6204,6 +6204,58 @@ function isLikelyNonProductUrl(value, websiteUrl) {
   }
 }
 
+function hasSmallImageDimensionHint(value, minDimension = 500) {
+  const rawUrl = String(value || "");
+  const lowerUrl = rawUrl.toLowerCase();
+
+  if (!lowerUrl) {
+    return true;
+  }
+
+  if (/(?:^|[\/_-])(thumb|thumbnail|small|tiny|mini|xs|swatch|preview|icon)(?:[\/_-]|$)/i.test(lowerUrl)) {
+    return true;
+  }
+
+  const sizeMatches = [...lowerUrl.matchAll(/(?:^|[^0-9])([1-9][0-9]{1,3})[x×_-]([1-9][0-9]{1,3})(?:[^0-9]|$)/g)];
+  for (const match of sizeMatches) {
+    const width = Number(match[1]);
+    const height = Number(match[2]);
+
+    if (width && height && Math.max(width, height) < minDimension) {
+      return true;
+    }
+  }
+
+  try {
+    const parsedUrl = new URL(rawUrl);
+    const smallQueryKeys = [
+      "w",
+      "width",
+      "h",
+      "height",
+      "imwidth",
+      "imheight",
+      "maxwidth",
+      "maxheight",
+    ];
+
+    for (const key of smallQueryKeys) {
+      const value = Number(parsedUrl.searchParams.get(key));
+      if (value && value < minDimension) {
+        return true;
+      }
+    }
+  } catch (_) {
+    // Ignore malformed URLs here; other URL validators handle them.
+  }
+
+  return false;
+}
+
+function isLowQualityProductImageUrl(value) {
+  return hasSmallImageDimensionHint(value, 500);
+}
+
 function isBadProductImageUrl(value) {
   const lowerUrl = String(value || "").toLowerCase();
 
@@ -6231,7 +6283,8 @@ function isBadProductImageUrl(value) {
     lowerUrl.includes("separator") ||
     lowerUrl.includes("texture") ||
     lowerUrl.includes("swatch") ||
-    lowerUrl.endsWith(".svg")
+    lowerUrl.endsWith(".svg") ||
+    isLowQualityProductImageUrl(value)
   );
 }
 
