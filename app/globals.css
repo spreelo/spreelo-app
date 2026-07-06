@@ -18320,3 +18320,102 @@ html body .saved-card-compact {
   line-height: 1.45 !important;
   font-weight: 700 !important;
 }
+
+/* Compact danger zones: keep destructive actions visible but not visually dominant. */
+.brand-profile-page .danger-zone-card,
+.settings-page .settings-danger-zone,
+.settings-danger-zone {
+  margin-top: 18px !important;
+  padding: 14px 16px !important;
+  border: 1px solid rgba(239, 68, 68, 0.22) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  border-radius: 18px !important;
+  box-shadow: none !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 16px !important;
+}
+
+.brand-profile-page .danger-zone-card h3,
+.settings-page .settings-danger-zone h3,
+.settings-danger-zone h3 {
+  margin: 2px 0 4px !important;
+  font-size: 16px !important;
+  line-height: 1.25 !important;
+  color: #111827 !important;
+}
+
+.brand-profile-page .danger-zone-card p,
+.settings-page .settings-danger-zone p,
+.settings-danger-zone p {
+  margin: 0 !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  color: #64748b !important;
+}
+
+.brand-profile-page .danger-zone-card .danger-eyebrow,
+.settings-page .settings-danger-zone .danger-eyebrow,
+.settings-danger-zone .danger-eyebrow {
+  margin: 0 0 4px !important;
+  font-size: 11px !important;
+  letter-spacing: 0.11em !important;
+  color: #991b1b !important;
+}
+
+.brand-profile-page .danger-zone-note {
+  margin-top: 5px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #991b1b !important;
+}
+
+.brand-profile-page .danger-zone-actions {
+  align-items: flex-end !important;
+  justify-content: center !important;
+}
+
+.brand-profile-page .danger-zone-card .danger-button,
+.settings-page .settings-danger-zone .danger-button,
+.settings-danger-zone .danger-button {
+  margin-top: 0 !important;
+  border-radius: 13px !important;
+  padding: 11px 15px !important;
+  min-height: 42px !important;
+  white-space: nowrap !important;
+}
+
+.brand-profile-page .delete-confirm-box {
+  max-width: 360px !important;
+  padding: 12px !important;
+  border-radius: 14px !important;
+}
+
+.brand-profile-page .delete-confirm-actions {
+  flex-direction: row !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}
+
+@media (max-width: 760px) {
+  .brand-profile-page .danger-zone-card,
+  .settings-page .settings-danger-zone,
+  .settings-danger-zone {
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+  }
+
+  .brand-profile-page .danger-zone-actions,
+  .settings-page .settings-danger-zone .danger-button,
+  .settings-danger-zone .danger-button {
+    align-items: stretch !important;
+    width: 100% !important;
+  }
+
+  .brand-profile-page .danger-zone-card .danger-button,
+  .settings-page .settings-danger-zone .danger-button,
+  .settings-danger-zone .danger-button {
+    width: 100% !important;
+  }
+}
