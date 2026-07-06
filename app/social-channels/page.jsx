@@ -61,19 +61,12 @@ function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
 
-function getConnectUrl({ platformKey, userId, brandProfileId }) {
-  if (!userId || !brandProfileId) return "/social-channels";
-
-  const params = new URLSearchParams({
-    user_id: userId,
-    brand_profile_id: brandProfileId,
-  });
-
+function getConnectEndpoint(platformKey) {
   if (platformKey === "instagram") {
-    return `/api/auth/instagram/start?${params.toString()}`;
+    return "/api/auth/instagram/start";
   }
 
-  return `/api/meta/connect?${params.toString()}`;
+  return "/api/meta/connect";
 }
 
 function getSocialUrlMessage({ t }) {
@@ -142,11 +135,6 @@ function SocialChannelCard({
 }) {
   const isConnected = connection?.status === "connected";
   const isConnecting = connectingPlatform === platform.key;
-  const connectUrl = getConnectUrl({
-    platformKey: platform.key,
-    userId: currentUser?.id,
-    brandProfileId: currentBrand?.id,
-  });
   const expiresText = formatTokenExpiry(connection?.token_expires_at, t);
 
   return (
@@ -210,13 +198,14 @@ function SocialChannelCard({
 
             <p>{t(platform.connectHelpKey)}</p>
 
-            <a
+            <button
+              type="button"
               className={`primary-button social-connect-button ${
                 isConnecting ? "loading" : ""
               }`}
-              href={connectUrl}
               aria-busy={isConnecting}
-              onClick={() => onConnectStart(platform.key)}
+              disabled={isConnecting || !currentUser?.id || !currentBrand?.id}
+              onClick={() => onConnectStart(platform)}
             >
               {isConnecting ? (
                 <span
@@ -226,7 +215,7 @@ function SocialChannelCard({
               ) : (
                 t(platform.connectKey)
               )}
-            </a>
+            </button>
           </>
         )}
       </div>
@@ -376,6 +365,46 @@ export default function SocialChannelsPage() {
     setLoading(false);
   }
 
+  async function handleConnect(platform) {
+    if (!platform?.key || !currentBrand?.id) return;
+
+    setMessage("");
+    setConnectingPlatform(platform.key);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const response = await fetch(getConnectEndpoint(platform.key), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          brand_profile_id: currentBrand.id,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || t("social.errorGenericConnect"));
+      }
+
+      window.location.href = payload.url;
+    } catch (error) {
+      setMessage(error.message || t("social.errorGenericConnect"));
+      setConnectingPlatform("");
+    }
+  }
+
   async function handleDisconnect(platform, connection) {
     if (!connection?.id || !platform?.key) return;
 
@@ -430,7 +459,7 @@ export default function SocialChannelsPage() {
             currentUser={currentUser}
             loading={loading}
             connectingPlatform={connectingPlatform}
-            onConnectStart={setConnectingPlatform}
+            onConnectStart={handleConnect}
             onDisconnect={handleDisconnect}
             t={t}
           />

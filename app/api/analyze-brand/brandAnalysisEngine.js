@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { assertPublicHttpUrl } from "../../../lib/security.js";
 
 export const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 export const WEBSITE_MAX_TEXT_CHARS = 8000;
@@ -471,6 +472,8 @@ export async function fetchWebsiteHtml(websiteUrl, options = {}) {
     throw new Error("Website URL is required");
   }
 
+  const safeWebsiteUrl = await assertPublicHttpUrl(normalizedWebsiteUrl);
+
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(),
@@ -478,7 +481,7 @@ export async function fetchWebsiteHtml(websiteUrl, options = {}) {
   );
 
   try {
-    const response = await fetch(normalizedWebsiteUrl, {
+    const response = await fetch(safeWebsiteUrl, {
       method: "GET",
       redirect: "follow",
       signal: controller.signal,
@@ -503,7 +506,7 @@ export async function fetchWebsiteHtml(websiteUrl, options = {}) {
     const html = await response.text();
 
     return {
-      url: normalizedWebsiteUrl,
+      url: safeWebsiteUrl,
       html,
     };
   } finally {

@@ -975,6 +975,18 @@ export default function BrandProfile() {
     }
   }
 
+  async function deleteUserRowsByColumn(tableName, columnName, value) {
+    const { error } = await supabase
+      .from(tableName)
+      .delete()
+      .eq(columnName, value)
+      .eq("user_id", user.id);
+
+    if (error) {
+      throw new Error(`${tableName}: ${error.message}`);
+    }
+  }
+
   async function deletePostSlidesForPosts(postIds) {
     if (!Array.isArray(postIds) || postIds.length === 0) {
       return;
@@ -1043,10 +1055,26 @@ export default function BrandProfile() {
         throw new Error(t("brand.deleteErrorSwitch"));
       }
 
+      const { data: verifiedBrand, error: verifyBrandError } = await supabase
+        .from("brand_profiles")
+        .select("id")
+        .eq("id", brandProfileId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (verifyBrandError) {
+        throw new Error(`brand_profiles: ${verifyBrandError.message}`);
+      }
+
+      if (!verifiedBrand?.id) {
+        throw new Error(t("brand.deleteErrorNoBrand"));
+      }
+
       const { data: rulesToDelete, error: rulesLoadError } = await supabase
         .from("automation_rules")
         .select("id")
-        .eq("brand_profile_id", brandProfileId);
+        .eq("brand_profile_id", brandProfileId)
+        .eq("user_id", user.id);
 
       if (rulesLoadError) {
         throw new Error(`automation_rules: ${rulesLoadError.message}`);
@@ -1055,7 +1083,8 @@ export default function BrandProfile() {
       const { data: postsToDelete, error: postsLoadError } = await supabase
         .from("posts")
         .select("id, image_storage_path")
-        .eq("brand_profile_id", brandProfileId);
+        .eq("brand_profile_id", brandProfileId)
+        .eq("user_id", user.id);
 
       if (postsLoadError) {
         throw new Error(`posts: ${postsLoadError.message}`);
@@ -1102,15 +1131,15 @@ export default function BrandProfile() {
         brandProfileId
       );
 
-      await deleteRowsByColumn(
+      await deleteUserRowsByColumn(
         "automation_rules",
         "brand_profile_id",
         brandProfileId
       );
 
-      await deleteRowsByColumn("posts", "brand_profile_id", brandProfileId);
+      await deleteUserRowsByColumn("posts", "brand_profile_id", brandProfileId);
 
-      await deleteRowsByColumn(
+      await deleteUserRowsByColumn(
         "social_connections",
         "brand_profile_id",
         brandProfileId

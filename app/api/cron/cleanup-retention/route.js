@@ -7,7 +7,7 @@ function isAuthorized(request) {
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
-    return true;
+    return false;
   }
 
   const authHeader = request.headers.get("authorization") || "";

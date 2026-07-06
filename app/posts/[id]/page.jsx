@@ -146,6 +146,15 @@ export default function EditPostPage() {
     setSaving(true);
     setMessage("");
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
     const { data, error } = await supabase
       .from("posts")
       .update({
@@ -153,6 +162,7 @@ export default function EditPostPage() {
         updated_at: new Date().toISOString(),
       })
       .eq("id", postId)
+      .eq("user_id", user.id)
       .select(
         "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, content_format"
       )
@@ -180,6 +190,15 @@ export default function EditPostPage() {
     setApproving(true);
     setMessage("");
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
     const approvedAt = new Date().toISOString();
 
     const { data, error } = await supabase
@@ -191,6 +210,7 @@ export default function EditPostPage() {
         updated_at: approvedAt,
       })
       .eq("id", postId)
+      .eq("user_id", user.id)
       .select(
         "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, content_format"
       )
@@ -215,6 +235,15 @@ export default function EditPostPage() {
     setDiscarding(true);
     setMessage("");
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
     const discardedAt = new Date().toISOString();
 
     const { error } = await supabase
@@ -223,7 +252,8 @@ export default function EditPostPage() {
         status: "rejected",
         updated_at: discardedAt,
       })
-      .eq("id", postId);
+      .eq("id", postId)
+      .eq("user_id", user.id);
 
     if (error) {
       setMessage(error.message);

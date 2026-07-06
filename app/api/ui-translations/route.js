@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import {
+  ALL_UI_NAMESPACES,
   DEFAULT_UI_LOCALE,
   getDefaultNamespaceLabels,
   getUiLanguageName,
@@ -26,12 +27,13 @@ function createSupabaseAdminClient() {
 }
 
 function parseNamespaces(value) {
+  const allowedNamespaces = new Set(ALL_UI_NAMESPACES);
   const namespaces = String(value || "common")
     .split(",")
     .map((namespace) => namespace.trim())
-    .filter(Boolean);
+    .filter((namespace) => allowedNamespaces.has(namespace));
 
-  return Array.from(new Set(["common", ...namespaces]));
+  return Array.from(new Set(["common", ...namespaces])).slice(0, 8);
 }
 
 function shouldRetranslateLabel({ defaultValue, translatedValue, locale }) {

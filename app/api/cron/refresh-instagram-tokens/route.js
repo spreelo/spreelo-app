@@ -6,7 +6,22 @@ import {
   refreshInstagramLongLivedToken,
 } from "../../../../lib/instagramOAuth";
 
-export async function GET() {
+function isAuthorized(request) {
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret) {
+    return false;
+  }
+
+  const authHeader = request.headers.get("authorization") || "";
+  return authHeader === `Bearer ${cronSecret}`;
+}
+
+export async function GET(request) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const summary = {
     checked: 0,
     refreshed: 0,

@@ -8,6 +8,7 @@ import {
   resolveBestServerLocale,
   resolveUiLocaleFromLanguageName,
 } from "../../../../lib/i18n/serverUiText.js";
+import { assertPublicHttpUrl } from "../../../../lib/security.js";
 import {
   isConnectionAuthFailure,
   markConnectionExpiredAndAlert,
@@ -3452,11 +3453,12 @@ function extractProductCardCandidatesFromHtml({
 }
 
 async function fetchHtml(url) {
+  const safeUrl = await assertPublicHttpUrl(url);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(safeUrl, {
       method: "GET",
       redirect: "follow",
       signal: controller.signal,
@@ -3493,11 +3495,12 @@ async function fetchHtml(url) {
 }
 
 async function fetchJson(url) {
+  const safeUrl = await assertPublicHttpUrl(url);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(safeUrl, {
       method: "GET",
       redirect: "follow",
       signal: controller.signal,
@@ -7428,9 +7431,10 @@ async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt }) {
     const jsonUrl = `${origin}/products.json?limit=250&page=${page}`;
 
     try {
+      const safeJsonUrl = await assertPublicHttpUrl(jsonUrl);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
-      const response = await fetch(jsonUrl, {
+      const response = await fetch(safeJsonUrl, {
         headers: {
           "user-agent": "SpreeloBot/1.0 (+https://spreelo.com)",
           accept: "application/json,text/plain,*/*",
@@ -7506,9 +7510,10 @@ async function discoverShopifyCollectionJson({ websiteUrl, campaignPrompt }) {
     const jsonUrl = `${origin}/collections/${search}/products.json?limit=250`;
 
     try {
+      const safeJsonUrl = await assertPublicHttpUrl(jsonUrl);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
-      const response = await fetch(jsonUrl, {
+      const response = await fetch(safeJsonUrl, {
         headers: {
           "user-agent": "SpreeloBot/1.0 (+https://spreelo.com)",
           accept: "application/json,text/plain,*/*",
@@ -9358,7 +9363,9 @@ async function fetchImageBufferForOverlay(imageUrl) {
     throw new Error("Logo overlay skipped because image URL is missing or not public");
   }
 
-  const response = await fetch(imageUrl, {
+  const safeImageUrl = await assertPublicHttpUrl(imageUrl);
+
+  const response = await fetch(safeImageUrl, {
     headers: {
       "User-Agent": "Spreelo/1.0 image overlay",
     },

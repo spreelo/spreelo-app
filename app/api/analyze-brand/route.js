@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
+import { assertPublicHttpUrl } from "../../../lib/security.js";
 
 export const dynamic = "force-dynamic";
 
@@ -1028,6 +1029,8 @@ async function fetchWebsiteHtml(websiteUrl) {
     throw new Error("Website URL is required");
   }
 
+  const safeWebsiteUrl = await assertPublicHttpUrl(normalizedWebsiteUrl);
+
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(),
@@ -1035,7 +1038,7 @@ async function fetchWebsiteHtml(websiteUrl) {
   );
 
   try {
-    const response = await fetch(normalizedWebsiteUrl, {
+    const response = await fetch(safeWebsiteUrl, {
       method: "GET",
       redirect: "follow",
       signal: controller.signal,
@@ -1060,7 +1063,7 @@ async function fetchWebsiteHtml(websiteUrl) {
     const html = await response.text();
 
     return {
-      url: normalizedWebsiteUrl,
+      url: safeWebsiteUrl,
       html,
     };
   } finally {
