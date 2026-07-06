@@ -21590,3 +21590,168 @@ html body .dashboard-plan-hub-card .dashboard-plan-row {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Spreelo polish pass: single overview plan field and denser mobile summaries. */
+html body .dashboard-plan-hub-card > .dashboard-card-header,
+html body .dashboard-plan-hub-card > .dashboard-upcoming-list,
+html body .dashboard-plan-hub-card > .dashboard-empty,
+html body .dashboard-plan-hub-card > .dashboard-plan-hub-divider {
+  display: none !important;
+}
+
+html body .dashboard-plan-hub-card {
+  gap: 0 !important;
+}
+
+html body .dashboard-plan-hub-section {
+  gap: 12px !important;
+}
+
+html body .dashboard-plan-hub-section .saved-header {
+  margin-bottom: 4px !important;
+}
+
+@media (max-width: 760px) {
+  html body .dashboard-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  html body .dashboard-stat-card {
+    min-height: 76px !important;
+    padding: 10px 11px !important;
+  }
+
+  html body .dashboard-stat-card strong {
+    margin-top: 5px !important;
+    font-size: 26px !important;
+  }
+
+  html body .dashboard-content-plans-card .saved-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    justify-items: start !important;
+    text-align: left !important;
+  }
+
+  html body .dashboard-content-plans-card .saved-header .secondary-button {
+    width: 100% !important;
+    min-height: 36px !important;
+    margin-top: 2px !important;
+  }
+
+  html body .dashboard-plan-row {
+    grid-template-columns: 22px minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 8px 10px !important;
+    padding: 12px !important;
+    text-align: left !important;
+  }
+
+  html body .dashboard-plan-check {
+    grid-column: 1 !important;
+    grid-row: 1 / span 3 !important;
+    width: 20px !important;
+    height: 24px !important;
+    align-self: start !important;
+    justify-self: start !important;
+  }
+
+  html body .dashboard-plan-main,
+  html body .dashboard-plan-meta,
+  html body .dashboard-plan-actions {
+    grid-column: 2 !important;
+    min-width: 0 !important;
+  }
+
+  html body .dashboard-plan-title-row {
+    justify-content: flex-start !important;
+    gap: 6px !important;
+    margin-bottom: 4px !important;
+  }
+
+  html body .dashboard-plan-title-row h4 {
+    font-size: 14px !important;
+    line-height: 1.18 !important;
+  }
+
+  html body .dashboard-plan-row p {
+    font-size: 11.5px !important;
+    line-height: 1.32 !important;
+  }
+
+  html body .dashboard-plan-meta {
+    display: flex !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+    font-size: 11.5px !important;
+  }
+
+  html body .dashboard-plan-meta span {
+    min-height: 22px !important;
+    padding: 0 8px !important;
+    font-size: 11px !important;
+  }
+
+  html body .dashboard-plan-meta strong {
+    font-size: 12px !important;
+  }
+
+  html body .dashboard-plan-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  html body .dashboard-plan-actions > a,
+  html body .dashboard-plan-delete {
+    width: 100% !important;
+    min-height: 34px !important;
+    border-radius: 8px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    margin: 0 0 10px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-stat-grid > div {
+    min-height: 64px !important;
+    padding: 8px 7px !important;
+    border-radius: 8px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-stat-grid span {
+    min-height: 22px !important;
+    margin: 0 !important;
+    font-size: 8.5px !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0.02em !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-stat-grid strong {
+    display: block !important;
+    margin-top: 3px !important;
+    font-size: 21px !important;
+    line-height: 1 !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-stat-grid p {
+    display: none !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-hero {
+    margin-bottom: 10px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-hero h2 {
+    font-size: 25px !important;
+    line-height: 1.05 !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-hero span {
+    font-size: 12.5px !important;
+    line-height: 1.35 !important;
+  }
+}
