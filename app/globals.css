@@ -19651,6 +19651,90 @@ html body .planner-upgrade-button {
   font-weight: 820 !important;
 }
 
+/* Brand switcher hit-area fix: the native select owns the whole field. */
+html body .sidebar.spreelo-sidebar .current-brand-select-wrap,
+html body .spreelo-sidebar .current-brand-select-wrap {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 42px !important;
+  margin-top: 10px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+
+html body .sidebar.spreelo-sidebar .current-brand-select,
+html body .spreelo-sidebar .current-brand-select {
+  position: relative !important;
+  z-index: 1 !important;
+  display: block !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 34px 0 42px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: var(--spreelo-radius-control) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 760 !important;
+  line-height: 42px !important;
+  appearance: none !important;
+  cursor: pointer !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+html body .sidebar.spreelo-sidebar .current-brand-select:hover,
+html body .spreelo-sidebar .current-brand-select:hover,
+html body .sidebar.spreelo-sidebar .current-brand-select:focus,
+html body .spreelo-sidebar .current-brand-select:focus {
+  border-color: rgba(241, 90, 60, 0.48) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+  outline: 3px solid rgba(241, 90, 60, 0.14) !important;
+  box-shadow: none !important;
+}
+
+html body .sidebar.spreelo-sidebar .current-brand-select option,
+html body .spreelo-sidebar .current-brand-select option {
+  color: #111827 !important;
+  background: #ffffff !important;
+}
+
+html body .sidebar.spreelo-sidebar .current-brand-business-icon,
+html body .spreelo-sidebar .current-brand-business-icon {
+  position: absolute !important;
+  z-index: 2 !important;
+  left: 10px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 7px !important;
+  background: rgba(241, 90, 60, 0.14) !important;
+  color: var(--spreelo-accent) !important;
+  pointer-events: none !important;
+}
+
+html body .sidebar.spreelo-sidebar .current-brand-chevron,
+html body .spreelo-sidebar .current-brand-chevron {
+  position: absolute !important;
+  z-index: 2 !important;
+  right: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  color: rgba(255, 255, 255, 0.66) !important;
+  pointer-events: none !important;
+}
+
 /* Calendar mockup alignment: list-first campaign workspace. */
 html body .app-shell.spreelo-shell {
   grid-template-columns: 236px minmax(0, 1fr) !important;
@@ -20129,5 +20213,788 @@ html body .campaign-calendar-page .campaign-create-button {
   html body .campaign-calendar-page .campaign-card-meta {
     justify-content: flex-start !important;
     text-align: left !important;
+  }
+}
+
+/* Spreelo consistency pass: navigation icons, AI Studio, tablet and mobile. */
+html body .spreelo-nav a .sidebar-menu-icon-wrap,
+html body .nav.spreelo-nav a .sidebar-menu-icon-wrap {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 7px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: rgba(244, 238, 229, 0.74) !important;
+  box-shadow: none !important;
+}
+
+html body .spreelo-nav a .sidebar-menu-icon,
+html body .nav.spreelo-nav a .sidebar-menu-icon,
+html body .spreelo-nav a .sidebar-menu-icon-wrap svg,
+html body .nav.spreelo-nav a .sidebar-menu-icon-wrap svg {
+  width: 16px !important;
+  height: 16px !important;
+  color: currentColor !important;
+  stroke: currentColor !important;
+  fill: none !important;
+}
+
+html body .spreelo-nav a:hover .sidebar-menu-icon-wrap,
+html body .nav.spreelo-nav a:hover .sidebar-menu-icon-wrap,
+html body .spreelo-nav a.active .sidebar-menu-icon-wrap,
+html body .nav.spreelo-nav a.active .sidebar-menu-icon-wrap {
+  border-color: rgba(255, 111, 79, 0.34) !important;
+  background: linear-gradient(135deg, rgba(255, 111, 79, 0.22), rgba(255, 219, 182, 0.1)) !important;
+  color: #ffb199 !important;
+  box-shadow: inset 3px 0 0 rgba(255, 111, 79, 0.95) !important;
+}
+
+html body .spreelo-nav a:hover,
+html body .nav.spreelo-nav a:hover,
+html body .spreelo-nav a.active,
+html body .nav.spreelo-nav a.active {
+  color: #fff8ef !important;
+}
+
+html body .automation-page.planner-wizard-page {
+  max-width: 100% !important;
+  color: var(--spreelo-ink, #141924) !important;
+}
+
+html body .automation-page.planner-wizard-page .wizard-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 360px !important;
+  gap: 22px !important;
+  align-items: start !important;
+  max-width: 1500px !important;
+  margin: 0 auto !important;
+}
+
+html body .automation-page.planner-wizard-page .wizard-main {
+  display: grid !important;
+  gap: 18px !important;
+  min-width: 0 !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-sidebar {
+  display: grid !important;
+  gap: 18px !important;
+  min-width: 0 !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero,
+html body .automation-page.planner-wizard-page .planner-hero-final {
+  min-height: auto !important;
+  padding: 28px 30px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(42, 31, 23, 0.09) !important;
+  background: linear-gradient(135deg, #fffdf8 0%, #fff7ed 58%, #fff1e6 100%) !important;
+  box-shadow: 0 18px 42px rgba(47, 31, 21, 0.08) !important;
+  overflow: hidden !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero::before,
+html body .automation-page.planner-wizard-page .planner-hero::after,
+html body .automation-page.planner-wizard-page .planner-hero-final::before,
+html body .automation-page.planner-wizard-page .planner-hero-final::after {
+  display: none !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero-copy {
+  max-width: 720px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero h2,
+html body .automation-page.planner-wizard-page .planner-hero-final h2,
+html body .automation-page.planner-wizard-page .planner-hero-copy h2 {
+  max-width: 720px !important;
+  margin: 0 0 10px !important;
+  color: var(--spreelo-ink, #141924) !important;
+  font-size: clamp(34px, 3.2vw, 52px) !important;
+  line-height: 0.98 !important;
+  font-weight: 820 !important;
+  letter-spacing: 0 !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero p,
+html body .automation-page.planner-wizard-page .planner-hero-final p,
+html body .automation-page.planner-wizard-page .planner-hero-copy p {
+  max-width: 700px !important;
+  margin: 0 !important;
+  color: var(--spreelo-muted, #756b62) !important;
+  font-size: 15px !important;
+  line-height: 1.48 !important;
+  font-weight: 560 !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero-visual {
+  width: 220px !important;
+  min-width: 190px !important;
+  height: 150px !important;
+  border-radius: 8px !important;
+  background: linear-gradient(135deg, #fff1e6, #ffe2d5) !important;
+  box-shadow: inset 0 0 0 1px rgba(241, 90, 60, 0.16) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero-orb {
+  background: rgba(241, 90, 60, 0.13) !important;
+  filter: none !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero-calendar {
+  background: #fffdf8 !important;
+  border: 1px solid rgba(241, 90, 60, 0.16) !important;
+  box-shadow: 0 12px 24px rgba(47, 31, 21, 0.08) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero-calendar::before {
+  background: linear-gradient(90deg, #ef4f36, #f5a33b) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero-calendar span.checked {
+  color: #3c8c3a !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero-mascot {
+  color: #ef4f36 !important;
+  background: #fff7ed !important;
+  box-shadow: 0 16px 34px rgba(241, 90, 60, 0.16) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero-learn,
+html body .automation-page.planner-wizard-page .learn-more-button {
+  border: 1px solid rgba(241, 90, 60, 0.18) !important;
+  background: #fffaf4 !important;
+  color: var(--spreelo-ink-soft, #2b3340) !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-builder-card,
+html body .automation-page.planner-wizard-page .planner-settings-card,
+html body .automation-page.planner-wizard-page .planner-schedule-card,
+html body .automation-page.planner-wizard-page .planner-save-card,
+html body .automation-page.planner-wizard-page .planner-mode-card,
+html body .automation-page.planner-wizard-page .planner-includes-preview-card,
+html body .automation-page.planner-wizard-page .planner-summary-card,
+html body .automation-page.planner-wizard-page .planner-credits-card,
+html body .automation-page.planner-wizard-page .campaign-mode-banner,
+html body .automation-page.planner-wizard-page .saved-card,
+html body .automation-page.planner-wizard-page .saved-card-compact {
+  border-radius: 8px !important;
+  border: 1px solid rgba(42, 31, 23, 0.09) !important;
+  background: #fffdf8 !important;
+  box-shadow: 0 14px 32px rgba(47, 31, 21, 0.055) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-builder-card,
+html body .automation-page.planner-wizard-page .planner-settings-card,
+html body .automation-page.planner-wizard-page .planner-schedule-card,
+html body .automation-page.planner-wizard-page .planner-mode-card {
+  padding: 22px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-builder-header {
+  margin-bottom: 18px !important;
+  gap: 14px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-builder-step-badge,
+html body .automation-page.planner-wizard-page .planner-section-heading > span,
+html body .automation-page.planner-wizard-page .planner-summary-title span,
+html body .automation-page.planner-wizard-page .planner-summary-icon,
+html body .automation-page.planner-wizard-page .planner-setting-icon,
+html body .automation-page.planner-wizard-page .setup-title-icon,
+html body .automation-page.planner-wizard-page .planner-sidebar-title > span,
+html body .automation-page.planner-wizard-page .planner-post-type-icon,
+html body .automation-page.planner-wizard-page .mode-big-icon {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(241, 90, 60, 0.18) !important;
+  background: #ffe8df !important;
+  color: #d84a32 !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-setup-card:nth-child(2) .setup-title-icon,
+html body .automation-page.planner-wizard-page .planner-setup-helper-frequency .planner-setup-helper-icon,
+html body .automation-page.planner-wizard-page .planner-summary-list.premium div:nth-child(4) .planner-summary-icon {
+  border-color: rgba(60, 140, 58, 0.2) !important;
+  background: #eaf6e5 !important;
+  color: #347a35 !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-setup-card:nth-child(3) .setup-title-icon,
+html body .automation-page.planner-wizard-page .planner-setup-helper-timing .planner-setup-helper-icon,
+html body .automation-page.planner-wizard-page .planner-summary-list.premium div:nth-child(3) .planner-summary-icon {
+  border-color: rgba(218, 146, 24, 0.2) !important;
+  background: #fff0c8 !important;
+  color: #a96f0e !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-setup-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-setup-card {
+  min-height: 0 !important;
+  padding: 18px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(42, 31, 23, 0.09) !important;
+  background: #fffefa !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.planner-wizard-page .setup-step-title {
+  gap: 12px !important;
+}
+
+html body .automation-page.planner-wizard-page .setup-step-title strong,
+html body .automation-page.planner-wizard-page .planner-builder-header h3,
+html body .automation-page.planner-wizard-page .planner-section-heading h3,
+html body .automation-page.planner-wizard-page .planner-sidebar-title h3,
+html body .automation-page.planner-wizard-page .planner-summary-title h3 {
+  color: var(--spreelo-ink, #141924) !important;
+  letter-spacing: 0 !important;
+}
+
+html body .automation-page.planner-wizard-page .setup-step-title small,
+html body .automation-page.planner-wizard-page .planner-builder-header p,
+html body .automation-page.planner-wizard-page .planner-section-heading p,
+html body .automation-page.planner-wizard-page .planner-setting-field small {
+  color: var(--spreelo-muted, #756b62) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-select-control,
+html body .automation-page.planner-wizard-page .planner-date-time-row .custom-picker-trigger,
+html body .automation-page.planner-wizard-page input,
+html body .automation-page.planner-wizard-page select,
+html body .automation-page.planner-wizard-page textarea {
+  min-height: 42px !important;
+  border-radius: 7px !important;
+  border: 1px solid rgba(42, 31, 23, 0.11) !important;
+  background: #fffefa !important;
+  color: var(--spreelo-ink, #141924) !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-select-control:focus,
+html body .automation-page.planner-wizard-page .planner-date-time-row .custom-picker-trigger:focus,
+html body .automation-page.planner-wizard-page input:focus,
+html body .automation-page.planner-wizard-page select:focus,
+html body .automation-page.planner-wizard-page textarea:focus {
+  border-color: rgba(241, 90, 60, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(241, 90, 60, 0.12) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-setup-helper,
+html body .automation-page.planner-wizard-page .planner-recommended-pill,
+html body .automation-page.planner-wizard-page .planner-summary-status,
+html body .automation-page.planner-wizard-page .summary-note,
+html body .automation-page.planner-wizard-page .planner-sidebar-warning {
+  border-radius: 8px !important;
+  border: 1px solid rgba(241, 90, 60, 0.14) !important;
+  background: #fff7ed !important;
+  color: var(--spreelo-ink-soft, #2b3340) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-segmented-buttons button,
+html body .automation-page.planner-wizard-page .planner-content-chip,
+html body .automation-page.planner-wizard-page .planner-post-actions button,
+html body .automation-page.planner-wizard-page .secondary-button,
+html body .automation-page.planner-wizard-page .outline-button {
+  min-height: 38px !important;
+  border-radius: 7px !important;
+  border: 1px solid rgba(42, 31, 23, 0.1) !important;
+  background: #fffefa !important;
+  color: var(--spreelo-ink-soft, #2b3340) !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-segmented-buttons button.active,
+html body .automation-page.planner-wizard-page .planner-mode-option.active,
+html body .automation-page.planner-wizard-page .planner-content-chip.active,
+html body .automation-page.planner-wizard-page .saved-rule-card.selected,
+html body .automation-page.planner-wizard-page .planner-post-row.expanded {
+  border-color: rgba(241, 90, 60, 0.46) !important;
+  background: #fff7ed !important;
+  color: var(--spreelo-accent-deep, #b63f2d) !important;
+  box-shadow: inset 0 0 0 1px rgba(241, 90, 60, 0.12) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-segmented-buttons button.active,
+html body .automation-page.planner-wizard-page .planner-save-button,
+html body .automation-page.planner-wizard-page .planner-save-card .planner-save-button,
+html body .automation-page.planner-wizard-page .planner-create-another-button,
+html body .automation-page.planner-wizard-page .primary-button {
+  border-color: #ef4f36 !important;
+  background: linear-gradient(180deg, #ff644b 0%, #e94731 100%) !important;
+  color: #fffaf4 !important;
+  box-shadow: 0 10px 20px rgba(241, 90, 60, 0.18) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-save-button:hover,
+html body .automation-page.planner-wizard-page .planner-create-another-button:hover,
+html body .automation-page.planner-wizard-page .primary-button:hover {
+  background: linear-gradient(180deg, #ff7159 0%, #d9412d 100%) !important;
+  transform: translateY(-1px) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-mode-grid {
+  gap: 12px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-mode-option {
+  min-height: 0 !important;
+  padding: 16px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(42, 31, 23, 0.09) !important;
+  background: #fffefa !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.planner-wizard-page .mode-radio {
+  border-color: rgba(241, 90, 60, 0.28) !important;
+  color: #ef4f36 !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-settings-grid.simple,
+html body .automation-page.planner-wizard-page .compact-advanced-settings,
+html body .automation-page.planner-wizard-page .planner-includes-chip-grid {
+  gap: 12px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-includes-chip {
+  border-radius: 8px !important;
+  border: 1px solid rgba(42, 31, 23, 0.09) !important;
+  background: #fffefa !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-includes-chip span,
+html body .automation-page.planner-wizard-page .planner-includes-chip.preview-product_focus span,
+html body .automation-page.planner-wizard-page .planner-includes-chip.preview-offers span,
+html body .automation-page.planner-wizard-page .planner-includes-chip.preview-tips_advice span,
+html body .automation-page.planner-wizard-page .planner-includes-chip.preview-customer_inspiration span,
+html body .automation-page.planner-wizard-page .planner-includes-chip.preview-faq span,
+html body .automation-page.planner-wizard-page .planner-includes-chip.preview-reminders span {
+  border-radius: 7px !important;
+  background: #ffe8df !important;
+  color: #d84a32 !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-post-table {
+  display: grid !important;
+  gap: 8px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-post-row {
+  border-radius: 8px !important;
+  border: 1px solid rgba(42, 31, 23, 0.09) !important;
+  background: #fffefa !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-post-mainline {
+  gap: 12px !important;
+  padding: 13px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-post-title-row strong,
+html body .automation-page.planner-wizard-page .planner-post-title span {
+  color: var(--spreelo-ink, #141924) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-post-date,
+html body .automation-page.planner-wizard-page .planner-post-time,
+html body .automation-page.planner-wizard-page .planner-post-format {
+  color: var(--spreelo-muted, #756b62) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-summary-list.premium {
+  display: grid !important;
+  gap: 0 !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-summary-list.premium .planner-summary-item,
+html body .automation-page.planner-wizard-page .planner-summary-list.premium div.planner-summary-item,
+html body .automation-page.planner-wizard-page .planner-summary-list.premium > div {
+  padding: 13px 0 !important;
+  border-bottom: 1px solid rgba(42, 31, 23, 0.08) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-credit-progress {
+  background: #f2e7db !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-credit-progress div {
+  background: linear-gradient(90deg, #ef4f36, #3c8c3a) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-credits-card::after,
+html body .automation-page.planner-wizard-page .planner-save-card::after {
+  display: none !important;
+}
+
+html body .automation-page.planner-wizard-page .social-platform-pill,
+html body .automation-page.planner-wizard-page .planner-platform-dot {
+  border-color: rgba(241, 90, 60, 0.18) !important;
+  background: #fff7ed !important;
+  color: #d84a32 !important;
+}
+
+html body .automation-page.planner-wizard-page .facebook-dot,
+html body .automation-page.planner-wizard-page .facebook-icon,
+html body .automation-page.planner-wizard-page [class*="facebook"] {
+  color: #d84a32 !important;
+}
+
+@media (min-width: 901px) {
+  html body .spreelo-mobile-header,
+  html body .spreelo-mobile-menu-backdrop {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1320px) {
+  html body .automation-page.planner-wizard-page .wizard-layout {
+    grid-template-columns: minmax(0, 1fr) 320px !important;
+    gap: 18px !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  html body .automation-page.planner-wizard-page .wizard-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-sidebar {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    align-items: start !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-setup-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-setup-grid .planner-setup-card:nth-child(3) {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+@media (max-width: 900px) {
+  html body {
+    overflow-x: hidden !important;
+  }
+
+  html body .app-shell.spreelo-shell {
+    display: block !important;
+    min-height: 100dvh !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    background: var(--spreelo-bg, #f4eee5) !important;
+  }
+
+  html body .spreelo-mobile-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 120 !important;
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) 38px !important;
+    gap: 10px !important;
+    align-items: center !important;
+    min-height: 62px !important;
+    padding: 10px 12px !important;
+    border-bottom: 1px solid rgba(42, 31, 23, 0.11) !important;
+    background: rgba(255, 253, 248, 0.96) !important;
+    box-shadow: 0 14px 30px rgba(47, 31, 21, 0.1) !important;
+    backdrop-filter: blur(12px) !important;
+  }
+
+  html body .spreelo-mobile-logo {
+    min-width: 0 !important;
+  }
+
+  html body .spreelo-mobile-brand {
+    display: grid !important;
+    gap: 2px !important;
+    min-width: 0 !important;
+  }
+
+  html body .spreelo-mobile-brand span {
+    color: var(--spreelo-muted, #756b62) !important;
+    font-size: 9px !important;
+    line-height: 1 !important;
+    font-weight: 780 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+  }
+
+  html body .spreelo-mobile-brand strong {
+    color: var(--spreelo-ink, #141924) !important;
+    font-size: 12px !important;
+    line-height: 1.15 !important;
+    font-weight: 820 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  html body .spreelo-mobile-menu-button {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(42, 31, 23, 0.12) !important;
+    background: #fffefa !important;
+    color: var(--spreelo-ink, #141924) !important;
+    box-shadow: none !important;
+  }
+
+  html body .spreelo-mobile-menu-icon {
+    width: 18px !important;
+    height: 18px !important;
+    stroke: currentColor !important;
+  }
+
+  html body .spreelo-mobile-menu-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 130 !important;
+    display: block !important;
+    border: 0 !important;
+    background: rgba(8, 13, 20, 0.48) !important;
+  }
+
+  html body .sidebar.spreelo-sidebar,
+  html body .spreelo-sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    z-index: 140 !important;
+    width: min(312px, calc(100vw - 28px)) !important;
+    max-width: calc(100vw - 28px) !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow-y: auto !important;
+    transform: translateX(-106%) !important;
+    transition: transform 180ms ease !important;
+    border-radius: 0 10px 10px 0 !important;
+    box-shadow: 24px 0 60px rgba(0, 0, 0, 0.28) !important;
+  }
+
+  html body .sidebar.spreelo-sidebar.mobile-open,
+  html body .spreelo-sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  html body .content.spreelo-content,
+  html body .spreelo-content {
+    width: 100% !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 14px 12px 30px !important;
+    overflow-x: hidden !important;
+  }
+
+  html body .language-suggestion-banner {
+    display: grid !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+  }
+
+  html body .language-suggestion-banner > div,
+  html body .language-suggestion-actions {
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html body .automation-page.planner-wizard-page .wizard-main,
+  html body .automation-page.planner-wizard-page .planner-sidebar {
+    gap: 14px !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-sidebar,
+  html body .automation-page.planner-wizard-page .planner-setup-grid,
+  html body .automation-page.planner-wizard-page .planner-settings-grid.simple,
+  html body .automation-page.planner-wizard-page .compact-advanced-settings,
+  html body .automation-page.planner-wizard-page .planner-includes-chip-grid,
+  html body .automation-page.planner-wizard-page .planner-mode-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-setup-grid .planner-setup-card:nth-child(3) {
+    grid-column: auto !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-hero,
+  html body .automation-page.planner-wizard-page .planner-hero-final,
+  html body .automation-page.planner-wizard-page .planner-builder-card,
+  html body .automation-page.planner-wizard-page .planner-settings-card,
+  html body .automation-page.planner-wizard-page .planner-schedule-card,
+  html body .automation-page.planner-wizard-page .planner-save-card,
+  html body .automation-page.planner-wizard-page .planner-mode-card,
+  html body .automation-page.planner-wizard-page .planner-summary-card,
+  html body .automation-page.planner-wizard-page .planner-credits-card {
+    padding: 16px !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-hero {
+    display: grid !important;
+    gap: 14px !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-hero h2,
+  html body .automation-page.planner-wizard-page .planner-hero-final h2,
+  html body .automation-page.planner-wizard-page .planner-hero-copy h2 {
+    font-size: clamp(28px, 11vw, 38px) !important;
+    line-height: 1.02 !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-hero-visual {
+    display: none !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-hero-learn {
+    position: static !important;
+    justify-self: start !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-date-time-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-save-card,
+  html body .automation-page.planner-wizard-page .planner-final-cta {
+    grid-template-columns: 1fr !important;
+    text-align: left !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-save-card > div:first-child,
+  html body .automation-page.planner-wizard-page .planner-final-cta > div:first-child {
+    text-align: left !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-save-button,
+  html body .automation-page.planner-wizard-page .primary-button {
+    width: 100% !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-post-mainline {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-post-date,
+  html body .automation-page.planner-wizard-page .planner-post-time,
+  html body .automation-page.planner-wizard-page .planner-post-format,
+  html body .automation-page.planner-wizard-page .planner-post-actions {
+    grid-column: 2 !important;
+    justify-self: stretch !important;
+  }
+
+  html body .campaign-calendar-page,
+  html body .campaign-calendar-page * {
+    min-width: 0 !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-header {
+    gap: 12px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-title-row {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-title-row h1 {
+    font-size: clamp(28px, 11vw, 38px) !important;
+    line-height: 1.02 !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-list {
+    gap: 10px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card {
+    padding: 12px !important;
+    gap: 12px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card-content {
+    grid-template-columns: 48px minmax(0, 1fr) !important;
+    gap: 11px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card-side {
+    justify-items: stretch !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card-create-button {
+    width: 100% !important;
+  }
+
+  html body .campaign-calendar-page .campaign-detail-header {
+    grid-template-columns: 48px minmax(0, 1fr) !important;
+  }
+
+  html body .campaign-calendar-page .campaign-detail-header > span:not(.campaign-glyph) {
+    grid-column: 1 / -1 !important;
+    justify-self: start !important;
+  }
+}
+
+@media (max-width: 520px) {
+  html body .spreelo-mobile-header {
+    grid-template-columns: minmax(0, 1fr) 36px !important;
+  }
+
+  html body .spreelo-mobile-logo {
+    display: none !important;
+  }
+
+  html body .language-suggestion-actions,
+  html body .language-suggestion-banner-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  html body .language-suggestion-actions button,
+  html body .language-suggestion-banner-actions button {
+    width: 100% !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-builder-header {
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-builder-header h3,
+  html body .automation-page.planner-wizard-page .planner-section-heading h3 {
+    font-size: 22px !important;
+    line-height: 1.08 !important;
+  }
+
+  html body .campaign-calendar-page .campaign-detail-score-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .campaign-calendar-page .campaign-detail-score-grid div {
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--spreelo-line, rgba(42, 31, 23, 0.09)) !important;
+  }
+
+  html body .campaign-calendar-page .campaign-detail-score-grid div:last-child {
+    border-bottom: 0 !important;
   }
 }
