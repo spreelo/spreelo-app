@@ -1225,17 +1225,38 @@ export default function Calendar() {
                     </div>
 
                     <div className="campaign-detail-score-grid">
-                      <div>
+                      <div
+                        style={{
+                          "--score-percent": `${Math.min(
+                            Math.max(Number(selectedCampaign.relevance_score || 3), 0),
+                            5
+                          ) * 20}%`,
+                        }}
+                      >
                         <span>{t("calendar.relevance")}</span>
                         <strong>{selectedCampaign.relevance_score || 3}/5</strong>
                       </div>
 
-                      <div>
+                      <div
+                        style={{
+                          "--score-percent": `${Math.min(
+                            Math.max(Number(selectedCampaign.sales_score || 3), 0),
+                            5
+                          ) * 20}%`,
+                        }}
+                      >
                         <span>{t("calendar.sales")}</span>
                         <strong>{selectedCampaign.sales_score || 3}/5</strong>
                       </div>
 
-                      <div>
+                      <div
+                        style={{
+                          "--score-percent": `${Math.min(
+                            Math.max(Number(selectedCampaign.engagement_score || 3), 0),
+                            5
+                          ) * 20}%`,
+                        }}
+                      >
                         <span>{t("calendar.engagement")}</span>
                         <strong>
                           {selectedCampaign.engagement_score || 3}/5
