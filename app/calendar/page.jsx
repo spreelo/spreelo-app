@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CalendarCheck2, CalendarDays, CalendarRange } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import { CampaignGlyph } from "../../components/SpreeloIcons";
 import { supabase } from "../../lib/supabaseClient";
@@ -105,6 +106,15 @@ function getConfidenceLabel(value, t) {
   return t("calendar.mediumRelevance");
 }
 
+function getConfidenceTone(value) {
+  const confidence = String(value || "medium").toLowerCase();
+
+  if (confidence === "high") return "high";
+  if (confidence === "low") return "low";
+
+  return "medium";
+}
+
 function getSortDate(campaign) {
   const value =
     campaign.event_date || campaign.start_date || `${campaign.event_year}-12-31`;
@@ -116,6 +126,14 @@ function getSortDate(campaign) {
   }
 
   return timestamp;
+}
+
+function getCampaignRelevanceTotal(campaign) {
+  return (
+    Number(campaign?.relevance_score || 0) +
+    Number(campaign?.sales_score || 0) +
+    Number(campaign?.engagement_score || 0)
+  );
 }
 
 function getTodayDateString() {
@@ -801,18 +819,28 @@ export default function Calendar() {
   const [brandName, setBrandName] = useState("");
   const [campaigns, setCampaigns] = useState([]);
   const [campaignFilter, setCampaignFilter] = useState("all");
+  const [campaignSort, setCampaignSort] = useState("relevance");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  const todayDateString = getTodayDateString();
-  const calendarYearNotice = getCalendarYearNotice(todayDateString, t);
-
   const visibleCampaigns = useMemo(() => {
-    return campaigns.filter((campaign) =>
+    const filteredCampaigns = campaigns.filter((campaign) =>
       campaignMatchesCalendarFilter(campaign, campaignFilter)
     );
-  }, [campaigns, campaignFilter]);
+
+    return [...filteredCampaigns].sort((firstCampaign, secondCampaign) => {
+      if (campaignSort === "date") {
+        return getSortDate(firstCampaign) - getSortDate(secondCampaign);
+      }
+
+      return (
+        getCampaignRelevanceTotal(secondCampaign) -
+          getCampaignRelevanceTotal(firstCampaign) ||
+        getSortDate(firstCampaign) - getSortDate(secondCampaign)
+      );
+    });
+  }, [campaigns, campaignFilter, campaignSort]);
 
   const selectedCampaign = useMemo(() => {
     return (
@@ -1000,22 +1028,9 @@ export default function Calendar() {
             <h2>{t("calendar.heroTitle", { brandName })}</h2>
             <span>{t("calendar.heroText")}</span>
           </div>
-
-          <div className="campaign-calendar-hero-card">
-            <strong>{campaignStats.total}</strong>
-            <span>{t("calendar.heroCardLabel")}</span>
-            <p>{t("calendar.heroCardNote")}</p>
-          </div>
         </header>
 
         {message && <p className="campaign-calendar-message">{message}</p>}
-
-        <section className="campaign-calendar-year-note">
-          <div>
-            <p className="dashboard-eyebrow">{t("calendar.updateEyebrow")}</p>
-            <strong>{calendarYearNotice}</strong>
-          </div>
-        </section>
 
         {campaigns.length === 0 ? (
           <section className="campaign-calendar-empty">
@@ -1030,22 +1045,40 @@ export default function Calendar() {
         ) : (
           <>
             <section className="campaign-calendar-stat-grid">
-              <div>
-                <span>{t("calendar.statUpcoming")}</span>
-                <strong>{campaignStats.total}</strong>
-                <p>{t("calendar.statUpcomingText")}</p>
+              <div className="campaign-calendar-stat-item">
+                <span className="campaign-calendar-stat-icon" aria-hidden="true">
+                  <CalendarDays size={18} strokeWidth={2} />
+                </span>
+
+                <div>
+                  <span>{t("calendar.statUpcoming")}</span>
+                  <strong>{campaignStats.total}</strong>
+                  <p>{t("calendar.statUpcomingText")}</p>
+                </div>
               </div>
 
-              <div>
-                <span>{t("calendar.statFixedDates")}</span>
-                <strong>{campaignStats.fixedDate}</strong>
-                <p>{t("calendar.statFixedDatesText")}</p>
+              <div className="campaign-calendar-stat-item">
+                <span className="campaign-calendar-stat-icon amber" aria-hidden="true">
+                  <CalendarCheck2 size={18} strokeWidth={2} />
+                </span>
+
+                <div>
+                  <span>{t("calendar.statFixedDates")}</span>
+                  <strong>{campaignStats.fixedDate}</strong>
+                  <p>{t("calendar.statFixedDatesText")}</p>
+                </div>
               </div>
 
-              <div>
-                <span>{t("calendar.statFlexible")}</span>
-                <strong>{campaignStats.flexible}</strong>
-                <p>{t("calendar.statFlexibleText")}</p>
+              <div className="campaign-calendar-stat-item">
+                <span className="campaign-calendar-stat-icon green" aria-hidden="true">
+                  <CalendarRange size={18} strokeWidth={2} />
+                </span>
+
+                <div>
+                  <span>{t("calendar.statFlexible")}</span>
+                  <strong>{campaignStats.flexible}</strong>
+                  <p>{t("calendar.statFlexibleText")}</p>
+                </div>
               </div>
             </section>
 
@@ -1060,17 +1093,29 @@ export default function Calendar() {
                   <span>{brandName}</span>
                 </div>
 
-                <div className="campaign-calendar-filter-row">
-                  {calendarFilterOptions.map((option) => (
-                    <button
-                      type="button"
-                      key={option.id}
-                      className={campaignFilter === option.id ? "active" : ""}
-                      onClick={() => setCampaignFilter(option.id)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                <div className="campaign-calendar-toolbar">
+                  <div className="campaign-calendar-filter-row">
+                    {calendarFilterOptions.map((option) => (
+                      <button
+                        type="button"
+                        key={option.id}
+                        className={campaignFilter === option.id ? "active" : ""}
+                        onClick={() => setCampaignFilter(option.id)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <select
+                    className="campaign-calendar-sort-select"
+                    value={campaignSort}
+                    onChange={(event) => setCampaignSort(event.target.value)}
+                    aria-label={t("calendar.sortCampaigns")}
+                  >
+                    <option value="relevance">{t("calendar.sortByRelevance")}</option>
+                    <option value="date">{t("calendar.sortByDate")}</option>
+                  </select>
                 </div>
 
                 <div className="campaign-card-grid">
@@ -1119,7 +1164,13 @@ export default function Calendar() {
                             <span>
                               {getCampaignRecommendedPostCount(campaign)} {t("common.posts")}
                             </span>
-                            <span>{getConfidenceLabel(campaign.date_confidence, t)}</span>
+                            <span
+                              className={`campaign-confidence-badge ${getConfidenceTone(
+                                campaign.date_confidence
+                              )}`}
+                            >
+                              {getConfidenceLabel(campaign.date_confidence, t)}
+                            </span>
                           </div>
 
                           <button
@@ -1127,10 +1178,16 @@ export default function Calendar() {
                             className="campaign-card-create-button"
                             onClick={(event) => {
                               event.stopPropagation();
-                              handleCreateCampaign(campaign);
+                              if (isSelected) {
+                                handleCreateCampaign(campaign);
+                              } else {
+                                setSelectedCampaignId(campaign.id);
+                              }
                             }}
                           >
-                            {t("common.createPosts")}
+                            {isSelected
+                              ? t("common.createPosts")
+                              : t("calendar.viewDetails")}
                           </button>
                         </div>
                       </article>
@@ -1158,7 +1215,11 @@ export default function Calendar() {
 
                     <div className="campaign-detail-date">
                       <strong>{getCampaignDateLabel(selectedCampaign, t, locale)}</strong>
-                      <span>
+                      <span
+                        className={`campaign-confidence-badge ${getConfidenceTone(
+                          selectedCampaign.date_confidence
+                        )}`}
+                      >
                         {getConfidenceLabel(selectedCampaign.date_confidence, t)}
                       </span>
                     </div>
