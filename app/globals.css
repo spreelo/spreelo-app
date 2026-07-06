@@ -19650,3 +19650,484 @@ html body .planner-upgrade-button {
   color: var(--spreelo-accent-deep) !important;
   font-weight: 820 !important;
 }
+
+/* Calendar mockup alignment: list-first campaign workspace. */
+html body .app-shell.spreelo-shell {
+  grid-template-columns: 236px minmax(0, 1fr) !important;
+  background: var(--spreelo-bg) !important;
+}
+
+html body .sidebar.spreelo-sidebar,
+html body .spreelo-sidebar {
+  border-radius: 0 !important;
+  min-height: 100vh !important;
+}
+
+html body .spreelo-logo-lockup {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  line-height: 1 !important;
+  color: #ffffff !important;
+}
+
+html body .spreelo-logo-mark {
+  width: 31px !important;
+  height: 31px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 9px !important;
+  background: linear-gradient(135deg, #ff7a4f 0%, #f15a3c 58%, #cf3e25 100%) !important;
+  color: #ffffff !important;
+  font-size: 20px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+  box-shadow: 0 10px 22px rgba(241, 90, 60, 0.26) !important;
+}
+
+html body .spreelo-logo-word {
+  color: #ffffff !important;
+  font-size: 25px !important;
+  font-weight: 780 !important;
+  letter-spacing: 0 !important;
+}
+
+html body .spreelo-mobile-header .spreelo-logo-word {
+  color: var(--spreelo-ink) !important;
+}
+
+html body .content.spreelo-content {
+  padding: 28px 32px !important;
+}
+
+html body .campaign-calendar-page {
+  width: min(100%, 1480px) !important;
+  margin: 0 auto !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-hero {
+  display: block !important;
+  margin: 8px 0 18px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-hero h2 {
+  max-width: 880px !important;
+  font-size: clamp(28px, 2.7vw, 36px) !important;
+  line-height: 1.08 !important;
+  font-weight: 820 !important;
+  letter-spacing: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-hero span {
+  max-width: 760px !important;
+  margin-top: 8px !important;
+  color: var(--spreelo-muted) !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+  font-weight: 500 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-hero-card,
+html body .campaign-calendar-page .campaign-calendar-year-note {
+  display: none !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  margin: 0 0 18px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid > div {
+  min-height: 104px !important;
+  padding: 17px 18px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: var(--spreelo-surface-raised) !important;
+  box-shadow: var(--spreelo-shadow-soft) !important;
+  text-align: left !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid span {
+  margin: 0 0 8px !important;
+  color: var(--spreelo-muted) !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  font-weight: 820 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid strong {
+  color: var(--spreelo-ink) !important;
+  font-size: 30px !important;
+  line-height: 1 !important;
+  font-weight: 820 !important;
+  letter-spacing: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid p {
+  display: block !important;
+  margin: 8px 0 0 !important;
+  color: var(--spreelo-muted) !important;
+  font-size: 12.5px !important;
+  line-height: 1.35 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 382px !important;
+  gap: 22px !important;
+  align-items: start !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-main,
+html body .campaign-calendar-page .campaign-detail-card {
+  border-radius: 8px !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: var(--spreelo-surface-raised) !important;
+  background-image: none !important;
+  box-shadow: var(--spreelo-shadow) !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-main {
+  padding: 18px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-section-heading {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin-bottom: 14px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-section-heading h3 {
+  margin: 0 !important;
+  color: var(--spreelo-ink) !important;
+  font-size: 20px !important;
+  line-height: 1.18 !important;
+  font-weight: 790 !important;
+  letter-spacing: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-section-heading > span {
+  min-height: 28px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(241, 90, 60, 0.18) !important;
+  background: var(--spreelo-accent-wash) !important;
+  color: var(--spreelo-accent-deep) !important;
+  font-size: 11px !important;
+  font-weight: 820 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-filter-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  margin: 0 0 14px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-filter-row button {
+  min-height: 34px !important;
+  padding: 0 13px !important;
+  border-radius: 7px !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: #fffefa !important;
+  color: var(--spreelo-muted) !important;
+  font-size: 12px !important;
+  font-weight: 720 !important;
+  cursor: pointer !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-filter-row button:hover,
+html body .campaign-calendar-page .campaign-calendar-filter-row button.active {
+  border-color: rgba(241, 90, 60, 0.42) !important;
+  background: var(--spreelo-sidebar) !important;
+  color: #ffffff !important;
+}
+
+html body .campaign-calendar-page .campaign-card-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+}
+
+html body .campaign-calendar-page .campaign-card {
+  min-height: 112px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 214px !important;
+  gap: 18px !important;
+  align-items: center !important;
+  padding: 16px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: #fffefa !important;
+  box-shadow: none !important;
+}
+
+html body .campaign-calendar-page .campaign-card:hover,
+html body .campaign-calendar-page .campaign-card.active {
+  border-color: rgba(241, 90, 60, 0.62) !important;
+  background: #fff9f2 !important;
+  box-shadow: inset 0 0 0 1px rgba(241, 90, 60, 0.16) !important;
+}
+
+html body .campaign-calendar-page .campaign-card-content {
+  display: grid !important;
+  grid-template-columns: 56px minmax(0, 1fr) !important;
+  gap: 14px !important;
+  align-items: center !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-card-tags {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 7px !important;
+  margin: 0 0 7px !important;
+}
+
+html body .campaign-calendar-page .campaign-card-tags span {
+  min-height: 24px !important;
+  padding: 0 9px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(241, 90, 60, 0.16) !important;
+  background: var(--spreelo-accent-soft) !important;
+  color: var(--spreelo-accent-deep) !important;
+  font-size: 10.5px !important;
+  line-height: 1 !important;
+  font-weight: 820 !important;
+}
+
+html body .campaign-calendar-page .campaign-card-copy h4 {
+  margin: 0 0 5px !important;
+  color: var(--spreelo-ink) !important;
+  font-size: 15.5px !important;
+  line-height: 1.25 !important;
+  font-weight: 790 !important;
+  letter-spacing: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-card-copy p {
+  margin: 0 !important;
+  color: var(--spreelo-muted) !important;
+  font-size: 13px !important;
+  line-height: 1.42 !important;
+  font-weight: 500 !important;
+}
+
+html body .campaign-calendar-page .campaign-card-side {
+  display: grid !important;
+  justify-items: end !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-card-date {
+  color: var(--spreelo-ink-soft) !important;
+  font-size: 12.5px !important;
+  line-height: 1.25 !important;
+  font-weight: 720 !important;
+  text-align: right !important;
+}
+
+html body .campaign-calendar-page .campaign-card-meta {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 7px !important;
+  flex-wrap: wrap !important;
+}
+
+html body .campaign-calendar-page .campaign-card-meta span {
+  min-height: 26px !important;
+  padding: 0 9px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(60, 140, 58, 0.18) !important;
+  background: var(--spreelo-green-soft) !important;
+  color: #2f6f2d !important;
+  font-size: 11px !important;
+  font-weight: 760 !important;
+}
+
+html body .campaign-calendar-page .campaign-card-meta span:first-child {
+  border-color: rgba(241, 90, 60, 0.16) !important;
+  background: var(--spreelo-accent-wash) !important;
+  color: var(--spreelo-accent-deep) !important;
+}
+
+html body .campaign-calendar-page .campaign-card-create-button {
+  min-width: 112px !important;
+  min-height: 38px !important;
+  margin: 0 !important;
+  padding: 0 14px !important;
+  border-radius: 7px !important;
+  font-size: 12.5px !important;
+  font-weight: 780 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-filter-empty {
+  padding: 22px !important;
+  border-radius: 8px !important;
+  border: 1px dashed rgba(241, 90, 60, 0.28) !important;
+  background: var(--spreelo-accent-wash) !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-filter-empty strong {
+  display: block !important;
+  color: var(--spreelo-ink) !important;
+  font-size: 15px !important;
+  margin-bottom: 4px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-filter-empty p {
+  margin: 0 !important;
+  color: var(--spreelo-muted) !important;
+  font-size: 13px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-sidebar {
+  position: sticky !important;
+  top: 24px !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-card {
+  padding: 18px !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-header {
+  display: grid !important;
+  grid-template-columns: 56px minmax(0, 1fr) auto !important;
+  gap: 13px !important;
+  align-items: start !important;
+  margin-bottom: 14px !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-header h3 {
+  margin: 3px 0 0 !important;
+  color: var(--spreelo-ink) !important;
+  font-size: 23px !important;
+  line-height: 1.08 !important;
+  font-weight: 810 !important;
+  letter-spacing: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-header > span:not(.campaign-glyph) {
+  min-height: 26px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  border-color: rgba(241, 90, 60, 0.18) !important;
+  background: var(--spreelo-accent-soft) !important;
+  color: var(--spreelo-accent-deep) !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-date {
+  padding: 12px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: #fffefa !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-score-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  margin: 12px 0 16px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: #fff8ef !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-score-grid div {
+  border: 0 !important;
+  border-right: 1px solid var(--spreelo-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-score-grid div:last-child {
+  border-right: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-section {
+  margin-top: 14px !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-section h4 {
+  margin: 0 0 6px !important;
+  color: var(--spreelo-ink) !important;
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+  font-weight: 790 !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-section p,
+html body .campaign-calendar-page .campaign-post-plan-note,
+html body .campaign-calendar-page .campaign-calendar-disclaimer {
+  color: var(--spreelo-muted) !important;
+  font-size: 12.5px !important;
+  line-height: 1.48 !important;
+}
+
+html body .campaign-calendar-page .campaign-post-plan {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+html body .campaign-calendar-page .campaign-post-plan > div {
+  display: grid !important;
+  grid-template-columns: 32px minmax(0, 1fr) !important;
+  gap: 10px !important;
+  padding: 12px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: #fffefa !important;
+}
+
+html body .campaign-calendar-page .campaign-create-button {
+  width: 100% !important;
+  min-height: 44px !important;
+  margin-top: 16px !important;
+  border-radius: 7px !important;
+}
+
+@media (max-width: 1180px) {
+  html body .campaign-calendar-page .campaign-calendar-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-sidebar {
+    position: static !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html body .content.spreelo-content {
+    padding: 18px 12px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-stat-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card-side {
+    justify-items: stretch !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card-date,
+  html body .campaign-calendar-page .campaign-card-meta {
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
+}

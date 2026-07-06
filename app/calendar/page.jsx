@@ -762,6 +762,37 @@ function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "e
   return "";
 }
 
+const calendarFilterOptions = [
+  { id: "all", label: "All campaigns" },
+  { id: "fixed", label: "Fixed dates" },
+  { id: "seasonal", label: "Seasonal" },
+  { id: "theme", label: "Theme days" },
+  { id: "shopping", label: "Shopping" },
+];
+
+function campaignMatchesCalendarFilter(campaign, filterId) {
+  if (filterId === "all") return true;
+  if (filterId === "fixed") return Boolean(campaign?.event_date);
+
+  const eventType = String(campaign?.event_type || "").toLowerCase();
+  const title = String(campaign?.title || "").toLowerCase();
+  const text = `${eventType} ${title}`;
+
+  if (filterId === "seasonal") {
+    return /season|holiday|jul|christmas|summer|winter|autumn|spring/.test(text);
+  }
+
+  if (filterId === "theme") {
+    return /theme|awareness|social|industry|local|day|temadag/.test(text);
+  }
+
+  if (filterId === "shopping") {
+    return /shopping|retail|ecommerce|e-commerce|sale|black friday|cyber monday|gift|offer/.test(text);
+  }
+
+  return true;
+}
+
 
 export default function Calendar() {
   const { t, locale } = useUiText(["calendar"]);
@@ -769,6 +800,7 @@ export default function Calendar() {
   const [brandProfileId, setBrandProfileId] = useState("");
   const [brandName, setBrandName] = useState("");
   const [campaigns, setCampaigns] = useState([]);
+  const [campaignFilter, setCampaignFilter] = useState("all");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -776,13 +808,19 @@ export default function Calendar() {
   const todayDateString = getTodayDateString();
   const calendarYearNotice = getCalendarYearNotice(todayDateString, t);
 
+  const visibleCampaigns = useMemo(() => {
+    return campaigns.filter((campaign) =>
+      campaignMatchesCalendarFilter(campaign, campaignFilter)
+    );
+  }, [campaigns, campaignFilter]);
+
   const selectedCampaign = useMemo(() => {
     return (
-      campaigns.find((campaign) => campaign.id === selectedCampaignId) ||
-      campaigns[0] ||
+      visibleCampaigns.find((campaign) => campaign.id === selectedCampaignId) ||
+      visibleCampaigns[0] ||
       null
     );
-  }, [campaigns, selectedCampaignId]);
+  }, [visibleCampaigns, selectedCampaignId]);
 
   const selectedCampaignPostPlan = useMemo(() => {
     if (!selectedCampaign) {
@@ -1022,8 +1060,28 @@ export default function Calendar() {
                   <span>{brandName}</span>
                 </div>
 
+                <div className="campaign-calendar-filter-row">
+                  {calendarFilterOptions.map((option) => (
+                    <button
+                      type="button"
+                      key={option.id}
+                      className={campaignFilter === option.id ? "active" : ""}
+                      onClick={() => setCampaignFilter(option.id)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="campaign-card-grid">
-                  {campaigns.map((campaign) => {
+                  {visibleCampaigns.length === 0 && (
+                    <div className="campaign-calendar-filter-empty">
+                      <strong>No campaigns in this filter</strong>
+                      <p>Choose another filter to see more campaign opportunities.</p>
+                    </div>
+                  )}
+
+                  {visibleCampaigns.map((campaign) => {
                     const isSelected = selectedCampaign?.id === campaign.id;
 
                     return (
@@ -1040,37 +1098,41 @@ export default function Calendar() {
                           }
                         }}
                       >
-                        <div className="campaign-card-top">
-                          <span>{getEventTypeLabel(campaign.event_type, t)}</span>
-                          <strong>{getCampaignDateLabel(campaign, t, locale)}</strong>
-                        </div>
-
                         <div className="campaign-card-content">
                           <CampaignGlyph campaign={campaign} />
 
                           <div className="campaign-card-copy">
+                            <div className="campaign-card-tags">
+                              <span>{getEventTypeLabel(campaign.event_type, t)}</span>
+                            </div>
                             <h4>{campaign.title}</h4>
                             <p>{campaign.description}</p>
                           </div>
                         </div>
 
-                        <div className="campaign-card-meta">
-                          <span>
-                            {getCampaignRecommendedPostCount(campaign)} {t("common.posts")}
-                          </span>
-                          <span>{getConfidenceLabel(campaign.date_confidence, t)}</span>
-                        </div>
+                        <div className="campaign-card-side">
+                          <strong className="campaign-card-date">
+                            {getCampaignDateLabel(campaign, t, locale)}
+                          </strong>
 
-                        <button
-                          type="button"
-                          className="campaign-card-create-button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleCreateCampaign(campaign);
-                          }}
-                        >
-                          {t("common.createPosts")}
-                        </button>
+                          <div className="campaign-card-meta">
+                            <span>
+                              {getCampaignRecommendedPostCount(campaign)} {t("common.posts")}
+                            </span>
+                            <span>{getConfidenceLabel(campaign.date_confidence, t)}</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="campaign-card-create-button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleCreateCampaign(campaign);
+                            }}
+                          >
+                            {t("common.createPosts")}
+                          </button>
+                        </div>
                       </article>
                     );
                   })}

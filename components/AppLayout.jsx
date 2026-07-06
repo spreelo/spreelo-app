@@ -74,6 +74,15 @@ function SidebarMenuIcon({ Icon }) {
   );
 }
 
+function SpreeloLogo() {
+  return (
+    <span className="spreelo-logo-lockup" aria-label="Spreelo">
+      <span className="spreelo-logo-mark" aria-hidden="true">S</span>
+      <span className="spreelo-logo-word" aria-hidden="true">spreelo</span>
+    </span>
+  );
+}
+
 export default function AppLayout({ active, children }) {
   const { t, locale } = useUiText(["layout"]);
   const [user, setUser] = useState(null);
@@ -260,11 +269,7 @@ export default function AppLayout({ active, children }) {
     <main className="app-shell spreelo-shell">
       <header className="spreelo-mobile-header">
         <a href="/" className="spreelo-mobile-logo">
-          <img
-            src="/brand/spreelologo.png"
-            alt="Spreelo"
-            className="spreelo-logo-image"
-          />
+          <SpreeloLogo />
         </a>
 
         <div className="spreelo-mobile-brand">
@@ -307,11 +312,7 @@ export default function AppLayout({ active, children }) {
         }`}
       >
         <div className="brand spreelo-brand">
-          <img
-            src="/brand/spreelologo.png"
-            alt="Spreelo"
-            className="spreelo-logo-image"
-          />
+          <SpreeloLogo />
         </div>
 
         <div className="current-brand-card">
