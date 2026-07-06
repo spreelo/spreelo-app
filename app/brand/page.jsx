@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
+import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
 
 const marketOptions = [
   {
@@ -62,6 +63,17 @@ const languageOptions = [
   "Hindi",
   "Other",
 ];
+
+function getLanguageOptionLabel(t, language) {
+  const normalizedLanguage = normalizeSingleContentLanguage(language);
+  const translatedLabel = t(`brand.language.${normalizedLanguage}`);
+
+  if (translatedLabel && !translatedLabel.startsWith("brand.language.")) {
+    return translatedLabel;
+  }
+
+  return normalizedLanguage || "English";
+}
 
 const analysisProgressStages = [
   {
@@ -275,13 +287,9 @@ export default function BrandProfile() {
     ];
   }, [contentMarket, countryCode, contentLanguage]);
 
-  const visibleLanguageOptions = useMemo(() => {
-    if (!contentLanguage || languageOptions.includes(contentLanguage)) {
-      return languageOptions;
-    }
+  const normalizedContentLanguage = normalizeSingleContentLanguage(contentLanguage);
 
-    return [contentLanguage, ...languageOptions];
-  }, [contentLanguage]);
+  const visibleLanguageOptions = useMemo(() => languageOptions, []);
 
   const isBrandProfileReady = useMemo(() => {
     const hasBusinessName = Boolean(businessName.trim());
@@ -422,7 +430,7 @@ export default function BrandProfile() {
 
       const loadedMarket = data.content_market || "International / Global";
       const loadedCountryCode = data.country_code || "GLOBAL";
-      const loadedContentLanguage = data.content_language || "English";
+      const loadedContentLanguage = normalizeSingleContentLanguage(data.content_language, "English");
 
       setContentMarket(loadedMarket);
       setCountryCode(loadedCountryCode);
@@ -862,7 +870,10 @@ export default function BrandProfile() {
       );
       setCountryCode(result.country_code || profile.country_code || countryCode);
       setContentLanguage(
-        result.content_language || profile.content_language || contentLanguage
+        normalizeSingleContentLanguage(
+          result.content_language || profile.content_language || contentLanguage,
+          contentLanguage || "English"
+        )
       );
       setContentSettingsTouched(false);
       setShowGeneratedFields(true);
@@ -1384,9 +1395,9 @@ export default function BrandProfile() {
                     <label>{t("brand.postLanguage")}</label>
                     <select
                       className="input"
-                      value={contentLanguage}
+                      value={normalizedContentLanguage}
                       onChange={(event) => {
-                        setContentLanguage(event.target.value);
+                        setContentLanguage(normalizeSingleContentLanguage(event.target.value));
                         setContentSettingsTouched(true);
                         setMessage("");
                       }}
@@ -1394,7 +1405,7 @@ export default function BrandProfile() {
                     >
                       {visibleLanguageOptions.map((language) => (
                         <option key={language} value={language}>
-                          {t(`brand.language.${language}`)}
+                          {getLanguageOptionLabel(t, language)}
                         </option>
                       ))}
                     </select>

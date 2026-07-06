@@ -9,6 +9,7 @@ import {
   resolveUiLocaleFromLanguageName,
 } from "../../../../lib/i18n/serverUiText.js";
 import { assertPublicHttpUrl } from "../../../../lib/security.js";
+import { normalizeSingleContentLanguage } from "../../../../lib/contentLanguage.js";
 import {
   isConnectionAuthFailure,
   markConnectionExpiredAndAlert,
@@ -600,6 +601,8 @@ async function makeCompleteGeneratingDraftVisible({ supabase, post }) {
 }
 
 function getLanguageInstruction(language) {
+  const normalizedLanguage = normalizeSingleContentLanguage(language, "English");
+
   if (!language || language === "Auto") {
     return `
 Language: Auto-detect from the user's instruction.
@@ -613,7 +616,7 @@ Important language rule:
 `.trim();
   }
 
-  if (language === "English") {
+  if (normalizedLanguage === "English") {
     return `
 Language: English.
 
@@ -623,10 +626,11 @@ Important language rule:
   }
 
   return `
-Language: ${language}.
+Language: ${normalizedLanguage}.
 
 Important language rule:
-- Write the final post in ${language}.
+- Write the final post in ${normalizedLanguage}.
+- Do not mix multiple languages in the same post.
 `.trim();
 }
 
@@ -8950,7 +8954,7 @@ function buildFallbackProductCarouselSlides(rule, products, postContent = "") {
 
 function buildCarouselOutroImagePrompt(rule, outroSlide, products) {
   const brandName = rule?.brand_profile?.business_name || "the brand";
-  const language = rule?.language || rule?.brand_profile?.content_language || "English";
+  const language = normalizeSingleContentLanguage(rule?.language || rule?.brand_profile?.content_language, "English");
   const productNames = (products || []).slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET).map((item) => item?.title).filter(Boolean).join(", ");
   const headline = normalizeSlideText(outroSlide?.headline || brandName, 80);
   const supportingText = normalizeSlideText(outroSlide?.cta_text || outroSlide?.body || rule?.cta_type || "", 90);
@@ -9107,6 +9111,11 @@ async function saveCarouselSlidesForPost({
   const selectedItem = rule?.website_item || null;
   const carouselProducts = getCarouselProducts(rule).filter(isValidCarouselProduct).slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
   const productCount = carouselProducts.length;
+
+  if (productCount < CAROUSEL_MIN_PRODUCT_SLIDES) {
+    throw new Error(`Carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} verified products with images. Found ${productCount}.`);
+  }
+
   const includeLogo = shouldUseLogoForRule(rule, rule.brand_profile);
   const destinationUrl = getPostDestinationUrl(rule);
 
@@ -9127,7 +9136,7 @@ async function saveCarouselSlidesForPost({
           slide,
           brandName: rule?.brand_profile?.business_name || 'Spreelo',
           sourceImageUrl: sourceSlideImageUrl,
-          language: rule?.language || rule?.brand_profile?.content_language || 'English',
+          language: normalizeSingleContentLanguage(rule?.language || rule?.brand_profile?.content_language, 'English'),
         });
 
         const uploadedImage = await uploadGeneratedImageToStorage({
@@ -10740,7 +10749,7 @@ const { data: post, error: postError } = await supabase
             content: generatedContent,
             platform: rule.platform || null,
             tone: rule.tone || null,
-            language: rule.language || null,
+            language: normalizeSingleContentLanguage(rule.language || brandProfile?.content_language, "English"),
             post_type: rule.post_type || null,
             website_url:
   websiteItem?.url ||

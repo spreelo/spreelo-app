@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeSingleContentLanguage } from "../../../lib/contentLanguage.js";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -70,6 +71,8 @@ export async function POST(request) {
     const targetAudience =
       brandProfile?.target_audience || "the target audience";
 
+    const normalizedLanguage = normalizeSingleContentLanguage(language, "English");
+
     const emojiRule = includeEmojis
       ? "Use emojis where they make the post more engaging, but do not overdo it."
       : "Do not use emojis.";
@@ -95,7 +98,7 @@ Target audience: ${targetAudience}
 
 Platform: ${platform}
 Tone: ${tone}
-Language: ${language}
+Language: ${normalizedLanguage}
 Post type: ${postType}
 Length: ${length}
 CTA type: ${ctaType}

@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
+import { normalizeSingleContentLanguage } from "../../../lib/contentLanguage.js";
 
 export const dynamic = "force-dynamic";
 
@@ -927,15 +928,14 @@ function normalizeMarketSetup(rawValue, fallbackLanguage = "") {
       .toUpperCase()
       .slice(0, 20),
 
-    contentLanguage: String(
+    contentLanguage: normalizeSingleContentLanguage(
       rawSetup.content_language ||
         rawSetup.contentLanguage ||
         rawSetup.language ||
         fallbackLanguage ||
-        ""
-    )
-      .trim()
-      .slice(0, 80),
+        "",
+      fallbackLanguage || "English"
+    ),
 
     reason: String(rawSetup.reason || "")
       .trim()
@@ -2121,11 +2121,14 @@ const finalCountryCode =
   countryCode ||
   "GLOBAL";
 
-const finalContentLanguage = getDefaultLanguage(
-  requestedContentLanguage ||
-    detectedWebsiteContentLanguage ||
-    detectedMarketSetup.contentLanguage,
-  profile.detected_language
+const finalContentLanguage = normalizeSingleContentLanguage(
+  getDefaultLanguage(
+    requestedContentLanguage ||
+      detectedWebsiteContentLanguage ||
+      detectedMarketSetup.contentLanguage,
+    profile.detected_language
+  ),
+  "English"
 );
     
        const savedProfile = await saveBrandProfile({

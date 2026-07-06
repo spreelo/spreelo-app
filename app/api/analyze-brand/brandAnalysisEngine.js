@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
+import { normalizeSingleContentLanguage } from "../../../lib/contentLanguage.js";
 
 export const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 export const WEBSITE_MAX_TEXT_CHARS = 8000;
@@ -1472,15 +1473,14 @@ export function normalizeMarketSetup(rawValue, fallbackLanguage = "") {
       .toUpperCase()
       .slice(0, 20),
 
-    contentLanguage: String(
+    contentLanguage: normalizeSingleContentLanguage(
       rawSetup.content_language ||
         rawSetup.contentLanguage ||
         rawSetup.language ||
         fallbackLanguage ||
-        ""
-    )
-      .trim()
-      .slice(0, 80),
+        "",
+      fallbackLanguage || "English"
+    ),
 
     reason: String(rawSetup.reason || "").trim().slice(0, 500),
   };
@@ -1868,10 +1868,12 @@ Accuracy:
     websiteUrl,
     contentMarket: normalizedMarketSetup.content_market || contentMarket,
     countryCode: normalizedMarketSetup.country_code || countryCode,
-    contentLanguage:
-      normalizedMarketSetup.content_language ||
-      contentLanguage ||
-      normalizedProfile.detected_language,
+    contentLanguage: normalizeSingleContentLanguage(
+      normalizedMarketSetup.contentLanguage ||
+        contentLanguage ||
+        normalizedProfile.detected_language,
+      "English"
+    ),
     industry: normalizedProfile.industry,
     targetAudience: normalizedProfile.target_audience,
     visibleText,
@@ -2453,11 +2455,14 @@ export async function runBrandAnalysisJob({
 
   const finalCountryCode = detectedMarketSetup.countryCode || countryCode || "";
 
-  const finalContentLanguage = getDefaultLanguage(
-    requestedContentLanguage ||
-      detectedWebsiteContentLanguage ||
-      detectedMarketSetup.contentLanguage,
-    profile.detected_language
+  const finalContentLanguage = normalizeSingleContentLanguage(
+    getDefaultLanguage(
+      requestedContentLanguage ||
+        detectedWebsiteContentLanguage ||
+        detectedMarketSetup.contentLanguage,
+      profile.detected_language
+    ),
+    "English"
   );
 
   const savedProfile = await saveBrandProfile({

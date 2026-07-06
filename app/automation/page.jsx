@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
+import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
 
 const DEFAULT_TIME_ZONE = "UTC";
+const SPREELO_INTERNAL_TESTER_EMAIL = "johan@foldern.com";
 const AUTO_PLAN_IMAGE_COUNT = 2;
 const DEFAULT_AUTO_PLAN_POST_COUNT = 5;
 const CAMPAIGN_HANDOFF_STORAGE_KEY = "spreelo_calendar_campaign_handoff";
@@ -1043,27 +1045,154 @@ function getCampaignPublishTime(basePublishTime = "10:30", sameDayIndex = 0) {
   return minutesToPublishTime(Math.min(baseMinutes + offsetMinutes, latestUsefulPostMinutes));
 }
 
-function getRecommendedCampaignPublishTime(intent = "", timingAnchor = "") {
+const campaignPublishWindows = {
+  morning: {
+    fallback: "08:45",
+    times: ["08:20", "09:10", "10:00"],
+    labels: {
+      sv: "Morgon",
+      da: "Morgen",
+      no: "Morgen",
+      es: "Mañana",
+      en: "Morning",
+    },
+  },
+  lateMorning: {
+    fallback: "11:00",
+    times: ["10:40", "11:20", "11:50"],
+    labels: {
+      sv: "Förmiddag",
+      da: "Formiddag",
+      no: "Formiddag",
+      es: "Media mañana",
+      en: "Late morning",
+    },
+  },
+  afternoon: {
+    fallback: "15:00",
+    times: ["13:20", "14:30", "15:40", "16:30"],
+    labels: {
+      sv: "Eftermiddag",
+      da: "Eftermiddag",
+      no: "Ettermiddag",
+      es: "Tarde",
+      en: "Afternoon",
+    },
+  },
+  evening: {
+    fallback: "18:45",
+    times: ["18:05", "19:10", "20:00"],
+    labels: {
+      sv: "Kväll",
+      da: "Aften",
+      no: "Kveld",
+      es: "Noche",
+      en: "Evening",
+    },
+  },
+};
+
+function getUiLanguageCode(locale = "en") {
+  return String(locale || "en").toLowerCase().split("-")[0];
+}
+
+function getCampaignPublishWindowLabel(windowId = "lateMorning", locale = "en") {
+  const windowConfig = campaignPublishWindows[windowId] || campaignPublishWindows.lateMorning;
+  const languageCode = getUiLanguageCode(locale);
+
+  return windowConfig.labels[languageCode] || windowConfig.labels.en;
+}
+
+function getCampaignPublishWindowIdFromTime(publishTime = "") {
+  const minutes = getPublishTimeMinutes(publishTime || campaignPublishWindows.lateMorning.fallback);
+
+  if (minutes < 10 * 60 + 30) return "morning";
+  if (minutes < 13 * 60) return "lateMorning";
+  if (minutes < 17 * 60 + 30) return "afternoon";
+
+  return "evening";
+}
+
+function getCampaignPublishWindowId(intent = "", timingAnchor = "", marketingAngle = "") {
   const normalizedIntent = String(intent || "").toLowerCase();
   const normalizedAnchor = String(timingAnchor || "").toLowerCase();
+  const normalizedAngle = String(marketingAngle || "").toLowerCase();
+  const combined = `${normalizedIntent} ${normalizedAnchor} ${normalizedAngle}`;
 
-  if (normalizedAnchor.includes("evening") || normalizedIntent.includes("deadline") || normalizedIntent.includes("last")) {
-    return "18:30";
+  if (/evening|kväll|aften|kveld|last|deadline|urgency|urgent|sista|slut|final/.test(combined)) {
+    return "evening";
   }
 
-  if (normalizedAnchor.includes("lunch") || normalizedAnchor.includes("midday") || normalizedIntent.includes("conversion")) {
-    return "12:00";
+  if (/engagement|comment|react|community|interaktion|engagera/.test(combined)) {
+    return "evening";
   }
 
-  if (normalizedAnchor.includes("afternoon") || normalizedIntent.includes("engagement")) {
-    return "15:30";
+  if (/conversion|product_push|offer|sale|köp|purchase|shop|product|produkt/.test(combined)) {
+    return "lateMorning";
   }
 
-  if (normalizedIntent.includes("trust")) {
-    return "11:00";
+  if (/trust|proof|guide|faq|education|tips|explain|förtroende/.test(combined)) {
+    return "afternoon";
   }
 
-  return "10:30";
+  if (/morning|morgon|awareness|inspiration|start|begin|launch|early/.test(combined)) {
+    return "morning";
+  }
+
+  return "lateMorning";
+}
+
+function getQueuedCampaignPublishTime(windowId = "lateMorning", queueIndex = 0) {
+  const windowConfig = campaignPublishWindows[windowId] || campaignPublishWindows.lateMorning;
+  const times = windowConfig.times || [windowConfig.fallback];
+  const safeIndex = Math.max(0, Number(queueIndex) || 0);
+
+  if (safeIndex < times.length) {
+    return times[safeIndex];
+  }
+
+  const lastTime = times[times.length - 1] || windowConfig.fallback;
+  return minutesToPublishTime(getPublishTimeMinutes(lastTime) + (safeIndex - times.length + 1) * 35);
+}
+
+function assignQueuedCampaignPublishTimes(scheduleItems = []) {
+  const queueCountsByDateWindow = {};
+
+  return scheduleItems.map((item) => {
+    const postPlanItem = item?.postPlanItem || {};
+    const windowId =
+      item.publishWindow ||
+      postPlanItem.publish_window ||
+      getCampaignPublishWindowId(
+        item.intent || postPlanItem.intended_intent,
+        item.timingAnchor || postPlanItem.timing_anchor,
+        postPlanItem.marketing_angle
+      );
+    const queueKey = `${item.startDate || ""}-${windowId}`;
+    const queueIndex = queueCountsByDateWindow[queueKey] || 0;
+    queueCountsByDateWindow[queueKey] = queueIndex + 1;
+
+    return {
+      ...item,
+      publishWindow: windowId,
+      publishTime: getQueuedCampaignPublishTime(windowId, queueIndex),
+      queueIndex,
+    };
+  });
+}
+
+function getCampaignTimeWindowDisplay(publishTime = "", locale = "en") {
+  return getCampaignPublishWindowLabel(
+    getCampaignPublishWindowIdFromTime(publishTime),
+    locale
+  );
+}
+
+function getRecommendedCampaignPublishTime(intent = "", timingAnchor = "", marketingAngle = "") {
+  return getQueuedCampaignPublishTime(
+    getCampaignPublishWindowId(intent, timingAnchor, marketingAngle),
+    0
+  );
 }
 
 function getDayNumberFromDateString(dateString) {
@@ -3241,7 +3370,11 @@ function buildFixedEventCampaignSchedule({
     return {
       startDate: scheduledDate,
       weekday: getWeekdayFromDateString(scheduledDate, timeZone),
-      publishTime: getPostPlanPublishTime(postPlanItem, intent, timingAnchor),
+      publishWindow: getCampaignPublishWindowId(
+        intent,
+        timingAnchor,
+        postPlanItem?.marketing_angle
+      ),
       daysBeforeEvent: actualDaysBeforeEvent,
       timingAnchor,
       originalIndex: index,
@@ -3254,10 +3387,12 @@ function buildFixedEventCampaignSchedule({
     };
   });
 
-  return scheduledItems.sort((a, b) => {
-    if (a.startDate === b.startDate) return a.originalIndex - b.originalIndex;
-    return a.startDate < b.startDate ? -1 : 1;
-  });
+  return assignQueuedCampaignPublishTimes(
+    scheduledItems.sort((a, b) => {
+      if (a.startDate === b.startDate) return a.originalIndex - b.originalIndex;
+      return a.startDate < b.startDate ? -1 : 1;
+    })
+  );
 }
 
 function buildDateRangeCampaignSchedule({
@@ -3324,7 +3459,11 @@ function buildDateRangeCampaignSchedule({
     return {
       startDate: scheduledDate,
       weekday: getWeekdayFromDateString(scheduledDate, timeZone),
-      publishTime: getPostPlanPublishTime(postPlanItem, intent, timingAnchor),
+      publishWindow: getCampaignPublishWindowId(
+        intent,
+        timingAnchor,
+        postPlanItem?.marketing_angle
+      ),
       daysBeforeEvent: daysBeforeCampaignEnd,
       timingAnchor,
       originalIndex: index,
@@ -3337,10 +3476,12 @@ function buildDateRangeCampaignSchedule({
     };
   });
 
-  return scheduledItems.sort((a, b) => {
-    if (a.startDate === b.startDate) return a.originalIndex - b.originalIndex;
-    return a.startDate < b.startDate ? -1 : 1;
-  });
+  return assignQueuedCampaignPublishTimes(
+    scheduledItems.sort((a, b) => {
+      if (a.startDate === b.startDate) return a.originalIndex - b.originalIndex;
+      return a.startDate < b.startDate ? -1 : 1;
+    })
+  );
 }
 function getCampaignSearchText(campaign) {
   return [
@@ -3826,8 +3967,9 @@ function buildCampaignPrompt(campaign, postPlanItem, index) {
     postPlanItem?.content_source_mode ||
     getCampaignContentSourceMode(campaign, postPlanItem, index, 5);
 
+  const campaignLanguage = normalizeSingleContentLanguage(campaign?.language || "", "English");
   const languageInstruction = campaign?.language
-    ? `Write the post in ${campaign.language}.`
+    ? `Write the post in ${campaignLanguage}.`
     : "Use the best language for the brand.";
 
   const timingInstruction = getCampaignTimingInstruction(
@@ -4061,7 +4203,14 @@ function createCampaignSlotsFromOpportunity({
       return createSlot({
         startDate,
         weekday: schedule.weekday || getWeekdayFromDateString(startDate, timeZone),
-        publishTime: getCampaignPublishTime(schedule.publishTime || getRecommendedCampaignPublishTime(schedule.intent, schedule.timingAnchor), sameDayIndex),
+        publishTime: schedule.publishTime || getQueuedCampaignPublishTime(
+          schedule.publishWindow || getCampaignPublishWindowId(
+            schedule.intent,
+            schedule.timingAnchor,
+            enhancedPostPlanItem.marketing_angle
+          ),
+          sameDayIndex
+        ),
         prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
         generateImage: true,
@@ -4135,7 +4284,11 @@ function createCampaignSlotsFromOpportunity({
       return createSlot({
         startDate,
         weekday: schedule.weekday || getWeekdayFromDateString(startDate, timeZone),
-        publishTime: schedule.publishTime || getRecommendedTimeForDate(startDate, timeZone),
+        publishTime: schedule.publishTime || getRecommendedCampaignPublishTime(
+          enhancedPostPlanItem.intended_intent,
+          enhancedPostPlanItem.timing_anchor,
+          enhancedPostPlanItem.marketing_angle
+        ),
         prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
         generateImage: true,
@@ -4619,6 +4772,7 @@ const [currentBrandId, setCurrentBrandId] = useState("");
 const [currentBrandProfile, setCurrentBrandProfile] = useState(null);
 const [campaignOpportunity, setCampaignOpportunity] = useState(null);
 const [campaignDebugInfo, setCampaignDebugInfo] = useState(null);
+const [currentUserEmail, setCurrentUserEmail] = useState("");
 
   const [planStartDate, setPlanStartDate] = useState(initialStartDate);
   const [defaultPublishTime, setDefaultPublishTime] = useState(
@@ -4682,6 +4836,7 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   const [length, setLength] = useState("Medium");
   const [ctaType, setCtaType] = useState("Learn more");
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
+  const canManuallyEditCampaignPlan = String(currentUserEmail || "").toLowerCase() === SPREELO_INTERNAL_TESTER_EMAIL;
   const [showSavedRules, setShowSavedRules] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [showLearnMoreModal, setShowLearnMoreModal] = useState(false);
@@ -5035,38 +5190,42 @@ function buildFocusedRangeCampaignSchedule({
       {
         startDate: safeStartDate,
         weekday: getWeekdayFromDateString(safeStartDate, timeZone),
-        publishTime: defaultPublishTime,
+        publishTime: getQueuedCampaignPublishTime(
+          getCampaignPublishWindowId(
+            getCampaignPostIntent(postPlan[0] || {}, 0, 1),
+            (postPlan[0] || {})?.timing_anchor,
+            (postPlan[0] || {})?.marketing_angle
+          ),
+          0
+        ),
         postPlanItem: postPlan[0] || {},
       },
     ];
   }
 
-  const preferredTimesByAngle = {
-    awareness: "08:15",
-    engagement: "17:30",
-    product_discovery: "12:10",
-    product_push: "12:10",
-    trust: "17:30",
-    offer: "12:10",
-    urgency: "18:15",
-    main: defaultPublishTime,
-  };
-
-  return postPlan.map((postPlanItem, index) => {
+  const scheduleItems = postPlan.map((postPlanItem, index) => {
     const ratio = index / Math.max(count - 1, 1);
     const offsetDays = Math.round(usableDays * ratio);
     const startDate = addDaysToDateString(safeStartDate, offsetDays);
     const weekday = getWeekdayFromDateString(startDate, timeZone);
-    const marketingAngle = postPlanItem?.marketing_angle || "main";
-    const publishTime = preferredTimesByAngle[marketingAngle] || getRecommendedTimeForWeekday(weekday) || defaultPublishTime;
+    const intent = getCampaignPostIntent(postPlanItem, index, count);
+    const timingAnchor = postPlanItem?.timing_anchor || getTimingAnchorForIntent(intent);
 
     return {
       startDate,
       weekday,
-      publishTime,
+      publishWindow: getCampaignPublishWindowId(
+        intent,
+        timingAnchor,
+        postPlanItem?.marketing_angle
+      ),
       postPlanItem,
+      intent,
+      timingAnchor,
     };
   });
+
+  return assignQueuedCampaignPublishTimes(scheduleItems);
 }
 
 function buildDirectCalendarCampaignSlots({
@@ -5447,7 +5606,7 @@ async function loadCampaignOpportunityIntoPlanner({
   setPlanCreationMode("campaign");
   setScheduleType("once");
   setPlanName(campaign.title || "Campaign plan");
-  setLanguage(campaign.language || "Auto");
+  setLanguage(campaign.language ? normalizeSingleContentLanguage(campaign.language, "English") : "Auto");
   setPostType("Campaign");
   setTone("Friendly");
   setCtaType("Learn more");
@@ -5528,6 +5687,8 @@ async function loadRules() {
       window.location.href = "/login";
       return;
     }
+
+    setCurrentUserEmail(user.email || "");
 
 const searchParams =
   typeof window !== "undefined"
@@ -6334,6 +6495,8 @@ function toggleContentType(typeId) {
       return;
     }
 
+    setCurrentUserEmail(user.email || "");
+
     const selectedBrandId =
   currentBrandId || (await getCurrentBrandIdForUser(user));
 
@@ -6437,7 +6600,7 @@ const { error } = await supabase
     setPlanName(firstRule.name || "");
     setPlatform(firstRule.platform || "");
     setTone(firstRule.tone || "Friendly");
-    setLanguage(firstRule.language || "Auto");
+    setLanguage(firstRule.language ? normalizeSingleContentLanguage(firstRule.language, "English") : "Auto");
     setPostType(firstRule.post_type || "Offer");
     setLength(firstRule.length || "Medium");
     setCtaType(firstRule.cta_type || "Learn more");
@@ -6510,7 +6673,7 @@ const { error } = await supabase
     setPlanName(rule.name || "");
     setPlatform(rule.platform || "");
     setTone(rule.tone || "Friendly");
-    setLanguage(rule.language || "Auto");
+    setLanguage(rule.language ? normalizeSingleContentLanguage(rule.language, "English") : "Auto");
     setPostType(rule.post_type || "Offer");
     setLength(rule.length || "Medium");
     setCtaType(rule.cta_type || "Learn more");
@@ -6601,6 +6764,8 @@ const { error } = await supabase
       return;
     }
 
+    setCurrentUserEmail(user.email || "");
+
   const selectedBrandId =
   currentBrandId || (await getCurrentBrandIdForUser(user));
 
@@ -6655,7 +6820,7 @@ ${slot.campaignSummary}`
     : slot.prompt,
         platform,
         tone,
-        language,
+        language: language === "Auto" ? language : normalizeSingleContentLanguage(language, "English"),
         post_type: postType,
         length,
         cta_type: ctaType,
@@ -7415,13 +7580,20 @@ setRules((currentRules) =>
                     <strong>{formatStartDateLabel(slot.startDate, timeZone, locale)}</strong>
                     <span>{t("automation.lockedCampaignDate")}</span>
 
-                    <button
-                      type="button"
-                      className="unlock-campaign-date-button"
-                      onClick={() => updateSlot(slot.id, "dateLocked", false)}
-                    >
-                      Unlock
-                    </button>
+                    {canManuallyEditCampaignPlan && (
+                      <button
+                        type="button"
+                        className="unlock-campaign-date-button"
+                        onClick={() => updateSlot(slot.id, "dateLocked", false)}
+                      >
+                        {t("automation.unlock")}
+                      </button>
+                    )}
+                  </div>
+                ) : slot.isCampaignSlot && !canManuallyEditCampaignPlan ? (
+                  <div className="locked-campaign-date">
+                    <strong>{formatStartDateLabel(slot.startDate, timeZone, locale)}</strong>
+                    <span>{t("automation.lockedCampaignDate")}</span>
                   </div>
                 ) : (
                   <DatePickerField
@@ -7441,16 +7613,23 @@ setRules((currentRules) =>
               </div>
 
               <div className="planner-post-time">
-                <TimePickerField
-                  value={slot.publishTime}
-                  onChange={(value) =>
-                    updateSlot(slot.id, "publishTime", value)
-                  }
-                  pickerId={`slot-time-${slot.id}`}
-                  openPickerId={openPickerId}
-                  setOpenPickerId={setOpenPickerId}
-                  compact
-                />
+                {slot.isCampaignSlot && !canManuallyEditCampaignPlan ? (
+                  <div className="fixed-campaign-time">
+                    <strong>{getCampaignTimeWindowDisplay(slot.publishTime, locale)}</strong>
+                    <span>{t("automation.queuedBySpreelo")}</span>
+                  </div>
+                ) : (
+                  <TimePickerField
+                    value={slot.publishTime}
+                    onChange={(value) =>
+                      updateSlot(slot.id, "publishTime", value)
+                    }
+                    pickerId={`slot-time-${slot.id}`}
+                    openPickerId={openPickerId}
+                    setOpenPickerId={setOpenPickerId}
+                    compact
+                  />
+                )}
               </div>
 
               <div className="planner-post-format">
@@ -7459,33 +7638,37 @@ setRules((currentRules) =>
               </div>
 
               <div className="planner-post-actions">
-                <button
-                  type="button"
-                  className="planner-post-edit-icon-button"
-                  title={instructionsAreExpanded ? t("automation.hide") : t("automation.edit")}
-                  aria-label={instructionsAreExpanded ? t("automation.hide") : t("automation.edit")}
-                  onClick={() => toggleSlotInstructions(slot.id)}
-                >
-                  {instructionsAreExpanded ? "✕" : "✎"}
-                </button>
+                {(!slot.isCampaignSlot || canManuallyEditCampaignPlan) && (
+                  <>
+                    <button
+                      type="button"
+                      className="planner-post-edit-icon-button"
+                      title={instructionsAreExpanded ? t("automation.hide") : t("automation.edit")}
+                      aria-label={instructionsAreExpanded ? t("automation.hide") : t("automation.edit")}
+                      onClick={() => toggleSlotInstructions(slot.id)}
+                    >
+                      {instructionsAreExpanded ? "✕" : "✎"}
+                    </button>
 
-                <button
-                  type="button"
-                  title={t("automation.duplicate")}
-                  onClick={() => duplicateSlot(slot.id)}
-                >
-                  ⧉
-                </button>
+                    <button
+                      type="button"
+                      title={t("automation.duplicate")}
+                      onClick={() => duplicateSlot(slot.id)}
+                    >
+                      ⧉
+                    </button>
 
-              <button
-  type="button"
-  title={t("automation.remove")}
-  aria-label={t("automation.removePost")}
-  className="planner-post-delete-button"
-  onClick={() => removeSlot(slot.id)}
->
-  🗑
-</button>
+                    <button
+                      type="button"
+                      title={t("automation.remove")}
+                      aria-label={t("automation.removePost")}
+                      className="planner-post-delete-button"
+                      onClick={() => removeSlot(slot.id)}
+                    >
+                      🗑
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -7590,17 +7773,19 @@ setRules((currentRules) =>
       })}
     </div>
 
-       <button
-      type="button"
-      className="planner-add-post-bottom"
-      onClick={addSlot}
-    >
-      {planCreationMode === "campaign"
-        ? t("automation.addAnotherCampaignPost")
-        : planCreationMode === "manual"
-        ? t("automation.addAnotherManualPost")
-        : t("automation.addAnotherPost")}
-    </button>
+    {!(planCreationMode === "campaign" && !canManuallyEditCampaignPlan) && (
+      <button
+        type="button"
+        className="planner-add-post-bottom"
+        onClick={addSlot}
+      >
+        {planCreationMode === "campaign"
+          ? t("automation.addAnotherCampaignPost")
+          : planCreationMode === "manual"
+          ? t("automation.addAnotherManualPost")
+          : t("automation.addAnotherPost")}
+      </button>
+    )}
   </section>
 )}
 
@@ -7882,7 +8067,7 @@ setRules((currentRules) =>
                       <div>
                         <span>{t("automation.credits")}</span>
                         <strong>
-                          {savedPlanSummary.credits} {t("automation.creditsUsedWhenGenerated")}
+                          {savedPlanSummary.credits}
                         </strong>
                       </div>
                     </div>
