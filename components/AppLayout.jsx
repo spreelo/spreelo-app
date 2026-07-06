@@ -1,6 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  BadgeCheck,
+  BriefcaseBusiness,
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Plus,
+  Settings,
+  Share2,
+  Sparkles,
+  WandSparkles,
+  X,
+} from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useUiText } from "../lib/i18n/useUiText";
 import LanguageSuggestionBanner from "./LanguageSuggestionBanner";
@@ -10,44 +26,52 @@ const navItems = [
     id: "dashboard",
     labelKey: "layout.nav.dashboard",
     href: "/",
-    icon: "/icons/sidebar/dashboard.png",
+    Icon: LayoutDashboard,
   },
   {
     id: "automation",
     label: "AI Content Studio",
     labelKey: "layout.nav.aiContentStudio",
     href: "/automation",
-    icon: "/icons/sidebar/automation.png",
+    Icon: WandSparkles,
   },
   {
     id: "calendar",
     label: "Your AI Calendar",
     labelKey: "layout.nav.yourAiCalendar",
     href: "/calendar",
-    icon: "/icons/sidebar/calendar.png",
+    Icon: CalendarDays,
   },
   {
     id: "brand",
     labelKey: "layout.nav.brand",
     href: "/brand",
-    icon: "/icons/sidebar/brand-profile.png",
+    Icon: BadgeCheck,
   },
   {
     id: "social-channels",
     labelKey: "layout.nav.socialChannels",
     href: "/social-channels",
-    icon: "/icons/sidebar/social-channels.png",
+    Icon: Share2,
   },
   {
     id: "settings",
     labelKey: "layout.nav.settings",
     href: "/settings",
-    icon: "/icons/sidebar/settings.png",
+    Icon: Settings,
   },
 ];
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
+}
+
+function SidebarMenuIcon({ Icon }) {
+  return (
+    <span className="sidebar-menu-icon-wrap" aria-hidden="true">
+      <Icon className="sidebar-menu-icon" strokeWidth={1.9} />
+    </span>
+  );
 }
 
 export default function AppLayout({ active, children }) {
@@ -260,9 +284,11 @@ export default function AppLayout({ active, children }) {
           onClick={() => setMobileMenuOpen((current) => !current)}
           aria-label={mobileMenuOpen ? t("layout.closeMenu") : t("layout.openMenu")}
         >
-          <span />
-          <span />
-          <span />
+          {mobileMenuOpen ? (
+            <X className="spreelo-mobile-menu-icon" aria-hidden="true" />
+          ) : (
+            <Menu className="spreelo-mobile-menu-icon" aria-hidden="true" />
+          )}
         </button>
       </header>
 
@@ -295,7 +321,9 @@ export default function AppLayout({ active, children }) {
             <div className="current-brand-loading">{t("layout.loadingBrands")}</div>
           ) : brandProfiles.length > 0 ? (
             <div className="current-brand-select-wrap">
-              <span className="current-brand-business-icon">▦</span>
+              <span className="current-brand-business-icon" aria-hidden="true">
+                <BriefcaseBusiness size={16} strokeWidth={1.9} />
+              </span>
 
               <select
                 className="current-brand-select"
@@ -308,6 +336,13 @@ export default function AppLayout({ active, children }) {
                   </option>
                 ))}
               </select>
+
+              <ChevronDown
+                className="current-brand-chevron"
+                size={15}
+                strokeWidth={2}
+                aria-hidden="true"
+              />
             </div>
           ) : (
             <div className="current-brand-loading">{t("layout.noBrandYet")}</div>
@@ -319,6 +354,7 @@ export default function AppLayout({ active, children }) {
             onClick={handleCreateBrand}
             disabled={creatingBrand}
           >
+            <Plus size={14} strokeWidth={2.2} aria-hidden="true" />
             {creatingBrand ? t("layout.creating") : t("layout.addNewBrand")}
           </button>
         </div>
@@ -331,7 +367,7 @@ export default function AppLayout({ active, children }) {
               href={item.href}
               onClick={() => setMobileMenuOpen(false)}
             >
-              <img src={item.icon} alt="" className="sidebar-menu-icon" />
+              <SidebarMenuIcon Icon={item.Icon} />
               <span>{getNavLabel(item)}</span>
             </a>
           ))}
@@ -339,14 +375,21 @@ export default function AppLayout({ active, children }) {
 
         <div className="sidebar-footer spreelo-sidebar-footer">
           <div className="sidebar-plan-card">
-            <div className="sidebar-plan-icon">✦</div>
+            <div className="sidebar-plan-icon" aria-hidden="true">
+              <Sparkles size={17} strokeWidth={2.1} />
+            </div>
 
             <div>
               <strong>{t("layout.planPro")}</strong>
               <span>{t("layout.upgradeText")}</span>
             </div>
 
-            <span className="sidebar-plan-arrow">›</span>
+            <ChevronRight
+              className="sidebar-plan-arrow"
+              size={18}
+              strokeWidth={2}
+              aria-hidden="true"
+            />
           </div>
 
           <button
@@ -354,7 +397,7 @@ export default function AppLayout({ active, children }) {
             className="sidebar-logout-button"
             onClick={handleLogout}
           >
-            <span>⇱</span>
+            <LogOut size={15} strokeWidth={2} aria-hidden="true" />
             {t("layout.logout")}
           </button>
         </div>

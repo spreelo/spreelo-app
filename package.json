@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",
+    "lucide-react": "latest",
     "next": "latest",
     "openai": "latest",
     "sharp": "latest",

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../../components/AppLayout";
+import { CampaignGlyph } from "../../components/SpreeloIcons";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 
@@ -1044,9 +1045,14 @@ export default function Calendar() {
                           <strong>{getCampaignDateLabel(campaign, t, locale)}</strong>
                         </div>
 
-                        <h4>{campaign.title}</h4>
+                        <div className="campaign-card-content">
+                          <CampaignGlyph campaign={campaign} />
 
-                        <p>{campaign.description}</p>
+                          <div className="campaign-card-copy">
+                            <h4>{campaign.title}</h4>
+                            <p>{campaign.description}</p>
+                          </div>
+                        </div>
 
                         <div className="campaign-card-meta">
                           <span>
@@ -1075,6 +1081,11 @@ export default function Calendar() {
                 {selectedCampaign && (
                   <div className="campaign-detail-card">
                     <div className="campaign-detail-header">
+                      <CampaignGlyph
+                        campaign={selectedCampaign}
+                        className="campaign-detail-glyph"
+                      />
+
                       <div>
                         <p className="dashboard-eyebrow">{t("calendar.selectedCampaign")}</p>
                         <h3>{selectedCampaign.title}</h3>
