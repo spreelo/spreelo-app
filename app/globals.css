@@ -18419,3 +18419,10 @@ html body .saved-card-compact {
     width: 100% !important;
   }
 }
+
+/* Step 66: remove the leftover separator line from the simplified campaign info tooltip. */
+.automation-page .planner-post-title-row .strategy-info-button .simple-strategy-info-popover .strategy-info-note {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+}
