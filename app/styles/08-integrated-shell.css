@@ -1,0 +1,907 @@
+/* v12 integrated shell: tighter premium workspace, no floating calendar, edge detail panels. */
+
+:root {
+  --spreelo-bg: #f2ece3;
+  --spreelo-paper: #fffaf3;
+  --spreelo-panel: #fffdf8;
+  --spreelo-panel-soft: rgba(255, 253, 248, 0.78);
+  --spreelo-ink: #141922;
+  --spreelo-muted: #71675d;
+  --spreelo-line: rgba(64, 47, 35, 0.15);
+  --spreelo-line-strong: rgba(64, 47, 35, 0.24);
+  --spreelo-accent: #b9573c;
+  --spreelo-accent-deep: #8f3925;
+  --spreelo-accent-strong: #c75d40;
+  --spreelo-accent-wash: #fff0e7;
+  --spreelo-green: #2f7d40;
+  --spreelo-green-soft: #e5f2df;
+  --spreelo-yellow: #c9891c;
+  --spreelo-yellow-soft: #fff0ca;
+  --spreelo-sidebar: #071421;
+  --spreelo-sidebar-deep: #040d17;
+}
+
+html body,
+html body .app-shell.spreelo-shell,
+html body .spreelo-shell {
+  background: var(--spreelo-bg) !important;
+}
+
+html body .app-shell.spreelo-shell,
+html body .spreelo-shell {
+  grid-template-columns: 276px minmax(0, 1fr) !important;
+}
+
+html body .content.spreelo-content,
+html body .spreelo-content {
+  padding: 0 !important;
+  min-width: 0 !important;
+  overflow-x: hidden !important;
+  background: var(--spreelo-bg) !important;
+}
+
+html body .sidebar.spreelo-sidebar,
+html body .spreelo-sidebar {
+  width: 276px !important;
+  min-width: 276px !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background:
+    radial-gradient(circle at 14% 3%, rgba(199, 93, 64, 0.16), transparent 28%),
+    linear-gradient(180deg, var(--spreelo-sidebar) 0%, var(--spreelo-sidebar-deep) 100%) !important;
+}
+
+html body .language-suggestion-banner {
+  margin: 18px 28px 0 !important;
+  max-width: none !important;
+  border-radius: 0 !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: rgba(255, 253, 248, 0.86) !important;
+  box-shadow: none !important;
+}
+
+html body .dashboard-page,
+html body .brand-profile-page,
+html body .automation-page.planner-wizard-page,
+html body .topbar,
+html body .hero-card,
+html body .settings-danger-zone {
+  max-width: none !important;
+}
+
+html body button,
+html body a,
+html body input,
+html body select,
+html body textarea {
+  border-radius: 0 !important;
+}
+
+html body .primary-button,
+html body .dashboard-primary-action,
+html body .planner-save-button,
+html body .planner-create-another-button,
+html body .brand-profile-primary-button,
+html body .campaign-create-button,
+html body .campaign-card.active .campaign-card-create-button {
+  background: linear-gradient(180deg, #ce6547 0%, #a9432d 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 20px rgba(143, 57, 37, 0.18) !important;
+}
+
+html body .dashboard-secondary-action,
+html body .secondary-button,
+html body .dashboard-side-link,
+html body .brand-logo-compact-button,
+html body .current-brand-new {
+  border-color: var(--spreelo-line) !important;
+  background: rgba(255, 253, 248, 0.82) !important;
+  color: var(--spreelo-ink) !important;
+  box-shadow: none !important;
+}
+
+html body .spreelo-nav a,
+html body .nav.spreelo-nav a {
+  border-radius: 0 !important;
+}
+
+html body .spreelo-nav a:hover .sidebar-menu-icon-wrap,
+html body .nav.spreelo-nav a:hover .sidebar-menu-icon-wrap,
+html body .spreelo-nav a.active .sidebar-menu-icon-wrap,
+html body .nav.spreelo-nav a.active .sidebar-menu-icon-wrap {
+  background: rgba(199, 93, 64, 0.18) !important;
+  color: #f0a084 !important;
+}
+
+/* Calendar: app-like main area plus edge-to-edge detail rail. */
+
+html body .campaign-calendar-page {
+  width: auto !important;
+  max-width: none !important;
+  min-height: calc(100vh - 82px) !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 432px !important;
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+  column-gap: 0 !important;
+  row-gap: 0 !important;
+  margin: 0 !important;
+  padding: 22px 0 0 32px !important;
+  align-items: stretch !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-hero {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  margin: 0 !important;
+  padding: 0 28px 18px 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-hero h2 {
+  max-width: 820px !important;
+  margin: 0 0 7px !important;
+  font-size: clamp(34px, 3.2vw, 46px) !important;
+  line-height: 1 !important;
+  font-weight: 850 !important;
+  letter-spacing: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-hero span {
+  max-width: 760px !important;
+  margin: 0 !important;
+  color: var(--spreelo-muted) !important;
+  font-size: 14px !important;
+  line-height: 1.48 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  margin: 0 28px 18px 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--spreelo-line) !important;
+  border-radius: 0 !important;
+  background: rgba(255, 253, 248, 0.62) !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid > div,
+html body .campaign-calendar-page .campaign-calendar-stat-item {
+  min-height: 72px !important;
+  display: grid !important;
+  grid-template-columns: 38px minmax(0, 1fr) !important;
+  gap: 12px !important;
+  align-items: center !important;
+  padding: 13px 18px !important;
+  border: 0 !important;
+  border-left: 1px solid var(--spreelo-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid > div:first-child {
+  border-left: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-icon {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 7px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid span:not(.campaign-calendar-stat-icon) {
+  margin: 0 0 2px !important;
+  color: var(--spreelo-muted) !important;
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid strong {
+  display: inline !important;
+  margin-right: 5px !important;
+  font-size: 25px !important;
+  line-height: 1 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-stat-grid p {
+  display: inline !important;
+  margin: 0 !important;
+  color: var(--spreelo-muted) !important;
+  font-size: 12px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-layout {
+  display: contents !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-main {
+  grid-column: 1 !important;
+  grid-row: 3 !important;
+  min-width: 0 !important;
+  padding: 0 28px 28px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-section-heading {
+  display: none !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+  margin: 0 0 12px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-filter-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-filter-row button,
+html body .campaign-calendar-page .campaign-calendar-sort-select {
+  min-height: 34px !important;
+  padding: 0 13px !important;
+  border-radius: 0 !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: rgba(255, 253, 248, 0.72) !important;
+  color: var(--spreelo-ink) !important;
+  font-size: 12px !important;
+  font-weight: 730 !important;
+  box-shadow: none !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-filter-row button.active {
+  border-color: var(--spreelo-sidebar-deep) !important;
+  background: var(--spreelo-sidebar-deep) !important;
+  color: #ffffff !important;
+}
+
+html body .campaign-calendar-page .campaign-card-grid {
+  display: block !important;
+  border: 1px solid var(--spreelo-line) !important;
+  border-radius: 0 !important;
+  background: rgba(255, 253, 248, 0.56) !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+html body .campaign-calendar-page .campaign-card {
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 336px !important;
+  gap: 16px !important;
+  align-items: center !important;
+  margin: 0 !important;
+  padding: 17px 18px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--spreelo-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .campaign-calendar-page .campaign-card:last-child {
+  border-bottom: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-card:hover,
+html body .campaign-calendar-page .campaign-card.active {
+  background: linear-gradient(90deg, rgba(185, 87, 60, 0.08), rgba(255, 253, 248, 0.55)) !important;
+  box-shadow: inset 3px 0 0 var(--spreelo-accent) !important;
+}
+
+html body .campaign-calendar-page .campaign-card-content {
+  display: grid !important;
+  grid-template-columns: 46px minmax(0, 1fr) !important;
+  gap: 14px !important;
+  align-items: center !important;
+}
+
+html body .campaign-calendar-page .campaign-glyph {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 7px !important;
+}
+
+html body .campaign-calendar-page .campaign-glyph svg {
+  width: 21px !important;
+  height: 21px !important;
+}
+
+html body .campaign-calendar-page .campaign-card-tags {
+  margin: 0 0 5px !important;
+}
+
+html body .campaign-calendar-page .campaign-card-tags span {
+  min-height: 21px !important;
+  padding: 0 8px !important;
+  font-size: 10px !important;
+}
+
+html body .campaign-calendar-page .campaign-card h4 {
+  margin: 0 0 4px !important;
+  font-size: 15.5px !important;
+  line-height: 1.2 !important;
+}
+
+html body .campaign-calendar-page .campaign-card p {
+  margin: 0 !important;
+  color: var(--spreelo-muted) !important;
+  font-size: 12.5px !important;
+  line-height: 1.38 !important;
+}
+
+html body .campaign-calendar-page .campaign-card-side {
+  display: grid !important;
+  grid-template-columns: minmax(110px, 1fr) auto 108px !important;
+  gap: 10px !important;
+  align-items: center !important;
+  justify-items: end !important;
+}
+
+html body .campaign-calendar-page .campaign-card-date {
+  justify-self: start !important;
+  font-size: 12.5px !important;
+  line-height: 1.25 !important;
+  text-align: left !important;
+}
+
+html body .campaign-calendar-page .campaign-card-meta {
+  display: flex !important;
+  gap: 6px !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+}
+
+html body .campaign-calendar-page .campaign-card-meta span {
+  min-height: 23px !important;
+  padding: 0 8px !important;
+  font-size: 10.5px !important;
+}
+
+html body .campaign-calendar-page .campaign-card-create-button {
+  width: 108px !important;
+  min-height: 34px !important;
+  padding: 0 10px !important;
+  border-radius: 0 !important;
+  font-size: 12px !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-sidebar {
+  grid-column: 2 !important;
+  grid-row: 1 / span 3 !important;
+  position: sticky !important;
+  top: 0 !important;
+  align-self: stretch !important;
+  min-height: calc(100vh - 18px) !important;
+  padding: 24px 30px 36px 28px !important;
+  margin: -22px 0 0 !important;
+  border-left: 1px solid var(--spreelo-line) !important;
+  background: rgba(255, 253, 248, 0.68) !important;
+  box-shadow: none !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-card {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-header {
+  display: grid !important;
+  grid-template-columns: 50px minmax(0, 1fr) auto !important;
+  gap: 13px !important;
+  align-items: start !important;
+  padding: 0 0 16px !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--spreelo-line) !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-header h3 {
+  margin: 2px 0 0 !important;
+  font-size: 24px !important;
+  line-height: 1.08 !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-date {
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin: 15px 0 !important;
+  padding: 0 0 15px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--spreelo-line) !important;
+  background: transparent !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-score-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  margin: 0 0 16px !important;
+  padding: 0 0 15px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--spreelo-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-score-grid > div {
+  padding: 0 12px !important;
+  border: 0 !important;
+  border-left: 1px solid var(--spreelo-line) !important;
+  background: transparent !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-score-grid > div:first-child {
+  border-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-section {
+  margin: 0 !important;
+  padding: 0 0 15px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--spreelo-line) !important;
+  background: transparent !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-section + .campaign-detail-section {
+  padding-top: 14px !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-section h4 {
+  margin: 0 0 5px !important;
+  font-size: 14.5px !important;
+}
+
+html body .campaign-calendar-page .campaign-detail-section p,
+html body .campaign-calendar-page .campaign-post-plan-note,
+html body .campaign-calendar-page .campaign-calendar-disclaimer {
+  color: var(--spreelo-muted) !important;
+  font-size: 12.5px !important;
+  line-height: 1.44 !important;
+}
+
+html body .campaign-calendar-page .campaign-post-plan {
+  gap: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-post-plan > div {
+  padding: 11px 0 !important;
+  border: 0 !important;
+  border-top: 1px solid var(--spreelo-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+html body .campaign-calendar-page .campaign-create-button {
+  min-height: 42px !important;
+  margin-top: 16px !important;
+  border-radius: 0 !important;
+}
+
+html body .campaign-calendar-page .campaign-calendar-disclaimer {
+  margin-top: 12px !important;
+  padding: 12px !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Dashboard, settings, brand and studio: same tighter system. */
+
+html body .dashboard-page,
+html body .brand-profile-page,
+html body .automation-page.planner-wizard-page {
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 24px 36px 42px !important;
+}
+
+html body .topbar {
+  margin: 0 !important;
+  padding: 26px 36px 14px !important;
+}
+
+html body .topbar h2,
+html body .dashboard-hero h2,
+html body .brand-profile-hero h2,
+html body .planner-hero h2,
+html body .planner-hero-copy h2 {
+  letter-spacing: 0 !important;
+}
+
+html body .dashboard-hero,
+html body .brand-profile-hero {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: end !important;
+  gap: 20px !important;
+  margin: 0 0 20px !important;
+}
+
+html body .dashboard-stat-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  margin: 0 0 18px !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: rgba(255, 253, 248, 0.62) !important;
+}
+
+html body .dashboard-stat-card {
+  min-height: 108px !important;
+  padding: 18px !important;
+  border: 0 !important;
+  border-left: 1px solid var(--spreelo-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .dashboard-stat-card:first-child {
+  border-left: 0 !important;
+}
+
+html body .dashboard-layout,
+html body .brand-profile-layout,
+html body .automation-page.planner-wizard-page .wizard-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 360px !important;
+  gap: 18px !important;
+  align-items: start !important;
+}
+
+html body .brand-profile-layout {
+  grid-template-columns: 300px minmax(0, 1fr) !important;
+}
+
+html body .dashboard-card,
+html body .dashboard-side-card,
+html body .brand-profile-guide-card,
+html body .brand-profile-form-card,
+html body .brand-profile-form-section,
+html body .brand-profile-logo-compact-card,
+html body .hero-card,
+html body .prompt-box,
+html body .settings-danger-zone,
+html body .automation-page.planner-wizard-page .planner-hero,
+html body .automation-page.planner-wizard-page .planner-settings-card,
+html body .automation-page.planner-wizard-page .planner-builder-card,
+html body .automation-page.planner-wizard-page .planner-how-it-works-card,
+html body .automation-page.planner-wizard-page .planner-save-card,
+html body .automation-page.planner-wizard-page .planner-summary-card,
+html body .automation-page.planner-wizard-page .planner-credits-card {
+  border-radius: 0 !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: rgba(255, 253, 248, 0.68) !important;
+  box-shadow: none !important;
+}
+
+html body .dashboard-card,
+html body .dashboard-side-card,
+html body .brand-profile-guide-card,
+html body .brand-profile-form-card,
+html body .hero-card,
+html body .settings-danger-zone,
+html body .automation-page.planner-wizard-page .planner-hero,
+html body .automation-page.planner-wizard-page .planner-settings-card,
+html body .automation-page.planner-wizard-page .planner-how-it-works-card,
+html body .automation-page.planner-wizard-page .planner-save-card {
+  padding: 22px !important;
+}
+
+html body .dashboard-main,
+html body .dashboard-sidebar,
+html body .planner-sidebar {
+  display: grid !important;
+  gap: 18px !important;
+}
+
+html body .dashboard-plan-hub-card {
+  padding: 0 !important;
+}
+
+html body .dashboard-card-header,
+html body .dashboard-plan-hub-section,
+html body .saved-header {
+  padding: 18px 20px !important;
+}
+
+html body .dashboard-plan-hub-divider {
+  margin: 0 !important;
+  border-top: 1px solid var(--spreelo-line) !important;
+}
+
+html body .dashboard-plan-list,
+html body .saved-rule-list {
+  padding: 0 20px 20px !important;
+}
+
+html body .dashboard-plan-row,
+html body .saved-rule-card,
+html body .dashboard-pending-card {
+  border-radius: 0 !important;
+  border: 1px solid var(--spreelo-line) !important;
+  background: rgba(255, 253, 248, 0.76) !important;
+  box-shadow: none !important;
+}
+
+html body .brand-profile-guide-card {
+  position: sticky !important;
+  top: 24px !important;
+}
+
+html body .brand-profile-form-card {
+  padding: 22px 26px !important;
+}
+
+html body .brand-profile-form-section {
+  margin-top: 14px !important;
+  padding: 18px !important;
+}
+
+html body .brand-profile-hero-badge {
+  border-radius: 0 !important;
+  min-width: 420px !important;
+}
+
+html body .hero-card {
+  width: auto !important;
+  margin: 0 36px 18px !important;
+  grid-template-columns: minmax(0, 1fr) 430px !important;
+}
+
+html body .settings-danger-zone {
+  margin: 0 36px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero {
+  min-height: 0 !important;
+  margin: 0 0 18px !important;
+  grid-template-columns: minmax(0, 1fr) 330px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-hero-visual {
+  transform: scale(0.82) !important;
+  transform-origin: center right !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-settings-card,
+html body .automation-page.planner-wizard-page .planner-builder-card {
+  margin: 0 0 18px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-setup-grid {
+  gap: 12px !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-setup-card {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-how-it-works-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-how-it-works-grid > div {
+  border-radius: 0 !important;
+  border: 0 !important;
+  border-left: 1px solid var(--spreelo-line) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-how-it-works-grid > div:first-child {
+  border-left: 0 !important;
+}
+
+@media (max-width: 1240px) {
+  html body .campaign-calendar-page {
+    grid-template-columns: minmax(0, 1fr) 382px !important;
+    padding-left: 24px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card {
+    grid-template-columns: minmax(0, 1fr) 280px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card-side {
+    grid-template-columns: 1fr !important;
+    justify-items: stretch !important;
+  }
+}
+
+@media (max-width: 1020px) {
+  html body .content.spreelo-content,
+  html body .spreelo-content {
+    padding: 0 !important;
+  }
+
+  html body .language-suggestion-banner {
+    margin: 14px 14px 0 !important;
+  }
+
+  html body .campaign-calendar-page {
+    display: block !important;
+    min-height: 0 !important;
+    padding: 16px 14px 28px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-hero,
+  html body .campaign-calendar-page .campaign-calendar-main {
+    padding-right: 0 !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-stat-grid {
+    margin-right: 0 !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-layout {
+    display: block !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-sidebar {
+    position: static !important;
+    min-height: 0 !important;
+    margin: 14px 0 0 !important;
+    padding: 18px !important;
+    border: 1px solid var(--spreelo-line) !important;
+    background: rgba(255, 253, 248, 0.72) !important;
+  }
+
+  html body .dashboard-page,
+  html body .brand-profile-page,
+  html body .automation-page.planner-wizard-page,
+  html body .topbar {
+    padding: 18px 14px 30px !important;
+  }
+
+  html body .dashboard-layout,
+  html body .brand-profile-layout,
+  html body .automation-page.planner-wizard-page .wizard-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .brand-profile-guide-card {
+    position: static !important;
+  }
+
+  html body .dashboard-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html body .hero-card,
+  html body .settings-danger-zone {
+    margin-left: 14px !important;
+    margin-right: 14px !important;
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 680px) {
+  html body .campaign-calendar-page {
+    padding: 12px 10px 24px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-hero h2,
+  html body .dashboard-hero h2,
+  html body .brand-profile-hero h2,
+  html body .planner-hero h2 {
+    font-size: 28px !important;
+    line-height: 1.05 !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-stat-grid,
+  html body .dashboard-stat-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-stat-grid > div,
+  html body .dashboard-stat-card {
+    border-left: 0 !important;
+    border-top: 1px solid var(--spreelo-line) !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-stat-grid > div:first-child,
+  html body .dashboard-stat-card:first-child {
+    border-top: 0 !important;
+  }
+
+  html body .campaign-calendar-page .campaign-calendar-toolbar,
+  html body .dashboard-hero,
+  html body .brand-profile-hero {
+    display: grid !important;
+    gap: 10px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    padding: 13px !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card-side {
+    grid-template-columns: 1fr !important;
+    justify-items: stretch !important;
+  }
+
+  html body .campaign-calendar-page .campaign-card-create-button,
+  html body .campaign-calendar-page .campaign-calendar-sort-select {
+    width: 100% !important;
+  }
+
+  html body .campaign-calendar-page .campaign-detail-header {
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+  }
+
+  html body .campaign-calendar-page .campaign-detail-header > span:not(.campaign-glyph) {
+    grid-column: 2 !important;
+    justify-self: start !important;
+  }
+
+  html body .campaign-calendar-page .campaign-detail-score-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .campaign-calendar-page .campaign-detail-score-grid > div,
+  html body .campaign-calendar-page .campaign-detail-score-grid > div:first-child {
+    padding: 9px 0 !important;
+    border-left: 0 !important;
+    border-top: 1px solid var(--spreelo-line) !important;
+  }
+
+  html body .campaign-calendar-page .campaign-detail-score-grid > div:first-child {
+    border-top: 0 !important;
+  }
+
+  html body .hero-card,
+  html body .settings-danger-zone,
+  html body .dashboard-card,
+  html body .dashboard-side-card,
+  html body .brand-profile-form-card,
+  html body .brand-profile-guide-card,
+  html body .automation-page.planner-wizard-page .planner-hero,
+  html body .automation-page.planner-wizard-page .planner-settings-card,
+  html body .automation-page.planner-wizard-page .planner-how-it-works-card,
+  html body .automation-page.planner-wizard-page .planner-save-card {
+    padding: 16px !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-hero {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-hero-visual {
+    display: none !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-how-it-works-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .automation-page.planner-wizard-page .planner-how-it-works-grid > div {
+    border-left: 0 !important;
+    border-top: 1px solid var(--spreelo-line) !important;
+  }
+}
