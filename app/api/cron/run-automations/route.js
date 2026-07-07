@@ -41,6 +41,7 @@ const CAROUSEL_DISCOVERY_VERIFY_LIMIT = 25;
 const CAROUSEL_WEB_SEARCH_MAX_VERIFIED_ITEMS = 8;
 const CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT = 24;
 const CAMPAIGN_STRONG_PRODUCT_FIT_SCORE = 80;
+const CAMPAIGN_NEAR_PRODUCT_FIT_SCORE = 75;
 const CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE = 60;
 const CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE = 60;
 const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
@@ -1174,6 +1175,44 @@ function getFreshSafeCampaignProductCandidates({
   return getSafeCampaignProductCandidates(freshItems, rule);
 }
 
+function getStrictCampaignFallbackGroups(items, rule) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return [items || []];
+  }
+
+  const dedupedItems = dedupeWebsiteItemsByUrlTitleAndImage(items);
+
+  return [
+    getCampaignThemeSourceLockedItems(dedupedItems, rule),
+    getCampaignThemeMatchedItems(dedupedItems, rule),
+    getCampaignAnchorMatchedItems(dedupedItems, rule),
+    getPrimaryCampaignMatchedItems(dedupedItems, rule),
+    getSafeCampaignProductCandidates(dedupedItems, rule),
+    getStrongCampaignFitItems(dedupedItems, rule),
+    getCampaignFitItemsAtOrAboveScore(
+      dedupedItems,
+      rule,
+      CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+    ),
+    getSupportingCampaignFitItems(dedupedItems, rule),
+  ].filter((group) => Array.isArray(group) && group.length);
+}
+
+function getStrictCampaignFallbackProducts(items, rule) {
+  return dedupeWebsiteItemsByUrlTitleAndImage(
+    getStrictCampaignFallbackGroups(items, rule).flat()
+  );
+}
+
+function fillCampaignProductSelection(primaryItems, fallbackItems, rule, sourceUrl, limit = CAROUSEL_PRODUCT_SLIDE_TARGET) {
+  return fillCarouselProductSelection(
+    primaryItems,
+    getStrictCampaignFallbackGroups(fallbackItems, rule),
+    sourceUrl,
+    limit
+  );
+}
+
 
 function getCampaignCandidateUsageState(item, recentUsedItems, sourceUrl, usedWebsiteImageUrlsThisRun = new Set()) {
   return {
@@ -1186,7 +1225,7 @@ function getCampaignCandidateUsageState(item, recentUsedItems, sourceUrl, usedWe
 
 function getCampaignProductTier(score) {
   if (score >= 90) return "strong";
-  if (score >= 75) return "near";
+  if (score >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE) return "near";
   if (score >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) return "fallback";
   return "reject";
 }
@@ -1197,6 +1236,7 @@ function buildCampaignScoredProductCandidates({
   sourceUrl,
   recentUsedItems = [],
   usedWebsiteImageUrlsThisRun = new Set(),
+  minimumScore = CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
 }) {
   if (!isCampaignScopedWebsiteRule(rule)) {
     return [];
@@ -1249,7 +1289,10 @@ function buildCampaignScoredProductCandidates({
         },
       };
     })
-    .filter((item) => Number(item.campaign_fit_score || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE)
+    .filter((item) => (
+      Number(item.campaign_fit_score || 0) >=
+      Math.max(minimumScore, CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE)
+    ))
     .sort(compareCampaignScoredCandidates);
 }
 
@@ -1292,6 +1335,7 @@ function selectCampaignCarouselProductsByScoreTiers({
   usedWebsiteImageUrlsThisRun = new Set(),
   limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
   allowUsedAfterExhausted = false,
+  minimumScore = CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
 }) {
   const candidates = buildCampaignScoredProductCandidates({
     items,
@@ -1299,6 +1343,7 @@ function selectCampaignCarouselProductsByScoreTiers({
     sourceUrl,
     recentUsedItems,
     usedWebsiteImageUrlsThisRun,
+    minimumScore,
   });
 
   const freshCandidates = candidates.filter((candidate) => {
@@ -1340,6 +1385,7 @@ function countFreshCampaignCarouselCandidates({
   sourceUrl,
   recentUsedItems = [],
   usedWebsiteImageUrlsThisRun = new Set(),
+  minimumScore = CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
 }) {
   return buildCampaignScoredProductCandidates({
     items,
@@ -1347,6 +1393,7 @@ function countFreshCampaignCarouselCandidates({
     sourceUrl,
     recentUsedItems,
     usedWebsiteImageUrlsThisRun,
+    minimumScore,
   }).filter((candidate) => {
     const state = candidate?._campaignSort || {};
     return !state.wasUsedRecently && !state.imageUsedThisRun;
@@ -1589,12 +1636,10 @@ async function prepareCarouselProductsForRule({
       recentUsedItems,
       usedWebsiteImageUrlsThisRun,
     });
-    const filledFreshCampaignProducts = fillCarouselProductSelection(
+    const filledFreshCampaignProducts = fillCampaignProductSelection(
       selectedProducts,
-      [
-        getPrimaryCampaignMatchedItems(freshCampaignFallbackProducts, rule),
-        freshCampaignFallbackProducts,
-      ],
+      freshCampaignFallbackProducts,
+      rule,
       websiteUrl
     );
 
@@ -1654,12 +1699,10 @@ async function prepareCarouselProductsForRule({
               recentUsedItems,
               usedWebsiteImageUrlsThisRun,
             });
-            const filledFreshCampaignProducts = fillCarouselProductSelection(
+            const filledFreshCampaignProducts = fillCampaignProductSelection(
               selectedProducts,
-              [
-                getPrimaryCampaignMatchedItems(freshCampaignFallbackProducts, rule),
-                freshCampaignFallbackProducts,
-              ],
+              freshCampaignFallbackProducts,
+              rule,
               websiteUrl
             );
 
@@ -1776,12 +1819,10 @@ async function prepareCarouselProductsForRule({
       recentUsedItems,
       usedWebsiteImageUrlsThisRun,
     });
-    const filledFreshCampaignProducts = fillCarouselProductSelection(
+    const filledFreshCampaignProducts = fillCampaignProductSelection(
       selectedProducts,
-      [
-        getPrimaryCampaignMatchedItems(freshCampaignFallbackProducts, rule),
-        freshCampaignFallbackProducts,
-      ],
+      freshCampaignFallbackProducts,
+      rule,
       websiteUrl
     );
 
@@ -1825,12 +1866,10 @@ async function prepareCarouselProductsForRule({
         recentUsedItems,
         usedWebsiteImageUrlsThisRun,
       });
-      const filledFreshCampaignProducts = fillCarouselProductSelection(
+      const filledFreshCampaignProducts = fillCampaignProductSelection(
         selectedProducts,
-        [
-          getPrimaryCampaignMatchedItems(freshCampaignFallbackProducts, rule),
-          freshCampaignFallbackProducts,
-        ],
+        freshCampaignFallbackProducts,
+        rule,
         websiteUrl
       );
 
@@ -1928,7 +1967,7 @@ async function prepareCarouselProductsForRule({
       ...selectedProducts,
       ...lockedCampaignSearchPoolItems,
       ...getCampaignSelectionItems(),
-      ...catalogItems,
+      ...getStrictCampaignFallbackProducts(catalogItems, rule),
     ]);
 
     const freshCandidateCount = countFreshCampaignCarouselCandidates({
@@ -1937,6 +1976,16 @@ async function prepareCarouselProductsForRule({
       sourceUrl: websiteUrl,
       recentUsedItems,
       usedWebsiteImageUrlsThisRun,
+      minimumScore: CAMPAIGN_NEAR_PRODUCT_FIT_SCORE,
+    });
+
+    const freshSupportingCandidateCount = countFreshCampaignCarouselCandidates({
+      items: campaignCandidateUniverse,
+      rule,
+      sourceUrl: websiteUrl,
+      recentUsedItems,
+      usedWebsiteImageUrlsThisRun,
+      minimumScore: CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
     });
 
     selectedProducts = selectCampaignCarouselProductsByScoreTiers({
@@ -1947,11 +1996,34 @@ async function prepareCarouselProductsForRule({
       usedWebsiteImageUrlsThisRun,
       limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
       allowUsedAfterExhausted: false,
+      minimumScore: CAMPAIGN_NEAR_PRODUCT_FIT_SCORE,
     });
+
+    if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+      const supportingProducts = selectCampaignCarouselProductsByScoreTiers({
+        items: campaignCandidateUniverse,
+        rule,
+        sourceUrl: websiteUrl,
+        recentUsedItems,
+        usedWebsiteImageUrlsThisRun,
+        limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+        allowUsedAfterExhausted: false,
+        minimumScore: CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
+      });
+      const mergedProducts = mergeCarouselProductSelections(
+        selectedProducts,
+        supportingProducts,
+        websiteUrl
+      );
+
+      if (mergedProducts.length > selectedProducts.length) {
+        selectedProducts = mergedProducts;
+      }
+    }
 
     const allowCampaignReuseAfterExhausted =
       selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET &&
-      freshCandidateCount < CAROUSEL_PRODUCT_SLIDE_TARGET &&
+      freshSupportingCandidateCount < CAROUSEL_PRODUCT_SLIDE_TARGET &&
       campaignFreshDiscoveryAttempts >= CAMPAIGN_REUSE_EXHAUSTION_MIN_DISCOVERY_ATTEMPTS;
 
     if (allowCampaignReuseAfterExhausted) {
@@ -1963,6 +2035,7 @@ async function prepareCarouselProductsForRule({
         usedWebsiteImageUrlsThisRun,
         limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
         allowUsedAfterExhausted: true,
+        minimumScore: CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
       });
 
       if (recycledProducts.length > selectedProducts.length) {
@@ -1999,10 +2072,11 @@ async function prepareCarouselProductsForRule({
         websiteUrl,
         selectedCount: selectedProducts.length,
         freshCandidateCount,
+        freshSupportingCandidateCount,
         discoveryAttempts: campaignFreshDiscoveryAttempts,
         strongCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= 90).length,
-        nearCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= 75 && Number(item.campaign_fit_score || 0) < 90).length,
-        fallbackCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE && Number(item.campaign_fit_score || 0) < 75).length,
+        nearCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE && Number(item.campaign_fit_score || 0) < 90).length,
+        fallbackCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE && Number(item.campaign_fit_score || 0) < CAMPAIGN_NEAR_PRODUCT_FIT_SCORE).length,
         reusedCount: selectedProducts.filter((item) => Boolean(item.campaign_was_used_recently || item.campaign_image_used_this_run)).length,
         reuseAfterExhausted: allowCampaignReuseAfterExhausted,
         lockedSearchPool: hasLockedCampaignSearchPool,
@@ -2014,6 +2088,7 @@ async function prepareCarouselProductsForRule({
         websiteUrl,
         selectedCount: selectedProducts.length,
         freshCandidateCount,
+        freshSupportingCandidateCount,
         discoveryAttempts: campaignFreshDiscoveryAttempts,
         minimumScore: CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
         lockedSearchPool: hasLockedCampaignSearchPool,
