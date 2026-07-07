@@ -772,11 +772,29 @@ function getCarouselProducts(rule) {
   return Array.isArray(rule?.website_items) ? rule.website_items : [];
 }
 
+function isBadProductUrl(value) {
+  const lowerUrl = String(value || "").toLowerCase().trim();
+
+  if (!lowerUrl) {
+    return true;
+  }
+
+  return (
+    lowerUrl.includes("{{") ||
+    lowerUrl.includes("}}") ||
+    lowerUrl.includes("%7b%7b") ||
+    lowerUrl.includes("%7d%7d") ||
+    lowerUrl.includes("/undefined") ||
+    lowerUrl.includes("/null")
+  );
+}
+
 function isValidCarouselProduct(item) {
   return Boolean(
     item?.title &&
     item?.url &&
     item?.image_url &&
+    !isBadProductUrl(item.url) &&
     !isBadProductImageUrl(item.image_url)
   );
 }
@@ -2164,6 +2182,15 @@ async function prepareCarouselProductsForRule({
 }
 
 function getPostDestinationUrl(rule) {
+  if (isCarouselRule(rule)) {
+    return (
+      getWebsiteProductSourceUrl(rule?.brand_profile) ||
+      rule?.brand_profile?.website_url ||
+      rule?.website_url ||
+      ""
+    );
+  }
+
   return (
     rule?.website_item?.url ||
     rule?.brand_profile?.website_url ||
@@ -5550,7 +5577,6 @@ function getWebsiteItemDirectCampaignText(item) {
     item?.url,
     item?.product_url,
     item?.item_url,
-    item?.source_url,
     item?.description,
   ]
     .filter(Boolean)
@@ -6377,6 +6403,8 @@ function scoreCampaignFitForRule(item, rule) {
   const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
   const anchorMatches = countCampaignAnchorTermMatches(item, rule);
   const anchorTerms = extractCampaignAnchorTerms(rule);
+  const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
+  const directCampaignSignalCount = themeMatches + anchorMatches + primaryMatches;
   if (!terms.length && !avoidTerms.length && !anchorTerms.length && !themeTerms.length) {
     return aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
   }
@@ -6394,7 +6422,9 @@ function scoreCampaignFitForRule(item, rule) {
   if (themeMatches > 0) {
     score += 125 + themeMatches * 45;
   } else if (sourceThemeMatches > 0) {
-    score += 95 + sourceThemeMatches * 30;
+    score += directCampaignSignalCount > 0
+      ? 95 + sourceThemeMatches * 30
+      : 40 + sourceThemeMatches * 8;
   } else if (themeTerms.length) {
     // Once a clear campaign theme exists, broad gift/personal terms should not
     // outrank products that actually carry the occasion/theme.
@@ -6451,6 +6481,10 @@ function scoreCampaignFitForRule(item, rule) {
 
   if (isLikelyGenericCustomTemplateProduct(item) && themeMatches === 0 && sourceThemeMatches === 0 && anchorMatches === 0) {
     score -= 160;
+  }
+
+  if (sourceThemeMatches > 0 && directCampaignSignalCount === 0) {
+    score = Math.min(score, CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE);
   }
 
   return Math.max(score, -200);
