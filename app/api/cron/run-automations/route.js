@@ -1427,6 +1427,130 @@ function selectCampaignCarouselProductsByScoreTiers({
   return selected.slice(0, limit).map(({ _campaignSort, ...item }) => item);
 }
 
+
+function selectCampaignCarouselProductsByDeliveryLadder({
+  items,
+  rule,
+  sourceUrl,
+  recentUsedItems = [],
+  usedWebsiteImageUrlsThisRun = new Set(),
+  existingProducts = [],
+  limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
+}) {
+  const selected = [];
+
+  function addProduct(item) {
+    if (!isValidCarouselProduct(item)) {
+      return false;
+    }
+
+    if (selected.some((selectedItem) => areSameWebsiteItem(selectedItem, item, sourceUrl))) {
+      return false;
+    }
+
+    selected.push(item);
+    return true;
+  }
+
+  for (const product of existingProducts || []) {
+    if (selected.length >= limit) break;
+    addProduct(product);
+  }
+
+  if (selected.length >= limit) {
+    return selected.slice(0, limit);
+  }
+
+  const candidates = dedupeWebsiteItemsByUrlTitleAndImage(items)
+    .filter(isValidCarouselProduct)
+    .map((item) => {
+      const campaignFitScore = scoreCampaignFitForRule(item, rule);
+      const productScore = scoreWebsiteItemForRule(item, rule);
+      const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
+      const anchorMatches = countCampaignAnchorTermMatches(item, rule);
+      const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
+      const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
+      const { wasUsedRecently, imageUsedThisRun } = getCampaignCandidateUsageState(
+        item,
+        recentUsedItems,
+        sourceUrl,
+        usedWebsiteImageUrlsThisRun
+      );
+      const usageCount = Number(item?.times_used || 0);
+      const lastUsedAtTs = item?.last_used_at ? Date.parse(item.last_used_at) : 0;
+      const selectionPriority = Number(item?.selection_priority || 0);
+
+      return {
+        ...item,
+        campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), campaignFitScore),
+        campaign_product_tier: getCampaignProductTier(campaignFitScore),
+        campaign_was_used_recently: wasUsedRecently,
+        campaign_image_used_this_run: imageUsedThisRun,
+        _deliverySort: {
+          campaignFitScore,
+          productScore,
+          primaryMatches,
+          anchorMatches,
+          themeMatches,
+          sourceThemeMatches,
+          wasUsedRecently,
+          imageUsedThisRun,
+          usageCount,
+          lastUsedAtTs,
+          selectionPriority,
+        },
+      };
+    })
+    .sort((a, b) => {
+      const aSort = a?._deliverySort || {};
+      const bSort = b?._deliverySort || {};
+
+      // Relevance first: a previously used highly relevant product should beat
+      // a fresh but weakly related product. Rotation is only a tie-breaker.
+      const campaignDelta = Number(bSort.campaignFitScore || 0) - Number(aSort.campaignFitScore || 0);
+      if (campaignDelta !== 0) return campaignDelta;
+
+      const themeDelta = Number(bSort.themeMatches || 0) - Number(aSort.themeMatches || 0);
+      if (themeDelta !== 0) return themeDelta;
+
+      const sourceThemeDelta = Number(bSort.sourceThemeMatches || 0) - Number(aSort.sourceThemeMatches || 0);
+      if (sourceThemeDelta !== 0) return sourceThemeDelta;
+
+      const anchorDelta = Number(bSort.anchorMatches || 0) - Number(aSort.anchorMatches || 0);
+      if (anchorDelta !== 0) return anchorDelta;
+
+      const primaryDelta = Number(bSort.primaryMatches || 0) - Number(aSort.primaryMatches || 0);
+      if (primaryDelta !== 0) return primaryDelta;
+
+      const productDelta = Number(bSort.productScore || 0) - Number(aSort.productScore || 0);
+      if (productDelta !== 0) return productDelta;
+
+      const aUsed = Boolean(aSort.wasUsedRecently || aSort.imageUsedThisRun);
+      const bUsed = Boolean(bSort.wasUsedRecently || bSort.imageUsedThisRun);
+      if (aUsed !== bUsed) return aUsed ? 1 : -1;
+
+      const selectionDelta = Number(bSort.selectionPriority || 0) - Number(aSort.selectionPriority || 0);
+      if (selectionDelta !== 0) return selectionDelta;
+
+      const usageDelta = Number(aSort.usageCount || 0) - Number(bSort.usageCount || 0);
+      if (usageDelta !== 0) return usageDelta;
+
+      const lastUsedDelta = Number(aSort.lastUsedAtTs || 0) - Number(bSort.lastUsedAtTs || 0);
+      if (lastUsedDelta !== 0) return lastUsedDelta;
+
+      return String(a?.title || "").localeCompare(String(b?.title || ""));
+    });
+
+  for (const candidate of candidates) {
+    if (selected.length >= limit) break;
+    addProduct(candidate);
+  }
+
+  return selected
+    .slice(0, limit)
+    .map(({ _deliverySort, ...item }) => item);
+}
+
 function countFreshCampaignCarouselCandidates({
   items,
   rule,
@@ -2093,8 +2217,36 @@ async function prepareCarouselProductsForRule({
       }
     }
 
+    if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+      const deliveryLadderProducts = selectCampaignCarouselProductsByDeliveryLadder({
+        items: dedupeWebsiteItemsByUrlTitleAndImage([
+          ...campaignCandidateUniverse,
+          ...catalogItems,
+        ]),
+        rule,
+        sourceUrl: websiteUrl,
+        recentUsedItems,
+        usedWebsiteImageUrlsThisRun,
+        existingProducts: selectedProducts,
+        limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+      });
+
+      if (deliveryLadderProducts.length > selectedProducts.length) {
+        const addedReusedCount = deliveryLadderProducts
+          .slice(selectedProducts.length)
+          .filter((item) => Boolean(item.campaign_was_used_recently || item.campaign_image_used_this_run)).length;
+
+        if (addedReusedCount > 0) {
+          cycleNumber += 1;
+          summary.website_items_reused_cycle += 1;
+        }
+
+        selectedProducts = deliveryLadderProducts;
+      }
+    }
+
     if (selectedProducts.length >= CAROUSEL_PRODUCT_SLIDE_TARGET) {
-      console.log("Campaign carousel selected five products with strict fresh-first reuse guard", {
+      console.log("Campaign carousel selected five products with relevance-first delivery ladder", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
         websiteUrl,
@@ -2105,6 +2257,8 @@ async function prepareCarouselProductsForRule({
         strongCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= 90).length,
         nearCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE && Number(item.campaign_fit_score || 0) < 90).length,
         fallbackCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE && Number(item.campaign_fit_score || 0) < CAMPAIGN_NEAR_PRODUCT_FIT_SCORE).length,
+        broadFallbackCount: selectedProducts.filter((item) => Number(item.campaign_fit_score || 0) < CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE).length,
+        lowestCampaignFitScore: Math.min(...selectedProducts.map((item) => Number(item.campaign_fit_score || 0))),
         reusedCount: selectedProducts.filter((item) => Boolean(item.campaign_was_used_recently || item.campaign_image_used_this_run)).length,
         reuseAfterExhausted: allowCampaignReuseAfterExhausted,
         lockedSearchPool: hasLockedCampaignSearchPool,
