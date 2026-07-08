@@ -1438,11 +1438,6 @@ function selectCampaignCarouselProductsByDeliveryLadder({
   limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
 }) {
   const selected = [];
-  const requiresCampaignSignal = Boolean(
-    extractCampaignCoreThemeTerms(rule).length ||
-      extractCampaignAnchorTerms(rule).length ||
-      extractExplicitCampaignMatchTerms(rule).length
-  );
 
   function addProduct(item) {
     if (!isValidCarouselProduct(item)) {
@@ -1475,11 +1470,6 @@ function selectCampaignCarouselProductsByDeliveryLadder({
       const anchorMatches = countCampaignAnchorTermMatches(item, rule);
       const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
       const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
-      const aiCampaignFitScore = getAiCampaignFitScore(item);
-      const hasDirectCampaignSignal = themeMatches + anchorMatches + primaryMatches > 0;
-      const hasAiCampaignApproval =
-        aiCampaignFitScore !== null &&
-        aiCampaignFitScore >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE;
       const { wasUsedRecently, imageUsedThisRun } = getCampaignCandidateUsageState(
         item,
         recentUsedItems,
@@ -1503,8 +1493,6 @@ function selectCampaignCarouselProductsByDeliveryLadder({
           anchorMatches,
           themeMatches,
           sourceThemeMatches,
-          hasDirectCampaignSignal,
-          hasMeaningfulCampaignSignal: hasDirectCampaignSignal || hasAiCampaignApproval,
           wasUsedRecently,
           imageUsedThisRun,
           usageCount,
@@ -1512,15 +1500,6 @@ function selectCampaignCarouselProductsByDeliveryLadder({
           selectionPriority,
         },
       };
-    })
-    .filter((candidate) => {
-      const sort = candidate?._deliverySort || {};
-
-      if (Number(sort.campaignFitScore || 0) < CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) {
-        return false;
-      }
-
-      return !requiresCampaignSignal || Boolean(sort.hasMeaningfulCampaignSignal);
     })
     .sort((a, b) => {
       const aSort = a?._deliverySort || {};
