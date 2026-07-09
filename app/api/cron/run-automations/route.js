@@ -12689,8 +12689,6 @@ product_research_model_used: rule.uses_website_content
         let imageUrl = null;
         let imageStoragePath = null;
         let finalImagePrompt = wantsImage ? rule.image_prompt || null : null;
-        let automationCostMode = "standard";
-
         const isWebsiteBasedPost = Boolean(rule.uses_website_content || websiteItem || websiteSourceUrl);
 
         if (wantsImage && websiteItem?.image_url && useWebsiteImage) {
