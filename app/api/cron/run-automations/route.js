@@ -2964,6 +2964,48 @@ website_web_search_fallback_used: 0,
   };
 }
 
+function getCarouselEmailSlideMetadata(slide) {
+  const metadata = slide?.metadata;
+  if (!metadata) {
+    return {};
+  }
+
+  if (typeof metadata === "object" && !Array.isArray(metadata)) {
+    return metadata;
+  }
+
+  if (typeof metadata === "string") {
+    try {
+      const parsed = JSON.parse(metadata);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+}
+
+function getCarouselEmailProductTitle(slide) {
+  const metadata = getCarouselEmailSlideMetadata(slide);
+  const title = String(metadata.product_title || slide?.product_title || slide?.headline || "").trim();
+  if (!title || String(metadata.carousel_slide_role || "").toLowerCase().includes("outro")) {
+    return "";
+  }
+
+  return normalizeSlideText(title.replace(/\s+/g, " "), 68);
+}
+
+function getCarouselEmailProductPrice(slide) {
+  const metadata = getCarouselEmailSlideMetadata(slide);
+  const price = normalizeVerifiedPriceValue(metadata.product_price || slide?.product_price || "");
+  if (!price || String(metadata.carousel_slide_role || "").toLowerCase().includes("outro")) {
+    return "";
+  }
+
+  return price;
+}
+
 function buildCarouselEmailPreviewHtml(carouselSlides = []) {
   const slides = (carouselSlides || []).filter((slide) => slide?.image_url).slice(0, 6);
 
@@ -2972,17 +3014,32 @@ function buildCarouselEmailPreviewHtml(carouselSlides = []) {
   }
 
   const cards = slides
-    .map((slide) => `
+    .map((slide) => {
+      const productTitle = getCarouselEmailProductTitle(slide);
+      const productPrice = getCarouselEmailProductPrice(slide);
+      const hasProductInfo = productTitle || productPrice;
+      const imageMaxHeight = hasProductInfo ? "128px" : "180px";
+
+      return `
       <div class="carousel-email-card" style="display:inline-block;width:31%;max-width:180px;min-width:150px;vertical-align:top;margin:6px;">
         <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#ffffff;">
           <tr>
             <td style="padding:0;background:#f8fafc;">
-              <img src="${escapeHtml(slide.image_url || '')}" alt="${escapeHtml(slide.headline || 'Carousel slide')}" style="display:block;width:100%;height:auto;max-height:180px;object-fit:contain;background:#f8fafc;" />
+              <img src="${escapeHtml(slide.image_url || '')}" alt="${escapeHtml(productTitle || slide.headline || 'Carousel slide')}" style="display:block;width:100%;height:auto;max-height:${imageMaxHeight};object-fit:contain;background:#f8fafc;" />
             </td>
           </tr>
+          ${hasProductInfo ? `
+          <tr>
+            <td style="padding:8px 8px 10px;text-align:center;background:#ffffff;border-top:1px solid #f1f5f9;">
+              ${productTitle ? `<div style="font-size:11px;line-height:1.25;color:#111827;font-weight:700;min-height:28px;">${escapeHtml(productTitle)}</div>` : ""}
+              ${productPrice ? `<div style="font-size:14px;line-height:1.2;color:#111827;font-weight:800;margin-top:5px;">${escapeHtml(productPrice)}</div>` : ""}
+            </td>
+          </tr>
+          ` : ""}
         </table>
       </div>
-    `)
+    `;
+    })
     .join('');
 
   return `
@@ -10563,6 +10620,7 @@ async function saveCarouselSlidesForPost({
     let slideStoragePath = !isOutroSlide && index === 0 ? imageStoragePath || null : null;
     let generatedImagePrompt = null;
     let slideRenderedBy = 'source_image';
+    let productCardRenderError = null;
 
     if (!isOutroSlide && sourceSlideImageUrl) {
       try {
@@ -10600,11 +10658,12 @@ async function saveCarouselSlidesForPost({
           slideStoragePath = logoOverlayResult.imageStoragePath || slideStoragePath;
         }
       } catch (error) {
+        productCardRenderError = error?.message || 'Unknown product card render error';
         console.error('Carousel product slide render failed', {
           ruleId: rule?.id,
           postId,
           slideOrder: index + 1,
-          message: error.message,
+          message: productCardRenderError,
         });
       }
     }
@@ -10681,6 +10740,7 @@ async function saveCarouselSlidesForPost({
         rendered_slide: slideRenderedBy !== 'source_image',
         product_title: slideProduct?.title || slide.product_title || null,
         product_price: getTrustedProductCardPrice(slideProduct) || slide.product_price || null,
+        product_card_render_error: productCardRenderError || null,
       },
     });
   }
@@ -10985,7 +11045,7 @@ async function sendApprovalEmail({
     try {
       const { data } = await supabase
         .from('post_slides')
-        .select('slide_order, headline, image_url')
+        .select('slide_order, headline, image_url, metadata, product_url')
         .eq('post_id', postId)
         .order('slide_order', { ascending: true });
       carouselSlides = data || [];
