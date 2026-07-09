@@ -3230,6 +3230,14 @@ function collectAutomationRunProductLogData({ websiteItem = null, websiteItems =
 }
 
 async function createAutomationRunLog({ supabase, rule, startedAtIso }) {
+  const ruleName = rule?.name || rule?.title || null;
+  const campaignTitle =
+    rule?.campaign_title ||
+    rule?.campaign_name ||
+    rule?.campaign_opportunity_title ||
+    ruleName ||
+    null;
+
   try {
     const { data, error } = await supabase
       .from("automation_run_logs")
@@ -3239,12 +3247,15 @@ async function createAutomationRunLog({ supabase, rule, startedAtIso }) {
         rule_id: rule.id,
         status: "running",
         started_at: startedAtIso,
+        rule_name: ruleName,
+        campaign_title: campaignTitle,
         content_type_id: rule.content_type_id || null,
         content_format: normalizeContentFormat(rule.content_format),
         product_match_terms: rule.product_match_terms || null,
         product_search_queries: rule.product_search_queries || null,
         metadata: {
-          rule_name: rule.name || rule.title || null,
+          rule_name: ruleName,
+          campaign_title: campaignTitle,
           post_type: rule.post_type || null,
           uses_website_content: Boolean(rule.uses_website_content),
           generate_image: Boolean(rule.generate_image),
@@ -3272,6 +3283,60 @@ async function createAutomationRunLog({ supabase, rule, startedAtIso }) {
       });
     }
     return null;
+  }
+}
+
+async function updateAutomationRunLogBrandSnapshot({ supabase, runLogId, brandProfile, rule }) {
+  if (!runLogId) {
+    return;
+  }
+
+  const brandName = String(
+    brandProfile?.business_name ||
+      brandProfile?.name ||
+      brandProfile?.brand_name ||
+      ""
+  ).trim();
+  const brandWebsiteUrl = String(
+    brandProfile?.website_product_source_url ||
+      brandProfile?.website_url ||
+      ""
+  ).trim();
+  const ruleName = rule?.name || rule?.title || null;
+  const campaignTitle =
+    rule?.campaign_title ||
+    rule?.campaign_name ||
+    rule?.campaign_opportunity_title ||
+    ruleName ||
+    null;
+
+  try {
+    const { error } = await supabase
+      .from("automation_run_logs")
+      .update({
+        brand_name: brandName || null,
+        brand_website_url: brandWebsiteUrl || null,
+        rule_name: ruleName,
+        campaign_title: campaignTitle,
+        content_type_id: rule?.content_type_id || null,
+        content_format: normalizeContentFormat(rule?.content_format),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", runLogId);
+
+    if (error && !isMissingAutomationRunLogsTableError(error)) {
+      console.warn("Could not update automation run log brand snapshot", {
+        runLogId,
+        message: error.message,
+      });
+    }
+  } catch (error) {
+    if (!isMissingAutomationRunLogsTableError(error)) {
+      console.warn("Could not update automation run log brand snapshot", {
+        runLogId,
+        message: error.message,
+      });
+    }
   }
 }
 
@@ -11996,6 +12061,12 @@ const brandProfile = await getBrandProfileForRule(supabase, rule);
 
         if (brandProfile) {
           summary.brand_profile_found += 1;
+          await updateAutomationRunLogBrandSnapshot({
+            supabase,
+            runLogId: automationRunLogId,
+            brandProfile,
+            rule,
+          });
         } else {
           summary.brand_profile_missing += 1;
         }
