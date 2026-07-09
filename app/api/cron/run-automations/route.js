@@ -40,6 +40,16 @@ const CAROUSEL_AI_SCORE_MAX_ITEMS = 15;
 const CAROUSEL_DISCOVERY_VERIFY_LIMIT = 25;
 const CAROUSEL_WEB_SEARCH_MAX_VERIFIED_ITEMS = 8;
 const CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT = 24;
+const CAROUSEL_WEB_SEARCH_RESCUE_MAX_ATTEMPTS = Math.max(
+  1,
+  Number(process.env.CAROUSEL_WEB_SEARCH_RESCUE_MAX_ATTEMPTS || 1)
+);
+const CAROUSEL_WEB_SEARCH_RESCUE_ATTEMPTS = String(
+  process.env.CAROUSEL_WEB_SEARCH_RESCUE_ATTEMPTS || "domain_site_search"
+)
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean);
 const CAMPAIGN_STRONG_PRODUCT_FIT_SCORE = 80;
 const CAMPAIGN_NEAR_PRODUCT_FIT_SCORE = 75;
 const CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE = 60;
@@ -1978,6 +1988,7 @@ async function prepareCarouselProductsForRule({
   let lockedCampaignSearchPoolItems = [];
   let hasLockedCampaignSearchPool = false;
   let campaignFreshDiscoveryAttempts = 0;
+  let webSearchRescueUsed = false;
 
   async function buildLockedCampaignSearchPool({
     selectionPriority = 75,
@@ -2371,11 +2382,27 @@ async function prepareCarouselProductsForRule({
     }
   }
 
-  if (!hasLockedCampaignSearchPool && !hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
+  const shouldUseWebSearchRescue = shouldRunCarouselWebSearchRescue({
+    selectedProducts,
+    rule,
+    hasLockedCampaignSearchPool,
+  });
+
+  if (shouldUseWebSearchRescue) {
     try {
       if (isCampaignRule) {
         campaignFreshDiscoveryAttempts += 1;
       }
+      webSearchRescueUsed = true;
+
+      console.log("Carousel web search rescue started after cheap discovery did not find enough products", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        selectedCountBeforeRescue: selectedProducts.length,
+        configuredAttempts: getCarouselWebSearchRescueAttempts(),
+      });
+
       const webSearchItems = await findWebsiteProductWithWebSearch({
         openai,
         brandProfile,
@@ -2428,6 +2455,14 @@ async function prepareCarouselProductsForRule({
 
       summary.website_web_search_failed += 1;
     }
+  } else {
+    console.log("Carousel web search rescue skipped because cheap discovery/catalog selection was enough", {
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      selectedCount: selectedProducts.length,
+      hasLockedCampaignSearchPool,
+    });
   }
 
   let cycleNumber = await getCurrentWebsiteCycle({
@@ -2662,6 +2697,7 @@ async function prepareCarouselProductsForRule({
     websiteSourceUrl: websiteUrl,
     websiteCycleNumber: cycleNumber,
     useWebsiteImage: true,
+    costMode: webSearchRescueUsed ? "web_search_rescue" : "cheap_first_success",
   };
 }
 
@@ -9799,6 +9835,35 @@ For campaign carousels, stop once you have enough concrete product pages for a u
   };
 }
 
+function getCarouselWebSearchRescueAttempts() {
+  const allowedAttempts = new Set(["best_match", "domain_site_search", "backup_broad"]);
+  const configuredAttempts = CAROUSEL_WEB_SEARCH_RESCUE_ATTEMPTS
+    .map((attempt) => String(attempt || "").trim())
+    .filter((attempt) => allowedAttempts.has(attempt));
+
+  const attempts = configuredAttempts.length
+    ? configuredAttempts
+    : ["domain_site_search"];
+
+  return attempts.slice(0, CAROUSEL_WEB_SEARCH_RESCUE_MAX_ATTEMPTS);
+}
+
+function shouldRunCarouselWebSearchRescue({
+  selectedProducts = [],
+  rule = null,
+  hasLockedCampaignSearchPool = false,
+}) {
+  if (hasLockedCampaignSearchPool) {
+    return false;
+  }
+
+  if (hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
+    return false;
+  }
+
+  return true;
+}
+
 async function findWebsiteProductWithWebSearch({
   openai,
   brandProfile,
@@ -9808,7 +9873,7 @@ async function findWebsiteProductWithWebSearch({
   fitModel = PRODUCT_RESEARCH_MODEL,
   fitMinimumStrongProducts = CAROUSEL_MIN_PRODUCT_SLIDES,
 }) {
-  const attempts = ["best_match", "domain_site_search", "backup_broad"];
+  const attempts = getCarouselWebSearchRescueAttempts();
   const verifiedItems = [];
   const seenUrls = new Set();
   const seenImages = new Set();
@@ -12466,6 +12531,7 @@ let websiteSourceUrl = null;
 let websiteCycleNumber = null;
 let useWebsiteImage = false;
 let websitePreparedRule = rule;
+let automationCostMode = "standard";
 
         if (isCarouselRule(rule)) {
           try {
@@ -12483,6 +12549,7 @@ let websitePreparedRule = rule;
             websiteSourceUrl = preparedCarouselProducts.websiteSourceUrl;
             websiteCycleNumber = preparedCarouselProducts.websiteCycleNumber;
             useWebsiteImage = Boolean(preparedCarouselProducts.useWebsiteImage);
+            automationCostMode = preparedCarouselProducts.costMode || automationCostMode;
             websitePreparedRule = rule;
             automationRunWebsiteItem = websiteItem;
             automationRunWebsiteItems = websiteItems;
@@ -12622,6 +12689,7 @@ product_research_model_used: rule.uses_website_content
         let imageUrl = null;
         let imageStoragePath = null;
         let finalImagePrompt = wantsImage ? rule.image_prompt || null : null;
+        let automationCostMode = "standard";
 
         const isWebsiteBasedPost = Boolean(rule.uses_website_content || websiteItem || websiteSourceUrl);
 
@@ -12966,6 +13034,7 @@ product_research_model_used: rule.uses_website_content
             stage: "rule_update_warning",
             rule_update_error: ruleUpdateError.message || null,
             email_sent: effectivePostStatus === "pending_approval" && summary.emails_sent > 0,
+            cost_mode: automationCostMode,
           });
           summary.warnings += 1;
           continue;
@@ -12989,6 +13058,7 @@ product_research_model_used: rule.uses_website_content
           website_cycle_number: websiteCycleNumber,
           use_website_image: useWebsiteImage,
           website_item_count: Array.isArray(websiteItems) ? websiteItems.length : (websiteItem ? 1 : 0),
+          cost_mode: automationCostMode,
         });
       } catch (error) {
         const message = error.message || "Unknown automation error";
