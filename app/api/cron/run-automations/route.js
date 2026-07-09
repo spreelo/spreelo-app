@@ -160,6 +160,133 @@ function buildSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400
 }
 
 
+function appendProductCardSource(sources, value) {
+  if (!value) {
+    return;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed || !/^[\[{]/.test(trimmed)) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        sources.push(parsed);
+      }
+    } catch {
+      return;
+    }
+
+    return;
+  }
+
+  if (typeof value === "object" && !Array.isArray(value)) {
+    sources.push(value);
+  }
+}
+
+function getProductCardDataSources(item) {
+  const sources = [];
+  appendProductCardSource(sources, item);
+
+  if (item && typeof item === "object") {
+    [
+      "metadata",
+      "pricing",
+      "price_info",
+      "priceInfo",
+      "product_data",
+      "productData",
+      "raw",
+      "raw_product",
+      "source_data",
+      "data",
+      "attributes",
+      "details",
+      "offer",
+      "offers",
+    ].forEach((key) => appendProductCardSource(sources, item?.[key]));
+  }
+
+  return sources;
+}
+
+function findFirstProductCardValue(item, keys = []) {
+  const sources = getProductCardDataSources(item);
+
+  for (const source of sources) {
+    for (const key of keys) {
+      const value = source?.[key];
+      if (value === null || value === undefined) {
+        continue;
+      }
+
+      const text = String(value).replace(/\s+/g, " ").trim();
+      if (text) {
+        return text;
+      }
+    }
+  }
+
+  return "";
+}
+
+function parseComparablePriceAmount(value) {
+  const raw = String(value || "").replace(/[^\d,.-]/g, "").trim();
+  if (!raw) {
+    return null;
+  }
+
+  let normalized = raw.replace(/\s+/g, "");
+  const lastComma = normalized.lastIndexOf(',');
+  const lastDot = normalized.lastIndexOf('.');
+
+  if (lastComma !== -1 && lastDot !== -1) {
+    const decimalSeparator = lastComma > lastDot ? ',' : '.';
+    if (decimalSeparator === ',') {
+      normalized = normalized.replace(/\./g, '').replace(',', '.');
+    } else {
+      normalized = normalized.replace(/,/g, '');
+    }
+  } else if (lastComma !== -1) {
+    const decimals = normalized.length - lastComma - 1;
+    normalized = decimals > 0 && decimals <= 2
+      ? normalized.replace(/\./g, '').replace(',', '.')
+      : normalized.replace(/,/g, '');
+  } else if (lastDot !== -1) {
+    const decimals = normalized.length - lastDot - 1;
+    normalized = decimals > 0 && decimals <= 2
+      ? normalized.replace(/,/g, '')
+      : normalized.replace(/\./g, '');
+  }
+
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function getTrustedProductCardBrand(item) {
+  const brand = findFirstProductCardValue(item, [
+    "brand_name",
+    "brand",
+    "vendor",
+    "vendor_name",
+    "designer",
+    "manufacturer",
+    "brandName",
+    "vendorName",
+    "product_brand",
+  ]);
+
+  if (!brand || brand.length < 2) {
+    return "";
+  }
+
+  return normalizeSlideText(brand.replace(/\s+/g, " "), 48);
+}
+
 function getTrustedProductCardTitle(item) {
   const title = String(item?.title || item?.name || item?.product_title || "").trim();
   if (!title || title.length < 2) {
@@ -169,8 +296,86 @@ function getTrustedProductCardTitle(item) {
   return normalizeSlideText(title.replace(/\s+/g, " "), 96);
 }
 
+function getTrustedWebsiteItemPricing(websiteItem) {
+  const currentPriceRaw = findFirstProductCardValue(websiteItem, [
+    "sale_price",
+    "current_price",
+    "discount_price",
+    "final_price",
+    "offer_price",
+    "now_price",
+    "product_sale_price",
+  ]);
+  const originalPriceRaw = findFirstProductCardValue(websiteItem, [
+    "original_price",
+    "compare_at_price",
+    "regular_price",
+    "list_price",
+    "was_price",
+    "price_before_discount",
+    "product_original_price",
+  ]);
+  const fallbackPriceRaw = findFirstProductCardValue(websiteItem, [
+    "price",
+    "formatted_price",
+    "display_price",
+    "product_price",
+  ]);
+
+  let currentPrice = normalizeVerifiedPriceValue(currentPriceRaw || fallbackPriceRaw);
+  let originalPrice = normalizeVerifiedPriceValue(originalPriceRaw);
+
+  if (!currentPrice && originalPrice) {
+    currentPrice = originalPrice;
+    originalPrice = "";
+  }
+
+  if (currentPrice && originalPrice) {
+    const currentAmount = parseComparablePriceAmount(currentPrice);
+    const originalAmount = parseComparablePriceAmount(originalPrice);
+
+    if (currentAmount !== null && originalAmount !== null) {
+      if (currentAmount > originalAmount) {
+        const swappedCurrent = originalPrice;
+        originalPrice = currentPrice;
+        currentPrice = swappedCurrent;
+      } else if (Math.abs(currentAmount - originalAmount) < 0.0001) {
+        originalPrice = "";
+      }
+    } else if (currentPrice === originalPrice) {
+      originalPrice = "";
+    }
+  }
+
+  const displayPrice = currentPrice || originalPrice || "";
+  const isOnSale = Boolean(displayPrice && originalPrice && displayPrice !== originalPrice);
+
+  if (displayPrice && isLikelyWrongUsdPriceForUrl(displayPrice, websiteItem?.url || websiteItem?.website_url)) {
+    console.warn("Ignored suspicious website item price because currency does not match product URL", {
+      productUrl: websiteItem?.url || null,
+      rawPrice: truncateText(String(fallbackPriceRaw || currentPriceRaw || originalPriceRaw || ""), 80),
+    });
+
+    return {
+      displayPrice: "",
+      currentPrice: "",
+      salePrice: "",
+      originalPrice: "",
+      isOnSale: false,
+    };
+  }
+
+  return {
+    displayPrice,
+    currentPrice: displayPrice,
+    salePrice: isOnSale ? displayPrice : "",
+    originalPrice: isOnSale ? originalPrice : "",
+    isOnSale,
+  };
+}
+
 function getTrustedProductCardPrice(item) {
-  return getTrustedWebsiteItemPrice(item);
+  return getTrustedWebsiteItemPricing(item).displayPrice;
 }
 
 function buildCenteredSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400, fill = "#0f172a" }) {
@@ -203,16 +408,35 @@ async function renderCarouselProductSlideImage({
   const imageX = 116;
   const imageY = 104;
   const imageWidth = 848;
-  const imageHeight = 660;
+  const imageHeight = 640;
   const centerX = width / 2;
 
+  const pricingSource = product && typeof product === 'object' ? { ...product } : {};
+  if (price && !pricingSource.price) {
+    pricingSource.price = price;
+  }
+
+  const trustedBrand = getTrustedProductCardBrand(pricingSource);
   const trustedTitle = getTrustedProductCardTitle({
-    title: title || product?.title || product?.name || product?.product_title || "",
+    title: title || pricingSource?.title || pricingSource?.name || pricingSource?.product_title || "",
   });
-  const trustedPrice = normalizeVerifiedPriceValue(price || getTrustedProductCardPrice(product));
+  const pricing = getTrustedWebsiteItemPricing(pricingSource);
   const titleLines = trustedTitle ? wrapSvgText(trustedTitle, 28, 2) : [];
-  const titleY = titleLines.length > 1 ? 824 : 846;
-  const priceY = titleLines.length > 1 ? 938 : 928;
+  const brandLines = trustedBrand ? wrapSvgText(trustedBrand, 36, 1) : [];
+  const hasBrand = brandLines.length > 0;
+  const titleY = hasBrand ? 830 : titleLines.length > 1 ? 824 : 846;
+  const priceY = hasBrand ? (titleLines.length > 1 ? 936 : 924) : (titleLines.length > 1 ? 938 : 928);
+
+  const brandSvg = hasBrand
+    ? buildCenteredSvgTextBlock(brandLines, {
+        x: centerX,
+        y: 792,
+        fontSize: 21,
+        lineHeight: 24,
+        fontWeight: 600,
+        fill: '#64748b',
+      })
+    : '';
 
   const titleSvg = titleLines.length
     ? buildCenteredSvgTextBlock(titleLines, {
@@ -220,18 +444,30 @@ async function renderCarouselProductSlideImage({
         y: titleY,
         fontSize: 37,
         lineHeight: 46,
-        fontWeight: 600,
-        fill: "#111827",
+        fontWeight: 700,
+        fill: '#111827',
       })
-    : "";
+    : '';
 
-  const priceSvg = trustedPrice
-    ? `<text x="${centerX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="42" font-weight="800" fill="#0f172a" text-anchor="middle">${escapeSvg(trustedPrice)}</text>`
-    : "";
+  let priceSvg = '';
+  if (pricing.isOnSale && pricing.salePrice && pricing.originalPrice) {
+    const saleX = centerX - 20;
+    const originalX = centerX + 20;
+    const originalFontSize = 26;
+    const estimatedWidth = Math.max(pricing.originalPrice.length * originalFontSize * 0.58, 48);
 
-  const dividerSvg = (titleSvg || priceSvg)
-    ? `<line x1="156" y1="790" x2="924" y2="790" stroke="#eef2f7" stroke-width="2"/>`
-    : "";
+    priceSvg = `
+      <text x="${saleX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="44" font-weight="800" fill="#dc2626" text-anchor="end">${escapeSvg(pricing.salePrice)}</text>
+      <text x="${originalX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${originalFontSize}" font-weight="600" fill="#94a3b8" text-anchor="start">${escapeSvg(pricing.originalPrice)}</text>
+      <line x1="${originalX}" y1="${priceY - 10}" x2="${originalX + estimatedWidth}" y2="${priceY - 10}" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"/>
+    `;
+  } else if (pricing.displayPrice) {
+    priceSvg = `<text x="${centerX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="42" font-weight="800" fill="#0f172a" text-anchor="middle">${escapeSvg(pricing.displayPrice)}</text>`;
+  }
+
+  const dividerSvg = (brandSvg || titleSvg || priceSvg)
+    ? `<line x1="156" y1="754" x2="924" y2="754" stroke="#eef2f7" stroke-width="2"/>`
+    : '';
 
   const backgroundSvg = `
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -239,6 +475,7 @@ async function renderCarouselProductSlideImage({
       <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${cardHeight}" rx="42" fill="#ffffff" stroke="#d9e2f0" stroke-width="3"/>
       <rect x="${imageX}" y="${imageY}" width="${imageWidth}" height="${imageHeight}" rx="30" fill="#f8fafc"/>
       ${dividerSvg}
+      ${brandSvg}
       ${titleSvg}
       ${priceSvg}
     </svg>
@@ -2547,22 +2784,7 @@ function isLikelyWrongUsdPriceForUrl(price, url) {
 }
 
 function getTrustedWebsiteItemPrice(websiteItem) {
-  const price = normalizeVerifiedPriceValue(websiteItem?.price);
-
-  if (!price) {
-    return "";
-  }
-
-  if (isLikelyWrongUsdPriceForUrl(price, websiteItem?.url || websiteItem?.website_url)) {
-    console.warn("Ignored suspicious website item price because currency does not match product URL", {
-      productUrl: websiteItem?.url || null,
-      rawPrice: truncateText(String(websiteItem?.price || ""), 80),
-    });
-
-    return "";
-  }
-
-  return price;
+  return getTrustedWebsiteItemPricing(websiteItem).displayPrice;
 }
 
 function isStandaloneUnsupportedPriceLine(line, verifiedDigits) {
@@ -2996,14 +3218,34 @@ function getCarouselEmailProductTitle(slide) {
   return normalizeSlideText(title.replace(/\s+/g, " "), 68);
 }
 
-function getCarouselEmailProductPrice(slide) {
+function getCarouselEmailProductBrand(slide) {
   const metadata = getCarouselEmailSlideMetadata(slide);
-  const price = normalizeVerifiedPriceValue(metadata.product_price || slide?.product_price || "");
-  if (!price || String(metadata.carousel_slide_role || "").toLowerCase().includes("outro")) {
+  if (String(metadata.carousel_slide_role || "").toLowerCase().includes("outro")) {
     return "";
   }
 
-  return price;
+  return getTrustedProductCardBrand({
+    brand_name: metadata.product_brand || slide?.product_brand || "",
+  });
+}
+
+function getCarouselEmailProductPricing(slide) {
+  const metadata = getCarouselEmailSlideMetadata(slide);
+  if (String(metadata.carousel_slide_role || "").toLowerCase().includes("outro")) {
+    return {
+      displayPrice: "",
+      currentPrice: "",
+      salePrice: "",
+      originalPrice: "",
+      isOnSale: false,
+    };
+  }
+
+  return getTrustedWebsiteItemPricing({
+    price: metadata.product_price || slide?.product_price || "",
+    sale_price: metadata.product_sale_price || "",
+    original_price: metadata.product_original_price || "",
+  });
 }
 
 function buildCarouselEmailPreviewHtml(carouselSlides = []) {
@@ -3015,9 +3257,10 @@ function buildCarouselEmailPreviewHtml(carouselSlides = []) {
 
   const cards = slides
     .map((slide) => {
+      const productBrand = getCarouselEmailProductBrand(slide);
       const productTitle = getCarouselEmailProductTitle(slide);
-      const productPrice = getCarouselEmailProductPrice(slide);
-      const hasProductInfo = productTitle || productPrice;
+      const pricing = getCarouselEmailProductPricing(slide);
+      const hasProductInfo = productBrand || productTitle || pricing.displayPrice;
       const imageMaxHeight = hasProductInfo ? "128px" : "180px";
 
       return `
@@ -3031,8 +3274,13 @@ function buildCarouselEmailPreviewHtml(carouselSlides = []) {
           ${hasProductInfo ? `
           <tr>
             <td style="padding:8px 8px 10px;text-align:center;background:#ffffff;border-top:1px solid #f1f5f9;">
+              ${productBrand ? `<div style="font-size:10px;line-height:1.2;color:#64748b;font-weight:600;margin-bottom:4px;">${escapeHtml(productBrand)}</div>` : ""}
               ${productTitle ? `<div style="font-size:11px;line-height:1.25;color:#111827;font-weight:700;min-height:28px;">${escapeHtml(productTitle)}</div>` : ""}
-              ${productPrice ? `<div style="font-size:14px;line-height:1.2;color:#111827;font-weight:800;margin-top:5px;">${escapeHtml(productPrice)}</div>` : ""}
+              ${pricing.isOnSale && pricing.salePrice && pricing.originalPrice
+                ? `<div style="margin-top:5px;white-space:nowrap;"><span style="font-size:14px;line-height:1.2;color:#dc2626;font-weight:800;">${escapeHtml(pricing.salePrice)}</span><span style="font-size:11px;line-height:1.2;color:#94a3b8;font-weight:600;text-decoration:line-through;margin-left:6px;">${escapeHtml(pricing.originalPrice)}</span></div>`
+                : pricing.displayPrice
+                  ? `<div style="font-size:14px;line-height:1.2;color:#111827;font-weight:800;margin-top:5px;">${escapeHtml(pricing.displayPrice)}</div>`
+                  : ""}
             </td>
           </tr>
           ` : ""}
@@ -10739,7 +10987,10 @@ async function saveCarouselSlidesForPost({
         source_image_url: sourceSlideImageUrl || null,
         rendered_slide: slideRenderedBy !== 'source_image',
         product_title: slideProduct?.title || slide.product_title || null,
-        product_price: getTrustedProductCardPrice(slideProduct) || slide.product_price || null,
+        product_brand: getTrustedProductCardBrand(slideProduct) || null,
+        product_price: getTrustedWebsiteItemPricing(slideProduct || {}).displayPrice || slide.product_price || null,
+        product_sale_price: getTrustedWebsiteItemPricing(slideProduct || {}).salePrice || null,
+        product_original_price: getTrustedWebsiteItemPricing(slideProduct || {}).originalPrice || null,
         product_card_render_error: productCardRenderError || null,
       },
     });
