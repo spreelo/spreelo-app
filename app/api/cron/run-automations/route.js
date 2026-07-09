@@ -1438,6 +1438,11 @@ function selectCampaignCarouselProductsByDeliveryLadder({
   limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
 }) {
   const selected = [];
+  const requiresCampaignSignal = Boolean(
+    extractCampaignCoreThemeTerms(rule).length ||
+      extractCampaignAnchorTerms(rule).length ||
+      extractExplicitCampaignMatchTerms(rule).length
+  );
 
   function addProduct(item) {
     if (!isValidCarouselProduct(item)) {
@@ -1470,6 +1475,11 @@ function selectCampaignCarouselProductsByDeliveryLadder({
       const anchorMatches = countCampaignAnchorTermMatches(item, rule);
       const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
       const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
+      const aiCampaignFitScore = getAiCampaignFitScore(item);
+      const hasDirectCampaignSignal = themeMatches + anchorMatches + primaryMatches > 0;
+      const hasAiCampaignApproval =
+        aiCampaignFitScore !== null &&
+        aiCampaignFitScore >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE;
       const { wasUsedRecently, imageUsedThisRun } = getCampaignCandidateUsageState(
         item,
         recentUsedItems,
@@ -1493,6 +1503,8 @@ function selectCampaignCarouselProductsByDeliveryLadder({
           anchorMatches,
           themeMatches,
           sourceThemeMatches,
+          hasDirectCampaignSignal,
+          hasMeaningfulCampaignSignal: hasDirectCampaignSignal || hasAiCampaignApproval,
           wasUsedRecently,
           imageUsedThisRun,
           usageCount,
@@ -1500,6 +1512,15 @@ function selectCampaignCarouselProductsByDeliveryLadder({
           selectionPriority,
         },
       };
+    })
+    .filter((candidate) => {
+      const sort = candidate?._deliverySort || {};
+
+      if (Number(sort.campaignFitScore || 0) < CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) {
+        return false;
+      }
+
+      return !requiresCampaignSignal || Boolean(sort.hasMeaningfulCampaignSignal);
     })
     .sort((a, b) => {
       const aSort = a?._deliverySort || {};
@@ -2876,6 +2897,8 @@ website_image_missing_ai_fallback: 0,
 website_web_search_success: 0,
 website_web_search_failed: 0,
 website_web_search_fallback_used: 0,
+    automation_run_logs_started: 0,
+    automation_run_logs_finished: 0,
   };
 }
 
@@ -3062,6 +3085,170 @@ ${approveUrl}
 
 ${t(afterKey)}
 `.trim();
+}
+
+
+function isMissingAutomationRunLogsTableError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return error?.code === "42P01" || message.includes("automation_run_logs") && message.includes("does not exist");
+}
+
+function compactAutomationRunLogError(errorMessage) {
+  const message = String(errorMessage || "").trim();
+  if (!message) {
+    return null;
+  }
+
+  return message.slice(0, 1200);
+}
+
+function collectAutomationRunProductLogData({ websiteItem = null, websiteItems = [] } = {}) {
+  const allItems = [
+    ...(Array.isArray(websiteItems) ? websiteItems : []),
+    websiteItem,
+  ].filter(Boolean);
+
+  const uniqueByUrl = new Map();
+
+  for (const item of allItems) {
+    const key = normalizeComparableValue(item?.url) || normalizeComparableValue(item?.title);
+    if (!key || uniqueByUrl.has(key)) {
+      continue;
+    }
+
+    uniqueByUrl.set(key, item);
+  }
+
+  const uniqueItems = Array.from(uniqueByUrl.values());
+
+  const searchMethods = Array.from(new Set(
+    uniqueItems
+      .flatMap((item) => [
+        item?.discovery_source,
+        item?.catalog_source,
+        item?.source,
+        item?.selection_source,
+        item?.research_source,
+      ])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+  )).slice(0, 20);
+
+  return {
+    productsSelected: uniqueItems.length,
+    productTitles: uniqueItems
+      .map((item) => String(item?.title || item?.name || "").trim())
+      .filter(Boolean)
+      .slice(0, 12),
+    productUrls: uniqueItems
+      .map((item) => String(item?.url || "").trim())
+      .filter(Boolean)
+      .slice(0, 12),
+    searchMethods,
+  };
+}
+
+async function createAutomationRunLog({ supabase, rule, startedAtIso }) {
+  try {
+    const { data, error } = await supabase
+      .from("automation_run_logs")
+      .insert({
+        user_id: rule.user_id,
+        brand_profile_id: rule.brand_profile_id || null,
+        rule_id: rule.id,
+        status: "running",
+        started_at: startedAtIso,
+        content_type_id: rule.content_type_id || null,
+        content_format: normalizeContentFormat(rule.content_format),
+        product_match_terms: rule.product_match_terms || null,
+        product_search_queries: rule.product_search_queries || null,
+        metadata: {
+          rule_name: rule.name || rule.title || null,
+          post_type: rule.post_type || null,
+          uses_website_content: Boolean(rule.uses_website_content),
+          generate_image: Boolean(rule.generate_image),
+        },
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      if (!isMissingAutomationRunLogsTableError(error)) {
+        console.warn("Could not create automation run log", {
+          ruleId: rule.id,
+          message: error.message,
+        });
+      }
+      return null;
+    }
+
+    return data?.id || null;
+  } catch (error) {
+    if (!isMissingAutomationRunLogsTableError(error)) {
+      console.warn("Could not create automation run log", {
+        ruleId: rule?.id,
+        message: error.message,
+      });
+    }
+    return null;
+  }
+}
+
+async function finishAutomationRunLog({
+  supabase,
+  runLogId,
+  status,
+  startedAtIso,
+  errorMessage = null,
+  postId = null,
+  websiteItem = null,
+  websiteItems = [],
+  extraSummary = {},
+}) {
+  if (!runLogId) {
+    return;
+  }
+
+  const finishedAtIso = new Date().toISOString();
+  const durationMs = Math.max(0, new Date(finishedAtIso).getTime() - new Date(startedAtIso).getTime());
+  const productData = collectAutomationRunProductLogData({ websiteItem, websiteItems });
+
+  try {
+    const { error } = await supabase
+      .from("automation_run_logs")
+      .update({
+        status,
+        finished_at: finishedAtIso,
+        duration_ms: Number.isFinite(durationMs) ? durationMs : null,
+        error_message: compactAutomationRunLogError(errorMessage),
+        post_id: postId || null,
+        products_selected: productData.productsSelected,
+        product_titles: productData.productTitles,
+        product_urls: productData.productUrls,
+        search_methods: productData.searchMethods,
+        metadata: {
+          ...extraSummary,
+          website_items_found: Array.isArray(websiteItems) ? websiteItems.length : 0,
+          selected_product_count: productData.productsSelected,
+        },
+        updated_at: finishedAtIso,
+      })
+      .eq("id", runLogId);
+
+    if (error && !isMissingAutomationRunLogsTableError(error)) {
+      console.warn("Could not finish automation run log", {
+        runLogId,
+        message: error.message,
+      });
+    }
+  } catch (error) {
+    if (!isMissingAutomationRunLogsTableError(error)) {
+      console.warn("Could not finish automation run log", {
+        runLogId,
+        message: error.message,
+      });
+    }
+  }
 }
 
 async function setRuleError(supabase, ruleId, message) {
@@ -8792,6 +8979,20 @@ async function findProductUrlWithWebSearch({
   }
 
   const isBackupAttempt = attempt === "backup_broad";
+  const isDomainSearchAttempt = attempt === "domain_site_search";
+  const productSearchQueries = splitCampaignTermLine(rule?.product_search_queries).slice(0, 10);
+  const productMatchTerms = splitCampaignTermLine(rule?.product_match_terms).slice(0, 16);
+  const searchHintTerms = collectUniqueTerms(
+    [
+      rule?.name,
+      ...productSearchQueries,
+      ...productMatchTerms,
+      rule?.product_search_intent,
+      rule?.campaign_goal,
+      rule?.target_customer_need,
+    ],
+    18
+  );
   const usedProductsBlock = formatUsedWebsiteItemsForResearchPrompt(
     usedWebsiteItems,
     WEBSITE_PRODUCT_REUSE_LIMIT
@@ -8832,17 +9033,30 @@ Reuse rule:
 
 Research mode:
 ${
-  isBackupAttempt
+  isDomainSearchAttempt
     ? `
+This is a domain-restricted web search attempt.
+
+The normal store/catalog search did not return enough usable products. Search the public web inside the customer's domain like a human researcher would.
+Use domain-restricted queries such as:
+- site:${websiteHost} ${searchHintTerms.slice(0, 6).join(" ")}
+- site:${websiteHost} ${productSearchQueries.slice(0, 4).join(" OR ") || rule?.name || "products"}
+- site:${websiteHost} ${productMatchTerms.slice(0, 6).join(" OR ") || rule?.name || "products"}
+
+If the campaign terms appear to be in a different language than the website, infer the website/store language and also try the local-language equivalents a shopper would type on that site.
+Return concrete product pages only. Use category/search/campaign pages only as discovery_pages.
+`.trim()
+    : isBackupAttempt
+      ? `
 This is a backup attempt.
 
-The first attempt did not find a usable product page.
+The first attempts did not find enough usable product pages.
 
 Now broaden the search, but still return ONLY real product pages.
 If the perfect campaign match is hard to find, choose the best concrete product from the customer website that is still reasonably useful for the campaign.
 Do not return category pages, brand pages, gift guide pages, age pages or campaign pages.
 `.trim()
-    : `
+      : `
 This is the primary attempt.
 
 Find the strongest product match for the campaign.
@@ -8869,6 +9083,8 @@ Do not choose a product just because it exists on the website.
 Choose products because they match the campaign intent.
 
 Search strategy:
+- Use domain-restricted web searches when helpful. Prefer queries that explicitly restrict results to the allowed domain, for example site:${websiteHost} plus the campaign/theme/product terms.
+- If product_search_queries are missing, weak or too generic, derive search queries yourself from the campaign title, campaign prompt, website language, market and business type. Do not treat an empty product_search_queries field as permission to stop.
 - First infer the customer's website language and the local words the website is likely to use for the campaign/holiday/season/occasion. Use those local-language terms in search queries before generic gift or product searches.
 - First search the customer site for category, collection, campaign, search-result or landing pages that match the campaign/theme/occasion in the site's own language.
 - Open the most relevant campaign/theme/category area and identify concrete product pages from there.
@@ -9076,7 +9292,7 @@ async function findWebsiteProductWithWebSearch({
   fitModel = PRODUCT_RESEARCH_MODEL,
   fitMinimumStrongProducts = CAROUSEL_MIN_PRODUCT_SLIDES,
 }) {
-  const attempts = ["best_match"];
+  const attempts = ["best_match", "domain_site_search", "backup_broad"];
   const verifiedItems = [];
   const seenUrls = new Set();
   const seenImages = new Set();
@@ -11560,6 +11776,34 @@ export async function GET(request) {
     for (const rule of rules || []) {
       summary.processed += 1;
 
+      let automationRunStartedAtIso = null;
+      let automationRunLogId = null;
+      let automationRunFinished = false;
+      let automationRunPostId = null;
+      let automationRunWebsiteItem = null;
+      let automationRunWebsiteItems = [];
+
+      const finishRunLog = async (status, errorMessage = null, extraSummary = {}) => {
+        if (automationRunFinished || !automationRunLogId) {
+          return;
+        }
+
+        await finishAutomationRunLog({
+          supabase,
+          runLogId: automationRunLogId,
+          status,
+          startedAtIso: automationRunStartedAtIso,
+          errorMessage,
+          postId: automationRunPostId,
+          websiteItem: automationRunWebsiteItem,
+          websiteItems: automationRunWebsiteItems,
+          extraSummary,
+        });
+
+        automationRunFinished = true;
+        summary.automation_run_logs_finished += 1;
+      };
+
       try {
         if (hasAlreadyRunToday(rule, now)) {
           summary.skipped += 1;
@@ -11576,6 +11820,17 @@ export async function GET(request) {
           summary.skipped += 1;
           summary.skipped_locked += 1;
           continue;
+        }
+
+        automationRunStartedAtIso = new Date().toISOString();
+        automationRunLogId = await createAutomationRunLog({
+          supabase,
+          rule,
+          startedAtIso: automationRunStartedAtIso,
+        });
+
+        if (automationRunLogId) {
+          summary.automation_run_logs_started += 1;
         }
 
         const recentDrafts = await findRecentAutomationDraftsForRule({
@@ -11611,6 +11866,8 @@ export async function GET(request) {
             "Skipped because this automation rule already has a recent completed draft awaiting review."
           );
 
+          await finishRunLog("skipped", "Skipped because this automation rule already has a recent completed draft awaiting review.", { stage: "existing_completed_draft" });
+
           summary.skipped += 1;
           summary.skipped_existing_draft += 1;
           continue;
@@ -11630,6 +11887,8 @@ export async function GET(request) {
 
           await setRuleError(supabase, rule.id, message);
 
+          await finishRunLog("skipped", message, { stage: "credit_balance" });
+
           summary.skipped += 1;
           summary.no_credit_balance += 1;
           continue;
@@ -11641,6 +11900,8 @@ export async function GET(request) {
           const message = "Not enough credits";
 
           await setRuleError(supabase, rule.id, message);
+
+          await finishRunLog("skipped", message, { stage: "credits" });
 
           summary.skipped += 1;
           summary.not_enough_credits += 1;
@@ -11679,11 +11940,15 @@ let websitePreparedRule = rule;
             websiteCycleNumber = preparedCarouselProducts.websiteCycleNumber;
             useWebsiteImage = Boolean(preparedCarouselProducts.useWebsiteImage);
             websitePreparedRule = rule;
+            automationRunWebsiteItem = websiteItem;
+            automationRunWebsiteItems = websiteItems;
           } catch (carouselError) {
             const message = carouselError.message ||
               `Website carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} products with product images.`;
 
             await setRuleError(supabase, rule.id, message);
+
+            await finishRunLog("failed", message, { stage: "carousel_product_prepare" });
 
             summary.skipped += 1;
             summary.website_content_failed += 1;
@@ -11704,6 +11969,8 @@ let websitePreparedRule = rule;
             websiteCycleNumber = preparedWebsiteContent.websiteCycleNumber;
             useWebsiteImage = Boolean(preparedWebsiteContent.useWebsiteImage);
             websitePreparedRule = preparedWebsiteContent.websiteRule || rule;
+            automationRunWebsiteItem = websiteItem;
+            automationRunWebsiteItems = websiteItem ? [websiteItem] : [];
           } catch (websiteError) {
             summary.website_content_failed += 1;
 
@@ -11734,6 +12001,8 @@ let websitePreparedRule = rule;
           const message = "OpenAI returned empty content";
 
           await setRuleError(supabase, rule.id, message);
+
+          await finishRunLog("failed", message, { stage: "content_generation" });
 
           summary.errors += 1;
           continue;
@@ -11798,9 +12067,13 @@ product_research_model_used: rule.uses_website_content
 
           await setRuleError(supabase, rule.id, message);
 
+          await finishRunLog("failed", message, { stage: "post_insert" });
+
           summary.errors += 1;
           continue;
         }
+
+        automationRunPostId = post.id;
 
         let imageUrl = null;
         let imageStoragePath = null;
@@ -12075,6 +12348,8 @@ product_research_model_used: rule.uses_website_content
 
           await setRuleError(supabase, rule.id, message);
 
+          await finishRunLog("failed", message, { stage: "credit_update" });
+
           summary.errors += 1;
           continue;
         }
@@ -12099,6 +12374,8 @@ product_research_model_used: rule.uses_website_content
 
           await setRuleError(supabase, rule.id, message);
 
+          await finishRunLog("failed", message, { stage: "credit_transaction" });
+
           summary.errors += 1;
           continue;
         }
@@ -12115,6 +12392,11 @@ product_research_model_used: rule.uses_website_content
           .eq("id", rule.id);
 
         if (ruleUpdateError) {
+          await finishRunLog("success", null, {
+            stage: "rule_update_warning",
+            rule_update_error: ruleUpdateError.message || null,
+            email_sent: effectivePostStatus === "pending_approval" && summary.emails_sent > 0,
+          });
           summary.warnings += 1;
           continue;
         }
@@ -12128,10 +12410,18 @@ product_research_model_used: rule.uses_website_content
       if (effectivePostStatus === "approved") {
   summary.approved += 1;
 }
+
+        await finishRunLog("success", null, {
+          stage: "completed",
+          effective_post_status: effectivePostStatus,
+          email_expected: effectivePostStatus === "pending_approval",
+        });
       } catch (error) {
         const message = error.message || "Unknown automation error";
 
         await setRuleError(supabase, rule.id, message);
+
+        await finishRunLog("failed", message, { stage: "unhandled" });
 
         summary.errors += 1;
       }
