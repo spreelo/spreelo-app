@@ -160,8 +160,39 @@ function buildSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400
 }
 
 
+function getTrustedProductCardTitle(item) {
+  const title = String(item?.title || item?.name || item?.product_title || "").trim();
+  if (!title || title.length < 2) {
+    return "";
+  }
+
+  return normalizeSlideText(title.replace(/\s+/g, " "), 96);
+}
+
+function getTrustedProductCardPrice(item) {
+  return getTrustedWebsiteItemPrice(item);
+}
+
+function buildCenteredSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400, fill = "#0f172a" }) {
+  if (!Array.isArray(lines) || !lines.length) {
+    return "";
+  }
+
+  const spans = lines
+    .map((line, index) => {
+      const dy = index === 0 ? 0 : lineHeight;
+      return `<tspan x="${x}" dy="${dy}">${escapeSvg(line)}</tspan>`;
+    })
+    .join("");
+
+  return `<text x="${x}" y="${y}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}" text-anchor="middle">${spans}</text>`;
+}
+
 async function renderCarouselProductSlideImage({
   sourceImageUrl,
+  product = null,
+  title = "",
+  price = "",
 }) {
   const width = 1080;
   const height = 1080;
@@ -170,15 +201,46 @@ async function renderCarouselProductSlideImage({
   const cardWidth = 952;
   const cardHeight = 952;
   const imageX = 116;
-  const imageY = 116;
+  const imageY = 104;
   const imageWidth = 848;
-  const imageHeight = 848;
+  const imageHeight = 660;
+  const centerX = width / 2;
+
+  const trustedTitle = getTrustedProductCardTitle({
+    title: title || product?.title || product?.name || product?.product_title || "",
+  });
+  const trustedPrice = normalizeVerifiedPriceValue(price || getTrustedProductCardPrice(product));
+  const titleLines = trustedTitle ? wrapSvgText(trustedTitle, 28, 2) : [];
+  const titleY = titleLines.length > 1 ? 824 : 846;
+  const priceY = titleLines.length > 1 ? 938 : 928;
+
+  const titleSvg = titleLines.length
+    ? buildCenteredSvgTextBlock(titleLines, {
+        x: centerX,
+        y: titleY,
+        fontSize: 37,
+        lineHeight: 46,
+        fontWeight: 600,
+        fill: "#111827",
+      })
+    : "";
+
+  const priceSvg = trustedPrice
+    ? `<text x="${centerX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="42" font-weight="800" fill="#0f172a" text-anchor="middle">${escapeSvg(trustedPrice)}</text>`
+    : "";
+
+  const dividerSvg = (titleSvg || priceSvg)
+    ? `<line x1="156" y1="790" x2="924" y2="790" stroke="#eef2f7" stroke-width="2"/>`
+    : "";
 
   const backgroundSvg = `
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <rect width="${width}" height="${height}" rx="0" fill="#f5f7fb"/>
       <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${cardHeight}" rx="42" fill="#ffffff" stroke="#d9e2f0" stroke-width="3"/>
       <rect x="${imageX}" y="${imageY}" width="${imageWidth}" height="${imageHeight}" rx="30" fill="#f8fafc"/>
+      ${dividerSvg}
+      ${titleSvg}
+      ${priceSvg}
     </svg>
   `;
 
@@ -2665,7 +2727,7 @@ Website factual grounding rules:
 - Always include the Destination URL in the final post when a Destination URL is available.
 - If a selected website item is provided, the Destination URL should be the selected item URL, not just the homepage.
 - Place the Destination URL near the end of the post, before hashtags if hashtags are used.
-- Keep URLs clean and professional: use the canonical product URL only, without tracking parameters or long collection/search query variants.
+- Keep URLs clean and professional in the visible caption: show only the website domain, such as example.com, not a long product/category/search URL. The saved internal Destination URL may still be the exact product URL.
 - Do not paste multiple links. Use one URL maximum.
 - The Destination URL may be introduced with a safe CTA such as "See the product", "View the product", "See our current selection", "Explore available products", "Visit our website", "Learn more about the business", "Contact us through the website" or similar.
 - Do not claim that the website contains information about a specific topic, service, product, guide, offer, article or page unless that exact information was provided in the Brand profile or Selected website item.
@@ -2689,7 +2751,7 @@ Output rules:
 - For carousel slide titles, use benefit/occasion/gift-angle wording instead of only copying product names when a campaign theme is provided.
 - If the selected platform includes both Facebook and Instagram, write a strong core post that works on both. Avoid platform-specific wording such as "click the link" unless a Destination URL is actually included.
 - Never mention a price unless it was provided as Verified price for the selected website item. If you mention it, write it naturally inside the text, never as a standalone line.
-- Always include the Destination URL in the final post if Destination URL is provided.
+- Always include the website domain in the final post if Destination URL is provided; do not show the full long product/category URL in the visible caption.
 - If emojis are disabled, do not use emojis.
 - If hashtags are enabled, include relevant hashtags at the end.
 - If hashtags are disabled, do not include hashtags.
@@ -10301,6 +10363,8 @@ function buildFallbackProductCarouselSlides(rule, products, postContent = "") {
     cta_text: "",
     product_url: product.url || null,
     image_url: product.image_url || null,
+    product_title: product.title || null,
+    product_price: getTrustedProductCardPrice(product) || null,
   }));
 
   productSlides.push({
@@ -10424,6 +10488,8 @@ Return JSON exactly in this shape:
         cta_text: normalizeSlideText(slide.cta_text || slide.cta || "", 80),
         product_url: product.url || null,
         image_url: product.image_url || null,
+        product_title: product.title || null,
+        product_price: getTrustedProductCardPrice(product) || null,
       };
     });
 
@@ -10491,7 +10557,8 @@ async function saveCarouselSlidesForPost({
   for (let index = 0; index < slides.length; index += 1) {
     const slide = slides[index] || {};
     const isOutroSlide = String(slide.slide_type || '').toLowerCase() === 'product_outro';
-    const sourceSlideImageUrl = slide.image_url || (!isOutroSlide && index === 0 ? imageUrl || selectedItem?.image_url : null) || null;
+    const slideProduct = !isOutroSlide ? carouselProducts[index] || null : null;
+    const sourceSlideImageUrl = slide.image_url || slideProduct?.image_url || (!isOutroSlide && index === 0 ? imageUrl || selectedItem?.image_url : null) || null;
     let slideImageUrl = sourceSlideImageUrl;
     let slideStoragePath = !isOutroSlide && index === 0 ? imageStoragePath || null : null;
     let generatedImagePrompt = null;
@@ -10500,10 +10567,10 @@ async function saveCarouselSlidesForPost({
     if (!isOutroSlide && sourceSlideImageUrl) {
       try {
         const { imageBase64 } = await renderCarouselProductSlideImage({
-          slide,
-          brandName: rule?.brand_profile?.business_name || 'Spreelo',
           sourceImageUrl: sourceSlideImageUrl,
-          language: normalizeSingleContentLanguage(rule?.language || rule?.brand_profile?.content_language, 'English'),
+          product: slideProduct || slide,
+          title: slideProduct?.title || slide.product_title || slide.headline || "",
+          price: getTrustedProductCardPrice(slideProduct) || slide.product_price || "",
         });
 
         const uploadedImage = await uploadGeneratedImageToStorage({
@@ -10612,6 +10679,8 @@ async function saveCarouselSlidesForPost({
         overlay_text: slide.overlay_text || null,
         source_image_url: sourceSlideImageUrl || null,
         rendered_slide: slideRenderedBy !== 'source_image',
+        product_title: slideProduct?.title || slide.product_title || null,
+        product_price: getTrustedProductCardPrice(slideProduct) || slide.product_price || null,
       },
     });
   }
@@ -11066,8 +11135,17 @@ function extractUrlsFromText(value) {
 }
 
 function cleanUrlForCaption(value) {
-  const cleaned = String(value || "").replace(/[).,!?:;]+$/g, "");
-  return canonicalizeWebsiteProductUrl(cleaned, cleaned) || cleaned;
+  const raw = String(value || "");
+  const trailing = raw.match(/[).,!?:;]+$/)?.[0] || "";
+  const cleaned = raw.replace(/[).,!?:;]+$/g, "");
+
+  try {
+    const url = new URL(cleaned);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    return `${host}${trailing}`;
+  } catch {
+    return cleaned;
+  }
 }
 
 function cleanPostContentUrls(content) {
@@ -12239,7 +12317,33 @@ product_research_model_used: rule.uses_website_content
         if (wantsImage && websiteItem?.image_url && useWebsiteImage) {
           imageUrl = websiteItem.image_url;
           finalImagePrompt =
-            "Website image selected because it appears connected to the selected website item.";
+            "Website product card rendered from verified website image, product name and price when available.";
+
+          try {
+            const { imageBase64 } = await renderCarouselProductSlideImage({
+              sourceImageUrl: websiteItem.image_url,
+              product: websiteItem,
+              title: websiteItem.title || "",
+              price: getTrustedProductCardPrice(websiteItem) || "",
+            });
+
+            const uploadedProductCard = await uploadGeneratedImageToStorage({
+              supabase,
+              imageBase64,
+              userId: rule.user_id,
+              postId: post.id,
+              fileSuffix: "website-product-card",
+            });
+
+            imageUrl = uploadedProductCard.imageUrl || imageUrl;
+            imageStoragePath = uploadedProductCard.imageStoragePath || imageStoragePath;
+          } catch (renderError) {
+            console.error("Website product card render failed, using original website image", {
+              ruleId: rule.id,
+              postId: post.id,
+              message: renderError.message,
+            });
+          }
 
           const logoOverlayResult = await applyLogoOverlayIfNeeded({
             supabase,
