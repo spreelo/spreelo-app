@@ -3102,6 +3102,76 @@ function compactAutomationRunLogError(errorMessage) {
   return message.slice(0, 1200);
 }
 
+function normalizeAutomationRunLogSearchMethod(value) {
+  const rawValue = String(value || "").trim();
+  const normalizedValue = rawValue.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+  if (!normalizedValue) {
+    return "";
+  }
+
+  if (normalizedValue.includes("domain_site_search")) {
+    return "domain_site_search";
+  }
+
+  if (normalizedValue.includes("backup_broad")) {
+    return "domain_web_search_backup_broad";
+  }
+
+  if (normalizedValue.includes("best_match")) {
+    return "domain_web_search_best_match";
+  }
+
+  if (normalizedValue.includes("ai_discovery_page")) {
+    return "ai_discovery_page";
+  }
+
+  if (normalizedValue.includes("product_research") || normalizedValue.includes("web_search") || normalizedValue.includes("ai_web")) {
+    return "ai_domain_web_search";
+  }
+
+  if (normalizedValue.includes("campaign_search_pool") || normalizedValue.includes("store_search")) {
+    return "store_search";
+  }
+
+  if (normalizedValue.includes("campaign_catalog_term_match")) {
+    return "catalog_campaign_term_match";
+  }
+
+  if (normalizedValue.includes("brand_catalog") || normalizedValue.includes("catalog") || normalizedValue.includes("selected")) {
+    return "existing_product_catalog";
+  }
+
+  return normalizedValue.slice(0, 80);
+}
+
+function inferAutomationRunLogSearchMethodForItem(item) {
+  const methodCandidates = [
+    item?.automation_search_method,
+    item?.product_search_method,
+    item?.search_method,
+    item?.search_attempt,
+    item?.web_search_attempt,
+    item?.discovery_attempt,
+    item?.campaign_fit_source,
+    item?.discovery_source,
+    item?.catalog_source,
+    item?.used_source,
+    item?.source,
+    item?.selection_source,
+    item?.research_source,
+  ];
+
+  for (const candidate of methodCandidates) {
+    const normalized = normalizeAutomationRunLogSearchMethod(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "existing_product_catalog";
+}
+
 function collectAutomationRunProductLogData({ websiteItem = null, websiteItems = [] } = {}) {
   const allItems = [
     ...(Array.isArray(websiteItems) ? websiteItems : []),
@@ -3120,19 +3190,27 @@ function collectAutomationRunProductLogData({ websiteItem = null, websiteItems =
   }
 
   const uniqueItems = Array.from(uniqueByUrl.values());
+  const methodCounts = {};
+  const productDetails = [];
 
-  const searchMethods = Array.from(new Set(
-    uniqueItems
-      .flatMap((item) => [
-        item?.discovery_source,
-        item?.catalog_source,
-        item?.source,
-        item?.selection_source,
-        item?.research_source,
-      ])
-      .map((value) => String(value || "").trim())
-      .filter(Boolean)
-  )).slice(0, 20);
+  for (const item of uniqueItems) {
+    const method = inferAutomationRunLogSearchMethodForItem(item);
+    methodCounts[method] = (methodCounts[method] || 0) + 1;
+
+    productDetails.push({
+      title: String(item?.title || item?.name || "").trim() || null,
+      url: String(item?.url || "").trim() || null,
+      image_url: String(item?.image_url || item?.imageUrl || "").trim() || null,
+      search_method: method,
+      campaign_fit_score: Number.isFinite(Number(item?.campaign_fit_score)) ? Number(item.campaign_fit_score) : null,
+      campaign_fit_source: String(item?.campaign_fit_source || "").trim() || null,
+      discovery_source: String(item?.discovery_source || "").trim() || null,
+      catalog_source: String(item?.catalog_source || "").trim() || null,
+      selection_priority: Number.isFinite(Number(item?.selection_priority)) ? Number(item.selection_priority) : null,
+    });
+  }
+
+  const searchMethods = Object.keys(methodCounts).slice(0, 20);
 
   return {
     productsSelected: uniqueItems.length,
@@ -3145,6 +3223,9 @@ function collectAutomationRunProductLogData({ websiteItem = null, websiteItems =
       .filter(Boolean)
       .slice(0, 12),
     searchMethods,
+    methodCounts,
+    productDetails: productDetails.slice(0, 12),
+    productsWithImages: uniqueItems.filter((item) => Boolean(item?.image_url || item?.imageUrl)).length,
   };
 }
 
@@ -3230,6 +3311,9 @@ async function finishAutomationRunLog({
           ...extraSummary,
           website_items_found: Array.isArray(websiteItems) ? websiteItems.length : 0,
           selected_product_count: productData.productsSelected,
+          selected_products_with_images: productData.productsWithImages,
+          search_method_counts: productData.methodCounts,
+          product_details: productData.productDetails,
         },
         updated_at: finishedAtIso,
       })
@@ -12415,6 +12499,10 @@ product_research_model_used: rule.uses_website_content
           stage: "completed",
           effective_post_status: effectivePostStatus,
           email_expected: effectivePostStatus === "pending_approval",
+          website_source_url: websiteSourceUrl,
+          website_cycle_number: websiteCycleNumber,
+          use_website_image: useWebsiteImage,
+          website_item_count: Array.isArray(websiteItems) ? websiteItems.length : (websiteItem ? 1 : 0),
         });
       } catch (error) {
         const message = error.message || "Unknown automation error";
