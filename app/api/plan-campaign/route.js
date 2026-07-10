@@ -436,6 +436,8 @@ Strategic rules:
 - Product terms must be created dynamically for this exact campaign, country, market, language and brand. Do not rely on a fixed Swedish or English keyword list.
 - product_match_terms and product_search_queries should include the local occasion/theme name, common local synonyms, likely category words, recipient/use-case words and imported/English terms only when customers in that market would realistically use them.
 - If the campaign title contains a compact theme word or compound word, include the shortest useful store-search root as one query. Example: if the local title contains a Christmas compound, include the local root term customers would search for on that store, not only broad gift/present phrases.
+- Do not include broad assortment categories by themselves in product_match_terms for themed campaigns. A broad category is only acceptable when combined with the theme, occasion, recipient or use-case, or when the campaign is explicitly about that category.
+- Before returning each product_match_term, ask whether searching only that term would mostly return products that fit this campaign. If not, rewrite it into a theme/category phrase or put the broad category in product_avoid_terms.
 - Product search queries must be suitable for a website search box. Prefer 1-2 word queries that can find exact campaign products before broad category or gift-intent products.
 - product_avoid_terms should block nearby but wrong products or broad categories when better campaign-specific products exist. Do not over-block the whole store.
 - Keep product terms compact. Avoid broad filler like "product", "shop", "gift" or "present" unless that word is truly central to the campaign search.

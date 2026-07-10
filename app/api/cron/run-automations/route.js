@@ -889,6 +889,10 @@ async function deleteIncompleteCarouselDrafts({ supabase, posts }) {
   return postIds.length;
 }
 
+function countIncompleteCarouselDrafts(posts) {
+  return (posts || []).filter(isIncompleteCarouselDraftPost).length;
+}
+
 async function makeCompleteGeneratingDraftVisible({ supabase, post }) {
   if (!post?.id || post.status !== "generating" || !isCompleteAutomationDraft(post)) {
     return false;
@@ -6047,13 +6051,40 @@ function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_S
     return collectUniqueTerms(existingQueries, limit);
   }
 
+  const rawProductMatchTerms = splitCampaignTermLine(rule?.product_match_terms);
+  const supportedProductMatchTerms = filterCampaignMatchTermsForRule(rawProductMatchTerms, rule);
+  const unsupportedProductMatchTerms = rawProductMatchTerms.filter(
+    (term) => !supportedProductMatchTerms.includes(term)
+  );
+  const campaignThemeTerms = collectUniqueTerms(
+    [
+      ...extractCampaignCoreThemeTerms(rule),
+      ...splitCampaignTermLine(rule?.name),
+      ...splitCampaignTermLine(rule?.campaign_goal),
+      ...splitCampaignTermLine(rule?.target_customer_need),
+      ...splitCampaignTermLine(rule?.product_search_intent),
+    ],
+    8
+  );
+  const scopedProductQueries = [];
+
+  for (const themeTerm of campaignThemeTerms.slice(0, 4)) {
+    for (const productTerm of unsupportedProductMatchTerms.slice(0, 8)) {
+      if (!themeTerm || !productTerm || productTerm.includes(themeTerm)) {
+        continue;
+      }
+
+      scopedProductQueries.push(`${themeTerm} ${productTerm}`);
+      scopedProductQueries.push(`${productTerm} ${themeTerm}`);
+    }
+  }
+
   const seedTerms = [
-    ...splitCampaignTermLine(rule?.product_match_terms),
+    ...campaignThemeTerms,
+    ...supportedProductMatchTerms,
+    ...scopedProductQueries,
     ...splitCampaignTermLine(rule?.product_search_intent),
     ...splitCampaignTermLine(rule?.campaign_category),
-    ...splitCampaignTermLine(rule?.name),
-    ...splitCampaignTermLine(rule?.campaign_goal),
-    ...splitCampaignTermLine(rule?.target_customer_need),
     ...splitCampaignTermLine(rule?.prompt),
   ];
 
@@ -6568,7 +6599,7 @@ function hasAnyCampaignThemeToken(text, tokens) {
 // and/or prompt context. Do not infer localized theme words in code; Spreelo
 // must work globally across languages and markets.
 
-function extractExplicitCampaignMatchTerms(rule) {
+function extractRawExplicitCampaignMatchTerms(rule) {
   const prompt = String(rule?.prompt || "");
   const imagePrompt = String(rule?.image_prompt || "");
   return collectUniqueTerms(
@@ -6589,6 +6620,77 @@ function extractExplicitCampaignMatchTerms(rule) {
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Local search queries")),
     ],
     30
+  );
+}
+
+function campaignTermIsSupportedByCampaignContext(term, rule) {
+  const normalizedTerm = normalizeSearchText(term).trim();
+  const sourceText = normalizeSearchText(getCampaignAnchorSourceText(rule));
+
+  if (!normalizedTerm || !sourceText) {
+    return true;
+  }
+
+  if (hasCampaignPhraseMatch(sourceText, normalizedTerm)) {
+    return true;
+  }
+
+  const termTokens = tokenizeSearchText(normalizedTerm);
+  const sourceTokens = tokenizeSearchText(sourceText)
+    .filter((word) => word.length >= 4 && !weakShortSearchRoots.has(word));
+
+  if (!termTokens.length || !sourceTokens.length) {
+    return true;
+  }
+
+  for (const sourceToken of sourceTokens) {
+    const compactThemeRoot = getCompactCampaignThemeRoot(sourceToken);
+
+    for (const termToken of termTokens) {
+      if (!termToken || termToken.length < 3) continue;
+
+      if (termToken === sourceToken) {
+        return true;
+      }
+
+      const minLength = Math.min(termToken.length, sourceToken.length);
+      const commonLength = getCommonPrefix([termToken, sourceToken]).length;
+
+      if (commonLength >= Math.min(6, minLength) || commonLength >= Math.ceil(minLength * 0.75)) {
+        return true;
+      }
+
+      if (
+        compactThemeRoot &&
+        (termToken === compactThemeRoot ||
+          (termToken.startsWith(compactThemeRoot) && termToken.length >= compactThemeRoot.length + 2))
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function filterCampaignMatchTermsForRule(terms, rule) {
+  const rawTerms = collectUniqueTerms(terms, 30);
+
+  if (!rawTerms.length || !isCampaignScopedWebsiteRule(rule)) {
+    return rawTerms;
+  }
+
+  const filteredTerms = rawTerms.filter((term) =>
+    campaignTermIsSupportedByCampaignContext(term, rule)
+  );
+
+  return filteredTerms.length ? filteredTerms : rawTerms;
+}
+
+function extractExplicitCampaignMatchTerms(rule) {
+  return filterCampaignMatchTermsForRule(
+    extractRawExplicitCampaignMatchTerms(rule),
+    rule
   );
 }
 
@@ -12700,13 +12802,22 @@ export async function GET(request) {
           now,
         });
 
-        const cleanedIncompleteDrafts = await deleteIncompleteCarouselDrafts({
-          supabase,
-          posts: recentDrafts,
-        });
+        const incompleteCarouselDrafts = countIncompleteCarouselDrafts(recentDrafts);
 
-        if (cleanedIncompleteDrafts > 0) {
-          summary.cleaned_incomplete_carousel_drafts += cleanedIncompleteDrafts;
+        if (incompleteCarouselDrafts > 0) {
+          const message =
+            "Skipped because this automation rule already has a recent incomplete carousel draft. Review or delete it manually before retrying to avoid duplicate AI cost.";
+
+          await setRuleError(supabase, rule.id, message);
+
+          await finishRunLog("skipped", message, {
+            stage: "existing_incomplete_carousel_draft",
+            incomplete_carousel_drafts: incompleteCarouselDrafts,
+          });
+
+          summary.skipped += 1;
+          summary.skipped_existing_draft += 1;
+          continue;
         }
 
         const existingCompleteDraft = recentDrafts.find(isCompleteAutomationDraft);
