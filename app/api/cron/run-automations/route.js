@@ -1600,6 +1600,89 @@ function getFreshSafeCampaignProductCandidates({
   return getSafeCampaignProductCandidates(freshItems, rule);
 }
 
+function getFreshRelevantCampaignProductCandidates({
+  items,
+  rule,
+  sourceUrl,
+  recentUsedItems = [],
+  usedWebsiteImageUrlsThisRun = new Set(),
+  minimumScore = 30,
+}) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return [];
+  }
+
+  return getFreshCarouselProductCandidates({
+    items,
+    rule,
+    sourceUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+  })
+    .map((item) => {
+      const campaignFitScore = scoreCampaignFitForRule(item, rule);
+      const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
+      const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
+      const anchorMatches = countCampaignAnchorTermMatches(item, rule);
+      const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
+      const aiCampaignFitScore = getAiCampaignFitScore(item);
+      const directSignalCount = themeMatches + sourceThemeMatches + anchorMatches + primaryMatches;
+      const source = normalizeSearchText(item?.catalog_source || item?.discovery_source || item?.campaign_fit_source);
+      const cameFromCampaignResearch =
+        source.includes("campaign") ||
+        source.includes("store_search") ||
+        source.includes("ai_campaign_research");
+
+      return {
+        ...item,
+        campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), campaignFitScore),
+        campaign_fit_source: item.campaign_fit_source || "fresh_relevant_delivery",
+        campaign_rotation_state: "fresh",
+        _freshRelevantSort: {
+          campaignFitScore,
+          themeMatches,
+          sourceThemeMatches,
+          anchorMatches,
+          primaryMatches,
+          directSignalCount,
+          aiCampaignFitScore,
+          cameFromCampaignResearch,
+          selectionPriority: Number(item.selection_priority || 0),
+        },
+      };
+    })
+    .filter((item) => {
+      const sort = item?._freshRelevantSort || {};
+
+      if (Number(sort.directSignalCount || 0) > 0) {
+        return Number(sort.campaignFitScore || 0) >= minimumScore;
+      }
+
+      if (Number(sort.aiCampaignFitScore || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) {
+        return true;
+      }
+
+      return Boolean(sort.cameFromCampaignResearch) &&
+        Number(sort.campaignFitScore || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE;
+    })
+    .sort((a, b) => {
+      const aSort = a?._freshRelevantSort || {};
+      const bSort = b?._freshRelevantSort || {};
+
+      const signalDelta = Number(bSort.directSignalCount || 0) - Number(aSort.directSignalCount || 0);
+      if (signalDelta !== 0) return signalDelta;
+
+      const scoreDelta = Number(bSort.campaignFitScore || 0) - Number(aSort.campaignFitScore || 0);
+      if (scoreDelta !== 0) return scoreDelta;
+
+      const priorityDelta = Number(bSort.selectionPriority || 0) - Number(aSort.selectionPriority || 0);
+      if (priorityDelta !== 0) return priorityDelta;
+
+      return String(a?.title || "").localeCompare(String(b?.title || ""));
+    })
+    .map(({ _freshRelevantSort, ...item }) => item);
+}
+
 function getStrictCampaignFallbackGroups(items, rule) {
   if (!isCampaignScopedWebsiteRule(rule)) {
     return [items || []];
@@ -2755,25 +2838,6 @@ async function prepareCarouselProductsForRule({
       freshSupportingCandidateCount < CAROUSEL_PRODUCT_SLIDE_TARGET &&
       campaignFreshDiscoveryAttempts >= CAMPAIGN_REUSE_EXHAUSTION_MIN_DISCOVERY_ATTEMPTS;
 
-    if (allowCampaignReuseAfterExhausted) {
-      const recycledProducts = selectCampaignCarouselProductsByScoreTiers({
-        items: campaignCandidateUniverse,
-        rule,
-        sourceUrl: websiteUrl,
-        recentUsedItems,
-        usedWebsiteImageUrlsThisRun,
-        limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
-        allowUsedAfterExhausted: true,
-        minimumScore: CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
-      });
-
-      if (recycledProducts.length > selectedProducts.length) {
-        cycleNumber += 1;
-        summary.website_items_reused_cycle += 1;
-        selectedProducts = recycledProducts;
-      }
-    }
-
     if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
       const deliveryLadderProducts = selectCampaignCarouselProductsByDeliveryLadder({
         items: dedupeWebsiteItemsByUrlTitleAndImage([
@@ -2827,6 +2891,58 @@ async function prepareCarouselProductsForRule({
         }
 
         selectedProducts = broadVerifiedProducts;
+      }
+    }
+
+    if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+      const freshRelevantProducts = getFreshRelevantCampaignProductCandidates({
+        items: dedupeWebsiteItemsByUrlTitleAndImage([
+          ...campaignCandidateUniverse,
+          ...catalogItems,
+        ]),
+        rule,
+        sourceUrl: websiteUrl,
+        recentUsedItems,
+        usedWebsiteImageUrlsThisRun,
+        minimumScore: 30,
+      });
+      const mergedProducts = mergeCarouselProductSelections(
+        selectedProducts,
+        freshRelevantProducts,
+        websiteUrl
+      );
+
+      if (mergedProducts.length > selectedProducts.length) {
+        selectedProducts = mergedProducts;
+      }
+    }
+
+    if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET && campaignFreshDiscoveryAttempts >= CAMPAIGN_REUSE_EXHAUSTION_MIN_DISCOVERY_ATTEMPTS) {
+      const finalDeliveryProducts = selectCampaignCarouselProductsByDeliveryLadder({
+        items: dedupeWebsiteItemsByUrlTitleAndImage([
+          ...campaignCandidateUniverse,
+          ...catalogItems,
+        ]),
+        rule,
+        sourceUrl: websiteUrl,
+        recentUsedItems,
+        usedWebsiteImageUrlsThisRun,
+        existingProducts: selectedProducts,
+        limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+        allowUsedAfterExhausted: true,
+      });
+
+      if (finalDeliveryProducts.length > selectedProducts.length) {
+        const addedReusedCount = finalDeliveryProducts
+          .slice(selectedProducts.length)
+          .filter((item) => Boolean(item.campaign_was_used_recently || item.campaign_image_used_this_run)).length;
+
+        if (addedReusedCount > 0) {
+          cycleNumber += 1;
+          summary.website_items_reused_cycle += 1;
+        }
+
+        selectedProducts = finalDeliveryProducts;
       }
     }
 
