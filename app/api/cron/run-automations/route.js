@@ -1648,6 +1648,34 @@ function getCampaignCandidateUsageState(item, recentUsedItems, sourceUrl, usedWe
   };
 }
 
+function isFreshCampaignCandidate(item, recentUsedItems, sourceUrl, usedWebsiteImageUrlsThisRun = new Set()) {
+  const state = getCampaignCandidateUsageState(
+    item,
+    recentUsedItems,
+    sourceUrl,
+    usedWebsiteImageUrlsThisRun
+  );
+
+  return !state.wasUsedRecently && !state.imageUsedThisRun;
+}
+
+function annotateCampaignReuseState(item, recentUsedItems, sourceUrl, usedWebsiteImageUrlsThisRun = new Set()) {
+  const state = getCampaignCandidateUsageState(
+    item,
+    recentUsedItems,
+    sourceUrl,
+    usedWebsiteImageUrlsThisRun
+  );
+
+  return {
+    ...item,
+    campaign_was_used_recently: state.wasUsedRecently,
+    campaign_image_used_this_run: state.imageUsedThisRun,
+    campaign_rotation_state:
+      state.wasUsedRecently || state.imageUsedThisRun ? "reused" : "fresh",
+  };
+}
+
 function getCampaignProductTier(score) {
   if (score >= 90) return "strong";
   if (score >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE) return "near";
@@ -1710,6 +1738,8 @@ function buildCampaignScoredProductCandidates({
         campaign_has_meaningful_signal: hasDirectCampaignSignal || hasAiCampaignApproval,
         campaign_was_used_recently: wasUsedRecently,
         campaign_image_used_this_run: imageUsedThisRun,
+        campaign_rotation_state:
+          wasUsedRecently || imageUsedThisRun ? "reused" : "fresh",
         times_used: usageCount,
         last_used_at: item?.last_used_at || null,
         _campaignSort: {
@@ -1827,6 +1857,7 @@ function selectCampaignCarouselProductsByDeliveryLadder({
   usedWebsiteImageUrlsThisRun = new Set(),
   existingProducts = [],
   limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
+  allowUsedAfterExhausted = false,
 }) {
   const selected = [];
   const requiresCampaignSignal = Boolean(
@@ -1850,7 +1881,12 @@ function selectCampaignCarouselProductsByDeliveryLadder({
 
   for (const product of existingProducts || []) {
     if (selected.length >= limit) break;
-    addProduct(product);
+    if (
+      allowUsedAfterExhausted ||
+      isFreshCampaignCandidate(product, recentUsedItems, sourceUrl, usedWebsiteImageUrlsThisRun)
+    ) {
+      addProduct(annotateCampaignReuseState(product, recentUsedItems, sourceUrl, usedWebsiteImageUrlsThisRun));
+    }
   }
 
   if (selected.length >= limit) {
@@ -1887,6 +1923,8 @@ function selectCampaignCarouselProductsByDeliveryLadder({
         campaign_product_tier: getCampaignProductTier(campaignFitScore),
         campaign_was_used_recently: wasUsedRecently,
         campaign_image_used_this_run: imageUsedThisRun,
+        campaign_rotation_state:
+          wasUsedRecently || imageUsedThisRun ? "reused" : "fresh",
         _deliverySort: {
           campaignFitScore,
           productScore,
@@ -1911,14 +1949,23 @@ function selectCampaignCarouselProductsByDeliveryLadder({
         return false;
       }
 
+      if (!allowUsedAfterExhausted && Boolean(sort.wasUsedRecently || sort.imageUsedThisRun)) {
+        return false;
+      }
+
       return !requiresCampaignSignal || Boolean(sort.hasMeaningfulCampaignSignal);
     })
     .sort((a, b) => {
       const aSort = a?._deliverySort || {};
       const bSort = b?._deliverySort || {};
 
-      // Relevance first: a previously used highly relevant product should beat
-      // a fresh but weakly related product. Rotation is only a tie-breaker.
+      // Freshness first: campaign carousels should rotate through every fresh
+      // relevant product before reusing old winners. Relevance only sorts
+      // within the fresh and reuse buckets.
+      const aUsed = Boolean(aSort.wasUsedRecently || aSort.imageUsedThisRun);
+      const bUsed = Boolean(bSort.wasUsedRecently || bSort.imageUsedThisRun);
+      if (aUsed !== bUsed) return aUsed ? 1 : -1;
+
       const campaignDelta = Number(bSort.campaignFitScore || 0) - Number(aSort.campaignFitScore || 0);
       if (campaignDelta !== 0) return campaignDelta;
 
@@ -1936,10 +1983,6 @@ function selectCampaignCarouselProductsByDeliveryLadder({
 
       const productDelta = Number(bSort.productScore || 0) - Number(aSort.productScore || 0);
       if (productDelta !== 0) return productDelta;
-
-      const aUsed = Boolean(aSort.wasUsedRecently || aSort.imageUsedThisRun);
-      const bUsed = Boolean(bSort.wasUsedRecently || bSort.imageUsedThisRun);
-      if (aUsed !== bUsed) return aUsed ? 1 : -1;
 
       const selectionDelta = Number(bSort.selectionPriority || 0) - Number(aSort.selectionPriority || 0);
       if (selectionDelta !== 0) return selectionDelta;
@@ -1996,7 +2039,9 @@ function selectFinalBroadVerifiedCarouselProducts({
   usedWebsiteImageUrlsThisRun = new Set(),
   existingProducts = [],
   limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
+  allowUsedAfterExhausted = false,
 }) {
+  const isCampaignRule = isCampaignScopedWebsiteRule(rule);
   const existing = dedupeWebsiteItemsByUrlTitleAndImage(existingProducts).filter(isValidCarouselProduct);
   const existingKeys = new Set(existing.map(createItemKey));
   const recentUsedKeys = new Set((recentUsedItems || []).map((item) => createItemKey({
@@ -2031,6 +2076,19 @@ function selectFinalBroadVerifiedCarouselProducts({
       };
     })
     .filter((item) => Number(item._finalBroadSort.confidence || 0) >= CAROUSEL_FINAL_BROAD_FALLBACK_MIN_CONFIDENCE)
+    .filter((item) => {
+      const sort = item?._finalBroadSort || {};
+
+      if (isCampaignRule && Number(sort.campaignFit || 0) < CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) {
+        return false;
+      }
+
+      if (!allowUsedAfterExhausted && Boolean(sort.usedRecently || sort.imageUsedThisRun)) {
+        return false;
+      }
+
+      return true;
+    })
     .sort((a, b) => {
       const aSort = a._finalBroadSort || {};
       const bSort = b._finalBroadSort || {};
@@ -2039,15 +2097,15 @@ function selectFinalBroadVerifiedCarouselProducts({
         return aSort.imageUsedThisRun ? 1 : -1;
       }
 
+      if (Boolean(aSort.usedRecently) !== Boolean(bSort.usedRecently)) {
+        return aSort.usedRecently ? 1 : -1;
+      }
+
       const fitDelta = Number(bSort.campaignFit || 0) - Number(aSort.campaignFit || 0);
       if (fitDelta !== 0) return fitDelta;
 
       const confidenceDelta = Number(bSort.confidence || 0) - Number(aSort.confidence || 0);
       if (confidenceDelta !== 0) return confidenceDelta;
-
-      if (Boolean(aSort.usedRecently) !== Boolean(bSort.usedRecently)) {
-        return aSort.usedRecently ? 1 : -1;
-      }
 
       const priorityDelta = Number(bSort.selectionPriority || 0) - Number(aSort.selectionPriority || 0);
       if (priorityDelta !== 0) return priorityDelta;
@@ -2058,7 +2116,17 @@ function selectFinalBroadVerifiedCarouselProducts({
       return String(a.title || "").localeCompare(String(b.title || ""));
     });
 
-  const merged = mergeCarouselProductSelections(existing, candidates, sourceUrl);
+  const annotatedCandidates = candidates.map((item) => ({
+    ...item,
+    campaign_was_used_recently: Boolean(item?._finalBroadSort?.usedRecently),
+    campaign_image_used_this_run: Boolean(item?._finalBroadSort?.imageUsedThisRun),
+    campaign_rotation_state:
+      item?._finalBroadSort?.usedRecently || item?._finalBroadSort?.imageUsedThisRun
+        ? "reused"
+        : "fresh",
+  }));
+
+  const merged = mergeCarouselProductSelections(existing, annotatedCandidates, sourceUrl);
 
   return merged.slice(0, limit).map(({ _finalBroadSort, ...item }) => item);
 }
@@ -3765,10 +3833,24 @@ function collectAutomationRunProductLogData({ websiteItem = null, websiteItems =
   const uniqueItems = Array.from(uniqueByUrl.values());
   const methodCounts = {};
   const productDetails = [];
+  let freshProducts = 0;
+  let reusedProducts = 0;
 
   for (const item of uniqueItems) {
     const method = inferAutomationRunLogSearchMethodForItem(item);
     methodCounts[method] = (methodCounts[method] || 0) + 1;
+    const isReused = Boolean(
+      item?.campaign_rotation_state === "reused" ||
+        item?.campaign_was_used_recently ||
+        item?.campaign_image_used_this_run ||
+        hasWebsiteItemCatalogUsage(item)
+    );
+
+    if (isReused) {
+      reusedProducts += 1;
+    } else {
+      freshProducts += 1;
+    }
 
     productDetails.push({
       title: String(item?.title || item?.name || "").trim() || null,
@@ -3780,6 +3862,12 @@ function collectAutomationRunProductLogData({ websiteItem = null, websiteItems =
       discovery_source: String(item?.discovery_source || "").trim() || null,
       catalog_source: String(item?.catalog_source || "").trim() || null,
       selection_priority: Number.isFinite(Number(item?.selection_priority)) ? Number(item.selection_priority) : null,
+      times_used: Number.isFinite(Number(item?.times_used)) ? Number(item.times_used) : null,
+      last_used_at: String(item?.last_used_at || "").trim() || null,
+      campaign_rotation_state:
+        String(item?.campaign_rotation_state || "").trim() || (isReused ? "reused" : "fresh"),
+      campaign_was_used_recently: Boolean(item?.campaign_was_used_recently || hasWebsiteItemCatalogUsage(item)),
+      campaign_image_used_this_run: Boolean(item?.campaign_image_used_this_run),
     });
   }
 
@@ -3799,6 +3887,8 @@ function collectAutomationRunProductLogData({ websiteItem = null, websiteItems =
     methodCounts,
     productDetails: productDetails.slice(0, 12),
     productsWithImages: uniqueItems.filter((item) => Boolean(item?.image_url || item?.imageUrl)).length,
+    freshProducts,
+    reusedProducts,
   };
 }
 
@@ -3950,6 +4040,8 @@ async function finishAutomationRunLog({
           website_items_found: Array.isArray(websiteItems) ? websiteItems.length : 0,
           selected_product_count: productData.productsSelected,
           selected_products_with_images: productData.productsWithImages,
+          fresh_product_count: productData.freshProducts,
+          reused_product_count: productData.reusedProducts,
           search_method_counts: productData.methodCounts,
           product_details: productData.productDetails,
         },
