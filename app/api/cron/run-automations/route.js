@@ -1759,6 +1759,49 @@ function annotateCampaignReuseState(item, recentUsedItems, sourceUrl, usedWebsit
   };
 }
 
+function buildRecentUsedCampaignDeliveryItems(recentUsedItems, rule, sourceUrl) {
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return [];
+  }
+
+  return dedupeWebsiteItemsByUrlTitleAndImage(
+    (recentUsedItems || [])
+      .map((item) => {
+        const title = String(item?.item_title || item?.title || "").trim();
+        const url = item?.item_url || item?.product_url || item?.url || "";
+        const imageUrl = item?.item_image_url || item?.image_url || "";
+
+        if (!title || !url || !imageUrl) {
+          return null;
+        }
+
+        return {
+          title,
+          description: title,
+          type: "product",
+          url: canonicalizeWebsiteProductUrl(url, sourceUrl) || url,
+          image_url: imageUrl,
+          item_key: item?.item_key || createItemKey({ url, title }),
+          campaign_fit_source: "recent_used_relevance_delivery",
+          campaign_fit_score: scoreCampaignFitForRule(
+            {
+              title,
+              description: title,
+              url,
+              image_url: imageUrl,
+            },
+            rule
+          ),
+          campaign_was_used_recently: true,
+          campaign_image_used_this_run: false,
+          campaign_rotation_state: "reused",
+          selection_priority: 1,
+        };
+      })
+      .filter(Boolean)
+  );
+}
+
 function getCampaignProductTier(score) {
   if (score >= 90) return "strong";
   if (score >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE) return "near";
@@ -2775,11 +2818,17 @@ async function prepareCarouselProductsForRule({
   }
 
   if (isCampaignRule) {
+    const recentUsedCampaignDeliveryItems = buildRecentUsedCampaignDeliveryItems(
+      recentUsedItems,
+      rule,
+      websiteUrl
+    );
     const campaignCandidateUniverse = dedupeWebsiteItemsByUrlTitleAndImage([
       ...selectedProducts,
       ...lockedCampaignSearchPoolItems,
       ...getCampaignSelectionItems(),
       ...getStrictCampaignFallbackProducts(catalogItems, rule),
+      ...recentUsedCampaignDeliveryItems,
     ]);
 
     const freshCandidateCount = countFreshCampaignCarouselCandidates({
@@ -2835,8 +2884,7 @@ async function prepareCarouselProductsForRule({
 
     const allowCampaignReuseAfterExhausted =
       selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET &&
-      freshSupportingCandidateCount < CAROUSEL_PRODUCT_SLIDE_TARGET &&
-      campaignFreshDiscoveryAttempts >= CAMPAIGN_REUSE_EXHAUSTION_MIN_DISCOVERY_ATTEMPTS;
+      freshSupportingCandidateCount < CAROUSEL_PRODUCT_SLIDE_TARGET;
 
     if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
       const deliveryLadderProducts = selectCampaignCarouselProductsByDeliveryLadder({
@@ -2917,7 +2965,7 @@ async function prepareCarouselProductsForRule({
       }
     }
 
-    if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET && campaignFreshDiscoveryAttempts >= CAMPAIGN_REUSE_EXHAUSTION_MIN_DISCOVERY_ATTEMPTS) {
+    if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
       const finalDeliveryProducts = selectCampaignCarouselProductsByDeliveryLadder({
         items: dedupeWebsiteItemsByUrlTitleAndImage([
           ...campaignCandidateUniverse,
@@ -6296,13 +6344,35 @@ function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_S
     ...splitCampaignTermLine(rule?.prompt),
   ];
 
-  return collectUniqueTerms(seedTerms, limit)
+  const normalizedQueries = collectUniqueTerms(seedTerms, limit)
     .map((term) => anchorCampaignTermsForRule([term], rule, 1)[0] || term)
     .filter((term) => {
       const words = term.split(/\s+/).filter(Boolean);
       if (!words.length || words.length > 6) return false;
       if (genericWebsiteTextIntentTokens.has(term)) return false;
       return true;
+    })
+    .slice(0, limit);
+
+  if (normalizedQueries.length) {
+    return normalizedQueries;
+  }
+
+  // Last local fallback: use the campaign-specific AI terms themselves. These
+  // are still dynamic per campaign, but they prevent an empty query list from
+  // turning a valid campaign into a zero-product run.
+  return collectUniqueTerms(
+    [
+      ...rawProductMatchTerms,
+      ...campaignThemeTerms,
+      ...scopedProductQueries,
+    ],
+    limit
+  )
+    .map((term) => anchorCampaignTermsForRule([term], rule, 1)[0] || term)
+    .filter((term) => {
+      const words = term.split(/\s+/).filter(Boolean);
+      return words.length > 0 && words.length <= 6 && !genericWebsiteTextIntentTokens.has(term);
     })
     .slice(0, limit);
 }
@@ -6838,19 +6908,12 @@ function extractRawExplicitCampaignMatchTerms(rule) {
   return collectUniqueTerms(
     [
       ...splitCampaignTermLine(rule?.product_match_terms),
-      ...splitCampaignTermLine(rule?.product_search_queries),
       ...splitCampaignTermLine(extractPromptLineValue(prompt, "Product match terms")),
       ...splitCampaignTermLine(extractPromptLineValue(prompt, "Campaign product match terms")),
       ...splitCampaignTermLine(extractPromptLineValue(prompt, "Product terms")),
-      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Product search queries")),
-      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Search queries")),
-      ...splitCampaignTermLine(extractPromptLineValue(prompt, "Local search queries")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Product match terms")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Campaign product match terms")),
       ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Product terms")),
-      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Product search queries")),
-      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Search queries")),
-      ...splitCampaignTermLine(extractPromptLineValue(imagePrompt, "Local search queries")),
     ],
     30
   );
