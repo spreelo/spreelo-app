@@ -101,13 +101,138 @@ function normalizeTermArray(value, maxItems = 16, maxLength = 60) {
   return terms;
 }
 
+function normalizeTermText(value) {
+  return String(value || "")
+    .toLocaleLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeTermText(value) {
+  return normalizeTermText(value)
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !/^\d+$/.test(token));
+}
+
+function getCommonPrefixLength(firstValue, secondValue) {
+  const first = normalizeTermText(firstValue);
+  const second = normalizeTermText(secondValue);
+  const maxLength = Math.min(first.length, second.length);
+  let index = 0;
+
+  while (index < maxLength && first[index] === second[index]) {
+    index += 1;
+  }
+
+  return index;
+}
+
+function getCompactAnchorRoot(token) {
+  const value = normalizeTermText(token);
+
+  if (value.length < 10) {
+    return "";
+  }
+
+  return value.slice(0, 3);
+}
+
+function getCampaignAnchorTokens(campaign, item = {}) {
+  const sourceText = [
+    campaign?.title,
+    campaign?.campaign_goal,
+    campaign?.target_customer_need,
+    campaign?.prompt_context,
+    campaign?.product_selection_guidance,
+    campaign?.website_product_selection_hint,
+    campaign?.campaign_blueprint?.campaign_goal,
+    campaign?.campaign_blueprint?.target_customer_need,
+    campaign?.campaign_blueprint?.product_selection_guidance,
+    item?.role,
+    item?.purpose,
+    item?.strategic_reason,
+    item?.product_selection_guidance,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const tokens = tokenizeTermText(sourceText);
+  const anchors = [];
+  const seen = new Set();
+
+  for (const token of tokens) {
+    for (const value of [getCompactAnchorRoot(token), token]) {
+      if (!value || seen.has(value)) {
+        continue;
+      }
+
+      seen.add(value);
+      anchors.push(value);
+
+      if (anchors.length >= 10) {
+        return anchors;
+      }
+    }
+  }
+
+  return anchors;
+}
+
+function termHasAnchor(term, anchorTokens) {
+  const termText = normalizeTermText(term);
+  const termTokens = tokenizeTermText(termText);
+
+  if (!termText || !anchorTokens.length) {
+    return true;
+  }
+
+  for (const anchor of anchorTokens) {
+    if (!anchor) continue;
+    if (termText.includes(anchor)) {
+      return true;
+    }
+
+    for (const token of termTokens) {
+      const minLength = Math.min(token.length, anchor.length);
+      const commonLength = getCommonPrefixLength(token, anchor);
+
+      if (token === anchor || commonLength >= Math.min(6, minLength) || commonLength >= Math.ceil(minLength * 0.75)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function anchorTerm(term, anchorTokens) {
+  const cleanTerm = String(term || "").replace(/\s+/g, " ").trim();
+  const anchor = anchorTokens.find(Boolean);
+
+  if (!cleanTerm || !anchor || termHasAnchor(cleanTerm, anchorTokens)) {
+    return cleanTerm;
+  }
+
+  return `${anchor} ${cleanTerm}`.slice(0, 60);
+}
+
+function normalizeCampaignProductTerms(campaign, item, value, maxItems = 16) {
+  const terms = normalizeTermArray(value, maxItems);
+  const anchorTokens = getCampaignAnchorTokens(campaign, item);
+  const anchoredTerms = terms.map((term) => anchorTerm(term, anchorTokens));
+
+  return normalizeTermArray(anchoredTerms, maxItems);
+}
+
 function getCampaignProductTerms(campaign, key) {
   const directTerms = Array.isArray(campaign?.[key]) ? campaign[key] : [];
   const blueprintTerms = Array.isArray(campaign?.campaign_blueprint?.[key])
     ? campaign.campaign_blueprint[key]
     : [];
 
-  return normalizeTermArray([...directTerms, ...blueprintTerms], 24);
+  return normalizeCampaignProductTerms(campaign, {}, [...directTerms, ...blueprintTerms], 24);
 }
 
 function formatTermLine(label, terms) {
@@ -201,10 +326,14 @@ function normalizePlan(rawPlan, campaign) {
         allowedContentModes,
         marketingAngle === "product_push" || marketingAngle === "offer" ? "website_product" : "generic_campaign"
       );
-      const productMatchTerms = normalizeTermArray(
+      const productMatchTerms = normalizeCampaignProductTerms(
+        campaign,
+        item,
         item?.product_match_terms || item?.match_terms || item?.campaign_match_terms
       );
-      const productSearchQueries = normalizeTermArray(
+      const productSearchQueries = normalizeCampaignProductTerms(
+        campaign,
+        item,
         item?.product_search_queries || item?.search_queries || item?.local_search_queries
       );
       const productAvoidTerms = normalizeTermArray(
@@ -292,7 +421,7 @@ function buildFallbackPlan(campaign) {
       days_before_event: null,
       product_selection_guidance: "",
       product_match_terms: getCampaignProductTerms(campaign, "product_match_terms"),
-      product_search_queries: [],
+      product_search_queries: getCampaignProductTerms(campaign, "product_search_queries"),
       product_avoid_terms: getCampaignProductTerms(campaign, "avoid_terms"),
       avoid_terms: getCampaignProductTerms(campaign, "avoid_terms"),
       product_search_intent: "",

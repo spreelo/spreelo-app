@@ -6048,7 +6048,7 @@ function splitCampaignTermLine(value) {
 function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_SEARCH_QUERY_LIMIT) {
   const existingQueries = splitCampaignTermLine(rule?.product_search_queries);
   if (existingQueries.length) {
-    return collectUniqueTerms(existingQueries, limit);
+    return anchorCampaignTermsForRule(existingQueries, rule, limit);
   }
 
   const rawProductMatchTerms = splitCampaignTermLine(rule?.product_match_terms);
@@ -6089,6 +6089,7 @@ function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_S
   ];
 
   return collectUniqueTerms(seedTerms, limit)
+    .map((term) => anchorCampaignTermsForRule([term], rule, 1)[0] || term)
     .filter((term) => {
       const words = term.split(/\s+/).filter(Boolean);
       if (!words.length || words.length > 6) return false;
@@ -6107,9 +6108,33 @@ async function ensureProductSearchQueriesForRule({ supabase, rule }) {
 
   const existingQueries = splitCampaignTermLine(rule?.product_search_queries);
   if (existingQueries.length) {
+    const normalizedExistingQueries = anchorCampaignTermsForRule(
+      existingQueries,
+      rule,
+      CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
+    );
+
+    try {
+      if (normalizedExistingQueries.join("|") !== collectUniqueTerms(existingQueries, CAMPAIGN_STORE_SEARCH_QUERY_LIMIT).join("|")) {
+        await supabase
+          .from("automation_rules")
+          .update({
+            product_search_queries: normalizedExistingQueries,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", rule.id)
+          .eq("user_id", rule.user_id);
+      }
+    } catch (error) {
+      console.warn("Could not persist normalized product_search_queries; using them for this run only", {
+        ruleId: rule?.id,
+        message: error?.message,
+      });
+    }
+
     return {
       ...rule,
-      product_search_queries: collectUniqueTerms(existingQueries, CAMPAIGN_STORE_SEARCH_QUERY_LIMIT),
+      product_search_queries: normalizedExistingQueries,
     };
   }
 
@@ -6685,6 +6710,59 @@ function filterCampaignMatchTermsForRule(terms, rule) {
   );
 
   return filteredTerms.length ? filteredTerms : rawTerms;
+}
+
+function getCampaignTermAnchorTokensForRule(rule) {
+  const sourceText = normalizeSearchText(getCampaignAnchorSourceText(rule));
+  const tokens = sourceText
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 3 && !/^\d+$/.test(word) && !weakShortSearchRoots.has(word));
+  const anchors = [];
+  const seen = new Set();
+
+  for (const token of tokens) {
+    const compactRoot = getCompactCampaignThemeRoot(token);
+
+    for (const value of [compactRoot, token]) {
+      if (!value || seen.has(value)) {
+        continue;
+      }
+
+      seen.add(value);
+      anchors.push(value);
+
+      if (anchors.length >= 10) {
+        return anchors;
+      }
+    }
+  }
+
+  return anchors;
+}
+
+function anchorCampaignTermsForRule(terms, rule, limit = 30) {
+  const rawTerms = collectUniqueTerms(terms, limit);
+
+  if (!rawTerms.length || !isCampaignScopedWebsiteRule(rule)) {
+    return rawTerms;
+  }
+
+  const anchorTokens = getCampaignTermAnchorTokensForRule(rule);
+  const primaryAnchor = anchorTokens.find(Boolean);
+
+  if (!primaryAnchor) {
+    return rawTerms;
+  }
+
+  return collectUniqueTerms(
+    rawTerms.map((term) =>
+      campaignTermIsSupportedByCampaignContext(term, rule)
+        ? term
+        : `${primaryAnchor} ${term}`.slice(0, 70)
+    ),
+    limit
+  );
 }
 
 function extractExplicitCampaignMatchTerms(rule) {
