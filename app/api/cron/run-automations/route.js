@@ -22,6 +22,11 @@ import {
   PRODUCT_RESOLVER_VERSION,
   canTrustExhaustedProductDiscoveryState,
 } from "../../../../lib/productDiscoveryPolicy.js";
+import {
+  buildCapabilityEvidenceTitleFrequency,
+  mergeNormalizedProductEvidence,
+  resolveCapabilityEvidenceTitle,
+} from "../../../../lib/productEvidencePolicy.js";
 import { fetchWebsiteHtmlRobust } from "../../../../lib/websiteFetch.js";
 import {
   isConnectionAuthFailure,
@@ -996,6 +1001,7 @@ function getBrandCapabilityVerifiedProductCandidates(brandProfile) {
     ? evidence.verified_items
     : [];
   const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
+  const titleFrequency = buildCapabilityEvidenceTitleFrequency(verifiedItems);
 
   return dedupeUrlItems(
     verifiedItems
@@ -1004,7 +1010,7 @@ function getBrandCapabilityVerifiedProductCandidates(brandProfile) {
         const signals = item?.signals || {};
 
         return {
-          title: String(item?.title || "").trim(),
+          title: resolveCapabilityEvidenceTitle(item, titleFrequency),
           url: canonicalizeWebsiteProductUrl(item.url, websiteUrl) || item.url,
           image_url: item.image_url || null,
           price: item.price || "",
@@ -3555,6 +3561,7 @@ async function prepareCampaignCarouselProductsV10({
   const initialUrls = new Set(candidatePool.map((item) => normalizeComparableValue(item.url)).filter(Boolean));
   let verifiedThisRun = [];
   let completedDiscoverySources = 0;
+  const discoveryErrors = [];
 
   if (shouldDiscover) {
     // Products already verified during brand analysis are trusted seeds.
@@ -3578,8 +3585,9 @@ async function prepareCampaignCarouselProductsV10({
       });
       verifiedThisRun.push(...storeItems);
       completedDiscoverySources += 1;
-    } catch (error) {
-      console.log("V10 native store discovery unavailable", {
+      } catch (error) {
+        discoveryErrors.push({ source: "native_store_search", message: error.message });
+        console.log("V10 native store discovery unavailable", {
         ruleId: rule.id,
         websiteUrl,
         message: error.message,
@@ -3606,6 +3614,7 @@ async function prepareCampaignCarouselProductsV10({
         verifiedThisRun.push(...(Array.isArray(webSearchItems) ? webSearchItems : []));
         completedDiscoverySources += 1;
       } catch (error) {
+        discoveryErrors.push({ source: "domain_web_search", message: error.message });
         console.log("V10 domain web search unavailable", {
           ruleId: rule.id,
           websiteUrl,
@@ -3634,6 +3643,7 @@ async function prepareCampaignCarouselProductsV10({
         verifiedThisRun.push(...remainingItems);
         completedDiscoverySources += 1;
       } catch (error) {
+        discoveryErrors.push({ source: "bounded_catalog_discovery", message: error.message });
         console.log("V10 bounded sitemap/catalog discovery unavailable", {
           ruleId: rule.id,
           websiteUrl,
@@ -3703,12 +3713,13 @@ async function prepareCampaignCarouselProductsV10({
   }
 
   if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
-    console.error("V10 product discovery finished without a usable verified product", {
+    const resolverDiagnostics = {
       ruleId: rule.id,
       brandProfileId: rule.brand_profile_id,
       websiteUrl,
       themeKey,
       resolverVersion: PRODUCT_RESOLVER_VERSION,
+      productSearchQueries: splitCampaignTermLine(rule?.product_search_queries),
       cachedCount: cachedItems.length,
       campaignCatalogCount: campaignCatalogItems.length,
       catalogFallbackCount: catalogFallbackItems.length,
@@ -3720,8 +3731,19 @@ async function prepareCampaignCarouselProductsV10({
       completedDiscoverySources,
       rawVerifiedThisRun: verifiedThisRun.length,
       finalCandidatePoolCount: candidatePool.length,
-    });
-    throw new Error("No verified product detail page with a usable product image could be found.");
+      discoveryErrors,
+    };
+    console.error(
+      "V10 product discovery finished without a usable verified product",
+      resolverDiagnostics
+    );
+    const resolverError = new Error(
+      "No verified product detail page with a usable product image could be found."
+    );
+    resolverError.code = "NO_VERIFIED_PRODUCT_AFTER_FULL_SEARCH";
+    resolverError.resolverDiagnostics = resolverDiagnostics;
+    resolverError.resolvedRule = rule;
+    throw resolverError;
   }
 
   for (const product of selectedProducts) {
@@ -4857,6 +4879,7 @@ async function finishAutomationRunLog({
   postId = null,
   websiteItem = null,
   websiteItems = [],
+  ruleSnapshot = null,
   extraSummary = {},
 }) {
   if (!runLogId) {
@@ -4880,6 +4903,8 @@ async function finishAutomationRunLog({
         product_titles: productData.productTitles,
         product_urls: productData.productUrls,
         search_methods: productData.searchMethods,
+        product_match_terms: ruleSnapshot?.product_match_terms || null,
+        product_search_queries: ruleSnapshot?.product_search_queries || null,
         metadata: {
           ...extraSummary,
           website_items_found: Array.isArray(websiteItems) ? websiteItems.length : 0,
@@ -11289,18 +11314,22 @@ function normalizeCampaignSearchPoolItem(
     websiteUrl
   );
 
-  if (!normalizedItem || !isValidCarouselProduct(normalizedItem)) {
+  if (!normalizedItem) {
     return null;
   }
 
-  const enrichedItem = {
+  const enrichedItem = mergeNormalizedProductEvidence(item, {
     ...item,
     ...normalizedItem,
     reason: item?.reason || "",
     source_page_url: item?.source_page_url || item?.source_search_url || "",
     source_search_url: item?.source_search_url || item?.source_page_url || "",
     campaign_fit_source: item?.campaign_fit_source || "campaign_search_pool",
-  };
+  });
+
+  if (!isValidCarouselProduct(enrichedItem)) {
+    return null;
+  }
 
   return {
     ...enrichedItem,
@@ -14220,6 +14249,7 @@ export async function GET(request) {
       let automationRunPostId = null;
       let automationRunWebsiteItem = null;
       let automationRunWebsiteItems = [];
+      let automationRunRuleSnapshot = rule;
 
       const finishRunLog = async (status, errorMessage = null, extraSummary = {}) => {
         if (automationRunFinished || !automationRunLogId) {
@@ -14235,6 +14265,7 @@ export async function GET(request) {
           postId: automationRunPostId,
           websiteItem: automationRunWebsiteItem,
           websiteItems: automationRunWebsiteItems,
+          ruleSnapshot: automationRunRuleSnapshot,
           extraSummary,
         });
 
@@ -14396,18 +14427,22 @@ let websitePreparedRule = rule;
             websiteCycleNumber = preparedCarouselProducts.websiteCycleNumber;
             useWebsiteImage = Boolean(preparedCarouselProducts.useWebsiteImage);
             websitePreparedRule = preparedCarouselProducts.websiteRule || rule;
+            automationRunRuleSnapshot = websitePreparedRule;
             automationRunWebsiteItem = websiteItem;
             automationRunWebsiteItems = websiteItems;
           } catch (carouselError) {
             const message = carouselError.message ||
               `Website carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} products with product images.`;
+            automationRunRuleSnapshot = carouselError?.resolvedRule || automationRunRuleSnapshot;
 
-            await stopRuleAfterCostProtectedCarouselFailure(supabase, rule.id, message);
+            await setRuleError(supabase, rule.id, message);
 
             await finishRunLog("failed", message, {
               stage: "carousel_product_prepare",
-              retry_disabled: true,
-              cost_protection: true,
+              retry_disabled: false,
+              cost_protection: false,
+              resolver_error_code: carouselError?.code || null,
+              resolver_diagnostics: carouselError?.resolverDiagnostics || null,
             });
 
             summary.skipped += 1;
