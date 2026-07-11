@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { OPENAI_MODELS } from "../../../lib/openaiModels.js";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   inferContentLanguageFromWebsiteSignals,
@@ -219,7 +220,7 @@ export async function repairJsonWithOpenAI({
   contextLabel = "OpenAI JSON response",
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.helper,
     messages: [
       {
         role: "system",
@@ -539,7 +540,7 @@ async function selectWebsiteContextLinksWithOpenAI({ openai, websiteUrl, html })
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_MODELS.helper,
       messages: [
         {
           role: "system",
@@ -830,7 +831,7 @@ async function repairCampaignProductMetadataWithOpenAI({
       .join("\n\n");
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_MODELS.helper,
       messages: [
         {
           role: "system",
@@ -1615,7 +1616,7 @@ export async function detectWebsiteLanguageWithOpenAI({
   const visibleText = truncateText(stripHtmlToLanguageText(html), 14000);
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.helper,
     messages: [
       {
         role: "system",
@@ -1717,7 +1718,7 @@ export async function analyzeWebsiteWithOpenAI({
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.brandAnalysis,
     messages: [
       {
         role: "system",
@@ -2025,7 +2026,7 @@ export async function analyzeDescriptionWithOpenAI({
   campaignCalendarYear,
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.brandAnalysis,
     messages: [
       {
         role: "system",

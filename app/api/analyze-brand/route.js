@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
+import { OPENAI_MODELS } from "../../../lib/openaiModels.js";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   inferContentLanguageFromWebsiteSignals,
@@ -391,7 +392,7 @@ async function repairJsonWithOpenAI({
   contextLabel = "OpenAI JSON response",
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.helper,
     messages: [
       {
         role: "system",
@@ -956,7 +957,7 @@ async function detectWebsiteLanguageWithOpenAI({
   const visibleText = truncateText(stripHtmlToText(html), 12000);
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.helper,
     messages: [
       {
         role: "system",
@@ -1330,7 +1331,7 @@ async function analyzeWebsiteWithOpenAI({
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.brandAnalysis,
     messages: [
       {
         role: "system",
@@ -1700,7 +1701,7 @@ async function analyzeDescriptionWithOpenAI({
   campaignCalendarYear,
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.brandAnalysis,
     messages: [
       {
         role: "system",
