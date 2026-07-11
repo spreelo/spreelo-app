@@ -489,7 +489,7 @@ export async function POST(request) {
     }
 
     const response = await openai.responses.create({
-      model: "gpt-5.6-terra",
+      model: "gpt-5.5",
       instructions: `You are Spreelo's senior campaign strategist. Create a practical social media campaign sequence for a real small business. Think like a senior marketer at a strong brand: every post must have a clear job, timing, format and reason. Return valid JSON only. Do not include finished captions or finished image prompts.`,
       input: `
 Create the detailed post plan for this selected calendar campaign.
