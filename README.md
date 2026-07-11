@@ -18,3 +18,7 @@ OPENAI_IMAGE_MODEL=gpt-image-2
 ```
 
 The defaults are defined centrally in `lib/openaiModels.js`.
+
+Website product mode is enabled only after the analysis verifies at least four
+distinct item detail pages on the business website's own domain. External
+marketplaces and category-only pages are not treated as a usable product catalog.

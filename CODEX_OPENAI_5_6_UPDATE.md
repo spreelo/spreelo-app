@@ -12,3 +12,15 @@ Default routing:
 
 Every model can be overridden with deployment environment variables documented
 in `README.md`. Existing `OPENAI_API_KEY` configuration is unchanged.
+
+## Verified website product mode
+
+Website product mode now requires at least four distinct individual item pages
+that were actually discovered on the business website's own domain. The AI must
+return the exact item URLs, and the server verifies them against links collected
+from the fetched website pages before saving `website_product_mode_available`.
+
+External marketplaces, auction sites, booking portals, category/search pages,
+general product mentions, and unsupported AI-provided URLs do not count. This
+prevents brochure sites or businesses that only link to inventory elsewhere from
+being enabled for product posts and carousels.
