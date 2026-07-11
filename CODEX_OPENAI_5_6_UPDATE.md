@@ -39,3 +39,6 @@ For themed campaigns, a high semantic AI score can no longer replace an actual
 theme, anchor, or campaign-product-term match. Broad carousel fallbacks apply the
 same guard. When focused discovery cannot provide enough matching products, the
 carousel stops instead of filling missing slides with generic catalog products.
+For named themes, broad primary product-type matches such as shirt, gift, print,
+personalized, or tank top are not sufficient by themselves; a product must match
+the campaign theme/anchor directly or come from a verified theme-focused source.

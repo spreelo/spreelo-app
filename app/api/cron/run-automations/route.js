@@ -1635,6 +1635,13 @@ function getFreshRelevantCampaignProductCandidates({
         source.includes("campaign") ||
         source.includes("store_search") ||
         source.includes("ai_campaign_research");
+      const hasRequiredSignal = hasRequiredDirectCampaignSignal({
+        rule,
+        themeMatches,
+        sourceThemeMatches,
+        anchorMatches,
+        primaryMatches,
+      });
 
       return {
         ...item,
@@ -1648,6 +1655,7 @@ function getFreshRelevantCampaignProductCandidates({
           anchorMatches,
           primaryMatches,
           directSignalCount,
+          hasRequiredSignal,
           aiCampaignFitScore,
           cameFromCampaignResearch,
           selectionPriority: Number(item.selection_priority || 0),
@@ -1657,16 +1665,8 @@ function getFreshRelevantCampaignProductCandidates({
     .filter((item) => {
       const sort = item?._freshRelevantSort || {};
 
-      if (Number(sort.directSignalCount || 0) > 0) {
-        return Number(sort.campaignFitScore || 0) >= minimumScore;
-      }
-
-      if (Number(sort.aiCampaignFitScore || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) {
-        return true;
-      }
-
-      return Boolean(sort.cameFromCampaignResearch) &&
-        Number(sort.campaignFitScore || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE;
+      return Boolean(sort.hasRequiredSignal) &&
+        Number(sort.campaignFitScore || 0) >= minimumScore;
     })
     .sort((a, b) => {
       const aSort = a?._freshRelevantSort || {};
@@ -1812,6 +1812,33 @@ function getCampaignProductTier(score) {
   return "reject";
 }
 
+function hasRequiredDirectCampaignSignal({
+  rule,
+  themeMatches = 0,
+  sourceThemeMatches = 0,
+  anchorMatches = 0,
+  primaryMatches = 0,
+}) {
+  if (extractCampaignCoreThemeTerms(rule).length > 0) {
+    return (
+      Number(themeMatches) +
+        Number(sourceThemeMatches) +
+        Number(anchorMatches) >
+      0
+    );
+  }
+
+  if (extractCampaignAnchorTerms(rule).length > 0) {
+    return Number(anchorMatches) > 0;
+  }
+
+  if (extractExplicitCampaignMatchTerms(rule).length > 0) {
+    return Number(primaryMatches) > 0;
+  }
+
+  return true;
+}
+
 function buildCampaignScoredProductCandidates({
   items,
   rule,
@@ -1839,7 +1866,13 @@ function buildCampaignScoredProductCandidates({
       const anchorMatches = countCampaignAnchorTermMatches(item, rule);
       const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
       const aiCampaignFitScore = getAiCampaignFitScore(item);
-      const hasDirectCampaignSignal = themeMatches + anchorMatches + primaryMatches > 0;
+      const hasDirectCampaignSignal = hasRequiredDirectCampaignSignal({
+        rule,
+        themeMatches,
+        sourceThemeMatches,
+        anchorMatches,
+        primaryMatches,
+      });
       const hasAiCampaignApproval =
         aiCampaignFitScore !== null &&
         aiCampaignFitScore >= Math.max(minimumScore, CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE);
@@ -2004,10 +2037,13 @@ function selectCampaignCarouselProductsByDeliveryLadder({
 
     if (
       requiresCampaignSignal &&
-      countCampaignCoreThemeTermMatches(item, rule) +
-        countCampaignAnchorTermMatches(item, rule) +
-        countPrimaryCampaignTermMatches(item, rule) ===
-        0
+      !hasRequiredDirectCampaignSignal({
+        rule,
+        themeMatches: countCampaignCoreThemeTermMatches(item, rule),
+        sourceThemeMatches: countCampaignSourceThemeMatches(item, rule),
+        anchorMatches: countCampaignAnchorTermMatches(item, rule),
+        primaryMatches: countPrimaryCampaignTermMatches(item, rule),
+      })
     ) {
       return false;
     }
@@ -2044,7 +2080,13 @@ function selectCampaignCarouselProductsByDeliveryLadder({
       const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
       const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
       const aiCampaignFitScore = getAiCampaignFitScore(item);
-      const hasDirectCampaignSignal = themeMatches + anchorMatches + primaryMatches > 0;
+      const hasDirectCampaignSignal = hasRequiredDirectCampaignSignal({
+        rule,
+        themeMatches,
+        sourceThemeMatches,
+        anchorMatches,
+        primaryMatches,
+      });
       const hasAiCampaignApproval =
         aiCampaignFitScore !== null &&
         aiCampaignFitScore >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE;
@@ -2235,10 +2277,13 @@ function selectFinalBroadVerifiedCarouselProducts({
       if (
         isCampaignRule &&
         extractCampaignCoreThemeTerms(rule).length > 0 &&
-        Number(sort.themeMatches || 0) +
-          Number(sort.anchorMatches || 0) +
-          Number(sort.primaryMatches || 0) ===
-          0
+        !hasRequiredDirectCampaignSignal({
+          rule,
+          themeMatches: sort.themeMatches,
+          sourceThemeMatches: sort.sourceThemeMatches,
+          anchorMatches: sort.anchorMatches,
+          primaryMatches: sort.primaryMatches,
+        })
       ) {
         return false;
       }
