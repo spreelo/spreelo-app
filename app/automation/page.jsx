@@ -3782,18 +3782,9 @@ function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
 }
 
 function shouldUseWebsiteContentForCampaign(sourceMode, campaign = null) {
-  const websiteContentFit = String(
-    campaign?.website_content_fit || ""
-  ).toLowerCase();
-
-  const websiteContentStrategy = String(
-    campaign?.website_content_strategy || ""
-  ).toLowerCase();
-
-  if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
-    return false;
-  }
-
+  // The shared policy has already resolved whether this individual slot is a
+  // website slot. Do not veto that authoritative slot decision with stale or
+  // missing campaign-level fit metadata.
   return campaignSourceUsesWebsiteContent(sourceMode);
 }
 
@@ -3812,10 +3803,6 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
     ? ` Product selection hint: ${productSelectionHint}. Use this hint when choosing website content. Do not pick a random product or service just because it exists on the website.`
     : "";
 
-  if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
-    return "Do not use website products or services for this post. The website content match is weak, so keep the post focused on the campaign theme and audience value.";
-  }
-
   if (sourceMode === "website_carousel") {
     return `Create this as a website product carousel. Select several relevant products from the brand website that share one clear campaign theme. The product selection must follow the campaign context and product selection hint, such as gift recipient, holiday, seasonal need, customer stage or buying intent. If the campaign is built around a named holiday, season, event, theme day or cultural occasion, products that directly reference that occasion in the website's own language should beat generic giftable, personalized, custom or bestseller products. Do not choose random unrelated products just because they exist. Use only product details that clearly exist on the website. Do not invent products, prices, discounts, stock, delivery promises or features. Fill the carousel by moving from exact verified theme matches to the next-best verified products only when the stronger tier contains fewer than five unique items.${productSelectionInstruction}`;
   }
@@ -3830,6 +3817,10 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
 
   if (sourceMode === "mixed_campaign_and_website") {
     return `If relevant website content is available, use it as supporting context, but keep the main focus on the campaign theme. Do not force a product or service if the match is not natural.${productSelectionInstruction}`;
+  }
+
+  if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
+    return "Do not use website products or services for this post. Keep the post focused on the campaign theme and audience value.";
   }
 
   return "Do not force a product or service into this post. Keep the focus on the campaign theme and the audience value.";
