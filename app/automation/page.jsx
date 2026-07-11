@@ -36,6 +36,14 @@ import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
+import {
+  campaignHasProductWebsiteFit as campaignPolicyHasProductWebsiteFit,
+  campaignSourceUsesWebsiteContent,
+  getCampaignContentFormat as getCampaignPolicyContentFormat,
+  getCampaignContentTypeId as getCampaignPolicyContentTypeId,
+  getCampaignContentTypeLabel as getCampaignPolicyContentTypeLabel,
+  resolveProductCampaignSourceMode,
+} from "../../lib/campaignContentPolicy";
 
 const DEFAULT_TIME_ZONE = "UTC";
 const SPREELO_INTERNAL_TESTER_EMAIL = "johan@foldern.com";
@@ -3629,60 +3637,22 @@ function getCampaignFormatDecisionText(campaign, postPlanItem = null) {
 }
 
 function campaignHasProductWebsiteFit(campaign) {
-  const fit = String(campaign?.website_content_fit || "").toLowerCase();
-  const strategy = String(campaign?.website_content_strategy || "").toLowerCase();
-
-  return fit !== "weak" && ["product", "support"].includes(strategy);
-}
-
-function shouldUseCarouselForCampaignPost(campaign, postPlanItem = {}, index = 0, total = 1) {
-  if (!campaignHasProductWebsiteFit(campaign)) {
-    return false;
-  }
-
-  const intent = postPlanItem?.intended_intent || getCampaignPostIntent(postPlanItem, index, total);
-  const timingAnchor = String(postPlanItem?.timing_anchor || "").toLowerCase();
-  const text = getCampaignFormatDecisionText(campaign, postPlanItem);
-
-  if (intent === "event" || timingAnchor === "relationship_event") {
-    return false;
-  }
-
-  const marketingAngle = normalizeStrategyValue(postPlanItem?.marketing_angle);
-  const campaignPhase = normalizeStrategyValue(postPlanItem?.campaign_phase);
-  const carouselFriendlyRole = [
-    "product_discovery",
-    "guide",
-    "comparison",
-    "engagement",
-    "inspiration",
-    "middle",
-  ].includes(marketingAngle) || ["middle", "early_middle", "middle_late"].includes(campaignPhase);
-
-  if (total >= 3 && carouselFriendlyRole && index === Math.max(1, Math.floor(total / 2))) {
-    return true;
-  }
-
-  if (total >= 4 && index === Math.max(1, Math.floor(total / 2)) && ["inspiration", "middle", "conversion"].includes(intent)) {
-    return true;
-  }
-
-  return false;
+  return campaignPolicyHasProductWebsiteFit(campaign);
 }
 
 function getCampaignSlotContentTypeId(sourceMode) {
-  if (sourceMode === "website_carousel") return "carousel_website_item";
-  return "manual_prompt";
+  return getCampaignPolicyContentTypeId(sourceMode);
 }
 
 function getCampaignSlotContentFormat(sourceMode) {
-  if (sourceMode === "website_carousel") return "carousel";
-  return "single_image";
+  return getCampaignPolicyContentFormat(sourceMode);
 }
 
 function getCampaignSlotContentTypeLabel(campaign, sourceMode) {
-  if (sourceMode === "website_carousel") return "Website carousel";
-  return campaign?.title || "Campaign post";
+  return getCampaignPolicyContentTypeLabel(
+    sourceMode,
+    campaign?.title || "Campaign post"
+  );
 }
 function getDaysBetweenDateStrings(startDateString, endDateString) {
   const startParts = getDatePartsFromDateString(startDateString);
@@ -3755,18 +3725,29 @@ function getCampaignScheduleFactText(campaign, postPlanItem = {}) {
 }
 
 function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
+  const productCampaignMode = resolveProductCampaignSourceMode({
+    campaign,
+    postPlanItem,
+    index,
+    total,
+  });
+
+  if (productCampaignMode) {
+    return productCampaignMode;
+  }
+
+  const explicitMode = String(
+    postPlanItem?.content_source_mode || ""
+  ).toLowerCase();
   const websiteContentFit = String(
     campaign?.website_content_fit || ""
   ).toLowerCase();
-
   const websiteContentStrategy = String(
     campaign?.website_content_strategy || ""
   ).toLowerCase();
-
   const roleText = `${postPlanItem?.role || ""} ${
     postPlanItem?.purpose || ""
   }`.toLowerCase();
-
   const isLaterCampaignPost =
     index >= Math.max(1, Math.floor(total / 2)) ||
     /reminder|final|push|spotlight|highlight|cta|offer|gift|book|buy|order|shop/.test(
@@ -3774,73 +3755,27 @@ function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
     );
 
   if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
-    return "generic_campaign";
+    return ["ai_image_overlay", "ai_image_text"].includes(explicitMode)
+      ? explicitMode
+      : "generic_campaign";
   }
 
-  if (shouldUseCarouselForCampaignPost(campaign, postPlanItem, index, total)) {
-    return "website_carousel";
-  }
-
-  if (websiteContentFit === "strong") {
-    if (websiteContentStrategy === "product") {
-      return isLaterCampaignPost
-        ? "website_product"
-        : "mixed_campaign_and_website";
-    }
-
-    if (websiteContentStrategy === "service") {
-      return isLaterCampaignPost
-        ? "website_service"
-        : "mixed_campaign_and_website";
-    }
-
-    if (websiteContentStrategy === "support") {
-      return "mixed_campaign_and_website";
-    }
-  }
-
-  if (websiteContentFit === "medium") {
-    if (websiteContentStrategy === "product" && isLaterCampaignPost) {
-      return "mixed_campaign_and_website";
-    }
-
-    if (websiteContentStrategy === "service" && isLaterCampaignPost) {
-      return "mixed_campaign_and_website";
-    }
-
-    if (websiteContentStrategy === "support") {
-      return "mixed_campaign_and_website";
-    }
-
-    return "generic_campaign";
-  }
-
-  const campaignText = getCampaignSearchText(campaign);
-
-  const hasProductIntent =
-    /shop|store|ecommerce|e-commerce|product|products|gift|gifts|present|sale|discount|offer|commercial|shopping|seasonal|collection|launch|buy|order/.test(
-      campaignText
-    );
-
-  const hasServiceIntent =
-    /service|services|book|booking|appointment|treatment|consultation|cleaning|clearing|repair|quote|visit|call|contact/.test(
-      campaignText
-    );
-
-  if (hasProductIntent && isLaterCampaignPost) {
-    return "website_product";
-  }
-
-  if (hasProductIntent) {
-    return "mixed_campaign_and_website";
-  }
-
-  if (hasServiceIntent && isLaterCampaignPost) {
+  if (explicitMode === "website_service") {
     return "website_service";
   }
 
-  if (hasServiceIntent) {
+  if (explicitMode === "mixed_campaign_and_website") {
     return "mixed_campaign_and_website";
+  }
+
+  if (websiteContentStrategy === "service") {
+    return isLaterCampaignPost
+      ? "website_service"
+      : "mixed_campaign_and_website";
+  }
+
+  if (["ai_image_overlay", "ai_image_text", "generic_campaign"].includes(explicitMode)) {
+    return explicitMode;
   }
 
   return "generic_campaign";
@@ -3859,7 +3794,7 @@ function shouldUseWebsiteContentForCampaign(sourceMode, campaign = null) {
     return false;
   }
 
-  return ["website_product", "website_service", "website_carousel"].includes(sourceMode);
+  return campaignSourceUsesWebsiteContent(sourceMode);
 }
 
 function getCampaignSourceInstruction(sourceMode, campaign = null) {
@@ -5054,8 +4989,9 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
     visibleRuleIds.length > 0 &&
     visibleRuleIds.every((ruleId) => selectedRuleIds.includes(ruleId));
   const websiteProductModeAvailable = Boolean(
-    currentBrandProfile?.website_carousel_mode_available ??
-      currentBrandProfile?.website_product_mode_available
+    currentBrandProfile?.website_carousel_mode_available === true ||
+      currentBrandProfile?.website_single_product_post_available === true ||
+      currentBrandProfile?.website_product_mode_available === true
   );
 
   const visibleContentTypes = useMemo(() => {
@@ -5430,6 +5366,7 @@ async function loadCampaignOpportunityIntoPlanner({
   selectedBrandId,
   campaignOpportunityId,
   selectedTimeZone,
+  brandProfile = null,
 }) {
   if (!campaignOpportunityId) {
     return false;
@@ -5504,10 +5441,28 @@ async function loadCampaignOpportunityIntoPlanner({
     lastDatabaseError: error?.message || "",
   }));
 
-  const campaign = mergeCampaignOpportunitySources(
+  const mergedCampaign = mergeCampaignOpportunitySources(
     campaignFromDatabase,
     campaignFromHandoff
   );
+
+  const campaign = mergedCampaign
+    ? normalizeCampaignOpportunityForPlanner({
+        ...mergedCampaign,
+        website_product_mode_available:
+          brandProfile?.website_product_mode_available ??
+          mergedCampaign?.website_product_mode_available ??
+          false,
+        website_single_product_post_available:
+          brandProfile?.website_single_product_post_available ??
+          mergedCampaign?.website_single_product_post_available ??
+          false,
+        website_carousel_mode_available:
+          brandProfile?.website_carousel_mode_available ??
+          mergedCampaign?.website_carousel_mode_available ??
+          false,
+      })
+    : null;
 
   setCampaignDebugInfo((current) => ({
     ...(current || {}),
@@ -5889,8 +5844,9 @@ if (brandProfileError) {
   );
 
   const brandAllowsWebsiteProductMode = Boolean(
-    brandProfileData?.website_carousel_mode_available ??
-      brandProfileData?.website_product_mode_available
+    brandProfileData?.website_carousel_mode_available === true ||
+      brandProfileData?.website_single_product_post_available === true ||
+      brandProfileData?.website_product_mode_available === true
   );
 
   if (!brandAllowsWebsiteProductMode) {
@@ -5925,6 +5881,7 @@ if (campaignOpportunityId) {
     selectedBrandId,
     campaignOpportunityId,
     selectedTimeZone: timeZone || DEFAULT_TIME_ZONE,
+    brandProfile: brandProfileData || null,
   });
 
   setCampaignDebugInfo((current) => ({
