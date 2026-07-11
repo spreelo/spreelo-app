@@ -1000,19 +1000,32 @@ function getBrandCapabilityVerifiedProductCandidates(brandProfile) {
   return dedupeUrlItems(
     verifiedItems
       .filter((item) => item?.verified && item?.url)
-      .map((item) => ({
-        title: String(item?.title || "").trim(),
-        url: canonicalizeWebsiteProductUrl(item.url, websiteUrl) || item.url,
-        image_url: item.image_url || null,
-        price: item.price || "",
-        description: String(item?.description || "").trim(),
-        reason: "Product page previously verified during brand capability analysis",
-        score: 160 + Number(item?.score || 0),
-        discovery_score: 160 + Number(item?.score || 0),
-        source_page_url: websiteUrl,
-        campaign_fit_source: "brand_capability_verified_seed",
-      }))
-  ).slice(0, 12);
+      .map((item) => {
+        const signals = item?.signals || {};
+
+        return {
+          title: String(item?.title || "").trim(),
+          url: canonicalizeWebsiteProductUrl(item.url, websiteUrl) || item.url,
+          image_url: item.image_url || null,
+          price: item.price || "",
+          description: String(item?.description || "").trim(),
+          reason: "Product page previously verified during brand capability analysis",
+          score: 160 + Number(item?.score || 0),
+          discovery_score: 160 + Number(item?.score || 0),
+          source_page_url: websiteUrl,
+          campaign_fit_source: "brand_capability_verified_seed",
+          product_page_verified: true,
+          product_schema_verified: Boolean(signals.hasProductSchema),
+          ecommerce_proof_found: Boolean(
+            signals.hasPurchaseAction ||
+            signals.hasOfferSchema ||
+            signals.hasStructuredPrice
+          ),
+          add_to_cart_detected: Boolean(signals.hasPurchaseAction),
+          product_confidence: 100,
+        };
+      })
+  ).slice(0, 24);
 }
 
 function formatCampaignStrategyForPrompt(rule) {
@@ -3443,6 +3456,16 @@ async function prepareCampaignCarouselProductsV10({
   }
 
   const themeKey = getCampaignThemeKey(rule);
+  const capabilitySeedItems = getBrandCapabilityVerifiedProductCandidates(brandProfile)
+    .map((item) =>
+      normalizeCampaignSearchPoolItem(item, websiteUrl, rule, {
+        selectionPriority: 220,
+        scoreBonus: 20,
+      })
+    )
+    .filter(Boolean)
+    .filter(isValidCarouselProduct);
+
   const recentUsedItems = await getRecentUsedWebsiteItems({
     supabase,
     userId: rule.user_id,
@@ -3451,35 +3474,65 @@ async function prepareCampaignCarouselProductsV10({
     contentType: rule.content_type_id || "carousel_website_item",
     limit: WEBSITE_PRODUCT_REUSE_LIMIT,
   });
-  const [cachedItems, campaignCatalogItems, discoveryState] = await Promise.all([
-    getCampaignProductCandidateItems({
-      supabase,
-      brandProfileId: rule.brand_profile_id,
-      themeKey,
-      limit: 200,
-    }),
-    getWebsiteProductCatalogItemsByCampaignTerms({
-      supabase,
-      userId: rule.user_id,
-      brandProfileId: rule.brand_profile_id,
-      sourceUrl: websiteUrl,
-      terms: extractPrimaryCampaignTerms(rule),
-      limitPerTerm: 30,
-    }),
-    getCampaignProductDiscoveryState({
-      supabase,
-      brandProfileId: rule.brand_profile_id,
-      themeKey,
-    }),
-  ]);
+  const [cachedItems, campaignCatalogItems, catalogFallbackItems, discoveryState] =
+    await Promise.all([
+      getCampaignProductCandidateItems({
+        supabase,
+        brandProfileId: rule.brand_profile_id,
+        themeKey,
+        limit: 200,
+      }),
+      getWebsiteProductCatalogItemsByCampaignTerms({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        sourceUrl: websiteUrl,
+        terms: extractPrimaryCampaignTerms(rule),
+        limitPerTerm: 30,
+      }),
+      getWebsiteProductCatalogItems({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        sourceUrl: websiteUrl,
+        limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
+      }),
+      getCampaignProductDiscoveryState({
+        supabase,
+        brandProfileId: rule.brand_profile_id,
+        themeKey,
+      }),
+    ]);
   let candidatePool = dedupeWebsiteItemsByUrlTitleAndImage([
     ...cachedItems,
     ...campaignCatalogItems.filter(isValidCarouselProduct),
+    ...catalogFallbackItems.filter(isValidCarouselProduct),
+    ...capabilitySeedItems,
   ]).map((item) => ({
     ...item,
     heuristic_campaign_fit_score: scoreCampaignFitForRule({ ...item, ai_campaign_fit_score: null }, rule),
     campaign_fit_score: scoreCampaignFitForRule(item, rule),
   }));
+
+  if (capabilitySeedItems.length) {
+    await Promise.all([
+      upsertWebsiteProductCatalogItems({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        sourceUrl: websiteUrl,
+        items: capabilitySeedItems,
+        discoverySource: getWebsiteCatalogDiscoverySource("brand_capability_verified", rule),
+      }),
+      upsertCampaignProductCandidateItems({
+        supabase,
+        rule,
+        sourceUrl: websiteUrl,
+        items: capabilitySeedItems,
+      }),
+    ]);
+  }
+
   const getStrongFreshSelection = () => selectBestAvailableCampaignCarouselProducts({
     items: candidatePool.filter((item) => isStrongResolvedCampaignProduct(item, rule)),
     rule,
@@ -3493,7 +3546,9 @@ async function prepareCampaignCarouselProductsV10({
     strongSelection.every((item) => item.campaign_rotation_state === "fresh");
   const mayTrustExhaustedState = canTrustExhaustedProductDiscoveryState({
     discoveryState,
-    usableCandidateCount: candidatePool.length,
+    usableCandidateCount: candidatePool.filter((item) =>
+      isStrongResolvedCampaignProduct(item, rule)
+    ).length,
     minimumCandidateCount: CAROUSEL_PRODUCT_SLIDE_TARGET,
   });
   let shouldDiscover = !hasFiveFreshStrong && !mayTrustExhaustedState;
@@ -3502,25 +3557,11 @@ async function prepareCampaignCarouselProductsV10({
   let completedDiscoverySources = 0;
 
   if (shouldDiscover) {
-    const capabilitySeedCandidates =
-      getBrandCapabilityVerifiedProductCandidates(brandProfile);
-
-    if (capabilitySeedCandidates.length) {
-      try {
-        const capabilitySeedItems = await verifyDiscoveredWebsiteProductCandidates({
-          candidates: capabilitySeedCandidates,
-          websiteUrl,
-          limit: Math.min(capabilitySeedCandidates.length, WEBSITE_STORE_SEARCH_VERIFY_LIMIT),
-        });
-        verifiedThisRun.push(...capabilitySeedItems);
-      } catch (error) {
-        console.log("V10 brand capability product seeds unavailable", {
-          ruleId: rule.id,
-          websiteUrl,
-          candidateCount: capabilitySeedCandidates.length,
-          message: error.message,
-        });
-      }
+    // Products already verified during brand analysis are trusted seeds.
+    // Re-fetching them here caused transient site blocks/timeouts to erase
+    // valid products and made the carousel resolver return an empty pool.
+    if (capabilitySeedItems.length) {
+      verifiedThisRun.push(...capabilitySeedItems);
     }
 
     try {
@@ -3670,6 +3711,8 @@ async function prepareCampaignCarouselProductsV10({
       resolverVersion: PRODUCT_RESOLVER_VERSION,
       cachedCount: cachedItems.length,
       campaignCatalogCount: campaignCatalogItems.length,
+      catalogFallbackCount: catalogFallbackItems.length,
+      capabilitySeedCount: capabilitySeedItems.length,
       usableInitialPoolCount: initialUrls.size,
       ignoredExhaustedState: Boolean(discoveryState.exhausted && !mayTrustExhaustedState),
       discoveryStateVersion: discoveryState.metadata?.resolver_version || "legacy",
@@ -3716,6 +3759,9 @@ async function prepareCampaignCarouselProductsV10({
     brandProfileId: rule.brand_profile_id,
     themeKey,
     cacheCount: cachedItems.length,
+    campaignCatalogCount: campaignCatalogItems.length,
+    catalogFallbackCount: catalogFallbackItems.length,
+    capabilitySeedCount: capabilitySeedItems.length,
     discovered: shouldDiscover,
     verifiedThisRun: verifiedThisRun.length,
     selectedCount: selectedProducts.length,
@@ -6263,6 +6309,14 @@ function hasWebsiteItemAlreadyBeenUsed(item, usedItems, sourceUrl) {
   });
 }
 
+function isTrustedWebsiteCatalogDiscoverySource(value) {
+  const source = String(value || "").trim();
+
+  return /(?:^|_)(?:selected|used|store_search|ai_web_search|site_discovery|reuse_selected|brand_capability_verified)(?:_|$)/i.test(
+    source
+  );
+}
+
 function normalizeWebsiteCatalogItem(row) {
   if (!row) {
     return null;
@@ -6284,13 +6338,33 @@ function normalizeWebsiteCatalogItem(row) {
     return null;
   }
 
+  const catalogSource = row.discovery_source || "catalog";
+  const previouslySelectedAndVerified =
+    Boolean(row.product_verified) ||
+    isTrustedWebsiteCatalogDiscoverySource(catalogSource);
+
   return {
     ...item,
     id: row.id || null,
     item_key: row.item_key || createItemKey(item),
     times_used: Number(row.times_used || 0),
     last_used_at: row.last_used_at || null,
-    catalog_source: row.discovery_source || "catalog",
+    catalog_source: catalogSource,
+    product_page_verified: previouslySelectedAndVerified,
+    product_schema_verified: Boolean(
+      row.product_schema_verified ||
+      row.metadata?.product_schema_verified
+    ),
+    ecommerce_proof_found: Boolean(
+      row.ecommerce_proof_found ||
+      row.metadata?.ecommerce_proof_found ||
+      previouslySelectedAndVerified
+    ),
+    product_confidence: Number(
+      row.product_confidence ||
+      row.metadata?.product_confidence ||
+      (previouslySelectedAndVerified ? 100 : 0)
+    ),
   };
 }
 
@@ -9828,7 +9902,7 @@ async function extractProductDataFromProductPage({
   const jsonLdProductCount = extractJsonLdObjects(html)
     .filter((item) => normalizeJsonLdType(item?.["@type"]).some((type) => type.includes("product")))
     .length;
-  const productSchemaFound = Boolean(product?.name && product?.image && product?.offers);
+  const productSchemaFound = Boolean(product?.name || product?.image || product?.offers);
   const ecommerceProofFound = hasEcommerceProofText(html);
 
   const title =
@@ -9865,12 +9939,17 @@ const imageUrl =
     ? webSearchProduct.image_url
     : null);
   const productUrlEvidenceScore = getProductUrlEvidenceScore(productUrl);
+  const previouslyVerified = Boolean(webSearchProduct?.product_page_verified);
   const productPageVerified = Boolean(
     imageUrl &&
     !isLikelyBadDiscoveryPageUrl(productUrl, websiteUrl) &&
     (
-      (productSchemaFound && (jsonLdProductCount <= 3 || productUrlEvidenceScore >= 22)) ||
-      (ecommerceProofFound && Boolean(price) && productUrlEvidenceScore >= 22)
+      previouslyVerified ||
+      (productSchemaFound && (jsonLdProductCount <= 8 || productUrlEvidenceScore >= 8)) ||
+      (
+        ecommerceProofFound &&
+        (Boolean(price) || productUrlEvidenceScore >= 22)
+      )
     )
   );
 
@@ -9919,7 +9998,11 @@ const imageUrl =
     source_search_url: webSearchProduct?.source_search_url || null,
     campaign_fit_source: webSearchProduct?.campaign_fit_source || null,
     discovery_score: Number(webSearchProduct?.discovery_score || webSearchProduct?.score || 0),
-    campaign_fit_score: 0,
+    campaign_fit_score: Number(
+      webSearchProduct?.campaign_fit_score ||
+      webSearchProduct?.score ||
+      0
+    ),
     product_page_verified: productPageVerified,
     product_schema_verified: productSchemaFound,
     ecommerce_proof_found: ecommerceProofFound,
@@ -11041,6 +11124,68 @@ async function discoverProductCandidatesFromWebsite({
     .slice(0, fastCampaignContinuation ? 45 : WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT);
 }
 
+function getTrustedVerifiedCandidateFallback(candidate, websiteUrl) {
+  if (!candidate?.product_page_verified) {
+    return null;
+  }
+
+  const normalizedItem = normalizeWebsiteItem(
+    {
+      title: candidate.title || "",
+      type: "product",
+      url: candidate.url || candidate.product_url || "",
+      description: candidate.description || candidate.reason || "",
+      price: candidate.price || "",
+      image_url: candidate.image_url || candidate.image || null,
+    },
+    websiteUrl
+  );
+
+  if (
+    !normalizedItem ||
+    !normalizedItem.image_url ||
+    isLikelyBadDiscoveryPageUrl(normalizedItem.url, websiteUrl)
+  ) {
+    return null;
+  }
+
+  const trustedItem = {
+    ...candidate,
+    ...normalizedItem,
+    item_key: candidate.item_key || createItemKey(normalizedItem),
+    product_page_verified: true,
+    product_schema_verified: Boolean(
+      candidate.product_schema_verified ||
+      candidate.product_json_ld_found ||
+      candidate.product_schema_found
+    ),
+    ecommerce_proof_found: Boolean(
+      candidate.ecommerce_proof_found ||
+      candidate.add_to_cart_detected ||
+      candidate.product_page_verified
+    ),
+    campaign_fit_score: Number(
+      candidate.campaign_fit_score ||
+      candidate.score ||
+      0
+    ),
+    campaign_fit_source:
+      candidate.campaign_fit_source || "previously_verified_fallback",
+  };
+
+  const confidence = getCarouselProductConfidence(trustedItem);
+
+  return isValidCarouselProduct(trustedItem)
+    ? {
+        ...trustedItem,
+        product_confidence: Math.max(
+          Number(candidate.product_confidence || 0),
+          confidence
+        ),
+      }
+    : null;
+}
+
 async function verifyDiscoveredWebsiteProductCandidates({
   candidates,
   websiteUrl,
@@ -11063,15 +11208,26 @@ async function verifyDiscoveredWebsiteProductCandidates({
 
     for (let index = 0; index < results.length; index += 1) {
       const result = results[index];
+      const candidate = batch[index];
+      let websiteItem = null;
+
       if (result.status === "rejected") {
         console.log("Could not verify discovered product catalog candidate", {
-          productUrl: batch[index]?.url,
+          productUrl: candidate?.url,
           message: result.reason?.message || "Unknown verification error",
         });
-        continue;
+        websiteItem = getTrustedVerifiedCandidateFallback(candidate, websiteUrl);
+      } else {
+        websiteItem =
+          result.value ||
+          getTrustedVerifiedCandidateFallback(candidate, websiteUrl);
       }
-      const websiteItem = result.value;
+
       if (!websiteItem?.url || !websiteItem?.title) {
+        console.log("Discovered product candidate was not usable after verification", {
+          productUrl: candidate?.url,
+          previouslyVerified: Boolean(candidate?.product_page_verified),
+        });
         continue;
       }
 
