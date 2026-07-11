@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import { OPENAI_MODELS } from "../../../../lib/openaiModels.js";
+import {
+  OPENAI_MODELS,
+  getTemperatureOptions,
+} from "../../../../lib/openaiModels.js";
 import crypto from "crypto";
 import sharp from "sharp";
 import {
@@ -5339,7 +5342,7 @@ ${analysisInput}
 `.trim(),
       },
     ],
-    temperature: 0.2,
+    ...getTemperatureOptions(POST_TEXT_MODEL, 0.2),
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -11344,7 +11347,7 @@ async function generateAutomationPost(openai, rule) {
         content: buildAutomationPrompt(rule),
       },
     ],
-    temperature: 0.75,
+    ...getTemperatureOptions(POST_TEXT_MODEL, 0.75),
   });
 
   return completion.choices?.[0]?.message?.content?.trim() || "";
@@ -11416,7 +11419,7 @@ Return JSON exactly in this shape:
           `.trim(),
         },
       ],
-      temperature: 0.65,
+      ...getTemperatureOptions(POST_TEXT_MODEL, 0.65),
     });
 
     const raw = completion.choices?.[0]?.message?.content || "";
@@ -11550,7 +11553,7 @@ Return JSON exactly in this shape:
           `.trim(),
         },
       ],
-      temperature: 0.55,
+      ...getTemperatureOptions(POST_TEXT_MODEL, 0.55),
     });
 
     const raw = completion.choices?.[0]?.message?.content || "";

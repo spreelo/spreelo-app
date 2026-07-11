@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import { OPENAI_MODELS } from "../../../lib/openaiModels.js";
+import {
+  OPENAI_MODELS,
+  getTemperatureOptions,
+} from "../../../lib/openaiModels.js";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   inferContentLanguageFromWebsiteSignals,
@@ -1641,7 +1644,7 @@ Campaign rule:
 `.trim(),
       },
     ],
-    temperature: 0.2,
+    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -1899,7 +1902,7 @@ Rules:
 `.trim(),
       },
     ],
-    temperature: 0.2,
+    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
   });
 
   const content = completion.choices?.[0]?.message?.content || "";

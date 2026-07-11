@@ -1,5 +1,8 @@
 import OpenAI from "openai";
-import { OPENAI_MODELS } from "../../../lib/openaiModels.js";
+import {
+  OPENAI_MODELS,
+  getTemperatureOptions,
+} from "../../../lib/openaiModels.js";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   inferContentLanguageFromWebsiteSignals,
@@ -2012,7 +2015,7 @@ Accuracy:
 `.trim(),
       },
     ],
-    temperature: 0.2,
+    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
   });
@@ -2281,7 +2284,7 @@ Website-content rules:
 `.trim(),
       },
     ],
-    temperature: 0.2,
+    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
   });

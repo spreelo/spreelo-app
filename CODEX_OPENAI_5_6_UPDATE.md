@@ -24,3 +24,10 @@ External marketplaces, auction sites, booking portals, category/search pages,
 general product mentions, and unsupported AI-provided URLs do not count. This
 prevents brochure sites or businesses that only link to inventory elsewhere from
 being enabled for product posts and carousels.
+
+## GPT-5 parameter compatibility
+
+GPT-5 models are called without a custom `temperature`, because these models
+only accept the default value. GPT-4.1 helper calls retain their task-specific
+temperature settings. The shared `getTemperatureOptions` helper applies this
+rule when deployment environment variables switch a task between model families.
