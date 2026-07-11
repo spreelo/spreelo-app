@@ -1,4 +1,8 @@
 import OpenAI from "openai";
+import {
+  OPENAI_MODELS,
+  getTemperatureOptions,
+} from "../../../lib/openaiModels.js";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   inferContentLanguageFromWebsiteSignals,
@@ -15,6 +19,7 @@ export const MAX_CAMPAIGN_OPPORTUNITIES = 12;
 export const WEBSITE_MAX_CONTEXT_LINK_CANDIDATES = 60;
 export const WEBSITE_PRODUCT_ASSORTMENT_HINT_MAX_ITEMS = 80;
 export const WEBSITE_PRODUCT_METADATA_REPAIR_MAX_OPPORTUNITIES = 12;
+export const WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS = 5;
 
 export function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
@@ -219,7 +224,7 @@ export async function repairJsonWithOpenAI({
   contextLabel = "OpenAI JSON response",
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.helper,
     messages: [
       {
         role: "system",
@@ -338,7 +343,9 @@ function isLikelyTechnicalPage(cleanUrl) {
     const pathname = safeDecodeUrlPart(url.pathname).toLowerCase();
 
     if (!pathname || pathname === "/") {
-      return true;
+      const hasProductIdentityQuery = ["product_id", "product", "item_id", "item", "sku", "id"]
+        .some((key) => url.searchParams.has(key));
+      return !hasProductIdentityQuery;
     }
 
     if (hasBlockedFileExtension(pathname)) {
@@ -511,7 +518,7 @@ export async function fetchWebsiteHtml(websiteUrl, options = {}) {
     const html = await response.text();
 
     return {
-      url: safeWebsiteUrl,
+      url: response.url || safeWebsiteUrl,
       html,
     };
   } finally {
@@ -539,7 +546,7 @@ async function selectWebsiteContextLinksWithOpenAI({ openai, websiteUrl, html })
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_MODELS.helper,
       messages: [
         {
           role: "system",
@@ -637,6 +644,12 @@ export async function fetchProductSourceCandidates({ openai, websiteUrl, html })
         link_text: link.text || "",
         surrounding_text: link.surrounding_text || "",
         score: link.score || 0,
+        internal_links: extractProductSourceLinks(candidate.html, candidate.url)
+          .slice(0, 120)
+          .map((childLink) => ({
+            url: childLink.url,
+            text: childLink.text || "",
+          })),
       });
     } catch (error) {
       console.error("Could not fetch website context page", {
@@ -656,7 +669,19 @@ export function formatProductSourceCandidatesForPrompt(candidates) {
   }
 
   return candidates
-    .map((candidate, index) =>
+    .map((candidate, index) => {
+      const internalLinks = (Array.isArray(candidate.internal_links)
+        ? candidate.internal_links
+        : []
+      )
+        .slice(0, 80)
+        .map(
+          (link) =>
+            `- ${link.text || "Untitled link"}: ${link.url}`
+        )
+        .join("\n");
+
+      return (
       `
 Candidate page ${index + 1}:
 URL: ${candidate.url}
@@ -666,9 +691,43 @@ Meta description: ${candidate.description || "Not found"}
 
 Visible text:
 ${candidate.text || ""}
+
+Internal links found on this page:
+${internalLinks || "No internal links found."}
 `.trim()
-    )
+      );
+    })
     .join("\n\n---\n\n");
+}
+
+export function collectDiscoveredInternalUrls({
+  html,
+  websiteUrl,
+  productSourceCandidates,
+}) {
+  const urls = new Set();
+
+  for (const link of extractProductSourceLinks(html, websiteUrl).slice(0, 200)) {
+    urls.add(String(link.url || "").split("#")[0]);
+  }
+
+  for (const candidate of Array.isArray(productSourceCandidates)
+    ? productSourceCandidates
+    : []) {
+    if (candidate?.url) {
+      urls.add(String(candidate.url).split("#")[0]);
+    }
+
+    for (const link of Array.isArray(candidate?.internal_links)
+      ? candidate.internal_links
+      : []) {
+      if (link?.url) {
+        urls.add(String(link.url).split("#")[0]);
+      }
+    }
+  }
+
+  return [...urls].filter(Boolean);
 }
 
 
@@ -830,7 +889,7 @@ async function repairCampaignProductMetadataWithOpenAI({
       .join("\n\n");
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_MODELS.helper,
       messages: [
         {
           role: "system",
@@ -1334,12 +1393,35 @@ export function hasProductBasedWebsiteEvidence(evidenceText) {
   return score >= 4;
 }
 
-function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "", evidenceText = "") {
+export function normalizeWebsiteProductMode(
+  rawValue,
+  fallbackWebsiteUrl = "",
+  evidenceText = "",
+  discoveredInternalUrls = []
+) {
   const rawMode = rawValue || {};
-
-  const evidenceSuggestsProductBasedWebsite = hasProductBasedWebsiteEvidence(evidenceText);
-
-  const available = Boolean(rawMode.available) || evidenceSuggestsProductBasedWebsite;
+  const normalizedWebsiteUrl = normalizeWebsiteUrl(fallbackWebsiteUrl);
+  const discoveredUrlSet = new Set(
+    (Array.isArray(discoveredInternalUrls) ? discoveredInternalUrls : [])
+      .map((url) => String(url || "").split("#")[0].trim())
+      .filter(Boolean)
+  );
+  const verifiedItemUrls = [
+    ...new Set(
+      (Array.isArray(rawMode.item_urls) ? rawMode.item_urls : [])
+        .map((url) => normalizeWebsiteUrl(url).split("#")[0])
+        .filter(
+          (url) =>
+            url &&
+            discoveredUrlSet.has(url) &&
+            isSameRootDomainOrSubdomain(url, normalizedWebsiteUrl) &&
+            !isLikelyTechnicalPage(url)
+        )
+    ),
+  ];
+  const available =
+    Boolean(rawMode.available) &&
+    verifiedItemUrls.length >= WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS;
 
   const reason = String(rawMode.reason || "")
     .trim()
@@ -1352,16 +1434,282 @@ function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "", evidence
 
   return {
     available,
-    reason:
-      reason ||
-      (available
-        ? evidenceSuggestsProductBasedWebsite
-          ? "The website appears to be product-based/ecommerce. Product pages are verified again when a product post is generated."
-          : "The website appears to contain stable individual items that can be used for website-based posts."
-        : "No clear stable individual website item was found during brand analysis."),
+    status: String(rawMode.status || (available ? "confirmed" : "not_found")),
+    has_verified_products: Boolean(rawMode.has_verified_products || verifiedItemUrls.length > 0),
+    single_product_post_available: Boolean(rawMode.single_product_post_available || verifiedItemUrls.length > 0),
+    product_carousel_available: available,
+    reason: available
+      ? reason ||
+        `The website contains at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} verified individual items on its own domain.`
+      : `Only ${verifiedItemUrls.length} verified individual item page${
+          verifiedItemUrls.length === 1 ? " was" : "s were"
+        } found on the business website; at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} are required. External marketplaces, category pages and general product mentions do not qualify.`,
     source_url: available
-      ? normalizedSourceUrl || normalizeWebsiteUrl(fallbackWebsiteUrl)
+      ? normalizedSourceUrl &&
+        isSameRootDomainOrSubdomain(normalizedSourceUrl, normalizedWebsiteUrl)
+        ? normalizedSourceUrl
+        : normalizedWebsiteUrl
       : "",
+    detected_item_count: verifiedItemUrls.length,
+    item_urls: verifiedItemUrls,
+    verification: rawMode.verification || {},
+  };
+}
+
+function getProductDetailVerification(html, pageUrl) {
+  const source = String(html || "");
+  const lower = source.toLowerCase();
+  const pathname = (() => {
+    try {
+      return decodeURIComponent(new URL(pageUrl).pathname).toLowerCase();
+    } catch {
+      return "";
+    }
+  })();
+  const hasProductSchema =
+    /schema\.org\/(?:Product|IndividualProduct|ProductGroup)/i.test(source) ||
+    /"@type"\s*:\s*(?:\[\s*)?"(?:Product|IndividualProduct|ProductGroup)"/i.test(source);
+  const hasOfferSchema =
+    /schema\.org\/(?:Offer|AggregateOffer)/i.test(source) ||
+    /"@type"\s*:\s*(?:\[\s*)?"(?:Offer|AggregateOffer)"/i.test(source);
+  const hasStructuredPrice =
+    /(?:product:price:amount|itemprop=["']price["']|"price"\s*:)/i.test(source);
+  const hasSku = /(?:itemprop=["']sku["']|"sku"\s*:|\bsku\s*[:#])/i.test(source);
+  const hasPurchaseAction =
+    /(?:add[-_ ]?to[-_ ]?cart|buy[-_ ]?now|name=["']add["']|data-product-form|product-form__submit)/i.test(source);
+  const hasProductPath =
+    /\/(?:products?|produkt|produkter|shop|store|item|items|p)\//i.test(pathname);
+  const isCollectionProductPath = /\/collections\/[^/]+\/products\/[^/]+/i.test(pathname);
+  const hasListingPath =
+    !isCollectionProductPath &&
+    /\/(?:collections?|categories?|category|kategori|kategorier|search|sok|sök)(?:\/|$)/i.test(pathname);
+  const productSchemaCount =
+    (source.match(/schema\.org\/(?:Product|IndividualProduct|ProductGroup)/gi) || []).length +
+    (source.match(/"@type"\s*:\s*(?:\[\s*)?"(?:Product|IndividualProduct|ProductGroup)"/gi) || []).length;
+  const canonicalUrl = (() => {
+    const rawCanonical = source.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)/i)?.[1] ||
+      source.match(/<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["']/i)?.[1] || "";
+    return rawCanonical ? resolveUrl(rawCanonical, pageUrl) : "";
+  })();
+  const canonicalMatchesPage = (() => {
+    if (!canonicalUrl) return hasProductPath;
+    try {
+      const page = new URL(pageUrl);
+      const canonical = new URL(canonicalUrl);
+      const normalizeProductPath = (path) => path
+        .replace(/\/collections\/[^/]+\/products\//i, "/products/")
+        .replace(/\/$/, "");
+      if (
+        page.hostname !== canonical.hostname ||
+        normalizeProductPath(page.pathname) !== normalizeProductPath(canonical.pathname)
+      ) {
+        return false;
+      }
+      const identityKeys = ["product_id", "product", "item_id", "item", "sku", "id"];
+      return identityKeys.every((key) => {
+        const pageValue = page.searchParams.get(key);
+        const canonicalValue = canonical.searchParams.get(key);
+        return !pageValue || !canonicalValue || pageValue === canonicalValue;
+      });
+    } catch {
+      return false;
+    }
+  })();
+  const imageUrl =
+    getMetaContent(source, ["og:image", "twitter:image", "product:image"]) ||
+    String(source.match(/"image"\s*:\s*(?:\[\s*)?["']([^"']+)/i)?.[1] || "").trim();
+  const hasUsableImage = Boolean(imageUrl && !/logo|icon|favicon/i.test(imageUrl));
+  const productLinkCount = (lower.match(/href=["'][^"']*\/(?:products?|produkt|produkter|item)\//g) || []).length;
+
+  let score = 0;
+  if (hasProductSchema) score += 6;
+  if (hasOfferSchema) score += 3;
+  if (hasStructuredPrice) score += 3;
+  if (hasPurchaseAction) score += 3;
+  if (hasSku) score += 1;
+  if (hasProductPath) score += 2;
+  if (canonicalMatchesPage) score += 2;
+  if (hasUsableImage) score += 2;
+  if (hasListingPath) score -= 5;
+  if (productLinkCount >= 8 && !hasProductSchema) score -= 4;
+
+  const verified =
+    score >= 8 &&
+    hasUsableImage &&
+    !hasListingPath &&
+    canonicalMatchesPage &&
+    productSchemaCount <= 4 &&
+    (hasProductSchema || hasPurchaseAction) &&
+    (hasOfferSchema || hasStructuredPrice || (hasProductPath && hasSku));
+
+  return {
+    verified,
+    score,
+    image_url: imageUrl,
+    signals: {
+      hasProductSchema,
+      hasOfferSchema,
+      hasStructuredPrice,
+      hasPurchaseAction,
+      hasSku,
+      hasProductPath,
+      isCollectionProductPath,
+      hasListingPath,
+      productSchemaCount,
+      canonicalMatchesPage,
+      hasUsableImage,
+      productLinkCount,
+    },
+  };
+}
+
+function rankProductModeCandidateUrl(url, proposedUrlSet) {
+  const value = String(url || "").split("#")[0];
+  let score = proposedUrlSet.has(value) ? 100 : 0;
+
+  try {
+    const parsed = new URL(value);
+    const path = decodeURIComponent(parsed.pathname).toLowerCase();
+    if (/\/(?:products?|produkt|produkter|item|items|p)\//i.test(path)) score += 40;
+    const isCollectionProductPath = /\/collections\/[^/]+\/products\/[^/]+/i.test(path);
+    if (!isCollectionProductPath && /\/(?:collections?|categories?|category|kategori|kategorier|search|sok|sök)(?:\/|$)/i.test(path)) score -= 80;
+    score += Math.min(path.split("/").filter(Boolean).length, 4);
+  } catch {
+    score -= 100;
+  }
+
+  return score;
+}
+
+export async function verifyWebsiteProductMode({
+  openai,
+  rawMode,
+  websiteUrl,
+  discoveredInternalUrls = [],
+}) {
+  const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+  const proposedUrls = (Array.isArray(rawMode?.item_urls) ? rawMode.item_urls : [])
+    .map((url) => normalizeWebsiteUrl(url).split("#")[0])
+    .filter(Boolean);
+  const proposedUrlSet = new Set(proposedUrls);
+  const candidates = [...new Set([...proposedUrls, ...discoveredInternalUrls])]
+    .filter((url) => isSameRootDomainOrSubdomain(url, normalizedWebsiteUrl))
+    .filter((url) => !isLikelyTechnicalPage(url))
+    .map((url) => ({ url, score: rankProductModeCandidateUrl(url, proposedUrlSet) }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 16);
+
+  const results = await Promise.allSettled(
+    candidates.map(async (candidate) => {
+      const page = await fetchWebsiteHtml(candidate.url, {
+        timeoutMs: WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS,
+      });
+      const verification = getProductDetailVerification(page.html, page.url);
+      return {
+        url: page.url.split("#")[0],
+        ...verification,
+      };
+    })
+  );
+  const verifiedItems = results
+    .filter((result) => result.status === "fulfilled" && result.value?.verified)
+    .map((result) => result.value)
+    .sort((a, b) => b.score - a.score);
+  let completedProbeCount = results.filter((result) => result.status === "fulfilled").length;
+  let webSearchCompleted = false;
+  if (verifiedItems.length < WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS && openai) {
+    try {
+      const hostname = getHostnameWithoutWww(normalizedWebsiteUrl);
+      const response = await openai.responses.create({
+        model: OPENAI_MODELS.productResearchFast,
+        tools: [{ type: "web_search" }],
+        tool_choice: "required",
+        reasoning: { effort: "low" },
+        input: `Find concrete, currently public product detail pages on ${hostname} to determine whether this business operates a real online product catalog.
+
+Return strict JSON only in this shape:
+{"product_urls":["https://..."]}
+
+Rules:
+- Search only inside ${hostname}.
+- Return 6-10 distinct individual product detail pages when they exist.
+- Do not return the homepage, categories, collections, search results, blog posts, portfolios, service descriptions, contact pages, external marketplaces or social profiles.
+- A qualifying page must represent one concrete product and should expose a product image plus price/offer/cart or structured Product data.
+- Do not guess URLs. Return an empty array if concrete product pages cannot be found.`,
+      });
+      const parsed = safeJsonParse(response.output_text || "");
+      webSearchCompleted = Boolean(parsed && Array.isArray(parsed.product_urls));
+      const webSearchUrls = (Array.isArray(parsed?.product_urls) ? parsed.product_urls : [])
+        .map((url) => normalizeWebsiteUrl(url).split("#")[0])
+        .filter((url) => isSameRootDomainOrSubdomain(url, normalizedWebsiteUrl))
+        .filter((url) => !isLikelyTechnicalPage(url))
+        .filter((url) => !verifiedItems.some((item) => item.url === url))
+        .slice(0, 10);
+      const webResults = await Promise.allSettled(
+        webSearchUrls.map(async (url) => {
+          const page = await fetchWebsiteHtml(url, {
+            timeoutMs: WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS,
+          });
+          return {
+            url: page.url.split("#")[0],
+            ...getProductDetailVerification(page.html, page.url),
+          };
+        })
+      );
+      completedProbeCount += webResults.filter((result) => result.status === "fulfilled").length;
+
+      for (const result of webResults) {
+        if (
+          result.status === "fulfilled" &&
+          result.value?.verified &&
+          !verifiedItems.some((item) => item.url === result.value.url)
+        ) {
+          verifiedItems.push(result.value);
+        }
+      }
+    } catch (error) {
+      console.log("Product-mode fallback web search unavailable", {
+        websiteUrl: normalizedWebsiteUrl,
+        message: error.message,
+      });
+    }
+  }
+
+  verifiedItems.sort((a, b) => b.score - a.score);
+  const verifiedUrls = [...new Set(verifiedItems.map((item) => item.url))];
+  const status = verifiedUrls.length > 0
+    ? "confirmed"
+    : completedProbeCount > 0 || webSearchCompleted
+      ? "not_found"
+      : "inconclusive";
+  const sourceUrl = (() => {
+    try {
+      return new URL(normalizedWebsiteUrl).origin;
+    } catch {
+      return normalizedWebsiteUrl;
+    }
+  })();
+
+  return {
+    available: verifiedUrls.length >= WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS,
+    status,
+    has_verified_products: verifiedUrls.length > 0,
+    single_product_post_available: verifiedUrls.length > 0,
+    product_carousel_available: verifiedUrls.length >= WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS,
+    item_urls: verifiedUrls,
+    detected_item_count: verifiedUrls.length,
+    source_url: verifiedUrls.length ? sourceUrl : "",
+    reason: verifiedUrls.length >= WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS
+      ? `Verified ${verifiedUrls.length} distinct same-domain product detail pages with product images and commerce signals.`
+      : `Verified only ${verifiedUrls.length} distinct same-domain product detail pages with product images and commerce signals; at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} are required.`,
+    verification: {
+      checked_candidate_count: candidates.length,
+      completed_probe_count: completedProbeCount,
+      web_search_completed: webSearchCompleted,
+      detector_version: "v7",
+      verified_items: verifiedItems,
+    },
   };
 }
 
@@ -1615,7 +1963,7 @@ export async function detectWebsiteLanguageWithOpenAI({
   const visibleText = truncateText(stripHtmlToLanguageText(html), 14000);
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.helper,
     messages: [
       {
         role: "system",
@@ -1717,7 +2065,7 @@ export async function analyzeWebsiteWithOpenAI({
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.brandAnalysis,
     messages: [
       {
         role: "system",
@@ -1787,8 +2135,9 @@ Return JSON only in this exact shape:
   },
   "website_product_mode": {
     "available": true,
-    "reason": "Short internal explanation. True only if the provided website content or checked candidate pages clearly contain stable individual items suitable for website-based posts.",
-    "source_url": "The exact URL where the best item-level evidence was found. Empty string when available is false."
+    "reason": "Short internal explanation. True only if at least four distinct individual items are directly available on the business website itself.",
+    "source_url": "The exact same-domain URL where the best item list was found. Empty string when available is false.",
+    "item_urls": ["At least four exact same-domain URLs for distinct individual item detail pages when available is true"]
   },
   "campaign_opportunities": [
     {
@@ -1898,7 +2247,12 @@ Campaign strategy:
 - Choose recommended_post_count from the actual campaign complexity and commercial value, not from a fixed template. A minor awareness moment may need 1-2 posts, a strong sales/booking period may need 3-5, and a major lead-time campaign may need 5-7.
 
 Website product mode:
-- Set website_product_mode.available to true when the website appears product-based, ecommerce, retail, catalog-based, service-menu-based, bookable, listing-based, restaurant/menu-based, course/event-based or otherwise likely to contain concrete sellable/selectable website items. For obvious ecommerce/retail/product-catalog websites, prefer true even if the first fetched pages only show categories, campaign areas or navigation; concrete product pages are verified later during product-post generation.
+- Set website_product_mode.available to true only when at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} distinct, currently usable individual items can be verified directly on the business website's own domain. Return their exact detail-page URLs in item_urls.
+- This flag is only for concrete product catalog items. Services, menus, courses, events, portfolio entries, articles and general offers do not qualify for website product mode; they need a separate service/content capability.
+- Each qualifying URL must be an individual product detail page with its own product identity and image plus Product/Offer, price, SKU/GTIN/MPN, variant or purchase/cart evidence.
+- External marketplaces, auction sites, booking portals, social networks and reseller pages do not count. Links to items on another domain must never be included in item_urls.
+- Category pages, search pages, navigation links, general service descriptions, brand/model family pages and text that merely says the company sells products do not count as individual items.
+- If fewer than ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} qualifying same-domain item URLs are present in the supplied website evidence, available must be false and item_urls must contain only the qualifying URLs that were actually found.
 - A suitable website item should normally have several of these signals:
   1. clear item name/title,
   2. item card or detail page,
@@ -1906,10 +2260,9 @@ Website product mode:
   4. category/listing structure where individual items can be identified,
   5. relevant item image or item-specific presentation,
   6. enough item-specific description to write a concrete post.
-- Set website_product_mode.available to false only when the website is mainly brochure-only, portfolio/blog/news-only, a pure store locator, or does not appear to provide any realistic website items for Spreelo to research.
-- Do not set website_product_mode.available to false just because the site is a large store chain, uses category pages, campaign pages or requires deeper product discovery.
+- Set website_product_mode.available to false when the website is mainly brochure-only, portfolio/blog/news-only, a pure store locator, links its inventory to external sites, or does not expose at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} qualifying same-domain items in the supplied evidence.
 - Do not set it to true only because the website mentions broad categories, discounts, offers, products or services.
-- If the site clearly appears product-based/ecommerce but item-level evidence is incomplete in this first analysis, set available true and explain that product pages must be verified during post generation.
+- A site that appears commercial but lacks enough verified item pages must remain false until a later analysis can verify the required URLs.
 - If available is true, source_url must be the exact URL where the strongest item-level evidence was found.
 - If available is false, source_url must be an empty string.
 
@@ -1927,7 +2280,7 @@ Accuracy:
 `.trim(),
       },
     ],
-    temperature: 0.2,
+    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
   });
@@ -1955,7 +2308,8 @@ Accuracy:
   "website_product_mode": {
     "available": false,
     "reason": "",
-    "source_url": ""
+    "source_url": "",
+    "item_urls": []
   },
   "campaign_opportunities": []
 }
@@ -1978,10 +2332,22 @@ Accuracy:
     target_audience: String(parsed.profile.target_audience || "").trim(),
     detected_language: String(parsed.profile.detected_language || "").trim(),
   };
-  const normalizedWebsiteProductMode = normalizeWebsiteProductMode(
-    parsed.website_product_mode,
+  const discoveredInternalUrls = collectDiscoveredInternalUrls({
+    html,
     websiteUrl,
-    productModeEvidenceText
+    productSourceCandidates,
+  });
+  const verifiedWebsiteProductMode = await verifyWebsiteProductMode({
+    openai,
+    rawMode: parsed.website_product_mode,
+    websiteUrl,
+    discoveredInternalUrls,
+  });
+  const normalizedWebsiteProductMode = normalizeWebsiteProductMode(
+    verifiedWebsiteProductMode,
+    websiteUrl,
+    productModeEvidenceText,
+    verifiedWebsiteProductMode.item_urls
   );
   const campaignOpportunities = await repairCampaignProductMetadataWithOpenAI({
     openai,
@@ -2025,7 +2391,7 @@ export async function analyzeDescriptionWithOpenAI({
   campaignCalendarYear,
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.brandAnalysis,
     messages: [
       {
         role: "system",
@@ -2189,7 +2555,7 @@ Website-content rules:
 `.trim(),
       },
     ],
-    temperature: 0.2,
+    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
   });
@@ -2306,6 +2672,32 @@ export async function saveBrandProfile({
   campaignCalendarYear,
   websiteProductMode,
 }) {
+  let resolvedWebsiteProductMode = websiteProductMode || {};
+
+  if (resolvedWebsiteProductMode.status === "inconclusive") {
+    const { data: existingCapability } = await supabase
+      .from("brand_profiles")
+      .select("website_url, website_product_mode_available, website_product_mode_status, website_product_verified_count, website_single_product_post_available, website_carousel_mode_available, website_product_mode_reason, website_product_source_url, website_product_mode_evidence")
+      .eq("id", brandProfileId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    const sameWebsite = normalizeWebsiteUrl(existingCapability?.website_url || "") === normalizeWebsiteUrl(websiteUrl || "");
+
+    if (sameWebsite && existingCapability?.website_product_mode_status === "confirmed") {
+      resolvedWebsiteProductMode = {
+        ...resolvedWebsiteProductMode,
+        available: Boolean(existingCapability.website_product_mode_available),
+        status: "confirmed",
+        detected_item_count: Number(existingCapability.website_product_verified_count || 0),
+        single_product_post_available: Boolean(existingCapability.website_single_product_post_available),
+        product_carousel_available: Boolean(existingCapability.website_carousel_mode_available),
+        reason: existingCapability.website_product_mode_reason || resolvedWebsiteProductMode.reason,
+        source_url: existingCapability.website_product_source_url || "",
+        verification: existingCapability.website_product_mode_evidence || resolvedWebsiteProductMode.verification || {},
+      };
+    }
+  }
+
   const { data, error } = await supabase
     .from("brand_profiles")
     .update({
@@ -2320,20 +2712,26 @@ export async function saveBrandProfile({
       campaign_calendar_year: campaignCalendarYear,
       campaign_calendar_generated_at: new Date().toISOString(),
       campaign_calendar_refreshed_at: new Date().toISOString(),
-      website_product_mode_available: Boolean(websiteProductMode?.available),
+      website_product_mode_available: Boolean(resolvedWebsiteProductMode?.available),
       website_product_mode_checked_at: websiteUrl
         ? new Date().toISOString()
         : null,
-      website_product_mode_reason: websiteProductMode?.reason || "",
-      website_product_source_url: websiteProductMode?.available
-        ? websiteProductMode?.source_url || websiteUrl || ""
+      website_product_mode_reason: resolvedWebsiteProductMode?.reason || "",
+      website_product_mode_status: resolvedWebsiteProductMode?.status || "inconclusive",
+      website_product_verified_count: Number(resolvedWebsiteProductMode?.detected_item_count || 0),
+      website_single_product_post_available: Boolean(resolvedWebsiteProductMode?.single_product_post_available),
+      website_carousel_mode_available: Boolean(resolvedWebsiteProductMode?.product_carousel_available),
+      website_product_mode_evidence: resolvedWebsiteProductMode?.verification || {},
+      website_product_detector_version: "v7",
+      website_product_source_url: resolvedWebsiteProductMode?.available
+        ? resolvedWebsiteProductMode?.source_url || websiteUrl || ""
         : "",
       updated_at: new Date().toISOString(),
     })
     .eq("id", brandProfileId)
     .eq("user_id", userId)
     .select(
-      "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, campaign_calendar_year, campaign_calendar_generated_at, campaign_calendar_refreshed_at, website_product_mode_available, website_product_mode_checked_at, website_product_mode_reason, website_product_source_url"
+      "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, campaign_calendar_year, campaign_calendar_generated_at, campaign_calendar_refreshed_at, website_product_mode_available, website_product_mode_status, website_product_verified_count, website_single_product_post_available, website_carousel_mode_available, website_product_mode_checked_at, website_product_mode_reason, website_product_source_url"
     )
     .single();
 

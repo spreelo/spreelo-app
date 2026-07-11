@@ -246,7 +246,7 @@ const contentTypes = [
     prompt:
       "Use the website URL from the brand profile. Identify several concrete products, services, listings, offers or other sellable items from the website and create a swipeable carousel draft around them. The carousel should feel like a curated collection, guide, comparison or campaign post with one clear shared theme. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
     imagePrompt:
-      "Use relevant images connected to the selected website items if they can be found. Avoid logos, banners, hero images, decorative icons and unrelated images. If enough verified item images cannot be found, stop instead of inventing products.",
+      "Use relevant verified product images connected to the selected website items. Avoid logos, banners, hero images, decorative icons and unrelated images. Prefer exact theme matches, then progressively use the next-best verified products from the same website when the exact tier has fewer than five items. Never invent products.",
     usesWebsiteContent: true,
     contentFormat: "carousel",
   },
@@ -3882,7 +3882,7 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
   }
 
   if (sourceMode === "website_carousel") {
-    return `Create this as a website product carousel. Select several relevant products from the brand website that share one clear campaign theme. The product selection must follow the campaign context and product selection hint, such as gift recipient, holiday, seasonal need, customer stage or buying intent. If the campaign is built around a named holiday, season, event, theme day or cultural occasion, products that directly reference that occasion in the website's own language should beat generic giftable, personalized, custom or bestseller products. Do not choose random unrelated products just because they exist. Use only product details that clearly exist on the website. Do not invent products, prices, discounts, stock, delivery promises or features. If at least five verified matching products with images cannot be found, the automation should stop with an error instead of silently creating a generic fallback.${productSelectionInstruction}`;
+    return `Create this as a website product carousel. Select several relevant products from the brand website that share one clear campaign theme. The product selection must follow the campaign context and product selection hint, such as gift recipient, holiday, seasonal need, customer stage or buying intent. If the campaign is built around a named holiday, season, event, theme day or cultural occasion, products that directly reference that occasion in the website's own language should beat generic giftable, personalized, custom or bestseller products. Do not choose random unrelated products just because they exist. Use only product details that clearly exist on the website. Do not invent products, prices, discounts, stock, delivery promises or features. Fill the carousel by moving from exact verified theme matches to the next-best verified products only when the stronger tier contains fewer than five unique items.${productSelectionInstruction}`;
   }
 
   if (sourceMode === "website_product") {
@@ -5053,8 +5053,9 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
   const allVisibleRulesSelected =
     visibleRuleIds.length > 0 &&
     visibleRuleIds.every((ruleId) => selectedRuleIds.includes(ruleId));
-    const websiteProductModeAvailable = Boolean(
-    currentBrandProfile?.website_product_mode_available
+  const websiteProductModeAvailable = Boolean(
+    currentBrandProfile?.website_carousel_mode_available ??
+      currentBrandProfile?.website_product_mode_available
   );
 
   const visibleContentTypes = useMemo(() => {
@@ -5863,7 +5864,7 @@ if (!selectedBrandId) {
 
 const { data: brandProfileData, error: brandProfileError } = await supabase
   .from("brand_profiles")
-  .select("id, business_name, website_product_mode_available, logo_url, logo_enabled_by_default")
+  .select("id, business_name, website_product_mode_available, website_single_product_post_available, website_carousel_mode_available, logo_url, logo_enabled_by_default")
   .eq("id", selectedBrandId)
   .eq("user_id", user.id)
   .maybeSingle();
@@ -5888,7 +5889,8 @@ if (brandProfileError) {
   );
 
   const brandAllowsWebsiteProductMode = Boolean(
-    brandProfileData?.website_product_mode_available
+    brandProfileData?.website_carousel_mode_available ??
+      brandProfileData?.website_product_mode_available
   );
 
   if (!brandAllowsWebsiteProductMode) {

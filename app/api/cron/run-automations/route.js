@@ -1,5 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
+import {
+  OPENAI_MODELS,
+  getTemperatureOptions,
+} from "../../../../lib/openaiModels.js";
 import crypto from "crypto";
 import sharp from "sharp";
 import {
@@ -10,6 +14,10 @@ import {
 } from "../../../../lib/i18n/serverUiText.js";
 import { assertPublicHttpUrl } from "../../../../lib/security.js";
 import { normalizeSingleContentLanguage } from "../../../../lib/contentLanguage.js";
+import {
+  buildCampaignFingerprint,
+  chooseQualityCutoffAndRank,
+} from "../../../../lib/productResolverCore.js";
 import {
   isConnectionAuthFailure,
   markConnectionExpiredAndAlert,
@@ -30,16 +38,16 @@ const WEBSITE_MAX_TOTAL_TEXT_CHARS = 22000;
 const WEBSITE_MAX_IMAGE_CANDIDATES = 40;
 const WEBSITE_PRODUCT_REUSE_LIMIT = 100;
 const WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT = 150;
-const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 120;
-const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 18;
-const WEBSITE_STORE_SEARCH_FETCH_LIMIT = 14;
-const WEBSITE_STORE_SEARCH_VERIFY_LIMIT = 18;
-const CAMPAIGN_STORE_SEARCH_QUERY_LIMIT = 12;
+const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 24;
+const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 10;
+const WEBSITE_STORE_SEARCH_FETCH_LIMIT = 8;
+const WEBSITE_STORE_SEARCH_VERIFY_LIMIT = 12;
+const CAMPAIGN_STORE_SEARCH_QUERY_LIMIT = 6;
 const CAMPAIGN_SEARCH_FORM_QUERY_LIMIT = 4;
 const CAROUSEL_AI_SCORE_MAX_ITEMS = 15;
-const CAROUSEL_DISCOVERY_VERIFY_LIMIT = 25;
+const CAROUSEL_DISCOVERY_VERIFY_LIMIT = 16;
 const CAROUSEL_WEB_SEARCH_MAX_VERIFIED_ITEMS = 8;
-const CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT = 24;
+const CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT = 16;
 const CAMPAIGN_STRONG_PRODUCT_FIT_SCORE = 80;
 const CAMPAIGN_NEAR_PRODUCT_FIT_SCORE = 75;
 const CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE = 60;
@@ -60,11 +68,10 @@ const WEBSITE_TEXT_INTENT_AI_MIN_SIGNAL_TERMS = 2;
 const WEBSITE_TEXT_INTENT_AI_SCORE_MAX_ITEMS = 25;
 const WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT = 12;
 
-const POST_TEXT_MODEL = "gpt-4.1-mini";
-const PRODUCT_RESEARCH_MODEL = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
-const PRODUCT_RESEARCH_FAST_MODEL =
-  process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL;
-const IMAGE_MODEL = "gpt-image-2";
+const POST_TEXT_MODEL = OPENAI_MODELS.automationPost;
+const PRODUCT_RESEARCH_MODEL = OPENAI_MODELS.productResearch;
+const PRODUCT_RESEARCH_FAST_MODEL = OPENAI_MODELS.productResearchFast;
+const IMAGE_MODEL = OPENAI_MODELS.image;
 const INSTAGRAM_GRAPH_API_VERSION =
   process.env.INSTAGRAM_GRAPH_API_VERSION || "v21.0";
 
@@ -1192,12 +1199,26 @@ function getCarouselProductConfidence(item) {
 }
 
 function isValidCarouselProduct(item) {
+  const hasVerifiedCommerceEvidence = Boolean(
+    item?.product_schema_verified ||
+    item?.product_json_ld_found ||
+    item?.product_schema_found ||
+    item?.add_to_cart_detected ||
+    item?.ecommerce_proof_found ||
+    (
+      item?.product_page_verified &&
+      (getTrustedWebsiteItemPrice(item) || normalizeVerifiedPriceValue(item?.price)) &&
+      getProductUrlEvidenceScore(item?.url) >= 22
+    )
+  );
+
   return Boolean(
     item?.title &&
     item?.url &&
     item?.image_url &&
     !isBadProductUrl(item.url) &&
     !isBadProductImageUrl(item.image_url) &&
+    hasVerifiedCommerceEvidence &&
     getCarouselProductConfidence(item) >= CAROUSEL_PRODUCT_CONFIDENCE_SOFT_MIN
   );
 }
@@ -1632,6 +1653,13 @@ function getFreshRelevantCampaignProductCandidates({
         source.includes("campaign") ||
         source.includes("store_search") ||
         source.includes("ai_campaign_research");
+      const hasRequiredSignal = hasRequiredDirectCampaignSignal({
+        rule,
+        themeMatches,
+        sourceThemeMatches,
+        anchorMatches,
+        primaryMatches,
+      });
 
       return {
         ...item,
@@ -1645,6 +1673,7 @@ function getFreshRelevantCampaignProductCandidates({
           anchorMatches,
           primaryMatches,
           directSignalCount,
+          hasRequiredSignal,
           aiCampaignFitScore,
           cameFromCampaignResearch,
           selectionPriority: Number(item.selection_priority || 0),
@@ -1654,16 +1683,8 @@ function getFreshRelevantCampaignProductCandidates({
     .filter((item) => {
       const sort = item?._freshRelevantSort || {};
 
-      if (Number(sort.directSignalCount || 0) > 0) {
-        return Number(sort.campaignFitScore || 0) >= minimumScore;
-      }
-
-      if (Number(sort.aiCampaignFitScore || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) {
-        return true;
-      }
-
-      return Boolean(sort.cameFromCampaignResearch) &&
-        Number(sort.campaignFitScore || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE;
+      return Boolean(sort.hasRequiredSignal) &&
+        Number(sort.campaignFitScore || 0) >= minimumScore;
     })
     .sort((a, b) => {
       const aSort = a?._freshRelevantSort || {};
@@ -1689,11 +1710,21 @@ function getStrictCampaignFallbackGroups(items, rule) {
   }
 
   const dedupedItems = dedupeWebsiteItemsByUrlTitleAndImage(items);
-
-  return [
+  const directThemeGroups = [
     getCampaignThemeSourceLockedItems(dedupedItems, rule),
     getCampaignThemeMatchedItems(dedupedItems, rule),
     getCampaignAnchorMatchedItems(dedupedItems, rule),
+  ].filter((group) => Array.isArray(group) && group.length);
+
+  // A named campaign theme must never be padded with generic product-type
+  // matches. If the themed pool is too small, discovery should fail clearly
+  // instead of creating a misleading carousel.
+  if (extractCampaignCoreThemeTerms(rule).length > 0) {
+    return directThemeGroups;
+  }
+
+  return [
+    ...directThemeGroups,
     getPrimaryCampaignMatchedItems(dedupedItems, rule),
     getSafeCampaignProductCandidates(dedupedItems, rule),
     getStrongCampaignFitItems(dedupedItems, rule),
@@ -1809,6 +1840,125 @@ function getCampaignProductTier(score) {
   return "reject";
 }
 
+function hasRequiredDirectCampaignSignal({
+  rule,
+  themeMatches = 0,
+  sourceThemeMatches = 0,
+  anchorMatches = 0,
+  primaryMatches = 0,
+}) {
+  if (extractCampaignCoreThemeTerms(rule).length > 0) {
+    return (
+      Number(themeMatches) +
+        Number(anchorMatches) >
+      0
+    );
+  }
+
+  if (extractCampaignAnchorTerms(rule).length > 0) {
+    return Number(anchorMatches) > 0;
+  }
+
+  if (extractExplicitCampaignMatchTerms(rule).length > 0) {
+    return Number(primaryMatches) > 0;
+  }
+
+  return true;
+}
+
+function isEligibleCampaignCarouselProduct(item, rule) {
+  if (!isValidCarouselProduct(item)) {
+    return false;
+  }
+
+  const campaignFitScore = scoreCampaignFitForRule(item, rule);
+
+  if (campaignFitScore < CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) {
+    return false;
+  }
+
+  return hasRequiredDirectCampaignSignal({
+    rule,
+    themeMatches: countCampaignCoreThemeTermMatches(item, rule),
+    sourceThemeMatches: countCampaignSourceThemeMatches(item, rule),
+    anchorMatches: countCampaignAnchorTermMatches(item, rule),
+    primaryMatches: countPrimaryCampaignTermMatches(item, rule),
+  });
+}
+
+function selectBestAvailableCampaignCarouselProducts({
+  items,
+  rule,
+  sourceUrl,
+  recentUsedItems = [],
+  usedWebsiteImageUrlsThisRun = new Set(),
+  limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
+}) {
+  const rankedCandidates = dedupeWebsiteItemsByUrlTitleAndImage(items)
+    .filter(isValidCarouselProduct)
+    .map((item) => {
+      const campaignFitScore = scoreCampaignFitForRule(item, rule);
+      const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
+      const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
+      const anchorMatches = countCampaignAnchorTermMatches(item, rule);
+      const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
+      const hasDirectSignal = hasRequiredDirectCampaignSignal({
+        rule,
+        themeMatches,
+        sourceThemeMatches,
+        anchorMatches,
+        primaryMatches,
+      });
+      const usage = getCampaignCandidateUsageState(
+        item,
+        recentUsedItems,
+        sourceUrl,
+        usedWebsiteImageUrlsThisRun
+      );
+      const relevanceTier = hasDirectSignal && campaignFitScore >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE
+        ? 0
+        : campaignFitScore >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE
+          ? 1
+          : campaignFitScore >= 30
+            ? 2
+            : 3;
+
+      return {
+        ...item,
+        campaign_fit_score: campaignFitScore,
+        campaign_fit_source: item.campaign_fit_source || "best_available_campaign_fallback",
+        campaign_theme_term_matches: themeMatches,
+        campaign_source_theme_matches: sourceThemeMatches,
+        campaign_anchor_term_matches: anchorMatches,
+        primary_campaign_term_matches: primaryMatches,
+        campaign_has_direct_signal: hasDirectSignal,
+        campaign_rotation_state: usage.wasUsedRecently || usage.imageUsedThisRun ? "reused" : "fresh",
+        campaign_was_used_recently: usage.wasUsedRecently,
+        campaign_image_used_this_run: usage.imageUsedThisRun,
+        _bestAvailableSort: {
+          relevanceTier,
+          used: usage.wasUsedRecently || usage.imageUsedThisRun,
+          campaignFitScore,
+          directMatches: themeMatches + sourceThemeMatches + anchorMatches + primaryMatches,
+          selectionPriority: Number(item.selection_priority || 0),
+          usageCount: Number(item.times_used || 0) + (usage.wasUsedRecently ? 1 : 0),
+          lastUsedAtTs: item.last_used_at ? Date.parse(item.last_used_at) || 0 : 0,
+        },
+      };
+    });
+  return chooseQualityCutoffAndRank(
+    rankedCandidates.map((item) => ({
+      item,
+      stableKey: item.url || item.title || "",
+      selection: item._bestAvailableSort,
+    })),
+    limit
+  ).map(({ item }) => {
+    const { _bestAvailableSort, ...cleanItem } = item;
+    return cleanItem;
+  });
+}
+
 function buildCampaignScoredProductCandidates({
   items,
   rule,
@@ -1836,7 +1986,13 @@ function buildCampaignScoredProductCandidates({
       const anchorMatches = countCampaignAnchorTermMatches(item, rule);
       const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
       const aiCampaignFitScore = getAiCampaignFitScore(item);
-      const hasDirectCampaignSignal = themeMatches + anchorMatches + primaryMatches > 0;
+      const hasDirectCampaignSignal = hasRequiredDirectCampaignSignal({
+        rule,
+        themeMatches,
+        sourceThemeMatches,
+        anchorMatches,
+        primaryMatches,
+      });
       const hasAiCampaignApproval =
         aiCampaignFitScore !== null &&
         aiCampaignFitScore >= Math.max(minimumScore, CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE);
@@ -1861,7 +2017,9 @@ function buildCampaignScoredProductCandidates({
         campaign_anchor_term_matches: anchorMatches,
         primary_campaign_term_matches: primaryMatches,
         campaign_has_direct_signal: hasDirectCampaignSignal,
-        campaign_has_meaningful_signal: hasDirectCampaignSignal || hasAiCampaignApproval,
+        campaign_has_meaningful_signal: requiresCampaignSignal
+          ? hasDirectCampaignSignal
+          : hasDirectCampaignSignal || hasAiCampaignApproval,
         campaign_was_used_recently: wasUsedRecently,
         campaign_image_used_this_run: imageUsedThisRun,
         campaign_rotation_state:
@@ -1997,6 +2155,19 @@ function selectCampaignCarouselProductsByDeliveryLadder({
       return false;
     }
 
+    if (
+      requiresCampaignSignal &&
+      !hasRequiredDirectCampaignSignal({
+        rule,
+        themeMatches: countCampaignCoreThemeTermMatches(item, rule),
+        sourceThemeMatches: countCampaignSourceThemeMatches(item, rule),
+        anchorMatches: countCampaignAnchorTermMatches(item, rule),
+        primaryMatches: countPrimaryCampaignTermMatches(item, rule),
+      })
+    ) {
+      return false;
+    }
+
     if (selected.some((selectedItem) => areSameWebsiteItem(selectedItem, item, sourceUrl))) {
       return false;
     }
@@ -2029,7 +2200,13 @@ function selectCampaignCarouselProductsByDeliveryLadder({
       const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
       const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
       const aiCampaignFitScore = getAiCampaignFitScore(item);
-      const hasDirectCampaignSignal = themeMatches + anchorMatches + primaryMatches > 0;
+      const hasDirectCampaignSignal = hasRequiredDirectCampaignSignal({
+        rule,
+        themeMatches,
+        sourceThemeMatches,
+        anchorMatches,
+        primaryMatches,
+      });
       const hasAiCampaignApproval =
         aiCampaignFitScore !== null &&
         aiCampaignFitScore >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE;
@@ -2059,7 +2236,9 @@ function selectCampaignCarouselProductsByDeliveryLadder({
           themeMatches,
           sourceThemeMatches,
           hasDirectCampaignSignal,
-          hasMeaningfulCampaignSignal: hasDirectCampaignSignal || hasAiCampaignApproval,
+          hasMeaningfulCampaignSignal: requiresCampaignSignal
+            ? hasDirectCampaignSignal
+            : hasDirectCampaignSignal || hasAiCampaignApproval,
           wasUsedRecently,
           imageUsedThisRun,
           usageCount,
@@ -2185,6 +2364,10 @@ function selectFinalBroadVerifiedCarouselProducts({
       const usedRecently = recentUsedKeys.has(itemKey) || hasWebsiteItemCatalogUsage(item);
       const confidence = getCarouselProductConfidence(item);
       const campaignFit = scoreCampaignFitForRule(item, rule);
+      const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
+      const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
+      const anchorMatches = countCampaignAnchorTermMatches(item, rule);
+      const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
 
       return {
         ...item,
@@ -2193,7 +2376,11 @@ function selectFinalBroadVerifiedCarouselProducts({
         product_confidence: Math.max(Number(item.product_confidence || 0), confidence),
         _finalBroadSort: {
           confidence,
-          campaignFit,
+           campaignFit,
+           themeMatches,
+           sourceThemeMatches,
+           anchorMatches,
+          primaryMatches,
           imageUsedThisRun,
           usedRecently,
           selectionPriority: Number(item.selection_priority || 0),
@@ -2206,6 +2393,20 @@ function selectFinalBroadVerifiedCarouselProducts({
       const sort = item?._finalBroadSort || {};
 
       if (isCampaignRule && Number(sort.campaignFit || 0) < CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) {
+        return false;
+      }
+
+      if (
+        isCampaignRule &&
+        extractCampaignCoreThemeTerms(rule).length > 0 &&
+        !hasRequiredDirectCampaignSignal({
+          rule,
+          themeMatches: sort.themeMatches,
+          sourceThemeMatches: sort.sourceThemeMatches,
+          anchorMatches: sort.anchorMatches,
+          primaryMatches: sort.primaryMatches,
+        })
+      ) {
         return false;
       }
 
@@ -2297,6 +2498,12 @@ async function prepareCarouselProductsForRule({
   const isCampaignRule = isCampaignScopedWebsiteRule(rule);
 
   if (isCampaignRule) {
+    const campaignCachedItems = await getCampaignProductCandidateItems({
+      supabase,
+      brandProfileId: rule.brand_profile_id,
+      themeKey: getCampaignThemeKey(rule),
+      limit: 200,
+    });
     const brandWideCatalogItems = filterWebsiteCatalogItemsForRule(
       await getWebsiteProductCatalogItems({
         supabase,
@@ -2317,6 +2524,11 @@ async function prepareCarouselProductsForRule({
 
     if (campaignTermCatalogItems.length || brandWideCatalogItems.length) {
       catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
+        ...campaignCachedItems.map((item) => ({
+          ...item,
+          selection_priority: Math.max(Number(item.selection_priority || 0), 220),
+          campaign_fit_source: item.campaign_fit_source || "campaign_candidate_cache",
+        })),
         ...campaignTermCatalogItems.map((item) => ({
           ...item,
           selection_priority: Math.max(Number(item.selection_priority || 0), 180),
@@ -2333,6 +2545,11 @@ async function prepareCarouselProductsForRule({
           campaign_fit_source: item.campaign_fit_source || item.discovery_source || "brand_catalog_fallback",
           campaign_fit_score: Number(item.campaign_fit_score || 0) || scoreCampaignFitForRule(item, rule),
         })),
+      ]);
+    } else if (campaignCachedItems.length) {
+      catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
+        ...campaignCachedItems,
+        ...catalogItems,
       ]);
     }
   }
@@ -2599,6 +2816,7 @@ async function prepareCarouselProductsForRule({
       const discoveredCandidates = await discoverProductCandidatesFromWebsite({
         websiteUrl,
         campaignPrompt: buildCampaignResearchText(rule),
+        rule,
         usedItems: recentUsedItems,
         fastCampaignContinuation: isCampaignRule && hasLockedCampaignSearchPool,
       });
@@ -2616,6 +2834,15 @@ async function prepareCarouselProductsForRule({
           campaign_fit_source: item.campaign_fit_source || "campaign_discovery",
           campaign_fit_score: scoreCampaignFitForRule(item, rule),
         }));
+
+        if (isCampaignRule) {
+          await upsertCampaignProductCandidateItems({
+            supabase,
+            rule,
+            sourceUrl: websiteUrl,
+            items: enrichedDiscoveredItems,
+          });
+        }
 
         catalogItems = [
           ...catalogItems.map((item) => ({ ...item, selection_priority: Number(item.selection_priority || 0) || 10 })),
@@ -2734,7 +2961,14 @@ async function prepareCarouselProductsForRule({
     }
   }
 
-  if (!hasLockedCampaignSearchPool && !hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
+  const verifiedStrongCampaignSelectionCount = isCampaignRule
+    ? selectedProducts.filter((item) => isEligibleCampaignCarouselProduct(item, rule)).length
+    : selectedProducts.filter(isValidCarouselProduct).length;
+  const shouldRunCarouselWebSearch = isCampaignRule
+    ? verifiedStrongCampaignSelectionCount < CAROUSEL_PRODUCT_SLIDE_TARGET
+    : !hasEnoughCarouselProductsForRule(selectedProducts, rule);
+
+  if (shouldRunCarouselWebSearch) {
     try {
       if (isCampaignRule) {
         campaignFreshDiscoveryAttempts += 1;
@@ -2748,14 +2982,25 @@ async function prepareCarouselProductsForRule({
       });
 
       if (Array.isArray(webSearchItems) && webSearchItems.length) {
+        const enrichedWebSearchItems = webSearchItems.map((item) => ({
+          ...item,
+          selection_priority: 100,
+          campaign_fit_source: "ai_campaign_research",
+          campaign_fit_score: scoreCampaignFitForRule(item, rule) + 40,
+        }));
+
+        if (isCampaignRule) {
+          await upsertCampaignProductCandidateItems({
+            supabase,
+            rule,
+            sourceUrl: websiteUrl,
+            items: enrichedWebSearchItems,
+          });
+        }
+
         catalogItems = [
           ...catalogItems.map((item) => ({ ...item, selection_priority: Number(item.selection_priority || 0) || 10 })),
-          ...webSearchItems.map((item) => ({
-            ...item,
-            selection_priority: 100,
-            campaign_fit_source: "ai_campaign_research",
-            campaign_fit_score: scoreCampaignFitForRule(item, rule) + 40,
-          })),
+          ...enrichedWebSearchItems,
         ];
 
         selectedProducts = selectCarouselProductsFromPool({
@@ -2952,7 +3197,7 @@ async function prepareCarouselProductsForRule({
         sourceUrl: websiteUrl,
         recentUsedItems,
         usedWebsiteImageUrlsThisRun,
-        minimumScore: 30,
+        minimumScore: CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE,
       });
       const mergedProducts = mergeCarouselProductSelections(
         selectedProducts,
@@ -3054,12 +3299,47 @@ async function prepareCarouselProductsForRule({
     selectedProducts = fallbackPool.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
   }
 
-  selectedProducts = dedupeWebsiteItemsByUrlTitleAndImage(selectedProducts)
-    .filter(isValidCarouselProduct)
-    .slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  if (isCampaignRule) {
+    selectedProducts = selectBestAvailableCampaignCarouselProducts({
+      items: [
+        ...selectedProducts,
+        ...lockedCampaignSearchPoolItems,
+        ...getCampaignSelectionItems(),
+        ...catalogItems,
+      ],
+      rule,
+      sourceUrl: websiteUrl,
+      recentUsedItems,
+      usedWebsiteImageUrlsThisRun,
+      limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+    });
+  } else {
+    selectedProducts = dedupeWebsiteItemsByUrlTitleAndImage(selectedProducts)
+      .filter(isValidCarouselProduct)
+      .slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  }
+
+  // A carousel is a delivery promise. If a very small verified catalog has
+  // fewer than five unique products, repeat its best verified products rather
+  // than failing the entire scheduled post. This is only reached after every
+  // available verified product has been considered.
+  if (selectedProducts.length > 0 && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    const bestAvailableProducts = [...selectedProducts];
+    let repeatIndex = 0;
+
+    while (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+      const repeatedProduct = bestAvailableProducts[repeatIndex % bestAvailableProducts.length];
+      selectedProducts.push({
+        ...repeatedProduct,
+        carousel_repeat_index: repeatIndex + 1,
+        campaign_rotation_state: "catalog_exhausted_repeat",
+      });
+      repeatIndex += 1;
+    }
+  }
 
   if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
-    throw new Error(`Carousel needs ${CAROUSEL_PRODUCT_SLIDE_TARGET} verified products with product images after one full search. Found ${selectedProducts.length}. Automatic retry disabled for cost protection.`);
+    throw new Error("Carousel could not find any verified website product with a usable product image.");
   }
 
   for (const product of selectedProducts) {
@@ -3075,23 +3355,309 @@ async function prepareCarouselProductsForRule({
     discoverySource: getWebsiteCatalogDiscoverySource("selected", rule),
   });
 
-  await Promise.all(
-    selectedProducts.map((product) =>
-      markWebsiteProductCatalogItemUsed({
-        supabase,
-        userId: rule.user_id,
-        brandProfileId: rule.brand_profile_id,
-        productUrl: product.url,
-        sourceUrl: websiteUrl,
-        websiteItem: product,
-        usedSource: getWebsiteCatalogUsedSource(rule),
-      })
-    )
-  );
+  if (isCampaignRule) {
+    await upsertCampaignProductCandidateItems({
+      supabase,
+      rule,
+      sourceUrl: websiteUrl,
+      items: selectedProducts,
+    });
+  }
 
   summary.website_items_found += selectedProducts.length;
   summary.website_content_success += 1;
   summary.website_image_used += selectedProducts.length;
+
+  return {
+    websiteItems: selectedProducts,
+    websiteItem: selectedProducts[0],
+    websiteSourceUrl: websiteUrl,
+    websiteCycleNumber: cycleNumber,
+    useWebsiteImage: true,
+    websiteRule: rule,
+  };
+}
+
+function isStrongResolvedCampaignProduct(item, rule) {
+  if (!isValidCarouselProduct(item)) return false;
+
+  const score = scoreCampaignFitForRule(item, rule);
+  const aiScore = getAiCampaignFitScore(item);
+  const hasDirectSignal = hasRequiredDirectCampaignSignal({
+    rule,
+    themeMatches: countCampaignCoreThemeTermMatches(item, rule),
+    sourceThemeMatches: countCampaignSourceThemeMatches(item, rule),
+    anchorMatches: countCampaignAnchorTermMatches(item, rule),
+    primaryMatches: countPrimaryCampaignTermMatches(item, rule),
+  });
+
+  return score >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE &&
+    (hasDirectSignal || (aiScore !== null && aiScore >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE));
+}
+
+async function prepareCampaignCarouselProductsV7({
+  supabase,
+  openai,
+  rule,
+  brandProfile,
+  summary,
+  usedWebsiteImageUrlsThisRun = new Set(),
+}) {
+  rule = await ensureProductSearchQueriesForRule({ supabase, rule });
+  const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
+
+  if (!websiteUrl) {
+    throw new Error("Website carousel requires a website URL in Brand profile");
+  }
+
+  const themeKey = getCampaignThemeKey(rule);
+  const recentUsedItems = await getRecentUsedWebsiteItems({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    contentType: rule.content_type_id || "carousel_website_item",
+    limit: WEBSITE_PRODUCT_REUSE_LIMIT,
+  });
+  const [cachedItems, campaignCatalogItems, discoveryState] = await Promise.all([
+    getCampaignProductCandidateItems({
+      supabase,
+      brandProfileId: rule.brand_profile_id,
+      themeKey,
+      limit: 200,
+    }),
+    getWebsiteProductCatalogItemsByCampaignTerms({
+      supabase,
+      userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id,
+      sourceUrl: websiteUrl,
+      terms: extractPrimaryCampaignTerms(rule),
+      limitPerTerm: 30,
+    }),
+    getCampaignProductDiscoveryState({
+      supabase,
+      brandProfileId: rule.brand_profile_id,
+      themeKey,
+    }),
+  ]);
+  let candidatePool = dedupeWebsiteItemsByUrlTitleAndImage([
+    ...cachedItems,
+    ...campaignCatalogItems.filter(isValidCarouselProduct),
+  ]).map((item) => ({
+    ...item,
+    heuristic_campaign_fit_score: scoreCampaignFitForRule({ ...item, ai_campaign_fit_score: null }, rule),
+    campaign_fit_score: scoreCampaignFitForRule(item, rule),
+  }));
+  const getStrongFreshSelection = () => selectBestAvailableCampaignCarouselProducts({
+    items: candidatePool.filter((item) => isStrongResolvedCampaignProduct(item, rule)),
+    rule,
+    sourceUrl: websiteUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+    limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+  });
+  let strongSelection = getStrongFreshSelection();
+  const hasFiveFreshStrong = strongSelection.length >= CAROUSEL_PRODUCT_SLIDE_TARGET &&
+    strongSelection.every((item) => item.campaign_rotation_state === "fresh");
+  const lastAttemptAgeMs = discoveryState.last_attempt_at
+    ? Date.now() - Date.parse(discoveryState.last_attempt_at)
+    : Number.POSITIVE_INFINITY;
+  const mayTrustExhaustedState = discoveryState.exhausted &&
+    lastAttemptAgeMs < 7 * 24 * 60 * 60 * 1000;
+  let shouldDiscover = !hasFiveFreshStrong && !mayTrustExhaustedState;
+  const initialUrls = new Set(candidatePool.map((item) => normalizeComparableValue(item.url)).filter(Boolean));
+  let verifiedThisRun = [];
+  let completedDiscoverySources = 0;
+
+  if (shouldDiscover) {
+    try {
+      const storeCandidates = await discoverProductCandidatesFromStoreSearch({
+        websiteUrl,
+        campaignPrompt: buildCampaignResearchText(rule),
+        usedItems: recentUsedItems,
+        excludeUsed: true,
+      });
+      const storeItems = await verifyDiscoveredWebsiteProductCandidates({
+        candidates: storeCandidates,
+        websiteUrl,
+        limit: WEBSITE_STORE_SEARCH_VERIFY_LIMIT,
+      });
+      verifiedThisRun.push(...storeItems);
+      completedDiscoverySources += 1;
+    } catch (error) {
+      console.log("V7 native store discovery unavailable", {
+        ruleId: rule.id,
+        websiteUrl,
+        message: error.message,
+      });
+    }
+
+    candidatePool = dedupeWebsiteItemsByUrlTitleAndImage([...candidatePool, ...verifiedThisRun]);
+    strongSelection = getStrongFreshSelection();
+
+    if (
+      strongSelection.length < CAROUSEL_PRODUCT_SLIDE_TARGET ||
+      strongSelection.some((item) => item.campaign_rotation_state !== "fresh")
+    ) {
+      try {
+        const webSearchItems = await findWebsiteProductWithWebSearch({
+          openai,
+          brandProfile,
+          rule,
+          websiteUrl,
+          usedWebsiteItems: recentUsedItems,
+          fitModel: PRODUCT_RESEARCH_FAST_MODEL,
+          fitMinimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
+        });
+        verifiedThisRun.push(...(Array.isArray(webSearchItems) ? webSearchItems : []));
+        completedDiscoverySources += 1;
+      } catch (error) {
+        console.log("V7 domain web search unavailable", {
+          ruleId: rule.id,
+          websiteUrl,
+          message: error.message,
+        });
+      }
+    }
+
+    candidatePool = dedupeWebsiteItemsByUrlTitleAndImage([...candidatePool, ...verifiedThisRun]);
+    strongSelection = getStrongFreshSelection();
+
+    if (strongSelection.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+      try {
+        const discoveryCandidates = await discoverProductCandidatesFromWebsite({
+          websiteUrl,
+          campaignPrompt: buildCampaignResearchText(rule),
+          rule,
+          usedItems: recentUsedItems,
+          fastCampaignContinuation: true,
+        });
+        const remainingItems = await verifyDiscoveredWebsiteProductCandidates({
+          candidates: discoveryCandidates,
+          websiteUrl,
+          limit: CAROUSEL_DISCOVERY_VERIFY_LIMIT,
+        });
+        verifiedThisRun.push(...remainingItems);
+        completedDiscoverySources += 1;
+      } catch (error) {
+        console.log("V7 bounded sitemap/catalog discovery unavailable", {
+          ruleId: rule.id,
+          websiteUrl,
+          message: error.message,
+        });
+      }
+    }
+
+    const uniqueVerifiedThisRun = dedupeWebsiteItemsByUrlTitleAndImage(verifiedThisRun)
+      .filter(isValidCarouselProduct);
+    const directStrongCount = uniqueVerifiedThisRun
+      .filter((item) => isStrongResolvedCampaignProduct(item, rule))
+      .length;
+    let scoredNewItems = uniqueVerifiedThisRun;
+
+    if (uniqueVerifiedThisRun.length && directStrongCount < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+      scoredNewItems = await applyAiCampaignFitScores({
+        openai,
+        rule,
+        brandProfile,
+        items: uniqueVerifiedThisRun,
+        maxItems: Math.min(uniqueVerifiedThisRun.length, 12),
+        model: PRODUCT_RESEARCH_FAST_MODEL,
+        escalateWhenUncertain: false,
+        minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
+      });
+    }
+
+    candidatePool = dedupeWebsiteItemsByUrlTitleAndImage([...candidatePool, ...scoredNewItems]);
+    await upsertCampaignProductCandidateItems({
+      supabase,
+      rule,
+      sourceUrl: websiteUrl,
+      items: scoredNewItems,
+    });
+    const newCount = scoredNewItems.filter((item) => !initialUrls.has(normalizeComparableValue(item.url))).length;
+    await updateCampaignProductDiscoveryState({
+      supabase,
+      brandProfileId: rule.brand_profile_id,
+      themeKey,
+      newCount,
+      candidateCount: scoredNewItems.length,
+      completedSourceCount: completedDiscoverySources,
+    });
+  }
+
+  let selectedProducts = selectBestAvailableCampaignCarouselProducts({
+    items: candidatePool,
+    rule,
+    sourceUrl: websiteUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+    limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+  });
+
+  if (selectedProducts.length > 0 && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    const uniqueBest = [...selectedProducts];
+    let index = 0;
+    while (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+      selectedProducts.push({
+        ...uniqueBest[index % uniqueBest.length],
+        carousel_repeat_index: index + 1,
+        campaign_rotation_state: "verified_store_has_fewer_than_five",
+      });
+      index += 1;
+    }
+  }
+
+  if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    throw new Error("No verified product detail page with a usable product image could be found.");
+  }
+
+  for (const product of selectedProducts) {
+    usedWebsiteImageUrlsThisRun.add(normalizeComparableValue(product.image_url));
+  }
+
+  await upsertWebsiteProductCatalogItems({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    items: selectedProducts,
+    discoverySource: getWebsiteCatalogDiscoverySource("selected", rule),
+  });
+  await upsertCampaignProductCandidateItems({
+    supabase,
+    rule,
+    sourceUrl: websiteUrl,
+    items: selectedProducts,
+  });
+  const cycleNumber = await getCurrentWebsiteCycle({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    contentType: rule.content_type_id || "carousel_website_item",
+  });
+
+  summary.website_items_found += selectedProducts.length;
+  summary.website_content_success += 1;
+  summary.website_image_used += selectedProducts.length;
+
+  console.log("V7 campaign product resolver completed", {
+    ruleId: rule.id,
+    brandProfileId: rule.brand_profile_id,
+    themeKey,
+    cacheCount: cachedItems.length,
+    discovered: shouldDiscover,
+    verifiedThisRun: verifiedThisRun.length,
+    selectedCount: selectedProducts.length,
+    selected: selectedProducts.map((item) => ({
+      title: item.title,
+      url: item.url,
+      campaignFitScore: scoreCampaignFitForRule(item, rule),
+      aiCampaignFitScore: getAiCampaignFitScore(item),
+      rotationState: item.campaign_rotation_state,
+    })),
+  });
 
   return {
     websiteItems: selectedProducts,
@@ -4318,7 +4884,17 @@ function canonicalizeWebsiteProductUrl(value, baseUrl = "") {
   try {
     const url = new URL(resolved);
     url.hash = "";
-    url.search = "";
+    const removableParams = new Set([
+      "fbclid", "gclid", "dclid", "msclkid", "mc_cid", "mc_eid",
+      "ref", "ref_", "source", "campaign", "variant", "currency",
+    ]);
+    for (const key of [...url.searchParams.keys()]) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.startsWith("utm_") || removableParams.has(lowerKey)) {
+        url.searchParams.delete(key);
+      }
+    }
+    url.searchParams.sort();
 
     // Shopify often exposes the same product as both /products/x and
     // /collections/y/products/x. Store and compare the product-level URL only.
@@ -4896,6 +5472,7 @@ function extractProductCardCandidatesFromHtml({
       source_page_url: pageUrl,
       reason: `Product card found on store search page: ${pageUrl}`,
       score,
+      discovery_score: score,
       campaign_fit_source: "store_search_card",
     });
   }
@@ -5339,7 +5916,7 @@ ${analysisInput}
 `.trim(),
       },
     ],
-    temperature: 0.2,
+    ...getTemperatureOptions(POST_TEXT_MODEL, 0.2),
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -5739,6 +6316,278 @@ async function getWebsiteProductCatalogItems({
   }
 
   return (data || []).map(normalizeWebsiteCatalogItem).filter(Boolean);
+}
+
+function getCampaignThemeKey(rule) {
+  const payload = {
+    v: 1,
+    theme: extractCampaignCoreThemeTerms(rule).map(normalizeSearchText).filter(Boolean).sort(),
+    match: extractExplicitCampaignMatchTerms(rule).map(normalizeSearchText).filter(Boolean).sort(),
+    avoid: extractCampaignAvoidTerms(rule).map(normalizeSearchText).filter(Boolean).sort(),
+    intent: normalizeSearchText(rule?.product_search_intent || ""),
+    need: normalizeSearchText(rule?.target_customer_need || ""),
+    fallback: normalizeSearchText(getCampaignCoreTitleSegment(rule?.name || rule?.campaign_goal || "")),
+  };
+
+  return buildCampaignFingerprint(payload);
+}
+
+async function getCampaignProductCandidateItems({
+  supabase,
+  brandProfileId,
+  themeKey,
+  limit = 200,
+}) {
+  if (!brandProfileId || !themeKey) return [];
+
+  const { data, error } = await supabase
+    .from("campaign_product_candidates")
+    .select("id, product_url, title, description, image_url, price, source_url, campaign_fit_score, heuristic_fit_score, ai_fit_score, fit_tier, score_version, product_verified, verified_at, campaign_fit_source, selection_priority, times_used, last_used_at, metadata")
+    .eq("brand_profile_id", brandProfileId)
+    .eq("theme_key", themeKey)
+    .eq("is_active", true)
+    .eq("product_verified", true)
+    .order("times_used", { ascending: true })
+    .order("fit_tier", { ascending: true })
+    .order("campaign_fit_score", { ascending: false })
+    .order("last_used_at", { ascending: true, nullsFirst: true })
+    .limit(limit);
+
+  if (error) {
+    console.log("Campaign product cache unavailable; continuing with live discovery", {
+      brandProfileId,
+      themeKey,
+      message: error.message,
+      code: error.code,
+    });
+    return [];
+  }
+
+  return (data || []).map((row) => {
+    const normalized = normalizeWebsiteCatalogItem({
+      ...row,
+      discovery_source: row.campaign_fit_source || "campaign_candidate_cache",
+    });
+
+    return normalized ? {
+      ...normalized,
+      campaign_candidate_id: row.id,
+      campaign_fit_score: Number(row.campaign_fit_score || 0),
+      heuristic_campaign_fit_score: Number(row.heuristic_fit_score || 0),
+      ai_campaign_fit_score: row.ai_fit_score === null ? null : Number(row.ai_fit_score),
+      campaign_fit_tier: Number(row.fit_tier ?? 3),
+      campaign_score_version: row.score_version || "legacy",
+      product_page_verified: Boolean(row.product_verified),
+      product_schema_verified: Boolean(row.metadata?.product_schema_verified),
+      ecommerce_proof_found: Boolean(row.metadata?.ecommerce_proof_found),
+      product_confidence: Number(row.metadata?.product_confidence || 0),
+      campaign_fit_source: row.campaign_fit_source || "campaign_candidate_cache",
+      selection_priority: Number(row.selection_priority || 0),
+      times_used: Number(row.times_used || 0),
+      last_used_at: row.last_used_at || null,
+      campaign_candidate_metadata: row.metadata || {},
+    } : null;
+  }).filter(Boolean);
+}
+
+async function getCampaignProductDiscoveryState({ supabase, brandProfileId, themeKey }) {
+  const { data, error } = await supabase
+    .from("campaign_product_discovery_state")
+    .select("last_attempt_at, exhausted, consecutive_no_new, last_new_count, metadata")
+    .eq("brand_profile_id", brandProfileId)
+    .eq("theme_key", themeKey)
+    .maybeSingle();
+
+  if (error) {
+    return {
+      available: false,
+      exhausted: false,
+      last_attempt_at: null,
+      consecutive_no_new: 0,
+    };
+  }
+
+  return {
+    available: true,
+    exhausted: Boolean(data?.exhausted),
+    last_attempt_at: data?.last_attempt_at || null,
+    consecutive_no_new: Number(data?.consecutive_no_new || 0),
+    last_new_count: Number(data?.last_new_count || 0),
+    metadata: data?.metadata || {},
+  };
+}
+
+async function updateCampaignProductDiscoveryState({
+  supabase,
+  brandProfileId,
+  themeKey,
+  newCount,
+  candidateCount,
+  completedSourceCount = 0,
+}) {
+  const existing = await getCampaignProductDiscoveryState({
+    supabase,
+    brandProfileId,
+    themeKey,
+  });
+  const noNewCount = newCount > 0 ? 0 : Number(existing.consecutive_no_new || 0) + 1;
+
+  await supabase
+    .from("campaign_product_discovery_state")
+    .upsert({
+      brand_profile_id: brandProfileId,
+      theme_key: themeKey,
+      last_attempt_at: new Date().toISOString(),
+      exhausted: newCount === 0 && completedSourceCount >= 2,
+      consecutive_no_new: noNewCount,
+      last_new_count: Number(newCount || 0),
+      metadata: {
+        resolver_version: "v7",
+        verified_candidate_count: Number(candidateCount || 0),
+        completed_source_count: Number(completedSourceCount || 0),
+      },
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "brand_profile_id,theme_key" });
+}
+
+async function upsertCampaignProductCandidateItems({ supabase, rule, sourceUrl, items }) {
+  if (!rule?.id) return;
+
+  const themeKey = getCampaignThemeKey(rule);
+  const rows = dedupeWebsiteItemsByUrlTitleAndImage(items)
+    .filter(isValidCarouselProduct)
+    .map((item) => ({
+      user_id: rule.user_id,
+      brand_profile_id: rule.brand_profile_id,
+      rule_id: rule.id,
+      theme_key: themeKey,
+      source_url: sourceUrl,
+      product_url: canonicalizeWebsiteProductUrl(item.url, sourceUrl) || item.url,
+      title: item.title,
+      description: item.description || "",
+      image_url: item.image_url,
+      price: item.price || null,
+      campaign_fit_score: scoreCampaignFitForRule(item, rule),
+      heuristic_fit_score: scoreCampaignFitForRule({ ...item, ai_campaign_fit_score: null }, rule),
+      ai_fit_score: getAiCampaignFitScore(item),
+      fit_tier: Number(item.campaign_fit_tier ?? (isEligibleCampaignCarouselProduct(item, rule) ? 0 : scoreCampaignFitForRule(item, rule) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE ? 1 : 2)),
+      score_version: "v7",
+      product_verified: true,
+      verified_at: new Date().toISOString(),
+      campaign_fit_source: item.campaign_fit_source || "hybrid_discovery_cache",
+      selection_priority: Number(item.selection_priority || 0),
+      is_active: true,
+      metadata: {
+        theme_matches: countCampaignCoreThemeTermMatches(item, rule),
+        source_theme_matches: countCampaignSourceThemeMatches(item, rule),
+        anchor_matches: countCampaignAnchorTermMatches(item, rule),
+        primary_matches: countPrimaryCampaignTermMatches(item, rule),
+        product_schema_verified: Boolean(item.product_schema_verified || item.product_json_ld_found || item.product_schema_found),
+        ecommerce_proof_found: Boolean(item.ecommerce_proof_found || item.add_to_cart_detected),
+        product_confidence: getCarouselProductConfidence(item),
+        discovery_score: Number(item.discovery_score || 0),
+        ai_fit_verdict: item.campaign_fit_verdict || "",
+        ai_fit_reason: item.campaign_fit_reason || "",
+      },
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (!rows.length) return;
+
+  const { error } = await supabase
+    .from("campaign_product_candidates")
+    .upsert(rows, { onConflict: "brand_profile_id,theme_key,product_url" });
+
+  if (error) {
+    console.log("Could not update campaign product cache; delivery continues without cache", {
+      ruleId: rule.id,
+      count: rows.length,
+      message: error.message,
+      code: error.code,
+    });
+  }
+}
+
+async function markCampaignProductCandidateUsed({
+  supabase,
+  brandProfileId,
+  themeKey,
+  productUrl,
+}) {
+  if (!brandProfileId || !themeKey || !productUrl) return;
+
+  const { error: rpcError } = await supabase.rpc("increment_campaign_product_candidate_usage", {
+    p_brand_profile_id: brandProfileId,
+    p_theme_key: themeKey,
+    p_product_url: productUrl,
+  });
+
+  if (!rpcError) return;
+
+  const { data, error } = await supabase
+    .from("campaign_product_candidates")
+    .select("id, times_used")
+    .eq("brand_profile_id", brandProfileId)
+    .eq("theme_key", themeKey)
+    .eq("product_url", productUrl)
+    .limit(1);
+
+  if (error || !data?.length) return;
+
+  await supabase
+    .from("campaign_product_candidates")
+    .update({
+      times_used: Number(data[0].times_used || 0) + 1,
+      last_used_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", data[0].id);
+}
+
+async function commitCarouselProductUsage({
+  supabase,
+  rule,
+  sourceUrl,
+  products,
+}) {
+  const uniqueProducts = dedupeWebsiteItemsByUrlTitleAndImage(products);
+  const themeKey = isCampaignScopedWebsiteRule(rule) ? getCampaignThemeKey(rule) : "";
+
+  // Commit only after the post and all slides exist. Keep this sequential and
+  // URL-specific so duplicate titles/images cannot mark unrelated products.
+  for (const product of uniqueProducts) {
+    const productUrl = canonicalizeWebsiteProductUrl(product.url, sourceUrl) || product.url;
+    const usedSource = getWebsiteCatalogUsedSource(rule);
+    const { error: catalogRpcError } = await supabase.rpc(
+      "increment_website_product_catalog_usage",
+      {
+        p_brand_profile_id: rule.brand_profile_id,
+        p_product_url: productUrl,
+        p_used_source: usedSource,
+      }
+    );
+
+    if (catalogRpcError) {
+      await markWebsiteProductCatalogItemUsed({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        productUrl,
+        sourceUrl,
+        websiteItem: product,
+        usedSource,
+      });
+    }
+
+    if (themeKey) {
+      await markCampaignProductCandidateUsed({
+        supabase,
+        brandProfileId: rule.brand_profile_id,
+        themeKey,
+        productUrl,
+      });
+    }
+  }
 }
 
 function escapePostgrestSearchTerm(value) {
@@ -6303,8 +7152,21 @@ function splitCampaignTermLine(value) {
 
 function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_SEARCH_QUERY_LIMIT) {
   const existingQueries = splitCampaignTermLine(rule?.product_search_queries);
-  if (existingQueries.length) {
-    return anchorCampaignTermsForRule(existingQueries, rule, limit);
+  const focusTerms = collectUniqueTerms([
+    ...extractCampaignCoreThemeTerms(rule),
+    ...splitCampaignTermLine(rule?.product_match_terms),
+  ], 20);
+  const focusedExistingQueries = existingQueries.filter((query) => {
+    const words = query.split(/\s+/).filter(Boolean);
+    if (!words.length || words.length > 5 || query.length > 55) return false;
+    return focusTerms.some((term) => {
+      const normalizedTerm = normalizeSearchText(term);
+      return normalizedTerm && (query.includes(normalizedTerm) || normalizedTerm.includes(query));
+    });
+  });
+
+  if (focusedExistingQueries.length >= 2) {
+    return anchorCampaignTermsForRule(focusedExistingQueries, rule, limit);
   }
 
   const rawProductMatchTerms = splitCampaignTermLine(rule?.product_match_terms);
@@ -6316,8 +7178,6 @@ function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_S
     [
       ...extractCampaignCoreThemeTerms(rule),
       ...splitCampaignTermLine(rule?.name),
-      ...splitCampaignTermLine(rule?.campaign_goal),
-      ...splitCampaignTermLine(rule?.target_customer_need),
       ...splitCampaignTermLine(rule?.product_search_intent),
     ],
     8
@@ -6340,8 +7200,6 @@ function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_S
     ...supportedProductMatchTerms,
     ...scopedProductQueries,
     ...splitCampaignTermLine(rule?.product_search_intent),
-    ...splitCampaignTermLine(rule?.campaign_category),
-    ...splitCampaignTermLine(rule?.prompt),
   ];
 
   const normalizedQueries = collectUniqueTerms(seedTerms, limit)
@@ -7193,12 +8051,7 @@ function extractCompactPrimaryCampaignRoots(explicitTerms) {
     if (isUsefulShortCampaignRoot(prefix)) {
       sharedRoots.push(prefix);
     } else if (prefix.length > 6) {
-      const compactRoot = prefix.slice(0, 3);
-
-      if (isUsefulShortCampaignRoot(compactRoot)) {
-        sharedRoots.push(compactRoot);
-        sharedRoots.push(prefix);
-      }
+      sharedRoots.push(prefix);
     }
   }
 
@@ -7322,18 +8175,9 @@ function getCampaignCoreTitleSegment(value) {
 }
 
 function getCompactCampaignThemeRoot(word) {
-  const value = normalizeSearchText(word).trim();
-
-  // Long compound campaign words can contain the useful search root at the
-  // beginning. Keep this generic and only use it for longer words so ordinary
-  // short words do not become noisy roots.
-  if (value.length < 10) {
-    return "";
-  }
-
-  const root = value.slice(0, 3);
-
-  return isUsefulShortCampaignRoot(root) ? root : "";
+  // Do not derive three-letter roots from named themes. They are too lossy and
+  // previously made unrelated products look like exact campaign matches.
+  return "";
 }
 
 function extractCampaignCoreThemeTerms(rule) {
@@ -7812,6 +8656,13 @@ function getSafeCampaignProductCandidates(items, rule) {
     return concreteThemeMatchedItems;
   }
 
+  // A named campaign theme must not fall through to broad AI-approved
+  // products. Continue focused discovery; if too few matching products exist,
+  // stop the carousel instead of padding it with generic catalog items.
+  if (themeTerms.length) {
+    return [];
+  }
+
   // When a campaign has AI-generated product_match_terms and we can derive
   // campaign anchors from the campaign title/context, the anchor match is the
   // hard product-card guard. This prevents broad terms such as personal, gift,
@@ -7979,7 +8830,7 @@ function applyCampaignFitEvaluations(items, evaluationByIndex) {
         ...item,
         ai_campaign_fit_score:
           item?.ai_campaign_fit_score === undefined ? null : item.ai_campaign_fit_score,
-        campaign_fit_score: Number(item?.campaign_fit_score || item?.score || 0),
+        campaign_fit_score: Number(item?.heuristic_campaign_fit_score || 0),
         campaign_fit_source: item?.campaign_fit_source || "ai_campaign_fit_unscored",
         campaign_fit_reason:
           item?.campaign_fit_reason || "Not evaluated in campaign fit batch; kept existing heuristic score.",
@@ -8116,25 +8967,23 @@ function scoreCampaignFitForRule(item, rule) {
   const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
   const directCampaignSignalCount = themeMatches + anchorMatches + primaryMatches;
   if (!terms.length && !avoidTerms.length && !anchorTerms.length && !themeTerms.length) {
-    return aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
+    return aiScore !== null ? aiScore : 0;
   }
 
   const title = normalizeSearchText(item?.title);
   const url = normalizeSearchText(item?.url || item?.product_url || item?.item_url);
   const description = normalizeSearchText(item?.description);
-  const reason = normalizeSearchText(item?.reason);
-  const source = normalizeSearchText(item?.catalog_source || item?.discovery_source || item?.campaign_fit_source);
-  const haystack = `${title} ${url} ${description} ${reason}`;
-  let score = aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
+  const haystack = `${title} ${url} ${description}`;
+  let score = aiScore !== null ? aiScore : 0;
 
   const shortRoots = getPrimaryCampaignShortRoots(rule);
 
   if (themeMatches > 0) {
     score += 125 + themeMatches * 45;
-  } else if (sourceThemeMatches > 0) {
-    score += directCampaignSignalCount > 0
-      ? 95 + sourceThemeMatches * 30
-      : 40 + sourceThemeMatches * 8;
+  } else if (sourceThemeMatches > 0 && directCampaignSignalCount > 0) {
+    // The source page may corroborate a match already present on the product,
+    // but a search/category URL must never create product relevance by itself.
+    score += Math.min(sourceThemeMatches * 5, 10);
   } else if (themeTerms.length) {
     // Once a clear campaign theme exists, broad gift/personal terms should not
     // outrank products that actually carry the occasion/theme.
@@ -8153,7 +9002,6 @@ function scoreCampaignFitForRule(item, rule) {
   const titleTokens = tokenizeSearchText(title);
   const urlTokens = tokenizeSearchText(url);
   const descriptionTokens = tokenizeSearchText(description);
-  const reasonTokens = tokenizeSearchText(reason);
 
   for (const term of terms) {
     const isExplicit = explicitTerms.includes(term);
@@ -8163,19 +9011,16 @@ function scoreCampaignFitForRule(item, rule) {
       const titleRootMatch = titleTokens.some((token) => token.startsWith(term) && token.length >= term.length + 2);
       const urlRootMatch = urlTokens.some((token) => token.startsWith(term) && token.length >= term.length + 2);
       const descriptionRootMatch = descriptionTokens.some((token) => token.startsWith(term) && token.length >= term.length + 2);
-      const reasonRootMatch = reasonTokens.some((token) => token.startsWith(term) && token.length >= term.length + 2);
 
       if (titleRootMatch) score += 48;
       if (urlRootMatch) score += 42;
       if (descriptionRootMatch) score += 10;
-      if (reasonRootMatch) score += 8;
       continue;
     }
 
     if (title.includes(term)) score += isExplicit ? 65 : 35;
     if (url.includes(term)) score += isExplicit ? 65 : 35;
     if (description.includes(term)) score += isExplicit ? 18 : 8;
-    if (reason.includes(term)) score += isExplicit ? 16 : 8;
   }
 
   for (const avoidTerm of avoidTerms) {
@@ -8185,9 +9030,6 @@ function scoreCampaignFitForRule(item, rule) {
     if (description.includes(avoidTerm)) score -= 35;
     if (haystack.includes(avoidTerm)) score -= 20;
   }
-
-  if (source.includes("ai_campaign_research")) score += 25;
-  if (source.includes("campaign")) score += 12;
 
   if (isLikelyGenericCustomTemplateProduct(item) && themeMatches === 0 && sourceThemeMatches === 0 && anchorMatches === 0) {
     score -= 160;
@@ -8201,7 +9043,7 @@ function scoreCampaignFitForRule(item, rule) {
     score = Math.min(score, CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE - 5);
   }
 
-  return Math.max(score, -200);
+  return Math.min(100, Math.max(Math.round(score), 0));
 }
 
 function getStrongCampaignFitItems(items, rule) {
@@ -8946,7 +9788,10 @@ async function extractProductDataFromProductPage({
 }) {
   const html = await fetchHtml(productUrl);
   const product = findJsonLdProduct(html);
-  const productSchemaFound = Boolean(product?.name || product?.offers || product?.image);
+  const jsonLdProductCount = extractJsonLdObjects(html)
+    .filter((item) => normalizeJsonLdType(item?.["@type"]).some((type) => type.includes("product")))
+    .length;
+  const productSchemaFound = Boolean(product?.name && product?.image && product?.offers);
   const ecommerceProofFound = hasEcommerceProofText(html);
 
   const title =
@@ -8982,6 +9827,29 @@ const imageUrl =
   imageUrlMatchesProductIdentity(webSearchProduct.image_url, productUrl, title)
     ? webSearchProduct.image_url
     : null);
+  const productUrlEvidenceScore = getProductUrlEvidenceScore(productUrl);
+  const productPageVerified = Boolean(
+    imageUrl &&
+    !isLikelyBadDiscoveryPageUrl(productUrl, websiteUrl) &&
+    (
+      (productSchemaFound && (jsonLdProductCount <= 3 || productUrlEvidenceScore >= 22)) ||
+      (ecommerceProofFound && Boolean(price) && productUrlEvidenceScore >= 22)
+    )
+  );
+
+  if (!productPageVerified) {
+    console.log("Rejected fetched page because it is not a verified product detail page", {
+      productUrl,
+      title,
+      productSchemaFound,
+      jsonLdProductCount,
+      ecommerceProofFound,
+      hasPrice: Boolean(price),
+      hasImage: Boolean(imageUrl),
+      productUrlEvidenceScore,
+    });
+    return null;
+  }
 
   const normalizedItem = normalizeWebsiteItem(
     {
@@ -9013,8 +9881,9 @@ const imageUrl =
     source_page_url: webSearchProduct?.source_page_url || null,
     source_search_url: webSearchProduct?.source_search_url || null,
     campaign_fit_source: webSearchProduct?.campaign_fit_source || null,
-    campaign_fit_score: Number(webSearchProduct?.campaign_fit_score || webSearchProduct?.score || 0),
-    product_page_verified: true,
+    discovery_score: Number(webSearchProduct?.discovery_score || webSearchProduct?.score || 0),
+    campaign_fit_score: 0,
+    product_page_verified: productPageVerified,
     product_schema_verified: productSchemaFound,
     ecommerce_proof_found: ecommerceProofFound,
   };
@@ -9498,26 +10367,23 @@ function buildStoreSearchUrls(websiteUrl, campaignPrompt = "") {
     return { query, encoded, slug };
   });
 
-  for (const { encoded } of queryParts) {
-    urls.push(
-      `${origin}/search?q=${encoded}`,
-      `${origin}/search?type=product&q=${encoded}`
-    );
-  }
+  // Interleave common platform-neutral search shapes per query. Previously the
+  // global slice was filled by Shopify-style URLs before WooCommerce, Magento
+  // or custom search variants were ever attempted.
+  const searchUrlBuilders = [
+    ({ encoded }) => `${origin}/search?type=product&q=${encoded}`,
+    ({ encoded }) => `${origin}/?s=${encoded}&post_type=product`,
+    ({ encoded }) => `${origin}/catalogsearch/result/?q=${encoded}`,
+    ({ encoded }) => `${origin}/search?query=${encoded}`,
+    ({ encoded }) => `${origin}/sok?q=${encoded}`,
+    ({ encoded }) => `${origin}/search-results?search_query=${encoded}`,
+    ({ slug }) => `${origin}/collections/all?constraint=${slug}`,
+  ];
 
-  for (const { encoded, slug } of queryParts) {
-    urls.push(
-      `${origin}/search?options[prefix]=last&q=${encoded}`,
-      `${origin}/search?query=${encoded}`,
-      `${origin}/search?s=${encoded}`,
-      `${origin}/sok?q=${encoded}`,
-      `${origin}/sok?query=${encoded}`,
-      `${origin}/s%C3%B6k?q=${encoded}`,
-      `${origin}/catalogsearch/result/?q=${encoded}`,
-      `${origin}/search-results?search_query=${encoded}`,
-      `${origin}/?s=${encoded}&post_type=product`,
-      `${origin}/collections/all?constraint=${slug}`
-    );
+  for (const buildUrl of searchUrlBuilders) {
+    for (const queryPart of queryParts.slice(0, 3)) {
+      urls.push(buildUrl(queryPart));
+    }
   }
 
   return Array.from(new Set(urls)).slice(0, WEBSITE_STORE_SEARCH_FETCH_LIMIT);
@@ -9710,17 +10576,21 @@ async function discoverProductCandidatesFromStoreSearch({
       .filter(Boolean)
   );
 
-  candidates.push(
-    ...(await discoverShopifySearchSuggest({
-      websiteUrl,
-      campaignPrompt,
-    }))
-  );
-
   let searchUrls = buildStoreSearchUrls(websiteUrl, campaignPrompt);
 
   try {
     const homeHtml = await fetchHtml(websiteUrl);
+    const looksLikeShopify = /cdn\.shopify\.com|shopify-section|Shopify\.theme|\/cdn\/shop\//i.test(homeHtml);
+
+    if (looksLikeShopify) {
+      candidates.push(
+        ...(await discoverShopifySearchSuggest({
+          websiteUrl,
+          campaignPrompt,
+        }))
+      );
+    }
+
     searchUrls = [
       ...extractSearchFormUrlsFromHtml({
         html: homeHtml,
@@ -9736,10 +10606,11 @@ async function discoverProductCandidatesFromStoreSearch({
     });
   }
 
-  for (const searchUrl of Array.from(new Set(searchUrls)).slice(0, WEBSITE_STORE_SEARCH_FETCH_LIMIT)) {
-    try {
+  const boundedSearchUrls = Array.from(new Set(searchUrls)).slice(0, WEBSITE_STORE_SEARCH_FETCH_LIMIT);
+  const searchPageResults = await Promise.allSettled(
+    boundedSearchUrls.map(async (searchUrl) => {
       const html = await fetchHtml(searchUrl);
-      const searchCandidates = extractProductLinksFromDiscoveryPage({
+      return extractProductLinksFromDiscoveryPage({
         html,
         pageUrl: searchUrl,
         websiteUrl,
@@ -9751,12 +10622,17 @@ async function discoverProductCandidatesFromStoreSearch({
         score: Number(item.score || 0) + 90,
         campaign_fit_source: item.campaign_fit_source || "store_search_page",
       }));
+    })
+  );
 
-      candidates.push(...searchCandidates);
-    } catch (error) {
+  for (let index = 0; index < searchPageResults.length; index += 1) {
+    const result = searchPageResults[index];
+    if (result.status === "fulfilled") {
+      candidates.push(...result.value);
+    } else {
       console.log("Store search URL unavailable", {
-        searchUrl,
-        message: error.message,
+        searchUrl: boundedSearchUrls[index],
+        message: result.reason?.message || "Unknown fetch error",
       });
     }
   }
@@ -9792,7 +10668,7 @@ function scoreDiscoveredProductUrl(url, websiteUrl, campaignPrompt) {
   }) + (isLikelyNonProductUrl(url, websiteUrl) ? -100 : 0);
 }
 
-async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt }) {
+async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt, rule = null }) {
   const origin = getWebsiteOrigin(websiteUrl);
 
   if (!origin) {
@@ -9801,7 +10677,10 @@ async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt }) {
 
   const discovered = [];
 
-  for (let page = 1; page <= 3; page += 1) {
+  // Keep platform feeds bounded. Theme-specific store search, sitemaps and
+  // domain web search do the focused discovery; this feed is only one cheap
+  // supplementary candidate source and must never scale with catalog size.
+  for (let page = 1; page <= 1; page += 1) {
     const jsonUrl = `${origin}/products.json?limit=250&page=${page}`;
 
     try {
@@ -9847,7 +10726,7 @@ async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt }) {
           continue;
         }
 
-        discovered.push({
+        const discoveredItem = {
           title,
           url: productUrl,
           price,
@@ -9855,7 +10734,17 @@ async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt }) {
           description: String(product?.body_html || product?.body || ""),
           reason: "Product found from Shopify products feed",
           score: scorePossibleProductLink({ url: productUrl, text: title, campaignPrompt }),
-        });
+          campaign_fit_source: "shopify_complete_products_feed",
+        };
+
+        discoveredItem.campaign_fit_score = rule
+          ? scoreCampaignFitForRule(discoveredItem, rule)
+          : 0;
+        discovered.push(discoveredItem);
+      }
+
+      if (products.length < 250) {
+        break;
       }
     } catch (error) {
       console.log("Shopify products.json discovery unavailable", {
@@ -9867,7 +10756,11 @@ async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt }) {
   }
 
   return dedupeUrlItems(discovered)
-    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+    .sort((a, b) => {
+      const campaignDelta = Number(b.campaign_fit_score || 0) - Number(a.campaign_fit_score || 0);
+      if (campaignDelta !== 0) return campaignDelta;
+      return Number(b.score || 0) - Number(a.score || 0);
+    })
     .slice(0, 80);
 }
 
@@ -10026,6 +10919,7 @@ async function discoverProductsFromSitemaps({
 async function discoverProductCandidatesFromWebsite({
   websiteUrl,
   campaignPrompt,
+  rule = null,
   usedItems = [],
   fastCampaignContinuation = false,
 }) {
@@ -10053,6 +10947,7 @@ async function discoverProductCandidatesFromWebsite({
   const shopifyCandidates = await discoverShopifyProductsJson({
     websiteUrl,
     campaignPrompt,
+    rule,
   });
   candidates.push(...shopifyCandidates);
 
@@ -10099,7 +10994,11 @@ async function discoverProductCandidatesFromWebsite({
 
   return dedupeUrlItems(candidates)
     .filter((item) => !usedComparable.has(normalizeComparableValue(item.url)))
-    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+    .sort((a, b) => {
+      const campaignDelta = Number(b.campaign_fit_score || 0) - Number(a.campaign_fit_score || 0);
+      if (campaignDelta !== 0) return campaignDelta;
+      return Number(b.score || 0) - Number(a.score || 0);
+    })
     .slice(0, fastCampaignContinuation ? 45 : WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT);
 }
 
@@ -10111,19 +11010,28 @@ async function verifyDiscoveredWebsiteProductCandidates({
   const verifiedItems = [];
   const seenUrls = new Set();
   const seenImages = new Set();
+  const boundedCandidates = (candidates || []).slice(0, Math.min(limit + 8, 24));
 
-  for (const candidate of candidates || []) {
-    if (verifiedItems.length >= limit) {
-      break;
-    }
+  for (let start = 0; start < boundedCandidates.length && verifiedItems.length < limit; start += 4) {
+    const batch = boundedCandidates.slice(start, start + 4);
+    const results = await Promise.allSettled(batch.map((candidate) =>
+      extractProductDataFromProductPage({
+          productUrl: candidate.url,
+          websiteUrl,
+          webSearchProduct: candidate,
+        })
+    ));
 
-    try {
-      const websiteItem = await extractProductDataFromProductPage({
-        productUrl: candidate.url,
-        websiteUrl,
-        webSearchProduct: candidate,
-      });
-
+    for (let index = 0; index < results.length; index += 1) {
+      const result = results[index];
+      if (result.status === "rejected") {
+        console.log("Could not verify discovered product catalog candidate", {
+          productUrl: batch[index]?.url,
+          message: result.reason?.message || "Unknown verification error",
+        });
+        continue;
+      }
+      const websiteItem = result.value;
       if (!websiteItem?.url || !websiteItem?.title) {
         continue;
       }
@@ -10145,11 +11053,7 @@ async function verifyDiscoveredWebsiteProductCandidates({
       }
 
       verifiedItems.push(websiteItem);
-    } catch (error) {
-      console.log("Could not verify discovered product catalog candidate", {
-        productUrl: candidate?.url,
-        message: error.message,
-      });
+      if (verifiedItems.length >= limit) break;
     }
   }
 
@@ -10207,10 +11111,9 @@ function normalizeCampaignSearchPoolItem(
     ...enrichedItem,
     item_key: createItemKey(enrichedItem),
     selection_priority: Math.max(Number(item?.selection_priority || 0), selectionPriority),
-    campaign_fit_score: Math.max(
-      Number(item?.campaign_fit_score || item?.score || 0),
-      scoreCampaignFitForRule(enrichedItem, rule) + scoreBonus
-    ),
+    discovery_score: Number(item?.discovery_score || item?.score || 0),
+    heuristic_campaign_fit_score: scoreCampaignFitForRule(enrichedItem, rule),
+    campaign_fit_score: scoreCampaignFitForRule(enrichedItem, rule) + scoreBonus,
   };
 }
 
@@ -10222,15 +11125,9 @@ function buildCampaignSearchPoolItems({
   selectionPriority = 180,
   scoreBonus = 0,
 }) {
+  // Only detail pages that were fetched and verified may enter the campaign
+  // selection pool. Raw search/listing cards remain discovery hints.
   return dedupeWebsiteItemsByUrlTitleAndImage([
-    ...(candidates || [])
-      .map((item) =>
-        normalizeCampaignSearchPoolItem(item, websiteUrl, rule, {
-          selectionPriority,
-          scoreBonus,
-        })
-      )
-      .filter(Boolean),
     ...(verifiedItems || [])
       .map((item) =>
         normalizeCampaignSearchPoolItem(item, websiteUrl, rule, {
@@ -10580,9 +11477,9 @@ async function findWebsiteProductWithWebSearch({
   websiteUrl,
   usedWebsiteItems = [],
   fitModel = PRODUCT_RESEARCH_MODEL,
-  fitMinimumStrongProducts = CAROUSEL_MIN_PRODUCT_SLIDES,
+  fitMinimumStrongProducts = CAROUSEL_PRODUCT_SLIDE_TARGET,
 }) {
-  const attempts = ["best_match", "domain_site_search", "backup_broad"];
+  const attempts = ["best_match", "domain_site_search"];
   const verifiedItems = [];
   const seenUrls = new Set();
   const seenImages = new Set();
@@ -10730,11 +11627,22 @@ async function findWebsiteProductWithWebSearch({
             verifiedCount: verifiedItems.length,
           });
 
+          const localItems = verifiedItems.map((item) => ({
+            ...item,
+            heuristic_campaign_fit_score: scoreCampaignFitForRule(item, rule),
+            campaign_fit_score: scoreCampaignFitForRule(item, rule),
+            campaign_fit_source: "verified_domain_web_search",
+          }));
+
+          if (localItems.filter((item) => isEligibleCampaignCarouselProduct(item, rule)).length >= fitMinimumStrongProducts) {
+            return localItems;
+          }
+
           return applyAiCampaignFitScores({
             openai,
             rule,
             brandProfile,
-            items: verifiedItems,
+            items: localItems,
             maxItems: MAX_VERIFIED_ITEMS,
             model: fitModel,
             minimumStrongProducts: fitMinimumStrongProducts,
@@ -10761,6 +11669,28 @@ async function findWebsiteProductWithWebSearch({
       discoveryPageCount: webSearchDiscoveryPages.length,
       verifiedCount: verifiedItems.length,
     });
+
+    const locallyStrongVerifiedCount = verifiedItems
+      .filter((item) => isEligibleCampaignCarouselProduct(item, rule))
+      .length;
+
+    if (locallyStrongVerifiedCount >= fitMinimumStrongProducts) {
+      console.log("Product researcher stopped after the first sufficient search attempt", {
+        ruleId: rule?.id,
+        brandProfileId: rule?.brand_profile_id,
+        websiteUrl,
+        attempt,
+        verifiedCount: verifiedItems.length,
+        locallyStrongVerifiedCount,
+      });
+
+      return verifiedItems.map((item) => ({
+        ...item,
+        heuristic_campaign_fit_score: scoreCampaignFitForRule(item, rule),
+        campaign_fit_score: scoreCampaignFitForRule(item, rule),
+        campaign_fit_source: "verified_domain_web_search",
+      }));
+    }
 
   }
 
@@ -11087,6 +12017,7 @@ async function prepareWebsiteContentForRule({
     const discoveredCandidates = await discoverProductCandidatesFromWebsite({
       websiteUrl,
       campaignPrompt: buildCampaignResearchText(rule),
+      rule,
       usedItems: recentUsedItems,
     });
 
@@ -11332,7 +12263,7 @@ async function saveWebsiteContentHistory({
 
 async function generateAutomationPost(openai, rule) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: POST_TEXT_MODEL,
     messages: [
       {
         role: "system",
@@ -11344,7 +12275,7 @@ async function generateAutomationPost(openai, rule) {
         content: buildAutomationPrompt(rule),
       },
     ],
-    temperature: 0.75,
+    ...getTemperatureOptions(POST_TEXT_MODEL, 0.75),
   });
 
   return completion.choices?.[0]?.message?.content?.trim() || "";
@@ -11416,7 +12347,7 @@ Return JSON exactly in this shape:
           `.trim(),
         },
       ],
-      temperature: 0.65,
+      ...getTemperatureOptions(POST_TEXT_MODEL, 0.65),
     });
 
     const raw = completion.choices?.[0]?.message?.content || "";
@@ -11550,7 +12481,7 @@ Return JSON exactly in this shape:
           `.trim(),
         },
       ],
-      temperature: 0.55,
+      ...getTemperatureOptions(POST_TEXT_MODEL, 0.55),
     });
 
     const raw = completion.choices?.[0]?.message?.content || "";
@@ -13252,7 +14183,10 @@ let websitePreparedRule = rule;
 
         if (isCarouselRule(rule)) {
           try {
-            const preparedCarouselProducts = await prepareCarouselProductsForRule({
+            const carouselPreparer = isCampaignScopedWebsiteRule(rule)
+              ? prepareCampaignCarouselProductsV7
+              : prepareCarouselProductsForRule;
+            const preparedCarouselProducts = await carouselPreparer({
               supabase,
               openai,
               rule,
@@ -13625,6 +14559,13 @@ product_research_model_used: rule.uses_website_content
 
         if (isCarouselRule(rule) && websiteItems.length) {
           try {
+            await commitCarouselProductUsage({
+              supabase,
+              rule: websitePreparedRule,
+              sourceUrl: websiteSourceUrl,
+              products: websiteItems,
+            });
+
             await saveCarouselWebsiteContentHistory({
               supabase,
               rule,
