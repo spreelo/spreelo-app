@@ -1,8 +1,4 @@
 import OpenAI from "openai";
-import {
-  OPENAI_MODELS,
-  getTemperatureOptions,
-} from "../../../lib/openaiModels.js";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   inferContentLanguageFromWebsiteSignals,
@@ -19,7 +15,6 @@ export const MAX_CAMPAIGN_OPPORTUNITIES = 12;
 export const WEBSITE_MAX_CONTEXT_LINK_CANDIDATES = 60;
 export const WEBSITE_PRODUCT_ASSORTMENT_HINT_MAX_ITEMS = 80;
 export const WEBSITE_PRODUCT_METADATA_REPAIR_MAX_OPPORTUNITIES = 12;
-export const WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS = 4;
 
 export function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
@@ -224,7 +219,7 @@ export async function repairJsonWithOpenAI({
   contextLabel = "OpenAI JSON response",
 }) {
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.helper,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -544,7 +539,7 @@ async function selectWebsiteContextLinksWithOpenAI({ openai, websiteUrl, html })
 
   try {
     const completion = await openai.chat.completions.create({
-      model: OPENAI_MODELS.helper,
+      model: "gpt-4.1-mini",
       messages: [
         {
           role: "system",
@@ -642,12 +637,6 @@ export async function fetchProductSourceCandidates({ openai, websiteUrl, html })
         link_text: link.text || "",
         surrounding_text: link.surrounding_text || "",
         score: link.score || 0,
-        internal_links: extractProductSourceLinks(candidate.html, candidate.url)
-          .slice(0, 120)
-          .map((childLink) => ({
-            url: childLink.url,
-            text: childLink.text || "",
-          })),
       });
     } catch (error) {
       console.error("Could not fetch website context page", {
@@ -667,19 +656,7 @@ export function formatProductSourceCandidatesForPrompt(candidates) {
   }
 
   return candidates
-    .map((candidate, index) => {
-      const internalLinks = (Array.isArray(candidate.internal_links)
-        ? candidate.internal_links
-        : []
-      )
-        .slice(0, 80)
-        .map(
-          (link) =>
-            `- ${link.text || "Untitled link"}: ${link.url}`
-        )
-        .join("\n");
-
-      return (
+    .map((candidate, index) =>
       `
 Candidate page ${index + 1}:
 URL: ${candidate.url}
@@ -689,43 +666,9 @@ Meta description: ${candidate.description || "Not found"}
 
 Visible text:
 ${candidate.text || ""}
-
-Internal links found on this page:
-${internalLinks || "No internal links found."}
 `.trim()
-      );
-    })
+    )
     .join("\n\n---\n\n");
-}
-
-export function collectDiscoveredInternalUrls({
-  html,
-  websiteUrl,
-  productSourceCandidates,
-}) {
-  const urls = new Set();
-
-  for (const link of extractProductSourceLinks(html, websiteUrl).slice(0, 200)) {
-    urls.add(String(link.url || "").split("#")[0]);
-  }
-
-  for (const candidate of Array.isArray(productSourceCandidates)
-    ? productSourceCandidates
-    : []) {
-    if (candidate?.url) {
-      urls.add(String(candidate.url).split("#")[0]);
-    }
-
-    for (const link of Array.isArray(candidate?.internal_links)
-      ? candidate.internal_links
-      : []) {
-      if (link?.url) {
-        urls.add(String(link.url).split("#")[0]);
-      }
-    }
-  }
-
-  return [...urls].filter(Boolean);
 }
 
 
@@ -887,7 +830,7 @@ async function repairCampaignProductMetadataWithOpenAI({
       .join("\n\n");
 
     const completion = await openai.chat.completions.create({
-      model: OPENAI_MODELS.helper,
+      model: "gpt-4.1-mini",
       messages: [
         {
           role: "system",
@@ -1391,35 +1334,12 @@ export function hasProductBasedWebsiteEvidence(evidenceText) {
   return score >= 4;
 }
 
-export function normalizeWebsiteProductMode(
-  rawValue,
-  fallbackWebsiteUrl = "",
-  evidenceText = "",
-  discoveredInternalUrls = []
-) {
+function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "", evidenceText = "") {
   const rawMode = rawValue || {};
-  const normalizedWebsiteUrl = normalizeWebsiteUrl(fallbackWebsiteUrl);
-  const discoveredUrlSet = new Set(
-    (Array.isArray(discoveredInternalUrls) ? discoveredInternalUrls : [])
-      .map((url) => String(url || "").split("#")[0].trim())
-      .filter(Boolean)
-  );
-  const verifiedItemUrls = [
-    ...new Set(
-      (Array.isArray(rawMode.item_urls) ? rawMode.item_urls : [])
-        .map((url) => normalizeWebsiteUrl(url).split("#")[0])
-        .filter(
-          (url) =>
-            url &&
-            discoveredUrlSet.has(url) &&
-            isSameRootDomainOrSubdomain(url, normalizedWebsiteUrl) &&
-            !isLikelyTechnicalPage(url)
-        )
-    ),
-  ];
-  const available =
-    Boolean(rawMode.available) &&
-    verifiedItemUrls.length >= WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS;
+
+  const evidenceSuggestsProductBasedWebsite = hasProductBasedWebsiteEvidence(evidenceText);
+
+  const available = Boolean(rawMode.available) || evidenceSuggestsProductBasedWebsite;
 
   const reason = String(rawMode.reason || "")
     .trim()
@@ -1432,20 +1352,16 @@ export function normalizeWebsiteProductMode(
 
   return {
     available,
-    reason: available
-      ? reason ||
-        `The website contains at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} verified individual items on its own domain.`
-      : `Only ${verifiedItemUrls.length} verified individual item page${
-          verifiedItemUrls.length === 1 ? " was" : "s were"
-        } found on the business website; at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} are required. External marketplaces, category pages and general product mentions do not qualify.`,
+    reason:
+      reason ||
+      (available
+        ? evidenceSuggestsProductBasedWebsite
+          ? "The website appears to be product-based/ecommerce. Product pages are verified again when a product post is generated."
+          : "The website appears to contain stable individual items that can be used for website-based posts."
+        : "No clear stable individual website item was found during brand analysis."),
     source_url: available
-      ? normalizedSourceUrl &&
-        isSameRootDomainOrSubdomain(normalizedSourceUrl, normalizedWebsiteUrl)
-        ? normalizedSourceUrl
-        : normalizedWebsiteUrl
+      ? normalizedSourceUrl || normalizeWebsiteUrl(fallbackWebsiteUrl)
       : "",
-    detected_item_count: verifiedItemUrls.length,
-    item_urls: verifiedItemUrls,
   };
 }
 
@@ -1699,7 +1615,7 @@ export async function detectWebsiteLanguageWithOpenAI({
   const visibleText = truncateText(stripHtmlToLanguageText(html), 14000);
 
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.helper,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -1801,7 +1717,7 @@ export async function analyzeWebsiteWithOpenAI({
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.brandAnalysis,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -1871,9 +1787,8 @@ Return JSON only in this exact shape:
   },
   "website_product_mode": {
     "available": true,
-    "reason": "Short internal explanation. True only if at least four distinct individual items are directly available on the business website itself.",
-    "source_url": "The exact same-domain URL where the best item list was found. Empty string when available is false.",
-    "item_urls": ["At least four exact same-domain URLs for distinct individual item detail pages when available is true"]
+    "reason": "Short internal explanation. True only if the provided website content or checked candidate pages clearly contain stable individual items suitable for website-based posts.",
+    "source_url": "The exact URL where the best item-level evidence was found. Empty string when available is false."
   },
   "campaign_opportunities": [
     {
@@ -1983,11 +1898,7 @@ Campaign strategy:
 - Choose recommended_post_count from the actual campaign complexity and commercial value, not from a fixed template. A minor awareness moment may need 1-2 posts, a strong sales/booking period may need 3-5, and a major lead-time campaign may need 5-7.
 
 Website product mode:
-- Set website_product_mode.available to true only when at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} distinct, currently usable individual items can be verified directly on the business website's own domain. Return their exact detail-page URLs in item_urls.
-- Individual items may be products, listings, menu items, bookable services, courses or events, but each must have its own usable same-domain page and enough item-specific information for a concrete social post.
-- External marketplaces, auction sites, booking portals, social networks and reseller pages do not count. Links to items on another domain must never be included in item_urls.
-- Category pages, search pages, navigation links, general service descriptions, brand/model family pages and text that merely says the company sells products do not count as individual items.
-- If fewer than ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} qualifying same-domain item URLs are present in the supplied website evidence, available must be false and item_urls must contain only the qualifying URLs that were actually found.
+- Set website_product_mode.available to true when the website appears product-based, ecommerce, retail, catalog-based, service-menu-based, bookable, listing-based, restaurant/menu-based, course/event-based or otherwise likely to contain concrete sellable/selectable website items. For obvious ecommerce/retail/product-catalog websites, prefer true even if the first fetched pages only show categories, campaign areas or navigation; concrete product pages are verified later during product-post generation.
 - A suitable website item should normally have several of these signals:
   1. clear item name/title,
   2. item card or detail page,
@@ -1995,9 +1906,10 @@ Website product mode:
   4. category/listing structure where individual items can be identified,
   5. relevant item image or item-specific presentation,
   6. enough item-specific description to write a concrete post.
-- Set website_product_mode.available to false when the website is mainly brochure-only, portfolio/blog/news-only, a pure store locator, links its inventory to external sites, or does not expose at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} qualifying same-domain items in the supplied evidence.
+- Set website_product_mode.available to false only when the website is mainly brochure-only, portfolio/blog/news-only, a pure store locator, or does not appear to provide any realistic website items for Spreelo to research.
+- Do not set website_product_mode.available to false just because the site is a large store chain, uses category pages, campaign pages or requires deeper product discovery.
 - Do not set it to true only because the website mentions broad categories, discounts, offers, products or services.
-- A site that appears commercial but lacks enough verified item pages must remain false until a later analysis can verify the required URLs.
+- If the site clearly appears product-based/ecommerce but item-level evidence is incomplete in this first analysis, set available true and explain that product pages must be verified during post generation.
 - If available is true, source_url must be the exact URL where the strongest item-level evidence was found.
 - If available is false, source_url must be an empty string.
 
@@ -2015,7 +1927,7 @@ Accuracy:
 `.trim(),
       },
     ],
-    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
+    temperature: 0.2,
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
   });
@@ -2043,8 +1955,7 @@ Accuracy:
   "website_product_mode": {
     "available": false,
     "reason": "",
-    "source_url": "",
-    "item_urls": []
+    "source_url": ""
   },
   "campaign_opportunities": []
 }
@@ -2067,16 +1978,10 @@ Accuracy:
     target_audience: String(parsed.profile.target_audience || "").trim(),
     detected_language: String(parsed.profile.detected_language || "").trim(),
   };
-  const discoveredInternalUrls = collectDiscoveredInternalUrls({
-    html,
-    websiteUrl,
-    productSourceCandidates,
-  });
   const normalizedWebsiteProductMode = normalizeWebsiteProductMode(
     parsed.website_product_mode,
     websiteUrl,
-    productModeEvidenceText,
-    discoveredInternalUrls
+    productModeEvidenceText
   );
   const campaignOpportunities = await repairCampaignProductMetadataWithOpenAI({
     openai,
@@ -2120,7 +2025,7 @@ export async function analyzeDescriptionWithOpenAI({
   campaignCalendarYear,
 }) {
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.brandAnalysis,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -2284,7 +2189,7 @@ Website-content rules:
 `.trim(),
       },
     ],
-    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
+    temperature: 0.2,
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
   });

@@ -1148,12 +1148,6 @@ export default function BrandProfile() {
       );
 
       await deleteRowsByColumn(
-        "campaign_product_candidates",
-        "brand_profile_id",
-        brandProfileId
-      );
-
-      await deleteRowsByColumn(
         "brand_campaign_opportunities",
         "brand_profile_id",
         brandProfileId
