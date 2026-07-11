@@ -1,7 +1,10 @@
 import OpenAI from "openai";
 import { OPENAI_MODELS } from "../../../lib/openaiModels.js";
 import { createClient } from "@supabase/supabase-js";
-import { resolveProductCampaignSourceMode } from "../../../lib/campaignContentPolicy.js";
+import {
+  campaignHasProductWebsiteFit,
+  resolveProductCampaignSourceMode,
+} from "../../../lib/campaignContentPolicy.js";
 
 export const maxDuration = 60;
 
@@ -424,8 +427,24 @@ function applyCampaignContentPolicy(plan, campaign, brandProfile = {}) {
   };
 }
 
-function buildFallbackPlan(campaign) {
+function buildFallbackPlan(campaign, brandProfile = {}) {
   const count = clampNumber(campaign?.recommended_post_count, 1, 5, getDefaultCampaignCount(campaign));
+  const fallbackCampaign = {
+    ...(campaign || {}),
+    website_product_mode_available:
+      brandProfile?.website_product_mode_available ??
+      campaign?.website_product_mode_available ??
+      false,
+    website_single_product_post_available:
+      brandProfile?.website_single_product_post_available ??
+      campaign?.website_single_product_post_available ??
+      false,
+    website_carousel_mode_available:
+      brandProfile?.website_carousel_mode_available ??
+      campaign?.website_carousel_mode_available ??
+      false,
+  };
+  const useProductFallback = campaignHasProductWebsiteFit(fallbackCampaign);
   const sequence = count <= 1
     ? [["Main campaign post", "Combine timing, relevance and a clear next step.", "product_push", "warm", "medium", "generic_campaign"]]
     : count === 2
@@ -451,7 +470,16 @@ function buildFallbackPlan(campaign) {
       marketing_angle: item[2],
       customer_stage: item[3],
       cta_strength: item[4],
-      content_source_mode: item[5],
+      content_source_mode:
+        useProductFallback ||
+        ![
+          "mixed_campaign_and_website",
+          "website_product",
+          "website_service",
+          "website_carousel",
+        ].includes(item[5])
+          ? item[5]
+          : "generic_campaign",
       campaign_phase: item[2],
       timing_anchor: "",
       publish_date: "",
@@ -645,7 +673,7 @@ Strategic rules:
     const normalizedPlan = normalizePlan(parsed, campaign);
     const basePlan = normalizedPlan.post_plan.length > 0
       ? normalizedPlan
-      : buildFallbackPlan(campaign);
+      : buildFallbackPlan(campaign, brandProfile);
     const finalPlan = applyCampaignContentPolicy(
       basePlan,
       campaign,
