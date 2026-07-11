@@ -41,4 +41,11 @@ create policy "Users can view their own campaign product candidates"
   to authenticated
   using (auth.uid() = user_id);
 
+drop policy if exists "Users can delete their own campaign product candidates" on public.campaign_product_candidates;
+create policy "Users can delete their own campaign product candidates"
+  on public.campaign_product_candidates
+  for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
 -- Inserts/updates are done by cron with the Supabase service role key.
