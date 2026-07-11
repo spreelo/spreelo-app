@@ -1,0 +1,2217 @@
+import { createClient } from "@supabase/supabase-js";
+import OpenAI from "openai";
+import {
+  OPENAI_MODELS,
+  getTemperatureOptions,
+} from "../../../lib/openaiModels.js";
+import { assertPublicHttpUrl } from "../../../lib/security.js";
+import {
+  inferContentLanguageFromWebsiteSignals,
+  normalizeSingleContentLanguage,
+} from "../../../lib/contentLanguage.js";
+
+export const dynamic = "force-dynamic";
+
+const WEBSITE_FETCH_TIMEOUT_MS = 12000;
+const WEBSITE_MAX_TEXT_CHARS = 18000;
+const WEBSITE_MAX_PRODUCT_SOURCE_PAGES = 4;
+const WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS = 9000;
+const MAX_ANALYSES_PER_24_HOURS = 25;
+const MIN_MINUTES_BETWEEN_ANALYSES = 1;
+const MAX_CAMPAIGN_OPPORTUNITIES = 25;
+
+function normalizeWebsiteUrl(value) {
+  const trimmedValue = String(value || "").trim();
+
+  if (!trimmedValue) {
+    return "";
+  }
+
+  if (
+    trimmedValue.startsWith("http://") ||
+    trimmedValue.startsWith("https://")
+  ) {
+    return trimmedValue;
+  }
+
+  return `https://${trimmedValue}`;
+}
+
+function inferMarketSetup({
+  contentMarket,
+  countryCode,
+  contentLanguage,
+}) {
+  const providedMarket = String(contentMarket || "").trim();
+  const providedCountryCode = String(countryCode || "").trim().toUpperCase();
+  const providedLanguage = String(contentLanguage || "").trim();
+
+  return {
+    contentMarket: providedMarket,
+    countryCode: providedCountryCode,
+    contentLanguage: providedLanguage,
+  };
+}
+
+function resolveUrl(value, baseUrl) {
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+function isHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function getHostnameWithoutWww(value) {
+  try {
+    return new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function isSameRootDomainOrSubdomain(candidateUrl, websiteUrl) {
+  const candidateHost = getHostnameWithoutWww(candidateUrl);
+  const websiteHost = getHostnameWithoutWww(websiteUrl);
+
+  if (!candidateHost || !websiteHost) {
+    return false;
+  }
+
+  return (
+    candidateHost === websiteHost ||
+    candidateHost.endsWith(`.${websiteHost}`) ||
+    websiteHost.endsWith(`.${candidateHost}`)
+  );
+}
+
+function decodeHtmlEntities(value) {
+  return String(value || "")
+    .replaceAll("&amp;", "&")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#039;", "'")
+    .replaceAll("&apos;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&nbsp;", " ");
+}
+
+function stripHtmlToText(html) {
+  return decodeHtmlEntities(
+    String(html || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+      .replace(/<header[\s\S]*?<\/header>/gi, " ")
+      .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
+      .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
+function getMetaContent(html, propertyNames) {
+  for (const name of propertyNames) {
+    const propertyRegex = new RegExp(
+      `<meta[^>]+(?:property|name)=["']${name}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+      "i"
+    );
+
+    const propertyMatch = String(html || "").match(propertyRegex);
+
+    if (propertyMatch?.[1]) {
+      return decodeHtmlEntities(propertyMatch[1]);
+    }
+
+    const reversedRegex = new RegExp(
+      `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${name}["'][^>]*>`,
+      "i"
+    );
+
+    const reversedMatch = String(html || "").match(reversedRegex);
+
+    if (reversedMatch?.[1]) {
+      return decodeHtmlEntities(reversedMatch[1]);
+    }
+  }
+
+  return "";
+}
+
+function extractPageTitle(html) {
+  const ogTitle = getMetaContent(html, ["og:title", "twitter:title"]);
+
+  if (ogTitle) {
+    return ogTitle;
+  }
+
+  const titleMatch = String(html || "").match(
+    /<title[^>]*>([\s\S]*?)<\/title>/i
+  );
+
+  if (titleMatch?.[1]) {
+    return decodeHtmlEntities(titleMatch[1].replace(/\s+/g, " ").trim());
+  }
+
+  return "";
+}
+
+function extractMetaDescription(html) {
+  return getMetaContent(html, [
+    "description",
+    "og:description",
+    "twitter:description",
+  ]);
+}
+
+function extractProductSourceLinks(html, pageUrl) {
+  const links = [];
+  const seen = new Set();
+
+  const linkRegex =
+    /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+  let match;
+
+  while ((match = linkRegex.exec(String(html || ""))) !== null) {
+    const href = match[1];
+    const rawText = match[2] || "";
+    const text = stripHtmlToText(rawText);
+    const resolvedUrl = resolveUrl(href, pageUrl);
+
+    if (!resolvedUrl || !isHttpUrl(resolvedUrl)) {
+      continue;
+    }
+
+    if (!isSameRootDomainOrSubdomain(resolvedUrl, pageUrl)) {
+      continue;
+    }
+
+    const cleanUrl = resolvedUrl.split("#")[0];
+
+    if (seen.has(cleanUrl)) {
+      continue;
+    }
+
+    seen.add(cleanUrl);
+
+    const lower = `${cleanUrl} ${text}`.toLowerCase();
+
+    let score = 0;
+
+    const strongSignals = [
+      "shop",
+      "webshop",
+      "butik",
+      "store",
+      "products",
+      "produkter",
+      "produkt",
+      "sortiment",
+      "catalog",
+      "katalog",
+      "collection",
+      "collections",
+      "kategori",
+      "category",
+      "bestall",
+      "beställ",
+      "order",
+      "kop",
+      "köp",
+      "buy",
+      "book",
+      "boka",
+      "menu",
+      "meny",
+      "tjanst",
+      "tjänst",
+      "tjanster",
+      "tjänster",
+      "behandling",
+      "behandlingar",
+      "course",
+      "courses",
+      "event",
+      "events",
+      "erbjudande",
+      "erbjudanden",
+    ];
+
+    const weakSignals = [
+      "privacy",
+      "cookie",
+      "terms",
+      "villkor",
+      "policy",
+      "login",
+      "signin",
+      "sign-in",
+      "account",
+      "konto",
+      "cart",
+      "checkout",
+      "kundvagn",
+      "kassa",
+      "kontakt",
+      "contact",
+      "about",
+      "om-oss",
+      "blog",
+      "news",
+      "nyheter",
+      "press",
+      "faq",
+      "kundservice",
+    ];
+
+    for (const signal of strongSignals) {
+      if (lower.includes(signal)) {
+        score += 10;
+      }
+    }
+
+    for (const signal of weakSignals) {
+      if (lower.includes(signal)) {
+        score -= 15;
+      }
+    }
+
+    const candidateHost = getHostnameWithoutWww(cleanUrl);
+    const pageHost = getHostnameWithoutWww(pageUrl);
+
+    if (candidateHost && pageHost && candidateHost !== pageHost) {
+      score += 8;
+    }
+
+    if (score > 0) {
+      links.push({
+        url: cleanUrl,
+        text,
+        score,
+      });
+    }
+  }
+
+  return links.sort((a, b) => b.score - a.score);
+}
+
+async function fetchProductSourceCandidates({ websiteUrl, html }) {
+  const sourceLinks = extractProductSourceLinks(html, websiteUrl)
+    .slice(0, WEBSITE_MAX_PRODUCT_SOURCE_PAGES);
+
+  const candidates = [];
+
+  for (const link of sourceLinks) {
+    try {
+      const candidate = await fetchWebsiteHtml(link.url);
+
+      candidates.push({
+        url: candidate.url,
+        title: extractPageTitle(candidate.html),
+        description: extractMetaDescription(candidate.html),
+        text: truncateText(
+          stripHtmlToText(candidate.html),
+          WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS
+        ),
+        link_text: link.text || "",
+        score: link.score || 0,
+      });
+    } catch (error) {
+      console.error("Could not fetch product source candidate", {
+        websiteUrl,
+        candidateUrl: link.url,
+        message: error.message,
+      });
+    }
+  }
+
+  return candidates;
+}
+
+function formatProductSourceCandidatesForPrompt(candidates) {
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    return "No extra product source candidate pages were found.";
+  }
+
+  return candidates
+    .map((candidate, index) =>
+      `
+Candidate page ${index + 1}:
+URL: ${candidate.url}
+Link text: ${candidate.link_text || "Not provided"}
+Page title: ${candidate.title || "Not found"}
+Meta description: ${candidate.description || "Not found"}
+
+Visible text:
+${candidate.text || ""}
+`.trim()
+    )
+    .join("\n\n---\n\n");
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || "").trim();
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, maxLength)}...`;
+}
+
+function safeJsonParse(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    const match = String(value || "").match(/\{[\s\S]*\}/);
+
+    if (!match) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function repairJsonWithOpenAI({
+  openai,
+  rawContent,
+  expectedShapeDescription,
+  contextLabel = "OpenAI JSON response",
+}) {
+  const completion = await openai.chat.completions.create({
+    model: OPENAI_MODELS.helper,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You repair invalid JSON. Return valid JSON only. Do not use markdown. Do not explain anything.",
+      },
+      {
+        role: "user",
+        content: `
+The following ${contextLabel} was supposed to be valid JSON, but it may be malformed, truncated, wrapped in markdown, contain comments, contain trailing commas, or contain text outside the JSON.
+
+Repair it into valid JSON.
+
+Expected JSON shape:
+${expectedShapeDescription}
+
+Important rules:
+- Return JSON only.
+- Do not add markdown.
+- Do not add explanations.
+- Preserve the original meaning as much as possible.
+- If a field is missing, use a safe empty value such as "", false, null or [] depending on the expected shape.
+- Do not invent detailed business facts that are not present in the original response.
+
+Original response:
+${truncateText(rawContent, 60000)}
+`.trim(),
+      },
+    ],
+    temperature: 0,
+  });
+
+  const repairedContent = completion.choices?.[0]?.message?.content || "";
+
+  return safeJsonParse(repairedContent);
+}
+
+async function parseOpenAIJsonWithRepair({
+  openai,
+  content,
+  expectedShapeDescription,
+  contextLabel,
+}) {
+  const parsed = safeJsonParse(content);
+
+  if (parsed) {
+    return parsed;
+  }
+
+  console.warn("OpenAI JSON parse failed. Trying JSON repair.", {
+    contextLabel,
+    preview: truncateText(content, 500),
+  });
+
+  const repairedParsed = await repairJsonWithOpenAI({
+    openai,
+    rawContent: content,
+    expectedShapeDescription,
+    contextLabel,
+  });
+
+  if (repairedParsed) {
+    return repairedParsed;
+  }
+
+  console.error("OpenAI JSON repair failed.", {
+    contextLabel,
+    preview: truncateText(content, 500),
+  });
+
+  return null;
+}
+
+function slugify(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/å/g, "a")
+    .replace(/ä/g, "a")
+    .replace(/ö/g, "o")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function clampNumber(value, min, max, fallback) {
+  const parsed = Number.parseInt(value, 10);
+
+  if (Number.isNaN(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function normalizeDate(value) {
+  const rawValue = String(value || "").trim();
+
+  if (!rawValue) {
+    return null;
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    return null;
+  }
+
+  const date = new Date(`${rawValue}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return rawValue;
+}
+
+function getYearFromDate(value, fallbackYear) {
+  const normalizedDate = normalizeDate(value);
+
+  if (!normalizedDate) {
+    return fallbackYear;
+  }
+
+  return Number.parseInt(normalizedDate.slice(0, 4), 10);
+}
+
+function normalizeJsonArray(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  return [];
+}
+
+function normalizeDateConfidence(value) {
+  const normalizedValue = String(value || "").toLowerCase().trim();
+
+  if (["high", "medium", "low"].includes(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return "medium";
+}
+
+function normalizeWebsiteContentFit(value) {
+  const normalizedValue = String(value || "").toLowerCase().trim();
+
+  if (["strong", "medium", "weak"].includes(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return "medium";
+}
+
+function normalizeWebsiteContentStrategy(value) {
+  const normalizedValue = String(value || "").toLowerCase().trim();
+
+  if (["product", "service", "support", "none"].includes(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return "support";
+}
+
+function normalizeWebsiteProductSelectionHint(value) {
+  return String(value || "").trim().slice(0, 500);
+}
+function normalizeShortText(value, maxLength = 500) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
+function normalizeCampaignCategory(value) {
+  const normalizedValue = String(value || "").toLowerCase().trim();
+
+  const allowedCategories = [
+    "gift_campaign",
+    "seasonal_campaign",
+    "sales_campaign",
+    "local_event",
+    "educational_theme",
+    "awareness_theme",
+    "product_discovery",
+    "trust_building",
+    "engagement_theme",
+    "booking_push",
+    "limited_time_offer",
+    "community_moment",
+    "custom_campaign",
+  ];
+
+  if (allowedCategories.includes(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return "custom_campaign";
+}
+
+function normalizeRecommendedAngles(value) {
+  const rawAngles = Array.isArray(value) ? value : [];
+
+  return rawAngles
+    .map((angle) => String(angle || "").toLowerCase().trim())
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
+function normalizeCampaignTerms(value) {
+  const rawTerms = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/[,;|\n]+/u)
+    : [];
+  const seen = new Set();
+  const terms = [];
+
+  for (const rawTerm of rawTerms) {
+    const term = String(rawTerm || "").replace(/\s+/g, " ").trim();
+    const key = term.toLocaleLowerCase();
+
+    if (!term || key.length < 2 || /^\d+$/.test(key) || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    terms.push(term.slice(0, 70));
+
+    if (terms.length >= 24) {
+      break;
+    }
+  }
+
+  return terms;
+}
+
+function normalizeCampaignBlueprint(rawOpportunity) {
+  const recommendedAngles = normalizeRecommendedAngles(
+    rawOpportunity?.recommended_angles || rawOpportunity?.campaign_angles
+  );
+
+  return {
+    campaign_category: normalizeCampaignCategory(
+      rawOpportunity?.campaign_category
+    ),
+    campaign_goal: normalizeShortText(rawOpportunity?.campaign_goal, 700),
+    target_customer_need: normalizeShortText(
+      rawOpportunity?.target_customer_need,
+      700
+    ),
+    recommended_angles: recommendedAngles,
+    product_selection_guidance: normalizeShortText(
+      rawOpportunity?.product_selection_guidance ||
+        rawOpportunity?.website_product_selection_hint,
+      700
+    ),
+    tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
+    cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
+    image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
+    product_match_terms: normalizeCampaignTerms(rawOpportunity?.product_match_terms),
+    avoid_terms: normalizeCampaignTerms(rawOpportunity?.avoid_terms),
+  };
+}
+function hasProductBasedWebsiteEvidence(evidenceText) {
+  const lower = String(evidenceText || "").toLowerCase();
+
+  if (!lower.trim()) {
+    return false;
+  }
+
+  let score = 0;
+
+  const commerceSignals = [
+    "add to cart",
+    "add-to-cart",
+    "buy now",
+    "shop now",
+    "order now",
+    "lägg i varukorg",
+    "lagg i varukorg",
+    "köp nu",
+    "kop nu",
+    "beställ nu",
+    "bestall nu",
+    "varukorg",
+    "kundvagn",
+    "checkout",
+    "kassa",
+    "product",
+    "products",
+    "produkt",
+    "produkter",
+    "webshop",
+    "butik",
+    "e-handel",
+    "ecommerce",
+    "online store",
+    "sortiment",
+    "category",
+    "kategori",
+    "sku",
+    "schema.org/product",
+    "@type product",
+    "product:",
+    "offer",
+    "offers",
+    "price",
+    "pris",
+    "kr",
+    "sek",
+  ];
+
+  const strongSignals = [
+    "add to cart",
+    "add-to-cart",
+    "lägg i varukorg",
+    "lagg i varukorg",
+    "varukorg",
+    "kundvagn",
+    "checkout",
+    "schema.org/product",
+    "@type product",
+    "sku",
+  ];
+
+  for (const signal of commerceSignals) {
+    if (lower.includes(signal)) {
+      score += strongSignals.includes(signal) ? 3 : 1;
+    }
+  }
+
+  const hasMoneySignal = /(?:\d{1,3}(?:[ .]\d{3})*|\d+)(?:[,.]\d{1,2})?\s?(?:kr|sek|usd|eur|£|\$|:-)/i.test(lower);
+  if (hasMoneySignal) {
+    score += 2;
+  }
+
+  const productLikePathCount = (lower.match(/\/(?:produkt|produkter|product|products|p|shop|store|butik|kategori|category|collection|collections)\b/g) || []).length;
+  if (productLikePathCount >= 2) {
+    score += 2;
+  }
+
+  const isMostlyNonSellable = /(portfolio|blog|news|nyheter|press|privacy|cookie|terms|villkor)/.test(lower) && score < 4;
+
+  return score >= 4 && !isMostlyNonSellable;
+}
+
+function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "", evidenceText = "") {
+  const rawMode = rawValue || {};
+  const itemUrls = [
+    ...new Set(
+      (Array.isArray(rawMode.item_urls) ? rawMode.item_urls : [])
+        .map((url) => normalizeWebsiteUrl(url).split("#")[0])
+        .filter(
+          (url) =>
+            url &&
+            isSameRootDomainOrSubdomain(url, normalizeWebsiteUrl(fallbackWebsiteUrl))
+        )
+    ),
+  ];
+  const available = Boolean(rawMode.available) && itemUrls.length >= 4;
+
+  const reason = String(rawMode.reason || "")
+    .trim()
+    .slice(0, 500);
+
+  const rawSourceUrl = String(rawMode.source_url || "").trim();
+  const normalizedSourceUrl = rawSourceUrl
+    ? normalizeWebsiteUrl(rawSourceUrl)
+    : "";
+
+  return {
+    available,
+    reason: available
+      ? reason || "At least four individual item pages were found on the business website."
+      : `Only ${itemUrls.length} individual item page${itemUrls.length === 1 ? " was" : "s were"} found; at least 4 are required. External marketplaces and category pages do not qualify.`,
+    source_url: available
+      ? normalizedSourceUrl &&
+        isSameRootDomainOrSubdomain(
+          normalizedSourceUrl,
+          normalizeWebsiteUrl(fallbackWebsiteUrl)
+        )
+        ? normalizedSourceUrl
+        : normalizeWebsiteUrl(fallbackWebsiteUrl)
+      : "",
+    detected_item_count: itemUrls.length,
+    item_urls: itemUrls,
+  };
+}
+function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
+  const title = String(rawOpportunity?.title || "").trim();
+
+  if (!title) {
+    return null;
+  }
+
+  const eventDate = normalizeDate(rawOpportunity?.event_date);
+  const startDate = normalizeDate(rawOpportunity?.start_date);
+  const endDate = normalizeDate(rawOpportunity?.end_date);
+
+  const eventYear = eventDate
+    ? getYearFromDate(eventDate, fallbackYear)
+    : startDate
+    ? getYearFromDate(startDate, fallbackYear)
+    : fallbackYear;
+
+  const slug = slugify(rawOpportunity?.slug || title);
+
+  return {
+    title,
+    slug,
+    description: String(rawOpportunity?.description || "").trim(),
+    event_type: String(rawOpportunity?.event_type || "campaign").trim(),
+    event_date: eventDate,
+    event_year: eventYear,
+    start_date: startDate,
+    end_date: endDate,
+    relevance_reason: String(rawOpportunity?.relevance_reason || "").trim(),
+    relevance_score: clampNumber(rawOpportunity?.relevance_score, 1, 5, 3),
+    sales_score: clampNumber(rawOpportunity?.sales_score, 1, 5, 3),
+    engagement_score: clampNumber(rawOpportunity?.engagement_score, 1, 5, 3),
+    recommended_post_count: clampNumber(
+      rawOpportunity?.recommended_post_count,
+      1,
+      10,
+      5
+    ),
+    prompt_context: String(rawOpportunity?.prompt_context || "").trim(),
+    campaign_angles: normalizeJsonArray(rawOpportunity?.campaign_angles),
+    post_plan: normalizeJsonArray(rawOpportunity?.post_plan),
+    date_confidence: normalizeDateConfidence(rawOpportunity?.date_confidence),
+    website_content_fit: normalizeWebsiteContentFit(
+      rawOpportunity?.website_content_fit
+    ),
+    website_content_strategy: normalizeWebsiteContentStrategy(
+      rawOpportunity?.website_content_strategy
+    ),
+    website_product_selection_hint: normalizeWebsiteProductSelectionHint(
+      rawOpportunity?.website_product_selection_hint
+    ),
+
+    campaign_category: normalizeCampaignCategory(
+      rawOpportunity?.campaign_category
+    ),
+    campaign_goal: normalizeShortText(rawOpportunity?.campaign_goal, 700),
+    target_customer_need: normalizeShortText(
+      rawOpportunity?.target_customer_need,
+      700
+    ),
+    recommended_angles: normalizeRecommendedAngles(
+      rawOpportunity?.recommended_angles || rawOpportunity?.campaign_angles
+    ),
+    product_selection_guidance: normalizeShortText(
+      rawOpportunity?.product_selection_guidance ||
+        rawOpportunity?.website_product_selection_hint,
+      700
+    ),
+    tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
+    cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
+    image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
+    campaign_blueprint: normalizeCampaignBlueprint(rawOpportunity),
+  };
+}
+
+function normalizeCampaignOpportunities(rawOpportunities, fallbackYear) {
+  const opportunities = Array.isArray(rawOpportunities)
+    ? rawOpportunities
+    : [];
+
+  const normalizedOpportunities = [];
+  const usedSlugs = new Set();
+
+  for (const rawOpportunity of opportunities) {
+    const normalizedOpportunity = normalizeCampaignOpportunity(
+      rawOpportunity,
+      fallbackYear
+    );
+
+   if (!normalizedOpportunity) {
+  continue;
+}
+
+if (normalizedOpportunity.event_year !== fallbackYear) {
+  continue;
+}
+
+let finalSlug =
+  normalizedOpportunity.slug || slugify(normalizedOpportunity.title);
+
+    if (!finalSlug) {
+      finalSlug = `campaign-${normalizedOpportunities.length + 1}`;
+    }
+
+    let uniqueSlug = finalSlug;
+    let suffix = 2;
+
+    while (usedSlugs.has(uniqueSlug)) {
+      uniqueSlug = `${finalSlug}-${suffix}`;
+      suffix += 1;
+    }
+
+    usedSlugs.add(uniqueSlug);
+
+    normalizedOpportunities.push({
+      ...normalizedOpportunity,
+      slug: uniqueSlug,
+    });
+
+    if (normalizedOpportunities.length >= MAX_CAMPAIGN_OPPORTUNITIES) {
+      break;
+    }
+  }
+
+  return normalizedOpportunities;
+}
+
+function getDefaultLanguage(contentLanguage, detectedLanguage) {
+  const requestedLanguage = String(contentLanguage || "").trim();
+
+  if (requestedLanguage) {
+    return requestedLanguage;
+  }
+
+  const detected = String(detectedLanguage || "").trim();
+
+  if (detected) {
+    return detected;
+  }
+
+  return "English";
+}
+
+function normalizeMarketSetup(rawValue, fallbackLanguage = "") {
+  const rawSetup = rawValue || {};
+
+  return {
+    contentMarket: String(
+      rawSetup.content_market ||
+        rawSetup.contentMarket ||
+        rawSetup.market ||
+        ""
+    )
+      .trim()
+      .slice(0, 120),
+
+    countryCode: String(
+      rawSetup.country_code ||
+        rawSetup.countryCode ||
+        ""
+    )
+      .trim()
+      .toUpperCase()
+      .slice(0, 20),
+
+    contentLanguage: normalizeSingleContentLanguage(
+      rawSetup.content_language ||
+        rawSetup.contentLanguage ||
+        rawSetup.language ||
+        fallbackLanguage ||
+        "",
+      fallbackLanguage || "English"
+    ),
+
+    reason: String(rawSetup.reason || "")
+      .trim()
+      .slice(0, 500),
+  };
+}
+
+async function detectWebsiteLanguageWithOpenAI({
+  openai,
+  websiteUrl,
+  html,
+}) {
+  const title = extractPageTitle(html);
+  const description = extractMetaDescription(html);
+  const visibleText = truncateText(stripHtmlToText(html), 12000);
+
+  const completion = await openai.chat.completions.create({
+    model: OPENAI_MODELS.helper,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You detect the main customer-facing language of a website. Return strict JSON only.",
+      },
+      {
+        role: "user",
+        content: `
+Detect the main customer-facing website language.
+
+Website URL:
+${websiteUrl}
+
+Page title:
+${title || "Not found"}
+
+Meta description:
+${description || "Not found"}
+
+Visible website text:
+${visibleText}
+
+Return JSON only in this exact shape:
+{
+  "language": "Detected language name, for example Swedish, Lao, Armenian, Uzbek, English, Spanish, Arabic or another language",
+  "confidence": "high | medium | low",
+  "reason": "Short explanation of the strongest evidence"
+}
+
+Rules:
+- Detect the language the website mainly uses to communicate with visitors.
+- This must work for any language in the world, not only common dropdown languages.
+- Give strongest weight to navigation, menus, headings, banners, body text, buttons, service descriptions, booking text, delivery text, contact text, footer text, legal/customer information and general customer instructions.
+- Give weaker weight to imported product names, brand names, model names, technical specifications, URLs, metadata, scripts, SEO snippets, isolated English phrases and generic platform/ecommerce terms.
+- Do not choose English only because the website contains English product names, technical terms, model names, brand names or imported phrases.
+- If the website mainly communicates with visitors in a local or non-English language, choose that language.
+- Only choose English when English is clearly the main language the website uses to communicate with visitors.
+- Return the language name in English, for example "Lao", "Armenian", "Uzbek", "Swedish", "English".
+`.trim(),
+      },
+    ],
+    temperature: 0,
+  });
+
+  const content = completion.choices?.[0]?.message?.content || "";
+  const parsed = await parseOpenAIJsonWithRepair({
+    openai,
+    content,
+    contextLabel: "website language detection response",
+    expectedShapeDescription: `
+{
+  "language": "Detected language name",
+  "confidence": "high | medium | low",
+  "reason": "Short explanation"
+}
+`.trim(),
+  });
+
+  const language = String(parsed?.language || "").trim();
+  
+  return {
+    language: language.slice(0, 80),
+    confidence: String(parsed?.confidence || "medium").trim().slice(0, 20),
+    reason: String(parsed?.reason || "").trim().slice(0, 500),
+  };
+}
+
+async function fetchWebsiteHtml(websiteUrl) {
+  const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+
+  if (!normalizedWebsiteUrl) {
+    throw new Error("Website URL is required");
+  }
+
+  const safeWebsiteUrl = await assertPublicHttpUrl(normalizedWebsiteUrl);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    WEBSITE_FETCH_TIMEOUT_MS
+  );
+
+  try {
+    const response = await fetch(safeWebsiteUrl, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; SpreeloBot/1.0; +https://app.spreelo.com)",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Website returned ${response.status}`);
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+
+    if (!contentType.toLowerCase().includes("text/html")) {
+      throw new Error("Website did not return HTML");
+    }
+
+    const html = await response.text();
+
+    return {
+      url: safeWebsiteUrl,
+      html,
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function checkRateLimit({ supabase, userId }) {
+  const now = new Date();
+
+  const lastAllowedTime = new Date(
+    now.getTime() - MIN_MINUTES_BETWEEN_ANALYSES * 60 * 1000
+  ).toISOString();
+
+  const last24Hours = new Date(
+    now.getTime() - 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { data: recentRuns, error: recentError } = await supabase
+    .from("brand_analysis_runs")
+    .select("id, created_at")
+    .eq("user_id", userId)
+    .gte("created_at", last24Hours)
+    .order("created_at", { ascending: false });
+
+  if (recentError) {
+    throw new Error(recentError.message || "Could not check analyze limit");
+  }
+
+  const runs = recentRuns || [];
+
+  if (runs.length >= MAX_ANALYSES_PER_24_HOURS) {
+    throw new Error(
+      `Analyze limit reached. You can analyze your brand ${MAX_ANALYSES_PER_24_HOURS} times per 24 hours.`
+    );
+  }
+
+  const latestRun = runs[0];
+
+  if (latestRun?.created_at && latestRun.created_at > lastAllowedTime) {
+    throw new Error(
+      `Please wait ${MIN_MINUTES_BETWEEN_ANALYSES} minutes before analyzing again.`
+    );
+  }
+}
+
+async function logAnalysisRun({ supabase, userId, websiteUrl }) {
+  const { error } = await supabase.from("brand_analysis_runs").insert({
+    user_id: userId,
+    website_url: websiteUrl || "manual_description",
+  });
+
+  if (error) {
+    throw new Error(error.message || "Could not log analysis run");
+  }
+}
+
+async function verifyBrandOwnership({ supabase, userId, brandProfileId }) {
+  const { data, error } = await supabase
+    .from("brand_profiles")
+    .select("id, business_name")
+    .eq("id", brandProfileId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "Could not verify brand profile");
+  }
+
+  if (!data?.id) {
+    throw new Error("Brand profile not found.");
+  }
+
+  return data;
+}
+
+async function saveBrandProfile({
+  supabase,
+  userId,
+  brandProfileId,
+  websiteUrl,
+  brandDescription,
+  profile,
+  contentMarket,
+  countryCode,
+  contentLanguage,
+  campaignCalendarYear,
+  websiteProductMode,
+}) {
+  const { data, error } = await supabase
+    .from("brand_profiles")
+    .update({
+      business_name: profile.business_name,
+      website_url: websiteUrl || "",
+      brand_description: brandDescription || "",
+      industry: profile.industry,
+      target_audience: profile.target_audience,
+      content_market: contentMarket || "",
+      country_code: countryCode || "",
+      content_language: contentLanguage || "",
+      campaign_calendar_year: campaignCalendarYear,
+      campaign_calendar_generated_at: new Date().toISOString(),
+      campaign_calendar_refreshed_at: new Date().toISOString(),
+            website_product_mode_available: Boolean(
+        websiteProductMode?.available
+      ),
+      website_product_mode_checked_at: websiteUrl
+        ? new Date().toISOString()
+        : null,
+      website_product_mode_reason: websiteProductMode?.reason || "",
+      website_product_source_url: websiteProductMode?.available
+  ? websiteProductMode?.source_url || websiteUrl || ""
+  : "",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", brandProfileId)
+    .eq("user_id", userId)
+   .select(
+  "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, campaign_calendar_year, campaign_calendar_generated_at, campaign_calendar_refreshed_at, website_product_mode_available, website_product_mode_checked_at, website_product_mode_reason, website_product_source_url"
+)
+    .single();
+
+  if (error) {
+    throw new Error(error.message || "Could not save brand profile");
+  }
+
+  return data;
+}
+
+async function replaceBrandCampaignOpportunities({
+  supabase,
+  userId,
+  brandProfileId,
+  contentMarket,
+  countryCode,
+  contentLanguage,
+  industry,
+  campaignCalendarYear,
+  opportunities,
+}) {
+  const safeOpportunities = normalizeCampaignOpportunities(
+    opportunities,
+    campaignCalendarYear
+  );
+
+  const { error: deleteError } = await supabase
+    .from("brand_campaign_opportunities")
+    .delete()
+    .eq("user_id", userId)
+    .eq("brand_profile_id", brandProfileId)
+    .eq("event_year", campaignCalendarYear)
+    .eq("is_ai_generated", true);
+
+  if (deleteError) {
+    throw new Error(
+      deleteError.message || "Could not replace campaign opportunities"
+    );
+  }
+
+  if (safeOpportunities.length === 0) {
+    return [];
+  }
+
+  const now = new Date().toISOString();
+
+  const rows = safeOpportunities.map((opportunity) => ({
+    user_id: userId,
+    brand_profile_id: brandProfileId,
+
+    title: opportunity.title,
+    slug: opportunity.slug,
+    description: opportunity.description,
+
+    country_code: countryCode || "",
+    market: contentMarket || "",
+    language: contentLanguage || "",
+    industry: industry || "",
+
+    event_type: opportunity.event_type,
+    event_date: opportunity.event_date,
+    event_year: opportunity.event_year,
+
+    start_date: opportunity.start_date,
+    end_date: opportunity.end_date,
+
+    relevance_reason: opportunity.relevance_reason,
+    relevance_score: opportunity.relevance_score,
+    sales_score: opportunity.sales_score,
+    engagement_score: opportunity.engagement_score,
+
+    recommended_post_count: opportunity.recommended_post_count,
+
+    prompt_context: opportunity.prompt_context,
+    campaign_angles: opportunity.campaign_angles,
+    post_plan: opportunity.post_plan,
+
+       date_confidence: opportunity.date_confidence,
+    website_content_fit: opportunity.website_content_fit,
+    website_content_strategy: opportunity.website_content_strategy,
+    website_product_selection_hint: opportunity.website_product_selection_hint,
+
+    campaign_category: opportunity.campaign_category,
+    campaign_goal: opportunity.campaign_goal,
+    target_customer_need: opportunity.target_customer_need,
+    recommended_angles: opportunity.recommended_angles,
+    product_selection_guidance: opportunity.product_selection_guidance,
+    tone_guidance: opportunity.tone_guidance,
+    cta_guidance: opportunity.cta_guidance,
+    image_guidance: opportunity.image_guidance,
+    campaign_blueprint: opportunity.campaign_blueprint,
+
+    is_ai_generated: true,
+    is_hidden: false,
+    is_active: true,
+    is_archived: false,
+
+    generated_at: now,
+    created_at: now,
+    updated_at: now,
+  }));
+
+  const { data, error } = await supabase
+    .from("brand_campaign_opportunities")
+    .insert(rows)
+        .select(
+      "id, title, event_date, event_year, slug, website_content_fit, website_content_strategy, website_product_selection_hint, campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, campaign_blueprint"
+    );
+
+  if (error) {
+    throw new Error(error.message || "Could not save campaign opportunities");
+  }
+
+  return data || [];
+}
+
+async function analyzeWebsiteWithOpenAI({
+  openai,
+  businessName,
+  websiteUrl,
+  html,
+  productSourceCandidates,
+  brandDescription,
+  contentMarket,
+  countryCode,
+  contentLanguage,
+  currentDate,
+  campaignCalendarYear,
+}) {
+  const title = extractPageTitle(html);
+  const description = extractMetaDescription(html);
+  const visibleText = truncateText(stripHtmlToText(html), WEBSITE_MAX_TEXT_CHARS);
+  const productSourceCandidateText =
+  formatProductSourceCandidatesForPrompt(productSourceCandidates);
+  const productModeEvidenceText = [
+    title,
+    description,
+    visibleText,
+    productSourceCandidateText,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const completion = await openai.chat.completions.create({
+    model: OPENAI_MODELS.brandAnalysis,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You analyze business websites for a social media automation tool. Return strict JSON only. Do not write actual social media posts.",
+      },
+      {
+        role: "user",
+        content: `
+Analyze this business and create:
+1. A brand profile.
+2. A list of marketing-relevant campaign opportunities for the brand's selected market.
+
+User-entered business name:
+${businessName || "Not provided"}
+
+Website URL:
+${websiteUrl}
+
+Selected market/country:
+${contentMarket || "Not provided"}
+
+Country code:
+${countryCode || "Not provided"}
+
+Preferred content language:
+${contentLanguage || "Use the strongest language from the website"}
+
+Current date:
+${currentDate}
+
+Calendar year:
+${campaignCalendarYear}
+
+Optional user-provided brand description:
+${brandDescription || "Not provided"}
+
+Page title:
+${title || "Not found"}
+
+Meta description:
+${description || "Not found"}
+
+Visible website text:
+${visibleText}
+
+Extra product/source candidate pages checked:
+${productSourceCandidateText}
+
+Return JSON only in this exact shape:
+{
+  "market_setup": {
+    "content_market": "The most likely campaign market for this business, for example Sweden, Germany, Uzbekistan, United States, International / Global or another suitable market",
+    "country_code": "ISO country code such as SE, DE, UZ, US, or GLOBAL if the market is international or unclear",
+    "content_language": "The main language used on the website, for example Swedish, German, Uzbek, English, Spanish, Arabic or another detected language",
+    "reason": "Short explanation of why this market and language were selected"
+  },
+    "profile": {
+    "business_name": "Business name",
+    "industry": "Short but clear description of what the business does, written in the most suitable content language",
+    "target_audience": "Clear description of the likely customers/audience, written in the most suitable content language",
+    "detected_language": "Detected main language"
+  },
+  "website_product_mode": {
+    "available": true,
+    "reason": "Short internal explanation. True only if the provided website content or checked candidate source pages clearly contain stable individual items suitable for website-based posts.",
+    "source_url": "The exact URL where the best product/service/listing/menu/treatment/course/event/offer items were found. Empty string when available is false."
+  },
+  "campaign_opportunities": [
+    {
+      "title": "Campaign or theme day name",
+      "slug": "simple-url-safe-slug",
+      "description": "Short explanation of the campaign opportunity",
+      "event_type": "holiday | theme_day | seasonal | shopping | industry_day | custom_campaign",
+      "event_date": "YYYY-MM-DD or null",
+      "start_date": "YYYY-MM-DD or null",
+      "end_date": "YYYY-MM-DD or null",
+      "date_confidence": "high | medium | low",
+      "website_content_fit": "strong | medium | weak",
+      "website_content_strategy": "product | service | support | none",
+      "website_product_selection_hint": "Short instruction for what type of website product, service or offer should be selected for this campaign. Use an empty string when website_content_strategy is none.",
+      "campaign_category": "gift_campaign | seasonal_campaign | sales_campaign | local_event | educational_theme | awareness_theme | product_discovery | trust_building | engagement_theme | booking_push | limited_time_offer | community_moment | custom_campaign",
+      "campaign_goal": "What this campaign should achieve for the business",
+      "target_customer_need": "The customer need, situation, problem, desire or buying intent this campaign is built around",
+      "recommended_angles": ["awareness", "engagement", "product_discovery", "product_push", "trust", "offer", "urgency"],
+      "product_selection_guidance": "Strategic guidance for what products, services, categories or verified offers fit this campaign and what to avoid",
+      "tone_guidance": "How the campaign should sound and feel",
+      "cta_guidance": "How the call to action should develop across the campaign",
+      "image_guidance": "What kind of images should support this campaign",
+      "product_match_terms": ["Short product/category/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
+      "avoid_terms": ["Short product/category/search terms that indicate products to avoid for this campaign when better matches exist"],
+      "relevance_reason": "Why this opportunity fits this specific business",
+      "relevance_score": 1,
+      "sales_score": 1,
+      "engagement_score": 1,
+      "recommended_post_count": 5,
+      "campaign_angles": ["angle 1", "angle 2"],
+      "post_plan": [
+        {
+          "role": "Campaign post role, for example Awareness, Product idea, Trust builder or Final reminder",
+          "days_before_event": 14,
+          "timing_anchor": "before_start | start | middle | end | event",
+          "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main",
+          "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency | main",
+          "customer_stage": "cold | warm | ready_to_buy",
+          "cta_strength": "soft | medium | strong",
+          "purpose": "What this post should achieve in the campaign sequence"
+        }
+      ],
+      "prompt_context": "Reusable prompt context for generating posts later. Do not include finished post copy."
+    }
+  ]
+}
+
+Rules:
+- Return 15 to 20 campaign opportunities when the brand is ecommerce, fashion, beauty, gifts, retail, food, restaurants, local services or product-based.
+- Return 10 to 20 campaign opportunities for other businesses, never more than 20.
+- Do not create finished social media posts.
+- Only create campaign opportunities for Calendar year ${campaignCalendarYear}.
+- Do not create campaign opportunities for previous or future calendar years.
+- Every event_date, start_date and end_date must be inside Calendar year ${campaignCalendarYear}. If an opportunity cannot be placed inside this year, omit it.
+- Only include opportunities that are genuinely useful for this business, industry and selected market.
+
+- Before finalizing campaign_opportunities, build a broad internal candidate pool of relevant local market moments, shopping periods, gift days, seasonal periods, school/work/life moments, industry moments and business-specific evergreen campaigns. Then select only the strongest opportunities for this exact business.
+- Do not choose campaigns because they are generally popular. Choose them only when there is a clear customer reason to buy, book, visit, remember, compare, prepare, celebrate, gift, upgrade, replace, learn or engage with this specific business.
+- Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
+- Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. Giftable products should strongly consider local gift days. Ecommerce and retail should strongly consider major local shopping periods. Restaurants and food businesses should consider relevant food and dining moments. Beauty and fashion should consider party, season, wedding, graduation and self-care moments. Service and bookable businesses should consider seasonal preparation and booking windows.
+- Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or software. A pet-related day belongs to pet brands, not unrelated retailers unless their product range genuinely fits.
+- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
+- If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. Prefer grounded titles like "Product guide", "Seasonal upgrade", "Gift guide", "Buying advice" or "Category inspiration" over unsupported named features, launches, offers or sale claims.
+- The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
+- For broad ecommerce, retail and product-based businesses, returning only around 10 opportunities is usually under-generated unless the year has already passed or the business is unusually narrow. Prefer 15-20 strong opportunities when enough relevant moments exist.
+- For ecommerce, fashion, beauty, gifts, retail and product-based businesses, actively include relevant gift days, shopping days and seasonal buying moments when they fit the brand.
+- Do not exclude Mother's Day, Father's Day or Valentine's Day just because they are broad holidays. For ecommerce, fashion, beauty, gifts and retail brands, these are often strong sales opportunities when connected naturally to gifts, outfits, shoes, accessories, beauty, personal style or products.
+- For fashion ecommerce specifically, prioritize campaigns around outfit inspiration, gift buying, partywear, seasonal wardrobe updates, shoes, sneakers, accessories, sustainable fashion, school/graduation, weddings, festivals and major shopping days.
+- Always consider these commercial campaign moments when relevant to the brand and selected market: Valentine's Day, Mother's Day, Father's Day, graduation season, wedding season, festival season, back to school, Black Friday, Cyber Monday, Singles Day, Christmas gifts, New Year outfits, seasonal sales and wardrobe refreshes.
+- If the brand clearly sells products online, at least 50% of the campaign opportunities should have clear commercial usefulness, such as gifts, seasonal demand, shopping days, product categories, buying inspiration, gift guides, category inspiration or confirmed offers/sales when supported.
+- When a campaign is connected to a gift day such as Father's Day, Mother's Day or Valentine's Day, the campaign should explain what type of products or services are suitable for that occasion.
+- For ecommerce campaigns, do not use random products from the website. The selected product must naturally fit the campaign, the recipient, the buyer intent and the audience.
+- For a toy store on Father's Day, suitable product angles could include board games, family games, building sets, puzzles, outdoor play, hobby kits or products that children and parents can enjoy together. Do not promote unrelated baby toys or random toys just because they exist on the website.
+- For gift-day campaigns, think about who buys the gift, who receives it, and why the product makes sense for that occasion.
+- Prefer fewer highly relevant campaign opportunities over many weak ones.
+- Avoid forced or weak campaign ideas that do not clearly connect to what the business sells, offers or represents.
+- Important wording rule: Do not use words such as offer, offers, deal, deals, sale, discount, reduced price, campaign price, clearance, snabb leverans, erbjudande, erbjudanden, rabatt, rea, kampanjpris, nedsatt pris or utförsäljning unless the provided website/description explicitly supports that kind of promotion or the campaign is a widely recognized shopping period where a sale angle is normal. If not verified, describe it as buying inspiration, product guide, category inspiration, gift guide, seasonal guide or product focus instead.
+- Do not include irrelevant popular theme days just because they are well known, but do include broad commercial gift and shopping days when they naturally fit what the business sells.
+- A cafe can use food theme days. A hair salon should get hair/beauty/self-care/gift/seasonal opportunities instead.
+- Include industry-specific days when they are useful.
+- Include important local holidays or cultural moments when they are useful for marketing.
+- Include seasonal campaigns if exact date is uncertain.
+- For exact dated events, event_date must be YYYY-MM-DD.
+- For date ranges or seasons, use start_date and end_date.
+- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the campaign start when useful, and use timing_anchor to say where the post belongs: before_start, start, middle or end.
+- For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" so they are scheduled near the end of the period, not the day after the first post.
+- For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
+- Use date_confidence as relevance strength, not proof that the campaign exists on the website: high = strong fit for this business/market, medium = plausible fit, low = weak or uncertain fit.
+- If date is uncertain, use date_confidence "low" and prefer a date range.
+- The final post in post_plan should normally have days_before_event 0 when event_date exists.
+- Earlier post_plan items should prepare the audience before the event.
+- Every post_plan item should include timing_anchor. For exact event_date campaigns use "event" or "before_start". For start_date/end_date campaigns use "before_start", "start", "middle" or "end" to control when the post should be scheduled.
+- Every campaign opportunity must include a strategic campaign blueprint using campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, tone_guidance, cta_guidance and image_guidance.
+- For every campaign opportunity, create product_match_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
+- product_match_terms must contain concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include the campaign name, local-language synonyms, common imported/English terms when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
+- avoid_terms must contain broad or misleading product categories that should not be selected when better campaign-specific products exist. Do not over-block the whole store; only list clearly unsafe or irrelevant categories for this exact campaign.
+- Keep product_match_terms and avoid_terms short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
+- The campaign blueprint should explain how this campaign should move the audience from interest to action.
+- recommended_angles should contain the best marketing angles for the recommended_post_count.
+- Use these standard marketing angles when possible: awareness, engagement, product_discovery, product_push, trust, offer, urgency. Use offer only when there is a verified offer/sale/discount or a widely recognized shopping period; otherwise use product_discovery or product_push.
+- Use "main" only when the campaign has 1 post and the single post must combine multiple roles.
+- Each post_plan item must include campaign_phase, marketing_angle, customer_stage and cta_strength.
+- For customer_stage, use:
+  - "cold" for early awareness, inspiration or engagement posts.
+  - "warm" for product discovery, product push, education or trust-building posts.
+  - "ready_to_buy" for verified offer, urgency, last chance, booking or buying-focused posts.
+- For cta_strength, use:
+  - "soft" for awareness and engagement.
+  - "medium" for product discovery, product push, education and trust.
+  - "strong" for offer, urgency, booking push and last chance.
+- If recommended_post_count is 1, make the post_plan a strong allround post with marketing_angle "main", customer_stage "warm" and cta_strength "medium".
+- If recommended_post_count is 2, prefer awareness → urgency.
+- If recommended_post_count is 3, prefer awareness → product_push → urgency.
+- If recommended_post_count is 4, prefer awareness → product_discovery → trust → urgency.
+- If recommended_post_count is 5, prefer awareness → engagement → product_push → trust → urgency.
+- If recommended_post_count is 6 or more, prefer awareness → engagement → product_discovery → product_push → trust → urgency, adding offer only when a verified offer/sale angle is justified.
+- Do not make every post a reminder. Each post should have a distinct role in the campaign sequence.
+- Do not make early posts too salesy. Do not make final posts too vague.
+- Every campaign opportunity must include a strategic campaign blueprint using campaign_category, campaign_goal, target_customer_need, recommended_angles, product_selection_guidance, tone_guidance, cta_guidance and image_guidance.
+- For every campaign opportunity, create product_match_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy.
+- product_match_terms must contain concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include the campaign name, local-language synonyms, common imported/English terms when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
+- avoid_terms must contain broad or misleading product categories that should not be selected when better campaign-specific products exist. Do not over-block the whole store; only list clearly unsafe or irrelevant categories for this exact campaign.
+- Keep product_match_terms and avoid_terms short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
+- The campaign blueprint should explain how this campaign should move the audience from interest to action.
+- recommended_angles should contain the best marketing angles for the recommended_post_count.
+- Use these standard marketing angles when possible: awareness, engagement, product_discovery, product_push, trust, offer, urgency. Use offer only when there is a verified offer/sale/discount or a widely recognized shopping period; otherwise use product_discovery or product_push.
+- Use "main" only when the campaign has 1 post and the single post must combine multiple roles.
+- Each post_plan item must include campaign_phase, marketing_angle, customer_stage and cta_strength.
+- For customer_stage, use:
+  - "cold" for early awareness, inspiration or engagement posts.
+  - "warm" for product discovery, product push, education or trust-building posts.
+  - "ready_to_buy" for verified offer, urgency, last chance, booking or buying-focused posts.
+- For cta_strength, use:
+  - "soft" for awareness and engagement.
+  - "medium" for product discovery, product push, education and trust.
+  - "strong" for offer, urgency, booking push and last chance.
+- If recommended_post_count is 1, make the post_plan a strong allround post with marketing_angle "main", customer_stage "warm" and cta_strength "medium".
+- If recommended_post_count is 2, prefer awareness → urgency.
+- If recommended_post_count is 3, prefer awareness → product_push → urgency.
+- If recommended_post_count is 4, prefer awareness → product_discovery → trust → urgency.
+- If recommended_post_count is 5, prefer awareness → engagement → product_push → trust → urgency.
+- If recommended_post_count is 6 or more, prefer awareness → engagement → product_discovery → product_push → trust → urgency, adding offer only when a verified offer/sale angle is justified.
+- Do not make every post a reminder. Each post should have a distinct role in the campaign sequence.
+- Do not make early posts too salesy. Do not make final posts too vague.
+- recommended_post_count must be between 1 and 10.
+- relevance_score, sales_score and engagement_score must be between 1 and 5.
+- For each campaign opportunity, classify website_content_fit:
+  - "strong" when the campaign has a clear natural match with products, services, offers, listings or content found on the website or in the description.
+  - "medium" when website content may support the campaign but should not dominate it.
+  - "weak" when using website products or services would feel forced or irrelevant.
+- For each campaign opportunity, classify website_content_strategy:
+  - "product" when posts should try to use a relevant product from the website.
+  - "service" when posts should try to use a relevant service or offer from the website.
+  - "support" when website content can be used as supporting context but the campaign theme should lead.
+  - "none" when the campaign should not use website content automatically.
+- If the business is an ecommerce store, do not automatically mark every campaign as product. Only use "product" when the campaign clearly connects to what the store sells.
+- If website_content_fit is "weak", website_content_strategy should normally be "none".
+- Always write website_product_selection_hint when website_content_strategy is "product" or "service".
+- website_product_selection_hint should help the later automation choose a suitable website item. It should describe the product/service category, recipient, buying intent and what to avoid.
+- If website_content_strategy is "none", website_product_selection_hint should be an empty string.
+- Examples:
+  - Gift campaign for a personalized pet portrait store: strong / product.
+  - Father's Day for a personalized gift business: strong / product.
+  - Allergy-related pet owner campaign for a business that only sells portraits: weak / none.
+  - Educational awareness campaign with no clear product match: medium / support or weak / none.
+  - Father's Day for a toy store: strong / product, with website_product_selection_hint focused on board games, family games, building sets, puzzles, outdoor play, hobby kits or products children and parents can enjoy together.
+- Market and language detection rules:
+  - If Selected market/country is provided, use it.
+  - If Selected market/country is not provided, infer the most likely campaign market from the website URL, domain, currency, delivery area, visible language, contact details, local words and business context.
+  - If Country code is not provided, infer the most likely ISO country code. Use "GLOBAL" only when the business appears clearly international or when no reliable country can be inferred.
+  - If Preferred content language is provided, write user-facing fields in that language.
+  - If Preferred content language is not provided, detect the main customer-facing website language and write all user-facing fields in that language.
+  - The customer-facing website language means the language used to communicate with visitors through navigation, menus, headings, banners, body text, buttons, service descriptions, product descriptions, booking text, delivery text, contact text, footer text, legal/customer information and general instructions.
+  - Give strongest weight to the language used in the website's own interface, explanations, headings and customer instructions.
+  - Give weaker weight to imported product names, brand names, model names, technical specifications, URLs, metadata, scripts, SEO snippets, short English brand words, isolated English phrases and generic ecommerce/platform terms.
+  - If the website mainly communicates with visitors in a local or non-English language but contains many English product names, technical terms, brand names or imported phrases, choose the local/non-English customer-facing website language as content_language.
+  - Only choose English when English is clearly the main language the website uses to communicate with visitors, not just because parts of the website contain English words.
+- The selected market/country is used mainly for campaign calendar relevance, holidays, cultural timing and content language.
+- Do not automatically restrict the target audience geographically to the selected market unless the website or description clearly says the business only serves that country or local area.
+- If the business appears remote, online, global or international, describe the target audience without limiting it to the selected market.
+- Future campaign posts should be written for the selected content language and market context, but should not repeatedly mention the country unless it is naturally relevant.
+- If the selected content language is Swedish, write user-facing fields in Swedish.
+- If the selected content language is English, write user-facing fields in English.
+- Keep prompt_context useful but concise.
+- Avoid political or sensitive events unless they are clearly suitable and low-risk for business marketing.
+- When choosing between a generic seasonal campaign and a strong commercial occasion for ecommerce or retail, prefer the stronger commercial occasion.
+- Do not invent specific services, offers, discounts, sales, delivery promises, products or locations not supported by the website or description.
+- Also decide if "Sell something from my website" should be available for this brand.
+
+Website product mode rule:
+- website_product_mode.available means Spreelo found enough real items for repeated product posts and a carousel.
+- Set it to true only when at least 4 distinct individual items are directly verifiable on the business website's own domain. Return their exact detail-page URLs in website_product_mode.item_urls.
+- External marketplaces, auction sites, booking portals, social networks and reseller pages never count.
+- Category/search/navigation pages, general service descriptions, model-family pages and broad product mentions do not count as individual items.
+- If fewer than 4 qualifying same-domain item URLs are present in the supplied evidence, set available to false and source_url to an empty string.
+- A commercial-looking website with incomplete item-level evidence must remain false until a later analysis can verify enough real items.
+
+Examples:
+- Online clothing store with product cards, product names, images and prices: true.
+- Toy store ecommerce website with individual product pages: true.
+- Restaurant website with named dishes and prices: true.
+- Salon website with specific bookable treatments and descriptions: true.
+- Car dealer with individual car listings: true.
+- Local grocery chain website with stable product pages, product listings, orderable groceries or reusable item-level offers: true.
+- Chain store website with online assortment, product/category pages, ecommerce flow or reusable product/offer pages: true.
+- Pure store finder or chain information site with no realistic product/listing/menu/service item pages: false.
+- Consultant website with only general “we help companies” text: false.
+- Spiritual service, artist, portfolio or informational website without clear individual bookable offers/items: false.
+- Brand page with no individual products, services or listings: false.
+
+Product source URL rule:
+- If website_product_mode.available is true, website_product_mode.source_url must be the exact URL where the strongest item-level product/service/listing/menu/treatment/course/event/offer evidence was found.
+- The source_url may be the user-entered website URL, a subpage such as /shop, /products, /services or /menu, or a linked subdomain such as shop.example.com, butik.example.com, store.example.com or any other linked subdomain.
+- Do not require the subdomain to be named shop. The name of the subdomain is only a weak signal.
+- Only use a candidate source URL if the content from that URL actually shows item-level evidence.
+- Do not set source_url to a page that only links to a shop, only contains a store locator, only contains weekly offers, only contains a campaign leaflet, or only contains broad assortment text.
+- If available is false, source_url must be an empty string.
+
+Reason requirement:
+- website_product_mode.reason must clearly explain the main evidence for true or false.
+- For false, mention what is missing, for example: no stable individual product pages, no item-level listings, only store locator, only weekly offers, only general assortment or only informational content.
+
+Campaign rule:
+- If website_product_mode.available is true and the business is product-based/ecommerce/retail/catalog-based, campaign opportunities may use website_content_strategy "product" when the campaign naturally benefits from selecting a website product.
+- Do not make every post a website product post. Keep the campaign role separate from the content source: inspiration/trust/relationship posts may be general campaign visuals, while product discovery/product push/offer/last chance posts should use website products when relevant.
+- If website_product_mode.available is false, campaign opportunities should normally use "support" or "none" unless the provided content clearly supports a service/listing/menu item.
+- Do not invent product details. Concrete product pages are verified later during product-post generation.
+`.trim(),
+      },
+    ],
+    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
+  });
+
+  const content = completion.choices?.[0]?.message?.content || "";
+  const parsed = await parseOpenAIJsonWithRepair({
+    openai,
+    content,
+    contextLabel: "website brand analysis response",
+    expectedShapeDescription: `
+{
+  "market_setup": {
+    "content_market": "",
+    "country_code": "",
+    "content_language": "",
+    "reason": ""
+  },
+  "profile": {
+    "business_name": "",
+    "industry": "",
+    "target_audience": "",
+    "detected_language": ""
+  },
+  "website_product_mode": {
+    "available": false,
+    "reason": "",
+    "source_url": "",
+    "item_urls": []
+  },
+  "campaign_opportunities": []
+}
+`.trim(),
+  });
+
+  if (!parsed?.profile) {
+    throw new Error("Spreelo could not read the analysis result correctly.");
+  }
+
+return {
+  market_setup: normalizeMarketSetup(
+    parsed.market_setup,
+    parsed.profile.detected_language
+  ),
+  profile: {
+    business_name: String(
+      parsed.profile.business_name || businessName || ""
+    ).trim(),
+    industry: String(parsed.profile.industry || "").trim(),
+    target_audience: String(parsed.profile.target_audience || "").trim(),
+    detected_language: String(parsed.profile.detected_language || "").trim(),
+  },
+  website_product_mode: normalizeWebsiteProductMode(
+    parsed.website_product_mode,
+    websiteUrl,
+    productModeEvidenceText
+  ),
+  campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
+    ? parsed.campaign_opportunities
+    : [],
+};
+}
+
+async function analyzeDescriptionWithOpenAI({
+  openai,
+  businessName,
+  brandDescription,
+  contentMarket,
+  countryCode,
+  contentLanguage,
+  currentDate,
+  campaignCalendarYear,
+}) {
+  const completion = await openai.chat.completions.create({
+    model: OPENAI_MODELS.brandAnalysis,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You create brand profiles and marketing campaign opportunities from user-provided business descriptions. Return strict JSON only. Do not write actual social media posts.",
+      },
+      {
+        role: "user",
+        content: `
+Create:
+1. A brand profile.
+2. A list of marketing-relevant campaign opportunities for this brand.
+
+User-entered business name:
+${businessName || "Not provided"}
+
+Brand description:
+${brandDescription}
+
+Selected market/country:
+${contentMarket || "Not provided"}
+
+Country code:
+${countryCode || "Not provided"}
+
+Preferred content language:
+${contentLanguage || "Use the strongest language from the description"}
+
+Current date:
+${currentDate}
+
+Calendar year:
+${campaignCalendarYear}
+
+Return JSON only in this exact shape:
+{
+  "market_setup": {
+    "content_market": "The most likely campaign market for this business, for example Sweden, Germany, Uzbekistan, United States, International / Global or another suitable market",
+    "country_code": "ISO country code such as SE, DE, UZ, US, or GLOBAL if the market is international or unclear",
+    "content_language": "The main language used in the business description, for example Swedish, German, Uzbek, English, Spanish, Arabic or another detected language",
+    "reason": "Short explanation of why this market and language were selected"
+  },
+  "profile": {
+    "business_name": "Business name",
+    "industry": "Short but clear description of what the business does, written in the most suitable content language",
+    "target_audience": "Clear description of the likely customers/audience, written in the most suitable content language",
+    "detected_language": "Detected main language"
+  },
+  "campaign_opportunities": [
+    {
+      "title": "Campaign or theme day name",
+      "slug": "simple-url-safe-slug",
+      "description": "Short explanation of the campaign opportunity",
+      "event_type": "holiday | theme_day | seasonal | shopping | industry_day | custom_campaign",
+      "event_date": "YYYY-MM-DD or null",
+      "start_date": "YYYY-MM-DD or null",
+      "end_date": "YYYY-MM-DD or null",
+      "date_confidence": "high | medium | low",
+      "website_content_fit": "strong | medium | weak",
+      "website_content_strategy": "product | service | support | none",
+      "website_product_selection_hint": "Short instruction for what type of website product, service or offer should be selected for this campaign. Use an empty string when website_content_strategy is none.",
+      "campaign_category": "gift_campaign | seasonal_campaign | sales_campaign | local_event | educational_theme | awareness_theme | product_discovery | trust_building | engagement_theme | booking_push | limited_time_offer | community_moment | custom_campaign",
+      "campaign_goal": "What this campaign should achieve for the business",
+      "target_customer_need": "The customer need, situation, problem, desire or buying intent this campaign is built around",
+      "recommended_angles": ["awareness", "engagement", "product_discovery", "product_push", "trust", "offer", "urgency"],
+      "product_selection_guidance": "Strategic guidance for what products, services, categories or verified offers fit this campaign and what to avoid",
+      "tone_guidance": "How the campaign should sound and feel",
+      "cta_guidance": "How the call to action should develop across the campaign",
+      "image_guidance": "What kind of images should support this campaign",
+      "product_match_terms": ["Short product/category/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
+      "avoid_terms": ["Short product/category/search terms that indicate products to avoid for this campaign when better matches exist"],
+      "relevance_reason": "Why this opportunity fits this specific business",
+      "relevance_score": 1,
+      "sales_score": 1,
+      "engagement_score": 1,
+      "recommended_post_count": 5,
+      "campaign_angles": ["angle 1", "angle 2"],
+      "post_plan": [
+            {
+          "role": "Campaign post role, for example Awareness, Product idea, Trust builder or Final reminder",
+          "days_before_event": 14,
+          "timing_anchor": "before_start | start | middle | end | event",
+          "campaign_phase": "early | early_middle | middle | middle_late | late | last_chance | main",
+          "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency | main",
+          "customer_stage": "cold | warm | ready_to_buy",
+          "cta_strength": "soft | medium | strong",
+          "purpose": "What this post should achieve in the campaign sequence"
+        }
+      ],
+      "prompt_context": "Reusable prompt context for generating posts later. Do not include finished post copy."
+    }
+  ]
+}
+
+Rules:
+- Return 15 to 20 campaign opportunities when the brand is ecommerce, fashion, beauty, gifts, retail, food, restaurants, local services or product-based.
+- Return 10 to 20 campaign opportunities for other businesses, never more than 20.
+- Do not create finished social media posts.
+- Only create campaign opportunities for Calendar year ${campaignCalendarYear}.
+- Do not create campaign opportunities for previous or future calendar years.
+- Every event_date, start_date and end_date must be inside Calendar year ${campaignCalendarYear}. If an opportunity cannot be placed inside this year, omit it.
+- Only include opportunities that are genuinely useful for this business, industry and selected market.
+
+- Before finalizing campaign_opportunities, build a broad internal candidate pool of relevant local market moments, shopping periods, gift days, seasonal periods, school/work/life moments, industry moments and business-specific evergreen campaigns. Then select only the strongest opportunities for this exact business.
+- Do not choose campaigns because they are generally popular. Choose them only when there is a clear customer reason to buy, book, visit, remember, compare, prepare, celebrate, gift, upgrade, replace, learn or engage with this specific business.
+- Apply a strict commercial fit test to every candidate: Would a realistic customer of this business plausibly care about this moment and take a meaningful action related to the business offer? If the answer is no or weak, omit it.
+- Strong broad commercial moments that clearly fit the market and business category should normally be included before vague custom campaigns. Giftable products should strongly consider local gift days. Ecommerce and retail should strongly consider major local shopping periods. Restaurants and food businesses should consider relevant food and dining moments. Beauty and fashion should consider party, season, wedding, graduation and self-care moments. Service and bookable businesses should consider seasonal preparation and booking windows.
+- Irrelevant theme days must be omitted even if they are commercially famous in the market. A food-specific day belongs to bakeries, grocery, cafes or restaurants, not to unrelated electronics or software. A pet-related day belongs to pet brands, not unrelated retailers unless their product range genuinely fits.
+- Custom or evergreen campaigns are allowed, but they must be grounded in the actual business, website evidence, product range, customer behavior or clear market logic. Do not invent business-specific recurring campaigns, product launches, price robots, proprietary programs, guarantees, discounts, delivery promises, events or features unless they are clearly supported by the provided website/description.
+- If a custom campaign title implies a feature, offer, sale, discount, campaign price, launch or program that may not exist, rename it to a safer generic strategy or omit it. Prefer grounded titles like "Product guide", "Seasonal upgrade", "Gift guide", "Buying advice" or "Category inspiration" over unsupported named features, launches, offers or sale claims.
+- The final calendar should feel like a senior marketer first secured the obvious high-value opportunities for this business and then added only the best extra strategic campaigns.
+- For broad ecommerce, retail and product-based businesses, returning only around 10 opportunities is usually under-generated unless the year has already passed or the business is unusually narrow. Prefer 15-20 strong opportunities when enough relevant moments exist.
+- For ecommerce, fashion, beauty, gifts, retail and product-based businesses, actively include relevant gift days, shopping days and seasonal buying moments when they fit the brand.
+- Do not exclude Mother's Day, Father's Day or Valentine's Day just because they are broad holidays. For ecommerce, fashion, beauty, gifts and retail brands, these are often strong sales opportunities when connected naturally to gifts, outfits, shoes, accessories, beauty, personal style or products.
+- For fashion ecommerce specifically, prioritize campaigns around outfit inspiration, gift buying, partywear, seasonal wardrobe updates, shoes, sneakers, accessories, sustainable fashion, school/graduation, weddings, festivals and major shopping days.
+- Always consider these commercial campaign moments when relevant to the brand and selected market: Valentine's Day, Mother's Day, Father's Day, graduation season, wedding season, festival season, back to school, Black Friday, Cyber Monday, Singles Day, Christmas gifts, New Year outfits, seasonal sales and wardrobe refreshes.
+- If the brand clearly sells products online, at least 50% of the campaign opportunities should have clear commercial usefulness, such as gifts, seasonal demand, shopping days, product categories, buying inspiration, gift guides, category inspiration or confirmed offers/sales when supported.
+- When a campaign is connected to a gift day such as Father's Day, Mother's Day or Valentine's Day, the campaign should explain what type of products or services are suitable for that occasion.
+- For ecommerce campaigns, do not use random products from the website. The selected product must naturally fit the campaign, the recipient, the buyer intent and the audience.
+- For a toy store on Father's Day, suitable product angles could include board games, family games, building sets, puzzles, outdoor play, hobby kits or products that children and parents can enjoy together. Do not promote unrelated baby toys or random toys just because they exist on the website.
+- For gift-day campaigns, think about who buys the gift, who receives it, and why the product makes sense for that occasion.
+- Prefer fewer highly relevant campaign opportunities over many weak ones.
+- Avoid forced or weak campaign ideas that do not clearly connect to what the business sells, offers or represents.
+- Important wording rule: Do not use words such as offer, offers, deal, deals, sale, discount, reduced price, campaign price, clearance, snabb leverans, erbjudande, erbjudanden, rabatt, rea, kampanjpris, nedsatt pris or utförsäljning unless the provided website/description explicitly supports that kind of promotion or the campaign is a widely recognized shopping period where a sale angle is normal. If not verified, describe it as buying inspiration, product guide, category inspiration, gift guide, seasonal guide or product focus instead.
+- Do not include irrelevant popular theme days just because they are well known, but do include broad commercial gift and shopping days when they naturally fit what the business sells.
+- A cafe can use food theme days. A hair salon should get hair/beauty/self-care/gift/seasonal opportunities instead.
+- Include industry-specific days when they are useful.
+- Include important local holidays or cultural moments when they are useful for marketing.
+- Include seasonal campaigns if exact date is uncertain.
+- For exact dated events, event_date must be YYYY-MM-DD.
+- For date ranges or seasons, use start_date and end_date.
+- For date ranges/seasons, the post_plan must still describe the best campaign sequence. Use days_before_event as days before the campaign start when useful, and use timing_anchor to say where the post belongs: before_start, start, middle or end.
+- For date ranges/seasons, final urgency/last-chance posts should use timing_anchor "end" so they are scheduled near the end of the period, not the day after the first post.
+- For date ranges/seasons, launch/introduction posts should use timing_anchor "start", early preparation posts should use timing_anchor "before_start", and trust/engagement/value posts can use timing_anchor "middle".
+- Use date_confidence as relevance strength, not proof that the campaign exists on the website: high = strong fit for this business/market, medium = plausible fit, low = weak or uncertain fit.
+- If date is uncertain, use date_confidence "low" and prefer a date range.
+- The final post in post_plan should normally have days_before_event 0 when event_date exists.
+- Earlier post_plan items should prepare the audience before the event.
+- Every post_plan item should include timing_anchor. For exact event_date campaigns use "event" or "before_start". For start_date/end_date campaigns use "before_start", "start", "middle" or "end" to control when the post should be scheduled.
+- recommended_post_count must be between 1 and 10.
+- relevance_score, sales_score and engagement_score must be between 1 and 5.
+- For each campaign opportunity, classify website_content_fit:
+  - "strong" when the campaign has a clear natural match with products, services, offers, listings or content found on the website or in the description.
+  - "medium" when website content may support the campaign but should not dominate it.
+  - "weak" when using website products or services would feel forced or irrelevant.
+- For each campaign opportunity, classify website_content_strategy:
+  - "product" when posts should try to use a relevant product from the website.
+  - "service" when posts should try to use a relevant service or offer from the website.
+  - "support" when website content can be used as supporting context but the campaign theme should lead.
+  - "none" when the campaign should not use website content automatically.
+- If the business is an ecommerce store, do not automatically mark every campaign as product. Only use "product" when the campaign clearly connects to what the store sells.
+- If website_content_fit is "weak", website_content_strategy should normally be "none".
+- Always write website_product_selection_hint when website_content_strategy is "product" or "service".
+- website_product_selection_hint should help the later automation choose a suitable website item. It should describe the product/service category, recipient, buying intent and what to avoid.
+- If website_content_strategy is "none", website_product_selection_hint should be an empty string.
+- Examples:
+  - Gift campaign for a personalized pet portrait store: strong / product.
+  - Father's Day for a personalized gift business: strong / product.
+  - Allergy-related pet owner campaign for a business that only sells portraits: weak / none.
+  - Educational awareness campaign with no clear product match: medium / support or weak / none.
+  - Father's Day for a toy store: strong / product, with website_product_selection_hint focused on board games, family games, building sets, puzzles, outdoor play, hobby kits or products children and parents can enjoy together.
+- Market and language detection rules:
+  - If Selected market/country is provided, use it.
+  - If Selected market/country is not provided, infer the most likely campaign market from the business description.
+  - If Country code is not provided, infer the most likely ISO country code. Use "GLOBAL" only when the business appears clearly international or when no reliable country can be inferred.
+  - If Preferred content language is provided, write user-facing fields in that language.
+  - If Preferred content language is not provided, detect the main language from the business description and write all user-facing fields in that same detected language.
+  - Do not choose English only because the description contains a few English words, brand terms, ecommerce terms or isolated English phrases.
+  - If the description is mainly written in a local or non-English language, use that language even if it is not common internationally and even if the app dropdown does not contain that market or language.
+  - Do not default to English just because the market is not in a predefined list.
+  - market_setup.content_language must be the detected language name, for example the actual main language used by the business description.
+  - market_setup.content_language must match the language used for profile.industry, profile.target_audience and campaign opportunity user-facing text.
+- The selected market/country is used mainly for campaign calendar relevance, holidays, cultural timing and content language.
+- Do not automatically restrict the target audience geographically to the selected market unless the website or description clearly says the business only serves that country or local area.
+- If the business appears remote, online, global or international, describe the target audience without limiting it to the selected market.
+- Future campaign posts should be written for the selected content language and market context, but should not repeatedly mention the country unless it is naturally relevant.
+- If the selected content language is Swedish, write user-facing fields in Swedish.
+- If the selected content language is English, write user-facing fields in English.
+- Keep prompt_context useful but concise.
+- Avoid political or sensitive events unless they are clearly suitable and low-risk for business marketing.
+- When choosing between a generic seasonal campaign and a strong commercial occasion for ecommerce or retail, prefer the stronger commercial occasion.
+- Do not invent specific services, offers, discounts, sales, delivery promises, products or locations not supported by the description.
+`.trim(),
+      },
+    ],
+    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
+  });
+
+  const content = completion.choices?.[0]?.message?.content || "";
+  const parsed = await parseOpenAIJsonWithRepair({
+    openai,
+    content,
+    contextLabel: "description brand analysis response",
+    expectedShapeDescription: `
+{
+  "market_setup": {
+    "content_market": "",
+    "country_code": "",
+    "content_language": "",
+    "reason": ""
+  },
+  "profile": {
+    "business_name": "",
+    "industry": "",
+    "target_audience": "",
+    "detected_language": ""
+  },
+  "campaign_opportunities": []
+}
+`.trim(),
+  });
+
+  if (!parsed?.profile) {
+    throw new Error("Spreelo could not read the analysis result correctly.");
+  }
+
+  return {
+  market_setup: normalizeMarketSetup(
+    parsed.market_setup,
+    parsed.profile.detected_language
+  ),
+  profile: {
+    business_name: String(
+      parsed.profile.business_name || businessName || ""
+    ).trim(),
+    industry: String(parsed.profile.industry || "").trim(),
+    target_audience: String(parsed.profile.target_audience || "").trim(),
+    detected_language: String(parsed.profile.detected_language || "").trim(),
+  },
+  website_product_mode: {
+    available: false,
+    reason:
+      "No website was provided, so website product mode is not available.",
+  },
+  campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
+    ? parsed.campaign_opportunities
+    : [],
+};
+}
+
+export async function POST(request) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey || !openaiApiKey) {
+      return Response.json(
+        {
+          ok: false,
+          error:
+            "Missing NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY or OPENAI_API_KEY.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const authorizationHeader = request.headers.get("authorization") || "";
+
+    if (!authorizationHeader.startsWith("Bearer ")) {
+      return Response.json(
+        {
+          ok: false,
+          error: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authorizationHeader,
+        },
+      },
+    });
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return Response.json(
+        {
+          ok: false,
+          error: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+
+    const brandProfileId = String(body?.brandProfileId || "").trim();
+    const businessName = String(body?.businessName || "").trim();
+    const websiteUrl = normalizeWebsiteUrl(body?.websiteUrl);
+    const brandDescription = String(body?.brandDescription || "").trim();
+
+  const requestedMarketSetup = inferMarketSetup({
+  websiteUrl,
+  brandDescription,
+  contentMarket: body?.contentMarket,
+  countryCode: body?.countryCode,
+  contentLanguage: body?.contentLanguage,
+});
+
+const contentMarket = requestedMarketSetup.contentMarket;
+const countryCode = requestedMarketSetup.countryCode;
+const requestedContentLanguage = requestedMarketSetup.contentLanguage;
+    
+    if (!brandProfileId) {
+      return Response.json(
+        {
+          ok: false,
+          error: "Missing brand profile.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!businessName) {
+      return Response.json(
+        {
+          ok: false,
+          error: "Business name is required.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!websiteUrl && !brandDescription) {
+      return Response.json(
+        {
+          ok: false,
+          error: "Add a website URL or describe your brand.",
+        },
+        { status: 400 }
+      );
+    }
+
+    await verifyBrandOwnership({
+      supabase,
+      userId: user.id,
+      brandProfileId,
+    });
+
+    await checkRateLimit({
+      supabase,
+      userId: user.id,
+    });
+
+    const openai = new OpenAI({
+      apiKey: openaiApiKey,
+    });
+
+    const now = new Date();
+    const currentDate = now.toISOString().slice(0, 10);
+    const campaignCalendarYear = now.getUTCFullYear();
+
+let analysis;
+let finalWebsiteUrl = websiteUrl;
+let detectedWebsiteContentLanguage = "";
+    
+if (websiteUrl) {
+  const website = await fetchWebsiteHtml(websiteUrl);
+  finalWebsiteUrl = website.url;
+
+  if (!requestedContentLanguage) {
+    const deterministicLanguage = inferContentLanguageFromWebsiteSignals(
+      website.url,
+      website.html
+    );
+
+    if (deterministicLanguage) {
+      detectedWebsiteContentLanguage = deterministicLanguage;
+    } else {
+      const languageDetection = await detectWebsiteLanguageWithOpenAI({
+        openai,
+        websiteUrl: website.url,
+        html: website.html,
+      });
+
+      detectedWebsiteContentLanguage = languageDetection.language || "";
+    }
+  }
+
+  const productSourceCandidates = await fetchProductSourceCandidates({
+    websiteUrl: website.url,
+    html: website.html,
+  });
+
+  analysis = await analyzeWebsiteWithOpenAI({
+    openai,
+    businessName,
+    websiteUrl: website.url,
+    html: website.html,
+    productSourceCandidates,
+    brandDescription,
+    contentMarket,
+    countryCode,
+    contentLanguage:
+      requestedContentLanguage || detectedWebsiteContentLanguage,
+    currentDate,
+    campaignCalendarYear,
+  });
+} else {
+      analysis = await analyzeDescriptionWithOpenAI({
+        openai,
+        businessName,
+        brandDescription,
+        contentMarket,
+        countryCode,
+        contentLanguage: requestedContentLanguage,
+        currentDate,
+        campaignCalendarYear,
+      });
+    }
+
+  const profile = analysis.profile;
+const detectedMarketSetup = analysis.market_setup || {};
+
+const finalContentMarket =
+  detectedMarketSetup.contentMarket ||
+  contentMarket ||
+  "International / Global";
+
+const finalCountryCode =
+  detectedMarketSetup.countryCode ||
+  countryCode ||
+  "GLOBAL";
+
+const finalContentLanguage = normalizeSingleContentLanguage(
+  getDefaultLanguage(
+    requestedContentLanguage ||
+      detectedWebsiteContentLanguage ||
+      detectedMarketSetup.contentLanguage,
+    profile.detected_language
+  ),
+  "English"
+);
+    
+       const savedProfile = await saveBrandProfile({
+      supabase,
+      userId: user.id,
+      brandProfileId,
+      websiteUrl: finalWebsiteUrl,
+      brandDescription,
+      profile,
+     contentMarket: finalContentMarket,
+countryCode: finalCountryCode,
+contentLanguage: finalContentLanguage,
+      campaignCalendarYear,
+      websiteProductMode: analysis.website_product_mode,
+    });
+    const savedOpportunities = await replaceBrandCampaignOpportunities({
+      supabase,
+      userId: user.id,
+      brandProfileId,
+     contentMarket: finalContentMarket,
+countryCode: finalCountryCode,
+contentLanguage: finalContentLanguage,
+      industry: profile.industry,
+      campaignCalendarYear,
+      opportunities: analysis.campaign_opportunities,
+    });
+
+    await logAnalysisRun({
+      supabase,
+      userId: user.id,
+      websiteUrl: finalWebsiteUrl,
+    });
+
+    return Response.json({
+      ok: true,
+      website_url: finalWebsiteUrl,
+      profile: savedProfile,
+      detected_language: profile.detected_language || null,
+      campaign_opportunities_count: savedOpportunities.length,
+      message: finalWebsiteUrl
+        ? `Website analyzed, brand profile saved and ${savedOpportunities.length} campaign opportunities created.`
+        : `Description analyzed, brand profile saved and ${savedOpportunities.length} campaign opportunities created.`,
+    });
+  } catch (error) {
+    console.error("Analyze brand failed:", {
+      message: error?.message,
+      stack: error?.stack,
+    });
+
+    return Response.json(
+      {
+        ok: false,
+        error: error.message || "Could not analyze brand.",
+      },
+      { status: 500 }
+    );
+  }
+}
