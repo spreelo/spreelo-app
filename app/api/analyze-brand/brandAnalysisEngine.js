@@ -12,6 +12,14 @@ import {
   WEBSITE_FETCH_TIMEOUT_MS,
   fetchWebsiteHtmlRobust,
 } from "../../../lib/websiteFetch.js";
+import {
+  WEBSITE_PRODUCT_DETECTOR_VERSION,
+  WEBSITE_PRODUCT_MODE_DISCOVERY_TARGET_ITEMS,
+  WEBSITE_PRODUCT_MODE_MAX_CANDIDATES,
+  WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS,
+  WEBSITE_PRODUCT_MODE_RETRY_LIMIT,
+  decideWebsiteProductCapability,
+} from "../../../lib/productCapabilityPolicy.js";
 
 export { WEBSITE_FETCH_TIMEOUT_MS };
 export const WEBSITE_MAX_TEXT_CHARS = 8000;
@@ -22,7 +30,13 @@ export const MAX_CAMPAIGN_OPPORTUNITIES = 12;
 export const WEBSITE_MAX_CONTEXT_LINK_CANDIDATES = 60;
 export const WEBSITE_PRODUCT_ASSORTMENT_HINT_MAX_ITEMS = 80;
 export const WEBSITE_PRODUCT_METADATA_REPAIR_MAX_OPPORTUNITIES = 12;
-export const WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS = 5;
+export {
+  WEBSITE_PRODUCT_DETECTOR_VERSION,
+  WEBSITE_PRODUCT_MODE_DISCOVERY_TARGET_ITEMS,
+  WEBSITE_PRODUCT_MODE_MAX_CANDIDATES,
+  WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS,
+  WEBSITE_PRODUCT_MODE_RETRY_LIMIT,
+};
 
 export function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
@@ -1560,13 +1574,13 @@ export function normalizeWebsiteProductMode(
     status: String(rawMode.status || (available ? "confirmed" : "not_found")),
     has_verified_products: Boolean(rawMode.has_verified_products || verifiedItemUrls.length > 0),
     single_product_post_available: Boolean(rawMode.single_product_post_available || verifiedItemUrls.length > 0),
-    product_carousel_available: available,
+    product_carousel_available: Boolean(rawMode.product_carousel_available || available),
     reason: available
       ? reason ||
-        `The website contains at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} verified individual items on its own domain.`
+        "The website contains a strongly verified same-domain product detail page, so product posts and carousel discovery are enabled."
       : `Only ${verifiedItemUrls.length} verified individual item page${
           verifiedItemUrls.length === 1 ? " was" : "s were"
-        } found on the business website; at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} are required. External marketplaces, category pages and general product mentions do not qualify.`,
+        } found on the business website. At least one strongly verified same-domain product detail page is required. External marketplaces, category pages and general product mentions do not qualify.`,
     source_url: available
       ? normalizedSourceUrl &&
         isSameRootDomainOrSubdomain(normalizedSourceUrl, normalizedWebsiteUrl)
@@ -1641,6 +1655,17 @@ function getProductDetailVerification(html, pageUrl) {
   const imageUrl =
     getMetaContent(source, ["og:image", "twitter:image", "product:image"]) ||
     String(source.match(/"image"\s*:\s*(?:\[\s*)?["']([^"']+)/i)?.[1] || "").trim();
+  const productTitle = String(
+    source.match(/"name"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i)?.[1] ||
+    getMetaContent(source, ["og:title", "twitter:title"]) ||
+    extractPageTitle(source) ||
+    ""
+  ).replace(/\\"/g, '"').trim().slice(0, 300);
+  const productPrice = String(
+    getMetaContent(source, ["product:price:amount"]) ||
+    source.match(/"price"\s*:\s*["']?([0-9][0-9.,\s]*)/i)?.[1] ||
+    ""
+  ).trim().slice(0, 80);
   const hasUsableImage = Boolean(imageUrl && !/logo|icon|favicon/i.test(imageUrl));
   const productLinkCount = (lower.match(/href=["'][^"']*\/(?:products?|produkt|produkter|item)\//g) || []).length;
 
@@ -1668,7 +1693,10 @@ function getProductDetailVerification(html, pageUrl) {
   return {
     verified,
     score,
+    title: productTitle,
+    price: productPrice,
     image_url: imageUrl,
+    canonical_url: canonicalUrl,
     signals: {
       hasProductSchema,
       hasOfferSchema,
@@ -1721,27 +1749,122 @@ export async function verifyWebsiteProductMode({
     .map((url) => ({ url, score: rankProductModeCandidateUrl(url, proposedUrlSet) }))
     .filter((candidate) => candidate.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 16);
+    .slice(0, WEBSITE_PRODUCT_MODE_MAX_CANDIDATES);
 
-  const results = await Promise.allSettled(
-    candidates.map(async (candidate) => {
-      const page = await fetchWebsiteHtml(candidate.url, {
-        timeoutMs: WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS,
-      });
-      const verification = getProductDetailVerification(page.html, page.url);
-      return {
-        url: page.url.split("#")[0],
-        ...verification,
-      };
-    })
-  );
-  const verifiedItems = results
-    .filter((result) => result.status === "fulfilled" && result.value?.verified)
-    .map((result) => result.value)
-    .sort((a, b) => b.score - a.score);
-  let completedProbeCount = results.filter((result) => result.status === "fulfilled").length;
+  const verifiedItems = [];
+  let completedProbeCount = 0;
+  let attemptedProbeCount = 0;
+  let retryProbeCount = 0;
+  let unresolvedFetchFailures = [];
+  const probedRequestedUrls = new Set();
+
+  const addVerifiedItem = (item) => {
+    if (!item?.verified || !item?.url) return;
+    const existingIndex = verifiedItems.findIndex(
+      (existing) => existing.url === item.url
+    );
+    if (existingIndex < 0) {
+      verifiedItems.push(item);
+    } else if (Number(item.score || 0) > Number(verifiedItems[existingIndex].score || 0)) {
+      verifiedItems[existingIndex] = item;
+    }
+  };
+
+  const probeProductUrls = async (urls) => {
+    const uniqueUrls = [...new Set((urls || []).map((url) => String(url || "").trim()).filter(Boolean))]
+      .filter((url) => !verifiedItems.some((item) => item.url === url));
+    if (!uniqueUrls.length) return;
+    uniqueUrls.forEach((url) => probedRequestedUrls.add(url));
+
+    const firstResults = await Promise.allSettled(
+      uniqueUrls.map(async (url) => {
+        const page = await fetchWebsiteHtml(url, {
+          timeoutMs: WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS,
+          totalTimeoutMs: WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS,
+          maxAttempts: 1,
+        });
+        const verification = getProductDetailVerification(page.html, page.url);
+        return {
+          url: (verification.canonical_url || page.url).split("#")[0],
+          requested_url: url,
+          ...verification,
+        };
+      })
+    );
+    attemptedProbeCount += firstResults.length;
+
+    const failedUrls = [];
+    for (let index = 0; index < firstResults.length; index += 1) {
+      const result = firstResults[index];
+      if (result.status === "fulfilled") {
+        completedProbeCount += 1;
+        addVerifiedItem(result.value);
+      } else {
+        failedUrls.push({
+          url: uniqueUrls[index],
+          first_error: String(result.reason?.message || "Fetch failed").slice(0, 300),
+        });
+      }
+    }
+
+    if (
+      verifiedItems.length >= WEBSITE_PRODUCT_MODE_DISCOVERY_TARGET_ITEMS ||
+      !failedUrls.length
+    ) {
+      unresolvedFetchFailures.push(...failedUrls);
+      return;
+    }
+
+    const retryRows = failedUrls.slice(0, WEBSITE_PRODUCT_MODE_RETRY_LIMIT);
+    const retryConcurrency = 4;
+    const unresolvedRetries = [];
+
+    for (let index = 0; index < retryRows.length; index += retryConcurrency) {
+      if (verifiedItems.length >= WEBSITE_PRODUCT_MODE_DISCOVERY_TARGET_ITEMS) {
+        unresolvedRetries.push(...retryRows.slice(index));
+        break;
+      }
+
+      const batch = retryRows.slice(index, index + retryConcurrency);
+      const retryResults = await Promise.allSettled(
+        batch.map(async (row) => {
+          const page = await fetchWebsiteHtml(row.url, {
+            timeoutMs: WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS,
+            totalTimeoutMs: 24000,
+            maxAttempts: 3,
+          });
+          const verification = getProductDetailVerification(page.html, page.url);
+          return {
+            url: (verification.canonical_url || page.url).split("#")[0],
+            requested_url: row.url,
+            ...verification,
+          };
+        })
+      );
+      attemptedProbeCount += retryResults.length;
+      retryProbeCount += retryResults.length;
+
+      for (let retryIndex = 0; retryIndex < retryResults.length; retryIndex += 1) {
+        const result = retryResults[retryIndex];
+        if (result.status === "fulfilled") {
+          completedProbeCount += 1;
+          addVerifiedItem(result.value);
+        } else {
+          unresolvedRetries.push({
+            ...batch[retryIndex],
+            retry_error: String(result.reason?.message || "Fetch failed").slice(0, 300),
+          });
+        }
+      }
+    }
+
+    unresolvedFetchFailures.push(...unresolvedRetries);
+  };
+
+  await probeProductUrls(candidates.map((candidate) => candidate.url));
   let webSearchCompleted = false;
-  if (verifiedItems.length < WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS && openai) {
+  let webSearchUrlCount = 0;
+  if (verifiedItems.length < WEBSITE_PRODUCT_MODE_DISCOVERY_TARGET_ITEMS && openai) {
     try {
       const hostname = getHostnameWithoutWww(normalizedWebsiteUrl);
       const response = await openai.responses.create({
@@ -1756,7 +1879,7 @@ Return strict JSON only in this shape:
 
 Rules:
 - Search only inside ${hostname}.
-- Return 6-10 distinct individual product detail pages when they exist.
+- Return 8-12 distinct individual product detail pages when they exist.
 - Do not return the homepage, categories, collections, search results, blog posts, portfolios, service descriptions, contact pages, external marketplaces or social profiles.
 - A qualifying page must represent one concrete product and should expose a product image plus price/offer/cart or structured Product data.
 - Do not guess URLs. Return an empty array if concrete product pages cannot be found.`,
@@ -1768,29 +1891,9 @@ Rules:
         .filter((url) => isSameRootDomainOrSubdomain(url, normalizedWebsiteUrl))
         .filter((url) => !isLikelyTechnicalPage(url))
         .filter((url) => !verifiedItems.some((item) => item.url === url))
-        .slice(0, 10);
-      const webResults = await Promise.allSettled(
-        webSearchUrls.map(async (url) => {
-          const page = await fetchWebsiteHtml(url, {
-            timeoutMs: WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS,
-          });
-          return {
-            url: page.url.split("#")[0],
-            ...getProductDetailVerification(page.html, page.url),
-          };
-        })
-      );
-      completedProbeCount += webResults.filter((result) => result.status === "fulfilled").length;
-
-      for (const result of webResults) {
-        if (
-          result.status === "fulfilled" &&
-          result.value?.verified &&
-          !verifiedItems.some((item) => item.url === result.value.url)
-        ) {
-          verifiedItems.push(result.value);
-        }
-      }
+        .slice(0, 12);
+      webSearchUrlCount = webSearchUrls.length;
+      await probeProductUrls(webSearchUrls);
     } catch (error) {
       console.log("Product-mode fallback web search unavailable", {
         websiteUrl: normalizedWebsiteUrl,
@@ -1801,11 +1904,15 @@ Rules:
 
   verifiedItems.sort((a, b) => b.score - a.score);
   const verifiedUrls = [...new Set(verifiedItems.map((item) => item.url))];
-  const status = verifiedUrls.length > 0
-    ? "confirmed"
-    : completedProbeCount > 0 || webSearchCompleted
-      ? "not_found"
-      : "inconclusive";
+  const checkedUrlCount = probedRequestedUrls.size;
+  const capabilityDecision = decideWebsiteProductCapability({
+    verifiedCount: verifiedUrls.length,
+    completedProbeCount,
+    checkedUrlCount,
+    webSearchCompleted,
+  });
+  const hasVerifiedProductCapability = capabilityDecision.available;
+  const status = capabilityDecision.status;
   const sourceUrl = (() => {
     try {
       return new URL(normalizedWebsiteUrl).origin;
@@ -1815,22 +1922,33 @@ Rules:
   })();
 
   return {
-    available: verifiedUrls.length >= WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS,
+    available: hasVerifiedProductCapability,
     status,
     has_verified_products: verifiedUrls.length > 0,
     single_product_post_available: verifiedUrls.length > 0,
-    product_carousel_available: verifiedUrls.length >= WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS,
+    product_carousel_available: capabilityDecision.productCarouselAvailable,
     item_urls: verifiedUrls,
     detected_item_count: verifiedUrls.length,
     source_url: verifiedUrls.length ? sourceUrl : "",
-    reason: verifiedUrls.length >= WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS
-      ? `Verified ${verifiedUrls.length} distinct same-domain product detail pages with product images and commerce signals.`
-      : `Verified only ${verifiedUrls.length} distinct same-domain product detail pages with product images and commerce signals; at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} are required.`,
+    reason: hasVerifiedProductCapability
+      ? verifiedUrls.length >= WEBSITE_PRODUCT_MODE_DISCOVERY_TARGET_ITEMS
+        ? `Verified ${verifiedUrls.length} distinct same-domain product detail pages with product images and commerce signals.`
+        : `Product capability confirmed from ${verifiedUrls.length} strongly verified same-domain product detail page${verifiedUrls.length === 1 ? "" : "s"}. Carousel discovery remains enabled and continues looking for additional campaign-matching products at runtime.`
+      : status === "inconclusive"
+        ? `No product page could be strongly verified yet, but only ${completedProbeCount} of ${attemptedProbeCount} product fetch attempts completed; the result is inconclusive and must be retried.`
+        : "No strongly verified same-domain product detail page with product image and commerce evidence could be found after direct and fallback discovery.",
     verification: {
-      checked_candidate_count: candidates.length,
+      checked_candidate_count: checkedUrlCount,
       completed_probe_count: completedProbeCount,
+      attempted_probe_count: attemptedProbeCount,
+      retry_probe_count: retryProbeCount,
+      unresolved_fetch_failure_count: unresolvedFetchFailures.length,
+      unresolved_fetch_failures: unresolvedFetchFailures.slice(0, 12),
       web_search_completed: webSearchCompleted,
-      detector_version: "v7",
+      web_search_url_count: webSearchUrlCount,
+      discovery_target_count: WEBSITE_PRODUCT_MODE_DISCOVERY_TARGET_ITEMS,
+      capability_minimum_count: WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS,
+      detector_version: WEBSITE_PRODUCT_DETECTOR_VERSION,
       verified_items: verifiedItems,
     },
   };
@@ -2258,9 +2376,9 @@ Return JSON only in this exact shape:
   },
   "website_product_mode": {
     "available": true,
-    "reason": "Short internal explanation. True only if at least five distinct individual items are directly available on the business website itself.",
+    "reason": "Short internal explanation. True when at least one strongly evidenced individual product is directly available on the business website itself; return several when possible.",
     "source_url": "The exact same-domain URL where the best item list was found. Empty string when available is false.",
-    "item_urls": ["At least five exact same-domain URLs for distinct individual item detail pages when available is true"]
+    "item_urls": ["Exact same-domain URLs for strongly evidenced individual product detail pages; preferably at least five when the evidence supports them"]
   },
   "campaign_opportunities": [
     {
@@ -2370,12 +2488,12 @@ Campaign strategy:
 - Choose recommended_post_count from the actual campaign complexity and commercial value, not from a fixed template. A minor awareness moment may need 1-2 posts, a strong sales/booking period may need 3-5, and a major lead-time campaign may need 5-7.
 
 Website product mode:
-- Set website_product_mode.available to true only when at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} distinct, currently usable individual items can be verified directly on the business website's own domain. Return their exact detail-page URLs in item_urls.
+- Set website_product_mode.available to true when at least one currently usable individual product can be strongly verified directly on the business website's own domain. Return as many exact detail-page URLs as the supplied evidence supports, preferably at least ${WEBSITE_PRODUCT_MODE_DISCOVERY_TARGET_ITEMS} for carousel seeding.
 - This flag is only for concrete product catalog items. Services, menus, courses, events, portfolio entries, articles and general offers do not qualify for website product mode; they need a separate service/content capability.
 - Each qualifying URL must be an individual product detail page with its own product identity and image plus Product/Offer, price, SKU/GTIN/MPN, variant or purchase/cart evidence.
 - External marketplaces, auction sites, booking portals, social networks and reseller pages do not count. Links to items on another domain must never be included in item_urls.
 - Category pages, search pages, navigation links, general service descriptions, brand/model family pages and text that merely says the company sells products do not count as individual items.
-- If fewer than ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} qualifying same-domain item URLs are present in the supplied website evidence, available must be false and item_urls must contain only the qualifying URLs that were actually found.
+- If no qualifying same-domain item URL is present in the supplied website evidence, available must be false. If one to four are present, available may be true and item_urls must contain only the qualifying URLs actually found; runtime discovery continues looking for additional carousel products.
 - A suitable website item should normally have several of these signals:
   1. clear item name/title,
   2. item card or detail page,
@@ -2383,7 +2501,7 @@ Website product mode:
   4. category/listing structure where individual items can be identified,
   5. relevant item image or item-specific presentation,
   6. enough item-specific description to write a concrete post.
-- Set website_product_mode.available to false when the website is mainly brochure-only, portfolio/blog/news-only, a pure store locator, links its inventory to external sites, or does not expose at least ${WEBSITE_PRODUCT_MODE_MIN_LOCAL_ITEMS} qualifying same-domain items in the supplied evidence.
+- Set website_product_mode.available to false when the website is mainly brochure-only, portfolio/blog/news-only, a pure store locator, links its inventory to external sites, or exposes no strongly verified qualifying same-domain product detail page in the supplied evidence.
 - Do not set it to true only because the website mentions broad categories, discounts, offers, products or services.
 - A site that appears commercial but lacks enough verified item pages must remain false until a later analysis can verify the required URLs.
 - If available is true, source_url must be the exact URL where the strongest item-level evidence was found.
@@ -2845,7 +2963,8 @@ export async function saveBrandProfile({
       website_single_product_post_available: Boolean(resolvedWebsiteProductMode?.single_product_post_available),
       website_carousel_mode_available: Boolean(resolvedWebsiteProductMode?.product_carousel_available),
       website_product_mode_evidence: resolvedWebsiteProductMode?.verification || {},
-      website_product_detector_version: "v7",
+      website_product_detector_version:
+        resolvedWebsiteProductMode?.verification?.detector_version || WEBSITE_PRODUCT_DETECTOR_VERSION,
       website_product_source_url: resolvedWebsiteProductMode?.available
         ? resolvedWebsiteProductMode?.source_url || websiteUrl || ""
         : "",

@@ -16,10 +16,11 @@ in `README.md`. Existing `OPENAI_API_KEY` configuration is unchanged.
 
 ## Verified website product mode
 
-Website carousel mode now requires at least five distinct individual item pages
-that were actually discovered on the business website's own domain. The AI must
-return the exact item URLs, and the server verifies them against links collected
-from the fetched website pages before saving `website_product_mode_available`.
+Website product capability now requires at least one strongly verified individual
+product page on the business website's own domain. Five verified items remain the
+discovery target used to seed a varied carousel, but an incomplete probe result
+must not classify a real store as unavailable. Runtime discovery continues to
+find additional campaign-matching products before carousel delivery.
 
 External marketplaces, auction sites, booking portals, category/search pages,
 general product mentions, and unsupported AI-provided URLs do not count. This

@@ -990,6 +990,31 @@ function getWebsiteProductSourceUrl(brandProfile) {
   );
 }
 
+function getBrandCapabilityVerifiedProductCandidates(brandProfile) {
+  const evidence = brandProfile?.website_product_mode_evidence;
+  const verifiedItems = Array.isArray(evidence?.verified_items)
+    ? evidence.verified_items
+    : [];
+  const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
+
+  return dedupeUrlItems(
+    verifiedItems
+      .filter((item) => item?.verified && item?.url)
+      .map((item) => ({
+        title: String(item?.title || "").trim(),
+        url: canonicalizeWebsiteProductUrl(item.url, websiteUrl) || item.url,
+        image_url: item.image_url || null,
+        price: item.price || "",
+        description: String(item?.description || "").trim(),
+        reason: "Product page previously verified during brand capability analysis",
+        score: 160 + Number(item?.score || 0),
+        discovery_score: 160 + Number(item?.score || 0),
+        source_page_url: websiteUrl,
+        campaign_fit_source: "brand_capability_verified_seed",
+      }))
+  ).slice(0, 12);
+}
+
 function formatCampaignStrategyForPrompt(rule) {
   const hasStrategy =
     rule.campaign_phase ||
@@ -3402,7 +3427,7 @@ function isStrongResolvedCampaignProduct(item, rule) {
     (hasDirectSignal || (aiScore !== null && aiScore >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE));
 }
 
-async function prepareCampaignCarouselProductsV9({
+async function prepareCampaignCarouselProductsV10({
   supabase,
   openai,
   rule,
@@ -3477,6 +3502,27 @@ async function prepareCampaignCarouselProductsV9({
   let completedDiscoverySources = 0;
 
   if (shouldDiscover) {
+    const capabilitySeedCandidates =
+      getBrandCapabilityVerifiedProductCandidates(brandProfile);
+
+    if (capabilitySeedCandidates.length) {
+      try {
+        const capabilitySeedItems = await verifyDiscoveredWebsiteProductCandidates({
+          candidates: capabilitySeedCandidates,
+          websiteUrl,
+          limit: Math.min(capabilitySeedCandidates.length, WEBSITE_STORE_SEARCH_VERIFY_LIMIT),
+        });
+        verifiedThisRun.push(...capabilitySeedItems);
+      } catch (error) {
+        console.log("V10 brand capability product seeds unavailable", {
+          ruleId: rule.id,
+          websiteUrl,
+          candidateCount: capabilitySeedCandidates.length,
+          message: error.message,
+        });
+      }
+    }
+
     try {
       const storeCandidates = await discoverProductCandidatesFromStoreSearch({
         websiteUrl,
@@ -3492,7 +3538,7 @@ async function prepareCampaignCarouselProductsV9({
       verifiedThisRun.push(...storeItems);
       completedDiscoverySources += 1;
     } catch (error) {
-      console.log("V9 native store discovery unavailable", {
+      console.log("V10 native store discovery unavailable", {
         ruleId: rule.id,
         websiteUrl,
         message: error.message,
@@ -3519,7 +3565,7 @@ async function prepareCampaignCarouselProductsV9({
         verifiedThisRun.push(...(Array.isArray(webSearchItems) ? webSearchItems : []));
         completedDiscoverySources += 1;
       } catch (error) {
-        console.log("V9 domain web search unavailable", {
+        console.log("V10 domain web search unavailable", {
           ruleId: rule.id,
           websiteUrl,
           message: error.message,
@@ -3547,7 +3593,7 @@ async function prepareCampaignCarouselProductsV9({
         verifiedThisRun.push(...remainingItems);
         completedDiscoverySources += 1;
       } catch (error) {
-        console.log("V9 bounded sitemap/catalog discovery unavailable", {
+        console.log("V10 bounded sitemap/catalog discovery unavailable", {
           ruleId: rule.id,
           websiteUrl,
           message: error.message,
@@ -3616,7 +3662,7 @@ async function prepareCampaignCarouselProductsV9({
   }
 
   if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
-    console.error("V9 product discovery finished without a usable verified product", {
+    console.error("V10 product discovery finished without a usable verified product", {
       ruleId: rule.id,
       brandProfileId: rule.brand_profile_id,
       websiteUrl,
@@ -3665,7 +3711,7 @@ async function prepareCampaignCarouselProductsV9({
   summary.website_content_success += 1;
   summary.website_image_used += selectedProducts.length;
 
-  console.log("V9 campaign product resolver completed", {
+  console.log("V10 campaign product resolver completed", {
     ruleId: rule.id,
     brandProfileId: rule.brand_profile_id,
     themeKey,
@@ -4853,7 +4899,7 @@ async function getBrandProfileForRule(supabase, rule) {
   const { data, error } = await supabase
     .from("brand_profiles")
     .select(
-  "id, business_name, website_url, website_product_source_url, brand_description, industry, target_audience, content_language, logo_url, logo_storage_path, logo_enabled_by_default"
+  "id, business_name, website_url, website_product_source_url, website_product_mode_available, website_carousel_mode_available, website_product_mode_evidence, brand_description, industry, target_audience, content_language, logo_url, logo_storage_path, logo_enabled_by_default"
 )
     .eq("id", rule.brand_profile_id)
     .eq("user_id", rule.user_id)
@@ -14177,7 +14223,7 @@ let websitePreparedRule = rule;
         if (isCarouselRule(rule)) {
           try {
             const carouselPreparer = isCampaignScopedWebsiteRule(rule)
-              ? prepareCampaignCarouselProductsV9
+              ? prepareCampaignCarouselProductsV10
               : prepareCarouselProductsForRule;
             const preparedCarouselProducts = await carouselPreparer({
               supabase,
