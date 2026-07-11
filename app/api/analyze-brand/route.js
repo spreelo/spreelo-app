@@ -4,7 +4,7 @@ import {
   OPENAI_MODELS,
   getTemperatureOptions,
 } from "../../../lib/openaiModels.js";
-import { assertPublicHttpUrl } from "../../../lib/security.js";
+import { fetchWebsiteHtmlRobust } from "../../../lib/websiteFetch.js";
 import {
   inferContentLanguageFromWebsiteSignals,
   normalizeSingleContentLanguage,
@@ -12,7 +12,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 const WEBSITE_MAX_TEXT_CHARS = 18000;
 const WEBSITE_MAX_PRODUCT_SOURCE_PAGES = 4;
 const WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS = 9000;
@@ -314,7 +313,11 @@ async function fetchProductSourceCandidates({ websiteUrl, html }) {
 
   for (const link of sourceLinks) {
     try {
-      const candidate = await fetchWebsiteHtml(link.url);
+      const candidate = await fetchWebsiteHtml(link.url, {
+        timeoutMs: 5000,
+        totalTimeoutMs: 5000,
+        maxAttempts: 1,
+      });
 
       candidates.push({
         url: candidate.url,
@@ -1041,53 +1044,14 @@ Rules:
   };
 }
 
-async function fetchWebsiteHtml(websiteUrl) {
+async function fetchWebsiteHtml(websiteUrl, options = {}) {
   const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
 
   if (!normalizedWebsiteUrl) {
     throw new Error("Website URL is required");
   }
 
-  const safeWebsiteUrl = await assertPublicHttpUrl(normalizedWebsiteUrl);
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    WEBSITE_FETCH_TIMEOUT_MS
-  );
-
-  try {
-    const response = await fetch(safeWebsiteUrl, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; SpreeloBot/1.0; +https://app.spreelo.com)",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Website returned ${response.status}`);
-    }
-
-    const contentType = response.headers.get("content-type") || "";
-
-    if (!contentType.toLowerCase().includes("text/html")) {
-      throw new Error("Website did not return HTML");
-    }
-
-    const html = await response.text();
-
-    return {
-      url: safeWebsiteUrl,
-      html,
-    };
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  return fetchWebsiteHtmlRobust(normalizedWebsiteUrl, options);
 }
 
 async function checkRateLimit({ supabase, userId }) {

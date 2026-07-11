@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:product-resolver": "node --test lib/productResolverCore.test.js"
+    "test:product-resolver": "node --test lib/productResolverCore.test.js",
+    "test:website-fetch": "node --test lib/websiteFetch.test.js",
+    "test:resolver-v8": "node --test lib/productResolverCore.test.js lib/websiteFetch.test.js",
+    "test:resolver-v9": "node --test lib/productResolverCore.test.js lib/websiteFetch.test.js lib/productDiscoveryPolicy.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",

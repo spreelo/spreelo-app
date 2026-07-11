@@ -3,17 +3,20 @@ import {
   OPENAI_MODELS,
   getTemperatureOptions,
 } from "../../../lib/openaiModels.js";
-import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   inferContentLanguageFromWebsiteSignals,
   inferMarketSetupFromWebsiteSignals,
   normalizeSingleContentLanguage,
 } from "../../../lib/contentLanguage.js";
+import {
+  WEBSITE_FETCH_TIMEOUT_MS,
+  fetchWebsiteHtmlRobust,
+} from "../../../lib/websiteFetch.js";
 
-export const WEBSITE_FETCH_TIMEOUT_MS = 12000;
+export { WEBSITE_FETCH_TIMEOUT_MS };
 export const WEBSITE_MAX_TEXT_CHARS = 8000;
 export const WEBSITE_MAX_PRODUCT_SOURCE_PAGES = 8;
-export const WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS = 5000;
+export const WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS = 8000;
 export const WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS = 3500;
 export const MAX_CAMPAIGN_OPPORTUNITIES = 12;
 export const WEBSITE_MAX_CONTEXT_LINK_CANDIDATES = 60;
@@ -478,52 +481,163 @@ export function extractProductSourceLinks(html, pageUrl) {
 
 export async function fetchWebsiteHtml(websiteUrl, options = {}) {
   const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
-  const timeoutMs = Number(options?.timeoutMs || WEBSITE_FETCH_TIMEOUT_MS);
 
   if (!normalizedWebsiteUrl) {
     throw new Error("Website URL is required");
   }
+  return fetchWebsiteHtmlRobust(normalizedWebsiteUrl, options);
+}
 
-  const safeWebsiteUrl = await assertPublicHttpUrl(normalizedWebsiteUrl);
+function escapeWebsiteResearchHtml(value) {
+  return String(value || "")
+    .replace(/&/gu, "&amp;")
+    .replace(/</gu, "&lt;")
+    .replace(/>/gu, "&gt;")
+    .replace(/"/gu, "&quot;")
+    .replace(/'/gu, "&#39;");
+}
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    timeoutMs
-  );
+function normalizeResearchPageRows(rows, websiteUrl, maximum = 12) {
+  const seen = new Set();
+  const normalizedRows = [];
 
-  try {
-    const response = await fetch(safeWebsiteUrl, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; SpreeloBot/1.0; +https://app.spreelo.com)",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const rawUrl = String(row?.url || "").trim();
+    const url = resolveUrl(rawUrl, websiteUrl)?.split("#")[0] || "";
+    if (
+      !url ||
+      seen.has(url) ||
+      !isHttpUrl(url) ||
+      !isSameRootDomainOrSubdomain(url, websiteUrl)
+    ) {
+      continue;
+    }
+
+    seen.add(url);
+    normalizedRows.push({
+      url,
+      title: String(row?.title || "").trim().slice(0, 240),
+      summary: String(row?.summary || row?.evidence || "").trim().slice(0, 800),
     });
-
-    if (!response.ok) {
-      throw new Error(`Website returned ${response.status}`);
-    }
-
-    const contentType = response.headers.get("content-type") || "";
-
-    if (!contentType.toLowerCase().includes("text/html")) {
-      throw new Error("Website did not return HTML");
-    }
-
-    const html = await response.text();
-
-    return {
-      url: response.url || safeWebsiteUrl,
-      html,
-    };
-  } finally {
-    clearTimeout(timeoutId);
+    if (normalizedRows.length >= maximum) break;
   }
+
+  return normalizedRows;
+}
+
+/**
+ * Last-resort brand context for sites that reject all bounded HTTP attempts.
+ * It is deliberately called only after HTTP failure, so normal analyses do not
+ * pay for an extra Web Search call. Product capability remains subject to the
+ * separate technical product-page verifier.
+ */
+export async function researchWebsiteWithWebSearchFallback({
+  openai,
+  websiteUrl,
+  businessName = "",
+}) {
+  if (!openai) throw new Error("OpenAI client is required for website research fallback");
+
+  const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+  const hostname = getHostnameWithoutWww(normalizedWebsiteUrl);
+  if (!hostname) throw new Error("Website URL is required");
+
+  const response = await openai.responses.create({
+    model: OPENAI_MODELS.productResearchFast,
+    tools: [{ type: "web_search" }],
+    tool_choice: "required",
+    reasoning: { effort: "low" },
+    input: `Research the current official public website for a brand analysis when the server cannot fetch the homepage directly.
+
+Requested website: ${normalizedWebsiteUrl}
+Domain: ${hostname}
+User-entered business name: ${businessName || "Not provided"}
+
+Return strict JSON only:
+{
+  "canonical_url": "https://...",
+  "page_title": "",
+  "meta_description": "",
+  "language": "",
+  "country_or_market": "",
+  "business_summary": "",
+  "facts": [""],
+  "official_internal_pages": [{"url":"https://...","title":"","summary":""}],
+  "official_product_pages": [{"url":"https://...","title":"","summary":"Concrete price, purchase or product evidence visible in search results"}]
+}
+
+Rules:
+- Search only for the requested business and its official ${hostname} website.
+- Do not use social networks, marketplaces, resellers or unrelated domains as business evidence.
+- Include 6-12 useful same-domain internal pages when they can be found.
+- Include individual product detail pages only when the exact official URL represents one concrete item. Never include categories, search pages, articles, services or guessed URLs.
+- Do not invent prices, products, pages, offers or company facts.
+- Return an empty array or empty field when evidence is unavailable.`,
+  });
+
+  const parsed = safeJsonParse(response.output_text || "");
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Website Web Search fallback returned an unreadable result");
+  }
+
+  const canonicalCandidate = normalizeWebsiteUrl(parsed.canonical_url || normalizedWebsiteUrl);
+  const canonicalUrl = isSameRootDomainOrSubdomain(canonicalCandidate, normalizedWebsiteUrl)
+    ? canonicalCandidate
+    : normalizedWebsiteUrl;
+  const internalPages = normalizeResearchPageRows(
+    parsed.official_internal_pages,
+    canonicalUrl,
+    12
+  );
+  const productPages = normalizeResearchPageRows(
+    parsed.official_product_pages,
+    canonicalUrl,
+    10
+  );
+  const facts = (Array.isArray(parsed.facts) ? parsed.facts : [])
+    .map((fact) => String(fact || "").trim().slice(0, 700))
+    .filter(Boolean)
+    .slice(0, 16);
+  const title = String(parsed.page_title || businessName || hostname).trim().slice(0, 300);
+  const description = String(
+    parsed.meta_description || parsed.business_summary || ""
+  ).trim().slice(0, 1200);
+  const summary = String(parsed.business_summary || "").trim().slice(0, 4000);
+
+  if (!title && !description && !summary && !facts.length && !internalPages.length) {
+    throw new Error("Website Web Search fallback found no usable official evidence");
+  }
+
+  const pageRows = [...internalPages, ...productPages]
+    .map(
+      (page) =>
+        `<li><a href="${escapeWebsiteResearchHtml(page.url)}">${escapeWebsiteResearchHtml(
+          page.title || page.url
+        )}</a><p>${escapeWebsiteResearchHtml(page.summary)}</p></li>`
+    )
+    .join("");
+  const factRows = facts
+    .map((fact) => `<li>${escapeWebsiteResearchHtml(fact)}</li>`)
+    .join("");
+  const language = String(parsed.language || "").trim().slice(0, 40);
+  const market = String(parsed.country_or_market || "").trim().slice(0, 120);
+  const html = `<!doctype html><html${language ? ` lang="${escapeWebsiteResearchHtml(language)}"` : ""}><head><title>${escapeWebsiteResearchHtml(
+    title
+  )}</title><meta name="description" content="${escapeWebsiteResearchHtml(
+    description
+  )}"></head><body><main><h1>${escapeWebsiteResearchHtml(title)}</h1><p>${escapeWebsiteResearchHtml(
+    summary
+  )}</p><p>Market: ${escapeWebsiteResearchHtml(market)}</p><ul>${factRows}</ul><nav><ul>${pageRows}</ul></nav></main></body></html>`;
+
+  return {
+    url: canonicalUrl,
+    html,
+    fetch: {
+      source: "openai_web_search_fallback",
+      internal_page_count: internalPages.length,
+      product_page_count: productPages.length,
+    },
+  };
 }
 
 async function selectWebsiteContextLinksWithOpenAI({ openai, websiteUrl, html }) {
@@ -626,38 +740,47 @@ export async function fetchProductSourceCandidates({ openai, websiteUrl, html })
   });
 
   const candidates = [];
+  const concurrency = 4;
 
-  for (const link of sourceLinks) {
-    try {
-      const candidate = await fetchWebsiteHtml(link.url, {
-        timeoutMs: WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS,
-      });
+  for (let index = 0; index < sourceLinks.length; index += concurrency) {
+    const batch = sourceLinks.slice(index, index + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(async (link) => {
+        try {
+          const candidate = await fetchWebsiteHtml(link.url, {
+            timeoutMs: WEBSITE_MAX_PRODUCT_SOURCE_FETCH_TIMEOUT_MS,
+            maxAttempts: 1,
+          });
 
-      candidates.push({
-        url: candidate.url,
-        title: extractPageTitle(candidate.html),
-        description: extractMetaDescription(candidate.html),
-        text: truncateText(
-          stripHtmlToText(candidate.html),
-          WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS
-        ),
-        link_text: link.text || "",
-        surrounding_text: link.surrounding_text || "",
-        score: link.score || 0,
-        internal_links: extractProductSourceLinks(candidate.html, candidate.url)
-          .slice(0, 120)
-          .map((childLink) => ({
-            url: childLink.url,
-            text: childLink.text || "",
-          })),
-      });
-    } catch (error) {
-      console.error("Could not fetch website context page", {
-        websiteUrl,
-        candidateUrl: link.url,
-        message: error.message,
-      });
-    }
+          return {
+            url: candidate.url,
+            title: extractPageTitle(candidate.html),
+            description: extractMetaDescription(candidate.html),
+            text: truncateText(
+              stripHtmlToText(candidate.html),
+              WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS
+            ),
+            link_text: link.text || "",
+            surrounding_text: link.surrounding_text || "",
+            score: link.score || 0,
+            internal_links: extractProductSourceLinks(candidate.html, candidate.url)
+              .slice(0, 120)
+              .map((childLink) => ({
+                url: childLink.url,
+                text: childLink.text || "",
+              })),
+          };
+        } catch (error) {
+          console.error("Could not fetch website context page", {
+            websiteUrl,
+            candidateUrl: link.url,
+            message: error.message,
+          });
+          return null;
+        }
+      })
+    );
+    candidates.push(...batchResults.filter(Boolean));
   }
 
   return candidates;
@@ -2135,9 +2258,9 @@ Return JSON only in this exact shape:
   },
   "website_product_mode": {
     "available": true,
-    "reason": "Short internal explanation. True only if at least four distinct individual items are directly available on the business website itself.",
+    "reason": "Short internal explanation. True only if at least five distinct individual items are directly available on the business website itself.",
     "source_url": "The exact same-domain URL where the best item list was found. Empty string when available is false.",
-    "item_urls": ["At least four exact same-domain URLs for distinct individual item detail pages when available is true"]
+    "item_urls": ["At least five exact same-domain URLs for distinct individual item detail pages when available is true"]
   },
   "campaign_opportunities": [
     {
@@ -2904,7 +3027,32 @@ export async function runBrandAnalysisJob({
       progress: 15,
     });
 
-    const website = await fetchWebsiteHtml(websiteUrl);
+    let website;
+    try {
+      website = await fetchWebsiteHtml(websiteUrl);
+    } catch (fetchError) {
+      console.warn("Direct website fetch failed; trying bounded Web Search fallback", {
+        websiteUrl,
+        message: fetchError?.message,
+      });
+      await updateJob({
+        status: "running",
+        step: "researching_blocked_website",
+        progress: 20,
+      });
+
+      try {
+        website = await researchWebsiteWithWebSearchFallback({
+          openai,
+          websiteUrl,
+          businessName,
+        });
+      } catch (researchError) {
+        throw new Error(
+          `${fetchError?.message || "Website fetch failed"} Web Search fallback failed: ${researchError?.message || "unknown error"}`
+        );
+      }
+    }
     finalWebsiteUrl = website.url;
     detectedWebsiteMarketSetup = inferMarketSetupFromWebsiteSignals(website.url, website.html);
 

@@ -19,6 +19,11 @@ import {
   chooseQualityCutoffAndRank,
 } from "../../../../lib/productResolverCore.js";
 import {
+  PRODUCT_RESOLVER_VERSION,
+  canTrustExhaustedProductDiscoveryState,
+} from "../../../../lib/productDiscoveryPolicy.js";
+import { fetchWebsiteHtmlRobust } from "../../../../lib/websiteFetch.js";
+import {
   isConnectionAuthFailure,
   markConnectionExpiredAndAlert,
 } from "../../../../lib/socialConnectionAlerts.js";
@@ -31,7 +36,9 @@ const CRON_RULE_PROCESSING_LOCK_MINUTES = 15;
 const RECENT_AUTOMATION_DRAFT_BLOCK_HOURS = 6;
 const APP_URL = "https://app.spreelo.com";
 const RESEND_FROM_EMAIL = "Spreelo <noreply@spreelo.com>";
-const WEBSITE_FETCH_TIMEOUT_MS = 12000;
+const PRODUCT_FETCH_TIMEOUT_MS = 12000;
+const PRODUCT_BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
 const WEBSITE_MAX_PAGES = 8;
 const WEBSITE_MAX_TEXT_CHARS_PER_PAGE = 6500;
 const WEBSITE_MAX_TOTAL_TEXT_CHARS = 22000;
@@ -3395,7 +3402,7 @@ function isStrongResolvedCampaignProduct(item, rule) {
     (hasDirectSignal || (aiScore !== null && aiScore >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE));
 }
 
-async function prepareCampaignCarouselProductsV7({
+async function prepareCampaignCarouselProductsV9({
   supabase,
   openai,
   rule,
@@ -3459,11 +3466,11 @@ async function prepareCampaignCarouselProductsV7({
   let strongSelection = getStrongFreshSelection();
   const hasFiveFreshStrong = strongSelection.length >= CAROUSEL_PRODUCT_SLIDE_TARGET &&
     strongSelection.every((item) => item.campaign_rotation_state === "fresh");
-  const lastAttemptAgeMs = discoveryState.last_attempt_at
-    ? Date.now() - Date.parse(discoveryState.last_attempt_at)
-    : Number.POSITIVE_INFINITY;
-  const mayTrustExhaustedState = discoveryState.exhausted &&
-    lastAttemptAgeMs < 7 * 24 * 60 * 60 * 1000;
+  const mayTrustExhaustedState = canTrustExhaustedProductDiscoveryState({
+    discoveryState,
+    usableCandidateCount: candidatePool.length,
+    minimumCandidateCount: CAROUSEL_PRODUCT_SLIDE_TARGET,
+  });
   let shouldDiscover = !hasFiveFreshStrong && !mayTrustExhaustedState;
   const initialUrls = new Set(candidatePool.map((item) => normalizeComparableValue(item.url)).filter(Boolean));
   let verifiedThisRun = [];
@@ -3485,7 +3492,7 @@ async function prepareCampaignCarouselProductsV7({
       verifiedThisRun.push(...storeItems);
       completedDiscoverySources += 1;
     } catch (error) {
-      console.log("V7 native store discovery unavailable", {
+      console.log("V9 native store discovery unavailable", {
         ruleId: rule.id,
         websiteUrl,
         message: error.message,
@@ -3512,7 +3519,7 @@ async function prepareCampaignCarouselProductsV7({
         verifiedThisRun.push(...(Array.isArray(webSearchItems) ? webSearchItems : []));
         completedDiscoverySources += 1;
       } catch (error) {
-        console.log("V7 domain web search unavailable", {
+        console.log("V9 domain web search unavailable", {
           ruleId: rule.id,
           websiteUrl,
           message: error.message,
@@ -3540,7 +3547,7 @@ async function prepareCampaignCarouselProductsV7({
         verifiedThisRun.push(...remainingItems);
         completedDiscoverySources += 1;
       } catch (error) {
-        console.log("V7 bounded sitemap/catalog discovery unavailable", {
+        console.log("V9 bounded sitemap/catalog discovery unavailable", {
           ruleId: rule.id,
           websiteUrl,
           message: error.message,
@@ -3609,6 +3616,22 @@ async function prepareCampaignCarouselProductsV7({
   }
 
   if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    console.error("V9 product discovery finished without a usable verified product", {
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      themeKey,
+      resolverVersion: PRODUCT_RESOLVER_VERSION,
+      cachedCount: cachedItems.length,
+      campaignCatalogCount: campaignCatalogItems.length,
+      usableInitialPoolCount: initialUrls.size,
+      ignoredExhaustedState: Boolean(discoveryState.exhausted && !mayTrustExhaustedState),
+      discoveryStateVersion: discoveryState.metadata?.resolver_version || "legacy",
+      discoveryAttempted: shouldDiscover,
+      completedDiscoverySources,
+      rawVerifiedThisRun: verifiedThisRun.length,
+      finalCandidatePoolCount: candidatePool.length,
+    });
     throw new Error("No verified product detail page with a usable product image could be found.");
   }
 
@@ -3642,7 +3665,7 @@ async function prepareCampaignCarouselProductsV7({
   summary.website_content_success += 1;
   summary.website_image_used += selectedProducts.length;
 
-  console.log("V7 campaign product resolver completed", {
+  console.log("V9 campaign product resolver completed", {
     ruleId: rule.id,
     brandProfileId: rule.brand_profile_id,
     themeKey,
@@ -5483,51 +5506,19 @@ function extractProductCardCandidatesFromHtml({
 }
 
 async function fetchHtml(url) {
-  const safeUrl = await assertPublicHttpUrl(url);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(safeUrl, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; SpreeloBot/1.0; +https://app.spreelo.com)",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Website returned ${response.status}`);
-    }
-
-    const contentType = response.headers.get("content-type") || "";
-    const lowerContentType = contentType.toLowerCase();
-
-    if (
-      lowerContentType &&
-      !lowerContentType.includes("text/html") &&
-      !lowerContentType.includes("application/xhtml") &&
-      !lowerContentType.includes("application/xml") &&
-      !lowerContentType.includes("text/xml") &&
-      !lowerContentType.includes("text/plain")
-    ) {
-      throw new Error(`Website did not return readable HTML/XML content: ${contentType}`);
-    }
-
-    return await response.text();
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  const result = await fetchWebsiteHtmlRobust(url, {
+    timeoutMs: PRODUCT_FETCH_TIMEOUT_MS,
+    totalTimeoutMs: 24000,
+    maxAttempts: 3,
+    allowReadableText: true,
+  });
+  return result.html;
 }
 
 async function fetchJson(url) {
   const safeUrl = await assertPublicHttpUrl(url);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), PRODUCT_FETCH_TIMEOUT_MS);
 
   try {
     const response = await fetch(safeUrl, {
@@ -5535,9 +5526,9 @@ async function fetchJson(url) {
       redirect: "follow",
       signal: controller.signal,
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; SpreeloBot/1.0; +https://app.spreelo.com)",
+        "User-Agent": PRODUCT_BROWSER_USER_AGENT,
         Accept: "application/json,text/plain,*/*",
+        "Accept-Language": "*",
       },
     });
 
@@ -6442,7 +6433,7 @@ async function updateCampaignProductDiscoveryState({
       consecutive_no_new: noNewCount,
       last_new_count: Number(newCount || 0),
       metadata: {
-        resolver_version: "v7",
+        resolver_version: PRODUCT_RESOLVER_VERSION,
         verified_candidate_count: Number(candidateCount || 0),
         completed_source_count: Number(completedSourceCount || 0),
       },
@@ -6471,7 +6462,7 @@ async function upsertCampaignProductCandidateItems({ supabase, rule, sourceUrl, 
       heuristic_fit_score: scoreCampaignFitForRule({ ...item, ai_campaign_fit_score: null }, rule),
       ai_fit_score: getAiCampaignFitScore(item),
       fit_tier: Number(item.campaign_fit_tier ?? (isEligibleCampaignCarouselProduct(item, rule) ? 0 : scoreCampaignFitForRule(item, rule) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE ? 1 : 2)),
-      score_version: "v7",
+      score_version: PRODUCT_RESOLVER_VERSION,
       product_verified: true,
       verified_at: new Date().toISOString(),
       campaign_fit_source: item.campaign_fit_source || "hybrid_discovery_cache",
@@ -10686,11 +10677,12 @@ async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt, rule = 
     try {
       const safeJsonUrl = await assertPublicHttpUrl(jsonUrl);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
+      const timeout = setTimeout(() => controller.abort(), PRODUCT_FETCH_TIMEOUT_MS);
       const response = await fetch(safeJsonUrl, {
         headers: {
-          "user-agent": "SpreeloBot/1.0 (+https://spreelo.com)",
+          "user-agent": PRODUCT_BROWSER_USER_AGENT,
           accept: "application/json,text/plain,*/*",
+          "accept-language": "*",
         },
         signal: controller.signal,
       });
@@ -10779,11 +10771,12 @@ async function discoverShopifyCollectionJson({ websiteUrl, campaignPrompt }) {
     try {
       const safeJsonUrl = await assertPublicHttpUrl(jsonUrl);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
+      const timeout = setTimeout(() => controller.abort(), PRODUCT_FETCH_TIMEOUT_MS);
       const response = await fetch(safeJsonUrl, {
         headers: {
-          "user-agent": "SpreeloBot/1.0 (+https://spreelo.com)",
+          "user-agent": PRODUCT_BROWSER_USER_AGENT,
           accept: "application/json,text/plain,*/*",
+          "accept-language": "*",
         },
         signal: controller.signal,
       });
@@ -14184,7 +14177,7 @@ let websitePreparedRule = rule;
         if (isCarouselRule(rule)) {
           try {
             const carouselPreparer = isCampaignScopedWebsiteRule(rule)
-              ? prepareCampaignCarouselProductsV7
+              ? prepareCampaignCarouselProductsV9
               : prepareCarouselProductsForRule;
             const preparedCarouselProducts = await carouselPreparer({
               supabase,

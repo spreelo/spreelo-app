@@ -19,13 +19,14 @@ export function getCustomerFriendlyAnalysisError(error) {
   }
 
   if (
+    message.toLowerCase().includes("website fetch failed") ||
     message.toLowerCase().includes("website returned") ||
     message.toLowerCase().includes("website did not return html") ||
     message.toLowerCase().includes("fetch failed") ||
     message.toLowerCase().includes("website url") ||
     message.toLowerCase().includes("website is required")
   ) {
-    return "Spreelo could not read this website right now. Please check the website URL or add a short business description instead.";
+    return "Spreelo tried the direct website, its www variant, and a website research fallback, but could not collect enough public information. Please verify the URL and try again.";
   }
 
   return (
