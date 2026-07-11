@@ -1,9 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import {
-  OPENAI_MODELS,
-  getTemperatureOptions,
-} from "../../../../lib/openaiModels.js";
 import crypto from "crypto";
 import sharp from "sharp";
 import {
@@ -64,10 +60,11 @@ const WEBSITE_TEXT_INTENT_AI_MIN_SIGNAL_TERMS = 2;
 const WEBSITE_TEXT_INTENT_AI_SCORE_MAX_ITEMS = 25;
 const WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT = 12;
 
-const POST_TEXT_MODEL = OPENAI_MODELS.automationPost;
-const PRODUCT_RESEARCH_MODEL = OPENAI_MODELS.productResearch;
-const PRODUCT_RESEARCH_FAST_MODEL = OPENAI_MODELS.productResearchFast;
-const IMAGE_MODEL = OPENAI_MODELS.image;
+const POST_TEXT_MODEL = "gpt-4.1-mini";
+const PRODUCT_RESEARCH_MODEL = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.6-terra";
+const PRODUCT_RESEARCH_FAST_MODEL =
+  process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL;
+const IMAGE_MODEL = "gpt-image-2";
 const INSTAGRAM_GRAPH_API_VERSION =
   process.env.INSTAGRAM_GRAPH_API_VERSION || "v21.0";
 
@@ -5342,7 +5339,7 @@ ${analysisInput}
 `.trim(),
       },
     ],
-    ...getTemperatureOptions(POST_TEXT_MODEL, 0.2),
+    temperature: 0.2,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -11335,7 +11332,7 @@ async function saveWebsiteContentHistory({
 
 async function generateAutomationPost(openai, rule) {
   const completion = await openai.chat.completions.create({
-    model: POST_TEXT_MODEL,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -11347,7 +11344,7 @@ async function generateAutomationPost(openai, rule) {
         content: buildAutomationPrompt(rule),
       },
     ],
-    ...getTemperatureOptions(POST_TEXT_MODEL, 0.75),
+    temperature: 0.75,
   });
 
   return completion.choices?.[0]?.message?.content?.trim() || "";
@@ -11419,7 +11416,7 @@ Return JSON exactly in this shape:
           `.trim(),
         },
       ],
-      ...getTemperatureOptions(POST_TEXT_MODEL, 0.65),
+      temperature: 0.65,
     });
 
     const raw = completion.choices?.[0]?.message?.content || "";
@@ -11553,7 +11550,7 @@ Return JSON exactly in this shape:
           `.trim(),
         },
       ],
-      ...getTemperatureOptions(POST_TEXT_MODEL, 0.55),
+      temperature: 0.55,
     });
 
     const raw = completion.choices?.[0]?.message?.content || "";
