@@ -48,7 +48,7 @@ const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
 const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
 const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
 const CAROUSEL_MAX_PRODUCT_SLIDES = CAROUSEL_PRODUCT_SLIDE_TARGET + CAROUSEL_OUTRO_SLIDE_COUNT;
-const CAMPAIGN_LOCKED_SEARCH_POOL_MIN_ITEMS = 3;
+const CAMPAIGN_LOCKED_SEARCH_POOL_MIN_ITEMS = CAROUSEL_PRODUCT_SLIDE_TARGET;
 const CAMPAIGN_REUSE_EXHAUSTION_MIN_DISCOVERY_ATTEMPTS = 2;
 const CAROUSEL_PRODUCT_CONFIDENCE_MIN = 55;
 const CAROUSEL_PRODUCT_CONFIDENCE_SOFT_MIN = 50;
@@ -1239,6 +1239,46 @@ function mergeWebsiteItemDuplicateMetadata(existingItem, incomingItem) {
     Number(existingItem.campaign_fit_score || 0),
     Number(incomingItem.campaign_fit_score || 0)
   );
+  existingItem.discovery_score = Math.max(
+    Number(existingItem.discovery_score || 0),
+    Number(incomingItem.discovery_score || incomingItem.score || 0)
+  );
+
+  const existingAiScore = Number(existingItem.ai_campaign_fit_score);
+  const incomingAiScore = Number(incomingItem.ai_campaign_fit_score);
+  if (
+    Number.isFinite(incomingAiScore) &&
+    (!Number.isFinite(existingAiScore) || incomingItem.campaign_fit_verdict)
+  ) {
+    existingItem.ai_campaign_fit_score = incomingAiScore;
+    existingItem.campaign_fit_verdict = incomingItem.campaign_fit_verdict || null;
+    existingItem.campaign_fit_reason = incomingItem.campaign_fit_reason || null;
+  }
+
+  if (String(incomingItem.description || "").length > String(existingItem.description || "").length) {
+    existingItem.description = incomingItem.description;
+  }
+
+  existingItem.product_page_verified = Boolean(
+    existingItem.product_page_verified || incomingItem.product_page_verified
+  );
+  existingItem.product_schema_verified = Boolean(
+    existingItem.product_schema_verified || incomingItem.product_schema_verified
+  );
+  existingItem.ecommerce_proof_found = Boolean(
+    existingItem.ecommerce_proof_found || incomingItem.ecommerce_proof_found
+  );
+  existingItem.product_confidence = Math.max(
+    Number(existingItem.product_confidence || 0),
+    Number(incomingItem.product_confidence || 0)
+  );
+
+  if (!existingItem.source_page_url && incomingItem.source_page_url) {
+    existingItem.source_page_url = incomingItem.source_page_url;
+  }
+  if (!existingItem.source_search_url && incomingItem.source_search_url) {
+    existingItem.source_search_url = incomingItem.source_search_url;
+  }
 
   if (!existingItem.catalog_source && incomingItem.catalog_source) {
     existingItem.catalog_source = incomingItem.catalog_source;
@@ -1344,11 +1384,8 @@ function selectCarouselProductsFromPool({
 }) {
   const isCampaignRule = isCampaignScopedWebsiteRule(rule);
   const dedupedItems = dedupeWebsiteItemsByUrlTitleAndImage(items);
-  const strongCampaignItems = isCampaignRule
-    ? getStrongCampaignFitItems(dedupedItems, rule)
-    : [];
-  const candidateItems = isCampaignRule && strongCampaignItems.length >= CAROUSEL_MIN_PRODUCT_SLIDES
-    ? strongCampaignItems
+  const candidateItems = isCampaignRule
+    ? getSafeCampaignProductCandidates(dedupedItems, rule)
     : dedupedItems;
 
   const scored = candidateItems
@@ -1625,13 +1662,13 @@ function getFreshRelevantCampaignProductCandidates({
       const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
       const anchorMatches = countCampaignAnchorTermMatches(item, rule);
       const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
-      const aiCampaignFitScore = getAiCampaignFitScore(item);
-      const directSignalCount = themeMatches + sourceThemeMatches + anchorMatches + primaryMatches;
-      const source = normalizeSearchText(item?.catalog_source || item?.discovery_source || item?.campaign_fit_source);
-      const cameFromCampaignResearch =
-        source.includes("campaign") ||
-        source.includes("store_search") ||
-        source.includes("ai_campaign_research");
+      const signalState = getCampaignProductSignalState(
+        item,
+        rule,
+        CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE
+      );
+      const aiCampaignFitScore = signalState.aiCampaignFitScore;
+      const directSignalCount = signalState.hasDirectCampaignSignal ? 1 : 0;
 
       return {
         ...item,
@@ -1646,7 +1683,7 @@ function getFreshRelevantCampaignProductCandidates({
           primaryMatches,
           directSignalCount,
           aiCampaignFitScore,
-          cameFromCampaignResearch,
+          hasMeaningfulCampaignSignal: signalState.hasMeaningfulCampaignSignal,
           selectionPriority: Number(item.selection_priority || 0),
         },
       };
@@ -1654,16 +1691,8 @@ function getFreshRelevantCampaignProductCandidates({
     .filter((item) => {
       const sort = item?._freshRelevantSort || {};
 
-      if (Number(sort.directSignalCount || 0) > 0) {
-        return Number(sort.campaignFitScore || 0) >= minimumScore;
-      }
-
-      if (Number(sort.aiCampaignFitScore || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) {
-        return true;
-      }
-
-      return Boolean(sort.cameFromCampaignResearch) &&
-        Number(sort.campaignFitScore || 0) >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE;
+      return Boolean(sort.hasMeaningfulCampaignSignal) &&
+        Number(sort.campaignFitScore || 0) >= minimumScore;
     })
     .sort((a, b) => {
       const aSort = a?._freshRelevantSort || {};
@@ -1689,20 +1718,26 @@ function getStrictCampaignFallbackGroups(items, rule) {
   }
 
   const dedupedItems = dedupeWebsiteItemsByUrlTitleAndImage(items);
+  const keepMeaningfulProducts = (group) =>
+    (group || []).filter((item) =>
+      getCampaignProductSignalState(
+        item,
+        rule,
+        CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+      ).hasMeaningfulCampaignSignal
+    );
 
   return [
-    getCampaignThemeSourceLockedItems(dedupedItems, rule),
-    getCampaignThemeMatchedItems(dedupedItems, rule),
-    getCampaignAnchorMatchedItems(dedupedItems, rule),
-    getPrimaryCampaignMatchedItems(dedupedItems, rule),
     getSafeCampaignProductCandidates(dedupedItems, rule),
-    getStrongCampaignFitItems(dedupedItems, rule),
-    getCampaignFitItemsAtOrAboveScore(
-      dedupedItems,
-      rule,
-      CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+    keepMeaningfulProducts(getStrongCampaignFitItems(dedupedItems, rule)),
+    keepMeaningfulProducts(
+      getCampaignFitItemsAtOrAboveScore(
+        dedupedItems,
+        rule,
+        CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+      )
     ),
-    getSupportingCampaignFitItems(dedupedItems, rule),
+    keepMeaningfulProducts(getSupportingCampaignFitItems(dedupedItems, rule)),
   ].filter((group) => Array.isArray(group) && group.length);
 }
 
@@ -1835,11 +1870,14 @@ function buildCampaignScoredProductCandidates({
       const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
       const anchorMatches = countCampaignAnchorTermMatches(item, rule);
       const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
-      const aiCampaignFitScore = getAiCampaignFitScore(item);
-      const hasDirectCampaignSignal = themeMatches + anchorMatches + primaryMatches > 0;
-      const hasAiCampaignApproval =
-        aiCampaignFitScore !== null &&
-        aiCampaignFitScore >= Math.max(minimumScore, CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE);
+      const signalState = getCampaignProductSignalState(
+        item,
+        rule,
+        Math.max(minimumScore, CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE)
+      );
+      const aiCampaignFitScore = signalState.aiCampaignFitScore;
+      const hasDirectCampaignSignal = signalState.hasDirectCampaignSignal;
+      const hasAiCampaignApproval = signalState.hasAiCampaignApproval;
       const { wasUsedRecently, imageUsedThisRun } = getCampaignCandidateUsageState(
         item,
         recentUsedItems,
@@ -2028,11 +2066,14 @@ function selectCampaignCarouselProductsByDeliveryLadder({
       const anchorMatches = countCampaignAnchorTermMatches(item, rule);
       const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
       const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
-      const aiCampaignFitScore = getAiCampaignFitScore(item);
-      const hasDirectCampaignSignal = themeMatches + anchorMatches + primaryMatches > 0;
-      const hasAiCampaignApproval =
-        aiCampaignFitScore !== null &&
-        aiCampaignFitScore >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE;
+      const signalState = getCampaignProductSignalState(
+        item,
+        rule,
+        CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE
+      );
+      const aiCampaignFitScore = signalState.aiCampaignFitScore;
+      const hasDirectCampaignSignal = signalState.hasDirectCampaignSignal;
+      const hasAiCampaignApproval = signalState.hasAiCampaignApproval;
       const { wasUsedRecently, imageUsedThisRun } = getCampaignCandidateUsageState(
         item,
         recentUsedItems,
@@ -2154,7 +2195,24 @@ function countFreshCampaignCarouselCandidates({
 }
 
 function hasEnoughCarouselProductsForRule(products, rule) {
-  return (products || []).filter(isValidCarouselProduct).length >= CAROUSEL_MIN_PRODUCT_SLIDES;
+  const validProducts = (products || []).filter(isValidCarouselProduct);
+
+  if (!isCampaignScopedWebsiteRule(rule)) {
+    return validProducts.length >= CAROUSEL_MIN_PRODUCT_SLIDES;
+  }
+
+  const relevantProducts = validProducts.filter((item) => {
+    const signalState = getCampaignProductSignalState(
+      item,
+      rule,
+      CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+    );
+
+    return signalState.hasMeaningfulCampaignSignal &&
+      scoreCampaignFitForRule(item, rule) >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE;
+  });
+
+  return relevantProducts.length >= CAROUSEL_MIN_PRODUCT_SLIDES;
 }
 
 function selectFinalBroadVerifiedCarouselProducts({
@@ -2205,8 +2263,19 @@ function selectFinalBroadVerifiedCarouselProducts({
     .filter((item) => {
       const sort = item?._finalBroadSort || {};
 
-      if (isCampaignRule && Number(sort.campaignFit || 0) < CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE) {
-        return false;
+      if (isCampaignRule) {
+        const signalState = getCampaignProductSignalState(
+          item,
+          rule,
+          CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+        );
+
+        if (
+          Number(sort.campaignFit || 0) < CAMPAIGN_NEAR_PRODUCT_FIT_SCORE ||
+          !signalState.hasMeaningfulCampaignSignal
+        ) {
+          return false;
+        }
       }
 
       if (!allowUsedAfterExhausted && Boolean(sort.usedRecently || sort.imageUsedThisRun)) {
@@ -2363,11 +2432,26 @@ async function prepareCarouselProductsForRule({
         return false;
       }
 
-      const storeSearchItems = await verifyDiscoveredWebsiteProductCandidates({
+      let storeSearchItems = await verifyDiscoveredWebsiteProductCandidates({
         candidates: storeSearchCandidates,
         websiteUrl,
         limit: WEBSITE_STORE_SEARCH_VERIFY_LIMIT,
       });
+
+      if (storeSearchItems.length) {
+        storeSearchItems = await applyAiCampaignFitScores({
+          openai,
+          rule,
+          brandProfile,
+          items: storeSearchItems,
+          maxItems: WEBSITE_STORE_SEARCH_VERIFY_LIMIT,
+          model: PRODUCT_RESEARCH_FAST_MODEL,
+          escalateWhenUncertain: true,
+          escalationModel: PRODUCT_RESEARCH_MODEL,
+          escalationMaxItems: WEBSITE_STORE_SEARCH_VERIFY_LIMIT,
+          minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
+        });
+      }
 
       const storeSearchPoolItems = buildCampaignSearchPoolItems({
         candidates: storeSearchCandidates,
@@ -2515,11 +2599,26 @@ async function prepareCarouselProductsForRule({
       });
 
       if (storeSearchCandidates.length) {
-        const storeSearchItems = await verifyDiscoveredWebsiteProductCandidates({
+        let storeSearchItems = await verifyDiscoveredWebsiteProductCandidates({
           candidates: storeSearchCandidates,
           websiteUrl,
           limit: WEBSITE_STORE_SEARCH_VERIFY_LIMIT,
         });
+
+        if (isCampaignRule && storeSearchItems.length) {
+          storeSearchItems = await applyAiCampaignFitScores({
+            openai,
+            rule,
+            brandProfile,
+            items: storeSearchItems,
+            maxItems: WEBSITE_STORE_SEARCH_VERIFY_LIMIT,
+            model: PRODUCT_RESEARCH_FAST_MODEL,
+            escalateWhenUncertain: true,
+            escalationModel: PRODUCT_RESEARCH_MODEL,
+            escalationMaxItems: WEBSITE_STORE_SEARCH_VERIFY_LIMIT,
+            minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
+          });
+        }
 
         if (storeSearchItems.length) {
           catalogItems = [
@@ -7788,54 +7887,59 @@ function getSafeCampaignProductCandidates(items, rule) {
     return [];
   }
 
+  const dedupedItems = dedupeWebsiteItemsByUrlTitleAndImage(items);
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
   const anchorTerms = extractCampaignAnchorTerms(rule);
   const themeTerms = extractCampaignCoreThemeTerms(rule);
-  const themeSourceLockedItems = getCampaignThemeSourceLockedItems(items, rule);
-  const themeMatchedItems = getCampaignThemeMatchedItems(items, rule);
-  const anchorMatchedItems = getCampaignAnchorMatchedItems(items, rule);
-  const primaryMatchedItems = getPrimaryCampaignMatchedItems(items, rule);
+  const themeSourceLockedItems = getCampaignThemeSourceLockedItems(dedupedItems, rule);
+  const themeMatchedItems = getCampaignThemeMatchedItems(dedupedItems, rule);
+  const anchorMatchedItems = getCampaignAnchorMatchedItems(dedupedItems, rule);
+  const primaryMatchedItems = getPrimaryCampaignMatchedItems(dedupedItems, rule);
   const concreteThemeSourceLockedItems = preferConcreteCampaignProducts(themeSourceLockedItems);
   const concreteThemeMatchedItems = preferConcreteCampaignProducts(themeMatchedItems);
   const concreteAnchorMatchedItems = preferConcreteCampaignProducts(anchorMatchedItems);
   const concretePrimaryMatchedItems = preferConcreteCampaignProducts(primaryMatchedItems);
+  const aiApprovedItems = preferConcreteCampaignProducts(
+    dedupedItems.filter((item) => {
+      const aiScore = getAiCampaignFitScore(item);
+      return aiScore !== null && aiScore >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE;
+    })
+  );
+  const safeSourceLockedItems = concreteThemeSourceLockedItems.filter((item) =>
+    getCampaignProductSignalState(
+      item,
+      rule,
+      CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+    ).hasMeaningfulCampaignSignal
+  );
 
-  // A campaign title often contains the true occasion/theme while the rest of
-  // the prompt contains broad buying intent such as gift, personal or design.
-  // If we can find products or campaign-focused sources matching that core
-  // theme, keep the carousel locked there before allowing broad gift terms.
-  if (themeTerms.length && concreteThemeSourceLockedItems.length) {
-    return concreteThemeSourceLockedItems;
+  // Search/category pages are discovery sources only. Every product must still
+  // prove its own campaign relevance through its product data or an AI fit score.
+  if (themeTerms.length || anchorTerms.length) {
+    return dedupeWebsiteItemsByUrlTitleAndImage([
+      ...concreteThemeMatchedItems,
+      ...concreteAnchorMatchedItems,
+      ...aiApprovedItems,
+      ...safeSourceLockedItems,
+    ]);
   }
 
-  if (themeTerms.length && concreteThemeMatchedItems.length) {
-    return concreteThemeMatchedItems;
-  }
-
-  // When a campaign has AI-generated product_match_terms and we can derive
-  // campaign anchors from the campaign title/context, the anchor match is the
-  // hard product-card guard. This prevents broad terms such as personal, gift,
-  // print or design from letting generic products into a Christmas/Halloween/etc
-  // campaign carousel.
-  if (explicitTerms.length && anchorTerms.length) {
-    return concreteAnchorMatchedItems;
-  }
-
-  // If we have dynamic terms but no reliable anchor, keep the previous safe
-  // behavior: exact/dynamic term matches only, not generic catalog fallback.
   if (explicitTerms.length) {
-    return concretePrimaryMatchedItems;
+    return dedupeWebsiteItemsByUrlTitleAndImage([
+      ...concretePrimaryMatchedItems,
+      ...aiApprovedItems,
+    ]);
   }
 
-  if (concreteAnchorMatchedItems.length) {
-    return concreteAnchorMatchedItems;
+  if (concreteAnchorMatchedItems.length || concretePrimaryMatchedItems.length || aiApprovedItems.length) {
+    return dedupeWebsiteItemsByUrlTitleAndImage([
+      ...concreteAnchorMatchedItems,
+      ...concretePrimaryMatchedItems,
+      ...aiApprovedItems,
+    ]);
   }
 
-  if (concretePrimaryMatchedItems.length) {
-    return concretePrimaryMatchedItems;
-  }
-
-  return preferConcreteCampaignProducts(getStrongCampaignFitItems(items, rule));
+  return preferConcreteCampaignProducts(getStrongCampaignFitItems(dedupedItems, rule));
 }
 
 function getAiCampaignFitScore(item) {
@@ -7850,6 +7954,41 @@ function getAiCampaignFitScore(item) {
   }
 
   return Math.min(Math.max(Math.round(score), 0), 100);
+}
+
+
+function getCampaignProductSignalState(
+  item,
+  rule,
+  minimumAiScore = CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+) {
+  const themeMatches = countCampaignCoreThemeTermMatches(item, rule);
+  const sourceThemeMatches = countCampaignSourceThemeMatches(item, rule);
+  const anchorMatches = countCampaignAnchorTermMatches(item, rule);
+  const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
+  const aiCampaignFitScore = getAiCampaignFitScore(item);
+  const hasStrictThemeGuard = Boolean(
+    extractCampaignCoreThemeTerms(rule).length ||
+      extractCampaignAnchorTerms(rule).length
+  );
+  const hasDirectCampaignSignal = hasStrictThemeGuard
+    ? themeMatches + anchorMatches > 0
+    : primaryMatches > 0;
+  const hasAiCampaignApproval =
+    aiCampaignFitScore !== null && aiCampaignFitScore >= minimumAiScore;
+
+  return {
+    themeMatches,
+    sourceThemeMatches,
+    anchorMatches,
+    primaryMatches,
+    aiCampaignFitScore,
+    hasStrictThemeGuard,
+    hasDirectCampaignSignal,
+    hasAiCampaignApproval,
+    hasMeaningfulCampaignSignal:
+      hasDirectCampaignSignal || hasAiCampaignApproval,
+  };
 }
 
 function normalizeCampaignFitScore(value) {
@@ -8114,7 +8253,10 @@ function scoreCampaignFitForRule(item, rule) {
   const anchorMatches = countCampaignAnchorTermMatches(item, rule);
   const anchorTerms = extractCampaignAnchorTerms(rule);
   const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
-  const directCampaignSignalCount = themeMatches + anchorMatches + primaryMatches;
+  const hasStrictThemeGuard = Boolean(themeTerms.length || anchorTerms.length);
+  const directCampaignSignalCount = hasStrictThemeGuard
+    ? themeMatches + anchorMatches
+    : primaryMatches;
   if (!terms.length && !avoidTerms.length && !anchorTerms.length && !themeTerms.length) {
     return aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
   }
@@ -8125,7 +8267,9 @@ function scoreCampaignFitForRule(item, rule) {
   const reason = normalizeSearchText(item?.reason);
   const source = normalizeSearchText(item?.catalog_source || item?.discovery_source || item?.campaign_fit_source);
   const haystack = `${title} ${url} ${description} ${reason}`;
-  let score = aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
+  // campaign_fit_score is a derived value. Starting from a previously derived
+  // value made the score grow every time this function was called.
+  let score = aiScore !== null ? aiScore : 0;
 
   const shortRoots = getPrimaryCampaignShortRoots(rule);
 
@@ -8194,10 +8338,13 @@ function scoreCampaignFitForRule(item, rule) {
   }
 
   if (
-    sourceThemeMatches > 0 &&
+    hasStrictThemeGuard &&
     directCampaignSignalCount === 0 &&
     (aiScore === null || aiScore < CAMPAIGN_NEAR_PRODUCT_FIT_SCORE)
   ) {
+    // A Halloween/Christmas/etc search page does not make every product on that
+    // page relevant. Without product-level theme evidence or AI approval, keep
+    // the item below the campaign acceptance threshold.
     score = Math.min(score, CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE - 5);
   }
 
@@ -9013,7 +9160,8 @@ const imageUrl =
     source_page_url: webSearchProduct?.source_page_url || null,
     source_search_url: webSearchProduct?.source_search_url || null,
     campaign_fit_source: webSearchProduct?.campaign_fit_source || null,
-    campaign_fit_score: Number(webSearchProduct?.campaign_fit_score || webSearchProduct?.score || 0),
+    discovery_score: Number(webSearchProduct?.discovery_score || webSearchProduct?.score || 0),
+    campaign_fit_score: Number(webSearchProduct?.campaign_fit_score || 0),
     product_page_verified: true,
     product_schema_verified: productSchemaFound,
     ecommerce_proof_found: ecommerceProofFound,
@@ -10207,10 +10355,11 @@ function normalizeCampaignSearchPoolItem(
     ...enrichedItem,
     item_key: createItemKey(enrichedItem),
     selection_priority: Math.max(Number(item?.selection_priority || 0), selectionPriority),
-    campaign_fit_score: Math.max(
-      Number(item?.campaign_fit_score || item?.score || 0),
-      scoreCampaignFitForRule(enrichedItem, rule) + scoreBonus
+    discovery_score: Math.max(
+      Number(item?.discovery_score || 0),
+      Number(item?.score || 0)
     ),
+    campaign_fit_score: scoreCampaignFitForRule(enrichedItem, rule) + scoreBonus,
   };
 }
 
@@ -10223,19 +10372,21 @@ function buildCampaignSearchPoolItems({
   scoreBonus = 0,
 }) {
   return dedupeWebsiteItemsByUrlTitleAndImage([
-    ...(candidates || [])
-      .map((item) =>
-        normalizeCampaignSearchPoolItem(item, websiteUrl, rule, {
-          selectionPriority,
-          scoreBonus,
-        })
-      )
-      .filter(Boolean),
+    // Keep verified, AI-scored product-page data first so a raw search-card
+    // duplicate cannot replace its per-product fit evaluation.
     ...(verifiedItems || [])
       .map((item) =>
         normalizeCampaignSearchPoolItem(item, websiteUrl, rule, {
           selectionPriority: Math.max(selectionPriority, 190),
           scoreBonus: scoreBonus + 10,
+        })
+      )
+      .filter(Boolean),
+    ...(candidates || [])
+      .map((item) =>
+        normalizeCampaignSearchPoolItem(item, websiteUrl, rule, {
+          selectionPriority,
+          scoreBonus,
         })
       )
       .filter(Boolean),
