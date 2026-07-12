@@ -2327,6 +2327,168 @@ function selectFinalBroadVerifiedCarouselProducts({
   return merged.slice(0, limit).map(({ _finalBroadSort, ...item }) => item);
 }
 
+
+function buildGuaranteedCampaignDeliveryBackupRule(rule, selectedProducts = []) {
+  const selectedTitles = (selectedProducts || [])
+    .map((item) => String(item?.title || "").trim())
+    .filter(Boolean)
+    .slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  const missingCount = Math.max(
+    CAROUSEL_PRODUCT_SLIDE_TARGET - selectedTitles.length,
+    1
+  );
+  const backupInstruction = `
+Guaranteed campaign product delivery backup:
+- The normal campaign product search has already completed and found only ${selectedTitles.length} usable product(s).
+- Find at least ${missingCount} additional real products from the customer's own website so the ordered campaign carousel can be delivered with ${CAROUSEL_PRODUCT_SLIDE_TARGET} products.
+- Do not rely on or repeat the previously assigned product_search_queries or product_match_terms. Interpret the campaign, recipient, buyer intent, occasion, use case and the business assortment independently.
+- Search broader than the original terms while still choosing the products that can most credibly be presented for this campaign.
+- Prefer direct campaign matches first, then strong recipient/use-case/gift/seasonal matches, then the best business-specific products that can honestly be angled toward the campaign.
+- Do not choose random products merely to fill a slot when better campaign-relevant products exist.
+- Return concrete product detail pages from the customer's domain with usable product images.
+- Reuse a previously used product only when necessary to complete delivery.
+${selectedTitles.length ? `- Products already selected for this carousel: ${selectedTitles.join(", ")}. Find different products.` : ""}
+  `.trim();
+
+  return {
+    ...rule,
+    // The rescue search must reason from the campaign and business itself,
+    // rather than being constrained by the first-pass query list.
+    product_search_queries: null,
+    product_match_terms: null,
+    product_search_intent: null,
+    prompt: [String(rule?.prompt || "").trim(), backupInstruction]
+      .filter(Boolean)
+      .join("\n\n"),
+    strategy_notes: [String(rule?.strategy_notes || "").trim(), backupInstruction]
+      .filter(Boolean)
+      .join("\n\n"),
+    campaign_delivery_backup: true,
+  };
+}
+
+function selectGuaranteedCampaignDeliveryProducts({
+  existingProducts = [],
+  candidateItems = [],
+  rule,
+  sourceUrl,
+  recentUsedItems = [],
+  usedWebsiteImageUrlsThisRun = new Set(),
+  limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
+}) {
+  const selected = dedupeWebsiteItemsByUrlTitleAndImage(existingProducts)
+    .filter(isValidCarouselProduct)
+    .slice(0, limit);
+
+  const candidates = dedupeWebsiteItemsByUrlTitleAndImage(candidateItems)
+    .filter(isValidCarouselProduct)
+    .filter(
+      (item) =>
+        !selected.some((selectedItem) =>
+          areSameWebsiteItem(selectedItem, item, sourceUrl)
+        )
+    )
+    .map((item) => {
+      const aiScore = getAiCampaignFitScore(item);
+      const hasAiCampaignFitScore = aiScore !== null;
+      const campaignFitScore =
+        hasAiCampaignFitScore
+          ? aiScore
+          : Math.max(
+              Number(item?.campaign_fit_score || 0),
+              Number(scoreCampaignFitForRule(item, rule) || 0)
+            );
+      const productConfidence = getCarouselProductConfidence(item);
+      const { wasUsedRecently, imageUsedThisRun } = getCampaignCandidateUsageState(
+        item,
+        recentUsedItems,
+        sourceUrl,
+        usedWebsiteImageUrlsThisRun
+      );
+
+      return {
+        ...item,
+        campaign_fit_score: campaignFitScore,
+        campaign_fit_source:
+          item?.campaign_fit_source || "ai_campaign_delivery_backup",
+        automation_search_method:
+          item?.automation_search_method || "ai_campaign_delivery_backup",
+        campaign_was_used_recently: wasUsedRecently,
+        campaign_image_used_this_run: imageUsedThisRun,
+        campaign_rotation_state:
+          wasUsedRecently || imageUsedThisRun ? "reused" : "fresh",
+        _guaranteedDeliverySort: {
+          hasAiCampaignFitScore,
+          campaignFitScore,
+          productConfidence,
+          wasUsedRecently,
+          imageUsedThisRun,
+          selectionPriority: Number(item?.selection_priority || 0),
+          usageCount: Number(item?.times_used || 0),
+          lastUsedAtTs: item?.last_used_at
+            ? Date.parse(item.last_used_at)
+            : 0,
+        },
+      };
+    })
+    .sort((a, b) => {
+      const aSort = a?._guaranteedDeliverySort || {};
+      const bSort = b?._guaranteedDeliverySort || {};
+
+      // Prefer products that were individually evaluated by AI in the
+      // rescue pass. Unscored catalog products remain available only as the
+      // final delivery fallback.
+      if (
+        Boolean(aSort.hasAiCampaignFitScore) !==
+        Boolean(bSort.hasAiCampaignFitScore)
+      ) {
+        return aSort.hasAiCampaignFitScore ? -1 : 1;
+      }
+
+      // In the delivery backup, campaign usefulness remains the first
+      // priority. Freshness is used as a tie-breaker rather than blocking
+      // delivery when suitable products have been used before.
+      const fitDelta =
+        Number(bSort.campaignFitScore || 0) -
+        Number(aSort.campaignFitScore || 0);
+      if (fitDelta !== 0) return fitDelta;
+
+      const confidenceDelta =
+        Number(bSort.productConfidence || 0) -
+        Number(aSort.productConfidence || 0);
+      if (confidenceDelta !== 0) return confidenceDelta;
+
+      const aUsed = Boolean(aSort.wasUsedRecently || aSort.imageUsedThisRun);
+      const bUsed = Boolean(bSort.wasUsedRecently || bSort.imageUsedThisRun);
+      if (aUsed !== bUsed) return aUsed ? 1 : -1;
+
+      const priorityDelta =
+        Number(bSort.selectionPriority || 0) -
+        Number(aSort.selectionPriority || 0);
+      if (priorityDelta !== 0) return priorityDelta;
+
+      const usageDelta =
+        Number(aSort.usageCount || 0) - Number(bSort.usageCount || 0);
+      if (usageDelta !== 0) return usageDelta;
+
+      const lastUsedDelta =
+        Number(aSort.lastUsedAtTs || 0) -
+        Number(bSort.lastUsedAtTs || 0);
+      if (lastUsedDelta !== 0) return lastUsedDelta;
+
+      return String(a?.title || "").localeCompare(String(b?.title || ""));
+    });
+
+  for (const candidate of candidates) {
+    if (selected.length >= limit) break;
+    selected.push(candidate);
+  }
+
+  return selected
+    .slice(0, limit)
+    .map(({ _guaranteedDeliverySort, ...item }) => item);
+}
+
 async function prepareCarouselProductsForRule({
   supabase,
   openai,
@@ -3129,6 +3291,164 @@ async function prepareCarouselProductsForRule({
   if (!isCampaignRule && !selectedProducts.length) {
     const fallbackPool = dedupeWebsiteItemsByUrlTitleAndImage(catalogItems);
     selectedProducts = fallbackPool.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  }
+
+  // Delivery guarantee backup for campaign carousels.
+  // Everything above remains the unchanged relevance-first flow. This block
+  // runs only when that complete flow still has fewer than five products.
+  if (isCampaignRule && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    const selectedBeforeBackup = selectedProducts.length;
+    const backupRule = buildGuaranteedCampaignDeliveryBackupRule(
+      rule,
+      selectedProducts
+    );
+    const selectedAsUsedItems = selectedProducts.map((item) => ({
+      item_title: item?.title,
+      item_url: item?.url,
+      image_url: item?.image_url,
+    }));
+
+    console.warn("Campaign carousel starting guaranteed delivery backup", {
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      selectedBeforeBackup,
+      missingCount:
+        CAROUSEL_PRODUCT_SLIDE_TARGET - selectedBeforeBackup,
+    });
+
+    try {
+      const backupWebItems = await findWebsiteProductWithWebSearch({
+        openai,
+        brandProfile,
+        rule: backupRule,
+        websiteUrl,
+        usedWebsiteItems: [
+          ...recentUsedItems,
+          ...selectedAsUsedItems,
+        ],
+        fitModel: PRODUCT_RESEARCH_MODEL,
+        fitMinimumStrongProducts: 1,
+      });
+
+      let backupCandidateItems = dedupeWebsiteItemsByUrlTitleAndImage([
+        ...(Array.isArray(backupWebItems) ? backupWebItems : []).map((item) => ({
+          ...item,
+          selection_priority: Math.max(
+            Number(item?.selection_priority || 0),
+            300
+          ),
+          campaign_fit_source: "ai_campaign_delivery_backup",
+          automation_search_method: "ai_campaign_delivery_backup",
+        })),
+        ...lockedCampaignSearchPoolItems.map((item) => ({
+          ...item,
+          selection_priority: Math.max(
+            Number(item?.selection_priority || 0),
+            220
+          ),
+        })),
+        ...catalogItems.map((item) => ({
+          ...item,
+          selection_priority:
+            Number(item?.selection_priority || 0) || 50,
+        })),
+      ]).filter(isValidCarouselProduct);
+
+      // If domain web research still did not expose enough concrete products,
+      // make one independent full-site discovery pass using the rescue brief.
+      const uniqueBackupProductCount = dedupeWebsiteItemsByUrlTitleAndImage([
+        ...selectedProducts,
+        ...backupCandidateItems,
+      ]).filter(isValidCarouselProduct).length;
+
+      if (uniqueBackupProductCount < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+        try {
+          const rescueDiscoveryCandidates = await discoverProductCandidatesFromWebsite({
+            websiteUrl,
+            campaignPrompt: buildCampaignResearchText(backupRule),
+            usedItems: [
+              ...recentUsedItems,
+              ...selectedAsUsedItems,
+            ],
+            fastCampaignContinuation: false,
+          });
+
+          if (rescueDiscoveryCandidates.length) {
+            const rescueDiscoveredItems = await verifyDiscoveredWebsiteProductCandidates({
+              candidates: rescueDiscoveryCandidates,
+              websiteUrl,
+              limit: CAROUSEL_DISCOVERY_VERIFY_LIMIT,
+            });
+
+            backupCandidateItems = dedupeWebsiteItemsByUrlTitleAndImage([
+              ...backupCandidateItems,
+              ...rescueDiscoveredItems.map((item) => ({
+                ...item,
+                selection_priority: Math.max(
+                  Number(item?.selection_priority || 0),
+                  260
+                ),
+                campaign_fit_source: "campaign_delivery_backup_discovery",
+                automation_search_method: "campaign_delivery_backup_discovery",
+              })),
+            ]).filter(isValidCarouselProduct);
+          }
+        } catch (backupDiscoveryError) {
+          console.error("Campaign delivery backup site discovery failed", {
+            ruleId: rule.id,
+            brandProfileId: rule.brand_profile_id,
+            websiteUrl,
+            message: backupDiscoveryError.message,
+          });
+        }
+      }
+
+      if (backupCandidateItems.length) {
+        backupCandidateItems = await applyAiCampaignFitScores({
+          openai,
+          rule: backupRule,
+          brandProfile,
+          items: backupCandidateItems,
+          maxItems: 20,
+          model: PRODUCT_RESEARCH_MODEL,
+          minimumStrongProducts: 1,
+        });
+      }
+
+      selectedProducts = selectGuaranteedCampaignDeliveryProducts({
+        existingProducts: selectedProducts,
+        candidateItems: backupCandidateItems,
+        rule: backupRule,
+        sourceUrl: websiteUrl,
+        recentUsedItems,
+        usedWebsiteImageUrlsThisRun,
+        limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+      });
+
+      if (selectedProducts.length > selectedBeforeBackup) {
+        summary.website_web_search_success += 1;
+      }
+
+      console.log("Campaign carousel guaranteed delivery backup finished", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        selectedBeforeBackup,
+        backupCandidateCount: backupCandidateItems.length,
+        selectedAfterBackup: selectedProducts.length,
+        addedCount: selectedProducts.length - selectedBeforeBackup,
+        delivered: selectedProducts.length >= CAROUSEL_PRODUCT_SLIDE_TARGET,
+      });
+    } catch (backupError) {
+      console.error("Campaign carousel guaranteed delivery backup failed", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        selectedBeforeBackup,
+        message: backupError.message,
+      });
+    }
   }
 
   selectedProducts = dedupeWebsiteItemsByUrlTitleAndImage(selectedProducts)
