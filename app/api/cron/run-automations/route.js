@@ -32,10 +32,11 @@ const WEBSITE_PRODUCT_REUSE_LIMIT = 100;
 const WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT = 150;
 const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 120;
 const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 18;
-const WEBSITE_STORE_SEARCH_FETCH_LIMIT = 14;
+const WEBSITE_STORE_SEARCH_FETCH_LIMIT = 18;
 const WEBSITE_STORE_SEARCH_VERIFY_LIMIT = 18;
 const CAMPAIGN_STORE_SEARCH_QUERY_LIMIT = 12;
 const CAMPAIGN_SEARCH_FORM_QUERY_LIMIT = 4;
+const CAMPAIGN_SEARCH_FORM_URL_LIMIT = 6;
 const CAROUSEL_AI_SCORE_MAX_ITEMS = 15;
 const CAROUSEL_DISCOVERY_VERIFY_LIMIT = 25;
 const CAROUSEL_WEB_SEARCH_MAX_VERIFIED_ITEMS = 8;
@@ -9610,11 +9611,15 @@ function buildStoreSearchUrls(websiteUrl, campaignPrompt = "") {
     return { query, encoded, slug };
   });
 
+  // Give every distinct query one primary search attempt before trying
+  // alternate URL formats. The previous pair-per-query ordering meant the
+  // fetch cap could stop after only the first half of the query list.
   for (const { encoded } of queryParts) {
-    urls.push(
-      `${origin}/search?q=${encoded}`,
-      `${origin}/search?type=product&q=${encoded}`
-    );
+    urls.push(`${origin}/search?q=${encoded}`);
+  }
+
+  for (const { encoded } of queryParts) {
+    urls.push(`${origin}/search?type=product&q=${encoded}`);
   }
 
   for (const { encoded, slug } of queryParts) {
@@ -9769,7 +9774,7 @@ async function discoverShopifySearchSuggest({
   campaignPrompt,
 }) {
   const origin = getWebsiteOrigin(websiteUrl);
-  const queries = buildStoreSearchQueries(campaignPrompt).slice(0, 4);
+  const queries = buildStoreSearchQueries(campaignPrompt).slice(0, 6);
   const discovered = [];
 
   if (!origin || !queries.length) {
@@ -9833,12 +9838,14 @@ async function discoverProductCandidatesFromStoreSearch({
 
   try {
     const homeHtml = await fetchHtml(websiteUrl);
+    const formSearchUrls = extractSearchFormUrlsFromHtml({
+      html: homeHtml,
+      pageUrl: websiteUrl,
+      campaignPrompt,
+    }).slice(0, CAMPAIGN_SEARCH_FORM_URL_LIMIT);
+
     searchUrls = [
-      ...extractSearchFormUrlsFromHtml({
-        html: homeHtml,
-        pageUrl: websiteUrl,
-        campaignPrompt,
-      }),
+      ...formSearchUrls,
       ...searchUrls,
     ];
   } catch (error) {
@@ -10385,7 +10392,7 @@ async function findProductUrlWithWebSearch({
 
   const isBackupAttempt = attempt === "backup_broad";
   const isDomainSearchAttempt = attempt === "domain_site_search";
-  const productSearchQueries = splitCampaignTermLine(rule?.product_search_queries).slice(0, 10);
+  const productSearchQueries = splitCampaignTermLine(rule?.product_search_queries).slice(0, CAMPAIGN_STORE_SEARCH_QUERY_LIMIT);
   const productMatchTerms = splitCampaignTermLine(rule?.product_match_terms).slice(0, 16);
   const searchHintTerms = collectUniqueTerms(
     [
@@ -10491,8 +10498,13 @@ Search strategy:
 - Use domain-restricted web searches when helpful. Prefer queries that explicitly restrict results to the allowed domain, for example site:${websiteHost} plus the campaign/theme/product terms.
 - If product_search_queries are missing, weak or too generic, derive search queries yourself from the campaign title, campaign prompt, website language, market and business type. Do not treat an empty product_search_queries field as permission to stop.
 - First infer the customer's website language and the local words the website is likely to use for the campaign/holiday/season/occasion. Use those local-language terms in search queries before generic gift or product searches.
+- Classify the campaign before searching: named theme/occasion, recipient/gift occasion, seasonal need/style, commercial promotion, category/product launch, identity/awareness or another suitable mode.
 - First search the customer site for category, collection, campaign, search-result or landing pages that match the campaign/theme/occasion in the site's own language.
 - Open the most relevant campaign/theme/category area and identify concrete product pages from there.
+- For motif/title-led stores plus a named theme, try standalone motifs, symbols, characters, synonyms and title-like phrases before repeating generic product types.
+- For recipient/gift occasions, search recipient names, relationships and title-like phrases that products may actually contain.
+- For commercial promotions, do not search for merchandise depicting the promotion name; search real hero categories, popular product families and strong assortment areas.
+- For seasonal campaigns, search the season's needs, styles, materials, activities and use cases.
 - Search for specific product categories that fit the campaign.
 - Search for recipient-based product ideas.
 - Search for occasion-based product ideas.

@@ -747,28 +747,12 @@ export function formatProductAssortmentHintsForPrompt(hints) {
 function campaignNeedsProductMetadata(opportunity) {
   const strategy = String(opportunity?.website_content_strategy || "").toLowerCase().trim();
 
-  if (!["product", "service"].includes(strategy)) {
-    return false;
-  }
-
-  const matchTerms = normalizeCampaignTerms(opportunity?.product_match_terms);
-  const blueprintMatchTerms = normalizeCampaignTerms(opportunity?.campaign_blueprint?.product_match_terms);
-  const searchQueries = normalizeCampaignProductSearchQueriesForOpportunity(
-    opportunity?.product_search_queries || opportunity?.campaign_blueprint?.product_search_queries
-  );
-  const searchIntent = normalizeShortText(
-    opportunity?.product_search_intent || opportunity?.campaign_blueprint?.product_search_intent,
-    300
-  );
-
-  // Repair metadata that is technically present but too weak to build a useful
-  // store-search pool. This catches long campaign-goal sentences that are
-  // discarded by the compact query normalizer.
-  return (
-    Math.max(matchTerms.length, blueprintMatchTerms.length) < 5 ||
-    searchQueries.length < 5 ||
-    !searchIntent
-  );
+  // Run the focused metadata pass for every product/service campaign, even when
+  // the first analysis already returned enough terms. A list can be structurally
+  // valid but still be strategically weak, repetitive or too product-type-led.
+  // The focused pass classifies both the store and the campaign before rewriting
+  // the search mix.
+  return ["product", "service"].includes(strategy);
 }
 
 function mergeCampaignProductMetadata(opportunity, metadata) {
@@ -841,7 +825,22 @@ async function repairCampaignProductMetadataWithOpenAI({
 
   try {
     const repairRows = needsRepair
-      .map(({ opportunity, index }) => `${index + 1}. Title: ${opportunity.title}\nStrategy: ${opportunity.website_content_strategy}\nGoal: ${opportunity.campaign_goal || ""}\nNeed: ${opportunity.target_customer_need || ""}\nGuidance: ${opportunity.product_selection_guidance || opportunity.website_product_selection_hint || ""}`)
+      .map(({ opportunity, index }) => {
+        const existingMatchTerms = normalizeCampaignTerms(
+          opportunity?.product_match_terms || opportunity?.campaign_blueprint?.product_match_terms
+        );
+        const existingSearchQueries = normalizeCampaignProductSearchQueriesForOpportunity(
+          opportunity?.product_search_queries || opportunity?.campaign_blueprint?.product_search_queries
+        );
+
+        return `${index + 1}. Title: ${opportunity.title}
+Strategy: ${opportunity.website_content_strategy}
+Goal: ${opportunity.campaign_goal || ""}
+Need: ${opportunity.target_customer_need || ""}
+Guidance: ${opportunity.product_selection_guidance || opportunity.website_product_selection_hint || ""}
+Existing match terms: ${existingMatchTerms.join(", ") || "None"}
+Existing search queries: ${existingSearchQueries.join(" | ") || "None"}`;
+      })
       .join("\n\n");
 
     const completion = await openai.chat.completions.create({
@@ -850,27 +849,41 @@ async function repairCampaignProductMetadataWithOpenAI({
         {
           role: "system",
           content:
-            "You repair missing product-selection metadata for a global social media automation tool. Return strict JSON only.",
+            "You refine product-selection metadata for a global social media automation tool. Return strict JSON only.",
         },
         {
           role: "user",
           content: `
-Some product-based campaign opportunities are missing product_match_terms/product_search_queries.
-Create compact, campaign-specific product metadata that helps a website product engine find matching items.
+Review and rewrite the product metadata for every product-based campaign below.
+The existing metadata may be present but still be repetitive, too generic or based on the wrong search strategy.
 
 Rules:
 - Work in the business/customer language and market. Do not default to Swedish or English unless the website/market uses those terms.
-- Do not use hardcoded holiday dictionaries. Infer terms from the campaign, market, business type, website evidence and product/category hints below.
-- First infer how this specific store names and organizes products from the website hints: for example motif/design-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led or brand/model-led.
-- product_search_intent: one short internal sentence explaining the best search strategy for this business and campaign.
-- product_match_terms: 10 to 20 concrete theme, motif, category, recipient or use-case terms likely to appear in product titles, category names, URLs or customer searches for items that truly fit the campaign.
-- product_search_queries: 8 to 12 simple website searches. Usually use 1 to 3 words, never more than 4. Diversify the searches instead of prefixing the campaign name to every query.
-- For motif/design-led stores, prefer motif words and expressions likely to be product titles. For costume stores, prefer costume/character/mask terms. For other businesses, adapt the query style to how that business actually names and groups its products.
-- Never use campaign goals, marketing sentences or filler such as “increase sales of…”. Do not create broad queries that are only a generic product type unless that type is itself the campaign.
-- product_avoid_terms: 6 to 15 broad nearby-but-wrong product/category terms when there are obvious risks. Use [] only if there are no clear wrong nearby categories.
-- Do not invent exact product names unless they are supported by the provided website hints. Category/search terms are fine.
-- Do not over-block the store. Avoid terms should prevent bad substitutions, not ban everything outside one narrow word.
-- If a campaign is product-based, never return empty product_match_terms or empty product_search_queries.
+- Do not use a fixed holiday dictionary. Infer terms from the campaign, market, business type, website evidence and product/category hints below.
+- First classify how this specific business names and organizes products: motif/title-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led, brand/model-led, service/listing-led or another evidence-based pattern.
+- Then classify the campaign search mode: named theme/occasion, recipient/gift occasion, seasonal need/style, commercial promotion, category/product launch, identity/awareness or another suitable mode.
+- product_search_intent: one short internal sentence that states both classifications and explains what the store search should prioritize.
+- product_match_terms: 12 to 20 concrete terms that can independently support genuine campaign relevance. A product matching only one term should still plausibly fit the campaign.
+- product_search_queries: create 10 to 12 varied website searches, ordered strongest first. Each query should be as short as possible and as long as needed, usually 1 to 3 words and never more than 4.
+- Treat search queries as discovery paths, not proof that every product on a result page fits. Each product is evaluated separately later.
+
+Query-mix rules:
+- For a motif/title-led store plus a named theme, roughly 65-80% of queries should be standalone theme synonyms, motifs, symbols, characters, expressions or title-like phrases. Only roughly 20-35% should combine a theme with a product type.
+- For recipient/gift occasions, prioritize recipient names, relationships and title-like phrases a product could actually contain. Product-type combinations should be a minority.
+- For seasonal need/style campaigns, prioritize season, use case, style, material, weather or activity terms that match the assortment, then add a few useful product combinations.
+- For commercial promotions such as broad sale events, do not search for merchandise depicting the promotion name. Search the store's real hero categories, popular product families, strong motifs or commercially useful assortment areas supported by the website evidence.
+- For category/product-launch campaigns, search the actual category, feature, material, model, benefit or use case rather than generic campaign words.
+- For motif/title-led stores, do not let generic store words dominate. Words equivalent to “funny”, “design”, “print”, “clothing”, “gift”, “custom” or a broad product type are not useful standalone theme queries unless the campaign itself is specifically about that concept.
+- Use the campaign name once when useful, then diversify into distinct semantic roots. Do not prefix the campaign name to every query.
+- Do not repeat the same generic product type in most queries. For motif/title-led campaigns, no more than about three queries should be built around the same broad product type.
+- Never use campaign goals, marketing sentences or filler such as “increase sales of…”. Preserve useful multiword expressions instead of splitting them into unrelated words.
+- Reject a query if matching only its broadest word would likely return many irrelevant products.
+- Do not invent exact product names unless supported by the website hints. Searchable categories, motifs, expressions and use cases are allowed.
+
+Avoid-term rules:
+- product_avoid_terms: 6 to 15 nearby-but-wrong categories or intents when there are obvious substitution risks. Use [] only when there are no clear risks.
+- Avoid terms should prevent bad substitutions, not ban the rest of the store.
+- Never return empty product_match_terms or product_search_queries for product/service-based campaigns.
 
 Business:
 ${businessName || "Not provided"}
@@ -896,7 +909,7 @@ ${truncateText(productSourceCandidateText, 12000)}
 Homepage/context excerpt:
 ${truncateText(visibleText, 6000)}
 
-Campaigns to repair:
+Campaigns to refine:
 ${repairRows}
 
 Return JSON only:
@@ -919,14 +932,14 @@ Return JSON only:
       ],
       temperature: 0.1,
       response_format: { type: "json_object" },
-      max_completion_tokens: 5000,
+      max_completion_tokens: 7500,
     });
 
     const content = completion.choices?.[0]?.message?.content || "";
     const parsed = await parseOpenAIJsonWithRepair({
       openai,
       content,
-      contextLabel: "campaign product metadata repair response",
+      contextLabel: "campaign product metadata refinement response",
       expectedShapeDescription: `
 {
   "campaigns": [
@@ -961,7 +974,7 @@ Return JSON only:
         : opportunity
     );
   } catch (error) {
-    console.error("Could not repair campaign product metadata with AI", {
+    console.error("Could not refine campaign product metadata with AI", {
       websiteUrl,
       message: error.message,
     });
@@ -1868,7 +1881,7 @@ Return JSON only in this exact shape:
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
       "product_match_terms": ["10-20 compact product/category/use-case/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
-      "product_search_queries": ["8-12 simple, varied, business-adapted website searches, usually 1-3 words and never more than 4"],
+      "product_search_queries": ["10-12 simple, varied, business-adapted website searches, usually 1-3 words and never more than 4"],
       "product_search_intent": "One short internal sentence describing how this store should be searched for this campaign based on how its products are named and organized",
       "product_avoid_terms": ["6-15 broad nearby-but-wrong product/category/search terms that should be avoided for this campaign when better matching products exist"],
       "avoid_terms": ["Same values as product_avoid_terms for compatibility"],
@@ -1941,10 +1954,14 @@ Campaign strategy:
 - First infer how this specific business names, groups and exposes products from the compact website assortment hints. Decide whether the best store-search strategy is motif/design-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led, brand/model-led or another business-specific pattern.
 - product_search_intent must summarize that business-specific search strategy in one short internal sentence.
 - product_match_terms must contain 10-20 concrete theme, motif, category, recipient or use-case terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms and common imported terms only when they are actually used in that market.
-- product_search_queries must contain 8-12 simple, varied store-search queries. Usually use 1-3 words and never more than 4 words.
+- product_search_queries must contain 10-12 simple, varied store-search queries. Usually use 1-3 words and never more than 4 words.
 - Do not automatically prefix the campaign name to every query. Use the campaign name once when useful, then use distinct theme synonyms, motifs, characters, product language or use cases that fit how this store names its products.
 - Never put campaign goals, explanatory sentences or marketing instructions in product_search_queries. Do not split useful multiword phrases into unrelated single words later.
+- Classify the campaign as a named theme/occasion, recipient/gift occasion, seasonal need/style, commercial promotion, category/product launch, identity/awareness or another suitable mode before creating queries.
+- For motif/design-led stores plus a named theme, make roughly 65-80% of queries standalone motifs, symbols, characters, synonyms, expressions or title-like phrases and only roughly 20-35% theme-plus-product combinations.
+- For recipient/gift occasions, prioritize recipient and relationship phrases. For commercial promotions, search real hero categories/product families instead of products depicting the promotion name. For seasonal campaigns, prioritize seasonal needs, styles, materials, activities and use cases.
 - For motif/design-led stores, prefer motif words and title-like expressions. For costume stores, prefer costume, character, mask, makeup and accessory terms. For other businesses, adapt the query types to the real assortment evidence instead of using a generic holiday dictionary.
+- Order product_search_queries from strongest to weakest. Use the campaign name once when useful, diversify semantic roots, and do not repeat the same broad product type in most queries.
 - product_avoid_terms and avoid_terms must contain 6-15 broad or misleading nearby product categories that should not be selected when better campaign-specific products exist. Use [] only if there are no obvious nearby wrong product groups.
 - For themed campaigns, each product_match_term must be able to identify products that fit the campaign by itself. Do not include broad store categories merely because the business sells them or because they could be given as gifts.
 - Before returning each product_match_term, ask: "If a product matched only this term, would it still genuinely fit the campaign?" If not, remove it or rewrite it.
@@ -2155,7 +2172,7 @@ Return JSON only in this exact shape:
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
       "product_match_terms": ["10-20 compact product/category/use-case/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
-      "product_search_queries": ["8-12 simple, varied, business-adapted website searches, usually 1-3 words and never more than 4"],
+      "product_search_queries": ["10-12 simple, varied, business-adapted website searches, usually 1-3 words and never more than 4"],
       "product_search_intent": "One short internal sentence describing how this store should be searched for this campaign based on how its products are named and organized",
       "product_avoid_terms": ["6-15 broad nearby-but-wrong product/category/search terms that should be avoided for this campaign when better matching products exist"],
       "avoid_terms": ["Same values as product_avoid_terms for compatibility"],
@@ -2228,10 +2245,14 @@ Campaign strategy:
 - First infer how this specific business names, groups and exposes products from the compact website assortment hints. Decide whether the best store-search strategy is motif/design-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led, brand/model-led or another business-specific pattern.
 - product_search_intent must summarize that business-specific search strategy in one short internal sentence.
 - product_match_terms must contain 10-20 concrete theme, motif, category, recipient or use-case terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms and common imported terms only when they are actually used in that market.
-- product_search_queries must contain 8-12 simple, varied store-search queries. Usually use 1-3 words and never more than 4 words.
+- product_search_queries must contain 10-12 simple, varied store-search queries. Usually use 1-3 words and never more than 4 words.
 - Do not automatically prefix the campaign name to every query. Use the campaign name once when useful, then use distinct theme synonyms, motifs, characters, product language or use cases that fit how this store names its products.
 - Never put campaign goals, explanatory sentences or marketing instructions in product_search_queries. Do not split useful multiword phrases into unrelated single words later.
+- Classify the campaign as a named theme/occasion, recipient/gift occasion, seasonal need/style, commercial promotion, category/product launch, identity/awareness or another suitable mode before creating queries.
+- For motif/design-led stores plus a named theme, make roughly 65-80% of queries standalone motifs, symbols, characters, synonyms, expressions or title-like phrases and only roughly 20-35% theme-plus-product combinations.
+- For recipient/gift occasions, prioritize recipient and relationship phrases. For commercial promotions, search real hero categories/product families instead of products depicting the promotion name. For seasonal campaigns, prioritize seasonal needs, styles, materials, activities and use cases.
 - For motif/design-led stores, prefer motif words and title-like expressions. For costume stores, prefer costume, character, mask, makeup and accessory terms. For other businesses, adapt the query types to the real assortment evidence instead of using a generic holiday dictionary.
+- Order product_search_queries from strongest to weakest. Use the campaign name once when useful, diversify semantic roots, and do not repeat the same broad product type in most queries.
 - product_avoid_terms and avoid_terms must contain 6-15 broad or misleading nearby product categories that should not be selected when better campaign-specific products exist. Use [] only if there are no obvious nearby wrong product groups.
 - For themed campaigns, each product_match_term must be able to identify products that fit the campaign by itself. Do not include broad store categories merely because the business sells them or because they could be given as gifts.
 - Before returning each product_match_term, ask: "If a product matched only this term, would it still genuinely fit the campaign?" If not, remove it or rewrite it.

@@ -586,7 +586,7 @@ Return JSON in this exact shape:
       "days_before_event": 14,
       "product_selection_guidance": "What product/service/category should this post use, and what to avoid",
       "product_match_terms": ["Short local-language product/category/search terms that identify products that truly fit this post"],
-      "product_search_queries": ["8-12 simple, varied store-search queries, usually 1-3 words and never more than 4"],
+      "product_search_queries": ["10-12 simple, varied store-search queries, usually 1-3 words and never more than 4"],
       "product_avoid_terms": ["Short product/category/search terms that should be avoided for this post when better matches exist"],
       "product_search_intent": "Short internal explanation of the business-specific store-search strategy and what the product finder should prioritize",
       "visual_direction": "What type of visual should support this post"
@@ -610,10 +610,16 @@ Strategic rules:
 - product_search_intent must describe that business-specific search approach in one short sentence.
 - product_match_terms should include concrete local theme, motif, category, recipient and use-case terms that can independently support genuine campaign relevance.
 - Do not include broad assortment categories by themselves in product_match_terms for themed campaigns unless the category itself is the campaign.
-- Product search queries must be simple searches a real website search box can use: usually 1-3 words and never more than 4 words.
-- Create varied queries. Use the campaign name once when useful, then use distinct synonyms, motifs, characters, title-like expressions, product language or use cases that fit this store. Do not prefix the campaign name to every query.
+- Product search queries must be simple searches a real website search box can use: usually 1-3 words and never more than 4 words. Create 10-12 queries for product/carousel posts unless the saved campaign metadata contains fewer strong queries.
+- Preserve the campaign's saved product_search_queries and search mix whenever they are already useful. Narrow them for a specific post when needed, but do not replace a strong motif-led list with generic product-type combinations.
+- Classify the campaign as a named theme/occasion, recipient/gift occasion, seasonal need/style, commercial promotion, category/product launch, identity/awareness or another suitable mode before adapting the queries.
+- For motif/design-led stores plus a named theme, roughly 65-80% of queries should remain standalone motifs, symbols, characters, synonyms, expressions or title-like phrases. Only roughly 20-35% should combine a theme with a product type.
+- For recipient/gift occasions, prioritize recipient names, relationships and title-like phrases. For seasonal campaigns, prioritize seasonal needs, styles, materials, activities and use cases.
+- For commercial promotions such as broad sale events, do not search for products depicting the promotion name. Search the store's real hero categories, popular product families, strong motifs or commercially useful assortment areas supported by the campaign evidence.
+- Use the campaign name once when useful, then diversify into distinct semantic roots. Do not prefix the campaign name to every query and do not repeat the same broad product type in most queries.
 - Never return campaign goals, marketing sentences or explanatory text as a search query. Preserve useful multiword phrases; do not split them into unrelated single words.
 - For motif/design-led stores, search primarily with motif and title-like words. For costume stores, search with costume, character, mask, makeup and accessory terms. Adapt equally for every other business type from the actual assortment evidence.
+- Reject a search query if matching only its broadest word would likely return many irrelevant products.
 - Before returning each product_match_term, ask whether a product matching only that term would still genuinely fit the campaign. If not, remove or rewrite it.
 - product_avoid_terms should block nearby but wrong products or broad categories when better campaign-specific products exist. Do not over-block the whole store.
 - Keep product terms compact. Avoid broad filler like "product", "shop", "gift" or "present" unless that word is truly central to the campaign search.
