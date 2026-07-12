@@ -15,6 +15,7 @@ export const MAX_CAMPAIGN_OPPORTUNITIES = 12;
 export const WEBSITE_MAX_CONTEXT_LINK_CANDIDATES = 60;
 export const WEBSITE_PRODUCT_ASSORTMENT_HINT_MAX_ITEMS = 80;
 export const WEBSITE_PRODUCT_METADATA_REPAIR_MAX_OPPORTUNITIES = 12;
+const CAMPAIGN_PRODUCT_METADATA_MODEL = "gpt-5.5";
 
 export function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
@@ -764,9 +765,16 @@ function mergeCampaignProductMetadata(opportunity, metadata) {
     opportunity,
     metadata.product_match_terms
   );
-  const productSearchQueries = normalizeCampaignProductSearchQueriesForOpportunity(
-    metadata.product_search_queries || metadata.search_queries || metadata.local_search_queries
+  const productSearchPlan = normalizeCampaignProductSearchPlan(
+    metadata.product_search_plan || metadata.search_plan,
+    metadata.product_search_queries || metadata.search_queries || metadata.local_search_queries,
+    opportunity.website_content_strategy
   );
+  const productSearchQueries = productSearchPlan.all_queries.length
+    ? productSearchPlan.all_queries
+    : normalizeCampaignProductSearchQueriesForOpportunity(
+        metadata.product_search_queries || metadata.search_queries || metadata.local_search_queries
+      );
   const productAvoidTerms = normalizeCampaignTerms(
     metadata.product_avoid_terms || metadata.avoid_terms || metadata.negative_terms
   );
@@ -790,6 +798,7 @@ function mergeCampaignProductMetadata(opportunity, metadata) {
     avoid_terms: productAvoidTerms.length ? productAvoidTerms : opportunity.avoid_terms,
     product_selection_guidance: productSelectionGuidance || opportunity.product_selection_guidance,
     product_search_intent: productSearchIntent || opportunity.product_search_intent,
+    product_search_plan: productSearchPlan,
     website_product_selection_hint: websiteProductSelectionHint || opportunity.website_product_selection_hint,
   };
 
@@ -844,46 +853,63 @@ Existing search queries: ${existingSearchQueries.join(" | ") || "None"}`;
       .join("\n\n");
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: CAMPAIGN_PRODUCT_METADATA_MODEL,
       messages: [
         {
           role: "system",
           content:
-            "You refine product-selection metadata for a global social media automation tool. Return strict JSON only.",
+            "You design and audit dynamic product-search plans for a global social media automation tool. Return strict JSON only.",
         },
         {
           role: "user",
           content: `
 Review and rewrite the product metadata for every product-based campaign below.
-The existing metadata may be present but still be repetitive, too generic or based on the wrong search strategy.
+The existing metadata may be present but can be repetitive, generic or based on the wrong search approach.
 
-Rules:
-- Work in the business/customer language and market. Do not default to Swedish or English unless the website/market uses those terms.
-- Do not use a fixed holiday dictionary. Infer terms from the campaign, market, business type, website evidence and product/category hints below.
-- First classify how this specific business names and organizes products: motif/title-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led, brand/model-led, service/listing-led or another evidence-based pattern.
-- Then classify the campaign search mode: named theme/occasion, recipient/gift occasion, seasonal need/style, commercial promotion, category/product launch, identity/awareness or another suitable mode.
-- product_search_intent: one short internal sentence that states both classifications and explains what the store search should prioritize.
-- product_match_terms: 12 to 20 concrete terms that can independently support genuine campaign relevance. A product matching only one term should still plausibly fit the campaign.
-- product_search_queries: create 10 to 12 varied website searches, ordered strongest first. Each query should be as short as possible and as long as needed, usually 1 to 3 words and never more than 4.
-- Treat search queries as discovery paths, not proof that every product on a result page fits. Each product is evaluated separately later.
+Core principle:
+- Do not use a fixed keyword dictionary, fixed industry list, platform assumption or store-specific template.
+- Derive every search plan from this business's website evidence, product naming, assortment structure, market/language and the exact campaign intent.
+- The same campaign must produce different search plans for businesses with different assortments. The same business may need different search plans for different campaign types.
 
-Query-mix rules:
-- For a motif/title-led store plus a named theme, roughly 65-80% of queries should be standalone theme synonyms, motifs, symbols, characters, expressions or title-like phrases. Only roughly 20-35% should combine a theme with a product type.
-- For recipient/gift occasions, prioritize recipient names, relationships and title-like phrases a product could actually contain. Product-type combinations should be a minority.
-- For seasonal need/style campaigns, prioritize season, use case, style, material, weather or activity terms that match the assortment, then add a few useful product combinations.
-- For commercial promotions such as broad sale events, do not search for merchandise depicting the promotion name. Search the store's real hero categories, popular product families, strong motifs or commercially useful assortment areas supported by the website evidence.
-- For category/product-launch campaigns, search the actual category, feature, material, model, benefit or use case rather than generic campaign words.
-- For motif/title-led stores, do not let generic store words dominate. Words equivalent to “funny”, “design”, “print”, “clothing”, “gift”, “custom” or a broad product type are not useful standalone theme queries unless the campaign itself is specifically about that concept.
-- Use the campaign name once when useful, then diversify into distinct semantic roots. Do not prefix the campaign name to every query.
-- Do not repeat the same generic product type in most queries. For motif/title-led campaigns, no more than about three queries should be built around the same broad product type.
-- Never use campaign goals, marketing sentences or filler such as “increase sales of…”. Preserve useful multiword expressions instead of splitting them into unrelated words.
-- Reject a query if matching only its broadest word would likely return many irrelevant products.
-- Do not invent exact product names unless supported by the website hints. Searchable categories, motifs, expressions and use cases are allowed.
+For each campaign, create a structured product_search_plan:
+1. catalog_mode: choose the closest general pattern from motif_title, category_attribute, recipient_use_case, problem_benefit, style_material, brand_model, service_listing, mixed or other.
+2. catalog_naming_summary: one short evidence-based explanation of how this business exposes and names products/services.
+3. strong_search_dimensions: 2-6 dimensions that are likely to retrieve relevant items for this business, such as motifs, categories, attributes, recipients, use cases, problems, benefits, styles, materials, brands, models or service types. Choose dynamically from the evidence.
+4. weak_search_dimensions: dimensions likely to create noisy results for this business/campaign.
+5. campaign_mode: choose the closest general mode from named_theme, recipient_occasion, seasonal_need, commercial_promotion, category_focus, identity_awareness, service_booking or other.
+6. primary_query_role: explain what the main discovery queries must search for in this exact business/campaign combination.
+7. secondary_query_role: explain what a smaller set of refinement queries must add.
+8. primary_queries and secondary_queries: separate query groups. Do not return one undifferentiated list.
 
-Avoid-term rules:
-- product_avoid_terms: 6 to 15 nearby-but-wrong categories or intents when there are obvious substitution risks. Use [] only when there are no clear risks.
-- Avoid terms should prevent bad substitutions, not ban the rest of the store.
-- Never return empty product_match_terms or product_search_queries for product/service-based campaigns.
+Search-plan rules:
+- Product campaigns: create 7-9 primary queries and 2-4 secondary queries, 10-12 total.
+- Service campaigns: create 5-8 primary queries and 2-4 secondary queries, 8-10 total.
+- Each query must be a real search-box phrase, normally 1-3 words and never more than 4.
+- Primary queries must follow primary_query_role. Secondary queries must follow secondary_query_role.
+- Primary queries are the main discovery paths and must not be filled with weaker product-type combinations merely to reach a count.
+- Secondary queries may combine the strongest campaign intent with a product/category/attribute/use-case dimension when that improves precision.
+- Use the campaign title once when useful, then diversify into distinct semantic roots. Do not prefix the campaign title to nearly every query.
+- Do not repeat one broad product type in most queries unless that product category is itself the campaign focus.
+- Do not use campaign goals, marketing sentences, filler or explanatory text as queries.
+- Do not split useful multiword expressions into unrelated words.
+- Reject a query when its broadest token would likely return many unrelated items and the remaining tokens do not make it specific enough.
+- Do not invent exact products, categories, brands, features or services that are not supported by the website evidence.
+- Do not assume Shopify, WooCommerce or any other platform. The plan must work with store search, catalog pages, sitemaps, internal discovery and domain-restricted web search.
+
+Campaign-mode guidance:
+- named_theme: search the business-specific manifestations of the theme. Depending on the catalog, these might be motifs/titles, relevant categories, attributes, use cases, characters, styles or service types. Do not assume motifs are right for every business.
+- recipient_occasion: prioritize how relevant products/services refer to the recipient, relationship, need or use case in this catalog.
+- seasonal_need: prioritize real seasonal needs, activities, styles, materials, conditions or use cases supported by the assortment.
+- commercial_promotion: do not search for items depicting the promotion name. Search actual hero categories, popular product families and commercially useful assortment areas supported by evidence.
+- category_focus: prioritize the category, attributes, models, materials, benefits and use cases that distinguish the relevant items.
+- service_booking: prioritize real service types, problems solved, outcomes, audience and booking use cases.
+
+Product relevance metadata:
+- product_search_intent: one compact sentence summarizing catalog_mode, campaign_mode and the chosen primary/secondary strategy.
+- product_match_terms: 12-20 concrete relevance signals. A product matching only one term should still plausibly fit the campaign. Do not include broad store words merely because the business sells them.
+- product_avoid_terms: 6-15 nearby-but-wrong categories, intents or substitutions when obvious. Do not block the whole assortment.
+- Treat every search result only as a candidate. The product engine evaluates each product separately later.
+- Never return empty product_match_terms or an incomplete product_search_plan for product/service campaigns.
 
 Business:
 ${businessName || "Not provided"}
@@ -919,9 +945,19 @@ Return JSON only:
       "index": 1,
       "title": "same title",
       "product_match_terms": ["term"],
-      "product_search_queries": ["query"],
+      "product_search_plan": {
+        "catalog_mode": "motif_title | category_attribute | recipient_use_case | problem_benefit | style_material | brand_model | service_listing | mixed | other",
+        "catalog_naming_summary": "Evidence-based summary",
+        "strong_search_dimensions": ["dimension"],
+        "weak_search_dimensions": ["dimension"],
+        "campaign_mode": "named_theme | recipient_occasion | seasonal_need | commercial_promotion | category_focus | identity_awareness | service_booking | other",
+        "primary_query_role": "What primary discovery queries must search for",
+        "secondary_query_role": "What secondary refinement queries must add",
+        "primary_queries": ["query"],
+        "secondary_queries": ["query"]
+      },
       "product_avoid_terms": ["term"],
-      "product_search_intent": "Short business-specific store-search strategy.",
+      "product_search_intent": "Short business-specific and campaign-specific search strategy.",
       "product_selection_guidance": "Short guidance for selecting matching products and avoiding weak substitutions.",
       "website_product_selection_hint": "Short product-selection hint."
     }
@@ -930,9 +966,9 @@ Return JSON only:
 `.trim(),
         },
       ],
-      temperature: 0.1,
+      temperature: 0.2,
       response_format: { type: "json_object" },
-      max_completion_tokens: 7500,
+      max_completion_tokens: 9000,
     });
 
     const content = completion.choices?.[0]?.message?.content || "";
@@ -947,7 +983,17 @@ Return JSON only:
       "index": 1,
       "title": "",
       "product_match_terms": [],
-      "product_search_queries": [],
+      "product_search_plan": {
+        "catalog_mode": "other",
+        "catalog_naming_summary": "",
+        "strong_search_dimensions": [],
+        "weak_search_dimensions": [],
+        "campaign_mode": "other",
+        "primary_query_role": "",
+        "secondary_query_role": "",
+        "primary_queries": [],
+        "secondary_queries": []
+      },
       "product_avoid_terms": [],
       "product_search_intent": "",
       "product_selection_guidance": "",
@@ -964,7 +1010,159 @@ Return JSON only:
       const index = Number.parseInt(repair?.index, 10) - 1;
 
       if (Number.isInteger(index) && index >= 0) {
-        repairsByIndex.set(index, repair);
+        const opportunity = opportunities[index];
+        const normalizedPlan = normalizeCampaignProductSearchPlan(
+          repair?.product_search_plan || repair?.search_plan,
+          repair?.product_search_queries || repair?.search_queries,
+          opportunity?.website_content_strategy
+        );
+        const planErrors = validateCampaignProductSearchPlan(
+          normalizedPlan,
+          opportunity?.website_content_strategy
+        );
+
+        if (planErrors.length) {
+          console.warn("Rejected incomplete dynamic product search plan", {
+            campaignTitle: opportunity?.title,
+            planErrors,
+          });
+          continue;
+        }
+
+        repairsByIndex.set(index, {
+          ...repair,
+          product_search_plan: normalizedPlan,
+          product_search_queries: normalizedPlan.all_queries,
+        });
+      }
+    }
+
+
+    const missingRepairs = needsRepair.filter(({ index }) => !repairsByIndex.has(index));
+
+    if (missingRepairs.length) {
+      try {
+        const retryRows = missingRepairs
+          .map(({ opportunity, index }) => `${index + 1}. ${opportunity.title}
+Strategy: ${opportunity.website_content_strategy}
+Goal: ${opportunity.campaign_goal || ""}
+Need: ${opportunity.target_customer_need || ""}
+Guidance: ${opportunity.product_selection_guidance || opportunity.website_product_selection_hint || ""}`)
+          .join("\n\n");
+        const retryCompletion = await openai.chat.completions.create({
+          model: CAMPAIGN_PRODUCT_METADATA_MODEL,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You repair structurally incomplete dynamic product-search plans. Return strict JSON only.",
+            },
+            {
+              role: "user",
+              content: `
+The previous search-plan output was rejected because one or more required groups were incomplete.
+Return corrected plans only for the campaigns below.
+
+Do not use fixed keywords, fixed industries, platform assumptions or a store-specific template.
+Derive every query from the business evidence, campaign intent, market/language and assortment hints.
+
+Exact structural requirements:
+- product strategy: 7-9 primary queries, 2-4 secondary queries, 10-12 total.
+- service strategy: 5-8 primary queries, 2-4 secondary queries, 8-10 total.
+- every query: 1-4 words, unique and usable in a website search box.
+- include catalog_naming_summary, at least two strong_search_dimensions, primary_query_role and secondary_query_role.
+- primary queries must follow the main business/campaign search dimension; secondary queries may refine with category, attribute, recipient or use case when supported.
+- do not repeat the campaign title or one broad product type in most queries unless that category is itself the campaign focus.
+- include 12-20 product_match_terms and 6-15 product_avoid_terms when nearby wrong substitutions are evident.
+
+Business: ${businessName || "Not provided"}
+Website: ${websiteUrl}
+Market/country/language: ${contentMarket || "Not provided"} / ${countryCode || "Not provided"} / ${contentLanguage || "Use website language"}
+Industry: ${industry || "Not provided"}
+Audience: ${targetAudience || "Not provided"}
+
+Assortment hints:
+${productAssortmentHintText || "Not available"}
+
+Campaigns:
+${retryRows}
+
+Return JSON only:
+{
+  "campaigns": [
+    {
+      "index": 1,
+      "title": "same title",
+      "product_match_terms": ["term"],
+      "product_search_plan": {
+        "catalog_mode": "motif_title | category_attribute | recipient_use_case | problem_benefit | style_material | brand_model | service_listing | mixed | other",
+        "catalog_naming_summary": "Evidence-based summary",
+        "strong_search_dimensions": ["dimension"],
+        "weak_search_dimensions": ["dimension"],
+        "campaign_mode": "named_theme | recipient_occasion | seasonal_need | commercial_promotion | category_focus | identity_awareness | service_booking | other",
+        "primary_query_role": "Main discovery role",
+        "secondary_query_role": "Refinement role",
+        "primary_queries": ["query"],
+        "secondary_queries": ["query"]
+      },
+      "product_avoid_terms": ["term"],
+      "product_search_intent": "Compact strategy",
+      "product_selection_guidance": "Selection guidance",
+      "website_product_selection_hint": "Selection hint"
+    }
+  ]
+}
+`.trim(),
+            },
+          ],
+          temperature: 0.1,
+          response_format: { type: "json_object" },
+          max_completion_tokens: 6000,
+        });
+        const retryParsed = await parseOpenAIJsonWithRepair({
+          openai,
+          content: retryCompletion.choices?.[0]?.message?.content || "",
+          contextLabel: "campaign product search-plan retry response",
+          expectedShapeDescription: '{"campaigns":[{"index":1,"product_match_terms":[],"product_search_plan":{"primary_queries":[],"secondary_queries":[]},"product_avoid_terms":[]}]}',
+        });
+
+        for (const repair of Array.isArray(retryParsed?.campaigns) ? retryParsed.campaigns : []) {
+          const index = Number.parseInt(repair?.index, 10) - 1;
+          const opportunity = opportunities[index];
+
+          if (!Number.isInteger(index) || index < 0 || !opportunity) {
+            continue;
+          }
+
+          const normalizedPlan = normalizeCampaignProductSearchPlan(
+            repair?.product_search_plan || repair?.search_plan,
+            repair?.product_search_queries || repair?.search_queries,
+            opportunity.website_content_strategy
+          );
+          const planErrors = validateCampaignProductSearchPlan(
+            normalizedPlan,
+            opportunity.website_content_strategy
+          );
+
+          if (planErrors.length) {
+            console.warn("Rejected product search plan after retry", {
+              campaignTitle: opportunity.title,
+              planErrors,
+            });
+            continue;
+          }
+
+          repairsByIndex.set(index, {
+            ...repair,
+            product_search_plan: normalizedPlan,
+            product_search_queries: normalizedPlan.all_queries,
+          });
+        }
+      } catch (retryError) {
+        console.error("Could not retry incomplete product search plans", {
+          websiteUrl,
+          message: retryError.message,
+        });
       }
     }
 
@@ -1295,6 +1493,192 @@ function normalizeCampaignProductSearchQueriesForOpportunity(value, limit = 12) 
 }
 
 
+
+const PRODUCT_SEARCH_CATALOG_MODES = new Set([
+  "motif_title",
+  "category_attribute",
+  "recipient_use_case",
+  "problem_benefit",
+  "style_material",
+  "brand_model",
+  "service_listing",
+  "mixed",
+  "other",
+]);
+
+const PRODUCT_SEARCH_CAMPAIGN_MODES = new Set([
+  "named_theme",
+  "recipient_occasion",
+  "seasonal_need",
+  "commercial_promotion",
+  "category_focus",
+  "identity_awareness",
+  "service_booking",
+  "other",
+]);
+
+function normalizeProductSearchPlanMode(value, allowedValues, fallback = "other") {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return allowedValues.has(normalized) ? normalized : fallback;
+}
+
+function normalizeProductSearchDimensions(value, limit = 6) {
+  return normalizeCampaignTerms(value)
+    .map((item) => normalizeShortText(item, 80))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function getProductSearchPlanRequirements(strategy) {
+  const normalizedStrategy = String(strategy || "product").toLowerCase().trim();
+
+  if (normalizedStrategy === "service") {
+    return {
+      minPrimary: 5,
+      maxPrimary: 8,
+      minSecondary: 2,
+      maxSecondary: 4,
+      minTotal: 8,
+      maxTotal: 10,
+    };
+  }
+
+  return {
+    minPrimary: 7,
+    maxPrimary: 9,
+    minSecondary: 2,
+    maxSecondary: 4,
+    minTotal: 10,
+    maxTotal: 12,
+  };
+}
+
+function normalizeCampaignProductSearchPlan(rawPlan, fallbackQueries = [], strategy = "product") {
+  const plan = rawPlan && typeof rawPlan === "object" && !Array.isArray(rawPlan)
+    ? rawPlan
+    : {};
+  const requirements = getProductSearchPlanRequirements(strategy);
+  const seen = new Set();
+  const normalizeGroup = (values, limit) => {
+    const normalized = [];
+
+    for (const query of normalizeCampaignProductSearchQueriesForOpportunity(values, limit * 2)) {
+      const key = query.toLocaleLowerCase();
+
+      if (!key || seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      normalized.push(query);
+
+      if (normalized.length >= limit) {
+        break;
+      }
+    }
+
+    return normalized;
+  };
+
+  let primaryQueries = normalizeGroup(
+    plan.primary_queries || plan.primary_search_queries || plan.discovery_queries,
+    requirements.maxPrimary
+  );
+  let secondaryQueries = normalizeGroup(
+    plan.secondary_queries || plan.secondary_search_queries || plan.refinement_queries,
+    requirements.maxSecondary
+  );
+
+  // Compatibility for older metadata: retain its ordering, but only as a
+  // fallback. New analysis writes explicit primary and secondary groups.
+  if (!primaryQueries.length && !secondaryQueries.length) {
+    const fallback = normalizeCampaignProductSearchQueriesForOpportunity(
+      fallbackQueries,
+      requirements.maxTotal
+    );
+    const primaryCount = Math.min(requirements.maxPrimary, Math.max(requirements.minPrimary, fallback.length - requirements.minSecondary));
+    primaryQueries = normalizeGroup(fallback.slice(0, primaryCount), requirements.maxPrimary);
+    secondaryQueries = normalizeGroup(fallback.slice(primaryCount), requirements.maxSecondary);
+  }
+
+  const allQueries = [...primaryQueries, ...secondaryQueries].slice(0, requirements.maxTotal);
+
+  return {
+    version: "dynamic_business_campaign_search_v1",
+    catalog_mode: normalizeProductSearchPlanMode(
+      plan.catalog_mode || plan.business_catalog_mode,
+      PRODUCT_SEARCH_CATALOG_MODES
+    ),
+    catalog_naming_summary: normalizeShortText(
+      plan.catalog_naming_summary || plan.business_search_profile || plan.catalog_summary,
+      280
+    ),
+    strong_search_dimensions: normalizeProductSearchDimensions(
+      plan.strong_search_dimensions || plan.best_search_dimensions
+    ),
+    weak_search_dimensions: normalizeProductSearchDimensions(
+      plan.weak_search_dimensions || plan.avoid_search_dimensions
+    ),
+    campaign_mode: normalizeProductSearchPlanMode(
+      plan.campaign_mode || plan.campaign_search_mode,
+      PRODUCT_SEARCH_CAMPAIGN_MODES
+    ),
+    primary_query_role: normalizeShortText(
+      plan.primary_query_role || plan.primary_search_role,
+      220
+    ),
+    secondary_query_role: normalizeShortText(
+      plan.secondary_query_role || plan.secondary_search_role,
+      220
+    ),
+    primary_queries: primaryQueries,
+    secondary_queries: secondaryQueries,
+    all_queries: allQueries,
+  };
+}
+
+function validateCampaignProductSearchPlan(plan, strategy = "product") {
+  const requirements = getProductSearchPlanRequirements(strategy);
+  const errors = [];
+  const primaryQueries = Array.isArray(plan?.primary_queries) ? plan.primary_queries : [];
+  const secondaryQueries = Array.isArray(plan?.secondary_queries) ? plan.secondary_queries : [];
+  const allQueries = [...primaryQueries, ...secondaryQueries];
+
+  if (primaryQueries.length < requirements.minPrimary) {
+    errors.push(`primary_queries needs at least ${requirements.minPrimary} usable searches`);
+  }
+
+  if (secondaryQueries.length < requirements.minSecondary) {
+    errors.push(`secondary_queries needs at least ${requirements.minSecondary} usable searches`);
+  }
+
+  if (allQueries.length < requirements.minTotal || allQueries.length > requirements.maxTotal) {
+    errors.push(`combined search plan must contain ${requirements.minTotal}-${requirements.maxTotal} searches`);
+  }
+
+  if (!plan?.primary_query_role) {
+    errors.push("primary_query_role is missing");
+  }
+
+  if (!plan?.secondary_query_role) {
+    errors.push("secondary_query_role is missing");
+  }
+
+  if (!plan?.catalog_naming_summary) {
+    errors.push("catalog_naming_summary is missing");
+  }
+
+  if (!Array.isArray(plan?.strong_search_dimensions) || plan.strong_search_dimensions.length < 2) {
+    errors.push("strong_search_dimensions needs at least two business-specific dimensions");
+  }
+
+  return errors;
+}
+
 function addUniqueCampaignTerms(target, values, limit = 24) {
   if (!Array.isArray(target)) return target;
 
@@ -1345,6 +1729,11 @@ export function normalizeCampaignBlueprint(rawOpportunity) {
       rawOpportunity?.product_avoid_terms ||
       rawOpportunity?.negative_terms
   );
+  const productSearchPlan = normalizeCampaignProductSearchPlan(
+    rawOpportunity?.product_search_plan || rawOpportunity?.campaign_blueprint?.product_search_plan,
+    productSearchQueries,
+    rawOpportunity?.website_content_strategy
+  );
 
   return {
     campaign_category: normalizeCampaignCategory(
@@ -1365,6 +1754,7 @@ export function normalizeCampaignBlueprint(rawOpportunity) {
       rawOpportunity?.product_search_intent || rawOpportunity?.search_strategy,
       300
     ),
+    product_search_plan: productSearchPlan,
     tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
     cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
     image_guidance: normalizeShortText(rawOpportunity?.image_guidance, 500),
