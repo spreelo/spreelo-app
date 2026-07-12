@@ -21,6 +21,9 @@ const DEFAULT_TIME_ZONE = "UTC";
 const BATCH_SIZE = 25;
 const CRON_RULE_PROCESSING_LOCK_MINUTES = 15;
 const RECENT_AUTOMATION_DRAFT_BLOCK_HOURS = 6;
+const INCOMPLETE_CAROUSEL_DRAFT_GRACE_MINUTES = 20;
+const STALE_CAROUSEL_RECOVERY_WINDOW_HOURS = 24;
+const MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES = 2;
 const APP_URL = "https://app.spreelo.com";
 const RESEND_FROM_EMAIL = "Spreelo <noreply@spreelo.com>";
 const WEBSITE_FETCH_TIMEOUT_MS = 12000;
@@ -818,26 +821,47 @@ async function claimAutomationRuleForProcessing({ supabase, rule, now }) {
   return Boolean(data?.id);
 }
 
-async function findRecentAutomationDraftsForRule({ supabase, ruleId, now }) {
+async function findAutomationDraftsForRule({ supabase, ruleId }) {
   if (!ruleId) {
     return [];
   }
 
-  const sinceIso = subtractHoursIso(now, RECENT_AUTOMATION_DRAFT_BLOCK_HOURS);
   const { data, error } = await supabase
     .from("posts")
-    .select("id, status, created_at, content_format, slide_count, slide_generation_status, slide_render_status")
+    .select(
+      "id, status, created_at, updated_at, content_format, slide_count, slide_generation_status, slide_render_status"
+    )
     .eq("automation_rule_id", ruleId)
     .in("status", ["pending_approval", "generating"])
-    .gte("created_at", sinceIso)
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(20);
 
   if (error) {
-    throw new Error(error.message || "Could not check recent automation drafts");
+    throw new Error(error.message || "Could not check automation drafts");
   }
 
   return Array.isArray(data) ? data : [];
+}
+
+function getAutomationDraftActivityTime(post) {
+  const updatedAt = new Date(post?.updated_at || 0).getTime();
+  const createdAt = new Date(post?.created_at || 0).getTime();
+
+  return Math.max(
+    Number.isFinite(updatedAt) ? updatedAt : 0,
+    Number.isFinite(createdAt) ? createdAt : 0
+  );
+}
+
+function isRecentAutomationDraft(post, now, hours = RECENT_AUTOMATION_DRAFT_BLOCK_HOURS) {
+  const activityTime = getAutomationDraftActivityTime(post);
+  const nowTime = new Date(now).getTime();
+
+  if (!activityTime || !Number.isFinite(nowTime)) {
+    return false;
+  }
+
+  return nowTime - activityTime < hours * 60 * 60 * 1000;
 }
 
 function isCompleteAutomationDraft(post) {
@@ -856,10 +880,32 @@ function isIncompleteCarouselDraftPost(post) {
     return false;
   }
 
+  if (post?.status === "generating") {
+    return !isCompleteAutomationDraft(post);
+  }
+
   const slideCount = Number(post?.slide_count || 0);
   const generationStatus = String(post?.slide_generation_status || "").toLowerCase();
 
   return slideCount < 1 || generationStatus === "none" || generationStatus === "failed";
+}
+
+function isStaleIncompleteCarouselDraft(post, now) {
+  if (!isIncompleteCarouselDraftPost(post)) {
+    return false;
+  }
+
+  const activityTime = getAutomationDraftActivityTime(post);
+  const nowTime = new Date(now).getTime();
+
+  if (!activityTime || !Number.isFinite(nowTime)) {
+    return true;
+  }
+
+  return (
+    nowTime - activityTime >=
+    INCOMPLETE_CAROUSEL_DRAFT_GRACE_MINUTES * 60 * 1000
+  );
 }
 
 async function deleteIncompleteCarouselDrafts({ supabase, posts }) {
@@ -892,6 +938,196 @@ async function deleteIncompleteCarouselDrafts({ supabase, posts }) {
 
 function countIncompleteCarouselDrafts(posts) {
   return (posts || []).filter(isIncompleteCarouselDraftPost).length;
+}
+
+async function getStaleCarouselRecoveryState({
+  supabase,
+  ruleId,
+  currentRunLogId = null,
+  now = new Date(),
+}) {
+  if (!ruleId) {
+    return {
+      recoveryCount: 0,
+      historyAvailable: false,
+      latestRecoveryAt: null,
+    };
+  }
+
+  const windowStartIso = subtractHoursIso(
+    now,
+    STALE_CAROUSEL_RECOVERY_WINDOW_HOURS
+  );
+
+  try {
+    let query = supabase
+      .from("automation_run_logs")
+      .select("id, status, started_at, finished_at, metadata")
+      .eq("rule_id", ruleId)
+      .gte("started_at", windowStartIso)
+      .order("started_at", { ascending: false })
+      .limit(50);
+
+    if (currentRunLogId) {
+      query = query.neq("id", currentRunLogId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      if (!isMissingAutomationRunLogsTableError(error)) {
+        console.warn("Could not inspect stale carousel recovery history", {
+          ruleId,
+          message: error.message,
+        });
+      }
+
+      return {
+        recoveryCount: 0,
+        historyAvailable: false,
+        latestRecoveryAt: null,
+      };
+    }
+
+    let recoveryCount = 0;
+    let latestRecoveryAt = null;
+
+    for (const run of Array.isArray(data) ? data : []) {
+      const status = String(run?.status || "").toLowerCase();
+
+      if (status === "success") {
+        break;
+      }
+
+      const metadata =
+        run?.metadata && typeof run.metadata === "object" && !Array.isArray(run.metadata)
+          ? run.metadata
+          : {};
+
+      if (
+        status === "failed" &&
+        metadata.stage === "stale_incomplete_carousel_recovery" &&
+        metadata.auto_recovered === true
+      ) {
+        recoveryCount += 1;
+
+        if (!latestRecoveryAt) {
+          latestRecoveryAt = run.finished_at || run.started_at || null;
+        }
+      }
+    }
+
+    return {
+      recoveryCount,
+      historyAvailable: true,
+      latestRecoveryAt,
+    };
+  } catch (error) {
+    if (!isMissingAutomationRunLogsTableError(error)) {
+      console.warn("Could not inspect stale carousel recovery history", {
+        ruleId,
+        message: error.message,
+      });
+    }
+
+    return {
+      recoveryCount: 0,
+      historyAvailable: false,
+      latestRecoveryAt: null,
+    };
+  }
+}
+
+async function markAbandonedAutomationRunsRecovered({
+  supabase,
+  ruleId,
+  staleBeforeIso,
+  deletedDraftCount,
+  recoveryAttempt,
+  automaticRetryScheduled,
+}) {
+  if (!ruleId || !staleBeforeIso) {
+    return 0;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("automation_run_logs")
+      .select("id, started_at, metadata")
+      .eq("rule_id", ruleId)
+      .eq("status", "running")
+      .lte("started_at", staleBeforeIso)
+      .order("started_at", { ascending: false })
+      .limit(10);
+
+    if (error) {
+      if (!isMissingAutomationRunLogsTableError(error)) {
+        console.warn("Could not find abandoned automation run logs", {
+          ruleId,
+          message: error.message,
+        });
+      }
+      return 0;
+    }
+
+    const abandonedRuns = Array.isArray(data) ? data : [];
+    const finishedAtIso = new Date().toISOString();
+
+    for (const run of abandonedRuns) {
+      const startedAtMs = new Date(run?.started_at || 0).getTime();
+      const finishedAtMs = new Date(finishedAtIso).getTime();
+      const durationMs =
+        Number.isFinite(startedAtMs) && startedAtMs > 0
+          ? Math.max(0, finishedAtMs - startedAtMs)
+          : null;
+      const existingMetadata =
+        run?.metadata && typeof run.metadata === "object" && !Array.isArray(run.metadata)
+          ? run.metadata
+          : {};
+
+      const { error: updateError } = await supabase
+        .from("automation_run_logs")
+        .update({
+          status: "failed",
+          finished_at: finishedAtIso,
+          duration_ms: durationMs,
+          error_message: automaticRetryScheduled
+            ? `Recovered automatically after an abandoned incomplete carousel draft was detected. Automatic retry ${recoveryAttempt} of ${MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES} was started.`
+            : `An abandoned incomplete carousel draft was detected again. Automatic retry limit reached after ${MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES} retries, so the automation was paused.`,
+          metadata: {
+            ...existingMetadata,
+            stage: "stale_incomplete_carousel_recovery",
+            auto_recovered: true,
+            automatic_retry_scheduled: Boolean(automaticRetryScheduled),
+            recovery_attempt: recoveryAttempt,
+            recovery_limit: MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES,
+            recovery_window_hours: STALE_CAROUSEL_RECOVERY_WINDOW_HOURS,
+            deleted_incomplete_drafts: deletedDraftCount,
+          },
+          updated_at: finishedAtIso,
+        })
+        .eq("id", run.id)
+        .eq("status", "running");
+
+      if (updateError && !isMissingAutomationRunLogsTableError(updateError)) {
+        console.warn("Could not mark abandoned automation run log as recovered", {
+          ruleId,
+          runLogId: run.id,
+          message: updateError.message,
+        });
+      }
+    }
+
+    return abandonedRuns.length;
+  } catch (error) {
+    if (!isMissingAutomationRunLogsTableError(error)) {
+      console.warn("Could not recover abandoned automation run logs", {
+        ruleId,
+        message: error.message,
+      });
+    }
+    return 0;
+  }
 }
 
 async function makeCompleteGeneratingDraftVisible({ supabase, post }) {
@@ -3570,7 +3806,7 @@ const PRICE_CURRENCY_WORDS = [
   "сум",
 ];
 
-const PRICE_AMOUNT_PATTERN = String.raw`(?:[$€£]\s*)?\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})?\s*(?:${PRICE_CURRENCY_WORDS.join("|")}\b|:-)|(?:[$€£]\s*)\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})?`;
+const PRICE_AMOUNT_PATTERN = String.raw`(?:(?:[$€£]\s*)?\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})?\s*(?:(?:${PRICE_CURRENCY_WORDS.join("|")})\b|:-|[$€£])|(?:[$€£]\s*)\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})?)`;
 const PRICE_SENTENCE_REGEX = new RegExp(
   String.raw`[^.!?\n]*${PRICE_AMOUNT_PATTERN}[^.!?\n]*[.!?]?`,
   "gi"
@@ -3592,6 +3828,142 @@ function normalizeVerifiedPriceValue(value) {
 
   const match = text.match(new RegExp(PRICE_AMOUNT_PATTERN, "i"));
   return match ? String(match[0] || "").trim() : "";
+}
+
+
+function formatVerifiedPriceFromAmount(amount, currency = "") {
+  const amountText = decodeHtmlEntities(String(amount || ""))
+    .replace(/\s+/g, " ")
+    .trim();
+  const currencyText = decodeHtmlEntities(String(currency || ""))
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!amountText) {
+    return "";
+  }
+
+  const alreadyComplete = normalizeVerifiedPriceValue(amountText);
+  if (alreadyComplete) {
+    return alreadyComplete;
+  }
+
+  if (!currencyText) {
+    return "";
+  }
+
+  return normalizeVerifiedPriceValue(`${amountText} ${currencyText}`);
+}
+
+function normalizeExtractedProductPricing({
+  currentPrice = "",
+  originalPrice = "",
+  source = "",
+  confidence = "",
+} = {}) {
+  let current = normalizeVerifiedPriceValue(currentPrice);
+  let original = normalizeVerifiedPriceValue(originalPrice);
+
+  if (!current && original) {
+    current = original;
+    original = "";
+  }
+
+  if (current && original) {
+    const currentAmount = parseComparablePriceAmount(current);
+    const originalAmount = parseComparablePriceAmount(original);
+
+    if (currentAmount !== null && originalAmount !== null) {
+      if (currentAmount > originalAmount) {
+        const swap = current;
+        current = original;
+        original = swap;
+      } else if (Math.abs(currentAmount - originalAmount) < 0.0001) {
+        original = "";
+      }
+    } else if (current === original) {
+      original = "";
+    }
+  }
+
+  return {
+    price: current,
+    sale_price: current && original ? current : "",
+    original_price: current && original ? original : "",
+    price_source: current ? String(source || "").trim() : "",
+    price_confidence: current ? String(confidence || "").trim() : "",
+  };
+}
+
+function extractVerifiedPriceMatches(value) {
+  const source = decodeHtmlEntities(String(value || ""))
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!source) {
+    return [];
+  }
+
+  const regex = new RegExp(PRICE_AMOUNT_PATTERN, "gi");
+  const prices = [];
+  let match;
+
+  while ((match = regex.exec(source)) !== null) {
+    const normalized = normalizeVerifiedPriceValue(match[0]);
+
+    if (normalized && !prices.includes(normalized)) {
+      prices.push(normalized);
+    }
+  }
+
+  return prices;
+}
+
+function extractProductPricingFromTitle(value) {
+  const title = decodeHtmlEntities(String(value || ""));
+  const prices = extractVerifiedPriceMatches(title);
+
+  if (!prices.length) {
+    return normalizeExtractedProductPricing();
+  }
+
+  const hasExplicitOriginalPriceSignal = /(rrp|uvp|msrp|list price|regular price|original price|was price|ordinarie pris|rek\.\s*pris)/i.test(title);
+
+  return normalizeExtractedProductPricing({
+    currentPrice: prices[0],
+    originalPrice: hasExplicitOriginalPriceSignal && prices.length > 1 ? prices[1] : "",
+    source: "product_search_result_title",
+    confidence: "medium",
+  });
+}
+
+function sanitizeProductTitleForCard(value) {
+  let title = decodeHtmlEntities(String(value || ""))
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!title) {
+    return "";
+  }
+
+  title = title.replace(/^\s*-?\s*\d{1,2}%\s+/, "").trim();
+
+  const trailingPricingRegex = new RegExp(
+    String.raw`\s*(?:(?:from|ab|från|fra|desde|à\s+partir\s+de)\s+)?(?:${PRICE_AMOUNT_PATTERN})(?:\s+(?:${PRICE_AMOUNT_PATTERN}))?\s*(?:\((?:rrp|uvp|msrp|list price|regular price|original price|ordinarie pris)\))?\s*$`,
+    "i"
+  );
+
+  for (let index = 0; index < 2; index += 1) {
+    const cleaned = title.replace(trailingPricingRegex, "").trim();
+
+    if (!cleaned || cleaned === title) {
+      break;
+    }
+
+    title = cleaned;
+  }
+
+  return title;
 }
 
 function getHostnameFromUrl(value) {
@@ -4417,6 +4789,11 @@ function collectAutomationRunProductLogData({ websiteItem = null, websiteItems =
       title: String(item?.title || item?.name || "").trim() || null,
       url: String(item?.url || "").trim() || null,
       image_url: String(item?.image_url || item?.imageUrl || "").trim() || null,
+      price: getTrustedWebsiteItemPricing(item || {}).displayPrice || null,
+      sale_price: getTrustedWebsiteItemPricing(item || {}).salePrice || null,
+      original_price: getTrustedWebsiteItemPricing(item || {}).originalPrice || null,
+      price_source: String(item?.price_source || "").trim() || null,
+      price_confidence: String(item?.price_confidence || "").trim() || null,
       search_method: method,
       campaign_fit_score: Number.isFinite(Number(item?.campaign_fit_score)) ? Number(item.campaign_fit_score) : null,
       campaign_fit_source: String(item?.campaign_fit_source || "").trim() || null,
@@ -5617,13 +5994,21 @@ function createItemKey(item) {
 }
 
 function normalizeWebsiteItem(item, websiteUrl) {
-  const title = String(item?.title || "").trim();
+  const rawTitle = String(item?.title || "").trim();
+  const title = sanitizeProductTitleForCard(rawTitle) || rawTitle;
   const description = String(item?.description || "").trim();
   const type = String(item?.type || "website_item").trim();
   const resolvedUrl = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
   const url = resolvedUrl ? canonicalizeWebsiteProductUrl(resolvedUrl, websiteUrl) : websiteUrl;
   const imageUrl = item?.image_url ? resolveUrl(item.image_url, websiteUrl) : null;
-let price = normalizeVerifiedPriceValue(item?.price);
+  const trustedPricing = getTrustedWebsiteItemPricing({
+    ...item,
+    url: url || websiteUrl,
+  });
+  let price = trustedPricing.displayPrice;
+  let salePrice = trustedPricing.salePrice;
+  let originalPrice = trustedPricing.originalPrice;
+
   if (item?.price && !price) {
     console.warn("Ignored unverified website item price because it lacked a clear currency marker", {
       title: truncateText(title, 120),
@@ -5638,19 +6023,26 @@ let price = normalizeVerifiedPriceValue(item?.price);
       rawPrice: truncateText(String(item.price), 80),
     });
     price = "";
+    salePrice = "";
+    originalPrice = "";
   }
+
   if (!title || !description) {
     return null;
   }
 
-return {
-  title,
-  description: truncateText(description, 900),
-  price,
-  type,
-  url: url || websiteUrl,
-  image_url: imageUrl && isHttpUrl(imageUrl) ? imageUrl : null,
-};
+  return {
+    title,
+    description: truncateText(description, 900),
+    price,
+    sale_price: salePrice,
+    original_price: originalPrice,
+    price_source: String(item?.price_source || "").trim(),
+    price_confidence: String(item?.price_confidence || "").trim(),
+    type,
+    url: url || websiteUrl,
+    image_url: imageUrl && isHttpUrl(imageUrl) ? imageUrl : null,
+  };
 }
 
 async function extractWebsiteItems(openai, brandProfile, pages, rule = null) {
@@ -9107,6 +9499,60 @@ function findJsonLdProduct(html) {
   );
 }
 
+
+function findBestJsonLdProduct(html, pageUrl = "", expectedTitle = "") {
+  const products = extractJsonLdObjects(html).filter((item) =>
+    normalizeJsonLdType(item?.["@type"]).some((type) => type.includes("product"))
+  );
+
+  if (!products.length) {
+    return null;
+  }
+
+  const expectedComparable = normalizeComparableValue(sanitizeProductTitleForCard(expectedTitle));
+  const pageComparable = normalizeComparableValue(pageUrl);
+
+  return products
+    .map((product, index) => {
+      let score = 0;
+      const productUrl = getProductUrlFromJsonLd(product, pageUrl);
+      const productComparable = normalizeComparableValue(productUrl);
+      const titleComparable = normalizeComparableValue(product?.name);
+
+      if (pageComparable && productComparable && pageComparable === productComparable) {
+        score += 120;
+      } else if (
+        pageComparable &&
+        productComparable &&
+        (pageComparable.includes(productComparable) || productComparable.includes(pageComparable))
+      ) {
+        score += 60;
+      }
+
+      if (expectedComparable && titleComparable) {
+        if (expectedComparable === titleComparable) {
+          score += 90;
+        } else {
+          const expectedTokens = expectedComparable
+            .split(/[^\p{L}\p{N}]+/u)
+            .filter((token) => token.length >= 4);
+          const titleTokens = new Set(
+            titleComparable
+              .split(/[^\p{L}\p{N}]+/u)
+              .filter((token) => token.length >= 4)
+          );
+          score += expectedTokens.filter((token) => titleTokens.has(token)).length * 12;
+        }
+      }
+
+      if (product?.offers) score += 8;
+      if (product?.image) score += 4;
+
+      return { product, score, index };
+    })
+    .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.product || null;
+}
+
 function collectImageValuesFromObject(value, results = []) {
   if (!value) {
     return results;
@@ -9149,19 +9595,91 @@ function getProductImageFromJsonLd(product, pageUrl) {
   return null;
 }
 
-function getProductPriceFromJsonLd(product) {
+function getProductPricingFromJsonLd(product) {
   const offers = Array.isArray(product?.offers)
-    ? product.offers[0]
-    : product?.offers;
+    ? product.offers
+    : product?.offers
+      ? [product.offers]
+      : [];
+  let currentPrice = "";
+  let originalPrice = "";
 
-  const price = offers?.price || offers?.lowPrice || offers?.highPrice || "";
-  const currency = offers?.priceCurrency || "";
+  for (const offer of offers) {
+    if (!offer || typeof offer !== "object") {
+      continue;
+    }
 
-  if (!price) {
-    return "";
+    const offerCurrency = offer?.priceCurrency || "";
+    const directPrice = formatVerifiedPriceFromAmount(
+      offer?.price || offer?.lowPrice || "",
+      offerCurrency
+    );
+
+    if (directPrice && !currentPrice) {
+      currentPrice = directPrice;
+    }
+
+    const specifications = [
+      ...(Array.isArray(offer?.priceSpecification)
+        ? offer.priceSpecification
+        : offer?.priceSpecification
+          ? [offer.priceSpecification]
+          : []),
+      ...(Array.isArray(product?.priceSpecification)
+        ? product.priceSpecification
+        : product?.priceSpecification
+          ? [product.priceSpecification]
+          : []),
+    ];
+
+    for (const specification of specifications) {
+      if (!specification || typeof specification !== "object") {
+        continue;
+      }
+
+      const specificationPrice = formatVerifiedPriceFromAmount(
+        specification?.price || specification?.value || "",
+        specification?.priceCurrency || offerCurrency
+      );
+
+      if (!specificationPrice) {
+        continue;
+      }
+
+      const label = [
+        specification?.["@type"],
+        specification?.name,
+        specification?.priceType,
+        specification?.description,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      if (/(strikethrough|list|regular|original|msrp|rrp|uvp|was)/i.test(label)) {
+        originalPrice ||= specificationPrice;
+      } else if (/(sale|current|offer|discount|final|now)/i.test(label)) {
+        currentPrice ||= specificationPrice;
+      } else {
+        currentPrice ||= specificationPrice;
+      }
+    }
+
+    if (currentPrice) {
+      break;
+    }
   }
 
-  return normalizeVerifiedPriceValue(`${price}${currency ? ` ${currency}` : ""}`);
+  return normalizeExtractedProductPricing({
+    currentPrice,
+    originalPrice,
+    source: "json_ld_product_offer",
+    confidence: "high",
+  });
+}
+
+function getProductPriceFromJsonLd(product) {
+  return getProductPricingFromJsonLd(product).price;
 }
 
 
@@ -9318,14 +9836,95 @@ function extractVisiblePriceFromText(text) {
   return preferredLocalCurrencyMatch || matches[0] || "";
 }
 
-function extractProductPriceFromHtml(html) {
-  const visiblePrice = extractVisiblePriceFromText(stripHtmlToText(html));
+function getProductPricingFromMeta(html) {
+  const currency = getMetaContent(html, [
+    "product:price:currency",
+    "og:price:currency",
+    "product:currency",
+  ]);
+  const currentAmount = getMetaContent(html, [
+    "product:sale_price:amount",
+    "product:discount_price:amount",
+    "product:price:amount",
+    "og:price:amount",
+  ]);
+  const originalAmount = getMetaContent(html, [
+    "product:original_price:amount",
+    "product:regular_price:amount",
+    "product:list_price:amount",
+    "product:price:standard_amount",
+  ]);
 
-  if (visiblePrice) {
-    return normalizeVerifiedPriceValue(visiblePrice);
+  return normalizeExtractedProductPricing({
+    currentPrice: formatVerifiedPriceFromAmount(currentAmount, currency),
+    originalPrice: formatVerifiedPriceFromAmount(originalAmount, currency),
+    source: "product_meta_price",
+    confidence: "high",
+  });
+}
+
+function extractItempropValueFromHtml(html, itempropName) {
+  const source = String(html || "");
+  const escapedName = String(itempropName || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const tagRegex = new RegExp(
+    `<([a-z0-9]+)\\b[^>]*itemprop=["'][^"']*\\b${escapedName}\\b[^"']*["'][^>]*>([\\s\\S]{0,180}?)<\\/\\1>|<[^>]+itemprop=["'][^"']*\\b${escapedName}\\b[^"']*["'][^>]*>`,
+    "gi"
+  );
+  let match;
+
+  while ((match = tagRegex.exec(source)) !== null) {
+    const fullTag = String(match[0] || "");
+    const openingTagMatch = fullTag.match(/^<[^>]+>/);
+    const openingTag = openingTagMatch?.[0] || fullTag;
+    const attributeValue =
+      getAttributeValueFromTag(openingTag, "content") ||
+      getAttributeValueFromTag(openingTag, "value");
+    const textValue = stripHtmlToText(match[2] || "");
+    const value = decodeHtmlEntities(attributeValue || textValue).trim();
+
+    if (value) {
+      return value;
+    }
   }
 
   return "";
+}
+
+function getProductPricingFromMicrodata(html) {
+  const amount = extractItempropValueFromHtml(html, "price");
+  const currency = extractItempropValueFromHtml(html, "priceCurrency");
+
+  return normalizeExtractedProductPricing({
+    currentPrice: formatVerifiedPriceFromAmount(amount, currency),
+    source: "product_microdata_price",
+    confidence: "medium",
+  });
+}
+
+function extractProductPricingFromHtml({
+  html,
+  product = null,
+  fallbackTitle = "",
+} = {}) {
+  const sources = [
+    getProductPricingFromJsonLd(product),
+    getProductPricingFromMeta(html),
+    extractProductPricingFromTitle(fallbackTitle),
+    getProductPricingFromMicrodata(html),
+  ];
+
+  return (
+    sources.find((pricing) => pricing?.price) ||
+    normalizeExtractedProductPricing()
+  );
+}
+
+function extractProductPriceFromHtml(html, product = null, fallbackTitle = "") {
+  return extractProductPricingFromHtml({
+    html,
+    product,
+    fallbackTitle,
+  }).price;
 }
 
 function imageUrlMatchesProductIdentity(imageUrl, productUrl, productTitle = "") {
@@ -9354,7 +9953,7 @@ function imageUrlMatchesProductIdentity(imageUrl, productUrl, productTitle = "")
 }
 
 function extractBestProductImageFromHtml(html, pageUrl, productTitle = "") {
-  const product = findJsonLdProduct(html);
+  const product = findBestJsonLdProduct(html, pageUrl, productTitle);
   const jsonLdImage = getProductImageFromJsonLd(product, pageUrl);
 
   if (jsonLdImage) {
@@ -9390,14 +9989,16 @@ async function extractProductDataFromProductPage({
   webSearchProduct,
 }) {
   const html = await fetchHtml(productUrl);
-  const product = findJsonLdProduct(html);
+  const expectedTitle = sanitizeProductTitleForCard(webSearchProduct?.title || "");
+  const product = findBestJsonLdProduct(html, productUrl, expectedTitle);
   const productSchemaFound = Boolean(product?.name || product?.offers || product?.image);
   const ecommerceProofFound = hasEcommerceProofText(html);
 
-  const title =
+  const rawTitle =
     String(product?.name || "").trim() ||
     String(webSearchProduct?.title || "").trim() ||
     extractPageTitle(html);
+  const title = sanitizeProductTitleForCard(rawTitle) || rawTitle;
 
   const metaDescription = getMetaContent(html, [
     "description",
@@ -9410,14 +10011,19 @@ async function extractProductDataFromProductPage({
     String(metaDescription || "").trim() ||
     truncateText(stripHtmlToText(html), 700);
 
- const price = extractProductPriceFromHtml(html);
-
-if (!price) {
-  console.log("Product page candidate has no clear price; continuing because many service/catalog pages hide prices", {
-    productUrl,
-    title,
+  const pricing = extractProductPricingFromHtml({
+    html,
+    product,
+    fallbackTitle: webSearchProduct?.title || rawTitle,
   });
-}
+  const price = pricing.price;
+
+  if (!price) {
+    console.log("Product page candidate has no trustworthy main-product price; continuing without a displayed price", {
+      productUrl,
+      title,
+    });
+  }
 
 const imageUrl =
   extractBestProductImageFromHtml(html, productUrl, title) ||
@@ -9435,6 +10041,10 @@ const imageUrl =
       url: productUrl,
       description,
       price,
+      sale_price: pricing.sale_price,
+      original_price: pricing.original_price,
+      price_source: pricing.price_source,
+      price_confidence: pricing.price_confidence,
       image_url: imageUrl,
     },
     websiteUrl
@@ -13592,23 +14202,116 @@ export async function GET(request) {
           summary.automation_run_logs_started += 1;
         }
 
-        const recentDrafts = await findRecentAutomationDraftsForRule({
+        let automationDrafts = await findAutomationDraftsForRule({
           supabase,
           ruleId: rule.id,
-          now,
         });
 
-        const incompleteCarouselDrafts = countIncompleteCarouselDrafts(recentDrafts);
+        const staleIncompleteDrafts = automationDrafts.filter((post) =>
+          isStaleIncompleteCarouselDraft(post, now)
+        );
+
+        if (staleIncompleteDrafts.length > 0) {
+          const recoveryState = await getStaleCarouselRecoveryState({
+            supabase,
+            ruleId: rule.id,
+            currentRunLogId: automationRunLogId,
+            now,
+          });
+          const recoveryAttempt = recoveryState.recoveryCount + 1;
+          const automaticRetryScheduled =
+            recoveryAttempt <= MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES;
+
+          const cleanedDraftCount = await deleteIncompleteCarouselDrafts({
+            supabase,
+            posts: staleIncompleteDrafts,
+          });
+
+          summary.cleaned_incomplete_carousel_drafts += cleanedDraftCount;
+
+          const staleBeforeIso = new Date(
+            now.getTime() - INCOMPLETE_CAROUSEL_DRAFT_GRACE_MINUTES * 60 * 1000
+          ).toISOString();
+
+          const recoveredRunLogs = await markAbandonedAutomationRunsRecovered({
+            supabase,
+            ruleId: rule.id,
+            staleBeforeIso,
+            deletedDraftCount: cleanedDraftCount,
+            recoveryAttempt,
+            automaticRetryScheduled,
+          });
+
+          automationDrafts = automationDrafts.filter(
+            (post) => !staleIncompleteDrafts.some((stalePost) => stalePost.id === post.id)
+          );
+
+          if (!automaticRetryScheduled) {
+            const message =
+              `Automation paused after ${MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES} automatic retries because incomplete carousel drafts kept becoming stale within ${STALE_CAROUSEL_RECOVERY_WINDOW_HOURS} hours. Review the automation logs before reactivating it.`;
+
+            await stopRuleAfterCostProtectedCarouselFailure(
+              supabase,
+              rule.id,
+              message
+            );
+
+            await finishRunLog("failed", message, {
+              stage: "stale_incomplete_carousel_retry_limit",
+              automatic_retry_paused: true,
+              recovery_attempt: recoveryAttempt,
+              recovery_limit: MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES,
+              recovery_window_hours: STALE_CAROUSEL_RECOVERY_WINDOW_HOURS,
+              previous_recoveries_in_window: recoveryState.recoveryCount,
+              recovery_history_available: recoveryState.historyAvailable,
+              latest_recovery_at: recoveryState.latestRecoveryAt,
+              deleted_incomplete_drafts: cleanedDraftCount,
+              stale_draft_ids: staleIncompleteDrafts.map((post) => post.id),
+              recovered_abandoned_run_logs: recoveredRunLogs,
+            });
+
+            console.error("Paused automation after repeated stale carousel drafts", {
+              ruleId: rule.id,
+              recoveryAttempt,
+              recoveryLimit: MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES,
+              deletedDraftCount: cleanedDraftCount,
+              recoveredRunLogs,
+              staleDraftIds: staleIncompleteDrafts.map((post) => post.id),
+            });
+
+            summary.skipped += 1;
+            summary.errors += 1;
+            continue;
+          }
+
+          console.warn("Recovered stale incomplete carousel draft automatically", {
+            ruleId: rule.id,
+            recoveryAttempt,
+            recoveryLimit: MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES,
+            recoveryWindowHours: STALE_CAROUSEL_RECOVERY_WINDOW_HOURS,
+            deletedDraftCount: cleanedDraftCount,
+            recoveredRunLogs,
+            staleDraftIds: staleIncompleteDrafts.map((post) => post.id),
+          });
+        }
+
+        const activeIncompleteDrafts = automationDrafts.filter(
+          (post) =>
+            isIncompleteCarouselDraftPost(post) &&
+            !isStaleIncompleteCarouselDraft(post, now)
+        );
+        const incompleteCarouselDrafts = countIncompleteCarouselDrafts(activeIncompleteDrafts);
 
         if (incompleteCarouselDrafts > 0) {
           const message =
-            "Skipped because this automation rule already has a recent incomplete carousel draft. Review or delete it manually before retrying to avoid duplicate AI cost.";
+            `Skipped temporarily because this automation rule has an incomplete carousel draft newer than ${INCOMPLETE_CAROUSEL_DRAFT_GRACE_MINUTES} minutes. Spreelo will retry automatically if the draft becomes stale.`;
 
           await setRuleError(supabase, rule.id, message);
 
           await finishRunLog("skipped", message, {
-            stage: "existing_incomplete_carousel_draft",
+            stage: "active_incomplete_carousel_draft",
             incomplete_carousel_drafts: incompleteCarouselDrafts,
+            automatic_retry_after_minutes: INCOMPLETE_CAROUSEL_DRAFT_GRACE_MINUTES,
           });
 
           summary.skipped += 1;
@@ -13616,7 +14319,9 @@ export async function GET(request) {
           continue;
         }
 
-        const existingCompleteDraft = recentDrafts.find(isCompleteAutomationDraft);
+        const existingCompleteDraft = automationDrafts.find(
+          (post) => isCompleteAutomationDraft(post) && isRecentAutomationDraft(post, now)
+        );
 
         if (existingCompleteDraft) {
           const recovered = await makeCompleteGeneratingDraftVisible({
