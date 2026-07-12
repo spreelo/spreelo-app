@@ -36,14 +36,6 @@ import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
-import {
-  campaignHasProductWebsiteFit as campaignPolicyHasProductWebsiteFit,
-  campaignSourceUsesWebsiteContent,
-  getCampaignContentFormat as getCampaignPolicyContentFormat,
-  getCampaignContentTypeId as getCampaignPolicyContentTypeId,
-  getCampaignContentTypeLabel as getCampaignPolicyContentTypeLabel,
-  resolveProductCampaignSourceMode,
-} from "../../lib/campaignContentPolicy";
 
 const DEFAULT_TIME_ZONE = "UTC";
 const SPREELO_INTERNAL_TESTER_EMAIL = "johan@foldern.com";
@@ -254,7 +246,7 @@ const contentTypes = [
     prompt:
       "Use the website URL from the brand profile. Identify several concrete products, services, listings, offers or other sellable items from the website and create a swipeable carousel draft around them. The carousel should feel like a curated collection, guide, comparison or campaign post with one clear shared theme. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
     imagePrompt:
-      "Use relevant verified product images connected to the selected website items. Avoid logos, banners, hero images, decorative icons and unrelated images. Prefer exact theme matches, then progressively use the next-best verified products from the same website when the exact tier has fewer than five items. Never invent products.",
+      "Use relevant images connected to the selected website items if they can be found. Avoid logos, banners, hero images, decorative icons and unrelated images. If enough verified item images cannot be found, stop instead of inventing products.",
     usesWebsiteContent: true,
     contentFormat: "carousel",
   },
@@ -3637,22 +3629,60 @@ function getCampaignFormatDecisionText(campaign, postPlanItem = null) {
 }
 
 function campaignHasProductWebsiteFit(campaign) {
-  return campaignPolicyHasProductWebsiteFit(campaign);
+  const fit = String(campaign?.website_content_fit || "").toLowerCase();
+  const strategy = String(campaign?.website_content_strategy || "").toLowerCase();
+
+  return fit !== "weak" && ["product", "support"].includes(strategy);
+}
+
+function shouldUseCarouselForCampaignPost(campaign, postPlanItem = {}, index = 0, total = 1) {
+  if (!campaignHasProductWebsiteFit(campaign)) {
+    return false;
+  }
+
+  const intent = postPlanItem?.intended_intent || getCampaignPostIntent(postPlanItem, index, total);
+  const timingAnchor = String(postPlanItem?.timing_anchor || "").toLowerCase();
+  const text = getCampaignFormatDecisionText(campaign, postPlanItem);
+
+  if (intent === "event" || timingAnchor === "relationship_event") {
+    return false;
+  }
+
+  const marketingAngle = normalizeStrategyValue(postPlanItem?.marketing_angle);
+  const campaignPhase = normalizeStrategyValue(postPlanItem?.campaign_phase);
+  const carouselFriendlyRole = [
+    "product_discovery",
+    "guide",
+    "comparison",
+    "engagement",
+    "inspiration",
+    "middle",
+  ].includes(marketingAngle) || ["middle", "early_middle", "middle_late"].includes(campaignPhase);
+
+  if (total >= 3 && carouselFriendlyRole && index === Math.max(1, Math.floor(total / 2))) {
+    return true;
+  }
+
+  if (total >= 4 && index === Math.max(1, Math.floor(total / 2)) && ["inspiration", "middle", "conversion"].includes(intent)) {
+    return true;
+  }
+
+  return false;
 }
 
 function getCampaignSlotContentTypeId(sourceMode) {
-  return getCampaignPolicyContentTypeId(sourceMode);
+  if (sourceMode === "website_carousel") return "carousel_website_item";
+  return "manual_prompt";
 }
 
 function getCampaignSlotContentFormat(sourceMode) {
-  return getCampaignPolicyContentFormat(sourceMode);
+  if (sourceMode === "website_carousel") return "carousel";
+  return "single_image";
 }
 
 function getCampaignSlotContentTypeLabel(campaign, sourceMode) {
-  return getCampaignPolicyContentTypeLabel(
-    sourceMode,
-    campaign?.title || "Campaign post"
-  );
+  if (sourceMode === "website_carousel") return "Website carousel";
+  return campaign?.title || "Campaign post";
 }
 function getDaysBetweenDateStrings(startDateString, endDateString) {
   const startParts = getDatePartsFromDateString(startDateString);
@@ -3725,29 +3755,18 @@ function getCampaignScheduleFactText(campaign, postPlanItem = {}) {
 }
 
 function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
-  const productCampaignMode = resolveProductCampaignSourceMode({
-    campaign,
-    postPlanItem,
-    index,
-    total,
-  });
-
-  if (productCampaignMode) {
-    return productCampaignMode;
-  }
-
-  const explicitMode = String(
-    postPlanItem?.content_source_mode || ""
-  ).toLowerCase();
   const websiteContentFit = String(
     campaign?.website_content_fit || ""
   ).toLowerCase();
+
   const websiteContentStrategy = String(
     campaign?.website_content_strategy || ""
   ).toLowerCase();
+
   const roleText = `${postPlanItem?.role || ""} ${
     postPlanItem?.purpose || ""
   }`.toLowerCase();
+
   const isLaterCampaignPost =
     index >= Math.max(1, Math.floor(total / 2)) ||
     /reminder|final|push|spotlight|highlight|cta|offer|gift|book|buy|order|shop/.test(
@@ -3755,37 +3774,92 @@ function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
     );
 
   if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
-    return ["ai_image_overlay", "ai_image_text"].includes(explicitMode)
-      ? explicitMode
-      : "generic_campaign";
+    return "generic_campaign";
   }
 
-  if (explicitMode === "website_service") {
-    return "website_service";
+  if (shouldUseCarouselForCampaignPost(campaign, postPlanItem, index, total)) {
+    return "website_carousel";
   }
 
-  if (explicitMode === "mixed_campaign_and_website") {
+  if (websiteContentFit === "strong") {
+    if (websiteContentStrategy === "product") {
+      return isLaterCampaignPost
+        ? "website_product"
+        : "mixed_campaign_and_website";
+    }
+
+    if (websiteContentStrategy === "service") {
+      return isLaterCampaignPost
+        ? "website_service"
+        : "mixed_campaign_and_website";
+    }
+
+    if (websiteContentStrategy === "support") {
+      return "mixed_campaign_and_website";
+    }
+  }
+
+  if (websiteContentFit === "medium") {
+    if (websiteContentStrategy === "product" && isLaterCampaignPost) {
+      return "mixed_campaign_and_website";
+    }
+
+    if (websiteContentStrategy === "service" && isLaterCampaignPost) {
+      return "mixed_campaign_and_website";
+    }
+
+    if (websiteContentStrategy === "support") {
+      return "mixed_campaign_and_website";
+    }
+
+    return "generic_campaign";
+  }
+
+  const campaignText = getCampaignSearchText(campaign);
+
+  const hasProductIntent =
+    /shop|store|ecommerce|e-commerce|product|products|gift|gifts|present|sale|discount|offer|commercial|shopping|seasonal|collection|launch|buy|order/.test(
+      campaignText
+    );
+
+  const hasServiceIntent =
+    /service|services|book|booking|appointment|treatment|consultation|cleaning|clearing|repair|quote|visit|call|contact/.test(
+      campaignText
+    );
+
+  if (hasProductIntent && isLaterCampaignPost) {
+    return "website_product";
+  }
+
+  if (hasProductIntent) {
     return "mixed_campaign_and_website";
   }
 
-  if (websiteContentStrategy === "service") {
-    return isLaterCampaignPost
-      ? "website_service"
-      : "mixed_campaign_and_website";
+  if (hasServiceIntent && isLaterCampaignPost) {
+    return "website_service";
   }
 
-  if (["ai_image_overlay", "ai_image_text", "generic_campaign"].includes(explicitMode)) {
-    return explicitMode;
+  if (hasServiceIntent) {
+    return "mixed_campaign_and_website";
   }
 
   return "generic_campaign";
 }
 
 function shouldUseWebsiteContentForCampaign(sourceMode, campaign = null) {
-  // The shared policy has already resolved whether this individual slot is a
-  // website slot. Do not veto that authoritative slot decision with stale or
-  // missing campaign-level fit metadata.
-  return campaignSourceUsesWebsiteContent(sourceMode);
+  const websiteContentFit = String(
+    campaign?.website_content_fit || ""
+  ).toLowerCase();
+
+  const websiteContentStrategy = String(
+    campaign?.website_content_strategy || ""
+  ).toLowerCase();
+
+  if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
+    return false;
+  }
+
+  return ["website_product", "website_service", "website_carousel"].includes(sourceMode);
 }
 
 function getCampaignSourceInstruction(sourceMode, campaign = null) {
@@ -3803,8 +3877,12 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
     ? ` Product selection hint: ${productSelectionHint}. Use this hint when choosing website content. Do not pick a random product or service just because it exists on the website.`
     : "";
 
+  if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
+    return "Do not use website products or services for this post. The website content match is weak, so keep the post focused on the campaign theme and audience value.";
+  }
+
   if (sourceMode === "website_carousel") {
-    return `Create this as a website product carousel. Select several relevant products from the brand website that share one clear campaign theme. The product selection must follow the campaign context and product selection hint, such as gift recipient, holiday, seasonal need, customer stage or buying intent. If the campaign is built around a named holiday, season, event, theme day or cultural occasion, products that directly reference that occasion in the website's own language should beat generic giftable, personalized, custom or bestseller products. Do not choose random unrelated products just because they exist. Use only product details that clearly exist on the website. Do not invent products, prices, discounts, stock, delivery promises or features. Fill the carousel by moving from exact verified theme matches to the next-best verified products only when the stronger tier contains fewer than five unique items.${productSelectionInstruction}`;
+    return `Create this as a website product carousel. Select several relevant products from the brand website that share one clear campaign theme. The product selection must follow the campaign context and product selection hint, such as gift recipient, holiday, seasonal need, customer stage or buying intent. If the campaign is built around a named holiday, season, event, theme day or cultural occasion, products that directly reference that occasion in the website's own language should beat generic giftable, personalized, custom or bestseller products. Do not choose random unrelated products just because they exist. Use only product details that clearly exist on the website. Do not invent products, prices, discounts, stock, delivery promises or features. If at least five verified matching products with images cannot be found, the automation should stop with an error instead of silently creating a generic fallback.${productSelectionInstruction}`;
   }
 
   if (sourceMode === "website_product") {
@@ -3817,10 +3895,6 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
 
   if (sourceMode === "mixed_campaign_and_website") {
     return `If relevant website content is available, use it as supporting context, but keep the main focus on the campaign theme. Do not force a product or service if the match is not natural.${productSelectionInstruction}`;
-  }
-
-  if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
-    return "Do not use website products or services for this post. Keep the post focused on the campaign theme and audience value.";
   }
 
   return "Do not force a product or service into this post. Keep the focus on the campaign theme and the audience value.";
@@ -4979,10 +5053,8 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
   const allVisibleRulesSelected =
     visibleRuleIds.length > 0 &&
     visibleRuleIds.every((ruleId) => selectedRuleIds.includes(ruleId));
-  const websiteProductModeAvailable = Boolean(
-    currentBrandProfile?.website_carousel_mode_available === true ||
-      currentBrandProfile?.website_single_product_post_available === true ||
-      currentBrandProfile?.website_product_mode_available === true
+    const websiteProductModeAvailable = Boolean(
+    currentBrandProfile?.website_product_mode_available
   );
 
   const visibleContentTypes = useMemo(() => {
@@ -5357,7 +5429,6 @@ async function loadCampaignOpportunityIntoPlanner({
   selectedBrandId,
   campaignOpportunityId,
   selectedTimeZone,
-  brandProfile = null,
 }) {
   if (!campaignOpportunityId) {
     return false;
@@ -5432,28 +5503,10 @@ async function loadCampaignOpportunityIntoPlanner({
     lastDatabaseError: error?.message || "",
   }));
 
-  const mergedCampaign = mergeCampaignOpportunitySources(
+  const campaign = mergeCampaignOpportunitySources(
     campaignFromDatabase,
     campaignFromHandoff
   );
-
-  const campaign = mergedCampaign
-    ? normalizeCampaignOpportunityForPlanner({
-        ...mergedCampaign,
-        website_product_mode_available:
-          brandProfile?.website_product_mode_available ??
-          mergedCampaign?.website_product_mode_available ??
-          false,
-        website_single_product_post_available:
-          brandProfile?.website_single_product_post_available ??
-          mergedCampaign?.website_single_product_post_available ??
-          false,
-        website_carousel_mode_available:
-          brandProfile?.website_carousel_mode_available ??
-          mergedCampaign?.website_carousel_mode_available ??
-          false,
-      })
-    : null;
 
   setCampaignDebugInfo((current) => ({
     ...(current || {}),
@@ -5810,7 +5863,7 @@ if (!selectedBrandId) {
 
 const { data: brandProfileData, error: brandProfileError } = await supabase
   .from("brand_profiles")
-  .select("id, business_name, website_product_mode_available, website_single_product_post_available, website_carousel_mode_available, logo_url, logo_enabled_by_default")
+  .select("id, business_name, website_product_mode_available, logo_url, logo_enabled_by_default")
   .eq("id", selectedBrandId)
   .eq("user_id", user.id)
   .maybeSingle();
@@ -5835,9 +5888,7 @@ if (brandProfileError) {
   );
 
   const brandAllowsWebsiteProductMode = Boolean(
-    brandProfileData?.website_carousel_mode_available === true ||
-      brandProfileData?.website_single_product_post_available === true ||
-      brandProfileData?.website_product_mode_available === true
+    brandProfileData?.website_product_mode_available
   );
 
   if (!brandAllowsWebsiteProductMode) {
@@ -5872,7 +5923,6 @@ if (campaignOpportunityId) {
     selectedBrandId,
     campaignOpportunityId,
     selectedTimeZone: timeZone || DEFAULT_TIME_ZONE,
-    brandProfile: brandProfileData || null,
   });
 
   setCampaignDebugInfo((current) => ({

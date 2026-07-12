@@ -1,10 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import {
-  OPENAI_MODELS,
-  getTemperatureOptions,
-} from "../../../lib/openaiModels.js";
-import { fetchWebsiteHtmlRobust } from "../../../lib/websiteFetch.js";
+import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   inferContentLanguageFromWebsiteSignals,
   normalizeSingleContentLanguage,
@@ -12,6 +8,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 const WEBSITE_MAX_TEXT_CHARS = 18000;
 const WEBSITE_MAX_PRODUCT_SOURCE_PAGES = 4;
 const WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS = 9000;
@@ -313,11 +310,7 @@ async function fetchProductSourceCandidates({ websiteUrl, html }) {
 
   for (const link of sourceLinks) {
     try {
-      const candidate = await fetchWebsiteHtml(link.url, {
-        timeoutMs: 5000,
-        totalTimeoutMs: 5000,
-        maxAttempts: 1,
-      });
+      const candidate = await fetchWebsiteHtml(link.url);
 
       candidates.push({
         url: candidate.url,
@@ -398,7 +391,7 @@ async function repairJsonWithOpenAI({
   contextLabel = "OpenAI JSON response",
 }) {
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.helper,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -745,18 +738,10 @@ function hasProductBasedWebsiteEvidence(evidenceText) {
 
 function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "", evidenceText = "") {
   const rawMode = rawValue || {};
-  const itemUrls = [
-    ...new Set(
-      (Array.isArray(rawMode.item_urls) ? rawMode.item_urls : [])
-        .map((url) => normalizeWebsiteUrl(url).split("#")[0])
-        .filter(
-          (url) =>
-            url &&
-            isSameRootDomainOrSubdomain(url, normalizeWebsiteUrl(fallbackWebsiteUrl))
-        )
-    ),
-  ];
-  const available = Boolean(rawMode.available) && itemUrls.length >= 4;
+
+  const evidenceSuggestsProductBasedWebsite = hasProductBasedWebsiteEvidence(evidenceText);
+
+  const available = Boolean(rawMode.available) || evidenceSuggestsProductBasedWebsite;
 
   const reason = String(rawMode.reason || "")
     .trim()
@@ -769,20 +754,16 @@ function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "", evidence
 
   return {
     available,
-    reason: available
-      ? reason || "At least four individual item pages were found on the business website."
-      : `Only ${itemUrls.length} individual item page${itemUrls.length === 1 ? " was" : "s were"} found; at least 4 are required. External marketplaces and category pages do not qualify.`,
+    reason:
+      reason ||
+      (available
+        ? evidenceSuggestsProductBasedWebsite
+          ? "The website appears to be product-based/ecommerce. Product pages are verified again when a product post is generated."
+          : "The website appears to contain sellable items that can be used for website-based posts."
+        : "No clear sellable website item was found during brand analysis."),
     source_url: available
-      ? normalizedSourceUrl &&
-        isSameRootDomainOrSubdomain(
-          normalizedSourceUrl,
-          normalizeWebsiteUrl(fallbackWebsiteUrl)
-        )
-        ? normalizedSourceUrl
-        : normalizeWebsiteUrl(fallbackWebsiteUrl)
+      ? normalizedSourceUrl || normalizeWebsiteUrl(fallbackWebsiteUrl)
       : "",
-    detected_item_count: itemUrls.length,
-    item_urls: itemUrls,
   };
 }
 function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
@@ -975,7 +956,7 @@ async function detectWebsiteLanguageWithOpenAI({
   const visibleText = truncateText(stripHtmlToText(html), 12000);
 
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.helper,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -1044,14 +1025,53 @@ Rules:
   };
 }
 
-async function fetchWebsiteHtml(websiteUrl, options = {}) {
+async function fetchWebsiteHtml(websiteUrl) {
   const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
 
   if (!normalizedWebsiteUrl) {
     throw new Error("Website URL is required");
   }
 
-  return fetchWebsiteHtmlRobust(normalizedWebsiteUrl, options);
+  const safeWebsiteUrl = await assertPublicHttpUrl(normalizedWebsiteUrl);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    WEBSITE_FETCH_TIMEOUT_MS
+  );
+
+  try {
+    const response = await fetch(safeWebsiteUrl, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; SpreeloBot/1.0; +https://app.spreelo.com)",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Website returned ${response.status}`);
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+
+    if (!contentType.toLowerCase().includes("text/html")) {
+      throw new Error("Website did not return HTML");
+    }
+
+    const html = await response.text();
+
+    return {
+      url: safeWebsiteUrl,
+      html,
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function checkRateLimit({ supabase, userId }) {
@@ -1310,7 +1330,7 @@ async function analyzeWebsiteWithOpenAI({
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.brandAnalysis,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -1568,12 +1588,13 @@ Rules:
 - Also decide if "Sell something from my website" should be available for this brand.
 
 Website product mode rule:
-- website_product_mode.available means Spreelo found enough real items for repeated product posts and a carousel.
-- Set it to true only when at least 4 distinct individual items are directly verifiable on the business website's own domain. Return their exact detail-page URLs in website_product_mode.item_urls.
-- External marketplaces, auction sites, booking portals, social networks and reseller pages never count.
-- Category/search/navigation pages, general service descriptions, model-family pages and broad product mentions do not count as individual items.
-- If fewer than 4 qualifying same-domain item URLs are present in the supplied evidence, set available to false and source_url to an empty string.
-- A commercial-looking website with incomplete item-level evidence must remain false until a later analysis can verify enough real items.
+- website_product_mode.available means Spreelo is allowed to use the website product/service research flow for this brand. It does not mean the first brand-analysis scrape already found the final product to post.
+- Set website_product_mode.available to true when the website appears product-based, ecommerce, retail, catalog-based, service-menu-based, bookable, listing-based, restaurant/menu-based, course/event-based or otherwise likely to contain concrete sellable/selectable website items.
+- For obvious ecommerce, online stores, product catalogs, retail chains with online assortment, electronics stores, fashion stores, pet stores, toy stores, gift stores, grocery/supermarket sites with product/offer pages, or similar product-led businesses, prefer true even if the first fetched page mostly shows categories, campaign areas or navigation.
+- Large stores and retail chains must NOT be set to false just because they are large, have many categories, use campaign pages, or require deeper product discovery. Spreelo verifies concrete product pages later when a product post is generated.
+- True is appropriate when the provided content shows several commerce/category/product signals such as product/category navigation, shop/store/webshop wording, buy/order/cart/checkout wording, product cards/pages, prices, offers, SKU/Product/Offer structured data, product images, catalog sections or item listings.
+- Set website_product_mode.available to false only when the website is mainly informational, brochure-only, portfolio/blog/news-only, a pure store locator, or does not appear to provide any realistic website items for Spreelo to research.
+- If the site appears product-based/ecommerce but item-level evidence is incomplete in this first analysis, set available true and explain that product pages must be verified during post generation.
 
 Examples:
 - Online clothing store with product cards, product names, images and prices: true.
@@ -1608,7 +1629,7 @@ Campaign rule:
 `.trim(),
       },
     ],
-    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
+    temperature: 0.2,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -1633,8 +1654,7 @@ Campaign rule:
   "website_product_mode": {
     "available": false,
     "reason": "",
-    "source_url": "",
-    "item_urls": []
+    "source_url": ""
   },
   "campaign_opportunities": []
 }
@@ -1680,7 +1700,7 @@ async function analyzeDescriptionWithOpenAI({
   campaignCalendarYear,
 }) {
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.brandAnalysis,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -1866,7 +1886,7 @@ Rules:
 `.trim(),
       },
     ],
-    ...getTemperatureOptions(OPENAI_MODELS.brandAnalysis, 0.2),
+    temperature: 0.2,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";

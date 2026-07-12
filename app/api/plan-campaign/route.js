@@ -1,10 +1,5 @@
 import OpenAI from "openai";
-import { OPENAI_MODELS } from "../../../lib/openaiModels.js";
 import { createClient } from "@supabase/supabase-js";
-import {
-  campaignHasProductWebsiteFit,
-  resolveProductCampaignSourceMode,
-} from "../../../lib/campaignContentPolicy.js";
 
 export const maxDuration = 60;
 
@@ -390,61 +385,8 @@ function normalizePlan(rawPlan, campaign) {
   };
 }
 
-function applyCampaignContentPolicy(plan, campaign, brandProfile = {}) {
-  const policyCampaign = {
-    ...(campaign || {}),
-    website_product_mode_available:
-      brandProfile?.website_product_mode_available ??
-      campaign?.website_product_mode_available ??
-      false,
-    website_single_product_post_available:
-      brandProfile?.website_single_product_post_available ??
-      campaign?.website_single_product_post_available ??
-      false,
-    website_carousel_mode_available:
-      brandProfile?.website_carousel_mode_available ??
-      campaign?.website_carousel_mode_available ??
-      false,
-  };
-  const items = Array.isArray(plan?.post_plan) ? plan.post_plan : [];
-
-  return {
-    ...(plan || {}),
-    post_plan: items.map((item, index) => {
-      const resolvedMode = resolveProductCampaignSourceMode({
-        campaign: policyCampaign,
-        postPlanItem: item,
-        index,
-        total: items.length,
-      });
-
-      return {
-        ...item,
-        content_source_mode:
-          resolvedMode || item?.content_source_mode || "generic_campaign",
-      };
-    }),
-  };
-}
-
-function buildFallbackPlan(campaign, brandProfile = {}) {
+function buildFallbackPlan(campaign) {
   const count = clampNumber(campaign?.recommended_post_count, 1, 5, getDefaultCampaignCount(campaign));
-  const fallbackCampaign = {
-    ...(campaign || {}),
-    website_product_mode_available:
-      brandProfile?.website_product_mode_available ??
-      campaign?.website_product_mode_available ??
-      false,
-    website_single_product_post_available:
-      brandProfile?.website_single_product_post_available ??
-      campaign?.website_single_product_post_available ??
-      false,
-    website_carousel_mode_available:
-      brandProfile?.website_carousel_mode_available ??
-      campaign?.website_carousel_mode_available ??
-      false,
-  };
-  const useProductFallback = campaignHasProductWebsiteFit(fallbackCampaign);
   const sequence = count <= 1
     ? [["Main campaign post", "Combine timing, relevance and a clear next step.", "product_push", "warm", "medium", "generic_campaign"]]
     : count === 2
@@ -470,16 +412,7 @@ function buildFallbackPlan(campaign, brandProfile = {}) {
       marketing_angle: item[2],
       customer_stage: item[3],
       cta_strength: item[4],
-      content_source_mode:
-        useProductFallback ||
-        ![
-          "mixed_campaign_and_website",
-          "website_product",
-          "website_service",
-          "website_carousel",
-        ].includes(item[5])
-          ? item[5]
-          : "generic_campaign",
+      content_source_mode: item[5],
       campaign_phase: item[2],
       timing_anchor: "",
       publish_date: "",
@@ -526,7 +459,7 @@ export async function POST(request) {
 
     const { data: brandProfile, error: brandError } = await supabase
       .from("brand_profiles")
-      .select("id, business_name, website_url, industry, target_audience, brand_description, country_code, content_market, content_language, website_product_mode_available, website_single_product_post_available, website_carousel_mode_available")
+      .select("id, business_name, website_url, industry, target_audience, brand_description, country_code, content_market, content_language, website_product_mode_available")
       .eq("id", brandProfileId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -552,34 +485,11 @@ export async function POST(request) {
       campaign.post_plan.length > 0 &&
       planHasProductSearchMetadata(campaign.post_plan)
     ) {
-      const storedPlan = applyCampaignContentPolicy(
-        {
-          recommended_post_count: campaign.post_plan.length,
-          strategy_summary: "",
-          post_plan: campaign.post_plan,
-        },
-        campaign,
-        brandProfile
-      );
-
-      await supabase
-        .from("brand_campaign_opportunities")
-        .update({
-          recommended_post_count: storedPlan.post_plan.length,
-          post_plan: storedPlan.post_plan,
-        })
-        .eq("id", campaign.id)
-        .eq("user_id", user.id);
-
-      return Response.json({
-        campaign: { ...campaign, post_plan: storedPlan.post_plan },
-        post_plan: storedPlan.post_plan,
-        source: "database",
-      });
+      return Response.json({ campaign, post_plan: campaign.post_plan, source: "database" });
     }
 
     const response = await openai.responses.create({
-      model: OPENAI_MODELS.campaignPlanning,
+      model: "gpt-5.5",
       instructions: `You are Spreelo's senior campaign strategist. Create a practical social media campaign sequence for a real small business. Think like a senior marketer at a strong brand: every post must have a clear job, timing, format and reason. Return valid JSON only. Do not include finished captions or finished image prompts.`,
       input: `
 Create the detailed post plan for this selected calendar campaign.
@@ -594,8 +504,6 @@ Business:
 - Country code: ${brandProfile.country_code || campaign.country_code || ""}
 - Content language: ${brandProfile.content_language || campaign.language || ""}
 - Website products/services available: ${brandProfile.website_product_mode_available ? "yes" : "unknown/no"}
-- Single website product posts available: ${brandProfile.website_single_product_post_available ? "yes" : "no"}
-- Website product carousel available: ${brandProfile.website_carousel_mode_available ? "yes" : "no"}
 
 Campaign:
 - Title: ${campaign.title || ""}
@@ -671,14 +579,7 @@ Strategic rules:
 
     const parsed = safeJsonParse(response.output_text);
     const normalizedPlan = normalizePlan(parsed, campaign);
-    const basePlan = normalizedPlan.post_plan.length > 0
-      ? normalizedPlan
-      : buildFallbackPlan(campaign, brandProfile);
-    const finalPlan = applyCampaignContentPolicy(
-      basePlan,
-      campaign,
-      brandProfile
-    );
+    const finalPlan = normalizedPlan.post_plan.length > 0 ? normalizedPlan : buildFallbackPlan(campaign);
 
     const updatedCampaign = {
       ...campaign,
