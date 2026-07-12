@@ -753,11 +753,22 @@ function campaignNeedsProductMetadata(opportunity) {
 
   const matchTerms = normalizeCampaignTerms(opportunity?.product_match_terms);
   const blueprintMatchTerms = normalizeCampaignTerms(opportunity?.campaign_blueprint?.product_match_terms);
-  const searchQueries = normalizeCampaignTerms(
+  const searchQueries = normalizeCampaignProductSearchQueriesForOpportunity(
     opportunity?.product_search_queries || opportunity?.campaign_blueprint?.product_search_queries
   );
+  const searchIntent = normalizeShortText(
+    opportunity?.product_search_intent || opportunity?.campaign_blueprint?.product_search_intent,
+    300
+  );
 
-  return matchTerms.length === 0 && blueprintMatchTerms.length === 0 && searchQueries.length === 0;
+  // Repair metadata that is technically present but too weak to build a useful
+  // store-search pool. This catches long campaign-goal sentences that are
+  // discarded by the compact query normalizer.
+  return (
+    Math.max(matchTerms.length, blueprintMatchTerms.length) < 5 ||
+    searchQueries.length < 5 ||
+    !searchIntent
+  );
 }
 
 function mergeCampaignProductMetadata(opportunity, metadata) {
@@ -769,8 +780,7 @@ function mergeCampaignProductMetadata(opportunity, metadata) {
     opportunity,
     metadata.product_match_terms
   );
-  const productSearchQueries = normalizeCampaignProductTermsForOpportunity(
-    opportunity,
+  const productSearchQueries = normalizeCampaignProductSearchQueriesForOpportunity(
     metadata.product_search_queries || metadata.search_queries || metadata.local_search_queries
   );
   const productAvoidTerms = normalizeCampaignTerms(
@@ -779,6 +789,10 @@ function mergeCampaignProductMetadata(opportunity, metadata) {
   const productSelectionGuidance = normalizeShortText(
     metadata.product_selection_guidance || opportunity.product_selection_guidance,
     700
+  );
+  const productSearchIntent = normalizeShortText(
+    metadata.product_search_intent || metadata.search_strategy || opportunity.product_search_intent,
+    300
   );
   const websiteProductSelectionHint = normalizeWebsiteProductSelectionHint(
     metadata.website_product_selection_hint || opportunity.website_product_selection_hint
@@ -791,6 +805,7 @@ function mergeCampaignProductMetadata(opportunity, metadata) {
     product_avoid_terms: productAvoidTerms.length ? productAvoidTerms : opportunity.product_avoid_terms,
     avoid_terms: productAvoidTerms.length ? productAvoidTerms : opportunity.avoid_terms,
     product_selection_guidance: productSelectionGuidance || opportunity.product_selection_guidance,
+    product_search_intent: productSearchIntent || opportunity.product_search_intent,
     website_product_selection_hint: websiteProductSelectionHint || opportunity.website_product_selection_hint,
   };
 
@@ -846,8 +861,12 @@ Create compact, campaign-specific product metadata that helps a website product 
 Rules:
 - Work in the business/customer language and market. Do not default to Swedish or English unless the website/market uses those terms.
 - Do not use hardcoded holiday dictionaries. Infer terms from the campaign, market, business type, website evidence and product/category hints below.
-- product_match_terms: 10 to 20 concrete product/category/use-case/search terms likely to appear in product titles, category names, URLs or customer searches for items that truly fit the campaign.
-- product_search_queries: 5 to 10 short website search/category queries to try first.
+- First infer how this specific store names and organizes products from the website hints: for example motif/design-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led or brand/model-led.
+- product_search_intent: one short internal sentence explaining the best search strategy for this business and campaign.
+- product_match_terms: 10 to 20 concrete theme, motif, category, recipient or use-case terms likely to appear in product titles, category names, URLs or customer searches for items that truly fit the campaign.
+- product_search_queries: 8 to 12 simple website searches. Usually use 1 to 3 words, never more than 4. Diversify the searches instead of prefixing the campaign name to every query.
+- For motif/design-led stores, prefer motif words and expressions likely to be product titles. For costume stores, prefer costume/character/mask terms. For other businesses, adapt the query style to how that business actually names and groups its products.
+- Never use campaign goals, marketing sentences or filler such as “increase sales of…”. Do not create broad queries that are only a generic product type unless that type is itself the campaign.
 - product_avoid_terms: 6 to 15 broad nearby-but-wrong product/category terms when there are obvious risks. Use [] only if there are no clear wrong nearby categories.
 - Do not invent exact product names unless they are supported by the provided website hints. Category/search terms are fine.
 - Do not over-block the store. Avoid terms should prevent bad substitutions, not ban everything outside one narrow word.
@@ -889,6 +908,7 @@ Return JSON only:
       "product_match_terms": ["term"],
       "product_search_queries": ["query"],
       "product_avoid_terms": ["term"],
+      "product_search_intent": "Short business-specific store-search strategy.",
       "product_selection_guidance": "Short guidance for selecting matching products and avoiding weak substitutions.",
       "website_product_selection_hint": "Short product-selection hint."
     }
@@ -916,6 +936,7 @@ Return JSON only:
       "product_match_terms": [],
       "product_search_queries": [],
       "product_avoid_terms": [],
+      "product_search_intent": "",
       "product_selection_guidance": "",
       "website_product_selection_hint": ""
     }
@@ -1224,11 +1245,40 @@ function anchorCampaignTerm(term, anchorTokens) {
 }
 
 function normalizeCampaignProductTermsForOpportunity(rawOpportunity, value, limit = 24) {
-  const terms = normalizeCampaignTerms(value);
-  const anchorTokens = getCampaignTermAnchorTokens(rawOpportunity);
-  const anchoredTerms = terms.map((term) => anchorCampaignTerm(term, anchorTokens));
+  // Product match terms must remain the concrete words the analysis created.
+  // Automatically prefixing the campaign name made every term repetitive and
+  // turned broad store words into artificial theme matches.
+  return normalizeCampaignTerms(value).slice(0, limit);
+}
 
-  return normalizeCampaignTerms(anchoredTerms).slice(0, limit);
+function normalizeCampaignProductSearchQueriesForOpportunity(value, limit = 12) {
+  const seen = new Set();
+  const queries = [];
+
+  for (const rawQuery of normalizeCampaignTerms(value)) {
+    const query = String(rawQuery || "")
+      .replace(/[.!?]+$/u, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 50);
+    const words = query.split(/\s+/u).filter(Boolean);
+    const key = query.toLocaleLowerCase();
+
+    // A real store-search query should be compact. Longer campaign goals and
+    // explanatory sentences create noisy or empty store-search result pages.
+    if (!query || words.length < 1 || words.length > 4 || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    queries.push(query);
+
+    if (queries.length >= limit) {
+      break;
+    }
+  }
+
+  return queries;
 }
 
 
@@ -1272,8 +1322,7 @@ export function normalizeCampaignBlueprint(rawOpportunity) {
     rawOpportunity,
     rawOpportunity?.product_match_terms
   );
-  const productSearchQueries = normalizeCampaignProductTermsForOpportunity(
-    rawOpportunity,
+  const productSearchQueries = normalizeCampaignProductSearchQueriesForOpportunity(
     rawOpportunity?.product_search_queries ||
       rawOpportunity?.search_queries ||
       rawOpportunity?.local_search_queries
@@ -1298,6 +1347,10 @@ export function normalizeCampaignBlueprint(rawOpportunity) {
       rawOpportunity?.product_selection_guidance ||
         rawOpportunity?.website_product_selection_hint,
       700
+    ),
+    product_search_intent: normalizeShortText(
+      rawOpportunity?.product_search_intent || rawOpportunity?.search_strategy,
+      300
     ),
     tone_guidance: normalizeShortText(rawOpportunity?.tone_guidance, 500),
     cta_guidance: normalizeShortText(rawOpportunity?.cta_guidance, 500),
@@ -1387,8 +1440,7 @@ export function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
     rawOpportunity,
     rawOpportunity?.product_match_terms
   );
-  const productSearchQueries = normalizeCampaignProductTermsForOpportunity(
-    rawOpportunity,
+  const productSearchQueries = normalizeCampaignProductSearchQueriesForOpportunity(
     rawOpportunity?.product_search_queries ||
       rawOpportunity?.search_queries ||
       rawOpportunity?.local_search_queries
@@ -1446,6 +1498,10 @@ export function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
       rawOpportunity?.product_selection_guidance ||
         rawOpportunity?.website_product_selection_hint,
       700
+    ),
+    product_search_intent: normalizeShortText(
+      rawOpportunity?.product_search_intent || rawOpportunity?.search_strategy,
+      300
     ),
     product_match_terms: productMatchTerms,
     product_search_queries: productSearchQueries,
@@ -1812,7 +1868,8 @@ Return JSON only in this exact shape:
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
       "product_match_terms": ["10-20 compact product/category/use-case/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
-      "product_search_queries": ["5-10 short website search/category queries to find matching items for this campaign"],
+      "product_search_queries": ["8-12 simple, varied, business-adapted website searches, usually 1-3 words and never more than 4"],
+      "product_search_intent": "One short internal sentence describing how this store should be searched for this campaign based on how its products are named and organized",
       "product_avoid_terms": ["6-15 broad nearby-but-wrong product/category/search terms that should be avoided for this campaign when better matching products exist"],
       "avoid_terms": ["Same values as product_avoid_terms for compatibility"],
       "relevance_reason": "Why this opportunity fits this specific business",
@@ -1881,14 +1938,16 @@ Campaign strategy:
 - Every campaign must include a strategic campaign blueprint.
 - For every campaign_opportunity that uses website_content_strategy "product" or "service", create product_match_terms, product_search_queries, product_avoid_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy. They must be broad enough to find several different matching products over repeated posts, but still specific to the campaign.
 - Use the compact product/category hints from the website and the checked context pages when creating these terms. The terms should reflect what this business appears to sell, not a generic holiday dictionary.
-- product_match_terms must contain 10-20 concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms, common imported terms only when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
-- product_search_queries must contain 5-10 short website search/category queries the product engine should try first.
+- First infer how this specific business names, groups and exposes products from the compact website assortment hints. Decide whether the best store-search strategy is motif/design-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led, brand/model-led or another business-specific pattern.
+- product_search_intent must summarize that business-specific search strategy in one short internal sentence.
+- product_match_terms must contain 10-20 concrete theme, motif, category, recipient or use-case terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms and common imported terms only when they are actually used in that market.
+- product_search_queries must contain 8-12 simple, varied store-search queries. Usually use 1-3 words and never more than 4 words.
+- Do not automatically prefix the campaign name to every query. Use the campaign name once when useful, then use distinct theme synonyms, motifs, characters, product language or use cases that fit how this store names its products.
+- Never put campaign goals, explanatory sentences or marketing instructions in product_search_queries. Do not split useful multiword phrases into unrelated single words later.
+- For motif/design-led stores, prefer motif words and title-like expressions. For costume stores, prefer costume, character, mask, makeup and accessory terms. For other businesses, adapt the query types to the real assortment evidence instead of using a generic holiday dictionary.
 - product_avoid_terms and avoid_terms must contain 6-15 broad or misleading nearby product categories that should not be selected when better campaign-specific products exist. Use [] only if there are no obvious nearby wrong product groups.
 - For themed campaigns, each product_match_term must be able to identify products that fit the campaign by itself. Do not include broad store categories merely because the business sells them or because they could be given as gifts.
-- If a product category is broad but useful, combine it with the campaign theme, recipient, occasion or local search phrase instead of using the broad category alone. For example, prefer theme/category phrases over standalone category words.
-- Do not put standalone broad assortment/category words in product_match_terms unless the term also carries the campaign theme, occasion, recipient, use case or the campaign is explicitly about that category.
-- product_search_queries are mandatory for product/service campaigns. They should be the exact short searches the store search should try first, including local-language theme/category combinations when useful.
-- Before returning each product_match_term, ask: "If the product engine searched only this term, would the results mostly fit this campaign?" If not, rewrite it with the campaign theme/occasion/recipient or move it to avoid_terms.
+- Before returning each product_match_term, ask: "If a product matched only this term, would it still genuinely fit the campaign?" If not, remove it or rewrite it.
 - Keep these fields short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
 - These fields are used directly by the product engine, so never leave product_match_terms or product_search_queries empty for product/service-based campaigns. Create enough specific, non-overlapping terms to support product rotation across multiple posts without repeating the same products.
 - Every campaign should move the audience from interest to action.
@@ -2096,7 +2155,8 @@ Return JSON only in this exact shape:
       "cta_guidance": "How the call to action should develop across the campaign",
       "image_guidance": "What kind of images should support this campaign",
       "product_match_terms": ["10-20 compact product/category/use-case/search terms that should identify matching products for this campaign, in the business/customer language plus common local synonyms when useful"],
-      "product_search_queries": ["5-10 short website search/category queries to find matching items for this campaign"],
+      "product_search_queries": ["8-12 simple, varied, business-adapted website searches, usually 1-3 words and never more than 4"],
+      "product_search_intent": "One short internal sentence describing how this store should be searched for this campaign based on how its products are named and organized",
       "product_avoid_terms": ["6-15 broad nearby-but-wrong product/category/search terms that should be avoided for this campaign when better matching products exist"],
       "avoid_terms": ["Same values as product_avoid_terms for compatibility"],
       "relevance_reason": "Why this opportunity fits this specific business",
@@ -2165,14 +2225,16 @@ Campaign strategy:
 - Every campaign must include a strategic campaign blueprint.
 - For every campaign_opportunity that uses website_content_strategy "product" or "service", create product_match_terms, product_search_queries, product_avoid_terms and avoid_terms yourself. These are compact search/filter terms for the product engine, not finished social copy. They must be broad enough to find several different matching products over repeated posts, but still specific to the campaign.
 - Use the compact product/category hints from the website and the checked context pages when creating these terms. The terms should reflect what this business appears to sell, not a generic holiday dictionary.
-- product_match_terms must contain 10-20 concrete terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms, common imported terms only when they are actually used in that market, recipient/use-case/category words, and product-type words when useful.
-- product_search_queries must contain 5-10 short website search/category queries the product engine should try first.
+- First infer how this specific business names, groups and exposes products from the compact website assortment hints. Decide whether the best store-search strategy is motif/design-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led, brand/model-led or another business-specific pattern.
+- product_search_intent must summarize that business-specific search strategy in one short internal sentence.
+- product_match_terms must contain 10-20 concrete theme, motif, category, recipient or use-case terms customers or product URLs/titles/categories are likely to use for products that truly fit this campaign. Include local-language synonyms and common imported terms only when they are actually used in that market.
+- product_search_queries must contain 8-12 simple, varied store-search queries. Usually use 1-3 words and never more than 4 words.
+- Do not automatically prefix the campaign name to every query. Use the campaign name once when useful, then use distinct theme synonyms, motifs, characters, product language or use cases that fit how this store names its products.
+- Never put campaign goals, explanatory sentences or marketing instructions in product_search_queries. Do not split useful multiword phrases into unrelated single words later.
+- For motif/design-led stores, prefer motif words and title-like expressions. For costume stores, prefer costume, character, mask, makeup and accessory terms. For other businesses, adapt the query types to the real assortment evidence instead of using a generic holiday dictionary.
 - product_avoid_terms and avoid_terms must contain 6-15 broad or misleading nearby product categories that should not be selected when better campaign-specific products exist. Use [] only if there are no obvious nearby wrong product groups.
 - For themed campaigns, each product_match_term must be able to identify products that fit the campaign by itself. Do not include broad store categories merely because the business sells them or because they could be given as gifts.
-- If a product category is broad but useful, combine it with the campaign theme, recipient, occasion or local search phrase instead of using the broad category alone. For example, prefer theme/category phrases over standalone category words.
-- Do not put standalone broad assortment/category words in product_match_terms unless the term also carries the campaign theme, occasion, recipient, use case or the campaign is explicitly about that category.
-- product_search_queries are mandatory for product/service campaigns. They should be the exact short searches the store search should try first, including local-language theme/category combinations when useful.
-- Before returning each product_match_term, ask: "If the product engine searched only this term, would the results mostly fit this campaign?" If not, rewrite it with the campaign theme/occasion/recipient or move it to avoid_terms.
+- Before returning each product_match_term, ask: "If a product matched only this term, would it still genuinely fit the campaign?" If not, remove it or rewrite it.
 - Keep these fields short, language-aware and market-aware. Do not rely on Swedish or English unless that fits the business/market.
 - These fields are used directly by the product engine, so never leave product_match_terms or product_search_queries empty for product/service-based campaigns. Create enough specific, non-overlapping terms to support product rotation across multiple posts without repeating the same products.
 - Every campaign should move the audience from interest to action.

@@ -3042,29 +3042,6 @@ async function prepareCarouselProductsForRule({
     }
 
     if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
-      const freshRelevantProducts = getFreshRelevantCampaignProductCandidates({
-        items: dedupeWebsiteItemsByUrlTitleAndImage([
-          ...campaignCandidateUniverse,
-          ...catalogItems,
-        ]),
-        rule,
-        sourceUrl: websiteUrl,
-        recentUsedItems,
-        usedWebsiteImageUrlsThisRun,
-        minimumScore: 30,
-      });
-      const mergedProducts = mergeCarouselProductSelections(
-        selectedProducts,
-        freshRelevantProducts,
-        websiteUrl
-      );
-
-      if (mergedProducts.length > selectedProducts.length) {
-        selectedProducts = mergedProducts;
-      }
-    }
-
-    if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
       const finalDeliveryProducts = selectCampaignCarouselProductsByDeliveryLadder({
         items: dedupeWebsiteItemsByUrlTitleAndImage([
           ...campaignCandidateUniverse,
@@ -4122,6 +4099,13 @@ function collectAutomationRunProductLogData({ websiteItem = null, websiteItems =
       search_method: method,
       campaign_fit_score: Number.isFinite(Number(item?.campaign_fit_score)) ? Number(item.campaign_fit_score) : null,
       campaign_fit_source: String(item?.campaign_fit_source || "").trim() || null,
+      ai_campaign_fit_score: Number.isFinite(Number(item?.ai_campaign_fit_score))
+        ? Number(item.ai_campaign_fit_score)
+        : null,
+      ai_campaign_fit_source: String(item?.ai_campaign_fit_source || "").trim() || null,
+      ai_campaign_fit_model: String(item?.ai_campaign_fit_model || "").trim() || null,
+      campaign_fit_verdict: String(item?.campaign_fit_verdict || "").trim() || null,
+      campaign_fit_reason: String(item?.campaign_fit_reason || "").trim() || null,
       discovery_source: String(item?.discovery_source || "").trim() || null,
       catalog_source: String(item?.catalog_source || "").trim() || null,
       selection_priority: Number.isFinite(Number(item?.selection_priority)) ? Number(item.selection_priority) : null,
@@ -6256,7 +6240,10 @@ function getWebsiteCatalogUsedSource(rule) {
 
 function buildCampaignResearchText(rule) {
   const productMatchTerms = splitCampaignTermLine(rule?.product_match_terms).slice(0, 16);
-  const productSearchQueries = splitCampaignTermLine(rule?.product_search_queries).slice(0, 8);
+  const productSearchQueries = normalizeStoreSearchQueries(
+    splitCampaignTermLine(rule?.product_search_queries),
+    CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
+  );
   const productAvoidTerms = collectUniqueTerms(
     [
       ...splitCampaignTermLine(rule?.product_avoid_terms),
@@ -6279,7 +6266,7 @@ function buildCampaignResearchText(rule) {
     rule?.strategy_notes,
   ]
     .filter(Boolean)
-    .join(" ")
+    .join("\n")
     .trim();
 }
 
@@ -6400,144 +6387,107 @@ function splitCampaignTermLine(value) {
     .filter((term) => term.length >= 2 && term.length <= 70 && !/^\d+$/.test(term));
 }
 
-function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_SEARCH_QUERY_LIMIT) {
-  const existingQueries = splitCampaignTermLine(rule?.product_search_queries);
-  if (existingQueries.length) {
-    return anchorCampaignTermsForRule(existingQueries, rule, limit);
-  }
+function normalizeStoreSearchQueries(values, limit = CAMPAIGN_STORE_SEARCH_QUERY_LIMIT) {
+  const seen = new Set();
+  const queries = [];
 
-  const rawProductMatchTerms = splitCampaignTermLine(rule?.product_match_terms);
-  const supportedProductMatchTerms = filterCampaignMatchTermsForRule(rawProductMatchTerms, rule);
-  const unsupportedProductMatchTerms = rawProductMatchTerms.filter(
-    (term) => !supportedProductMatchTerms.includes(term)
-  );
-  const campaignThemeTerms = collectUniqueTerms(
-    [
-      ...extractCampaignCoreThemeTerms(rule),
-      ...splitCampaignTermLine(rule?.name),
-      ...splitCampaignTermLine(rule?.campaign_goal),
-      ...splitCampaignTermLine(rule?.target_customer_need),
-      ...splitCampaignTermLine(rule?.product_search_intent),
-    ],
-    8
-  );
-  const scopedProductQueries = [];
+  for (const rawValue of values || []) {
+    const query = normalizeSearchText(rawValue)
+      .replace(/https?:\/\/\S+/giu, " ")
+      .replace(/[.!?]+$/u, "")
+      .replace(/[^\p{L}\p{N}'&+\-/ ]+/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 50);
+    const words = query.split(/\s+/u).filter(Boolean);
 
-  for (const themeTerm of campaignThemeTerms.slice(0, 4)) {
-    for (const productTerm of unsupportedProductMatchTerms.slice(0, 8)) {
-      if (!themeTerm || !productTerm || productTerm.includes(themeTerm)) {
-        continue;
-      }
+    if (
+      !query ||
+      words.length < 1 ||
+      words.length > 4 ||
+      /^\d+$/u.test(query) ||
+      genericWebsiteTextIntentTokens.has(query) ||
+      seen.has(query)
+    ) {
+      continue;
+    }
 
-      scopedProductQueries.push(`${themeTerm} ${productTerm}`);
-      scopedProductQueries.push(`${productTerm} ${themeTerm}`);
+    seen.add(query);
+    queries.push(query);
+
+    if (queries.length >= limit) {
+      break;
     }
   }
 
-  const seedTerms = [
-    ...campaignThemeTerms,
-    ...supportedProductMatchTerms,
-    ...scopedProductQueries,
-    ...splitCampaignTermLine(rule?.product_search_intent),
-    ...splitCampaignTermLine(rule?.campaign_category),
-    ...splitCampaignTermLine(rule?.prompt),
-  ];
+  return queries;
+}
 
-  const normalizedQueries = collectUniqueTerms(seedTerms, limit)
-    .map((term) => anchorCampaignTermsForRule([term], rule, 1)[0] || term)
-    .filter((term) => {
-      const words = term.split(/\s+/).filter(Boolean);
-      if (!words.length || words.length > 6) return false;
-      if (genericWebsiteTextIntentTokens.has(term)) return false;
-      return true;
-    })
-    .slice(0, limit);
+function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_SEARCH_QUERY_LIMIT) {
+  const existingQueries = normalizeStoreSearchQueries(
+    splitCampaignTermLine(rule?.product_search_queries),
+    limit
+  );
+  const rawProductMatchTerms = splitCampaignTermLine(rule?.product_match_terms);
+  const supportedProductMatchTerms = normalizeStoreSearchQueries(
+    filterCampaignMatchTermsForRule(rawProductMatchTerms, rule),
+    limit
+  );
+  const campaignThemeTerms = normalizeStoreSearchQueries(
+    extractCampaignCoreThemeTerms(rule),
+    limit
+  );
 
-  if (normalizedQueries.length) {
-    return normalizedQueries;
-  }
-
-  // Last local fallback: use the campaign-specific AI terms themselves. These
-  // are still dynamic per campaign, but they prevent an empty query list from
-  // turning a valid campaign into a zero-product run.
-  return collectUniqueTerms(
+  // Keep the analysis-created phrases intact. Do not prefix the campaign name
+  // to every query and do not split useful phrases into arbitrary single words.
+  // The order favours the dedicated store-search queries, then the core theme,
+  // then additional concrete match terms.
+  return normalizeStoreSearchQueries(
     [
-      ...rawProductMatchTerms,
+      ...existingQueries,
       ...campaignThemeTerms,
-      ...scopedProductQueries,
+      ...supportedProductMatchTerms,
     ],
     limit
-  )
-    .map((term) => anchorCampaignTermsForRule([term], rule, 1)[0] || term)
-    .filter((term) => {
-      const words = term.split(/\s+/).filter(Boolean);
-      return words.length > 0 && words.length <= 6 && !genericWebsiteTextIntentTokens.has(term);
-    })
-    .slice(0, limit);
+  );
 }
 
 async function ensureProductSearchQueriesForRule({ supabase, rule }) {
-  const fallbackQueries = buildFallbackProductSearchQueriesForRule(rule);
+  const normalizedQueries = buildFallbackProductSearchQueriesForRule(rule);
 
-  if (!fallbackQueries.length) {
+  if (!normalizedQueries.length) {
     return rule;
   }
 
-  const existingQueries = splitCampaignTermLine(rule?.product_search_queries);
-  if (existingQueries.length) {
-    const normalizedExistingQueries = anchorCampaignTermsForRule(
-      existingQueries,
-      rule,
-      CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
-    );
+  const existingQueries = normalizeStoreSearchQueries(
+    splitCampaignTermLine(rule?.product_search_queries),
+    CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
+  );
+  const changed = normalizedQueries.join("|") !== existingQueries.join("|");
 
+  if (changed) {
     try {
-      if (normalizedExistingQueries.join("|") !== collectUniqueTerms(existingQueries, CAMPAIGN_STORE_SEARCH_QUERY_LIMIT).join("|")) {
-        await supabase
-          .from("automation_rules")
-          .update({
-            product_search_queries: normalizedExistingQueries,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", rule.id)
-          .eq("user_id", rule.user_id);
-      }
+      await supabase
+        .from("automation_rules")
+        .update({
+          product_search_queries: normalizedQueries,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", rule.id)
+        .eq("user_id", rule.user_id);
     } catch (error) {
       console.warn("Could not persist normalized product_search_queries; using them for this run only", {
         ruleId: rule?.id,
         message: error?.message,
       });
     }
-
-    return {
-      ...rule,
-      product_search_queries: normalizedExistingQueries,
-    };
   }
 
-  const updatedRule = {
+  return {
     ...rule,
-    product_search_queries: fallbackQueries,
-    product_search_queries_derived: true,
+    product_search_queries: normalizedQueries,
+    product_search_queries_derived: !existingQueries.length,
   };
-
-  try {
-    await supabase
-      .from("automation_rules")
-      .update({
-        product_search_queries: fallbackQueries,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", rule.id)
-      .eq("user_id", rule.user_id);
-  } catch (error) {
-    console.warn("Could not persist derived product_search_queries; using them for this run only", {
-      ruleId: rule?.id,
-      message: error?.message,
-    });
-  }
-
-  return updatedRule;
 }
 
 function collectUniqueTerms(terms, limit = 24) {
@@ -7967,15 +7917,29 @@ function getCampaignProductSignalState(
   const anchorMatches = countCampaignAnchorTermMatches(item, rule);
   const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
   const aiCampaignFitScore = getAiCampaignFitScore(item);
-  const hasStrictThemeGuard = Boolean(
-    extractCampaignCoreThemeTerms(rule).length ||
-      extractCampaignAnchorTerms(rule).length
-  );
-  const hasDirectCampaignSignal = hasStrictThemeGuard
-    ? themeMatches + anchorMatches > 0
-    : primaryMatches > 0;
+  const coreThemeTerms = extractCampaignCoreThemeTerms(rule);
+  const anchorTerms = extractCampaignAnchorTerms(rule);
+  const hasCoreThemeGuard = coreThemeTerms.length > 0;
+  const hasAnchorGuard = !hasCoreThemeGuard && anchorTerms.length > 0;
+  const hasStrictThemeGuard = hasCoreThemeGuard || hasAnchorGuard;
+
+  // When the campaign has a clear occasion/theme such as Halloween, Christmas
+  // or Mother's Day, generic product words from the title (for example
+  // T-shirt, print, gift or hoodie) must not count as proof of theme relevance.
+  // Anchor terms are only allowed as the hard guard when no core theme could be
+  // derived at all.
+  const hasDirectCampaignSignal = hasCoreThemeGuard
+    ? themeMatches > 0
+    : hasAnchorGuard
+      ? anchorMatches > 0
+      : primaryMatches > 0;
+
+  const effectiveMinimumAiScore = hasStrictThemeGuard
+    ? Math.max(minimumAiScore, CAMPAIGN_NEAR_PRODUCT_FIT_SCORE)
+    : minimumAiScore;
   const hasAiCampaignApproval =
-    aiCampaignFitScore !== null && aiCampaignFitScore >= minimumAiScore;
+    aiCampaignFitScore !== null &&
+    aiCampaignFitScore >= effectiveMinimumAiScore;
 
   return {
     themeMatches,
@@ -7983,6 +7947,8 @@ function getCampaignProductSignalState(
     anchorMatches,
     primaryMatches,
     aiCampaignFitScore,
+    hasCoreThemeGuard,
+    hasAnchorGuard,
     hasStrictThemeGuard,
     hasDirectCampaignSignal,
     hasAiCampaignApproval,
@@ -8125,14 +8091,21 @@ function applyCampaignFitEvaluations(items, evaluationByIndex) {
       };
     }
 
+    const aiCampaignFitSource =
+      evaluation.model === PRODUCT_RESEARCH_MODEL
+        ? "ai_campaign_fit"
+        : "ai_campaign_fit_fast";
+
     return {
       ...item,
       ai_campaign_fit_score: evaluation.score,
       campaign_fit_score: evaluation.score,
-      campaign_fit_source:
-        evaluation.model === PRODUCT_RESEARCH_MODEL
-          ? "ai_campaign_fit"
-          : "ai_campaign_fit_fast",
+      // Keep the real discovery source (store search, campaign discovery, etc.)
+      // so logs and source-level safeguards remain truthful. AI scoring is
+      // recorded separately.
+      campaign_fit_source: item?.campaign_fit_source || aiCampaignFitSource,
+      ai_campaign_fit_source: aiCampaignFitSource,
+      ai_campaign_fit_model: evaluation.model,
       campaign_fit_verdict: evaluation.verdict,
       campaign_fit_reason: evaluation.reason,
     };
@@ -8253,10 +8226,14 @@ function scoreCampaignFitForRule(item, rule) {
   const anchorMatches = countCampaignAnchorTermMatches(item, rule);
   const anchorTerms = extractCampaignAnchorTerms(rule);
   const primaryMatches = countPrimaryCampaignTermMatches(item, rule);
-  const hasStrictThemeGuard = Boolean(themeTerms.length || anchorTerms.length);
-  const directCampaignSignalCount = hasStrictThemeGuard
-    ? themeMatches + anchorMatches
-    : primaryMatches;
+  const hasCoreThemeGuard = themeTerms.length > 0;
+  const hasAnchorGuard = !hasCoreThemeGuard && anchorTerms.length > 0;
+  const hasStrictThemeGuard = hasCoreThemeGuard || hasAnchorGuard;
+  const directCampaignSignalCount = hasCoreThemeGuard
+    ? themeMatches
+    : hasAnchorGuard
+      ? anchorMatches
+      : primaryMatches;
   if (!terms.length && !avoidTerms.length && !anchorTerms.length && !themeTerms.length) {
     return aiScore !== null ? aiScore : Number(item?.campaign_fit_score || 0);
   }
@@ -9525,66 +9502,53 @@ const weakShortSearchRoots = new Set([
   "till",
 ]);
 
-function addCampaignSearchVariants(searches, value, { allowShortRoot = false } = {}) {
-  const slug = makeSearchSlug(value);
+function addCampaignSearchVariants(searches, value) {
+  const query = normalizeStoreSearchQueries([value], 1)[0];
+  const slug = makeSearchSlug(query);
 
   if (slug) {
     searches.push(slug);
   }
+}
 
-  const words = normalizeSearchText(value)
-    .split(/[^\p{L}\p{N}]+/u)
-    .map((word) => word.trim())
-    .filter((word) => word.length >= 4 && !/^\d+$/.test(word));
-
-  for (const word of words) {
-    searches.push(makeSearchSlug(word));
-
-    if (allowShortRoot && word.length >= 8) {
-      const shortRoot = word.slice(0, 3);
-
-      if (!weakShortSearchRoots.has(shortRoot)) {
-        searches.push(shortRoot);
-      }
-    }
-  }
+function extractDedicatedStoreSearchQueries(campaignPrompt) {
+  return normalizeStoreSearchQueries(
+    splitCampaignTermLine(
+      extractPromptLineValue(campaignPrompt, "Product search queries")
+    ),
+    CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
+  );
 }
 
 function buildCampaignDiscoverySearches(campaignPrompt) {
   const rule = { prompt: campaignPrompt };
-  const explicitTerms = extractExplicitCampaignMatchTerms(rule);
-  const terms = extractCampaignTerms(rule);
+  const dedicatedQueries = extractDedicatedStoreSearchQueries(campaignPrompt);
+  const explicitTerms = normalizeStoreSearchQueries(
+    extractExplicitCampaignMatchTerms(rule),
+    CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
+  );
+  const coreThemeTerms = normalizeStoreSearchQueries(
+    extractCampaignCoreThemeTerms(rule),
+    CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
+  );
   const searches = [];
 
-  const coreThemeTerms = extractCampaignCoreThemeTerms(rule);
-  const anchorTerms = extractCampaignAnchorTerms(rule);
-  const safeRootTerms = extractCompactPrimaryCampaignRoots(explicitTerms);
-  const rootRelatedExplicitTerms = safeRootTerms.length
-    ? explicitTerms.filter((term) => isCampaignTermRelatedToCompactRoots(term, safeRootTerms))
-    : explicitTerms;
-
-  for (const coreThemeTerm of coreThemeTerms) {
-    addCampaignSearchVariants(searches, coreThemeTerm, { allowShortRoot: false });
+  // Use the analysis/plan-created website queries first and preserve each useful
+  // phrase as one query. This prevents “roliga tryck” from becoming separate
+  // searches for “roliga” and “tryck”, and prevents full campaign goals from
+  // consuming the limited store-search budget.
+  for (const query of dedicatedQueries) {
+    addCampaignSearchVariants(searches, query);
   }
 
-  for (const anchorTerm of anchorTerms) {
-    addCampaignSearchVariants(searches, anchorTerm, { allowShortRoot: false });
+  for (const term of [...coreThemeTerms, ...explicitTerms]) {
+    addCampaignSearchVariants(searches, term);
   }
 
-  for (const rootTerm of safeRootTerms) {
-    addCampaignSearchVariants(searches, rootTerm, { allowShortRoot: false });
-  }
-
-  for (const term of [...rootRelatedExplicitTerms, ...terms].slice(0, 8)) {
-    addCampaignSearchVariants(searches, term, { allowShortRoot: false });
-  }
-
-  const normalizedPrompt = normalizeSearchText(campaignPrompt);
-  const phrase = makeSearchSlug(normalizedPrompt.split(/\s+/).slice(0, 4).join(" "));
-  if (phrase && !explicitTerms.length) searches.unshift(phrase);
-  if (phrase && explicitTerms.length) searches.push(phrase);
-
-  return Array.from(new Set(searches.filter(Boolean))).slice(0, CAMPAIGN_STORE_SEARCH_QUERY_LIMIT);
+  return Array.from(new Set(searches.filter(Boolean))).slice(
+    0,
+    CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
+  );
 }
 
 function buildLikelyDiscoveryUrls(websiteUrl, campaignPrompt = "") {

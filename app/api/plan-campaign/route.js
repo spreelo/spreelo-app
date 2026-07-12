@@ -219,11 +219,37 @@ function anchorTerm(term, anchorTokens) {
 }
 
 function normalizeCampaignProductTerms(campaign, item, value, maxItems = 16) {
-  const terms = normalizeTermArray(value, maxItems);
-  const anchorTokens = getCampaignAnchorTokens(campaign, item);
-  const anchoredTerms = terms.map((term) => anchorTerm(term, anchorTokens));
+  // Preserve the concrete AI-created terms. Automatically prefixing every term
+  // with the campaign title made the search metadata repetitive and hid useful
+  // theme synonyms and motif words.
+  return normalizeTermArray(value, maxItems);
+}
 
-  return normalizeTermArray(anchoredTerms, maxItems);
+function normalizeProductSearchQueries(value, maxItems = 12) {
+  const seen = new Set();
+  const queries = [];
+
+  for (const rawQuery of normalizeTermArray(value, maxItems * 2, 50)) {
+    const query = String(rawQuery || "")
+      .replace(/[.!?]+$/u, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const words = query.split(/\s+/u).filter(Boolean);
+    const key = query.toLocaleLowerCase();
+
+    if (!query || words.length < 1 || words.length > 4 || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    queries.push(query);
+
+    if (queries.length >= maxItems) {
+      break;
+    }
+  }
+
+  return queries;
 }
 
 function getCampaignProductTerms(campaign, key) {
@@ -231,8 +257,18 @@ function getCampaignProductTerms(campaign, key) {
   const blueprintTerms = Array.isArray(campaign?.campaign_blueprint?.[key])
     ? campaign.campaign_blueprint[key]
     : [];
+  const values = [...directTerms, ...blueprintTerms];
 
-  return normalizeCampaignProductTerms(campaign, {}, [...directTerms, ...blueprintTerms], 24);
+  return key === "product_search_queries"
+    ? normalizeProductSearchQueries(values, 12)
+    : normalizeCampaignProductTerms(campaign, {}, values, 24);
+}
+
+function getCampaignProductSearchIntent(campaign) {
+  return normalizeShortText(
+    campaign?.product_search_intent || campaign?.campaign_blueprint?.product_search_intent || "",
+    300
+  );
 }
 
 function formatTermLine(label, terms) {
@@ -257,12 +293,20 @@ function appendProductSearchMetadataToGuidance(baseGuidance, item) {
 
 function formatCampaignProductTermGuidance(campaign) {
   const productMatchTerms = getCampaignProductTerms(campaign, "product_match_terms");
+  const productSearchQueries = getCampaignProductTerms(campaign, "product_search_queries");
   const avoidTerms = getCampaignProductTerms(campaign, "avoid_terms");
+  const productSearchIntent = getCampaignProductSearchIntent(campaign);
 
   return [
+    productSearchIntent
+      ? `- Product search strategy: ${productSearchIntent}`
+      : "- Product search strategy: infer it from the business assortment and product naming style",
     productMatchTerms.length
       ? `- Product match terms: ${productMatchTerms.join(", ")}`
       : "- Product match terms: not provided",
+    productSearchQueries.length
+      ? `- Existing store-search queries: ${productSearchQueries.join(", ")}`
+      : "- Existing store-search queries: not provided",
     avoidTerms.length
       ? `- Avoid product terms: ${avoidTerms.join(", ")}`
       : "- Avoid product terms: not provided",
@@ -331,17 +375,16 @@ function normalizePlan(rawPlan, campaign) {
         item,
         item?.product_match_terms || item?.match_terms || item?.campaign_match_terms
       );
-      const productSearchQueries = normalizeCampaignProductTerms(
-        campaign,
-        item,
-        item?.product_search_queries || item?.search_queries || item?.local_search_queries
+      const productSearchQueries = normalizeProductSearchQueries(
+        item?.product_search_queries || item?.search_queries || item?.local_search_queries,
+        12
       );
       const productAvoidTerms = normalizeTermArray(
         item?.product_avoid_terms || item?.avoid_terms || item?.negative_terms
       );
       const productSearchIntent = normalizeShortText(
-        item?.product_search_intent || item?.search_intent || "",
-        180
+        item?.product_search_intent || item?.search_intent || getCampaignProductSearchIntent(campaign),
+        300
       );
       const productSelectionGuidance = appendProductSearchMetadataToGuidance(
         item?.product_selection_guidance || "",
@@ -424,7 +467,7 @@ function buildFallbackPlan(campaign) {
       product_search_queries: getCampaignProductTerms(campaign, "product_search_queries"),
       product_avoid_terms: getCampaignProductTerms(campaign, "avoid_terms"),
       avoid_terms: getCampaignProductTerms(campaign, "avoid_terms"),
-      product_search_intent: "",
+      product_search_intent: getCampaignProductSearchIntent(campaign),
       visual_direction: "",
     })),
   };
@@ -543,9 +586,9 @@ Return JSON in this exact shape:
       "days_before_event": 14,
       "product_selection_guidance": "What product/service/category should this post use, and what to avoid",
       "product_match_terms": ["Short local-language product/category/search terms that identify products that truly fit this post"],
-      "product_search_queries": ["Short store-search queries to try first on the website search/category search"],
+      "product_search_queries": ["8-12 simple, varied store-search queries, usually 1-3 words and never more than 4"],
       "product_avoid_terms": ["Short product/category/search terms that should be avoided for this post when better matches exist"],
-      "product_search_intent": "Short internal explanation of what the product finder should prioritize",
+      "product_search_intent": "Short internal explanation of the business-specific store-search strategy and what the product finder should prioritize",
       "visual_direction": "What type of visual should support this post"
     }
   ]
@@ -563,11 +606,15 @@ Strategic rules:
 - Choose content_source_mode with care. Do not use website_product unless the business likely has concrete products/items. Use website_carousel when multiple ideas/options/products should be compared. Use ai_image_overlay or ai_image_text for emotional, seasonal, deadline or awareness posts.
 - For every post that uses website_product, website_service, mixed_campaign_and_website or website_carousel, create product_match_terms, product_search_queries, product_avoid_terms and product_search_intent.
 - Product terms must be created dynamically for this exact campaign, country, market, language and brand. Do not rely on a fixed Swedish or English keyword list.
-- product_match_terms and product_search_queries should include the local occasion/theme name, common local synonyms, likely category words, recipient/use-case words and imported/English terms only when customers in that market would realistically use them.
-- If the campaign title contains a compact theme word or compound word, include the shortest useful store-search root as one query. Example: if the local title contains a Christmas compound, include the local root term customers would search for on that store, not only broad gift/present phrases.
-- Do not include broad assortment categories by themselves in product_match_terms for themed campaigns. A broad category is only acceptable when combined with the theme, occasion, recipient or use-case, or when the campaign is explicitly about that category.
-- Before returning each product_match_term, ask whether searching only that term would mostly return products that fit this campaign. If not, rewrite it into a theme/category phrase or put the broad category in product_avoid_terms.
-- Product search queries must be suitable for a website search box. Prefer 1-2 word queries that can find exact campaign products before broad category or gift-intent products.
+- First use the campaign's saved product search strategy and assortment evidence to infer how this specific business names and groups products: motif/design-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led, brand/model-led or another pattern.
+- product_search_intent must describe that business-specific search approach in one short sentence.
+- product_match_terms should include concrete local theme, motif, category, recipient and use-case terms that can independently support genuine campaign relevance.
+- Do not include broad assortment categories by themselves in product_match_terms for themed campaigns unless the category itself is the campaign.
+- Product search queries must be simple searches a real website search box can use: usually 1-3 words and never more than 4 words.
+- Create varied queries. Use the campaign name once when useful, then use distinct synonyms, motifs, characters, title-like expressions, product language or use cases that fit this store. Do not prefix the campaign name to every query.
+- Never return campaign goals, marketing sentences or explanatory text as a search query. Preserve useful multiword phrases; do not split them into unrelated single words.
+- For motif/design-led stores, search primarily with motif and title-like words. For costume stores, search with costume, character, mask, makeup and accessory terms. Adapt equally for every other business type from the actual assortment evidence.
+- Before returning each product_match_term, ask whether a product matching only that term would still genuinely fit the campaign. If not, remove or rewrite it.
 - product_avoid_terms should block nearby but wrong products or broad categories when better campaign-specific products exist. Do not over-block the whole store.
 - Keep product terms compact. Avoid broad filler like "product", "shop", "gift" or "present" unless that word is truly central to the campaign search.
 - Carry these product terms into product_selection_guidance as readable internal lines so later generation can use them.
