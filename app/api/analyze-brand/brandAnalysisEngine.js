@@ -844,7 +844,7 @@ Existing search queries: ${existingSearchQueries.join(" | ") || "None"}`;
       .join("\n\n");
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-5.5",
+      model: "gpt-4.1-mini",
       messages: [
         {
           role: "system",
