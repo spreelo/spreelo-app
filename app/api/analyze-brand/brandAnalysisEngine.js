@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { OPENAI_MODELS, withOpenAITemperature } from "../../../lib/openaiSettings.js";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   inferContentLanguageFromWebsiteSignals,
@@ -219,7 +220,7 @@ export async function repairJsonWithOpenAI({
   contextLabel = "OpenAI JSON response",
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.helper,
     messages: [
       {
         role: "system",
@@ -249,7 +250,7 @@ ${truncateText(rawContent, 60000)}
 `.trim(),
       },
     ],
-    temperature: 0,
+    ...withOpenAITemperature("jsonRepair"),
   });
 
   const repairedContent = completion.choices?.[0]?.message?.content || "";
@@ -539,7 +540,7 @@ async function selectWebsiteContextLinksWithOpenAI({ openai, websiteUrl, html })
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_MODELS.helper,
       messages: [
         {
           role: "system",
@@ -574,7 +575,7 @@ Return JSON only:
 `.trim(),
         },
       ],
-      temperature: 0,
+      ...withOpenAITemperature("websiteContextSelection"),
     });
 
     const content = completion.choices?.[0]?.message?.content || "";
@@ -830,7 +831,7 @@ async function repairCampaignProductMetadataWithOpenAI({
       .join("\n\n");
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_MODELS.helper,
       messages: [
         {
           role: "system",
@@ -897,7 +898,7 @@ Return JSON only:
 `.trim(),
         },
       ],
-      temperature: 0.1,
+      ...withOpenAITemperature("productMetadataRepair"),
       response_format: { type: "json_object" },
       max_completion_tokens: 5000,
     });
@@ -1615,7 +1616,7 @@ export async function detectWebsiteLanguageWithOpenAI({
   const visibleText = truncateText(stripHtmlToLanguageText(html), 14000);
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.helper,
     messages: [
       {
         role: "system",
@@ -1657,7 +1658,7 @@ Rules:
 `.trim(),
       },
     ],
-    temperature: 0,
+    ...withOpenAITemperature("languageDetection"),
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -1717,7 +1718,7 @@ export async function analyzeWebsiteWithOpenAI({
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.brandAnalysis,
     messages: [
       {
         role: "system",
@@ -1927,7 +1928,7 @@ Accuracy:
 `.trim(),
       },
     ],
-    temperature: 0.2,
+    ...withOpenAITemperature("brandAnalysis"),
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
   });
@@ -2025,7 +2026,7 @@ export async function analyzeDescriptionWithOpenAI({
   campaignCalendarYear,
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODELS.brandAnalysis,
     messages: [
       {
         role: "system",
@@ -2189,7 +2190,7 @@ Website-content rules:
 `.trim(),
       },
     ],
-    temperature: 0.2,
+    ...withOpenAITemperature("descriptionAnalysis"),
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
   });

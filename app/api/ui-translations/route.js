@@ -1,3 +1,4 @@
+import { OPENAI_MODELS, withOpenAITemperature } from "../../../lib/openaiSettings.js";
 import { createClient } from "@supabase/supabase-js";
 import {
   ALL_UI_NAMESPACES,
@@ -122,8 +123,8 @@ async function translateMissingLabels({
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_UI_TRANSLATION_MODEL || "gpt-4.1-mini",
-      temperature: 0.1,
+      model: OPENAI_MODELS.uiTranslation,
+      ...withOpenAITemperature("uiTranslation"),
       messages: [
         {
           role: "system",
