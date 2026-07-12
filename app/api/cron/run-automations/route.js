@@ -50,16 +50,16 @@ const WEBSITE_MAX_TOTAL_TEXT_CHARS = 22000;
 const WEBSITE_MAX_IMAGE_CANDIDATES = 40;
 const WEBSITE_PRODUCT_REUSE_LIMIT = 100;
 const WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT = 150;
-const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 24;
-const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 10;
-const WEBSITE_STORE_SEARCH_FETCH_LIMIT = 8;
-const WEBSITE_STORE_SEARCH_VERIFY_LIMIT = 12;
-const CAMPAIGN_STORE_SEARCH_QUERY_LIMIT = 6;
+const WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT = 120;
+const WEBSITE_PRODUCT_DISCOVERY_FETCH_LIMIT = 18;
+const WEBSITE_STORE_SEARCH_FETCH_LIMIT = 14;
+const WEBSITE_STORE_SEARCH_VERIFY_LIMIT = 18;
+const CAMPAIGN_STORE_SEARCH_QUERY_LIMIT = 12;
 const CAMPAIGN_SEARCH_FORM_QUERY_LIMIT = 4;
 const CAROUSEL_AI_SCORE_MAX_ITEMS = 15;
-const CAROUSEL_DISCOVERY_VERIFY_LIMIT = 16;
+const CAROUSEL_DISCOVERY_VERIFY_LIMIT = 25;
 const CAROUSEL_WEB_SEARCH_MAX_VERIFIED_ITEMS = 8;
-const CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT = 16;
+const CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT = 24;
 const CAMPAIGN_STRONG_PRODUCT_FIT_SCORE = 80;
 const CAMPAIGN_NEAR_PRODUCT_FIT_SCORE = 75;
 const CAMPAIGN_SUPPORTING_PRODUCT_FIT_SCORE = 60;
@@ -3390,7 +3390,28 @@ async function prepareCarouselProductsForRule({
   }
 
   if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
-    throw new Error("Carousel could not find any verified website product with a usable product image.");
+    const resolverDiagnostics = {
+      resolverVersion: PRODUCT_RESOLVER_VERSION,
+      resolverPath: "stable_delivery_ladder",
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      isCampaignRule,
+      productSearchQueries: splitCampaignTermLine(rule?.product_search_queries),
+      productMatchTerms: splitCampaignTermLine(rule?.product_match_terms),
+      catalogItemCount: catalogItems.length,
+      lockedSearchPoolCount: lockedCampaignSearchPoolItems.length,
+      campaignSelectionItemCount: getCampaignSelectionItems().length,
+      selectedCount: selectedProducts.length,
+      freshDiscoveryAttempts: campaignFreshDiscoveryAttempts,
+    };
+    const resolverError = new Error(
+      "Carousel could not find any verified website product with a usable product image."
+    );
+    resolverError.code = "NO_VERIFIED_PRODUCT_STABLE_DELIVERY";
+    resolverError.resolverDiagnostics = resolverDiagnostics;
+    resolverError.resolvedRule = rule;
+    throw resolverError;
   }
 
   for (const product of selectedProducts) {
@@ -4906,6 +4927,7 @@ async function finishAutomationRunLog({
         product_match_terms: ruleSnapshot?.product_match_terms || null,
         product_search_queries: ruleSnapshot?.product_search_queries || null,
         metadata: {
+          product_resolver_version: PRODUCT_RESOLVER_VERSION,
           ...extraSummary,
           website_items_found: Array.isArray(websiteItems) ? websiteItems.length : 0,
           selected_product_count: productData.productsSelected,
@@ -14409,9 +14431,11 @@ let websitePreparedRule = rule;
 
         if (isCarouselRule(rule)) {
           try {
-            const carouselPreparer = isCampaignScopedWebsiteRule(rule)
-              ? prepareCampaignCarouselProductsV10
-              : prepareCarouselProductsForRule;
+            // The stable delivery ladder is the last production implementation
+            // proven to deliver themed products, next-best fallbacks and reuse
+            // rotation. The separate V10 resolver is intentionally not used in
+            // production until it has equivalent end-to-end coverage.
+            const carouselPreparer = prepareCarouselProductsForRule;
             const preparedCarouselProducts = await carouselPreparer({
               supabase,
               openai,
