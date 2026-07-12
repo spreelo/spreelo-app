@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import { OPENAI_MODELS, withOpenAITemperature } from "../../../lib/openaiSettings.js";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   inferContentLanguageFromWebsiteSignals,
@@ -392,7 +391,7 @@ async function repairJsonWithOpenAI({
   contextLabel = "OpenAI JSON response",
 }) {
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.helper,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -422,7 +421,7 @@ ${truncateText(rawContent, 60000)}
 `.trim(),
       },
     ],
-    ...withOpenAITemperature("jsonRepair"),
+    temperature: 0,
   });
 
   const repairedContent = completion.choices?.[0]?.message?.content || "";
@@ -957,7 +956,7 @@ async function detectWebsiteLanguageWithOpenAI({
   const visibleText = truncateText(stripHtmlToText(html), 12000);
 
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.helper,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -1000,7 +999,7 @@ Rules:
 `.trim(),
       },
     ],
-    ...withOpenAITemperature("languageDetection"),
+    temperature: 0,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -1331,7 +1330,7 @@ async function analyzeWebsiteWithOpenAI({
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.brandAnalysis,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -1630,7 +1629,7 @@ Campaign rule:
 `.trim(),
       },
     ],
-    ...withOpenAITemperature("brandAnalysis"),
+    temperature: 0.2,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -1701,7 +1700,7 @@ async function analyzeDescriptionWithOpenAI({
   campaignCalendarYear,
 }) {
   const completion = await openai.chat.completions.create({
-    model: OPENAI_MODELS.brandAnalysis,
+    model: "gpt-4.1-mini",
     messages: [
       {
         role: "system",
@@ -1887,7 +1886,7 @@ Rules:
 `.trim(),
       },
     ],
-    ...withOpenAITemperature("descriptionAnalysis"),
+    temperature: 0.2,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
