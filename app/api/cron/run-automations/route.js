@@ -5339,7 +5339,6 @@ ${analysisInput}
 `.trim(),
       },
     ],
-    temperature: 0.2,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -11344,7 +11343,6 @@ async function generateAutomationPost(openai, rule) {
         content: buildAutomationPrompt(rule),
       },
     ],
-    temperature: 0.75,
   });
 
   return completion.choices?.[0]?.message?.content?.trim() || "";
@@ -11416,7 +11414,6 @@ Return JSON exactly in this shape:
           `.trim(),
         },
       ],
-      temperature: 0.65,
     });
 
     const raw = completion.choices?.[0]?.message?.content || "";
@@ -11550,7 +11547,6 @@ Return JSON exactly in this shape:
           `.trim(),
         },
       ],
-      temperature: 0.55,
     });
 
     const raw = completion.choices?.[0]?.message?.content || "";

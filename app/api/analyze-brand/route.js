@@ -1630,7 +1630,6 @@ Campaign rule:
 `.trim(),
       },
     ],
-    temperature: 0.2,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";
@@ -1887,7 +1886,6 @@ Rules:
 `.trim(),
       },
     ],
-    temperature: 0.2,
   });
 
   const content = completion.choices?.[0]?.message?.content || "";

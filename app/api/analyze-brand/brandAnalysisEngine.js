@@ -898,7 +898,6 @@ Return JSON only:
 `.trim(),
         },
       ],
-      temperature: 0.1,
       response_format: { type: "json_object" },
       max_completion_tokens: 5000,
     });
@@ -1928,7 +1927,6 @@ Accuracy:
 `.trim(),
       },
     ],
-    temperature: 0.2,
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
   });
@@ -2190,7 +2188,6 @@ Website-content rules:
 `.trim(),
       },
     ],
-    temperature: 0.2,
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
   });
