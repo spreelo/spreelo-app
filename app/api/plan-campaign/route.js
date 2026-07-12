@@ -271,46 +271,6 @@ function getCampaignProductSearchIntent(campaign) {
   );
 }
 
-
-function normalizeCampaignSearchPlan(value) {
-  const plan = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-
-  return {
-    version: normalizeShortText(plan.version || "", 80),
-    catalog_mode: normalizeShortText(plan.catalog_mode || "", 80),
-    catalog_naming_summary: normalizeShortText(plan.catalog_naming_summary || "", 300),
-    strong_search_dimensions: normalizeTermArray(plan.strong_search_dimensions, 6, 80),
-    weak_search_dimensions: normalizeTermArray(plan.weak_search_dimensions, 6, 80),
-    campaign_mode: normalizeShortText(plan.campaign_mode || "", 80),
-    primary_query_role: normalizeShortText(plan.primary_query_role || "", 240),
-    secondary_query_role: normalizeShortText(plan.secondary_query_role || "", 240),
-    primary_queries: normalizeProductSearchQueries(plan.primary_queries, 9),
-    secondary_queries: normalizeProductSearchQueries(plan.secondary_queries, 4),
-  };
-}
-
-function getCampaignProductSearchPlan(campaign) {
-  return normalizeCampaignSearchPlan(
-    campaign?.product_search_plan || campaign?.campaign_blueprint?.product_search_plan
-  );
-}
-
-function mergeOrderedSearchQueries(primaryValues, secondaryValues, limit = 12) {
-  return normalizeProductSearchQueries(
-    [...(primaryValues || []), ...(secondaryValues || [])],
-    limit
-  );
-}
-
-function campaignUsesWebsiteProductMode(contentSourceMode) {
-  return [
-    "mixed_campaign_and_website",
-    "website_product",
-    "website_service",
-    "website_carousel",
-  ].includes(String(contentSourceMode || "").toLowerCase());
-}
-
 function formatTermLine(label, terms) {
   return terms?.length ? `${label}: ${terms.join(", ")}` : "";
 }
@@ -336,29 +296,11 @@ function formatCampaignProductTermGuidance(campaign) {
   const productSearchQueries = getCampaignProductTerms(campaign, "product_search_queries");
   const avoidTerms = getCampaignProductTerms(campaign, "avoid_terms");
   const productSearchIntent = getCampaignProductSearchIntent(campaign);
-  const productSearchPlan = getCampaignProductSearchPlan(campaign);
 
   return [
     productSearchIntent
       ? `- Product search strategy: ${productSearchIntent}`
       : "- Product search strategy: infer it from the business assortment and product naming style",
-    productSearchPlan.catalog_mode ? `- Catalog search mode: ${productSearchPlan.catalog_mode}` : "",
-    productSearchPlan.catalog_naming_summary
-      ? `- Catalog naming evidence: ${productSearchPlan.catalog_naming_summary}`
-      : "",
-    productSearchPlan.campaign_mode ? `- Campaign search mode: ${productSearchPlan.campaign_mode}` : "",
-    productSearchPlan.primary_query_role
-      ? `- Primary query role: ${productSearchPlan.primary_query_role}`
-      : "",
-    productSearchPlan.secondary_query_role
-      ? `- Secondary query role: ${productSearchPlan.secondary_query_role}`
-      : "",
-    productSearchPlan.primary_queries.length
-      ? `- Primary store-search queries: ${productSearchPlan.primary_queries.join(", ")}`
-      : "",
-    productSearchPlan.secondary_queries.length
-      ? `- Secondary store-search queries: ${productSearchPlan.secondary_queries.join(", ")}`
-      : "",
     productMatchTerms.length
       ? `- Product match terms: ${productMatchTerms.join(", ")}`
       : "- Product match terms: not provided",
@@ -368,7 +310,7 @@ function formatCampaignProductTermGuidance(campaign) {
     avoidTerms.length
       ? `- Avoid product terms: ${avoidTerms.join(", ")}`
       : "- Avoid product terms: not provided",
-  ].filter(Boolean).join("\n");
+  ].join("\n");
 }
 
 function planHasProductSearchMetadata(postPlan) {
@@ -428,46 +370,18 @@ function normalizePlan(rawPlan, campaign) {
         allowedContentModes,
         marketingAngle === "product_push" || marketingAngle === "offer" ? "website_product" : "generic_campaign"
       );
-      const generatedProductMatchTerms = normalizeCampaignProductTerms(
+      const productMatchTerms = normalizeCampaignProductTerms(
         campaign,
         item,
         item?.product_match_terms || item?.match_terms || item?.campaign_match_terms
       );
-      const campaignProductMatchTerms = getCampaignProductTerms(
-        campaign,
-        "product_match_terms"
-      );
-      const generatedProductSearchQueries = normalizeProductSearchQueries(
+      const productSearchQueries = normalizeProductSearchQueries(
         item?.product_search_queries || item?.search_queries || item?.local_search_queries,
         12
       );
-      const campaignProductSearchQueries = getCampaignProductTerms(
-        campaign,
-        "product_search_queries"
-      );
-      const productSearchQueries = campaignUsesWebsiteProductMode(contentSourceMode)
-        ? mergeOrderedSearchQueries(
-            campaignProductSearchQueries,
-            generatedProductSearchQueries,
-            12
-          )
-        : generatedProductSearchQueries;
-      const productMatchTerms = campaignUsesWebsiteProductMode(contentSourceMode)
-        ? normalizeTermArray(
-            [...campaignProductMatchTerms, ...generatedProductMatchTerms],
-            24
-          )
-        : generatedProductMatchTerms;
-      const generatedProductAvoidTerms = normalizeTermArray(
+      const productAvoidTerms = normalizeTermArray(
         item?.product_avoid_terms || item?.avoid_terms || item?.negative_terms
       );
-      const campaignProductAvoidTerms = getCampaignProductTerms(campaign, "avoid_terms");
-      const productAvoidTerms = campaignUsesWebsiteProductMode(contentSourceMode)
-        ? normalizeTermArray(
-            [...campaignProductAvoidTerms, ...generatedProductAvoidTerms],
-            20
-          )
-        : generatedProductAvoidTerms;
       const productSearchIntent = normalizeShortText(
         item?.product_search_intent || item?.search_intent || getCampaignProductSearchIntent(campaign),
         300
@@ -697,8 +611,7 @@ Strategic rules:
 - product_match_terms should include concrete local theme, motif, category, recipient and use-case terms that can independently support genuine campaign relevance.
 - Do not include broad assortment categories by themselves in product_match_terms for themed campaigns unless the category itself is the campaign.
 - Product search queries must be simple searches a real website search box can use: usually 1-3 words and never more than 4 words. Create 10-12 queries for product/carousel posts unless the saved campaign metadata contains fewer strong queries.
-- The saved structured search plan is authoritative when present. Keep its primary queries first and secondary queries after them. You may add a genuinely useful post-specific refinement, but do not replace the saved business/campaign strategy with a new generic list.
-- Preserve the campaign's saved product_search_queries and search mix whenever they are already useful. Narrow them for a specific post when needed, but do not replace a strong business-adapted list with generic product-type combinations.
+- Preserve the campaign's saved product_search_queries and search mix whenever they are already useful. Narrow them for a specific post when needed, but do not replace a strong motif-led list with generic product-type combinations.
 - Classify the campaign as a named theme/occasion, recipient/gift occasion, seasonal need/style, commercial promotion, category/product launch, identity/awareness or another suitable mode before adapting the queries.
 - For motif/design-led stores plus a named theme, roughly 65-80% of queries should remain standalone motifs, symbols, characters, synonyms, expressions or title-like phrases. Only roughly 20-35% should combine a theme with a product type.
 - For recipient/gift occasions, prioritize recipient names, relationships and title-like phrases. For seasonal campaigns, prioritize seasonal needs, styles, materials, activities and use cases.
