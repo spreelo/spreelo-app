@@ -2605,6 +2605,7 @@ function selectGuaranteedCampaignDeliveryProducts({
 
   const candidates = dedupeWebsiteItemsByUrlTitleAndImage(candidateItems)
     .filter(isValidCarouselProduct)
+    .filter((item) => !isExplicitCampaignFitRejected(item))
     .filter(
       (item) =>
         !selected.some((selectedItem) =>
@@ -2840,7 +2841,6 @@ async function prepareCarouselProductsForRule({
       }
 
       const storeSearchPoolItems = buildCampaignSearchPoolItems({
-        candidates: storeSearchCandidates,
         verifiedItems: storeSearchItems,
         websiteUrl,
         rule,
@@ -3089,11 +3089,26 @@ async function prepareCarouselProductsForRule({
       });
 
       if (discoveredCandidates.length) {
-        const discoveredItems = await verifyDiscoveredWebsiteProductCandidates({
+        let discoveredItems = await verifyDiscoveredWebsiteProductCandidates({
           candidates: discoveredCandidates,
           websiteUrl,
           limit: CAROUSEL_DISCOVERY_VERIFY_LIMIT,
         });
+
+        if (isCampaignRule && discoveredItems.length) {
+          discoveredItems = (await applyAiCampaignFitScores({
+            openai,
+            rule,
+            brandProfile,
+            items: discoveredItems,
+            maxItems: CAROUSEL_DISCOVERY_VERIFY_LIMIT,
+            model: PRODUCT_RESEARCH_FAST_MODEL,
+            escalateWhenUncertain: true,
+            escalationModel: PRODUCT_RESEARCH_MODEL,
+            escalationMaxItems: CAROUSEL_DISCOVERY_VERIFY_LIMIT,
+            minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
+          })).filter((item) => getAiCampaignFitScore(item) !== null);
+        }
 
         const enrichedDiscoveredItems = discoveredItems.map((item) => ({
           ...item,
@@ -3514,6 +3529,12 @@ async function prepareCarouselProductsForRule({
   if (!isCampaignRule && !selectedProducts.length) {
     const fallbackPool = dedupeWebsiteItemsByUrlTitleAndImage(catalogItems);
     selectedProducts = fallbackPool.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  }
+
+  if (isCampaignRule) {
+    selectedProducts = selectedProducts.filter(
+      (item) => !isExplicitCampaignFitRejected(item)
+    );
   }
 
   // Delivery guarantee backup for campaign carousels.
@@ -4804,9 +4825,14 @@ function collectAutomationRunProductLogData({ websiteItem = null, websiteItems =
       search_method: method,
       campaign_fit_score: Number.isFinite(Number(item?.campaign_fit_score)) ? Number(item.campaign_fit_score) : null,
       campaign_fit_source: String(item?.campaign_fit_source || "").trim() || null,
-      ai_campaign_fit_score: Number.isFinite(Number(item?.ai_campaign_fit_score))
-        ? Number(item.ai_campaign_fit_score)
-        : null,
+      ai_campaign_fit_score:
+        item?.ai_campaign_fit_score === undefined ||
+        item?.ai_campaign_fit_score === null ||
+        item?.ai_campaign_fit_score === ""
+          ? null
+          : Number.isFinite(Number(item.ai_campaign_fit_score))
+            ? Number(item.ai_campaign_fit_score)
+            : null,
       ai_campaign_fit_source: String(item?.ai_campaign_fit_source || "").trim() || null,
       ai_campaign_fit_model: String(item?.ai_campaign_fit_model || "").trim() || null,
       campaign_fit_verdict: String(item?.campaign_fit_verdict || "").trim() || null,
@@ -7221,12 +7247,15 @@ function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_S
 
   // Keep the analysis-created phrases intact. Do not prefix the campaign name
   // to every query and do not split useful phrases into arbitrary single words.
-  // The order favours the dedicated store-search queries, then the core theme,
+  // The order favours the core campaign theme, then dedicated analysis queries,
   // then additional concrete match terms.
   return normalizeStoreSearchQueries(
     [
-      ...existingQueries,
+      // Always try the campaign's own core theme before broader analysis-created
+      // product/category phrases. For example, a Halloween campaign should test
+      // the Halloween theme before generic candy, clothing or gift terms.
       ...campaignThemeTerms,
+      ...existingQueries,
       ...supportedProductMatchTerms,
     ],
     limit
@@ -7264,11 +7293,12 @@ async function ensureProductSearchQueriesForRule({ supabase, rule }) {
     }
   }
 
-  return {
-    ...rule,
-    product_search_queries: normalizedQueries,
-    product_search_queries_derived: !existingQueries.length,
-  };
+  // Mutate the current rule object as well as persisting it. The cron logger and
+  // all later steps then see the same derived queries that were actually used.
+  rule.product_search_queries = normalizedQueries;
+  rule.product_search_queries_derived = !existingQueries.length;
+
+  return rule;
 }
 
 function collectUniqueTerms(terms, limit = 24) {
@@ -8176,20 +8206,25 @@ function extractCampaignCoreThemeTerms(rule) {
     const segment = getCampaignCoreTitleSegment(candidate);
     const words = tokenizeSearchText(segment)
       .filter((word) => word.length >= 3 && !/^\d+$/.test(word));
+    const phraseWords = words.slice(0, 3);
 
-    const phraseWords = words.filter((word) => word.length >= 3).slice(0, 3);
-
+    // Preserve the meaningful campaign-title phrase, but do not turn every
+    // following product/category word into a hard theme guard. In a title such
+    // as “Halloween Candy”, “Halloween” is the occasion while “candy” describes
+    // the assortment. Treating both as equal core themes allowed ordinary candy
+    // to pass as Halloween-specific.
     if (phraseWords.length >= 2) {
       terms.push(phraseWords.join(" "));
     }
 
-    for (const word of words.slice(0, 3)) {
-      if (word.length >= 4 && !weakShortSearchRoots.has(word)) {
-        terms.push(word);
-      }
+    const primaryWord = words.find(
+      (word) => word.length >= 4 && !weakShortSearchRoots.has(word)
+    );
 
-      const compactRoot = getCompactCampaignThemeRoot(word);
+    if (primaryWord) {
+      terms.push(primaryWord);
 
+      const compactRoot = getCompactCampaignThemeRoot(primaryWord);
       if (compactRoot) {
         terms.push(compactRoot);
       }
@@ -8618,7 +8653,18 @@ function getSafeCampaignProductCandidates(items, rule) {
     return [];
   }
 
-  const dedupedItems = dedupeWebsiteItemsByUrlTitleAndImage(items);
+  const dedupedItems = dedupeWebsiteItemsByUrlTitleAndImage(items).filter((item) => {
+    const aiScore = getAiCampaignFitScore(item);
+
+    if (isExplicitCampaignFitRejected(item)) {
+      return false;
+    }
+
+    // Product-level AI scoring is authoritative in the relevance-first path.
+    // Medium/weak evaluated products remain available to the separate delivery
+    // backup, but they must not be counted as perfect first-pass matches.
+    return aiScore === null || aiScore >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE;
+  });
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
   const anchorTerms = extractCampaignAnchorTerms(rule);
   const themeTerms = extractCampaignCoreThemeTerms(rule);
@@ -8687,6 +8733,13 @@ function getAiCampaignFitScore(item) {
   return Math.min(Math.max(Math.round(score), 0), 100);
 }
 
+function normalizeCampaignFitVerdict(value) {
+  return normalizeSearchText(value).trim();
+}
+
+function isExplicitCampaignFitRejected(item) {
+  return normalizeCampaignFitVerdict(item?.campaign_fit_verdict) === "reject";
+}
 
 function getCampaignProductSignalState(
   item,
@@ -8718,8 +8771,11 @@ function getCampaignProductSignalState(
   const effectiveMinimumAiScore = hasStrictThemeGuard
     ? Math.max(minimumAiScore, CAMPAIGN_NEAR_PRODUCT_FIT_SCORE)
     : minimumAiScore;
+  const hasAiCampaignEvaluation = aiCampaignFitScore !== null;
+  const explicitlyRejected = isExplicitCampaignFitRejected(item);
   const hasAiCampaignApproval =
-    aiCampaignFitScore !== null &&
+    hasAiCampaignEvaluation &&
+    !explicitlyRejected &&
     aiCampaignFitScore >= effectiveMinimumAiScore;
 
   return {
@@ -8732,9 +8788,17 @@ function getCampaignProductSignalState(
     hasAnchorGuard,
     hasStrictThemeGuard,
     hasDirectCampaignSignal,
+    hasAiCampaignEvaluation,
+    explicitlyRejected,
     hasAiCampaignApproval,
-    hasMeaningfulCampaignSignal:
-      hasDirectCampaignSignal || hasAiCampaignApproval,
+    // Once AI has evaluated a concrete product, that product-level verdict is
+    // authoritative. A matching search/category source or a broad title word
+    // must never override a reject or a sub-threshold score.
+    hasMeaningfulCampaignSignal: explicitlyRejected
+      ? false
+      : hasAiCampaignEvaluation
+        ? hasAiCampaignApproval
+        : hasDirectCampaignSignal,
   };
 }
 
@@ -8759,6 +8823,7 @@ function formatProductsForCampaignFitPrompt(candidates) {
         `Price: ${item?.price || "Not provided"}`,
         `Discovery reason: ${truncateText(item?.reason || "", 300) || "Not provided"}`,
         `Discovery source: ${item?.catalog_source || item?.discovery_source || item?.campaign_fit_source || "Not provided"}`,
+        `Search/result page: ${item?.source_search_url || item?.source_page_url || "Not provided"}`,
       ];
 
       return fields.join("\n");
@@ -8998,6 +9063,10 @@ function scoreCampaignFitForRule(item, rule) {
 
   const aiScore = getAiCampaignFitScore(item);
 
+  if (isExplicitCampaignFitRejected(item)) {
+    return -200;
+  }
+
   const terms = extractCampaignTerms(rule);
   const explicitTerms = extractExplicitCampaignMatchTerms(rule);
   const avoidTerms = extractCampaignAvoidTerms(rule);
@@ -9104,6 +9173,14 @@ function scoreCampaignFitForRule(item, rule) {
     // page relevant. Without product-level theme evidence or AI approval, keep
     // the item below the campaign acceptance threshold.
     score = Math.min(score, CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE - 5);
+  }
+
+  // Do not let heuristic title/source bonuses promote an AI-evaluated weak or
+  // medium product into a stronger tier than the product-level evaluation.
+  if (aiScore !== null && aiScore < 55) {
+    score = Math.min(score, 54);
+  } else if (aiScore !== null && aiScore < CAMPAIGN_NEAR_PRODUCT_FIT_SCORE) {
+    score = Math.min(score, CAMPAIGN_NEAR_PRODUCT_FIT_SCORE - 1);
   }
 
   return Math.max(score, -200);
@@ -11333,33 +11410,29 @@ function normalizeCampaignSearchPoolItem(
 }
 
 function buildCampaignSearchPoolItems({
-  candidates,
   verifiedItems,
   websiteUrl,
   rule,
   selectionPriority = 180,
   scoreBonus = 0,
 }) {
-  return dedupeWebsiteItemsByUrlTitleAndImage([
-    // Keep verified, AI-scored product-page data first so a raw search-card
-    // duplicate cannot replace its per-product fit evaluation.
-    ...(verifiedItems || [])
+  // Store-search cards are discovery hints, not verified campaign products.
+  // Only concrete product pages that were fetched, verified and individually
+  // evaluated may enter the relevance-first selection pool. Raw cards can have
+  // attractive images/prices while the underlying result page is unrelated.
+  return dedupeWebsiteItemsByUrlTitleAndImage(
+    (verifiedItems || [])
+      .filter((item) => item?.product_page_verified)
+      .filter((item) => getAiCampaignFitScore(item) !== null)
+      .filter((item) => !isExplicitCampaignFitRejected(item))
       .map((item) =>
         normalizeCampaignSearchPoolItem(item, websiteUrl, rule, {
           selectionPriority: Math.max(selectionPriority, 190),
           scoreBonus: scoreBonus + 10,
         })
       )
-      .filter(Boolean),
-    ...(candidates || [])
-      .map((item) =>
-        normalizeCampaignSearchPoolItem(item, websiteUrl, rule, {
-          selectionPriority,
-          scoreBonus,
-        })
-      )
-      .filter(Boolean),
-  ]);
+      .filter(Boolean)
+  );
 }
 
 async function findProductUrlWithWebSearch({
