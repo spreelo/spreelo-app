@@ -13033,10 +13033,141 @@ async function saveCarouselSlidesForPost({
   return rows;
 }
 
+function websiteTextContainsAny(value, keywords = []) {
+  const haystack = String(value || "").toLowerCase();
+  return keywords.some((keyword) => haystack.includes(String(keyword || "").toLowerCase()));
+}
+
+function getWebsiteItemAdLayoutSeed(rule, postContent) {
+  return [
+    rule?.website_item?.item_key,
+    rule?.website_item?.url,
+    rule?.website_item?.title,
+    rule?.brand_profile?.business_name,
+    postContent,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function getDeterministicLayoutIndex(seed, count) {
+  const safeCount = Math.max(1, Number(count || 1));
+  const source = String(seed || "layout-seed");
+  let hash = 0;
+
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash << 5) - hash + source.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash) % safeCount;
+}
+
+function selectWebsiteItemAdLayoutFamily(rule, postContent) {
+  const item = rule?.website_item || {};
+  const productContext = [
+    item?.title,
+    item?.description,
+    rule?.prompt,
+    rule?.image_prompt,
+    postContent,
+    rule?.brand_profile?.business_name,
+    rule?.brand_profile?.industry,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const seed = getWebsiteItemAdLayoutSeed(rule, postContent);
+
+  const layoutFamilies = {
+    feature_split: {
+      key: "feature_split",
+      name: "Feature split",
+      instruction:
+        "Use a structured ad layout with the product and text separated into clear zones. The product can be on the right or left. Use one strong headline, one short supporting line, up to 3 short callouts, and a clear CTA. This is the most practical feature-led layout.",
+    },
+    minimal_product_spotlight: {
+      key: "minimal_product_spotlight",
+      name: "Minimal product spotlight",
+      instruction:
+        "Let the product dominate the design with lots of negative space. Use a concise headline, very little extra copy, and a subtle CTA/domain. Avoid bullet lists unless absolutely necessary.",
+    },
+    bold_promo: {
+      key: "bold_promo",
+      name: "Bold promo",
+      instruction:
+        "Use a high-energy, attention-grabbing poster-like layout with bold typography and dramatic scale. Keep the copy short and impactful. Use at most 1 or 2 short callouts, not a dense feature list.",
+    },
+    premium_editorial: {
+      key: "premium_editorial",
+      name: "Premium editorial",
+      instruction:
+        "Use an elegant editorial style with generous spacing, refined typography, and a premium feel. Focus on polish rather than features. Avoid bullet lists and keep the copy minimal.",
+    },
+    lifestyle_focus: {
+      key: "lifestyle_focus",
+      name: "Lifestyle focus",
+      instruction:
+        "Use a more contextual or lifestyle-driven composition while keeping the exact product clearly recognizable. Text should be secondary and concise. Avoid forcing a structured three-point list unless truly helpful.",
+    },
+    playful_story: {
+      key: "playful_story",
+      name: "Playful story",
+      instruction:
+        "Use a fun, colorful composition tailored to festive, kid-friendly, costume, candy, or novelty items. Text can be lively but still brief. Use up to 2 or 3 short badges only if helpful.",
+    },
+  };
+
+  const pickFrom = (keys) => {
+    const safeKeys = keys.filter((key) => layoutFamilies[key]);
+    return layoutFamilies[safeKeys[getDeterministicLayoutIndex(seed, safeKeys.length)]];
+  };
+
+  if (websiteTextContainsAny(productContext, [
+    "halloween", "karneval", "carnival", "costume", "kostym", "maskerad", "party", "fest", "kids", "barn", "toy", "leksak", "candy", "godis", "cookie", "novelty", "sesam", "krümel", "monster"
+  ])) {
+    return pickFrom(["playful_story", "bold_promo"]);
+  }
+
+  if (websiteTextContainsAny(productContext, [
+    "band", "rock", "metal", "music", "merch", "vinyl", "album", "punk", "concert", "mezmerize", "system of a down"
+  ])) {
+    return pickFrom(["bold_promo", "feature_split"]);
+  }
+
+  if (websiteTextContainsAny(productContext, [
+    "skincare", "beauty", "serum", "cream", "cosmetic", "perfume", "parfum", "watch", "jewelry", "smycke", "luxury", "premium"
+  ])) {
+    return pickFrom(["premium_editorial", "minimal_product_spotlight"]);
+  }
+
+  if (websiteTextContainsAny(productContext, [
+    "hoodie", "t-shirt", "tee", "shirt", "sweatshirt", "sweater", "apparel", "clothing", "fashion", "kläder", "tröja", "dress", "klänning"
+  ])) {
+    return pickFrom(["minimal_product_spotlight", "feature_split", "lifestyle_focus"]);
+  }
+
+  if (websiteTextContainsAny(productContext, [
+    "home", "decor", "interior", "furniture", "outdoor", "sport", "fitness", "kitchen", "travel", "bag", "backpack"
+  ])) {
+    return pickFrom(["lifestyle_focus", "minimal_product_spotlight", "feature_split"]);
+  }
+
+  return pickFrom([
+    "feature_split",
+    "minimal_product_spotlight",
+    "bold_promo",
+    "premium_editorial",
+    "lifestyle_focus",
+  ]);
+}
+
 function buildWebsiteItemAdImagePrompt(rule, postContent) {
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
   const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
   const customVisualDirection = String(rule?.image_prompt || "").trim();
+  const selectedLayoutFamily = selectWebsiteItemAdLayoutFamily(rule, postContent);
 
   return `
 Create one high-quality portrait 4:5 social media ad image using the provided product photo as the visual reference for the exact product.
@@ -13053,6 +13184,12 @@ Language context: ${rule.language || "Auto"}
 Website URL: ${rule.brand_profile?.website_url || "Not provided"}
 
 ${formatCampaignVisualContextForPrompt(rule)}
+
+Selected ad layout family:
+${selectedLayoutFamily?.name || "Feature split"}
+
+Layout family instruction:
+${selectedLayoutFamily?.instruction || "Use a clear product-focused ad layout with concise text and a strong CTA."}
 
 User's post instruction:
 ${rule.prompt || "Not provided"}
@@ -13071,13 +13208,16 @@ Rules:
 - If multiple colors exist on the website, still keep the exact source-image color unless a different verified color is explicitly selected.
 - When uncertain, keep the exact source-image color and appearance.
 - Build a unique ad-style composition around that product so the final result feels custom-made for this exact item.
+- Follow the selected ad layout family above. Do not default to the same left-text/right-product feature-list layout unless that is the selected family.
+- Let the chosen layout family influence the composition, text placement, product scale, and overall mood so different products can receive different visual treatments.
 - Include readable marketing text in the image.
 - Write all added marketing text in the selected post language.
 - Use the exact verified product name when it appears in the image; do not rename the product.
 - Preserve existing printed words or graphics on the product as accurately as possible.
 - Keep the layout clean, simple, and spacious with fewer text elements and larger typography.
 - Use one strong headline, one very short supporting line, and one short CTA.
-- You may add up to 3 very short callout points or badges only if they are clearly supported by the website item.
+- You may add up to 3 very short callout points or badges only if they are clearly supported by the website item and if they fit the selected layout family.
+- If the selected layout family is more minimal, premium, or lifestyle-focused, prefer fewer callouts or no callouts at all.
 - Do not write long paragraphs, dense body copy, or small filler text.
 - Do not place compact text blocks, dense info cards, or small packed text boxes in the design.
 - If callout boxes or badges are used, keep them short, bold, and easy to read, with one idea per element.
