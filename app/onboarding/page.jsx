@@ -1,6 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowRight,
+  Building2,
+  CalendarHeart,
+  Check,
+  Circle,
+  Globe2,
+  LogOut,
+  PackageSearch,
+  ScanSearch,
+  ShieldCheck,
+  Sparkles,
+  WandSparkles,
+} from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 
@@ -52,26 +66,31 @@ const analysisProgressStages = [
     progress: 8,
     titleKey: "onboarding.analysis.readingWebsite.title",
     descriptionKey: "onboarding.analysis.readingWebsite.description",
+    icon: ScanSearch,
   },
   {
     progress: 28,
     titleKey: "onboarding.analysis.understandingBusiness.title",
     descriptionKey: "onboarding.analysis.understandingBusiness.description",
+    icon: Sparkles,
   },
   {
     progress: 48,
     titleKey: "onboarding.analysis.checkingProducts.title",
     descriptionKey: "onboarding.analysis.checkingProducts.description",
+    icon: PackageSearch,
   },
   {
     progress: 70,
     titleKey: "onboarding.analysis.buildingOpportunities.title",
     descriptionKey: "onboarding.analysis.buildingOpportunities.description",
+    icon: CalendarHeart,
   },
   {
     progress: 88,
     titleKey: "onboarding.analysis.preparingStrategy.title",
     descriptionKey: "onboarding.analysis.preparingStrategy.description",
+    icon: WandSparkles,
   },
 ];
 
@@ -516,177 +535,275 @@ export default function OnboardingPage() {
     }
   }
 
+  const currentAnalysisStage = getCurrentAnalysisStage(analysisProgress);
+  const CurrentAnalysisIcon = currentAnalysisStage.icon || Sparkles;
+  const currentAnalysisStageIndex = analysisProgressStages.findIndex(
+    (stage) => stage.titleKey === currentAnalysisStage.titleKey
+  );
+  const displayProgress = Math.min(99, Math.floor(analysisProgress));
+
   if (checking) {
     return (
-      <main className="login-page">
-        <section className="login-card">
-          <div className="brand login-brand">
-            <img
-              src="/brand/spreelologo.png"
-              alt="Spreelo"
-              className="spreelo-logo-image"
-            />
-          </div>
-
-          <p className="login-message">{t("onboarding.checkingWorkspace")}</p>
+      <main className="onboarding-refresh-page">
+        <section className="onboarding-refresh-loading" aria-live="polite">
+          <img src="/brand/spreelologo.png" alt="Spreelo" />
+          <span className="onboarding-refresh-spinner" aria-hidden="true" />
+          <p>{t("onboarding.checkingWorkspace")}</p>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="login-page">
-      <section className="login-card onboarding-card">
-        <div className="onboarding-card-top">
-          <div className="brand login-brand">
+    <main className={`onboarding-refresh-page ${loading ? "is-analyzing" : ""}`}>
+      <section className="onboarding-refresh-shell">
+        <aside className="onboarding-refresh-story" aria-label={t("onboarding.storyAriaLabel")}>
+          <img
+            src="/brand/spreelologo.png"
+            alt="Spreelo"
+            className="onboarding-refresh-logo"
+          />
+
+          <div className="onboarding-refresh-story-copy">
+            <span>{t("onboarding.welcomeEyebrow")}</span>
+            <h1>{t("onboarding.storyTitle")}</h1>
+            <p>{t("onboarding.storyText")}</p>
+          </div>
+
+          <div className="onboarding-refresh-story-steps">
+            <article>
+              <span><Building2 size={22} aria-hidden="true" /></span>
+              <div>
+                <strong>{t("onboarding.storyStepOneTitle")}</strong>
+                <p>{t("onboarding.storyStepOneText")}</p>
+              </div>
+            </article>
+            <article>
+              <span><Sparkles size={22} aria-hidden="true" /></span>
+              <div>
+                <strong>{t("onboarding.storyStepTwoTitle")}</strong>
+                <p>{t("onboarding.storyStepTwoText")}</p>
+              </div>
+            </article>
+            <article>
+              <span><ArrowRight size={22} aria-hidden="true" /></span>
+              <div>
+                <strong>{t("onboarding.storyStepThreeTitle")}</strong>
+                <p>{t("onboarding.storyStepThreeText")}</p>
+              </div>
+            </article>
+          </div>
+
+          <div className="onboarding-refresh-illustration" aria-hidden="true">
+            <div className="onboarding-refresh-orbit orbit-one" />
+            <div className="onboarding-refresh-orbit orbit-two" />
+            <div className="onboarding-refresh-dashboard">
+              <i /><i /><i />
+              <b />
+            </div>
+            <div className="onboarding-refresh-spark spark-one" />
+            <div className="onboarding-refresh-spark spark-two" />
+          </div>
+        </aside>
+
+        <section className="onboarding-refresh-main">
+          <header className="onboarding-refresh-topbar">
             <img
               src="/brand/spreelologo.png"
               alt="Spreelo"
-              className="spreelo-logo-image"
+              className="onboarding-refresh-mobile-logo"
             />
+
+            <button
+              type="button"
+              className="onboarding-refresh-logout"
+              onClick={handleLogout}
+              disabled={loading || loggingOut}
+            >
+              <LogOut size={17} aria-hidden="true" />
+              {loggingOut ? t("onboarding.loggingOut") : t("onboarding.logout")}
+            </button>
+          </header>
+
+          <div className="onboarding-refresh-progress" aria-label={t("onboarding.step")}>
+            <div className="is-active"><span>1</span></div>
+            <i />
+            <div><span>2</span></div>
+            <i />
+            <div><span>3</span></div>
+            <p>{t("onboarding.step")}</p>
           </div>
 
-          <button
-            type="button"
-            className="onboarding-logout-button"
-            onClick={handleLogout}
-            disabled={loading || loggingOut}
-          >
-            {loggingOut ? t("onboarding.loggingOut") : t("onboarding.logout")}
-          </button>
-        </div>
-
-        <div className="login-content">
-          <p className="eyebrow">{t("onboarding.step")}</p>
-          <h2>{t("onboarding.title")}</h2>
-          <p>{t("onboarding.description")}</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="login-form">
-          <label>{t("onboarding.businessName")}</label>
-          <input
-            className="input"
-            type="text"
-            placeholder={t("onboarding.businessNamePlaceholder")}
-            value={businessName}
-            onChange={(event) => {
-              setBusinessName(event.target.value);
-              setMessage("");
-            }}
-            required
-            disabled={loading || loggingOut}
-          />
-
-          <label>{t("onboarding.websiteUrl")}</label>
-          <input
-            className="input"
-            type="text"
-            placeholder={t("onboarding.websiteUrlPlaceholder")}
-            value={websiteUrl}
-            onChange={(event) => {
-              setWebsiteUrl(event.target.value);
-              setMessage("");
-            }}
-            disabled={hasNoWebsite || loading || loggingOut}
-          />
-
-          <label className="onboarding-checkbox">
-            <input
-              type="checkbox"
-              checked={hasNoWebsite}
-              disabled={loading || loggingOut}
-              onChange={(event) => {
-                setHasNoWebsite(event.target.checked);
-                setMessage("");
-
-                if (event.target.checked) {
-                  setWebsiteUrl("");
-                } else {
-                  setBrandDescription("");
-                }
-              }}
-            />
-            <span>{t("onboarding.noWebsite")}</span>
-          </label>
-
-
-
-          {hasNoWebsite && (
-            <>
-              <label>{t("onboarding.describeBusiness")}</label>
-              <textarea
-                className="input"
-                rows={5}
-                placeholder={t("onboarding.describeBusinessPlaceholder")}
-                value={brandDescription}
-                onChange={(event) => {
-                  setBrandDescription(event.target.value);
-                  setMessage("");
-                }}
-                required
-                disabled={loading || loggingOut}
-              />
-            </>
-          )}
-
-          <button
-            className="primary-button full"
-            type="submit"
-            disabled={loading || loggingOut}
-          >
-            {loading ? t("onboarding.settingUp") : t("onboarding.continue")}
-          </button>
-        </form>
-
-        {loading ? (
-          <div className="brand-profile-analysis-card onboarding-analysis-card">
-            <div className="brand-profile-analysis-header">
-              <div>
-                <strong>{t("onboarding.analysis.title")}</strong>
-                <p>{t("onboarding.analysis.description")}</p>
+          {!loading ? (
+            <div className="onboarding-refresh-form-view">
+              <div className="onboarding-refresh-heading">
+                <p>{t("onboarding.formEyebrow")}</p>
+                <h2>{t("onboarding.title")}</h2>
+                <span>{t("onboarding.description")}</span>
               </div>
 
-              <span>{Math.min(99, Math.floor(analysisProgress))}%</span>
-            </div>
+              <form onSubmit={handleSubmit} className="onboarding-refresh-form">
+                <label htmlFor="onboarding-business-name">{t("onboarding.businessName")}</label>
+                <input
+                  id="onboarding-business-name"
+                  type="text"
+                  placeholder={t("onboarding.businessNamePlaceholder")}
+                  value={businessName}
+                  onChange={(event) => {
+                    setBusinessName(event.target.value);
+                    setMessage("");
+                  }}
+                  required
+                  disabled={loading || loggingOut}
+                />
 
-            <div className="brand-profile-progress-track">
-              <div
-                className="brand-profile-progress-fill"
-                style={{ width: `${Math.min(analysisProgress, 98.8)}%` }}
-              />
-            </div>
+                <label htmlFor="onboarding-website-url">{t("onboarding.websiteUrl")}</label>
+                <div className="onboarding-refresh-input-with-icon">
+                  <Globe2 size={19} aria-hidden="true" />
+                  <input
+                    id="onboarding-website-url"
+                    type="text"
+                    placeholder={t("onboarding.websiteUrlPlaceholder")}
+                    value={websiteUrl}
+                    onChange={(event) => {
+                      setWebsiteUrl(event.target.value);
+                      setMessage("");
+                    }}
+                    disabled={hasNoWebsite || loading || loggingOut}
+                  />
+                </div>
 
-            <div className="brand-profile-analysis-current">
-              <strong>
-                {t(getCurrentAnalysisStage(analysisProgress).titleKey)}
-              </strong>
-              <p>{t(getCurrentAnalysisStage(analysisProgress).descriptionKey)}</p>
-            </div>
+                <label className="onboarding-refresh-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={hasNoWebsite}
+                    disabled={loading || loggingOut}
+                    onChange={(event) => {
+                      setHasNoWebsite(event.target.checked);
+                      setMessage("");
 
-            <div className="brand-profile-analysis-steps">
-              {analysisProgressStages.map((stage) => {
-                const isDone = analysisProgress >= stage.progress;
-                const isCurrent =
-                  getCurrentAnalysisStage(analysisProgress).titleKey ===
-                  stage.titleKey;
+                      if (event.target.checked) {
+                        setWebsiteUrl("");
+                      } else {
+                        setBrandDescription("");
+                      }
+                    }}
+                  />
+                  <span>{t("onboarding.noWebsite")}</span>
+                </label>
 
-                return (
-                  <div
-                    key={stage.titleKey}
-                    className={`brand-profile-analysis-step ${
-                      isDone ? "done" : ""
-                    } ${isCurrent ? "current" : ""}`}
-                  >
-                    <span>{isDone ? "✓" : "○"}</span>
-                    <strong>{t(stage.titleKey)}</strong>
-                  </div>
-                );
-              })}
+                {hasNoWebsite && (
+                  <>
+                    <label htmlFor="onboarding-description">{t("onboarding.describeBusiness")}</label>
+                    <textarea
+                      id="onboarding-description"
+                      rows={5}
+                      placeholder={t("onboarding.describeBusinessPlaceholder")}
+                      value={brandDescription}
+                      onChange={(event) => {
+                        setBrandDescription(event.target.value);
+                        setMessage("");
+                      }}
+                      required
+                      disabled={loading || loggingOut}
+                    />
+                  </>
+                )}
+
+                <button
+                  className="onboarding-refresh-primary"
+                  type="submit"
+                  disabled={loading || loggingOut}
+                >
+                  <span>{t("onboarding.continue")}</span>
+                  <ArrowRight size={20} aria-hidden="true" />
+                </button>
+              </form>
+
+              {message && <p className="onboarding-refresh-message" role="status">{message}</p>}
+
+              <div className="onboarding-refresh-security-note">
+                <ShieldCheck size={21} aria-hidden="true" />
+                <div>
+                  <strong>{t("onboarding.securityTitle")}</strong>
+                  <p>{t("onboarding.securityText")}</p>
+                </div>
+              </div>
             </div>
-          </div>
-        ) : (
-          message && <p className="login-message">{message}</p>
-        )}
+          ) : (
+            <div className="onboarding-refresh-analysis" aria-live="polite">
+              <div className="onboarding-refresh-analysis-hero">
+                <div
+                  className="onboarding-refresh-progress-ring"
+                  style={{ "--analysis-progress": `${displayProgress * 3.6}deg` }}
+                >
+                  <span>{displayProgress}%</span>
+                </div>
+
+                <div>
+                  <p>{t("onboarding.analysisEyebrow")}</p>
+                  <h2>{t("onboarding.analysis.title")}</h2>
+                  <span>{t("onboarding.analysis.description")}</span>
+                </div>
+              </div>
+
+              <div className="onboarding-refresh-analysis-summary">
+                <Building2 size={20} aria-hidden="true" />
+                <div>
+                  <span>{t("onboarding.businessName")}</span>
+                  <strong>{businessName}</strong>
+                </div>
+                <div>
+                  <span>{hasNoWebsite ? t("onboarding.describeBusiness") : t("onboarding.websiteUrl")}</span>
+                  <strong>{hasNoWebsite ? brandDescription : normalizedWebsiteUrl}</strong>
+                </div>
+              </div>
+
+              <div className="onboarding-refresh-analysis-track">
+                <div style={{ width: `${Math.min(analysisProgress, 98.8)}%` }} />
+              </div>
+
+              <div className="onboarding-refresh-current-stage">
+                <span><CurrentAnalysisIcon size={24} aria-hidden="true" /></span>
+                <div>
+                  <strong>{t(currentAnalysisStage.titleKey)}</strong>
+                  <p>{t(currentAnalysisStage.descriptionKey)}</p>
+                </div>
+              </div>
+
+              <div className="onboarding-refresh-stage-list">
+                {analysisProgressStages.map((stage, index) => {
+                  const StageIcon = stage.icon || Circle;
+                  const isDone = index < currentAnalysisStageIndex;
+                  const isCurrent = currentAnalysisStage.titleKey === stage.titleKey;
+
+                  return (
+                    <article
+                      key={stage.titleKey}
+                      className={`${isDone ? "is-done" : ""} ${isCurrent ? "is-current" : ""}`}
+                    >
+                      <span>
+                        {isDone ? <Check size={16} aria-hidden="true" /> : <StageIcon size={17} aria-hidden="true" />}
+                      </span>
+                      <div>
+                        <strong>{t(stage.titleKey)}</strong>
+                        {isCurrent && <p>{t(stage.descriptionKey)}</p>}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="onboarding-refresh-keep-open">
+                <ShieldCheck size={22} aria-hidden="true" />
+                <div>
+                  <strong>{t("onboarding.analysis.keepOpenTitle")}</strong>
+                  <p>{t("onboarding.analysis.keepOpenText")}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
       </section>
     </main>
   );

@@ -26,6 +26,22 @@ function getBrandStorageKey(userId) {
 const SAVED_LOGIN_EMAIL_KEY = "spreelo_last_login_email";
 const EMPTY_OTP_DIGITS = ["", "", "", "", "", ""];
 
+function renderMarketingTitle(value) {
+  const title = String(value || "").trim();
+  const separatorIndex = title.indexOf("—");
+
+  if (separatorIndex === -1) {
+    return title;
+  }
+
+  return (
+    <>
+      {title.slice(0, separatorIndex).trim()}
+      <span>{` — ${title.slice(separatorIndex + 1).trim()}`}</span>
+    </>
+  );
+}
+
 export default function LoginPage() {
   const { t, locale, setLocale } = useUiText(["login"]);
 
@@ -283,7 +299,7 @@ export default function LoginPage() {
               {t("login.welcomeBack")}
             </span>
 
-            <h1>{t("login.marketingTitle")}</h1>
+            <h1>{renderMarketingTitle(t("login.marketingTitle"))}</h1>
             <p>{t("login.marketingText")}</p>
           </div>
 
@@ -414,147 +430,150 @@ export default function LoginPage() {
               <p>{t("login.description")}</p>
             ) : (
               <p className="login-refresh-sent-to">
-                {t("login.codeSentPrefix")} <strong>{email}</strong>.
+                {t("login.codeSentPrefix")} <strong>{email}</strong>
               </p>
             )}
           </div>
 
+          <div className="login-refresh-form-panel">
           {codeSent && (
-            <div className="login-refresh-delivery-status">
-              <CheckCircle2 size={22} aria-hidden="true" />
-              <div>
-                <strong>{t("login.deliveryStatusTitle")}</strong>
-                <p>{t("login.deliveryStatusText")}</p>
+              <div className="login-refresh-delivery-status">
+                <CheckCircle2 size={22} aria-hidden="true" />
+                <div>
+                  <strong>{t("login.deliveryStatusTitle")}</strong>
+                  <p>{t("login.deliveryStatusText")}</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {!codeSent ? (
-            <form onSubmit={handleSendCode} className="login-refresh-form">
-              <label htmlFor="login-email">{t("login.emailAddress")}</label>
-              <div className="login-refresh-input-wrap">
-                <Mail size={19} aria-hidden="true" />
-                <input
-                  id="login-email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder={t("login.emailPlaceholder")}
-                  value={email}
-                  onChange={(event) => {
-                    setEmail(event.target.value);
-                    setMessage("");
-                    setMessageType("info");
-                  }}
-                  required
-                  disabled={loading || verifying}
-                />
-              </div>
-
-              <button
-                className="login-refresh-primary"
-                type="submit"
-                disabled={loading || verifying}
-              >
-                <span>{loading ? t("login.sending") : t("login.sendCode")}</span>
-                <ArrowRight size={20} aria-hidden="true" />
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyCode} className="login-refresh-form">
-              <label>{t("login.signInCode")}</label>
-
-              <div className="login-refresh-otp" onPaste={handleOtpPaste}>
-                {otpDigits.map((digit, index) => (
+            {!codeSent ? (
+              <form onSubmit={handleSendCode} className="login-refresh-form">
+                <label htmlFor="login-email">{t("login.emailAddress")}</label>
+                <div className="login-refresh-input-wrap">
+                  <Mail size={19} aria-hidden="true" />
                   <input
-                    key={index}
-                    ref={(element) => {
-                      otpInputRefs.current[index] = element;
+                    id="login-email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder={t("login.emailPlaceholder")}
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      setMessage("");
+                      setMessageType("info");
                     }}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete={index === 0 ? "one-time-code" : "off"}
-                    aria-label={`${t("login.signInCode")} ${index + 1}`}
-                    maxLength={1}
-                    value={digit}
-                    onChange={(event) => handleOtpChange(index, event.target.value)}
-                    onKeyDown={(event) => handleOtpKeyDown(index, event)}
+                    required
                     disabled={loading || verifying}
                   />
-                ))}
-              </div>
-
-              <button
-                className="login-refresh-primary"
-                type="submit"
-                disabled={loading || verifying}
-              >
-                <span>{verifying ? t("login.signingIn") : t("login.signIn")}</span>
-                <ArrowRight size={20} aria-hidden="true" />
-              </button>
-
-              <button
-                className="login-refresh-secondary"
-                type="button"
-                onClick={handleSendCode}
-                disabled={loading || verifying}
-              >
-                <RefreshCw size={19} aria-hidden="true" />
-                {loading ? t("login.sending") : t("login.sendNewCode")}
-              </button>
-
-              <div className="login-refresh-or"><span>{t("login.or")}</span></div>
-
-              <button
-                className="login-refresh-text-button"
-                type="button"
-                onClick={handleChangeEmail}
-                disabled={loading || verifying}
-              >
-                {t("login.useAnotherEmail")}
-                <ArrowRight size={17} aria-hidden="true" />
-              </button>
-            </form>
-          )}
-
-          {message && (
-            <div className={`login-refresh-message is-${messageType}`} role="status">
-              {messageType === "success" ? (
-                <CheckCircle2 size={20} aria-hidden="true" />
-              ) : messageType === "error" ? (
-                <LockKeyhole size={20} aria-hidden="true" />
-              ) : (
-                <Mail size={20} aria-hidden="true" />
-              )}
-              <p>{message}</p>
-            </div>
-          )}
-
-          <div className="login-refresh-trust-grid">
-            <article className="login-refresh-trust-card secure">
-              <span><ShieldCheck size={23} aria-hidden="true" /></span>
-              <div>
-                <strong>{t("login.secureTitle")}</strong>
-                <p>{t("login.secureText")}</p>
-              </div>
-            </article>
-
-            {codeSent ? (
-              <article className="login-refresh-trust-card help">
-                <span><Mail size={23} aria-hidden="true" /></span>
-                <div>
-                  <strong>{t("login.codeHelpTitle")}</strong>
-                  <p>{t("login.codeHelpText")}</p>
                 </div>
-              </article>
+
+                <button
+                  className="login-refresh-primary"
+                  type="submit"
+                  disabled={loading || verifying}
+                >
+                  <span>{loading ? t("login.sending") : t("login.sendCode")}</span>
+                  <ArrowRight size={20} aria-hidden="true" />
+                </button>
+              </form>
             ) : (
-              <article className="login-refresh-trust-card quick">
-                <span><Clock3 size={23} aria-hidden="true" /></span>
+              <form onSubmit={handleVerifyCode} className="login-refresh-form">
+                <label>{t("login.signInCode")}</label>
+
+                <div className="login-refresh-otp" onPaste={handleOtpPaste}>
+                  {otpDigits.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(element) => {
+                        otpInputRefs.current[index] = element;
+                      }}
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete={index === 0 ? "one-time-code" : "off"}
+                      aria-label={`${t("login.signInCode")} ${index + 1}`}
+                      maxLength={1}
+                      value={digit}
+                      onChange={(event) => handleOtpChange(index, event.target.value)}
+                      onKeyDown={(event) => handleOtpKeyDown(index, event)}
+                      disabled={loading || verifying}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  className="login-refresh-primary"
+                  type="submit"
+                  disabled={loading || verifying}
+                >
+                  <span>{verifying ? t("login.signingIn") : t("login.signIn")}</span>
+                  <ArrowRight size={20} aria-hidden="true" />
+                </button>
+
+                <button
+                  className="login-refresh-secondary"
+                  type="button"
+                  onClick={handleSendCode}
+                  disabled={loading || verifying}
+                >
+                  <RefreshCw size={19} aria-hidden="true" />
+                  {loading ? t("login.sending") : t("login.sendNewCode")}
+                </button>
+
+                <div className="login-refresh-or"><span>{t("login.or")}</span></div>
+
+                <button
+                  className="login-refresh-text-button"
+                  type="button"
+                  onClick={handleChangeEmail}
+                  disabled={loading || verifying}
+                >
+                  {t("login.useAnotherEmail")}
+                  <ArrowRight size={17} aria-hidden="true" />
+                </button>
+              </form>
+            )}
+
+            {message && (
+              <div className={`login-refresh-message is-${messageType}`} role="status">
+                {messageType === "success" ? (
+                  <CheckCircle2 size={20} aria-hidden="true" />
+                ) : messageType === "error" ? (
+                  <LockKeyhole size={20} aria-hidden="true" />
+                ) : (
+                  <Mail size={20} aria-hidden="true" />
+                )}
+                <p>{message}</p>
+              </div>
+            )}
+
+            <div className="login-refresh-trust-grid">
+              <article className="login-refresh-trust-card secure">
+                <span><ShieldCheck size={23} aria-hidden="true" /></span>
                 <div>
-                  <strong>{t("login.quickTitle")}</strong>
-                  <p>{t("login.quickText")}</p>
+                  <strong>{t("login.secureTitle")}</strong>
+                  <p>{t("login.secureText")}</p>
                 </div>
               </article>
-            )}
+
+              {codeSent ? (
+                <article className="login-refresh-trust-card help">
+                  <span><Mail size={23} aria-hidden="true" /></span>
+                  <div>
+                    <strong>{t("login.codeHelpTitle")}</strong>
+                    <p>{t("login.codeHelpText")}</p>
+                  </div>
+                </article>
+              ) : (
+                <article className="login-refresh-trust-card quick">
+                  <span><Clock3 size={23} aria-hidden="true" /></span>
+                  <div>
+                    <strong>{t("login.quickTitle")}</strong>
+                    <p>{t("login.quickText")}</p>
+                  </div>
+                </article>
+              )}
+            </div>
+
           </div>
 
           <div className="login-refresh-tablet-benefits" aria-hidden="true">
