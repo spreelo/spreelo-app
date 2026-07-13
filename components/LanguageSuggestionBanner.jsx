@@ -153,6 +153,48 @@ const COPY = {
     switchButton: "Превключи на {browserNativeName}",
     keepButton: "Продължи на {currentNativeName}",
   },
+  vi: {
+    message: "Ngôn ngữ trình duyệt của bạn có vẻ là {browserLanguage}.",
+    question: "Chuyển sang {browserNativeName}?",
+    switchButton: "Chuyển sang {browserNativeName}",
+    keepButton: "Tiếp tục dùng {currentNativeName}",
+  },
+  cs: {
+    message: "Jazyk vašeho prohlížeče je pravděpodobně {browserLanguage}.",
+    question: "Chcete přepnout na {browserNativeName}?",
+    switchButton: "Přepnout na {browserNativeName}",
+    keepButton: "Ponechat {currentNativeName}",
+  },
+  ro: {
+    message: "Limba browserului pare să fie {browserLanguage}.",
+    question: "Doriți să treceți la {browserNativeName}?",
+    switchButton: "Treceți la {browserNativeName}",
+    keepButton: "Păstrați {currentNativeName}",
+  },
+  hu: {
+    message: "Úgy tűnik, a böngésző nyelve: {browserLanguage}.",
+    question: "Átvált {browserNativeName} nyelvre?",
+    switchButton: "Váltás erre: {browserNativeName}",
+    keepButton: "Maradjon ezen: {currentNativeName}",
+  },
+  el: {
+    message: "Η γλώσσα του προγράμματος περιήγησής σας φαίνεται να είναι {browserLanguage}.",
+    question: "Θέλετε να αλλάξετε σε {browserNativeName};",
+    switchButton: "Αλλαγή σε {browserNativeName}",
+    keepButton: "Παραμονή σε {currentNativeName}",
+  },
+  ms: {
+    message: "Bahasa pelayar anda nampaknya ialah {browserLanguage}.",
+    question: "Tukar kepada {browserNativeName}?",
+    switchButton: "Tukar kepada {browserNativeName}",
+    keepButton: "Kekalkan {currentNativeName}",
+  },
+  fil: {
+    message: "Mukhang {browserLanguage} ang wika ng iyong browser.",
+    question: "Lumipat sa {browserNativeName}?",
+    switchButton: "Lumipat sa {browserNativeName}",
+    keepButton: "Manatili sa {currentNativeName}",
+  },
 };
 
 function formatText(template, values) {
