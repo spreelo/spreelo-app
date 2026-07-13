@@ -6,6 +6,7 @@ import AppLayout from "../../components/AppLayout";
 import { CampaignGlyph } from "../../components/SpreeloIcons";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
+import { getCreditCostForCampaignSourceMode } from "../../lib/credits";
 
 const CAMPAIGN_HANDOFF_STORAGE_KEY = "spreelo_calendar_campaign_handoff";
 
@@ -230,6 +231,16 @@ function getCampaignRecommendedPostCount(campaign, fallbackCount = 3) {
     : fallbackCount;
 
   return Math.min(Math.max(Math.round(count), 1), 7);
+}
+
+function getCampaignEstimatedCredits(campaign) {
+  const count = getCampaignRecommendedPostCount(campaign);
+  const postPlan = Array.isArray(campaign?.post_plan) ? campaign.post_plan : [];
+
+  return Array.from({ length: count }).reduce((total, _, index) => {
+    const sourceMode = postPlan[index]?.content_source_mode || "ai_image_overlay";
+    return total + getCreditCostForCampaignSourceMode(sourceMode);
+  }, 0);
 }
 
 
@@ -1163,6 +1174,9 @@ export default function Calendar() {
                           <div className="campaign-card-meta">
                             <span>
                               {getCampaignRecommendedPostCount(campaign)} {t("common.posts")}
+                            </span>
+                            <span>
+                              {getCampaignEstimatedCredits(campaign)} {t("automation.credits")}
                             </span>
                             <span
                               className={`campaign-confidence-badge ${getConfidenceTone(

@@ -36,6 +36,7 @@ import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
+import { getCreditCostForContent } from "../../lib/credits";
 
 const DEFAULT_TIME_ZONE = "UTC";
 const SPREELO_INTERNAL_TESTER_EMAIL = "johan@foldern.com";
@@ -677,6 +678,18 @@ function makeSlotId() {
   return `slot-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function makeAutomationRuleId() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+    const randomValue = Math.floor(Math.random() * 16);
+    const value = character === "x" ? randomValue : (randomValue & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
 function getSafeManualImageFileName(fileName) {
   const cleanName = String(fileName || "manual-image")
     .normalize("NFKD")
@@ -691,8 +704,7 @@ function getSafeManualImageFileName(fileName) {
 function getRuleImageSource(slot) {
   if (slot?.contentTypeId === "manual_prompt") {
     if (slot.manualImageMode === "uploaded") return "uploaded";
-    if (slot.manualImageMode === "ai") return "ai";
-    return "none";
+    return "ai";
   }
 
   if (slot?.contentFormat === "carousel") return "website_carousel";
@@ -1729,8 +1741,6 @@ function createSlotFromContentType(type, index = 0, options = {}) {
   const shouldGenerateImage =
     typeof options.generateImage === "boolean"
       ? options.generateImage
-      : type.id === "manual_prompt"
-      ? false
       : true;
 
   return createSlot({
@@ -2104,11 +2114,8 @@ function getSlotImageLabel(slot) {
 }
 
 function getSlotCreditLabel(slot) {
-  if (slot.generateImage) {
-    return "3 credits";
-  }
-
-  return "1 credit";
+  const credits = getCreditCostForContent(slot);
+  return `${credits} ${credits === 1 ? "credit" : "credits"}`;
 }
 
 function getContentTypeIcon(typeId) {
@@ -5091,7 +5098,7 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
 
   const plannedCredits = useMemo(() => {
     return slots.reduce(
-      (total, slot) => total + (slot.generateImage ? 3 : 1),
+      (total, slot) => total + getCreditCostForContent(slot),
       0
     );
   }, [slots]);
@@ -6176,9 +6183,9 @@ const { data, error } = await supabase
 
         return {
           ...slot,
-          manualImageMode: "none",
-          imageSource: "none",
-          generateImage: false,
+          manualImageMode: "ai",
+          imageSource: "ai",
+          generateImage: true,
           uploadedImageFile: null,
           uploadedImagePreviewUrl: "",
           uploadedImageUrl: "",
@@ -6440,9 +6447,9 @@ function scrollToPlannerSchedule() {
     ...newSlot,
     prompt: "",
     imagePrompt: "",
-    generateImage: false,
-    manualImageMode: "none",
-    imageSource: "none",
+    generateImage: true,
+    manualImageMode: "ai",
+    imageSource: "ai",
     contentTypeId: "manual_prompt",
     contentTypeLabel: "Custom post",
     usesWebsiteContent: false,
@@ -6504,11 +6511,11 @@ function addSlot() {
         weekday: schedule.weekday,
         prompt: selectedType.prompt,
         imagePrompt: selectedType.imagePrompt,
-        generateImage: selectedType.id === "manual_prompt" ? false : true,
-        manualImageMode: selectedType.id === "manual_prompt" ? "none" : undefined,
+        generateImage: true,
+        manualImageMode: selectedType.id === "manual_prompt" ? "ai" : undefined,
         imageSource:
           selectedType.id === "manual_prompt"
-            ? "none"
+            ? "ai"
             : selectedType.contentFormat === "carousel"
             ? "website_carousel"
             : selectedType.usesWebsiteContent
@@ -6806,45 +6813,25 @@ function toggleContentType(typeId) {
     setCurrentUserEmail(user.email || "");
 
     const selectedBrandId =
-  currentBrandId || (await getCurrentBrandIdForUser(user));
+      currentBrandId || (await getCurrentBrandIdForUser(user));
 
-let uploadedImagePaths = [];
-
-const { data: rulesWithUploadedImages, error: uploadedImagesLoadError } =
-  await supabase
-    .from("automation_rules")
-    .select("id, uploaded_image_storage_path")
-    .eq("user_id", user.id)
-    .eq("brand_profile_id", selectedBrandId)
-    .in("id", ruleIds);
-
-if (
-  uploadedImagesLoadError &&
-  !String(uploadedImagesLoadError.message || "").includes(
-    "uploaded_image_storage_path"
-  )
-) {
-  setMessage(uploadedImagesLoadError.message);
-  setDeletingRules(false);
-  return;
-}
-
-uploadedImagePaths = (rulesWithUploadedImages || [])
-  .map((rule) => rule.uploaded_image_storage_path)
-  .filter(Boolean);
-
-const { error } = await supabase
-  .from("automation_rules")
-  .delete()
-  .eq("user_id", user.id)
-  .eq("brand_profile_id", selectedBrandId)
-  .in("id", ruleIds);
+    const { data: releaseResult, error } = await supabase.rpc(
+      "release_and_delete_automation_rules",
+      { p_rule_ids: ruleIds }
+    );
 
     if (error) {
       setMessage(error.message);
       setDeletingRules(false);
       return;
     }
+
+    const releasedRules = Array.isArray(releaseResult?.rules)
+      ? releaseResult.rules
+      : [];
+    const uploadedImagePaths = releasedRules
+      .map((rule) => rule.uploaded_image_storage_path)
+      .filter(Boolean);
 
     if (uploadedImagePaths.length) {
       const { error: storageDeleteError } = await supabase.storage
@@ -6859,6 +6846,19 @@ const { error } = await supabase
       }
     }
 
+    const releasedCredits = Number(releaseResult?.released_credits || 0);
+    if (releasedCredits > 0) {
+      setCreditBalance((current) =>
+        current
+          ? {
+              ...current,
+              credits_remaining:
+                Number(current.credits_remaining || 0) + releasedCredits,
+            }
+          : current
+      );
+    }
+
     setRules((currentRules) =>
       currentRules.filter((rule) => !ruleIds.includes(rule.id))
     );
@@ -6870,7 +6870,11 @@ const { error } = await supabase
     setMessage(
       `${ruleIds.length} automation rule${
         ruleIds.length === 1 ? "" : "s"
-      } deleted.`
+      } deleted.${
+        releasedCredits > 0
+          ? ` ${releasedCredits} reserved credit${releasedCredits === 1 ? " was" : "s were"} returned.`
+          : ""
+      }`
     );
 
     setDeletingRules(false);
@@ -6972,14 +6976,12 @@ const { error } = await supabase
         publishTime: normalizeTime(rule.publish_time || defaultPublishTime),
         prompt: rule.prompt || contentType?.prompt || "",
         imagePrompt: rule.image_prompt || contentType?.imagePrompt || "",
-        generateImage: Boolean(rule.generate_image),
+        generateImage: contentTypeId === "manual_prompt" ? true : Boolean(rule.generate_image),
         manualImageMode:
           contentTypeId === "manual_prompt"
             ? rule.image_source === "uploaded"
               ? "uploaded"
-              : rule.generate_image
-              ? "ai"
-              : "none"
+              : "ai"
             : undefined,
         imageSource: rule.image_source || "",
         uploadedImageUrl: rule.uploaded_image_url || "",
@@ -7051,14 +7053,12 @@ const { error } = await supabase
         publishTime: rulePublishTime,
         prompt: rule.prompt || contentType?.prompt || "",
         imagePrompt: rule.image_prompt || contentType?.imagePrompt || "",
-        generateImage: Boolean(rule.generate_image),
+        generateImage: contentTypeId === "manual_prompt" ? true : Boolean(rule.generate_image),
         manualImageMode:
           contentTypeId === "manual_prompt"
             ? rule.image_source === "uploaded"
               ? "uploaded"
-              : rule.generate_image
-              ? "ai"
-              : "none"
+              : "ai"
             : undefined,
         imageSource: rule.image_source || "",
         uploadedImageUrl: rule.uploaded_image_url || "",
@@ -7262,6 +7262,10 @@ try {
   return;
 }
 
+const editingRuleSnapshot = editingRuleId
+  ? rules.find((rule) => rule.id === editingRuleId) || null
+  : null;
+
 const rows = preparedSlots.map((slot) => {
       const slotWeekday = getWeekdayFromDateString(
         slot.startDate,
@@ -7270,6 +7274,7 @@ const rows = preparedSlots.map((slot) => {
       const productMetadata = getSlotProductMetadata(slot);
 
       return {
+        ...(editingRuleId ? {} : { id: makeAutomationRuleId() }),
         user_id: user.id,
         brand_profile_id: selectedBrandId,
         name: sharedGeneratedPlanName,
@@ -7311,7 +7316,7 @@ ${slot.campaignSummary}`
             : typeof slot.includeLogo === "boolean"
             ? slot.includeLogo
             : Boolean(currentBrandProfile?.logo_url) && currentBrandProfile?.logo_enabled_by_default !== false,
-        credit_cost: slot.generateImage ? 3 : 1,
+        credit_cost: getCreditCostForContent(slot),
         schedule_type: scheduleType,
         run_date: slot.startDate,
         timezone: selectedTimeZone,
@@ -7322,7 +7327,24 @@ ${slot.campaignSummary}`
           timeZone: selectedTimeZone,
         }),
         approval_required: true,
-        is_active: true,
+        is_active: editingRuleId
+          ? editingRuleSnapshot?.is_active !== false
+          : false,
+        credit_reservation_status: editingRuleId
+          ? editingRuleSnapshot?.credit_reservation_status || "legacy"
+          : "pending",
+        credit_reserved_amount: editingRuleId
+          ? Number(editingRuleSnapshot?.credit_reserved_amount || 0)
+          : 0,
+        credit_reserved_at: editingRuleId
+          ? editingRuleSnapshot?.credit_reserved_at || null
+          : null,
+        credit_consumed_at: editingRuleId
+          ? editingRuleSnapshot?.credit_consumed_at || null
+          : null,
+        credit_released_at: editingRuleId
+          ? editingRuleSnapshot?.credit_released_at || null
+          : null,
                content_type_id: slot.contentTypeId,
         content_type_label: slot.contentTypeLabel,
         uses_website_content: Boolean(slot.usesWebsiteContent),
@@ -7389,6 +7411,57 @@ ${slot.campaignSummary}`
         return;
       }
 
+      const { data: reconciliationResult, error: reconciliationError } =
+        await supabase.rpc("reconcile_automation_rule_credit_reservation", {
+          p_rule_id: editingRuleId,
+        });
+
+      if (reconciliationError) {
+        if (editingRuleSnapshot) {
+          await supabase
+            .from("automation_rules")
+            .update({
+              credit_cost: editingRuleSnapshot.credit_cost,
+              content_type_id: editingRuleSnapshot.content_type_id,
+              content_type_label: editingRuleSnapshot.content_type_label,
+              content_format: editingRuleSnapshot.content_format,
+              uses_website_content: editingRuleSnapshot.uses_website_content,
+              generate_image: editingRuleSnapshot.generate_image,
+              image_source: editingRuleSnapshot.image_source,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", editingRuleId)
+            .eq("user_id", user.id);
+        }
+
+        setMessage(reconciliationError.message);
+        setSaving(false);
+        return;
+      }
+
+      if (creditBalance && Number.isFinite(Number(reconciliationResult?.credit_delta))) {
+        const creditDelta = Number(reconciliationResult.credit_delta || 0);
+        setCreditBalance((current) =>
+          current
+            ? {
+                ...current,
+                credits_remaining: Number(current.credits_remaining || 0) - creditDelta,
+              }
+            : current
+        );
+      }
+
+      const { data: reconciledRule } = await supabase
+        .from("automation_rules")
+        .select("*")
+        .eq("id", editingRuleId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (reconciledRule) {
+        updatedRules = [reconciledRule];
+      }
+
       if (replacedManualImagePaths.length) {
         await supabase.storage
           .from(POST_IMAGES_BUCKET)
@@ -7440,6 +7513,58 @@ ${slot.campaignSummary}`
       }
       setMessage(error.message);
     } else {
+      const insertedRuleIds = (insertedRules || []).map((rule) => rule.id).filter(Boolean);
+      const { data: reservationResult, error: reservationError } =
+        await supabase.rpc("reserve_automation_rule_credits", {
+          p_rule_ids: insertedRuleIds,
+        });
+
+      if (reservationError) {
+        if (insertedRuleIds.length) {
+          await supabase
+            .from("automation_rules")
+            .delete()
+            .eq("user_id", user.id)
+            .in("id", insertedRuleIds);
+        }
+
+        if (newlyUploadedManualImagePaths.length) {
+          await supabase.storage
+            .from(POST_IMAGES_BUCKET)
+            .remove(newlyUploadedManualImagePaths);
+        }
+
+        setMessage(reservationError.message);
+        setSaving(false);
+        return;
+      }
+
+      const { data: reservedRules, error: reservedRulesError } = await supabase
+        .from("automation_rules")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("id", insertedRuleIds);
+
+      if (!reservedRulesError && reservedRules) {
+        insertedRules = reservedRules;
+      }
+
+      if (creditBalance) {
+        const reservedCredits = Number(
+          reservationResult?.reserved_credits || plannedCredits
+        );
+        setCreditBalance((current) =>
+          current
+            ? {
+                ...current,
+                credits_remaining: Math.max(
+                  Number(current.credits_remaining || 0) - reservedCredits,
+                  0
+                ),
+              }
+            : current
+        );
+      }
       if (replacedManualImagePaths.length) {
         await supabase.storage
           .from(POST_IMAGES_BUCKET)
@@ -8116,8 +8241,11 @@ setRules((currentRules) =>
               </div>
 
               <div className="planner-post-format">
-                <span>{slot.generateImage ? "▧" : "T"}</span>
-                {formatLabel}
+                <span>▧</span>
+                <div>
+                  <strong>{formatLabel}</strong>
+                  <small>{getSlotCreditLabel(slot)}</small>
+                </div>
               </div>
 
               <div className="planner-post-actions">
@@ -8224,14 +8352,6 @@ setRules((currentRules) =>
                           <strong>{t("automation.createAiImage")}</strong>
                         </button>
 
-                        <button
-                          type="button"
-                          className={slot.manualImageMode === "none" ? "active" : ""}
-                          onClick={() => handleManualImageModeChange(slot.id, "none")}
-                        >
-                          <span>T</span>
-                          <strong>{t("automation.noImage")}</strong>
-                        </button>
                       </div>
 
                       {slot.manualImageMode === "uploaded" && (
@@ -8297,12 +8417,6 @@ setRules((currentRules) =>
                         </div>
                       )}
 
-                      {slot.manualImageMode === "none" && (
-                        <div className="manual-no-image-note">
-                          <CheckCircle2 size={18} aria-hidden="true" />
-                          <span>{t("automation.noImageExplanation")}</span>
-                        </div>
-                      )}
                     </>
                   ) : canEditTechnicalCampaignPrompt ? (
                     <>
@@ -8816,11 +8930,12 @@ setRules((currentRules) =>
                             <p>
                               {rule.platform} ·{" "}
                               {rule.content_type_label || rule.post_type} ·{" "}
-                              {rule.uses_website_content
-                                ? t("automation.websiteContent")
-                                : rule.generate_image
-                                ? t("automation.textImage")
-                                : t("automation.textOnly")}
+                              {getCreditCostForContent(rule)} {t("automation.credits")}
+                              {rule.credit_reservation_status === "reserved"
+                                ? ` · ${t("automation.creditReserved")}`
+                                : rule.credit_reservation_status === "consumed"
+                                ? ` · ${t("automation.creditConsumed")}`
+                                : ""}
                             </p>
                             <small>
                               {t("automation.nextRun")}: {" "}
@@ -8987,6 +9102,14 @@ setRules((currentRules) =>
 
                   <div className="planner-credit-progress">
                     <div style={{ width: `${creditUsagePercent}%` }} />
+                  </div>
+
+                  <div className="planner-credit-included">
+                    <span className="planner-credit-included-icon">✓</span>
+                    <span>
+                      {t("automation.creditsReservedForPlan", { credits: plannedCredits })}
+                      <small>{t("automation.creditsAfterSaving", { credits: creditsAfterSaving })}</small>
+                    </span>
                   </div>
 
                             <p className="planner-credit-reset">

@@ -380,3 +380,40 @@ html body .automation-page.planner-wizard-page .planner-save-card {
     white-space: normal !important;
   }
 }
+
+/* Credit reservation and two-choice custom image polish. */
+html body .automation-page.planner-wizard-page .manual-image-mode-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+html body .automation-page.planner-wizard-page .planner-post-format > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+html body .automation-page.planner-wizard-page .planner-post-format > div strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: inherit;
+  font-weight: 700;
+}
+
+html body .automation-page.planner-wizard-page .planner-post-format > div small {
+  color: var(--spreelo-muted, #756b62);
+  font-size: 0.72rem;
+  line-height: 1.15;
+}
+
+html body .automation-page.planner-wizard-page .planner-credit-included small {
+  display: block;
+  margin-top: 2px;
+  color: var(--spreelo-muted, #756b62);
+}
+
+@media (max-width: 760px) {
+  html body .automation-page.planner-wizard-page .manual-image-mode-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

@@ -685,6 +685,14 @@ export async function POST(request) {
 
     await deleteRowsByColumn(
       supabaseAdmin,
+      "credit_reservation_events",
+      "user_id",
+      userId,
+      { optional: true }
+    );
+
+    await deleteRowsByColumn(
+      supabaseAdmin,
       "trial_claims",
       "user_id",
       userId,

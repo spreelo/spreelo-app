@@ -5021,6 +5021,21 @@ async function setRuleError(supabase, ruleId, message) {
 }
 
 async function stopRuleAfterCostProtectedCarouselFailure(supabase, ruleId, message) {
+  const { error: releaseError } = await supabase.rpc(
+    "release_reserved_automation_credit_system",
+    {
+      p_rule_id: ruleId,
+      p_reason: message || "Reserved credits returned after automation failure",
+    }
+  );
+
+  if (releaseError && !String(releaseError.message || "").includes("function")) {
+    console.warn("Could not release reserved credits after automation failure", {
+      ruleId,
+      message: releaseError.message,
+    });
+  }
+
   await supabase
     .from("automation_rules")
     .update({
@@ -14348,37 +14363,44 @@ export async function GET(request) {
 
 
         const creditCost = Number(rule.credit_cost || 1);
+        const hasReservedCredits =
+          rule.credit_reservation_status === "reserved" &&
+          Number(rule.credit_reserved_amount || 0) >= creditCost;
 
-        const { data: balance, error: balanceError } = await supabase
-          .from("user_credit_balances")
-          .select("credits_remaining, monthly_credit_limit, plan_name")
-          .eq("user_id", rule.user_id)
-          .single();
+        let creditsRemaining = 0;
 
-        if (balanceError || !balance) {
-          const message = "No credit balance found";
+        if (!hasReservedCredits) {
+          const { data: balance, error: balanceError } = await supabase
+            .from("user_credit_balances")
+            .select("credits_remaining, monthly_credit_limit, plan_name")
+            .eq("user_id", rule.user_id)
+            .single();
 
-          await setRuleError(supabase, rule.id, message);
+          if (balanceError || !balance) {
+            const message = "No credit balance found";
 
-          await finishRunLog("skipped", message, { stage: "credit_balance" });
+            await setRuleError(supabase, rule.id, message);
 
-          summary.skipped += 1;
-          summary.no_credit_balance += 1;
-          continue;
-        }
+            await finishRunLog("skipped", message, { stage: "credit_balance" });
 
-        const creditsRemaining = Number(balance.credits_remaining || 0);
+            summary.skipped += 1;
+            summary.no_credit_balance += 1;
+            continue;
+          }
 
-        if (creditsRemaining < creditCost) {
-          const message = "Not enough credits";
+          creditsRemaining = Number(balance.credits_remaining || 0);
 
-          await setRuleError(supabase, rule.id, message);
+          if (creditsRemaining < creditCost) {
+            const message = "Not enough credits";
 
-          await finishRunLog("skipped", message, { stage: "credits" });
+            await setRuleError(supabase, rule.id, message);
 
-          summary.skipped += 1;
-          summary.not_enough_credits += 1;
-          continue;
+            await finishRunLog("skipped", message, { stage: "credits" });
+
+            summary.skipped += 1;
+            summary.not_enough_credits += 1;
+            continue;
+          }
         }
 
 const brandProfile = await getBrandProfileForRule(supabase, rule);
@@ -14921,52 +14943,54 @@ product_research_model_used: rule.uses_website_content
           }
         }
 
-        const newCreditsRemaining = creditsRemaining - creditCost;
+        if (!hasReservedCredits) {
+          const newCreditsRemaining = creditsRemaining - creditCost;
 
-        const { error: creditUpdateError } = await supabase
-          .from("user_credit_balances")
-          .update({
-            credits_remaining: newCreditsRemaining,
-            updated_at: nowIso,
-          })
-          .eq("user_id", rule.user_id);
+          const { error: creditUpdateError } = await supabase
+            .from("user_credit_balances")
+            .update({
+              credits_remaining: newCreditsRemaining,
+              updated_at: nowIso,
+            })
+            .eq("user_id", rule.user_id);
 
-        if (creditUpdateError) {
-          const message =
-            creditUpdateError.message || "Could not update credit balance";
+          if (creditUpdateError) {
+            const message =
+              creditUpdateError.message || "Could not update credit balance";
 
-          await setRuleError(supabase, rule.id, message);
+            await setRuleError(supabase, rule.id, message);
 
-          await finishRunLog("failed", message, { stage: "credit_update" });
+            await finishRunLog("failed", message, { stage: "credit_update" });
 
-          summary.errors += 1;
-          continue;
-        }
+            summary.errors += 1;
+            continue;
+          }
 
-        const { error: transactionError } = await supabase
-          .from("credit_transactions")
-          .insert({
-            user_id: rule.user_id,
-            amount: -creditCost,
-            reason: rule.uses_website_content
-              ? "Automation website post generated"
-              : wantsImage
-              ? "Automation post with image generated"
-              : "Automation post generated",
-            reference_type: "post",
-            reference_id: post.id,
-          });
+          const { error: transactionError } = await supabase
+            .from("credit_transactions")
+            .insert({
+              user_id: rule.user_id,
+              amount: -creditCost,
+              reason: rule.uses_website_content
+                ? "Automation website post generated"
+                : wantsImage
+                ? "Automation post with image generated"
+                : "Automation post generated",
+              reference_type: "post",
+              reference_id: post.id,
+            });
 
-        if (transactionError) {
-          const message =
-            transactionError.message || "Could not create credit transaction";
+          if (transactionError) {
+            const message =
+              transactionError.message || "Could not create credit transaction";
 
-          await setRuleError(supabase, rule.id, message);
+            await setRuleError(supabase, rule.id, message);
 
-          await finishRunLog("failed", message, { stage: "credit_transaction" });
+            await finishRunLog("failed", message, { stage: "credit_transaction" });
 
-          summary.errors += 1;
-          continue;
+            summary.errors += 1;
+            continue;
+          }
         }
 
         const ruleUpdatePayload = getRuleUpdatePayloadAfterSuccess(
@@ -14990,6 +15014,26 @@ product_research_model_used: rule.uses_website_content
           continue;
         }
 
+        let reservedCreditResult = null;
+        if (hasReservedCredits) {
+          const { data: consumedReservation, error: consumeReservationError } =
+            await supabase.rpc("consume_reserved_automation_credit", {
+              p_rule_id: rule.id,
+              p_post_id: post.id,
+            });
+
+          if (consumeReservationError) {
+            console.error("Could not consume or renew reserved automation credits", {
+              ruleId: rule.id,
+              postId: post.id,
+              message: consumeReservationError.message,
+            });
+            summary.warnings += 1;
+          } else {
+            reservedCreditResult = consumedReservation;
+          }
+        }
+
         summary.generated += 1;
 
         if (effectivePostStatus === "pending_approval") {
@@ -15008,6 +15052,9 @@ product_research_model_used: rule.uses_website_content
           website_cycle_number: websiteCycleNumber,
           use_website_image: useWebsiteImage,
           website_item_count: Array.isArray(websiteItems) ? websiteItems.length : (websiteItem ? 1 : 0),
+          credits_were_reserved: hasReservedCredits,
+          next_recurring_credit_reserved: Boolean(reservedCreditResult?.next_reserved),
+          recurring_plan_paused_for_credits: Boolean(reservedCreditResult?.paused),
         });
       } catch (error) {
         const message = error.message || "Unknown automation error";
