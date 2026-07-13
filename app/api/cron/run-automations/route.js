@@ -295,12 +295,13 @@ function getTrustedProductCardBrand(item) {
 }
 
 function getTrustedProductCardTitle(item) {
-  const title = String(item?.title || item?.name || item?.product_title || "").trim();
-  if (!title || title.length < 2) {
+  const rawTitle = String(item?.title || item?.name || item?.product_title || "").trim();
+  if (!rawTitle || rawTitle.length < 2) {
     return "";
   }
 
-  return normalizeSlideText(title.replace(/\s+/g, " "), 96);
+  const title = sanitizeProductTitleForCard(rawTitle);
+  return title ? normalizeSlideText(title, 96) : "";
 }
 
 function getTrustedWebsiteItemPricing(websiteItem) {
@@ -408,91 +409,69 @@ async function renderCarouselProductSlideImage({
 }) {
   const width = 1080;
   const height = 1080;
-  const cardX = 64;
-  const cardY = 64;
-  const cardWidth = 952;
-  const cardHeight = 952;
-  const imageX = 116;
-  const imageY = 104;
-  const imageWidth = 848;
-  const imageHeight = 640;
   const centerX = width / 2;
+  const overlayX = 58;
+  const overlayY = 788;
+  const overlayWidth = 964;
+  const overlayHeight = 234;
 
-  const pricingSource = product && typeof product === 'object' ? { ...product } : {};
+  const pricingSource = product && typeof product === "object" ? { ...product } : {};
   if (price && !pricingSource.price) {
     pricingSource.price = price;
   }
 
-  const trustedBrand = getTrustedProductCardBrand(pricingSource);
   const trustedTitle = getTrustedProductCardTitle({
+    ...pricingSource,
     title: title || pricingSource?.title || pricingSource?.name || pricingSource?.product_title || "",
   });
   const pricing = getTrustedWebsiteItemPricing(pricingSource);
-  const titleLines = trustedTitle ? wrapSvgText(trustedTitle, 28, 2) : [];
-  const brandLines = trustedBrand ? wrapSvgText(trustedBrand, 36, 1) : [];
-  const hasBrand = brandLines.length > 0;
-  const titleY = hasBrand ? 830 : titleLines.length > 1 ? 824 : 846;
-  const priceY = hasBrand ? (titleLines.length > 1 ? 936 : 924) : (titleLines.length > 1 ? 938 : 928);
-
-  const brandSvg = hasBrand
-    ? buildCenteredSvgTextBlock(brandLines, {
-        x: centerX,
-        y: 792,
-        fontSize: 21,
-        lineHeight: 24,
-        fontWeight: 600,
-        fill: '#64748b',
-      })
-    : '';
+  const titleLines = trustedTitle ? wrapSvgText(trustedTitle, 30, 2) : [];
+  const hasOverlay = Boolean(titleLines.length || pricing.displayPrice);
+  const titleY = titleLines.length > 1 ? 850 : 872;
+  const priceY = titleLines.length > 1 ? 970 : 958;
 
   const titleSvg = titleLines.length
     ? buildCenteredSvgTextBlock(titleLines, {
         x: centerX,
         y: titleY,
-        fontSize: 37,
+        fontSize: 38,
         lineHeight: 46,
-        fontWeight: 700,
-        fill: '#111827',
+        fontWeight: 750,
+        fill: "#111827",
       })
-    : '';
+    : "";
 
-  let priceSvg = '';
+  let priceSvg = "";
   if (pricing.isOnSale && pricing.salePrice && pricing.originalPrice) {
-    const saleX = centerX - 20;
-    const originalX = centerX + 20;
+    const saleX = centerX - 18;
+    const originalX = centerX + 18;
     const originalFontSize = 26;
     const estimatedWidth = Math.max(pricing.originalPrice.length * originalFontSize * 0.58, 48);
 
     priceSvg = `
-      <text x="${saleX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="44" font-weight="800" fill="#dc2626" text-anchor="end">${escapeSvg(pricing.salePrice)}</text>
-      <text x="${originalX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${originalFontSize}" font-weight="600" fill="#94a3b8" text-anchor="start">${escapeSvg(pricing.originalPrice)}</text>
-      <line x1="${originalX}" y1="${priceY - 10}" x2="${originalX + estimatedWidth}" y2="${priceY - 10}" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="${saleX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="43" font-weight="800" fill="#dc2626" text-anchor="end">${escapeSvg(pricing.salePrice)}</text>
+      <text x="${originalX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${originalFontSize}" font-weight="600" fill="#64748b" text-anchor="start">${escapeSvg(pricing.originalPrice)}</text>
+      <line x1="${originalX}" y1="${priceY - 10}" x2="${originalX + estimatedWidth}" y2="${priceY - 10}" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
     `;
   } else if (pricing.displayPrice) {
-    priceSvg = `<text x="${centerX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="42" font-weight="800" fill="#0f172a" text-anchor="middle">${escapeSvg(pricing.displayPrice)}</text>`;
+    priceSvg = `<text x="${centerX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="43" font-weight="800" fill="#0f172a" text-anchor="middle">${escapeSvg(pricing.displayPrice)}</text>`;
   }
 
-  const dividerSvg = (brandSvg || titleSvg || priceSvg)
-    ? `<line x1="156" y1="754" x2="924" y2="754" stroke="#eef2f7" stroke-width="2"/>`
-    : '';
-
-  const backgroundSvg = `
-    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${width}" height="${height}" rx="0" fill="#f5f7fb"/>
-      <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${cardHeight}" rx="42" fill="#ffffff" stroke="#d9e2f0" stroke-width="3"/>
-      <rect x="${imageX}" y="${imageY}" width="${imageWidth}" height="${imageHeight}" rx="30" fill="#f8fafc"/>
-      ${dividerSvg}
-      ${brandSvg}
+  const overlaySvg = hasOverlay
+    ? `
+      <rect x="${overlayX}" y="${overlayY}" width="${overlayWidth}" height="${overlayHeight}" rx="34" fill="#ffffff" fill-opacity="0.95" stroke="#e2e8f0" stroke-width="2"/>
       ${titleSvg}
       ${priceSvg}
+    `
+    : "";
+
+  const overlayLayer = `
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      ${overlaySvg}
     </svg>
   `;
 
-  const composites = [{
-    input: Buffer.from(backgroundSvg),
-    top: 0,
-    left: 0,
-  }];
+  const composites = [];
 
   if (sourceImageUrl) {
     try {
@@ -500,10 +479,10 @@ async function renderCarouselProductSlideImage({
       const productImageBuffer = await sharp(sourceBuffer)
         .rotate()
         .resize({
-          width: imageWidth,
-          height: imageHeight,
-          fit: 'contain',
-          background: { r: 248, g: 250, b: 252, alpha: 1 },
+          width,
+          height,
+          fit: "contain",
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
           withoutEnlargement: false,
         })
         .png()
@@ -511,15 +490,23 @@ async function renderCarouselProductSlideImage({
 
       composites.push({
         input: productImageBuffer,
-        top: imageY,
-        left: imageX,
+        top: 0,
+        left: 0,
       });
     } catch (error) {
-      console.error('Carousel product slide image fetch/render failed', {
+      console.error("Product image fetch/render failed", {
         sourceImageUrl,
         message: error.message,
       });
     }
+  }
+
+  if (hasOverlay) {
+    composites.push({
+      input: Buffer.from(overlayLayer),
+      top: 0,
+      left: 0,
+    });
   }
 
   const outputBuffer = await sharp({
@@ -527,7 +514,7 @@ async function renderCarouselProductSlideImage({
       width,
       height,
       channels: 4,
-      background: { r: 245, g: 247, b: 251, alpha: 1 },
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
     },
   })
     .composite(composites)
@@ -535,7 +522,7 @@ async function renderCarouselProductSlideImage({
     .toBuffer();
 
   return {
-    imageBase64: outputBuffer.toString('base64'),
+    imageBase64: outputBuffer.toString("base64"),
   };
 }
 
@@ -3939,6 +3926,7 @@ function extractProductPricingFromTitle(value) {
 
 function sanitizeProductTitleForCard(value) {
   let title = decodeHtmlEntities(String(value || ""))
+    .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -3946,7 +3934,24 @@ function sanitizeProductTitleForCard(value) {
     return "";
   }
 
-  title = title.replace(/^\s*-?\s*\d{1,2}%\s+/, "").trim();
+  // Remove merchandising badges and discount prefixes that are not part of the product name.
+  title = title
+    .replace(/^\s*-?\s*\d{1,2}%\s+/, "")
+    .replace(/^\s*(?:nyhet|new|neu|nouveau|nuevo|novità|sale|rea|kampanj|bestseller)\s*[!:\-–—|]+\s*/i, "")
+    .trim();
+
+  // Product search pages often append article numbers, ratings, availability and other UI text.
+  // Cut those tails before rendering the public-facing product card.
+  const metadataTailPatterns = [
+    /\s+(?:art(?:ikel)?\.?\s*(?:nr|no|number)?|artikelnummer|item\s*#|sku|product\s*(?:code|id))\s*[:#.]?\s*[a-z0-9_-]+.*$/i,
+    /\s+(?:betyg|rating|rated)\s*[:\-]?\s*\d.*$/i,
+    /\s+\d+(?:[.,]\d+)?\s*(?:stjärnor|stars)\s*(?:av|out\s+of)\s*\d+.*$/i,
+    /\s+(?:i\s+lager|in\s+stock|out\s+of\s+stock|sold\s+out|slutsåld)\b.*$/i,
+  ];
+
+  for (const pattern of metadataTailPatterns) {
+    title = title.replace(pattern, "").trim();
+  }
 
   const trailingPricingRegex = new RegExp(
     String.raw`\s*(?:(?:from|ab|från|fra|desde|à\s+partir\s+de)\s+)?(?:${PRICE_AMOUNT_PATTERN})(?:\s+(?:${PRICE_AMOUNT_PATTERN}))?\s*(?:\((?:rrp|uvp|msrp|list price|regular price|original price|ordinarie pris)\))?\s*$`,
@@ -3963,7 +3968,7 @@ function sanitizeProductTitleForCard(value) {
     title = cleaned;
   }
 
-  return title;
+  return title.replace(/[|·•\-–—,:;]+\s*$/g, "").trim();
 }
 
 function getHostnameFromUrl(value) {
@@ -4417,12 +4422,14 @@ function getCarouselEmailSlideMetadata(slide) {
 
 function getCarouselEmailProductTitle(slide) {
   const metadata = getCarouselEmailSlideMetadata(slide);
-  const title = String(metadata.product_title || slide?.product_title || slide?.headline || "").trim();
+  const title = sanitizeProductTitleForCard(
+    metadata.product_title || slide?.product_title || slide?.headline || ""
+  );
   if (!title || String(metadata.carousel_slide_role || "").toLowerCase().includes("outro")) {
     return "";
   }
 
-  return normalizeSlideText(title.replace(/\s+/g, " "), 68);
+  return normalizeSlideText(title, 68);
 }
 
 function getCarouselEmailProductBrand(slide) {
@@ -4464,11 +4471,12 @@ function buildCarouselEmailPreviewHtml(carouselSlides = []) {
 
   const cards = slides
     .map((slide) => {
-      const productBrand = getCarouselEmailProductBrand(slide);
+      const metadata = getCarouselEmailSlideMetadata(slide);
       const productTitle = getCarouselEmailProductTitle(slide);
       const pricing = getCarouselEmailProductPricing(slide);
-      const hasProductInfo = productBrand || productTitle || pricing.displayPrice;
-      const imageMaxHeight = hasProductInfo ? "128px" : "180px";
+      const slideAlreadyContainsProductInfo = metadata.rendered_slide === true;
+      const showFallbackProductInfo = !slideAlreadyContainsProductInfo && Boolean(productTitle || pricing.displayPrice);
+      const imageMaxHeight = showFallbackProductInfo ? "128px" : "180px";
 
       return `
       <div class="carousel-email-card" style="display:inline-block;width:31%;max-width:180px;min-width:150px;vertical-align:top;margin:6px;">
@@ -4478,10 +4486,9 @@ function buildCarouselEmailPreviewHtml(carouselSlides = []) {
               <img src="${escapeHtml(slide.image_url || '')}" alt="${escapeHtml(productTitle || slide.headline || 'Carousel slide')}" style="display:block;width:100%;height:auto;max-height:${imageMaxHeight};object-fit:contain;background:#f8fafc;" />
             </td>
           </tr>
-          ${hasProductInfo ? `
+          ${showFallbackProductInfo ? `
           <tr>
             <td style="padding:8px 8px 10px;text-align:center;background:#ffffff;border-top:1px solid #f1f5f9;">
-              ${productBrand ? `<div style="font-size:10px;line-height:1.2;color:#64748b;font-weight:600;margin-bottom:4px;">${escapeHtml(productBrand)}</div>` : ""}
               ${productTitle ? `<div style="font-size:11px;line-height:1.25;color:#111827;font-weight:700;min-height:28px;">${escapeHtml(productTitle)}</div>` : ""}
               ${pricing.isOnSale && pricing.salePrice && pricing.originalPrice
                 ? `<div style="margin-top:5px;white-space:nowrap;"><span style="font-size:14px;line-height:1.2;color:#dc2626;font-weight:800;">${escapeHtml(pricing.salePrice)}</span><span style="font-size:11px;line-height:1.2;color:#94a3b8;font-weight:600;text-decoration:line-through;margin-left:6px;">${escapeHtml(pricing.originalPrice)}</span></div>`
@@ -5160,14 +5167,60 @@ function truncateText(value, maxLength) {
 }
 
 function decodeHtmlEntities(value) {
-  return String(value || "")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#039;", "'")
-    .replaceAll("&apos;", "'")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&nbsp;", " ");
+  const namedEntities = {
+    amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", nbsp: " ",
+    ndash: "–", mdash: "—", hellip: "…", copy: "©", reg: "®", trade: "™",
+    euro: "€", pound: "£", yen: "¥", cent: "¢",
+    Agrave: "À", Aacute: "Á", Acirc: "Â", Atilde: "Ã", Auml: "Ä", Aring: "Å", AElig: "Æ", Ccedil: "Ç",
+    Egrave: "È", Eacute: "É", Ecirc: "Ê", Euml: "Ë", Igrave: "Ì", Iacute: "Í", Icirc: "Î", Iuml: "Ï",
+    ETH: "Ð", Ntilde: "Ñ", Ograve: "Ò", Oacute: "Ó", Ocirc: "Ô", Otilde: "Õ", Ouml: "Ö", Oslash: "Ø",
+    Ugrave: "Ù", Uacute: "Ú", Ucirc: "Û", Uuml: "Ü", Yacute: "Ý", THORN: "Þ", szlig: "ß",
+    agrave: "à", aacute: "á", acirc: "â", atilde: "ã", auml: "ä", aring: "å", aelig: "æ", ccedil: "ç",
+    egrave: "è", eacute: "é", ecirc: "ê", euml: "ë", igrave: "ì", iacute: "í", icirc: "î", iuml: "ï",
+    eth: "ð", ntilde: "ñ", ograve: "ò", oacute: "ó", ocirc: "ô", otilde: "õ", ouml: "ö", oslash: "ø",
+    ugrave: "ù", uacute: "ú", ucirc: "û", uuml: "ü", yacute: "ý", thorn: "þ", yuml: "ÿ",
+    OElig: "Œ", oelig: "œ", Scaron: "Š", scaron: "š", Yuml: "Ÿ", Zcaron: "Ž", zcaron: "ž",
+    laquo: "«", raquo: "»", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", bull: "•", middot: "·",
+  };
+
+  let decoded = String(value || "");
+
+  // A few stores double-encode product names (for example &amp;ouml;).
+  // Decode in a small bounded loop so those titles also become normal text.
+  for (let pass = 0; pass < 3; pass += 1) {
+    const nextValue = decoded.replace(
+      /&(#x?[0-9a-f]+|[a-z][a-z0-9]+);/gi,
+      (match, entity) => {
+        if (entity[0] === "#") {
+          const isHex = entity[1]?.toLowerCase() === "x";
+          const rawCodePoint = entity.slice(isHex ? 2 : 1);
+          const codePoint = Number.parseInt(rawCodePoint, isHex ? 16 : 10);
+
+          if (Number.isFinite(codePoint) && codePoint > 0 && codePoint <= 0x10ffff) {
+            try {
+              return String.fromCodePoint(codePoint);
+            } catch {
+              return match;
+            }
+          }
+
+          return match;
+        }
+
+        return Object.prototype.hasOwnProperty.call(namedEntities, entity)
+          ? namedEntities[entity]
+          : match;
+      }
+    );
+
+    if (nextValue === decoded) {
+      break;
+    }
+
+    decoded = nextValue;
+  }
+
+  return decoded;
 }
 
 function stripHtmlToText(html) {
@@ -12969,7 +13022,11 @@ async function fetchImageBufferForOverlay(imageUrl) {
 
   const response = await fetch(safeImageUrl, {
     headers: {
-      "User-Agent": "Spreelo/1.0 image overlay",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Spreelo/1.0",
+      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
     },
   });
 
