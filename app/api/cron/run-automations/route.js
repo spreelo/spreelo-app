@@ -13545,9 +13545,11 @@ async function createAnimatedProductVideoAssets({
 
   const sourceImageBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
   const dominant = await getProductAccentColor(sourceImageBuffer);
-  const baseColor = mixRgb(dominant, { r: 15, g: 23, b: 42 }, 0.62);
-  const accentColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.28);
-  const deepColor = mixRgb(baseColor, { r: 0, g: 0, b: 0 }, 0.3);
+  const baseColor = mixRgb(dominant, { r: 15, g: 23, b: 42 }, 0.7);
+  const accentColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.18);
+  const glowColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.52);
+  const deepColor = mixRgb(baseColor, { r: 0, g: 0, b: 0 }, 0.34);
+  const ctaColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.12);
   const brandName = truncateText(
     rule?.brand_profile?.business_name || "Featured product",
     42
@@ -13556,18 +13558,21 @@ async function createAnimatedProductVideoAssets({
     websiteItem?.title || rule?.content_type_label || "Worth a closer look",
     110
   );
-  const titleLines = splitTextIntoLines(title, 25, 3);
+  const titleLines = splitTextIntoLines(title, 24, 3);
   const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
   const cta = getAnimatedVideoCta(rule);
 
   const titleSpans = titleLines
     .map(
       (line, index) =>
-        `<tspan x="88" dy="${index === 0 ? 0 : 82}">${escapeSvg(line)}</tspan>`
+        `<tspan x="88" dy="${index === 0 ? 0 : 80}">${escapeSvg(line)}</tspan>`
     )
     .join("");
   const priceMarkup = price
-    ? `<text x="992" y="116" text-anchor="end" font-family="DejaVu Sans, sans-serif" font-size="38" font-weight="700" fill="#ffffff">${escapeSvg(price)}</text>`
+    ? `
+      <rect x="824" y="72" width="170" height="62" rx="31" fill="#ffffff" opacity="0.14"/>
+      <text x="909" y="114" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="32" font-weight="700" fill="#ffffff">${escapeSvg(price)}</text>
+    `
     : "";
 
   const backgroundSvg = Buffer.from(`
@@ -13575,74 +13580,83 @@ async function createAnimatedProductVideoAssets({
       <defs>
         <linearGradient id="bg" x1="0" y1="0" x2="1080" y2="1350" gradientUnits="userSpaceOnUse">
           <stop offset="0" stop-color="${rgbToHex(accentColor)}"/>
-          <stop offset="0.48" stop-color="${rgbToHex(baseColor)}"/>
+          <stop offset="0.38" stop-color="${rgbToHex(baseColor)}"/>
           <stop offset="1" stop-color="${rgbToHex(deepColor)}"/>
         </linearGradient>
+        <radialGradient id="topGlow" cx="18%" cy="16%" r="58%">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="productGlow" cx="50%" cy="58%" r="42%">
+          <stop offset="0" stop-color="${rgbToHex(glowColor)}" stop-opacity="0.42"/>
+          <stop offset="1" stop-color="${rgbToHex(glowColor)}" stop-opacity="0"/>
+        </radialGradient>
         <filter id="blur"><feGaussianBlur stdDeviation="42"/></filter>
       </defs>
       <rect width="1080" height="1350" fill="url(#bg)"/>
-      <circle cx="945" cy="220" r="260" fill="#ffffff" opacity="0.08" filter="url(#blur)"/>
-      <circle cx="90" cy="930" r="310" fill="#ffffff" opacity="0.055" filter="url(#blur)"/>
-      <path d="M0 760 C230 650 420 730 640 670 C850 615 985 500 1080 525 L1080 1350 L0 1350 Z" fill="#000000" opacity="0.11"/>
-      <text x="88" y="116" font-family="DejaVu Sans, sans-serif" font-size="32" font-weight="700" letter-spacing="4" fill="#ffffff" opacity="0.86">${escapeSvg(brandName.toUpperCase())}</text>
+      <rect width="1080" height="1350" fill="url(#topGlow)"/>
+      <circle cx="840" cy="770" r="328" fill="url(#productGlow)" opacity="0.34"/>
+      <circle cx="134" cy="1046" r="250" fill="#ffffff" opacity="0.05" filter="url(#blur)"/>
+      <path d="M0 864 C204 770 415 806 646 744 C852 688 988 580 1080 602 L1080 1350 L0 1350 Z" fill="#000000" opacity="0.18"/>
+      <text x="88" y="114" font-family="DejaVu Sans, sans-serif" font-size="30" font-weight="700" letter-spacing="4" fill="#ffffff" opacity="0.82">${escapeSvg(brandName.toUpperCase())}</text>
       ${priceMarkup}
-      <text x="88" y="210" font-family="DejaVu Sans, sans-serif" font-size="70" font-weight="800" fill="#ffffff">${titleSpans}</text>
-      <rect x="350" y="1190" width="380" height="96" rx="48" fill="#ffffff"/>
-      <text x="540" y="1252" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="34" font-weight="800" letter-spacing="1" fill="${rgbToHex(deepColor)}">${escapeSvg(cta)}</text>
+      <text x="88" y="204" font-family="DejaVu Sans, sans-serif" font-size="68" font-weight="800" fill="#ffffff">${titleSpans}</text>
+      <rect x="352" y="1190" width="376" height="92" rx="46" fill="${rgbToHex(ctaColor)}" opacity="0.96" stroke="#ffffff" stroke-opacity="0.18" stroke-width="2"/>
+      <text x="540" y="1251" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="34" font-weight="800" letter-spacing="1" fill="#ffffff">${escapeSvg(cta)}</text>
     </svg>
   `);
 
   const backgroundBuffer = await sharp(backgroundSvg).png().toBuffer();
   const productImage = await sharp(sourceImageBuffer)
     .rotate()
-    .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .trim({ background: "#ffffff", threshold: 18, margin: 10 })
+    .trim({ background: "#ffffff", threshold: 18 })
     .resize({
-      width: 650,
-      height: 610,
+      width: 760,
+      height: 720,
       fit: "contain",
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
       withoutEnlargement: true,
     })
     .png()
     .toBuffer();
 
-  const cardChromeSvg = Buffer.from(`
-    <svg width="840" height="840" viewBox="0 0 840 840" xmlns="http://www.w3.org/2000/svg">
+  const productLayerSvg = Buffer.from(`
+    <svg width="900" height="860" viewBox="0 0 900 860" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
-          <feDropShadow dx="0" dy="26" stdDeviation="24" flood-color="#000000" flood-opacity="0.28"/>
+        <filter id="shadowBlur" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="22"/>
         </filter>
       </defs>
-      <rect x="60" y="34" width="720" height="720" rx="58" fill="#ffffff" filter="url(#shadow)"/>
+      <ellipse cx="450" cy="748" rx="210" ry="44" fill="#000000" opacity="0.22" filter="url(#shadowBlur)"/>
+      <ellipse cx="450" cy="736" rx="162" ry="24" fill="#000000" opacity="0.14"/>
     </svg>
   `);
 
-  const productCardBuffer = await sharp({
+  const productLayerBuffer = await sharp({
     create: {
-      width: 840,
-      height: 840,
+      width: 900,
+      height: 860,
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
   })
     .composite([
-      { input: cardChromeSvg, left: 0, top: 0 },
-      { input: productImage, left: 95, top: 88 },
+      { input: productLayerSvg, left: 0, top: 0 },
+      { input: productImage, left: 70, top: 42 },
     ])
     .png()
     .toBuffer();
 
-  const posterProductCardBuffer = await sharp(productCardBuffer)
-    .resize({ width: 756, height: 756, fit: "fill" })
+  const posterProductLayerBuffer = await sharp(productLayerBuffer)
+    .resize({ width: 920, height: 878, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
     .toBuffer();
   const posterBuffer = await sharp(backgroundBuffer)
-    .composite([{ input: posterProductCardBuffer, left: 162, top: 432 }])
+    .composite([{ input: posterProductLayerBuffer, left: 80, top: 288 }])
     .png()
     .toBuffer();
 
-  const [backgroundUpload, productCardUpload, posterUpload] = await Promise.all([
+  const [backgroundUpload, productLayerUpload, posterUpload] = await Promise.all([
     uploadGeneratedImageToStorage({
       supabase,
       imageBase64: backgroundBuffer.toString("base64"),
@@ -13652,10 +13666,10 @@ async function createAnimatedProductVideoAssets({
     }),
     uploadGeneratedImageToStorage({
       supabase,
-      imageBase64: productCardBuffer.toString("base64"),
+      imageBase64: productLayerBuffer.toString("base64"),
       userId,
       postId,
-      fileSuffix: "animation-product-card",
+      fileSuffix: "animation-product-layer",
     }),
     uploadGeneratedImageToStorage({
       supabase,
@@ -13666,13 +13680,13 @@ async function createAnimatedProductVideoAssets({
     }),
   ]);
 
-  if (!backgroundUpload.imageUrl || !productCardUpload.imageUrl || !posterUpload.imageUrl) {
+  if (!backgroundUpload.imageUrl || !productLayerUpload.imageUrl || !posterUpload.imageUrl) {
     throw new Error("Could not create public animation asset URLs");
   }
 
   return {
     backgroundUrl: backgroundUpload.imageUrl,
-    productCardUrl: productCardUpload.imageUrl,
+    productLayerUrl: productLayerUpload.imageUrl,
     posterUrl: posterUpload.imageUrl,
     posterStoragePath: posterUpload.imageStoragePath,
   };
@@ -13732,7 +13746,7 @@ async function generateAnimatedProductVideo({
   });
   const edit = buildProductPushEdit({
     backgroundUrl: assets.backgroundUrl,
-    productCardUrl: assets.productCardUrl,
+    productLayerUrl: assets.productLayerUrl,
     durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
   });
   const renderId = await queueShotstackRender(edit);
@@ -15751,7 +15765,7 @@ product_research_model_used: rule.uses_website_content
         } else if (wantsImage && isAnimatedVideoRule(ruleWithBrandProfile)) {
           try {
             finalImagePrompt =
-              "Animated website product video rendered with Shotstack using a static background, static text and a separately animated product card.";
+              "Animated website product video rendered with Shotstack using a static branded background, fixed overlay text and a separately animated product layer.";
 
             const animatedVideo = await generateAnimatedProductVideo({
               supabase,
