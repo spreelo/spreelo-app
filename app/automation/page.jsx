@@ -745,7 +745,9 @@ function getContentTypeById(typeId) {
 }
 function getBrandSafeContentTypeId(typeId, websiteProductModeAvailable) {
   if (!websiteProductModeAvailable) {
-    if (typeId === "website_item") return "problem_solution";
+    if (["website_item", "website_item_text_ad", "animated_website_item"].includes(typeId)) {
+      return "problem_solution";
+    }
     if (typeId === "carousel_website_item") return "mini_guide";
   }
 
@@ -829,7 +831,14 @@ function getGoalContentTypeIds({
 }
 function getVisibleContentTypes(websiteProductModeAvailable) {
   return contentTypes.filter((type) => {
-    if (["website_item", "carousel_website_item"].includes(type.id)) {
+    if (
+      [
+        "website_item",
+        "website_item_text_ad",
+        "animated_website_item",
+        "carousel_website_item",
+      ].includes(type.id)
+    ) {
       return Boolean(websiteProductModeAvailable);
     }
 
@@ -2185,7 +2194,7 @@ function getContentPreviewCardId(typeId) {
   const map = {
     website_item: "product_focus",
     website_item_text_ad: "product_ad",
-    animated_website_item: "product_ad",
+    animated_website_item: "animated_product",
     carousel_website_item: "website_carousel",
     problem_solution: "problem_solution",
     tips: "tips_advice",
@@ -2210,6 +2219,7 @@ function getContentPreviewCardIcon(cardId) {
   const icons = {
     product_focus: "🛍️",
     product_ad: "✨",
+    animated_product: "▶",
     offers: "💝",
     tips_advice: "💡",
     customer_inspiration: "💬",
@@ -2254,6 +2264,10 @@ function getPlanPreviewCardsFromTypes(types = [], goalId = "") {
 }
 
 function getSlotFormatLabel(slot) {
+  if (slot.contentFormat === "animated_video") {
+    return "Animated product video";
+  }
+
   if (slot.contentFormat === "carousel") {
     return slot.generateImage ? "Carousel + website image" : "Carousel draft";
   }
@@ -4758,6 +4772,10 @@ export default function AutomationPage() {
   }
 
   function getSlotVisualExplanation(slot) {
+    if (slot?.contentFormat === "animated_video") {
+      return t("automation.animatedVideoVisualExplanation");
+    }
+
     if (slot?.contentFormat === "carousel") {
       return t("automation.carouselVisualExplanation");
     }
@@ -4774,6 +4792,10 @@ export default function AutomationPage() {
   }
 
   function getFixedVisualFeatureLabel(slot) {
+    if (slot?.contentFormat === "animated_video") {
+      return t("automation.animatedVideoIncluded");
+    }
+
     if (slot?.contentFormat === "carousel") {
       return t("automation.carouselIncluded");
     }
@@ -4837,6 +4859,12 @@ export default function AutomationPage() {
       description: plannerLocaleIsSwedish
         ? "Hämtar en produkt och skapar både inläggstext och en unik AI-designad annonsbild."
         : "Picks a product and creates both the post text and a unique AI-designed ad image.",
+    },
+    animated_product: {
+      label: plannerLocaleIsSwedish ? "Animerad produktvideo" : "Animated product video",
+      description: plannerLocaleIsSwedish
+        ? "Hämtar en verklig produkt från webbplatsen och skapar en kort video med diskret produktrörelse."
+        : "Picks a real website product and creates a short video with subtle product movement.",
     },
     website_carousel: {
       label: plannerLocaleIsSwedish ? "Webbplatskarusell" : "Website carousel",
@@ -4971,6 +4999,10 @@ export default function AutomationPage() {
   }
 
   function getLocalizedSlotFormatLabel(slot) {
+    if (slot?.contentFormat === "animated_video") {
+      return t("automation.textAnimatedVideo");
+    }
+
     if (slot?.contentFormat === "carousel") {
       return t("automation.textCarousel");
     }
