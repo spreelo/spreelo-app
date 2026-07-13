@@ -43,6 +43,18 @@ function formatImageStatus(status, t) {
   return labels[status] || status;
 }
 
+function formatVideoStatus(status, t) {
+  if (!status || status === "none") return null;
+
+  const labels = {
+    rendering: t("posts.videoStatus.rendering"),
+    ready: t("posts.videoStatus.ready"),
+    failed: t("posts.videoStatus.failed"),
+  };
+
+  return labels[status] || status;
+}
+
 function getStatusClass(status) {
   if (status === "pending_approval") return "status-pill warning";
   if (status === "approved") return "status-pill success";
@@ -55,7 +67,9 @@ function getStatusClass(status) {
 
 function getImageStatusClass(status) {
   if (status === "ready") return "status-pill success";
-  if (status === "generating") return "status-pill warning";
+  if (["generating", "rendering", "queued"].includes(status)) {
+    return "status-pill warning";
+  }
   if (status === "failed") return "status-pill danger";
 
   return "status-pill";
@@ -72,6 +86,10 @@ function formatContentFormat(post, t) {
 
   if (post?.content_format === "slideshow_video") {
     return t("posts.format.slideshowVideo");
+  }
+
+  if (post?.content_format === "animated_video") {
+    return t("posts.format.animatedVideo");
   }
 
   return t("posts.format.singleImage");
@@ -105,7 +123,7 @@ export default function EditPostPage() {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, content_format"
+          "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, video_url, video_status, video_storage_path, video_error, content_format"
         )
         .eq("id", postId)
         .eq("user_id", user.id)
@@ -164,7 +182,7 @@ export default function EditPostPage() {
       .eq("id", postId)
       .eq("user_id", user.id)
       .select(
-        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, content_format"
+        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, video_url, video_status, video_storage_path, video_error, content_format"
       )
       .single();
 
@@ -212,7 +230,7 @@ export default function EditPostPage() {
       .eq("id", postId)
       .eq("user_id", user.id)
       .select(
-        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, content_format"
+        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, video_url, video_status, video_storage_path, video_error, content_format"
       )
       .single();
 
@@ -296,7 +314,11 @@ export default function EditPostPage() {
     (isAutomationPost ? t("posts.generatedByAutomation") : t("posts.manualDraft"));
 
   const isCarouselPost = post.content_format === "carousel";
+  const isAnimatedVideoPost = post.content_format === "animated_video";
   const imageStatusLabel = isCarouselPost ? null : formatImageStatus(post.image_status, t);
+  const videoStatusLabel = isAnimatedVideoPost
+    ? formatVideoStatus(post.video_status, t)
+    : null;
   const hasSlides = slides.length > 0;
 
   return (
@@ -385,13 +407,19 @@ export default function EditPostPage() {
               <span className="status-pill">{t("posts.generatedByAutomation")}</span>
             )}
 
-            {isSlideBasedPost(post) && (
+            {(isSlideBasedPost(post) || isAnimatedVideoPost) && (
               <span className="status-pill">{formatContentFormat(post, t)}</span>
             )}
 
             {imageStatusLabel && (
               <span className={getImageStatusClass(post.image_status)}>
                 {imageStatusLabel}
+              </span>
+            )}
+
+            {videoStatusLabel && (
+              <span className={getImageStatusClass(post.video_status)}>
+                {videoStatusLabel}
               </span>
             )}
           </div>
@@ -490,7 +518,38 @@ export default function EditPostPage() {
           </div>
         )}
 
-        {post.image_url && !(isCarouselPost && hasSlides) && (
+        {isAnimatedVideoPost && post.video_url && (
+          <div className="edit-post-image-block edit-post-video-block">
+            <div className="edit-post-image-header">
+              <div>
+                <label className="field-label">{t("posts.generatedVideo")}</label>
+                <p>{t("posts.generatedVideoText")}</p>
+              </div>
+
+              <a
+                className="secondary-button small-button"
+                href={post.video_url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t("posts.openVideo")}
+              </a>
+            </div>
+
+            <video
+              controls
+              autoPlay
+              muted
+              loop
+              playsInline
+              poster={post.image_url || undefined}
+            >
+              <source src={post.video_url} type="video/mp4" />
+            </video>
+          </div>
+        )}
+
+        {post.image_url && !isAnimatedVideoPost && !(isCarouselPost && hasSlides) && (
           <div className="edit-post-image-block">
             <div className="edit-post-image-header">
               <div>
@@ -519,6 +578,15 @@ export default function EditPostPage() {
             <p>
               <strong>{t("posts.imageStatus")}:</strong> {imageStatusLabel}
             </p>
+          </div>
+        )}
+
+        {isAnimatedVideoPost && !post.video_url && videoStatusLabel && (
+          <div className="idea-box">
+            <p>
+              <strong>{t("posts.videoStatus")}:</strong> {videoStatusLabel}
+            </p>
+            {post.video_error && <p>{post.video_error}</p>}
           </div>
         )}
 

@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 
 const POST_IMAGES_BUCKET = "post-images";
+const POST_VIDEOS_BUCKET = "post-videos";
 const BRAND_ASSETS_BUCKET = "brand-assets";
 const DELETION_LOG_RETENTION_DAYS = 90;
 
@@ -465,7 +466,7 @@ export async function POST(request) {
     const postsByUser = await selectRowsByColumn(
       supabaseAdmin,
       "posts",
-      "id, image_storage_path",
+      "id, image_storage_path, video_storage_path",
       "user_id",
       userId
     );
@@ -473,7 +474,7 @@ export async function POST(request) {
     const postsByBrand = await selectRowsInColumn(
       supabaseAdmin,
       "posts",
-      "id, image_storage_path",
+      "id, image_storage_path, video_storage_path",
       "brand_profile_id",
       brandIds
     );
@@ -482,6 +483,9 @@ export async function POST(request) {
     const postIds = uniqueValues(posts.map((post) => post.id));
     const postImagePaths = uniqueValues(
       posts.map((post) => post.image_storage_path).filter(Boolean)
+    );
+    const postVideoPaths = uniqueValues(
+      posts.map((post) => post.video_storage_path).filter(Boolean)
     );
 
     const slidesByUser = await selectRowsByColumn(
@@ -554,12 +558,19 @@ export async function POST(request) {
       ...uploadedRuleImagePaths,
     ]);
 
+    await removeStorageFiles(
+      supabaseAdmin,
+      POST_VIDEOS_BUCKET,
+      postVideoPaths
+    );
+
     await removeStorageFiles(supabaseAdmin, BRAND_ASSETS_BUCKET, logoPaths);
 
     await removeStoragePrefixes(supabaseAdmin, POST_IMAGES_BUCKET, [
       userId,
       `manual-posts/${userId}`,
     ]);
+    await removeStoragePrefixes(supabaseAdmin, POST_VIDEOS_BUCKET, [userId]);
     await removeStoragePrefixes(supabaseAdmin, BRAND_ASSETS_BUCKET, [`logos/${userId}`]);
 
     await deleteRowsByColumn(

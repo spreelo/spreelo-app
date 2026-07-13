@@ -14,8 +14,14 @@ import {
   isConnectionAuthFailure,
   markConnectionExpiredAndAlert,
 } from "../../../../lib/socialConnectionAlerts.js";
+import {
+  buildProductPushEdit,
+  queueShotstackRender,
+  waitForShotstackRender,
+} from "../../../../lib/shotstack.js";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const DEFAULT_TIME_ZONE = "UTC";
 const BATCH_SIZE = 25;
@@ -26,6 +32,11 @@ const STALE_CAROUSEL_RECOVERY_WINDOW_HOURS = 24;
 const MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES = 2;
 const APP_URL = "https://app.spreelo.com";
 const RESEND_FROM_EMAIL = "Spreelo <noreply@spreelo.com>";
+const POST_VIDEOS_BUCKET = "post-videos";
+const ANIMATED_VIDEO_DURATION_SECONDS = 5;
+const MAX_ANIMATED_VIDEO_RENDERS_PER_RUN = 1;
+const MAX_ANIMATED_VIDEO_PUBLISHES_PER_RUN = 1;
+const INCOMPLETE_ANIMATED_VIDEO_GRACE_MINUTES = 20;
 const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 const WEBSITE_MAX_PAGES = 8;
 const WEBSITE_MAX_TEXT_CHARS_PER_PAGE = 6500;
@@ -71,6 +82,8 @@ const PRODUCT_RESEARCH_FAST_MODEL =
 const IMAGE_MODEL = "gpt-image-2";
 const INSTAGRAM_GRAPH_API_VERSION =
   process.env.INSTAGRAM_GRAPH_API_VERSION || "v21.0";
+const FACEBOOK_GRAPH_API_VERSION =
+  process.env.FACEBOOK_GRAPH_API_VERSION || "v25.0";
 
 const WEEKDAYS = [
   "Sunday",
@@ -816,7 +829,7 @@ async function findAutomationDraftsForRule({ supabase, ruleId }) {
   const { data, error } = await supabase
     .from("posts")
     .select(
-      "id, status, created_at, updated_at, content_format, slide_count, slide_generation_status, slide_render_status"
+      "id, user_id, status, created_at, updated_at, content_format, image_storage_path, video_storage_path, video_status, video_render_id, slide_count, slide_generation_status, slide_render_status"
     )
     .eq("automation_rule_id", ruleId)
     .in("status", ["pending_approval", "generating"])
@@ -875,6 +888,82 @@ function isIncompleteCarouselDraftPost(post) {
   const generationStatus = String(post?.slide_generation_status || "").toLowerCase();
 
   return slideCount < 1 || generationStatus === "none" || generationStatus === "failed";
+}
+
+function isIncompleteAnimatedVideoDraftPost(post) {
+  if (normalizeContentFormat(post?.content_format) !== "animated_video") {
+    return false;
+  }
+
+  return (
+    post?.status === "generating" ||
+    !post?.video_storage_path ||
+    String(post?.video_status || "").toLowerCase() !== "ready"
+  );
+}
+
+function isStaleIncompleteAnimatedVideoDraft(post, now) {
+  if (!isIncompleteAnimatedVideoDraftPost(post)) {
+    return false;
+  }
+
+  const activityTime = getAutomationDraftActivityTime(post);
+  const nowTime = new Date(now).getTime();
+
+  if (!activityTime || !Number.isFinite(nowTime)) {
+    return true;
+  }
+
+  return (
+    nowTime - activityTime >=
+    INCOMPLETE_ANIMATED_VIDEO_GRACE_MINUTES * 60 * 1000
+  );
+}
+
+async function deleteIncompleteAnimatedVideoDrafts({ supabase, posts }) {
+  const drafts = (posts || []).filter(isIncompleteAnimatedVideoDraftPost);
+  const postIds = drafts.map((post) => post.id).filter(Boolean);
+
+  if (!postIds.length) {
+    return 0;
+  }
+
+  const imagePaths = drafts.flatMap((post) => {
+    const userId = post.user_id;
+
+    if (!userId || !post.id) return [];
+
+    return [
+      post.image_storage_path,
+      `${userId}/${post.id}-animation-background.png`,
+      `${userId}/${post.id}-animation-product-card.png`,
+      `${userId}/${post.id}-animation-poster.png`,
+    ].filter(Boolean);
+  });
+  const videoPaths = drafts
+    .flatMap((post) => {
+      if (post.video_storage_path) return [post.video_storage_path];
+      if (post.user_id && post.id) return [`${post.user_id}/${post.id}.mp4`];
+      return [];
+    })
+    .filter(Boolean);
+
+  await Promise.allSettled([
+    imagePaths.length
+      ? supabase.storage.from("post-images").remove([...new Set(imagePaths)])
+      : Promise.resolve(),
+    videoPaths.length
+      ? supabase.storage.from(POST_VIDEOS_BUCKET).remove([...new Set(videoPaths)])
+      : Promise.resolve(),
+  ]);
+
+  const { error } = await supabase.from("posts").delete().in("id", postIds);
+
+  if (error) {
+    throw new Error(error.message || "Could not delete incomplete animated video drafts");
+  }
+
+  return postIds.length;
 }
 
 function isStaleIncompleteCarouselDraft(post, now) {
@@ -5988,7 +6077,7 @@ function safeJsonParse(value) {
 function normalizeContentFormat(value) {
   const format = String(value || "single_image").trim();
 
-  if (["single_image", "carousel", "slideshow_video"].includes(format)) {
+  if (["single_image", "carousel", "slideshow_video", "animated_video"].includes(format)) {
     return format;
   }
 
@@ -5997,6 +6086,10 @@ function normalizeContentFormat(value) {
 
 function isCarouselRule(rule) {
   return normalizeContentFormat(rule?.content_format) === "carousel";
+}
+
+function isAnimatedVideoRule(rule) {
+  return normalizeContentFormat(rule?.content_format) === "animated_video";
 }
 
 function normalizeSlideText(value, maxLength = 180) {
@@ -13334,6 +13427,340 @@ async function uploadGeneratedImageToStorage({
   };
 }
 
+function clampColorChannel(value) {
+  return Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
+}
+
+function rgbToHex({ r, g, b }) {
+  return `#${[r, g, b]
+    .map((value) => clampColorChannel(value).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function mixRgb(color, target, amount) {
+  const ratio = Math.max(0, Math.min(1, Number(amount) || 0));
+
+  return {
+    r: color.r + (target.r - color.r) * ratio,
+    g: color.g + (target.g - color.g) * ratio,
+    b: color.b + (target.b - color.b) * ratio,
+  };
+}
+
+async function getProductAccentColor(imageBuffer) {
+  const fallbackStats = await sharp(imageBuffer).rotate().stats();
+  const fallback = fallbackStats?.dominant || { r: 70, g: 85, b: 110 };
+  const { data, info } = await sharp(imageBuffer)
+    .rotate()
+    .ensureAlpha()
+    .resize({
+      width: 96,
+      height: 96,
+      fit: "inside",
+      withoutEnlargement: false,
+    })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const bins = new Map();
+
+  for (let index = 0; index < data.length; index += info.channels) {
+    const r = data[index];
+    const g = data[index + 1];
+    const b = data[index + 2];
+    const alpha = info.channels > 3 ? data[index + 3] : 255;
+
+    if (alpha < 100) continue;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const saturation = max - min;
+    const brightness = (r + g + b) / 3;
+
+    // Ignore transparent, white-background and near-black edge pixels so the
+    // generated design follows the product itself rather than its photo canvas.
+    if (brightness > 242 || brightness < 18) continue;
+    if (saturation < 14 && brightness > 175) continue;
+
+    const key = `${Math.floor(r / 32)}-${Math.floor(g / 32)}-${Math.floor(b / 32)}`;
+    const entry = bins.get(key) || {
+      count: 0,
+      saturationTotal: 0,
+      rTotal: 0,
+      gTotal: 0,
+      bTotal: 0,
+    };
+
+    entry.count += 1;
+    entry.saturationTotal += saturation;
+    entry.rTotal += r;
+    entry.gTotal += g;
+    entry.bTotal += b;
+    bins.set(key, entry);
+  }
+
+  const ranked = [...bins.values()]
+    .map((entry) => {
+      const averageSaturation = entry.saturationTotal / entry.count;
+
+      return {
+        ...entry,
+        score: entry.count * (1 + averageSaturation / 110),
+      };
+    })
+    .sort((left, right) => right.score - left.score);
+  const selected = ranked[0];
+
+  if (!selected || selected.count < 3) {
+    return fallback;
+  }
+
+  return {
+    r: selected.rTotal / selected.count,
+    g: selected.gTotal / selected.count,
+    b: selected.bTotal / selected.count,
+  };
+}
+
+function getAnimatedVideoCta(rule) {
+  const raw = String(rule?.cta_type || "Shop now")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return truncateText(raw || "Shop now", 30).toUpperCase();
+}
+
+async function createAnimatedProductVideoAssets({
+  supabase,
+  rule,
+  userId,
+  postId,
+}) {
+  const websiteItem = rule?.website_item || {};
+  const sourceImageUrl = websiteItem?.image_url;
+
+  if (!sourceImageUrl) {
+    throw new Error("Animated product video requires a verified website product image");
+  }
+
+  const sourceImageBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
+  const dominant = await getProductAccentColor(sourceImageBuffer);
+  const baseColor = mixRgb(dominant, { r: 15, g: 23, b: 42 }, 0.62);
+  const accentColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.28);
+  const deepColor = mixRgb(baseColor, { r: 0, g: 0, b: 0 }, 0.3);
+  const brandName = truncateText(
+    rule?.brand_profile?.business_name || "Featured product",
+    42
+  );
+  const title = truncateText(
+    websiteItem?.title || rule?.content_type_label || "Worth a closer look",
+    110
+  );
+  const titleLines = splitTextIntoLines(title, 25, 3);
+  const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
+  const cta = getAnimatedVideoCta(rule);
+
+  const titleSpans = titleLines
+    .map(
+      (line, index) =>
+        `<tspan x="88" dy="${index === 0 ? 0 : 82}">${escapeSvg(line)}</tspan>`
+    )
+    .join("");
+  const priceMarkup = price
+    ? `<text x="992" y="116" text-anchor="end" font-family="DejaVu Sans, sans-serif" font-size="38" font-weight="700" fill="#ffffff">${escapeSvg(price)}</text>`
+    : "";
+
+  const backgroundSvg = Buffer.from(`
+    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1080" y2="1350" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="${rgbToHex(accentColor)}"/>
+          <stop offset="0.48" stop-color="${rgbToHex(baseColor)}"/>
+          <stop offset="1" stop-color="${rgbToHex(deepColor)}"/>
+        </linearGradient>
+        <filter id="blur"><feGaussianBlur stdDeviation="42"/></filter>
+      </defs>
+      <rect width="1080" height="1350" fill="url(#bg)"/>
+      <circle cx="945" cy="220" r="260" fill="#ffffff" opacity="0.08" filter="url(#blur)"/>
+      <circle cx="90" cy="930" r="310" fill="#ffffff" opacity="0.055" filter="url(#blur)"/>
+      <path d="M0 760 C230 650 420 730 640 670 C850 615 985 500 1080 525 L1080 1350 L0 1350 Z" fill="#000000" opacity="0.11"/>
+      <text x="88" y="116" font-family="DejaVu Sans, sans-serif" font-size="32" font-weight="700" letter-spacing="4" fill="#ffffff" opacity="0.86">${escapeSvg(brandName.toUpperCase())}</text>
+      ${priceMarkup}
+      <text x="88" y="210" font-family="DejaVu Sans, sans-serif" font-size="70" font-weight="800" fill="#ffffff">${titleSpans}</text>
+      <rect x="350" y="1190" width="380" height="96" rx="48" fill="#ffffff"/>
+      <text x="540" y="1252" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="34" font-weight="800" letter-spacing="1" fill="${rgbToHex(deepColor)}">${escapeSvg(cta)}</text>
+    </svg>
+  `);
+
+  const backgroundBuffer = await sharp(backgroundSvg).png().toBuffer();
+  const productImage = await sharp(sourceImageBuffer)
+    .rotate()
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .trim({ background: "#ffffff", threshold: 18, margin: 10 })
+    .resize({
+      width: 650,
+      height: 610,
+      fit: "contain",
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+      withoutEnlargement: true,
+    })
+    .png()
+    .toBuffer();
+
+  const cardChromeSvg = Buffer.from(`
+    <svg width="840" height="840" viewBox="0 0 840 840" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+          <feDropShadow dx="0" dy="26" stdDeviation="24" flood-color="#000000" flood-opacity="0.28"/>
+        </filter>
+      </defs>
+      <rect x="60" y="34" width="720" height="720" rx="58" fill="#ffffff" filter="url(#shadow)"/>
+    </svg>
+  `);
+
+  const productCardBuffer = await sharp({
+    create: {
+      width: 840,
+      height: 840,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([
+      { input: cardChromeSvg, left: 0, top: 0 },
+      { input: productImage, left: 95, top: 88 },
+    ])
+    .png()
+    .toBuffer();
+
+  const posterProductCardBuffer = await sharp(productCardBuffer)
+    .resize({ width: 756, height: 756, fit: "fill" })
+    .png()
+    .toBuffer();
+  const posterBuffer = await sharp(backgroundBuffer)
+    .composite([{ input: posterProductCardBuffer, left: 162, top: 432 }])
+    .png()
+    .toBuffer();
+
+  const [backgroundUpload, productCardUpload, posterUpload] = await Promise.all([
+    uploadGeneratedImageToStorage({
+      supabase,
+      imageBase64: backgroundBuffer.toString("base64"),
+      userId,
+      postId,
+      fileSuffix: "animation-background",
+    }),
+    uploadGeneratedImageToStorage({
+      supabase,
+      imageBase64: productCardBuffer.toString("base64"),
+      userId,
+      postId,
+      fileSuffix: "animation-product-card",
+    }),
+    uploadGeneratedImageToStorage({
+      supabase,
+      imageBase64: posterBuffer.toString("base64"),
+      userId,
+      postId,
+      fileSuffix: "animation-poster",
+    }),
+  ]);
+
+  if (!backgroundUpload.imageUrl || !productCardUpload.imageUrl || !posterUpload.imageUrl) {
+    throw new Error("Could not create public animation asset URLs");
+  }
+
+  return {
+    backgroundUrl: backgroundUpload.imageUrl,
+    productCardUrl: productCardUpload.imageUrl,
+    posterUrl: posterUpload.imageUrl,
+    posterStoragePath: posterUpload.imageStoragePath,
+  };
+}
+
+async function uploadRenderedVideoToStorage({
+  supabase,
+  videoUrl,
+  userId,
+  postId,
+}) {
+  const safeVideoUrl = await assertPublicHttpUrl(videoUrl);
+  const response = await fetch(safeVideoUrl);
+
+  if (!response.ok) {
+    throw new Error(`Could not download rendered video: ${response.status}`);
+  }
+
+  const videoBuffer = Buffer.from(await response.arrayBuffer());
+  const filePath = `${userId}/${postId}.mp4`;
+  const { error: uploadError } = await supabase.storage
+    .from(POST_VIDEOS_BUCKET)
+    .upload(filePath, videoBuffer, {
+      contentType: "video/mp4",
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message || "Could not upload rendered video");
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from(POST_VIDEOS_BUCKET)
+    .getPublicUrl(filePath);
+
+  if (!publicUrlData?.publicUrl) {
+    throw new Error("Could not create a public URL for the rendered video");
+  }
+
+  return {
+    videoUrl: publicUrlData.publicUrl,
+    videoStoragePath: filePath,
+  };
+}
+
+async function generateAnimatedProductVideo({
+  supabase,
+  rule,
+  userId,
+  postId,
+}) {
+  const assets = await createAnimatedProductVideoAssets({
+    supabase,
+    rule,
+    userId,
+    postId,
+  });
+  const edit = buildProductPushEdit({
+    backgroundUrl: assets.backgroundUrl,
+    productCardUrl: assets.productCardUrl,
+    durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
+  });
+  const renderId = await queueShotstackRender(edit);
+
+  await supabase
+    .from("posts")
+    .update({
+      video_render_id: renderId,
+      video_status: "rendering",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", postId);
+
+  const render = await waitForShotstackRender({ renderId });
+  const storedVideo = await uploadRenderedVideoToStorage({
+    supabase,
+    videoUrl: render.url,
+    userId,
+    postId,
+  });
+
+  return {
+    ...assets,
+    ...storedVideo,
+    renderId,
+  };
+}
+
 function shouldUseLogoForRule(rule, brandProfile) {
   if (!brandProfile?.logo_url) {
     return false;
@@ -13658,6 +14085,38 @@ async function publishImagePostToFacebook({
   return result;
 }
 
+async function publishVideoPostToFacebook({
+  pageId,
+  pageAccessToken,
+  videoUrl,
+  caption,
+}) {
+  const response = await fetch(
+    `https://graph.facebook.com/${FACEBOOK_GRAPH_API_VERSION}/${pageId}/videos`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        file_url: videoUrl,
+        description: caption,
+        access_token: pageAccessToken,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result?.id) {
+    throw new Error(
+      getMetaErrorMessage(result, "Facebook video publishing failed")
+    );
+  }
+
+  return result;
+}
+
 function getPublishTargets(platformValue) {
   const normalized = String(platformValue || "")
     .toLowerCase()
@@ -13793,10 +14252,9 @@ async function waitForInstagramContainerReady({
   creationId,
   accessToken,
   instagramUserId,
+  maxAttempts = 6,
+  delayMs = 1500,
 }) {
-  const maxAttempts = 6;
-  const delayMs = 1500;
-
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     if (attempt > 1) {
       await sleep(delayMs);
@@ -13923,6 +14381,70 @@ async function publishImagePostToInstagram({
   if (!publishResponse.ok || !publishResult?.id) {
     throw new Error(
       getMetaErrorMessage(publishResult, "Instagram media publish failed")
+    );
+  }
+
+  return publishResult;
+}
+
+async function publishVideoPostToInstagram({
+  instagramUserId,
+  accessToken,
+  videoUrl,
+  caption,
+}) {
+  const createResponse = await fetch(
+    `https://graph.instagram.com/${INSTAGRAM_GRAPH_API_VERSION}/${instagramUserId}/media`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        media_type: "REELS",
+        video_url: videoUrl,
+        caption,
+        share_to_feed: true,
+        access_token: accessToken,
+      }),
+    }
+  );
+
+  const createResult = await createResponse.json();
+
+  if (!createResponse.ok || !createResult?.id) {
+    throw new Error(
+      getMetaErrorMessage(createResult, "Instagram Reel container creation failed")
+    );
+  }
+
+  await waitForInstagramContainerReady({
+    creationId: createResult.id,
+    accessToken,
+    instagramUserId,
+    maxAttempts: 30,
+    delayMs: 3000,
+  });
+
+  const publishResponse = await fetch(
+    `https://graph.instagram.com/${INSTAGRAM_GRAPH_API_VERSION}/${instagramUserId}/media_publish`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        creation_id: createResult.id,
+        access_token: accessToken,
+      }),
+    }
+  );
+
+  const publishResult = await publishResponse.json();
+
+  if (!publishResponse.ok || !publishResult?.id) {
+    throw new Error(
+      getMetaErrorMessage(publishResult, "Instagram Reel publishing failed")
     );
   }
 
@@ -14197,7 +14719,7 @@ async function publishApprovedSocialPosts({
   const { data: posts, error } = await supabase
     .from("posts")
     .select(
-      "id, user_id, brand_profile_id, content, platform, status, published_at, approved_at, image_url, content_format"
+      "id, user_id, brand_profile_id, content, platform, status, published_at, approved_at, image_url, video_url, video_status, content_format"
     )
     .eq("status", "approved")
     .is("published_at", null)
@@ -14215,14 +14737,29 @@ async function publishApprovedSocialPosts({
 
   const approvedPosts = (posts || []).filter((post) => {
     const format = normalizeContentFormat(post.content_format);
-    return ["single_image", "carousel"].includes(format) && getPublishTargets(post.platform).length > 0;
+    return ["single_image", "carousel", "animated_video"].includes(format) && getPublishTargets(post.platform).length > 0;
   });
 
   summary.social_publish_checked += approvedPosts.length;
+  let animatedVideoPublishesThisRun = 0;
 
   for (const post of approvedPosts) {
     const targets = getPublishTargets(post.platform);
     const normalizedFormat = normalizeContentFormat(post.content_format);
+
+    if (
+      normalizedFormat === "animated_video" &&
+      animatedVideoPublishesThisRun >= MAX_ANIMATED_VIDEO_PUBLISHES_PER_RUN
+    ) {
+      summary.video_publish_deferred =
+        Number(summary.video_publish_deferred || 0) + 1;
+      continue;
+    }
+
+    if (normalizedFormat === "animated_video") {
+      animatedVideoPublishesThisRun += 1;
+    }
+
     let facebookConnectionForPost = null;
     let instagramConnectionForPost = null;
     let activePublishTarget = null;
@@ -14272,6 +14809,27 @@ async function publishApprovedSocialPosts({
         continue;
       }
 
+      if (normalizedFormat === "animated_video" && !post.video_url) {
+        console.error("Video publish skipped because post has no video URL", {
+          postId: post.id,
+          userId: post.user_id,
+          brandProfileId: post.brand_profile_id,
+          platform: post.platform,
+          videoStatus: post.video_status || null,
+        });
+
+        await supabase
+          .from("posts")
+          .update({
+            status: "failed",
+            updated_at: nowIso,
+          })
+          .eq("id", post.id);
+
+        summary.social_publish_failed += 1;
+        continue;
+      }
+
       if (targets.includes("facebook")) {
         activePublishTarget = "facebook";
         summary.facebook_publish_checked += 1;
@@ -14304,7 +14862,14 @@ async function publishApprovedSocialPosts({
           throw new Error("No connected Facebook page found for this brand");
         }
 
-        if (normalizedFormat === "carousel") {
+        if (normalizedFormat === "animated_video") {
+          await publishVideoPostToFacebook({
+            pageId: facebookConnection.page_id,
+            pageAccessToken: facebookConnection.page_access_token,
+            videoUrl: post.video_url,
+            caption: post.content,
+          });
+        } else if (normalizedFormat === "carousel") {
           const carouselSlides = await loadCarouselSlidesForPublish({
             supabase,
             postId: post.id,
@@ -14378,7 +14943,14 @@ async function publishApprovedSocialPosts({
           throw new Error("No connected Instagram account found for this brand");
         }
 
-        if (normalizedFormat === "carousel") {
+        if (normalizedFormat === "animated_video") {
+          await publishVideoPostToInstagram({
+            instagramUserId: instagramConnection.page_id,
+            accessToken: instagramConnection.page_access_token,
+            videoUrl: post.video_url,
+            caption: buildInstagramCaptionFromPostContent(post.content),
+          });
+        } else if (normalizedFormat === "carousel") {
           const carouselSlides = await loadCarouselSlidesForPublish({
             supabase,
             postId: post.id,
@@ -14575,6 +15147,7 @@ export async function GET(request) {
 
     const summary = createEmptySummary();
     const usedWebsiteImageUrlsThisRun = new Set();
+    let animatedVideoRendersThisRun = 0;
 
    await publishApprovedSocialPosts({
   supabase,
@@ -14590,6 +15163,16 @@ export async function GET(request) {
     });
 
     for (const rule of rules || []) {
+      if (
+        isAnimatedVideoRule(rule) &&
+        animatedVideoRendersThisRun >= MAX_ANIMATED_VIDEO_RENDERS_PER_RUN
+      ) {
+        summary.skipped += 1;
+        summary.video_render_deferred =
+          Number(summary.video_render_deferred || 0) + 1;
+        continue;
+      }
+
       summary.processed += 1;
 
       let automationRunStartedAtIso = null;
@@ -14653,6 +15236,51 @@ export async function GET(request) {
           supabase,
           ruleId: rule.id,
         });
+
+        const staleIncompleteAnimatedVideoDrafts = automationDrafts.filter(
+          (post) => isStaleIncompleteAnimatedVideoDraft(post, now)
+        );
+
+        if (staleIncompleteAnimatedVideoDrafts.length > 0) {
+          const cleanedAnimatedDraftCount =
+            await deleteIncompleteAnimatedVideoDrafts({
+              supabase,
+              posts: staleIncompleteAnimatedVideoDrafts,
+            });
+
+          automationDrafts = automationDrafts.filter(
+            (post) =>
+              !staleIncompleteAnimatedVideoDrafts.some(
+                (stalePost) => stalePost.id === post.id
+              )
+          );
+          summary.cleaned_incomplete_animated_video_drafts =
+            Number(summary.cleaned_incomplete_animated_video_drafts || 0) +
+            cleanedAnimatedDraftCount;
+        }
+
+        const activeIncompleteAnimatedVideoDrafts = automationDrafts.filter(
+          (post) =>
+            isIncompleteAnimatedVideoDraftPost(post) &&
+            !isStaleIncompleteAnimatedVideoDraft(post, now)
+        );
+
+        if (activeIncompleteAnimatedVideoDrafts.length > 0) {
+          const message =
+            `Skipped temporarily because this automation rule has an animated video still rendering. Spreelo will retry automatically after ${INCOMPLETE_ANIMATED_VIDEO_GRACE_MINUTES} minutes if it becomes stale.`;
+
+          await setRuleError(supabase, rule.id, message);
+          await finishRunLog("skipped", message, {
+            stage: "active_incomplete_animated_video_draft",
+            incomplete_animated_video_drafts:
+              activeIncompleteAnimatedVideoDrafts.length,
+            automatic_retry_after_minutes:
+              INCOMPLETE_ANIMATED_VIDEO_GRACE_MINUTES,
+          });
+          summary.skipped += 1;
+          summary.skipped_existing_draft += 1;
+          continue;
+        }
 
         const staleIncompleteDrafts = automationDrafts.filter((post) =>
           isStaleIncompleteCarouselDraft(post, now)
@@ -14793,6 +15421,10 @@ export async function GET(request) {
           continue;
         }
 
+        if (isAnimatedVideoRule(rule)) {
+          animatedVideoRendersThisRun += 1;
+        }
+
 
         const creditCost = Number(rule.credit_cost || 1);
         const hasReservedCredits =
@@ -14928,6 +15560,12 @@ let websitePreparedRule = rule;
           );
         }
 
+        if (isAnimatedVideoRule(ruleWithBrandProfile) && !websiteItem?.image_url) {
+          throw new Error(
+            "Animated product video needs a verified product image. No usable image was found for the selected website item."
+          );
+        }
+
         const rawGeneratedContent = await generateAutomationPost(
           openai,
           ruleWithBrandProfile
@@ -14954,7 +15592,10 @@ let websitePreparedRule = rule;
 
     const approvalRequired = true;
 const approvalToken = crypto.randomBytes(32).toString("hex");
-const postStatus = isCarouselRule(rule) ? "generating" : "pending_approval";
+const postStatus =
+  isCarouselRule(rule) || isAnimatedVideoRule(rule)
+    ? "generating"
+    : "pending_approval";
 let effectivePostStatus = postStatus;
 const wantsImage = Boolean(rule.generate_image);
 
@@ -14995,9 +15636,16 @@ scheduled_for: nowIso,
             image_status: wantsImage ? "generating" : "none",
             image_prompt: wantsImage ? rule.image_prompt || null : null,
             content_format: normalizeContentFormat(rule.content_format),
+            video_status: isAnimatedVideoRule(rule) ? "rendering" : "none",
+            video_provider: isAnimatedVideoRule(rule) ? "shotstack" : null,
+            video_duration_seconds: isAnimatedVideoRule(rule)
+              ? ANIMATED_VIDEO_DURATION_SECONDS
+              : null,
     text_model_used: POST_TEXT_MODEL,
 image_model_used:
-  wantsImage && rule.image_source !== "uploaded" ? IMAGE_MODEL : null,
+  wantsImage && rule.image_source !== "uploaded" && !isAnimatedVideoRule(rule)
+    ? IMAGE_MODEL
+    : null,
 include_logo: shouldUseLogoForRule(rule, brandProfile),
 logo_url: shouldUseLogoForRule(rule, brandProfile) ? brandProfile?.logo_url || null : null,
 product_research_model_used: rule.uses_website_content
@@ -15023,6 +15671,9 @@ product_research_model_used: rule.uses_website_content
         let imageUrl = null;
         let imageStoragePath = null;
         let finalImagePrompt = wantsImage ? rule.image_prompt || null : null;
+        let videoUrl = null;
+        let videoStoragePath = null;
+        let videoRenderId = null;
 
         const isWebsiteBasedPost = Boolean(rule.uses_website_content || websiteItem || websiteSourceUrl);
         const ruleImageSource = String(rule.image_source || "").trim().toLowerCase();
@@ -15097,6 +15748,99 @@ product_research_model_used: rule.uses_website_content
 
           summary.uploaded_image_used =
             Number(summary.uploaded_image_used || 0) + 1;
+        } else if (wantsImage && isAnimatedVideoRule(ruleWithBrandProfile)) {
+          try {
+            finalImagePrompt =
+              "Animated website product video rendered with Shotstack using a static background, static text and a separately animated product card.";
+
+            const animatedVideo = await generateAnimatedProductVideo({
+              supabase,
+              rule: ruleWithBrandProfile,
+              userId: rule.user_id,
+              postId: post.id,
+            });
+
+            imageUrl = animatedVideo.posterUrl;
+            imageStoragePath = animatedVideo.posterStoragePath;
+            videoUrl = animatedVideo.videoUrl;
+            videoStoragePath = animatedVideo.videoStoragePath;
+            videoRenderId = animatedVideo.renderId;
+
+            const { error: animatedVideoUpdateError } = await supabase
+              .from("posts")
+              .update({
+                image_url: imageUrl,
+                image_storage_path: imageStoragePath,
+                image_status: "ready",
+                image_prompt: finalImagePrompt,
+                video_url: videoUrl,
+                video_storage_path: videoStoragePath,
+                video_status: "ready",
+                video_render_id: videoRenderId,
+                video_provider: "shotstack",
+                video_duration_seconds: ANIMATED_VIDEO_DURATION_SECONDS,
+                video_error: null,
+                include_logo: false,
+                logo_url: null,
+                updated_at: nowIso,
+              })
+              .eq("id", post.id);
+
+            if (animatedVideoUpdateError) {
+              throw new Error(
+                animatedVideoUpdateError.message ||
+                  "Could not attach animated product video to post"
+              );
+            }
+
+            usedWebsiteImageUrlsThisRun.add(
+              normalizeComparableValue(websiteItem?.image_url)
+            );
+            summary.video_generated = Number(summary.video_generated || 0) + 1;
+            summary.website_image_used += 1;
+          } catch (videoError) {
+            console.error("Animated product video generation failed", {
+              ruleId: rule.id,
+              postId: post.id,
+              message: videoError.message,
+            });
+
+            await Promise.allSettled([
+              supabase.storage.from("post-images").remove([
+                `${rule.user_id}/${post.id}-animation-background.png`,
+                `${rule.user_id}/${post.id}-animation-product-card.png`,
+                `${rule.user_id}/${post.id}-animation-poster.png`,
+              ]),
+              supabase.storage
+                .from(POST_VIDEOS_BUCKET)
+                .remove([`${rule.user_id}/${post.id}.mp4`]),
+            ]);
+
+            imageUrl = null;
+            imageStoragePath = null;
+            videoUrl = null;
+            videoStoragePath = null;
+            videoRenderId = null;
+
+            await supabase
+              .from("posts")
+              .update({
+                image_url: null,
+                image_storage_path: null,
+                image_status: "failed",
+                image_prompt: finalImagePrompt,
+                video_url: null,
+                video_storage_path: null,
+                video_status: "failed",
+                video_error: truncateText(videoError.message || "Video generation failed", 1000),
+                updated_at: nowIso,
+              })
+              .eq("id", post.id);
+
+            summary.video_generation_failed =
+              Number(summary.video_generation_failed || 0) + 1;
+            summary.warnings += 1;
+          }
         } else if (wantsImage && isWebsiteTextAdRule(ruleWithBrandProfile)) {
           try {
             const { imageBase64, imagePrompt } = await generateWebsiteItemAdImage(
@@ -15342,6 +16086,51 @@ product_research_model_used: rule.uses_website_content
     summary.warnings += 1;
   }
 }
+
+        if (isAnimatedVideoRule(rule)) {
+          if (!videoUrl) {
+            const message = "Animated product video could not be rendered.";
+
+            await supabase
+              .from("posts")
+              .update({
+                status: "failed",
+                video_status: "failed",
+                video_error: message,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", post.id);
+
+            await setRuleError(supabase, rule.id, message);
+            await finishRunLog("failed", message, {
+              stage: "animated_video_render",
+            });
+            summary.errors += 1;
+            continue;
+          }
+
+          const { error: animatedReadyStatusError } = await supabase
+            .from("posts")
+            .update({
+              status: "pending_approval",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", post.id);
+
+          if (animatedReadyStatusError) {
+            const message =
+              animatedReadyStatusError.message ||
+              "Could not mark animated video ready for approval";
+            await setRuleError(supabase, rule.id, message);
+            await finishRunLog("failed", message, {
+              stage: "animated_video_ready",
+            });
+            summary.errors += 1;
+            continue;
+          }
+
+          effectivePostStatus = "pending_approval";
+        }
 
         if (isCarouselRule(rule)) {
           try {

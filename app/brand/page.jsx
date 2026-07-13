@@ -1104,7 +1104,7 @@ export default function BrandProfile() {
 
       const { data: postsToDelete, error: postsLoadError } = await supabase
         .from("posts")
-        .select("id, image_storage_path")
+        .select("id, image_storage_path, video_storage_path, content_format")
         .eq("brand_profile_id", brandProfileId)
         .eq("user_id", user.id);
 
@@ -1121,7 +1121,17 @@ export default function BrandProfile() {
         ...(rulesToDelete || [])
           .map((rule) => rule.uploaded_image_storage_path)
           .filter(Boolean),
+        ...(postsToDelete || [])
+          .filter((post) => post.content_format === "animated_video")
+          .flatMap((post) => [
+            `${user.id}/${post.id}-animation-background.png`,
+            `${user.id}/${post.id}-animation-product-card.png`,
+            `${user.id}/${post.id}-animation-poster.png`,
+          ]),
       ];
+      const videoPaths = (postsToDelete || [])
+        .map((post) => post.video_storage_path)
+        .filter(Boolean);
 
       await deleteWebsiteContentHistory(ruleIds, postIds);
       await deletePostSlidesForPosts(postIds);
@@ -1133,6 +1143,18 @@ export default function BrandProfile() {
 
         if (storageDeleteError) {
           throw new Error(`post-images storage: ${storageDeleteError.message}`);
+        }
+      }
+
+      if (videoPaths.length > 0) {
+        const { error: videoStorageDeleteError } = await supabase.storage
+          .from("post-videos")
+          .remove(videoPaths);
+
+        if (videoStorageDeleteError) {
+          throw new Error(
+            `post-videos storage: ${videoStorageDeleteError.message}`
+          );
         }
       }
 

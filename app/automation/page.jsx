@@ -258,6 +258,20 @@ const contentTypes = [
     usesWebsiteContent: true,
   },
   {
+    id: "animated_website_item",
+    label: "Animated website product",
+    shortLabel: "Animated product",
+    description:
+      "Pick one real website product and turn it into a short animated video with static text and subtle product movement.",
+    prompt:
+      "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website. Create a social media caption that promotes that exact item in a helpful, trustworthy and sales-focused way. The caption will be paired with a short animated product video. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
+    imagePrompt:
+      "Create a short animated product video using the verified website item image. Keep the headline, price and call to action still while the product card moves subtly and naturally.",
+    usesWebsiteContent: true,
+    contentFormat: "animated_video",
+    animationStyle: "product_push",
+  },
+  {
     id: "carousel_website_item",
     label: "Website carousel",
     shortLabel: "Carousel",
@@ -428,6 +442,7 @@ const contentTypes = [
 
 const slotTypeIcons = {
   website_item: "🛍️",
+  animated_website_item: "▶",
   carousel_website_item: "▦",
   problem_solution: "🧩",
   tips: "💡",
@@ -453,6 +468,7 @@ function getSlotTypeIcon(slot) {
 
 const slotTypeIconComponents = {
   website_item: ShoppingBag,
+  animated_website_item: Video,
   carousel_website_item: Layers,
   problem_solution: Puzzle,
   tips: Lightbulb,
@@ -1707,6 +1723,7 @@ contentTypeId: overrides.contentTypeId || null,
 contentTypeLabel: overrides.contentTypeLabel || null,
 usesWebsiteContent: Boolean(overrides.usesWebsiteContent),
 contentFormat: overrides.contentFormat || "single_image",
+animationStyle: overrides.animationStyle || null,
 isCampaignSlot: Boolean(overrides.isCampaignSlot),
 campaignRole: overrides.campaignRole || "",
 campaignSummary: overrides.campaignSummary || "",
@@ -1766,6 +1783,7 @@ function createSlotFromContentType(type, index = 0, options = {}) {
     contentTypeLabel: type.label,
     usesWebsiteContent: Boolean(type.usesWebsiteContent),
     contentFormat: type.contentFormat || "single_image",
+    animationStyle: type.animationStyle || null,
     timeZone,
   });
 }
@@ -2118,6 +2136,10 @@ function getSlotDisplayDescription(slot) {
 }
 
 function getSlotImageLabel(slot) {
+  if (slot.contentFormat === "animated_video") {
+    return "Animated product video";
+  }
+
   if (slot.contentTypeId === "website_item_text_ad") {
     return "AI-designed website ad";
   }
@@ -2138,6 +2160,7 @@ function getContentTypeIcon(typeId) {
   const icons = {
     website_item: "🛒",
     website_item_text_ad: "✦",
+    animated_website_item: "▶",
     carousel_website_item: "▦",
     problem_solution: "⚡",
     tips: "💡",
@@ -2162,6 +2185,7 @@ function getContentPreviewCardId(typeId) {
   const map = {
     website_item: "product_focus",
     website_item_text_ad: "product_ad",
+    animated_website_item: "product_ad",
     carousel_website_item: "website_carousel",
     problem_solution: "problem_solution",
     tips: "tips_advice",
@@ -6550,6 +6574,7 @@ function addSlot() {
         contentTypeLabel: selectedType.label,
         usesWebsiteContent: Boolean(selectedType.usesWebsiteContent),
         contentFormat: selectedType.contentFormat || "single_image",
+        animationStyle: selectedType.animationStyle || null,
         timeZone,
       });
 
@@ -7023,6 +7048,7 @@ function toggleContentType(typeId) {
           rule.content_type_label || contentType?.label || rule.post_type || "Custom post",
         usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
         contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
+        animationStyle: rule.animation_style || contentType?.animationStyle || null,
         timeZone: selectedTimeZone,
       });
     });
@@ -7101,6 +7127,7 @@ function toggleContentType(typeId) {
           rule.content_type_label || contentType?.label || rule.post_type || "Custom post",
         usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
         contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
+        animationStyle: rule.animation_style || contentType?.animationStyle || null,
         timeZone: selectedTimeZone,
       }),
     ]);
@@ -7374,6 +7401,7 @@ ${slot.campaignSummary}`
         content_type_label: slot.contentTypeLabel,
         uses_website_content: Boolean(slot.usesWebsiteContent),
         content_format: slot.contentFormat || "single_image",
+        animation_style: slot.animationStyle || null,
 
         campaign_phase: slot.campaignPhase || null,
         marketing_angle: slot.marketingAngle || null,
@@ -7450,6 +7478,7 @@ ${slot.campaignSummary}`
               content_type_id: editingRuleSnapshot.content_type_id,
               content_type_label: editingRuleSnapshot.content_type_label,
               content_format: editingRuleSnapshot.content_format,
+              animation_style: editingRuleSnapshot.animation_style,
               uses_website_content: editingRuleSnapshot.uses_website_content,
               generate_image: editingRuleSnapshot.generate_image,
               image_source: editingRuleSnapshot.image_source,

@@ -156,6 +156,10 @@ function formatContentFormat(post, t) {
     return t("dashboard.format.slideshowVideo");
   }
 
+  if (post?.content_format === "animated_video") {
+    return t("dashboard.format.animatedVideo");
+  }
+
   return t("dashboard.format.singleImage");
 }
 
@@ -182,6 +186,10 @@ function formatPostKind(post, t) {
     return t("dashboard.slideshowWithCount", {
       count: slideCount,
     });
+  }
+
+  if (post?.content_format === "animated_video") {
+    return t("dashboard.animatedProductVideo");
   }
 
   return post?.post_type || t("dashboard.post");
@@ -410,7 +418,7 @@ export default function Home() {
     const { data: postsData, error: postsError } = await supabase
       .from("posts")
       .select(
-        "id, brand_profile_id, platform, tone, language, post_type, idea, content, status, created_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, content_format"
+        "id, brand_profile_id, platform, tone, language, post_type, idea, content, status, created_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, video_url, video_status, content_format"
       )
       .eq("user_id", user.id)
       .eq("brand_profile_id", selectedBrand.id)
@@ -1128,7 +1136,7 @@ export default function Home() {
                                 {formatPostKind(post, t)}
                               </h4>
 
-                              {isSlideBasedPost(post) && (
+                              {post.content_format && post.content_format !== "single_image" && (
                                 <span className="dashboard-format-pill">
                                   {formatContentFormat(post, t)}
                                 </span>
