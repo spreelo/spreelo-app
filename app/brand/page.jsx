@@ -1094,7 +1094,7 @@ export default function BrandProfile() {
 
       const { data: rulesToDelete, error: rulesLoadError } = await supabase
         .from("automation_rules")
-        .select("id")
+        .select("id, uploaded_image_storage_path")
         .eq("brand_profile_id", brandProfileId)
         .eq("user_id", user.id);
 
@@ -1114,9 +1114,14 @@ export default function BrandProfile() {
 
       const ruleIds = (rulesToDelete || []).map((rule) => rule.id);
       const postIds = (postsToDelete || []).map((post) => post.id);
-      const imagePaths = (postsToDelete || [])
-        .map((post) => post.image_storage_path)
-        .filter(Boolean);
+      const imagePaths = [
+        ...(postsToDelete || [])
+          .map((post) => post.image_storage_path)
+          .filter(Boolean),
+        ...(rulesToDelete || [])
+          .map((rule) => rule.uploaded_image_storage_path)
+          .filter(Boolean),
+      ];
 
       await deleteWebsiteContentHistory(ruleIds, postIds);
       await deletePostSlidesForPosts(postIds);

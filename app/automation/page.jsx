@@ -41,6 +41,13 @@ const DEFAULT_TIME_ZONE = "UTC";
 const SPREELO_INTERNAL_TESTER_EMAIL = "johan@foldern.com";
 const AUTO_PLAN_IMAGE_COUNT = 2;
 const DEFAULT_AUTO_PLAN_POST_COUNT = 5;
+const POST_IMAGES_BUCKET = "post-images";
+const MAX_MANUAL_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_MANUAL_IMAGE_FILE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
 const CAMPAIGN_HANDOFF_STORAGE_KEY = "spreelo_calendar_campaign_handoff";
 const autoPlanPostCountOptions = [3, 5, 7];
 
@@ -395,9 +402,9 @@ const contentTypes = [
   },
   {
     id: "manual_prompt",
-    label: "Manual prompt",
-    shortLabel: "Manual",
-    description: "Write your own instructions for this post.",
+    label: "Custom post",
+    shortLabel: "Custom",
+    description: "Describe what the post should be about and choose its visual content.",
     prompt: "",
     imagePrompt: "",
     usesWebsiteContent: false,
@@ -668,6 +675,29 @@ const goalMarketingSequences = {
 
 function makeSlotId() {
   return `slot-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function getSafeManualImageFileName(fileName) {
+  const cleanName = String(fileName || "manual-image")
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+
+  return cleanName || "manual-image";
+}
+
+function getRuleImageSource(slot) {
+  if (slot?.contentTypeId === "manual_prompt") {
+    if (slot.manualImageMode === "uploaded") return "uploaded";
+    if (slot.manualImageMode === "ai") return "ai";
+    return "none";
+  }
+
+  if (slot?.contentFormat === "carousel") return "website_carousel";
+  if (slot?.usesWebsiteContent) return "website";
+  return slot?.generateImage ? "ai" : "none";
 }
 
 function getContentTypeById(typeId) {
@@ -1619,6 +1649,24 @@ function createSlot(overrides = {}) {
     prompt: overrides.prompt || "",
     generateImage: Boolean(overrides.generateImage),
     imagePrompt: overrides.imagePrompt || "",
+    manualImageMode:
+      overrides.manualImageMode ||
+      (overrides.imageSource === "uploaded"
+        ? "uploaded"
+        : overrides.generateImage
+        ? "ai"
+        : "none"),
+    uploadedImageFile: overrides.uploadedImageFile || null,
+    uploadedImagePreviewUrl:
+      overrides.uploadedImagePreviewUrl || overrides.uploadedImageUrl || "",
+    uploadedImageUrl: overrides.uploadedImageUrl || "",
+    uploadedImageStoragePath: overrides.uploadedImageStoragePath || "",
+    originalUploadedImageStoragePath:
+      overrides.originalUploadedImageStoragePath ||
+      overrides.uploadedImageStoragePath ||
+      "",
+    uploadedImageName: overrides.uploadedImageName || "",
+    imageSource: overrides.imageSource || "",
     includeEmojis:
       typeof overrides.includeEmojis === "boolean"
         ? overrides.includeEmojis
@@ -1992,13 +2040,13 @@ function formatPlanMode(value) {
   if (value === "campaign") return "Campaign plan";
   if (value === "auto") return "Auto-plan";
   if (value === "select") return "Choose content types";
-  return "Manual prompt";
+  return "Custom post";
 }
 
 function getWizardStepOneLabel(value) {
   if (value === "auto") return "Choose goal";
   if (value === "select") return "Choose content types";
-  if (value === "manual") return "Write prompt";
+  if (value === "manual") return "Describe post";
   return "Choose strategy";
 }
 
@@ -4634,15 +4682,61 @@ export default function AutomationPage() {
   const { t, locale } = useUiText(["automation"]);
 
   function translateContentTypeLabel(type) {
+    if (type?.id === "manual_prompt") return t("automation.customPostLabel");
     return t(`automation.contentType.${type.id}.label`);
   }
 
   function translateContentTypeShortLabel(type) {
+    if (type?.id === "manual_prompt") return t("automation.customPostShortLabel");
     return t(`automation.contentType.${type.id}.shortLabel`);
   }
 
   function translateContentTypeDescription(type) {
+    if (type?.id === "manual_prompt") return t("automation.customPostDescription");
     return t(`automation.contentType.${type.id}.description`);
+  }
+
+  function getSlotContentExplanation(slot) {
+    if (slot?.isCampaignSlot && slot.campaignSummary) {
+      return slot.campaignSummary;
+    }
+
+    const type = getContentTypeById(slot?.contentTypeId);
+    return type
+      ? translateContentTypeDescription(type)
+      : t("automation.customPostExplanation");
+  }
+
+  function getSlotVisualExplanation(slot) {
+    if (slot?.contentFormat === "carousel") {
+      return t("automation.carouselVisualExplanation");
+    }
+
+    if (slot?.usesWebsiteContent) {
+      return t("automation.websiteImageVisualExplanation");
+    }
+
+    if (slot?.generateImage) {
+      return t("automation.aiImageVisualExplanation");
+    }
+
+    return t("automation.textOnlyVisualExplanation");
+  }
+
+  function getFixedVisualFeatureLabel(slot) {
+    if (slot?.contentFormat === "carousel") {
+      return t("automation.carouselIncluded");
+    }
+
+    if (slot?.usesWebsiteContent) {
+      return t("automation.websiteImageIncluded");
+    }
+
+    if (slot?.generateImage) {
+      return t("automation.aiImageIncluded");
+    }
+
+    return t("automation.textOnlyIncluded");
   }
 
   const plannerLocaleIsSwedish = String(locale || "").toLowerCase().startsWith("sv");
@@ -4823,6 +4917,10 @@ export default function AutomationPage() {
   function getLocalizedSlotFormatLabel(slot) {
     if (slot?.contentFormat === "carousel") {
       return t("automation.textCarousel");
+    }
+
+    if (slot?.contentTypeId === "manual_prompt" && slot.manualImageMode === "uploaded") {
+      return t("automation.textUploadedImage");
     }
 
     if (slot.usesWebsiteContent && slot.generateImage) {
@@ -6007,6 +6105,90 @@ const { data, error } = await supabase
     );
   }
 
+  function handleManualImageModeChange(slotId, nextMode) {
+    setMessage("");
+
+    setSlots((currentSlots) =>
+      currentSlots.map((slot) => {
+        if (slot.id !== slotId) return slot;
+
+        const shouldGenerateImage = nextMode === "ai" || nextMode === "uploaded";
+
+        return {
+          ...slot,
+          manualImageMode: nextMode,
+          imageSource: nextMode,
+          generateImage: shouldGenerateImage,
+          includeLogo: nextMode === "uploaded" ? false : slot.includeLogo,
+        };
+      })
+    );
+  }
+
+  function handleManualImageFileChange(slotId, event) {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+
+    if (!file) return;
+
+    if (!ALLOWED_MANUAL_IMAGE_FILE_TYPES.has(file.type)) {
+      setMessage(t("automation.manualImageTypeError"));
+      return;
+    }
+
+    if (file.size > MAX_MANUAL_IMAGE_FILE_SIZE_BYTES) {
+      setMessage(t("automation.manualImageSizeError"));
+      return;
+    }
+
+    setMessage("");
+
+    setSlots((currentSlots) =>
+      currentSlots.map((slot) => {
+        if (slot.id !== slotId) return slot;
+
+        if (slot.uploadedImagePreviewUrl?.startsWith("blob:")) {
+          URL.revokeObjectURL(slot.uploadedImagePreviewUrl);
+        }
+
+        return {
+          ...slot,
+          manualImageMode: "uploaded",
+          imageSource: "uploaded",
+          generateImage: true,
+          includeLogo: false,
+          uploadedImageFile: file,
+          uploadedImagePreviewUrl: URL.createObjectURL(file),
+          uploadedImageName: file.name,
+        };
+      })
+    );
+  }
+
+  function removeManualImage(slotId) {
+    setSlots((currentSlots) =>
+      currentSlots.map((slot) => {
+        if (slot.id !== slotId) return slot;
+
+        if (slot.uploadedImagePreviewUrl?.startsWith("blob:")) {
+          URL.revokeObjectURL(slot.uploadedImagePreviewUrl);
+        }
+
+        return {
+          ...slot,
+          manualImageMode: "none",
+          imageSource: "none",
+          generateImage: false,
+          uploadedImageFile: null,
+          uploadedImagePreviewUrl: "",
+          uploadedImageUrl: "",
+          uploadedImageStoragePath: "",
+          uploadedImageName: "",
+        };
+      })
+    );
+  }
+
   function updatePlanStartDate(value) {
     setPlanStartDate(value);
     setSlots((currentSlots) =>
@@ -6240,7 +6422,7 @@ function scrollToPlannerSchedule() {
   const newSlot = createSlotFromContentType(
     manualType || {
       id: "manual_prompt",
-      label: "Manual prompt",
+      label: "Custom post",
       prompt: "",
       imagePrompt: "",
       usesWebsiteContent: false,
@@ -6258,9 +6440,11 @@ function scrollToPlannerSchedule() {
     ...newSlot,
     prompt: "",
     imagePrompt: "",
-    generateImage: true,
+    generateImage: false,
+    manualImageMode: "none",
+    imageSource: "none",
     contentTypeId: "manual_prompt",
-    contentTypeLabel: "Manual prompt",
+    contentTypeLabel: "Custom post",
     usesWebsiteContent: false,
   };
 
@@ -6321,6 +6505,15 @@ function addSlot() {
         prompt: selectedType.prompt,
         imagePrompt: selectedType.imagePrompt,
         generateImage: selectedType.id === "manual_prompt" ? false : true,
+        manualImageMode: selectedType.id === "manual_prompt" ? "none" : undefined,
+        imageSource:
+          selectedType.id === "manual_prompt"
+            ? "none"
+            : selectedType.contentFormat === "carousel"
+            ? "website_carousel"
+            : selectedType.usesWebsiteContent
+            ? "website"
+            : "ai",
         contentTypeId: selectedType.id,
         contentTypeLabel: selectedType.label,
         usesWebsiteContent: Boolean(selectedType.usesWebsiteContent),
@@ -6349,6 +6542,13 @@ function addSlot() {
       {
         ...slotToCopy,
         id: makeSlotId(),
+        originalUploadedImageStoragePath: "",
+        uploadedImageStoragePath: slotToCopy.uploadedImageFile
+          ? slotToCopy.uploadedImageStoragePath
+          : "",
+        uploadedImagePreviewUrl: slotToCopy.uploadedImageFile
+          ? URL.createObjectURL(slotToCopy.uploadedImageFile)
+          : slotToCopy.uploadedImagePreviewUrl,
       },
     ]);
   }
@@ -6360,6 +6560,11 @@ function addSlot() {
   }
 
   const slotIndex = slots.findIndex((slot) => slot.id === slotId);
+  const slotToRemove = slots[slotIndex];
+
+  if (slotToRemove?.uploadedImagePreviewUrl?.startsWith("blob:")) {
+    URL.revokeObjectURL(slotToRemove.uploadedImagePreviewUrl);
+  }
 
   setSlots((currentSlots) =>
     currentSlots.filter((slot) => slot.id !== slotId)
@@ -6603,6 +6808,31 @@ function toggleContentType(typeId) {
     const selectedBrandId =
   currentBrandId || (await getCurrentBrandIdForUser(user));
 
+let uploadedImagePaths = [];
+
+const { data: rulesWithUploadedImages, error: uploadedImagesLoadError } =
+  await supabase
+    .from("automation_rules")
+    .select("id, uploaded_image_storage_path")
+    .eq("user_id", user.id)
+    .eq("brand_profile_id", selectedBrandId)
+    .in("id", ruleIds);
+
+if (
+  uploadedImagesLoadError &&
+  !String(uploadedImagesLoadError.message || "").includes(
+    "uploaded_image_storage_path"
+  )
+) {
+  setMessage(uploadedImagesLoadError.message);
+  setDeletingRules(false);
+  return;
+}
+
+uploadedImagePaths = (rulesWithUploadedImages || [])
+  .map((rule) => rule.uploaded_image_storage_path)
+  .filter(Boolean);
+
 const { error } = await supabase
   .from("automation_rules")
   .delete()
@@ -6614,6 +6844,19 @@ const { error } = await supabase
       setMessage(error.message);
       setDeletingRules(false);
       return;
+    }
+
+    if (uploadedImagePaths.length) {
+      const { error: storageDeleteError } = await supabase.storage
+        .from(POST_IMAGES_BUCKET)
+        .remove(Array.from(new Set(uploadedImagePaths)));
+
+      if (storageDeleteError) {
+        console.warn("Could not remove uploaded custom-post images", {
+          message: storageDeleteError.message,
+          ruleIds,
+        });
+      }
     }
 
     setRules((currentRules) =>
@@ -6730,12 +6973,27 @@ const { error } = await supabase
         prompt: rule.prompt || contentType?.prompt || "",
         imagePrompt: rule.image_prompt || contentType?.imagePrompt || "",
         generateImage: Boolean(rule.generate_image),
+        manualImageMode:
+          contentTypeId === "manual_prompt"
+            ? rule.image_source === "uploaded"
+              ? "uploaded"
+              : rule.generate_image
+              ? "ai"
+              : "none"
+            : undefined,
+        imageSource: rule.image_source || "",
+        uploadedImageUrl: rule.uploaded_image_url || "",
+        uploadedImageStoragePath: rule.uploaded_image_storage_path || "",
+        originalUploadedImageStoragePath:
+          rule.uploaded_image_storage_path || "",
+        uploadedImagePreviewUrl: rule.uploaded_image_url || "",
+        uploadedImageName: rule.uploaded_image_name || "",
         includeEmojis: rule.include_emojis !== false,
         includeHashtags: rule.include_hashtags !== false,
         includeLogo: typeof rule.include_logo === "boolean" ? rule.include_logo : null,
         contentTypeId,
         contentTypeLabel:
-          rule.content_type_label || contentType?.label || rule.post_type || "Manual prompt",
+          rule.content_type_label || contentType?.label || rule.post_type || "Custom post",
         usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
         contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
         timeZone: selectedTimeZone,
@@ -6794,13 +7052,28 @@ const { error } = await supabase
         prompt: rule.prompt || contentType?.prompt || "",
         imagePrompt: rule.image_prompt || contentType?.imagePrompt || "",
         generateImage: Boolean(rule.generate_image),
+        manualImageMode:
+          contentTypeId === "manual_prompt"
+            ? rule.image_source === "uploaded"
+              ? "uploaded"
+              : rule.generate_image
+              ? "ai"
+              : "none"
+            : undefined,
+        imageSource: rule.image_source || "",
+        uploadedImageUrl: rule.uploaded_image_url || "",
+        uploadedImageStoragePath: rule.uploaded_image_storage_path || "",
+        originalUploadedImageStoragePath:
+          rule.uploaded_image_storage_path || "",
+        uploadedImagePreviewUrl: rule.uploaded_image_url || "",
+        uploadedImageName: rule.uploaded_image_name || "",
         includeEmojis: rule.include_emojis !== false,
         includeHashtags: rule.include_hashtags !== false,
         includeLogo:
           typeof rule.include_logo === "boolean" ? rule.include_logo : null,
         contentTypeId,
         contentTypeLabel:
-          rule.content_type_label || contentType?.label || rule.post_type || "Manual prompt",
+          rule.content_type_label || contentType?.label || rule.post_type || "Custom post",
         usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
         contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
         timeZone: selectedTimeZone,
@@ -6842,7 +7115,20 @@ const { error } = await supabase
     const invalidSlot = slots.find((slot) => !slot.prompt.trim());
 
     if (invalidSlot) {
-      setMessage(t("automation.errorPrompt"));
+      setMessage(t("automation.errorPostTopic"));
+      return;
+    }
+
+    const invalidUploadedImageSlot = slots.find(
+      (slot) =>
+        slot.contentTypeId === "manual_prompt" &&
+        slot.manualImageMode === "uploaded" &&
+        !slot.uploadedImageFile &&
+        !slot.uploadedImageUrl
+    );
+
+    if (invalidUploadedImageSlot) {
+      setMessage(t("automation.manualImageRequired"));
       return;
     }
 
@@ -6901,7 +7187,82 @@ const sharedGeneratedPlanName =
     .filter(Boolean)
     .join(" · ");
 
-const rows = slots.map((slot) => {
+const newlyUploadedManualImagePaths = [];
+const replacedManualImagePaths = [];
+let preparedSlots = slots;
+
+try {
+  preparedSlots = [];
+
+  for (const slot of slots) {
+    const finalImageSource = getRuleImageSource(slot);
+    const originalStoragePath = slot.originalUploadedImageStoragePath || "";
+
+    if (originalStoragePath && finalImageSource !== "uploaded") {
+      replacedManualImagePaths.push(originalStoragePath);
+    }
+
+    if (
+      slot.contentTypeId === "manual_prompt" &&
+      slot.manualImageMode === "uploaded" &&
+      slot.uploadedImageFile
+    ) {
+      const safeFileName = getSafeManualImageFileName(slot.uploadedImageFile.name);
+      const storagePath = `manual-posts/${user.id}/${selectedBrandId}/${Date.now()}-${slot.id}-${safeFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(POST_IMAGES_BUCKET)
+        .upload(storagePath, slot.uploadedImageFile, {
+          cacheControl: "3600",
+          contentType: slot.uploadedImageFile.type,
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from(POST_IMAGES_BUCKET)
+        .getPublicUrl(storagePath);
+
+      const publicUrl = publicUrlData?.publicUrl || "";
+      if (!publicUrl) {
+        await supabase.storage.from(POST_IMAGES_BUCKET).remove([storagePath]);
+        throw new Error(t("automation.manualImagePublicUrlError"));
+      }
+
+      newlyUploadedManualImagePaths.push(storagePath);
+
+      if (
+        originalStoragePath &&
+        originalStoragePath !== storagePath
+      ) {
+        replacedManualImagePaths.push(originalStoragePath);
+      }
+
+      preparedSlots.push({
+        ...slot,
+        uploadedImageUrl: publicUrl,
+        uploadedImageStoragePath: storagePath,
+        uploadedImageName: slot.uploadedImageFile.name,
+      });
+      continue;
+    }
+
+    preparedSlots.push(slot);
+  }
+} catch (uploadError) {
+  if (newlyUploadedManualImagePaths.length) {
+    await supabase.storage
+      .from(POST_IMAGES_BUCKET)
+      .remove(newlyUploadedManualImagePaths);
+  }
+
+  setMessage(uploadError.message || t("automation.manualImageUploadError"));
+  setSaving(false);
+  return;
+}
+
+const rows = preparedSlots.map((slot) => {
       const slotWeekday = getWeekdayFromDateString(
         slot.startDate,
         selectedTimeZone
@@ -6929,10 +7290,25 @@ ${slot.campaignSummary}`
         cta_type: ctaType,
         generate_image: slot.generateImage,
         image_prompt: slot.imagePrompt,
+        image_source: getRuleImageSource(slot),
+        uploaded_image_url:
+          getRuleImageSource(slot) === "uploaded"
+            ? slot.uploadedImageUrl || null
+            : null,
+        uploaded_image_storage_path:
+          getRuleImageSource(slot) === "uploaded"
+            ? slot.uploadedImageStoragePath || null
+            : null,
+        uploaded_image_name:
+          getRuleImageSource(slot) === "uploaded"
+            ? slot.uploadedImageName || null
+            : null,
         include_emojis: slot.includeEmojis,
         include_hashtags: slot.includeHashtags,
         include_logo:
-          typeof slot.includeLogo === "boolean"
+          ["uploaded", "none"].includes(getRuleImageSource(slot))
+            ? false
+            : typeof slot.includeLogo === "boolean"
             ? slot.includeLogo
             : Boolean(currentBrandProfile?.logo_url) && currentBrandProfile?.logo_enabled_by_default !== false,
         credit_cost: slot.generateImage ? 3 : 1,
@@ -7003,9 +7379,20 @@ ${slot.campaignSummary}`
       }
 
       if (error) {
+        if (newlyUploadedManualImagePaths.length) {
+          await supabase.storage
+            .from(POST_IMAGES_BUCKET)
+            .remove(newlyUploadedManualImagePaths);
+        }
         setMessage(error.message);
         setSaving(false);
         return;
+      }
+
+      if (replacedManualImagePaths.length) {
+        await supabase.storage
+          .from(POST_IMAGES_BUCKET)
+          .remove(Array.from(new Set(replacedManualImagePaths)));
       }
 
       setRules((currentRules) =>
@@ -7046,8 +7433,18 @@ ${slot.campaignSummary}`
     }
 
       if (error) {
+      if (newlyUploadedManualImagePaths.length) {
+        await supabase.storage
+          .from(POST_IMAGES_BUCKET)
+          .remove(newlyUploadedManualImagePaths);
+      }
       setMessage(error.message);
     } else {
+      if (replacedManualImagePaths.length) {
+        await supabase.storage
+          .from(POST_IMAGES_BUCKET)
+          .remove(Array.from(new Set(replacedManualImagePaths)));
+      }
       const nextRunDates = rows
         .map((row) => row.next_run_at)
         .filter(Boolean)
@@ -7463,8 +7860,8 @@ setRules((currentRules) =>
           {planCreationMode === "manual" ? "✓" : ""}
         </span>
         <div className="mode-big-icon neutral">✎</div>
-        <strong>{t("automation.manualPrompt")}</strong>
-        <p>{t("automation.manualPromptText")}</p>
+        <strong>{t("automation.customPostLabel")}</strong>
+        <p>{t("automation.customPostModeText")}</p>
       </button>
     </div>
 
@@ -7521,14 +7918,14 @@ setRules((currentRules) =>
             {planCreationMode === "manual" && !planWasSaved && (
   <section className="planner-manual-intro-card">
     <div>
-      <h3>{t("automation.manualPrompt")}</h3>
+      <h3>{t("automation.customPostLabel")}</h3>
       <p>
-        {t("automation.manualIntroText")}
+        {t("automation.customPostIntroText")}
       </p>
     </div>
 
     <button type="button" className="add-plan-button" onClick={addManualSlot}>
-      {t("automation.addManualPost")}
+      {t("automation.addCustomPost")}
     </button>
   </section>
 )}
@@ -7596,6 +7993,16 @@ setRules((currentRules) =>
             slot.ctaStrength ||
             slot.campaignPhase ||
             slot.strategyNotes);
+        const isCustomPost =
+          !slot.isCampaignSlot && slot.contentTypeId === "manual_prompt";
+        const canEditTechnicalCampaignPrompt =
+          slot.isCampaignSlot && canManuallyEditCampaignPlan;
+        const includedLogo =
+          Boolean(currentBrandProfile?.logo_url) &&
+          (typeof slot.includeLogo === "boolean"
+            ? slot.includeLogo
+            : currentBrandProfile?.logo_enabled_by_default !== false) &&
+          slot.manualImageMode !== "uploaded";
 
 
         return (
@@ -7716,15 +8123,37 @@ setRules((currentRules) =>
               <div className="planner-post-actions">
                 {(!slot.isCampaignSlot || canManuallyEditCampaignPlan) && (
                   <>
+                    {!isCustomPost && (
                     <button
                       type="button"
-                      className="planner-post-edit-icon-button"
-                      title={instructionsAreExpanded ? t("automation.hide") : t("automation.edit")}
-                      aria-label={instructionsAreExpanded ? t("automation.hide") : t("automation.edit")}
+                      className={`planner-post-edit-icon-button ${
+                        canEditTechnicalCampaignPrompt
+                          ? "is-editable"
+                          : "is-info"
+                      }`}
+                      title={
+                        instructionsAreExpanded
+                          ? t("automation.hidePostDetails")
+                          : canEditTechnicalCampaignPrompt
+                          ? t("automation.editCustomPost")
+                          : t("automation.viewPostDetails")
+                      }
+                      aria-label={
+                        instructionsAreExpanded
+                          ? t("automation.hidePostDetails")
+                          : canEditTechnicalCampaignPrompt
+                          ? t("automation.editCustomPost")
+                          : t("automation.viewPostDetails")
+                      }
                       onClick={() => toggleSlotInstructions(slot.id)}
                     >
-                      {instructionsAreExpanded ? "✕" : "✎"}
+                      {instructionsAreExpanded
+                        ? "✕"
+                        : canEditTechnicalCampaignPrompt
+                        ? "✎"
+                        : "i"}
                     </button>
+                    )}
 
                     <button
                       type="button"
@@ -7748,74 +8177,189 @@ setRules((currentRules) =>
               </div>
             </div>
 
-            {(instructionsAreExpanded ||
-              planCreationMode === "manual" ||
-              (!slot.isCampaignSlot && slot.contentTypeId === "manual_prompt")) && (
+            {(instructionsAreExpanded || isCustomPost) && (
               <div className="planner-post-expanded">
                 <div className="planner-post-expanded-copy">
-                  <label>{slot.isCampaignSlot ? t("automation.postIdea") : t("automation.instructions")}</label>
-
-                  <textarea
-                    className="input prompt-textarea"
-                    value={slot.isCampaignSlot ? slot.campaignSummary : slot.prompt}
-                    onChange={(event) =>
-                      updateSlot(
-                        slot.id,
-                        slot.isCampaignSlot ? "campaignSummary" : "prompt",
-                        event.target.value
-                      )
-                    }
-                    placeholder={
-  slot.isCampaignSlot
-    ? t("automation.placeholderCampaignPost")
-    : t("automation.placeholderPostInstructions")
-}
-                  />
-
-                  {slot.generateImage && (
+                  {isCustomPost ? (
                     <>
-                      <label>{t("automation.imageDirection")}</label>
+                      <div className="planner-post-field-heading">
+                        <strong>{t("automation.customPostTopic")}</strong>
+                        <span>{t("automation.customPostTopicHelp")}</span>
+                      </div>
+
+                      <textarea
+                        className="input prompt-textarea custom-post-topic-textarea"
+                        value={slot.prompt}
+                        onChange={(event) =>
+                          updateSlot(slot.id, "prompt", event.target.value)
+                        }
+                        placeholder={t("automation.customPostTopicPlaceholder")}
+                      />
+
+                      <div className="planner-post-field-heading visual-heading">
+                        <strong>{t("automation.visualContent")}</strong>
+                        <span>{t("automation.chooseVisualContentHelp")}</span>
+                      </div>
+
+                      <div className="manual-image-mode-grid">
+                        <button
+                          type="button"
+                          className={
+                            slot.manualImageMode === "uploaded" ? "active" : ""
+                          }
+                          onClick={() =>
+                            handleManualImageModeChange(slot.id, "uploaded")
+                          }
+                        >
+                          <span>↑</span>
+                          <strong>{t("automation.uploadOwnImage")}</strong>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={slot.manualImageMode === "ai" ? "active" : ""}
+                          onClick={() => handleManualImageModeChange(slot.id, "ai")}
+                        >
+                          <span>✦</span>
+                          <strong>{t("automation.createAiImage")}</strong>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={slot.manualImageMode === "none" ? "active" : ""}
+                          onClick={() => handleManualImageModeChange(slot.id, "none")}
+                        >
+                          <span>T</span>
+                          <strong>{t("automation.noImage")}</strong>
+                        </button>
+                      </div>
+
+                      {slot.manualImageMode === "uploaded" && (
+                        <div className="manual-image-upload-panel">
+                          {slot.uploadedImagePreviewUrl ? (
+                            <div className="manual-image-preview">
+                              <img
+                                src={slot.uploadedImagePreviewUrl}
+                                alt={t("automation.manualImagePreviewAlt")}
+                              />
+                              <div>
+                                <strong>
+                                  {slot.uploadedImageName ||
+                                    t("automation.uploadedImage")}
+                                </strong>
+                                <span>{t("automation.manualImageReady")}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <p>{t("automation.manualImageUploadHelp")}</p>
+                          )}
+
+                          <div className="manual-image-upload-actions">
+                            <label className="manual-image-upload-button">
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                onChange={(event) =>
+                                  handleManualImageFileChange(slot.id, event)
+                                }
+                              />
+                              {slot.uploadedImagePreviewUrl
+                                ? t("automation.changeImage")
+                                : t("automation.chooseImage")}
+                            </label>
+
+                            {slot.uploadedImagePreviewUrl && (
+                              <button
+                                type="button"
+                                className="manual-image-remove-button"
+                                onClick={() => removeManualImage(slot.id)}
+                              >
+                                {t("automation.removeImage")}
+                              </button>
+                            )}
+                          </div>
+
+                          <small>{t("automation.manualImageFileRules")}</small>
+                        </div>
+                      )}
+
+                      {slot.manualImageMode === "ai" && (
+                        <div className="manual-ai-image-direction">
+                          <label>{t("automation.aiImageDescription")}</label>
+                          <textarea
+                            className="input prompt-textarea"
+                            value={slot.imagePrompt}
+                            onChange={(event) =>
+                              updateSlot(slot.id, "imagePrompt", event.target.value)
+                            }
+                            placeholder={t("automation.aiImageDescriptionPlaceholder")}
+                          />
+                        </div>
+                      )}
+
+                      {slot.manualImageMode === "none" && (
+                        <div className="manual-no-image-note">
+                          <CheckCircle2 size={18} aria-hidden="true" />
+                          <span>{t("automation.noImageExplanation")}</span>
+                        </div>
+                      )}
+                    </>
+                  ) : canEditTechnicalCampaignPrompt ? (
+                    <>
+                      <label>{t("automation.postIdea")}</label>
                       <textarea
                         className="input prompt-textarea"
-                        value={slot.imagePrompt}
+                        value={slot.campaignSummary}
                         onChange={(event) =>
-                          updateSlot(slot.id, "imagePrompt", event.target.value)
+                          updateSlot(slot.id, "campaignSummary", event.target.value)
                         }
-                        placeholder={t("automation.placeholderImageDirection")}
+                        placeholder={t("automation.placeholderCampaignPost")}
                       />
+
+                      {slot.generateImage && (
+                        <>
+                          <label>{t("automation.imageDirection")}</label>
+                          <textarea
+                            className="input prompt-textarea"
+                            value={slot.imagePrompt}
+                            onChange={(event) =>
+                              updateSlot(slot.id, "imagePrompt", event.target.value)
+                            }
+                            placeholder={t("automation.placeholderImageDirection")}
+                          />
+                        </>
+                      )}
                     </>
+                  ) : (
+                    <div className="planner-post-explanation-grid">
+                      <div className="planner-post-explanation-block">
+                        <span>{t("automation.whatPostWillBeAbout")}</span>
+                        <p>{getSlotContentExplanation(slot)}</p>
+                      </div>
+
+                      <div className="planner-post-explanation-block">
+                        <span>{t("automation.visualContent")}</span>
+                        <p>{getSlotVisualExplanation(slot)}</p>
+                      </div>
+                    </div>
                   )}
                 </div>
 
                 <div className="planner-post-options">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={slot.generateImage}
-                      onChange={(event) =>
-                        updateSlot(slot.id, "generateImage", event.target.checked)
-                      }
-                    />
-                    {slot.usesWebsiteContent
-                      ? t("automation.websiteImageFallback")
-                      : t("automation.aiImage")}
-                  </label>
+                  {!isCustomPost && (
+                    <div className="planner-fixed-features">
+                      <div className="planner-fixed-feature">
+                        <CheckCircle2 size={17} aria-hidden="true" />
+                        <span>{getFixedVisualFeatureLabel(slot)}</span>
+                      </div>
 
-                  {currentBrandProfile?.logo_url && (
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={
-                          typeof slot.includeLogo === "boolean"
-                            ? slot.includeLogo
-                            : currentBrandProfile.logo_enabled_by_default !== false
-                        }
-                        onChange={(event) =>
-                          updateSlot(slot.id, "includeLogo", event.target.checked)
-                        }
-                      />
-                      {t("automation.includeLogo")}
-                    </label>
+                      {includedLogo && (
+                        <div className="planner-fixed-feature">
+                          <CheckCircle2 size={17} aria-hidden="true" />
+                          <span>{t("automation.brandLogoIncluded")}</span>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   <label>

@@ -3850,3 +3850,242 @@
     font-size: 0.88rem !important;
   }
 }
+
+/* Locked post setup + custom post image source */
+.automation-page.planner-wizard-page .planner-post-edit-icon-button.is-info {
+  border-radius: 999px !important;
+  font-family: Georgia, serif !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+.automation-page.planner-wizard-page .planner-post-field-heading {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.automation-page.planner-wizard-page .planner-post-field-heading.visual-heading {
+  margin-top: 8px;
+}
+
+.automation-page.planner-wizard-page .planner-post-field-heading strong,
+.automation-page.planner-wizard-page .planner-post-explanation-block > span {
+  color: #172033;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+}
+
+.automation-page.planner-wizard-page .planner-post-field-heading span {
+  color: #667085;
+  font-size: 0.77rem;
+  line-height: 1.45;
+}
+
+.automation-page.planner-wizard-page .planner-post-explanation-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.automation-page.planner-wizard-page .planner-post-explanation-block {
+  padding: 14px 15px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.automation-page.planner-wizard-page .planner-post-explanation-block p {
+  margin: 6px 0 0;
+  color: #475467;
+  font-size: 0.87rem;
+  line-height: 1.55;
+}
+
+.automation-page.planner-wizard-page .planner-fixed-features {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.automation-page.planner-wizard-page .planner-fixed-feature,
+.automation-page.planner-wizard-page .manual-no-image-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #166534;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.automation-page.planner-wizard-page .planner-fixed-feature svg,
+.automation-page.planner-wizard-page .manual-no-image-note svg {
+  flex: 0 0 auto;
+  color: #22a35a;
+}
+
+.automation-page.planner-wizard-page .manual-image-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.automation-page.planner-wizard-page .manual-image-mode-grid button {
+  min-height: 68px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #475467;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.automation-page.planner-wizard-page .manual-image-mode-grid button:hover {
+  border-color: rgba(249, 91, 60, 0.36);
+  background: #fffaf7;
+}
+
+.automation-page.planner-wizard-page .manual-image-mode-grid button.active {
+  border-color: rgba(249, 91, 60, 0.52);
+  background: #fff5ef;
+  color: #a23b22;
+  box-shadow: 0 0 0 3px rgba(249, 91, 60, 0.08);
+}
+
+.automation-page.planner-wizard-page .manual-image-mode-grid button > span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  background: rgba(249, 91, 60, 0.1);
+  color: #e24e2d;
+  font-weight: 900;
+}
+
+.automation-page.planner-wizard-page .manual-image-mode-grid button strong {
+  font-size: 0.76rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.automation-page.planner-wizard-page .manual-image-upload-panel,
+.automation-page.planner-wizard-page .manual-ai-image-direction,
+.automation-page.planner-wizard-page .manual-no-image-note {
+  margin-top: 10px;
+  padding: 13px;
+  border: 1px dashed rgba(148, 163, 184, 0.38);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.automation-page.planner-wizard-page .manual-image-upload-panel > p {
+  margin: 0 0 10px;
+  color: #667085;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.automation-page.planner-wizard-page .manual-image-upload-panel > small {
+  display: block;
+  margin-top: 8px;
+  color: #7a8292;
+  font-size: 0.7rem;
+}
+
+.automation-page.planner-wizard-page .manual-image-preview {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.automation-page.planner-wizard-page .manual-image-preview img {
+  width: 82px;
+  height: 82px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #fff;
+}
+
+.automation-page.planner-wizard-page .manual-image-preview div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.automation-page.planner-wizard-page .manual-image-preview strong {
+  overflow: hidden;
+  color: #172033;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automation-page.planner-wizard-page .manual-image-preview span {
+  color: #667085;
+  font-size: 0.73rem;
+}
+
+.automation-page.planner-wizard-page .manual-image-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.automation-page.planner-wizard-page .manual-image-upload-button,
+.automation-page.planner-wizard-page .manual-image-remove-button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.automation-page.planner-wizard-page .manual-image-upload-button {
+  border: 1px solid rgba(249, 91, 60, 0.35);
+  background: #fff5ef;
+  color: #b34127;
+}
+
+.automation-page.planner-wizard-page .manual-image-upload-button input {
+  display: none;
+}
+
+.automation-page.planner-wizard-page .manual-image-remove-button {
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  background: #fff;
+  color: #5d6677;
+}
+
+.automation-page.planner-wizard-page .manual-ai-image-direction label {
+  display: block;
+  margin-bottom: 7px;
+}
+
+.automation-page.planner-wizard-page .custom-post-topic-textarea {
+  min-height: 112px !important;
+}
+
+@media (max-width: 760px) {
+  .automation-page.planner-wizard-page .manual-image-mode-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .automation-page.planner-wizard-page .manual-image-mode-grid button {
+    min-height: 54px;
+    grid-template-columns: 28px minmax(0, 1fr);
+    justify-items: start;
+  }
+}

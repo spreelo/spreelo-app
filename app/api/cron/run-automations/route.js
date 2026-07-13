@@ -14535,7 +14535,8 @@ scheduled_for: nowIso,
             image_prompt: wantsImage ? rule.image_prompt || null : null,
             content_format: normalizeContentFormat(rule.content_format),
     text_model_used: POST_TEXT_MODEL,
-image_model_used: wantsImage ? IMAGE_MODEL : null,
+image_model_used:
+  wantsImage && rule.image_source !== "uploaded" ? IMAGE_MODEL : null,
 include_logo: shouldUseLogoForRule(rule, brandProfile),
 logo_url: shouldUseLogoForRule(rule, brandProfile) ? brandProfile?.logo_url || null : null,
 product_research_model_used: rule.uses_website_content
@@ -14563,8 +14564,79 @@ product_research_model_used: rule.uses_website_content
         let finalImagePrompt = wantsImage ? rule.image_prompt || null : null;
 
         const isWebsiteBasedPost = Boolean(rule.uses_website_content || websiteItem || websiteSourceUrl);
+        const ruleImageSource = String(rule.image_source || "").trim().toLowerCase();
 
-        if (wantsImage && websiteItem?.image_url && useWebsiteImage) {
+        if (wantsImage && ruleImageSource === "uploaded") {
+          if (!rule.uploaded_image_url) {
+            throw new Error(
+              "Custom post is configured to use an uploaded image, but the image URL is missing."
+            );
+          }
+
+          const sourceImageBuffer = await fetchImageBufferForOverlay(
+            rule.uploaded_image_url
+          );
+          const normalizedUploadedImageBuffer = await sharp(sourceImageBuffer)
+            .rotate()
+            .resize({
+              width: 2048,
+              height: 2048,
+              fit: "inside",
+              withoutEnlargement: true,
+            })
+            .png()
+            .toBuffer();
+          const uploadedPostImagePath = `${rule.user_id}/${post.id}-uploaded.png`;
+
+          const { error: uploadedPostImageError } = await supabase.storage
+            .from("post-images")
+            .upload(uploadedPostImagePath, normalizedUploadedImageBuffer, {
+              contentType: "image/png",
+              upsert: true,
+            });
+
+          if (uploadedPostImageError) {
+            throw new Error(
+              uploadedPostImageError.message ||
+                "Could not copy uploaded image for the generated post"
+            );
+          }
+
+          const { data: uploadedPostPublicUrlData } = supabase.storage
+            .from("post-images")
+            .getPublicUrl(uploadedPostImagePath);
+
+          imageUrl = uploadedPostPublicUrlData?.publicUrl || null;
+          imageStoragePath = uploadedPostImagePath;
+          finalImagePrompt = "Customer-uploaded image used without AI generation.";
+
+          if (!imageUrl) {
+            throw new Error("Could not create a public URL for the uploaded image");
+          }
+
+          const { error: uploadedImageUpdateError } = await supabase
+            .from("posts")
+            .update({
+              image_url: imageUrl,
+              image_storage_path: imageStoragePath,
+              image_status: "ready",
+              image_prompt: finalImagePrompt,
+              include_logo: false,
+              logo_url: null,
+              updated_at: nowIso,
+            })
+            .eq("id", post.id);
+
+          if (uploadedImageUpdateError) {
+            throw new Error(
+              uploadedImageUpdateError.message ||
+                "Could not attach uploaded image to post"
+            );
+          }
+
+          summary.uploaded_image_used =
+            Number(summary.uploaded_image_used || 0) + 1;
+        } else if (wantsImage && websiteItem?.image_url && useWebsiteImage) {
           imageUrl = websiteItem.image_url;
           finalImagePrompt =
             "Website product card rendered from verified website image, product name and price when available.";

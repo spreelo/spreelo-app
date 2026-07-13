@@ -441,7 +441,7 @@ export async function POST(request) {
     const rulesByUser = await selectRowsByColumn(
       supabaseAdmin,
       "automation_rules",
-      "id",
+      "id, uploaded_image_storage_path",
       "user_id",
       userId
     );
@@ -449,15 +449,18 @@ export async function POST(request) {
     const rulesByBrand = await selectRowsInColumn(
       supabaseAdmin,
       "automation_rules",
-      "id",
+      "id, uploaded_image_storage_path",
       "brand_profile_id",
       brandIds
     );
 
-    const ruleIds = uniqueValues([
-      ...rulesByUser.map((rule) => rule.id),
-      ...rulesByBrand.map((rule) => rule.id),
-    ]);
+    const ruleRows = [...rulesByUser, ...rulesByBrand];
+    const ruleIds = uniqueValues(ruleRows.map((rule) => rule.id));
+    const uploadedRuleImagePaths = uniqueValues(
+      ruleRows
+        .map((rule) => rule.uploaded_image_storage_path)
+        .filter(Boolean)
+    );
 
     const postsByUser = await selectRowsByColumn(
       supabaseAdmin,
@@ -548,11 +551,15 @@ export async function POST(request) {
     await removeStorageFiles(supabaseAdmin, POST_IMAGES_BUCKET, [
       ...postImagePaths,
       ...slideImagePaths,
+      ...uploadedRuleImagePaths,
     ]);
 
     await removeStorageFiles(supabaseAdmin, BRAND_ASSETS_BUCKET, logoPaths);
 
-    await removeStoragePrefixes(supabaseAdmin, POST_IMAGES_BUCKET, [userId]);
+    await removeStoragePrefixes(supabaseAdmin, POST_IMAGES_BUCKET, [
+      userId,
+      `manual-posts/${userId}`,
+    ]);
     await removeStoragePrefixes(supabaseAdmin, BRAND_ASSETS_BUCKET, [`logos/${userId}`]);
 
     await deleteRowsByColumn(
