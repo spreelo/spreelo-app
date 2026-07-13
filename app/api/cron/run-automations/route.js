@@ -4183,6 +4183,9 @@ Website factual grounding rules:
 - If a selected website item is provided, the Destination URL should be the selected item URL, not just the homepage.
 - Place the Destination URL near the end of the post, before hashtags if hashtags are used.
 - Keep URLs clean and professional in the visible caption: show only the website domain, such as example.com, not a long product/category/search URL. The saved internal Destination URL may still be the exact product URL.
+- Include the visible website domain exactly once in the entire caption.
+- Do not repeat the same domain in both a CTA sentence and again after a colon or on a separate line.
+- Never write constructions such as "See the product at example.com: example.com". Use either "See the product at example.com" or a single standalone "example.com", not both.
 - Do not paste multiple links. Use one URL maximum.
 - The Destination URL may be introduced with a safe CTA such as "See the product", "View the product", "See our current selection", "Explore available products", "Visit our website", "Learn more about the business", "Contact us through the website" or similar.
 - Do not claim that the website contains information about a specific topic, service, product, guide, offer, article or page unless that exact information was provided in the Brand profile or Selected website item.
@@ -13552,8 +13555,50 @@ function cleanUrlForCaption(value) {
   }
 }
 
-function cleanPostContentUrls(content) {
-  return String(content || "").replace(/https?:\/\/\S+/gi, (match) => cleanUrlForCaption(match));
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function dedupeVisibleDestinationDomain(content, destinationUrl) {
+  const host = getHostnameFromUrl(destinationUrl).replace(/^www\./, "");
+
+  if (!host) {
+    return String(content || "");
+  }
+
+  const hostPattern = escapeRegExp(host);
+  const domainRegex = new RegExp(
+    String.raw`(?:https?:\/\/)?(?:www\.)?${hostPattern}(?:\/[^\s]*)?`,
+    "gi"
+  );
+  let seenDomain = false;
+
+  const deduped = String(content || "").replace(domainRegex, (match) => {
+    if (seenDomain) {
+      return "";
+    }
+
+    seenDomain = true;
+    const trailing = match.match(/[).,!?:;]+$/)?.[0] || "";
+    return `${host}${trailing}`;
+  });
+
+  return deduped
+    .replace(/[ \t]+([,.;!?])/g, "$1")
+    .replace(/[ \t]*[:\-–—]+[ \t]*([,.;!?])/g, "$1")
+    .replace(/[ \t]*[:\-–—]+[ \t]*(?=\n|$)/gm, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function cleanPostContentUrls(content, destinationUrl = "") {
+  const cleanedUrls = String(content || "").replace(/https?:\/\/\S+/gi, (match) =>
+    cleanUrlForCaption(match)
+  );
+
+  return dedupeVisibleDestinationDomain(cleanedUrls, destinationUrl);
 }
 
 function normalizeHashtagLine(value) {
@@ -14752,7 +14797,8 @@ let websitePreparedRule = rule;
           sanitizeUnsupportedOfferLanguage(
             rawGeneratedContent,
             websiteItem
-          )
+          ),
+          getPostDestinationUrl(ruleWithBrandProfile)
         );
 
         if (!generatedContent) {
