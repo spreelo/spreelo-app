@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import crypto from "crypto";
 import sharp from "sharp";
 import {
@@ -6995,6 +6995,10 @@ function isProductIntentScopedWebsiteRule(rule) {
   );
 }
 
+function isWebsiteTextAdRule(rule) {
+  return String(rule?.content_type_id || "").trim() === "website_item_text_ad";
+}
+
 function formatCampaignVisualContextForPrompt(rule) {
   if (!isCampaignScopedWebsiteRule(rule)) {
     return "";
@@ -7426,6 +7430,11 @@ function stripDefaultWebsiteTextPromptNoise(value) {
     .replace(/use the website url from the brand profile\.?/gi, " ")
     .replace(/identify one concrete product, service, listing, offer or other sellable item from the website\.?/gi, " ")
     .replace(/create a social media post that promotes that specific item in a helpful, trustworthy and sales-focused way\.?/gi, " ")
+    .replace(/create a social media post caption that promotes that specific item in a helpful, trustworthy and sales-focused way\.?/gi, " ")
+    .replace(/the caption should work together with a product-specific ad image\.?/gi, " ")
+    .replace(/create a full ad-style image around the selected website item\.?/gi, " ")
+    .replace(/use the real website item image as the basis when possible, and design a unique social media ad that fits that exact product\.?/gi, " ")
+    .replace(/include short readable marketing text in the image, but do not include price, discounts or ratings\.?/gi, " ")
     .replace(/use only information that clearly appears on the website\.?/gi, " ")
     .replace(/do not invent prices, discounts, guarantees, opening hours, features or availability\.?/gi, " ")
     .replace(/use a relevant image connected to the selected website item if one can be found\.?/gi, " ")
@@ -13021,6 +13030,103 @@ async function saveCarouselSlidesForPost({
   return rows;
 }
 
+function buildWebsiteItemAdImagePrompt(rule, postContent) {
+  const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
+  const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
+  const customVisualDirection = String(rule?.image_prompt || "").trim();
+
+  return `
+Create one high-quality portrait 4:5 social media ad image using the provided product photo as the visual reference for the exact product.
+
+Brand profile:
+${brandProfileText}
+
+Selected website item:
+${websiteItemText}
+
+Platform: ${rule.platform || "Facebook"}
+Tone: ${rule.tone || "Professional"}
+Language context: ${rule.language || "Auto"}
+Website URL: ${rule.brand_profile?.website_url || "Not provided"}
+
+${formatCampaignVisualContextForPrompt(rule)}
+
+User's post instruction:
+${rule.prompt || "Not provided"}
+
+Final post text this image should support:
+${postContent || "Not provided"}
+
+${customVisualDirection ? `Customer's visual direction:
+${customVisualDirection}` : "No extra custom visual direction was provided."}
+
+Rules:
+- The provided product image is the real product reference. Keep the product clearly recognizable.
+- Preserve the product's core identity, silhouette, dominant colors, print/design, and overall appearance.
+- Build a unique ad-style composition around that product so the final result feels custom-made for this exact item.
+- Include readable marketing text in the image.
+- Write all added marketing text in the selected post language.
+- Use the exact verified product name when it appears in the image; do not rename the product.
+- Preserve existing printed words or graphics on the product as accurately as possible.
+- Use a short headline, one short supporting line, and one short CTA.
+- Do not include price, discounts, ratings, review stars, or fake urgency.
+- Do not invent features, materials, delivery promises, guarantees, or claims that are not supported by the website item or post text.
+- Keep the text concise, polished, and easy to read on social media.
+- Do not add watermarks.
+- Do not add unrelated UI or app screens.
+- Avoid a generic template look; tailor the background, styling, and mood to this exact product.
+- The image should feel premium and ready for a Facebook or Instagram feed post.
+
+Output only the image.
+`.trim();
+}
+
+async function generateWebsiteItemAdImage(openai, rule, postContent) {
+  const sourceImageUrl = rule?.website_item?.image_url;
+
+  if (!sourceImageUrl) {
+    throw new Error("Website Text + Ad requires a verified website product image");
+  }
+
+  const prompt = buildWebsiteItemAdImagePrompt(rule, postContent);
+  const sourceImageBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
+  const normalizedSourceImageBuffer = await sharp(sourceImageBuffer)
+    .rotate()
+    .resize({
+      width: 1536,
+      height: 1536,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .png()
+    .toBuffer();
+
+  const referenceFile = await toFile(
+    normalizedSourceImageBuffer,
+    "website-product-reference.png",
+    { type: "image/png" }
+  );
+
+  const response = await openai.images.edit({
+    model: IMAGE_MODEL,
+    image: referenceFile,
+    prompt,
+    size: "1024x1280",
+    quality: "medium",
+  });
+
+  const imageBase64 = response?.data?.[0]?.b64_json;
+
+  if (!imageBase64) {
+    throw new Error("OpenAI website ad image generation returned empty image data");
+  }
+
+  return {
+    imageBase64,
+    imagePrompt: prompt,
+  };
+}
+
 async function generateAutomationImage(openai, rule, postContent) {
   const prompt = buildImagePrompt(rule, postContent);
 
@@ -14620,6 +14726,12 @@ let websitePreparedRule = rule;
           website_items: websiteItems,
         };
 
+        if (isWebsiteTextAdRule(ruleWithBrandProfile) && !websiteItem?.image_url) {
+          throw new Error(
+            "Text + ad from website needs a verified product image. No usable image was found for the selected website item."
+          );
+        }
+
         const rawGeneratedContent = await generateAutomationPost(
           openai,
           ruleWithBrandProfile
@@ -14788,6 +14900,84 @@ product_research_model_used: rule.uses_website_content
 
           summary.uploaded_image_used =
             Number(summary.uploaded_image_used || 0) + 1;
+        } else if (wantsImage && isWebsiteTextAdRule(ruleWithBrandProfile)) {
+          try {
+            const { imageBase64, imagePrompt } = await generateWebsiteItemAdImage(
+              openai,
+              ruleWithBrandProfile,
+              generatedContent
+            );
+
+            const uploadedImage = await uploadGeneratedImageToStorage({
+              supabase,
+              imageBase64,
+              userId: rule.user_id,
+              postId: post.id,
+              fileSuffix: "website-text-ad",
+            });
+
+            imageUrl = uploadedImage.imageUrl;
+            imageStoragePath = uploadedImage.imageStoragePath;
+            finalImagePrompt = imagePrompt;
+
+            const logoOverlayResult = await applyLogoOverlayIfNeeded({
+              supabase,
+              userId: rule.user_id,
+              postId: post.id,
+              imageUrl,
+              imageStoragePath,
+              brandProfile,
+              includeLogo: shouldUseLogoForRule(rule, brandProfile),
+            });
+
+            if (logoOverlayResult?.imageUrl) {
+              imageUrl = logoOverlayResult.imageUrl;
+              imageStoragePath = logoOverlayResult.imageStoragePath || imageStoragePath;
+            }
+
+            const { error: imageUpdateError } = await supabase
+              .from("posts")
+              .update({
+                image_url: imageUrl,
+                image_storage_path: imageStoragePath,
+                image_status: "ready",
+                image_prompt: finalImagePrompt,
+                include_logo: shouldUseLogoForRule(rule, brandProfile),
+                logo_url: shouldUseLogoForRule(rule, brandProfile) ? brandProfile?.logo_url || null : null,
+                updated_at: nowIso,
+              })
+              .eq("id", post.id);
+
+            if (imageUpdateError) {
+              throw new Error(
+                imageUpdateError.message || "Could not update post with website text ad image"
+              );
+            }
+
+            usedWebsiteImageUrlsThisRun.add(
+              normalizeComparableValue(websiteItem?.image_url)
+            );
+            summary.image_generated += 1;
+            summary.website_image_used += 1;
+          } catch (imageError) {
+            console.error("Website Text + Ad image generation failed", {
+              ruleId: rule.id,
+              postId: post.id,
+              message: imageError.message,
+            });
+
+            await supabase
+              .from("posts")
+              .update({
+                image_status: "failed",
+                image_prompt: finalImagePrompt,
+                updated_at: nowIso,
+              })
+              .eq("id", post.id);
+
+            summary.image_generation_failed += 1;
+            summary.warnings += 1;
+          }
         } else if (wantsImage && websiteItem?.image_url && useWebsiteImage) {
           imageUrl = websiteItem.image_url;
           finalImagePrompt =

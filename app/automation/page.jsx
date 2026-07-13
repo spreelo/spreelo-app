@@ -246,6 +246,18 @@ const contentTypes = [
     usesWebsiteContent: true,
   },
   {
+    id: "website_item_text_ad",
+    label: "Text + ad from website",
+    shortLabel: "Text + ad",
+    description:
+      "Pick one website product and let AI create a full ad-style post image with text, tailored to that product.",
+    prompt:
+      "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website. Create a social media post caption that promotes that specific item in a helpful, trustworthy and sales-focused way. The caption should work together with a product-specific ad image. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
+    imagePrompt:
+      "Create a full ad-style image around the selected website item. Use the real website item image as the basis when possible, and design a unique social media ad that fits that exact product. Include short readable marketing text in the image, but do not include price, discounts or ratings.",
+    usesWebsiteContent: true,
+  },
+  {
     id: "carousel_website_item",
     label: "Website carousel",
     shortLabel: "Carousel",
