@@ -13063,15 +13063,21 @@ ${customVisualDirection}` : "No extra custom visual direction was provided."}
 Rules:
 - The provided product image is the real product reference. Keep the product clearly recognizable.
 - Preserve the product's core identity, silhouette, dominant colors, print/design, and overall appearance.
+- Preserve the exact visible product color from the verified source image.
+- Do not recolor the product or create a new color variant that is not verified.
+- If multiple colors exist on the website, still keep the exact source-image color unless a different verified color is explicitly selected.
+- When uncertain, keep the exact source-image color and appearance.
 - Build a unique ad-style composition around that product so the final result feels custom-made for this exact item.
 - Include readable marketing text in the image.
 - Write all added marketing text in the selected post language.
 - Use the exact verified product name when it appears in the image; do not rename the product.
 - Preserve existing printed words or graphics on the product as accurately as possible.
-- Keep the layout clean and simple with fewer text elements and larger typography.
+- Keep the layout clean, simple, and spacious with fewer text elements and larger typography.
 - Use one strong headline, one very short supporting line, and one short CTA.
 - You may add up to 3 very short callout points or badges only if they are clearly supported by the website item.
 - Do not write long paragraphs, dense body copy, or small filler text.
+- Do not place compact text blocks, dense info cards, or small packed text boxes in the design.
+- If callout boxes or badges are used, keep them short, bold, and easy to read, with one idea per element.
 - Keep all added marketing text brief and highly legible on mobile. Prioritize bigger text over more text.
 - Keep the total amount of added non-product text low.
 - Do not include price, discounts, ratings, review stars, or fake urgency.
