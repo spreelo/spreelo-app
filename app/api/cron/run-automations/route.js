@@ -13068,7 +13068,12 @@ Rules:
 - Write all added marketing text in the selected post language.
 - Use the exact verified product name when it appears in the image; do not rename the product.
 - Preserve existing printed words or graphics on the product as accurately as possible.
-- Use a short headline, one short supporting line, and one short CTA.
+- Keep the layout clean and simple with fewer text elements and larger typography.
+- Use one strong headline, one very short supporting line, and one short CTA.
+- You may add up to 3 very short callout points or badges only if they are clearly supported by the website item.
+- Do not write long paragraphs, dense body copy, or small filler text.
+- Keep all added marketing text brief and highly legible on mobile. Prioritize bigger text over more text.
+- Keep the total amount of added non-product text low.
 - Do not include price, discounts, ratings, review stars, or fake urgency.
 - Do not invent features, materials, delivery promises, guarantees, or claims that are not supported by the website item or post text.
 - Keep the text concise, polished, and easy to read on social media.

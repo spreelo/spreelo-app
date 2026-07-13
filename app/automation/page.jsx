@@ -2118,6 +2118,10 @@ function getSlotDisplayDescription(slot) {
 }
 
 function getSlotImageLabel(slot) {
+  if (slot.contentTypeId === "website_item_text_ad") {
+    return "AI-designed website ad";
+  }
+
   if (slot.usesWebsiteContent) {
     return "Website image / AI fallback";
   }
@@ -2133,6 +2137,7 @@ function getSlotCreditLabel(slot) {
 function getContentTypeIcon(typeId) {
   const icons = {
     website_item: "🛒",
+    website_item_text_ad: "✦",
     carousel_website_item: "▦",
     problem_solution: "⚡",
     tips: "💡",
@@ -2156,6 +2161,7 @@ function getContentTypeIcon(typeId) {
 function getContentPreviewCardId(typeId) {
   const map = {
     website_item: "product_focus",
+    website_item_text_ad: "product_ad",
     carousel_website_item: "website_carousel",
     problem_solution: "problem_solution",
     tips: "tips_advice",
@@ -2179,6 +2185,7 @@ function getContentPreviewCardId(typeId) {
 function getContentPreviewCardIcon(cardId) {
   const icons = {
     product_focus: "🛍️",
+    product_ad: "✨",
     offers: "💝",
     tips_advice: "💡",
     customer_inspiration: "💬",
@@ -4800,6 +4807,12 @@ export default function AutomationPage() {
     product_focus: {
       label: plannerLocaleIsSwedish ? "Produktfokus" : "Product focus",
       description: plannerLocaleIsSwedish ? "Framhäver relevanta produkter eller tjänster." : "Highlights relevant products or services.",
+    },
+    product_ad: {
+      label: plannerLocaleIsSwedish ? "Text + annons" : "Text + ad",
+      description: plannerLocaleIsSwedish
+        ? "Hämtar en produkt och skapar både inläggstext och en unik AI-designad annonsbild."
+        : "Picks a product and creates both the post text and a unique AI-designed ad image.",
     },
     website_carousel: {
       label: plannerLocaleIsSwedish ? "Webbplatskarusell" : "Website carousel",
