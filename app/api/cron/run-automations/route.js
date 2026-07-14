@@ -28,7 +28,19 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const DEFAULT_TIME_ZONE = "UTC";
-const BATCH_SIZE = 25;
+const SMART_QUEUE_LANE_COUNT = Math.max(
+  1,
+  Math.min(10, Number(process.env.SMART_QUEUE_LANE_COUNT || 5) || 5)
+);
+const SMART_QUEUE_BATCH_SIZE = Math.max(
+  1,
+  Math.min(5, Number(process.env.SMART_QUEUE_BATCH_SIZE || 2) || 2)
+);
+const SMART_QUEUE_CANDIDATE_LIMIT = 250;
+const SMART_QUEUE_HORIZON_HOURS = 96;
+const PUBLISH_BATCH_SIZE = 40;
+const PUBLISH_LOCK_MINUTES = 12;
+const MAX_PUBLISH_ATTEMPTS = 5;
 const CRON_RULE_PROCESSING_LOCK_MINUTES = 15;
 const RECENT_AUTOMATION_DRAFT_BLOCK_HOURS = 6;
 const INCOMPLETE_CAROUSEL_DRAFT_GRACE_MINUTES = 20;
@@ -778,10 +790,17 @@ function getNextWeeklyRunAtIso(rule, now = new Date()) {
   return nextRunUtcDate.toISOString();
 }
 
-function getRuleUpdatePayloadAfterSuccess(rule, nowIso, now) {
+function getRuleUpdatePayloadAfterSuccess(
+  rule,
+  nowIso,
+  now,
+  scheduledPublishAtIso
+) {
   const payload = {
     last_run_at: nowIso,
     last_error: null,
+    queue_locked_until: null,
+    queue_attempts: 0,
     updated_at: nowIso,
   };
 
@@ -791,7 +810,10 @@ function getRuleUpdatePayloadAfterSuccess(rule, nowIso, now) {
   }
 
   if (rule.schedule_type === "weekly") {
-    payload.next_run_at = getNextWeeklyRunAtIso(rule, now);
+    payload.next_run_at = getNextWeeklyRunAtIsoAfterScheduled(
+      rule,
+      scheduledPublishAtIso || getScheduledPublishAtIso(rule, now)
+    );
   }
 
   return payload;
@@ -805,21 +827,153 @@ function subtractHoursIso(date, hours) {
   return new Date(date.getTime() - hours * 60 * 60 * 1000).toISOString();
 }
 
+function addHoursIso(date, hours) {
+  return new Date(date.getTime() + hours * 60 * 60 * 1000).toISOString();
+}
+
+function getStableQueueHash(value) {
+  let hash = 2166136261;
+  const text = String(value || "");
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function getGenerationLeadHours(rule) {
+  if (isAnimatedVideoRule(rule)) return 72;
+  if (isCarouselRule(rule)) return 60;
+  if (Boolean(rule?.generate_image)) return 48;
+  return 24;
+}
+
+function getScheduledPublishAtIso(rule, now = new Date()) {
+  const explicit = String(rule?.next_run_at || "").trim();
+  if (explicit && Number.isFinite(new Date(explicit).getTime())) {
+    return new Date(explicit).toISOString();
+  }
+
+  const publishTime = normalizeTime(rule?.publish_time);
+  const timeZone = getRuleTimeZone(rule);
+  if (!publishTime) return now.toISOString();
+
+  const [hourValue, minuteValue] = publishTime.split(":");
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return now.toISOString();
+
+  if (rule?.schedule_type === "once" && rule?.run_date) {
+    const [year, month, day] = String(rule.run_date).split("-").map(Number);
+    if ([year, month, day].every(Number.isFinite)) {
+      return zonedLocalToUtcDate({ year, month, day, hour, minute, timeZone }).toISOString();
+    }
+  }
+
+  return now.toISOString();
+}
+
+function getGenerationDueAtMs(rule) {
+  const scheduledAtMs = new Date(getScheduledPublishAtIso(rule)).getTime();
+  const leadHours = getGenerationLeadHours(rule);
+  const spreadHours = Math.max(1, Math.round(leadHours * 0.25));
+  const jitterMinutes = getStableQueueHash(rule?.id) % (spreadHours * 60);
+  return scheduledAtMs - leadHours * 60 * 60 * 1000 + jitterMinutes * 60 * 1000;
+}
+
+function isRuleReadyForGeneration(rule, now = new Date()) {
+  const scheduledAtMs = new Date(getScheduledPublishAtIso(rule, now)).getTime();
+  if (!Number.isFinite(scheduledAtMs)) return false;
+  return now.getTime() >= getGenerationDueAtMs(rule);
+}
+
+function getQueuePriorityScore(rule, now = new Date()) {
+  const scheduledAtMs = new Date(getScheduledPublishAtIso(rule, now)).getTime();
+  const hoursUntilPublish = (scheduledAtMs - now.getTime()) / (60 * 60 * 1000);
+  const dueAtMs = getGenerationDueAtMs(rule);
+  const overdueHours = Math.max(0, (now.getTime() - dueAtMs) / (60 * 60 * 1000));
+  const basePriority = Math.max(0, Math.min(100, Number(rule?.queue_priority || 50)));
+
+  let deadlinePriority = 300;
+  if (hoursUntilPublish <= 0) deadlinePriority = 1200;
+  else if (hoursUntilPublish <= 2) deadlinePriority = 1100;
+  else if (hoursUntilPublish <= 6) deadlinePriority = 1000;
+  else if (hoursUntilPublish <= 24) deadlinePriority = 850;
+  else if (hoursUntilPublish <= 48) deadlinePriority = 650;
+  else if (hoursUntilPublish <= 72) deadlinePriority = 500;
+
+  return deadlinePriority + basePriority * 2 + Math.min(200, overdueHours * 8);
+}
+
+function getRuleQueueLane(rule, laneCount = SMART_QUEUE_LANE_COUNT) {
+  return getStableQueueHash(rule?.id) % Math.max(1, laneCount);
+}
+
+function selectFairQueuedRules(rules, limit) {
+  const selected = [];
+  const selectedIds = new Set();
+  const perUser = new Map();
+
+  for (const maxPerUser of [1, 2, Number.POSITIVE_INFINITY]) {
+    for (const rule of rules) {
+      if (selected.length >= limit) return selected;
+      if (selectedIds.has(rule.id)) continue;
+
+      const userId = String(rule.user_id || "unknown");
+      const currentCount = perUser.get(userId) || 0;
+      if (currentCount >= maxPerUser) continue;
+
+      selected.push(rule);
+      selectedIds.add(rule.id);
+      perUser.set(userId, currentCount + 1);
+    }
+  }
+
+  return selected;
+}
+
+function getNextWeeklyRunAtIsoAfterScheduled(rule, scheduledPublishAtIso) {
+  const scheduled = new Date(scheduledPublishAtIso);
+  if (!Number.isFinite(scheduled.getTime())) {
+    return getNextWeeklyRunAtIso(rule, new Date());
+  }
+
+  const timeZone = getRuleTimeZone(rule);
+  const localParts = getDatePartsInTimeZone(scheduled, timeZone);
+  const publishTime = normalizeTime(rule.publish_time);
+  const [hourValue, minuteValue] = publishTime.split(":");
+
+  return zonedLocalToUtcDate({
+    year: localParts.year,
+    month: localParts.month,
+    day: localParts.day + 7,
+    hour: Number(hourValue) || 0,
+    minute: Number(minuteValue) || 0,
+    second: 0,
+    timeZone,
+  }).toISOString();
+}
+
 async function claimAutomationRuleForProcessing({ supabase, rule, now }) {
   const lockUntilIso = addMinutesIso(now, CRON_RULE_PROCESSING_LOCK_MINUTES);
   const claimStartedIso = new Date().toISOString();
   let query = supabase
     .from("automation_rules")
     .update({
-      next_run_at: lockUntilIso,
+      queue_locked_until: lockUntilIso,
+      queue_attempts: Number(rule.queue_attempts || 0) + 1,
+      last_queue_started_at: claimStartedIso,
       last_error: null,
-      updated_at: new Date().toISOString(),
+      updated_at: claimStartedIso,
     })
     .eq("id", rule.id)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .or(`queue_locked_until.is.null,queue_locked_until.lte.${claimStartedIso}`);
 
   if (rule.next_run_at) {
-    query = query.lte("next_run_at", claimStartedIso);
+    query = query.eq("next_run_at", rule.next_run_at);
   } else {
     query = query.is("next_run_at", null);
   }
@@ -4656,6 +4810,147 @@ function buildCarouselEmailPreviewHtml(carouselSlides = []) {
   `;
 }
 
+
+function getApprovalCampaignTitle(rule) {
+  return String(
+    rule?.campaign_title ||
+      rule?.campaign_name ||
+      rule?.campaign_opportunity_title ||
+      rule?.name ||
+      ""
+  ).trim();
+}
+
+function getApprovalFormatLabel(t, rule) {
+  const format = normalizeContentFormat(rule?.content_format);
+  const typeId = String(rule?.content_type_id || "").toLowerCase();
+  const typeLabel = String(rule?.content_type_label || "").trim();
+
+  if (format === "animated_video") return t("emails.approval.formatAnimatedVideo");
+  if (format === "carousel") return t("emails.approval.formatCarousel");
+  if (typeId.includes("website") && (typeId.includes("overlay") || typeId.includes("ad"))) {
+    return t("emails.approval.formatWebsiteAd");
+  }
+  if (Boolean(rule?.uses_website_content)) return t("emails.approval.formatWebsiteProduct");
+  if (Boolean(rule?.generate_image)) return typeLabel || t("emails.approval.formatImage");
+  return typeLabel || t("emails.approval.formatText");
+}
+
+function getApprovalChannelsLabel(t, rule) {
+  const raw = String(rule?.platform || "").toLowerCase();
+  const targets = getPublishTargets(rule?.platform);
+  const isReel = normalizeContentFormat(rule?.content_format) === "animated_video";
+  const labels = [];
+
+  if (targets.includes("facebook") || raw.includes("facebook")) {
+    labels.push(t(isReel ? "emails.approval.channelFacebookReels" : "emails.approval.channelFacebook"));
+  }
+  if (targets.includes("instagram") || raw.includes("instagram")) {
+    labels.push(t(isReel ? "emails.approval.channelInstagramReels" : "emails.approval.channelInstagram"));
+  }
+  if (raw.includes("tiktok")) labels.push(t("emails.approval.channelTikTok"));
+  if (raw.includes("youtube")) labels.push(t("emails.approval.channelYouTubeShorts"));
+
+  return Array.from(new Set(labels)).join(" · ") || String(rule?.platform || "Social media");
+}
+
+function formatApprovalDateTime(value, locale, timeZone) {
+  const date = new Date(value || 0);
+  if (!Number.isFinite(date.getTime())) return "";
+
+  try {
+    return new Intl.DateTimeFormat(locale || "en", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: timeZone || DEFAULT_TIME_ZONE,
+    }).format(date);
+  } catch {
+    return date.toISOString().replace("T", " ").slice(0, 16);
+  }
+}
+
+function buildApprovalPlanContext({ locale, t, rule, nextRule }) {
+  const campaignTitle = getApprovalCampaignTitle(rule) || t("emails.approval.noCampaign");
+  const formatLabel = getApprovalFormatLabel(t, rule);
+  const channelsLabel = getApprovalChannelsLabel(t, rule);
+  const scheduledFor = formatApprovalDateTime(
+    getScheduledPublishAtIso(rule),
+    locale,
+    getRuleTimeZone(rule)
+  );
+  const postIndex = Number(rule?.campaign_post_index || 0);
+  const postCount = Number(rule?.campaign_post_count || 0);
+  const positionLabel = postIndex > 0 && postCount > 0
+    ? t("emails.approval.postPosition", { index: postIndex, count: postCount })
+    : "";
+
+  const nextFormatLabel = nextRule ? getApprovalFormatLabel(t, nextRule) : "";
+  const nextChannelsLabel = nextRule ? getApprovalChannelsLabel(t, nextRule) : "";
+  const nextScheduledFor = nextRule
+    ? formatApprovalDateTime(
+        getScheduledPublishAtIso(nextRule),
+        locale,
+        getRuleTimeZone(nextRule)
+      )
+    : "";
+
+  return {
+    campaignTitle,
+    formatLabel,
+    channelsLabel,
+    scheduledFor,
+    postIndex,
+    postCount,
+    positionLabel,
+    nextFormatLabel,
+    nextChannelsLabel,
+    nextScheduledFor,
+  };
+}
+
+function buildApprovalPlanContextHtml({ locale, t, rule, nextRule }) {
+  const context = buildApprovalPlanContext({ locale, t, rule, nextRule });
+  const detailRow = (label, value) => value ? `
+    <tr>
+      <td style="padding:6px 10px 6px 0;color:#6b7280;font-size:13px;vertical-align:top;white-space:nowrap;">${escapeHtml(label)}</td>
+      <td style="padding:6px 0;color:#111827;font-size:14px;font-weight:700;line-height:1.45;">${escapeHtml(value)}</td>
+    </tr>` : "";
+
+  return `
+    <tr>
+      <td style="padding:0 28px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f5f1;border:1px solid #e7e2da;border-radius:14px;">
+          <tr>
+            <td style="padding:16px 18px;">
+              <p style="margin:0 0 8px;color:#6b7280;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:800;">${escapeHtml(t("emails.approval.planContext"))}</p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${detailRow(t("emails.approval.campaign"), context.campaignTitle)}
+                ${detailRow(t("emails.approval.post"), context.positionLabel)}
+                ${detailRow(t("emails.approval.format"), context.formatLabel)}
+                ${detailRow(t("emails.approval.channels"), context.channelsLabel)}
+                ${detailRow(t("emails.approval.scheduledFor"), context.scheduledFor)}
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    ${nextRule ? `
+    <tr>
+      <td style="padding:0 28px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-left:4px solid #d97706;background:#fffbeb;border-radius:10px;">
+          <tr>
+            <td style="padding:14px 16px;">
+              <p style="margin:0 0 7px;color:#92400e;font-size:12px;letter-spacing:.05em;text-transform:uppercase;font-weight:800;">${escapeHtml(t("emails.approval.nextPost"))}</p>
+              <p style="margin:0;color:#111827;font-size:14px;line-height:1.55;"><strong>${escapeHtml(context.nextFormatLabel)}</strong><br>${escapeHtml(context.nextScheduledFor)}<br>${escapeHtml(context.nextChannelsLabel)}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>` : ""}
+  `;
+}
+
 function buildApprovalEmailHtml({
   locale,
   t,
@@ -4665,6 +4960,7 @@ function buildApprovalEmailHtml({
   imageUrl,
   carouselSlides = [],
   isCarouselDraft = false,
+  nextRule = null,
 }) {
   const platformLabel = rule.platform || "Social media";
   const postTypeLabel = rule.post_type || "Post";
@@ -4674,6 +4970,12 @@ function buildApprovalEmailHtml({
   const buttonKey = isCarouselDraft ? "emails.approval.button" : "emails.approval.button";
   const afterKey = isCarouselDraft ? "emails.approval.carouselAfterApprovalV2" : "emails.approval.afterApproval";
   const carouselPreviewHtml = isCarouselDraft ? buildCarouselEmailPreviewHtml(carouselSlides) : "";
+  const planContextHtml = buildApprovalPlanContextHtml({
+    locale,
+    t,
+    rule,
+    nextRule,
+  });
   return `
 <!doctype html>
 <html lang="${escapeHtml(locale || "en")}">
@@ -4702,6 +5004,8 @@ function buildApprovalEmailHtml({
                 </p>
               </td>
             </tr>
+
+            ${planContextHtml}
 
             ${
               isCarouselDraft
@@ -4764,24 +5068,32 @@ function buildApprovalEmailHtml({
 }
 
 function buildApprovalEmailText({
+  locale,
   t,
   rule,
   postContent,
   approveUrl,
   imageUrl,
   isCarouselDraft = false,
+  nextRule = null,
 }) {
   const platformLabel = rule.platform || "Social media";
   const postTypeLabel = rule.post_type || "Post";
   const textTitleKey = isCarouselDraft ? "emails.approval.carouselTextTitle" : "emails.approval.textTitle";
   const textActionKey = isCarouselDraft ? "emails.approval.textApprovePost" : "emails.approval.textApprovePost";
   const afterKey = isCarouselDraft ? "emails.approval.carouselAfterApprovalV2" : "emails.approval.afterApproval";
+  const context = buildApprovalPlanContext({ locale, t, rule, nextRule });
 
   return `
 ${t(textTitleKey)}
 
-${t("emails.approval.textPlatform", { platform: platformLabel })}
-${t("emails.approval.textPostType", { postType: postTypeLabel })}
+${t("emails.approval.textCampaign", { campaign: context.campaignTitle })}
+${context.postIndex > 0 && context.postCount > 0 ? `${t("emails.approval.textPosition", { index: context.postIndex, count: context.postCount })}
+` : ""}${t("emails.approval.textChannels", { channels: context.channelsLabel })}
+${t("emails.approval.textScheduledFor", { scheduledFor: context.scheduledFor })}
+${t("emails.approval.textPostType", { postType: context.formatLabel || postTypeLabel })}
+${nextRule ? `${t("emails.approval.textNextPost", { postType: context.nextFormatLabel, scheduledFor: context.nextScheduledFor, channels: context.nextChannelsLabel })}
+` : ""}
 
 ${imageUrl ? `${t("emails.approval.textImage", { imageUrl })}
 ` : ""}${t("emails.approval.textGeneratedPost")}
@@ -13831,6 +14143,11 @@ function buildAnimatedTextOverlayPrompt({ rule, postContent, backgroundAsset }) 
   ]
     .filter(Boolean)
     .join(", ");
+  const isDarkBackground =
+    String(backgroundAsset?.brightness || "").toLowerCase() === "dark";
+  const contrastGuidance = isDarkBackground
+    ? "Use bright, premium high-contrast lettering such as warm ivory, champagne gold, soft silver, pale blue or a vivid accent. Do not use black, charcoal or very dark grey as the main title color."
+    : "Use deep, premium high-contrast lettering such as charcoal, dark navy, forest green, burgundy or a rich accent. Avoid very pale main lettering.";
 
   return `
 Create a text-only advertising graphic for a premium 9:16 product Reel.
@@ -13851,20 +14168,22 @@ Caption context:
 ${truncateText(postContent || rule?.prompt || "", 700)}
 
 Strict rules:
-- Use a perfectly flat, uniform pure white #FFFFFF background over the entire image.
-- No gradient, texture, vignette, shadows, objects or patterns in the white background.
-- Text and very small tasteful decorative accents only.
-- Keep all text and accents in one compact, centered, premium composition with generous empty white space around it and strong safe margins on the left and right.
+- Use a perfectly flat, uniform pure magenta #FF00FF background over the entire image. This is a technical chroma background that will be removed later.
+- No gradient, texture, vignette, shadows, objects or patterns in the magenta background.
+- Never use magenta, pink-purple or colors close to #FF00FF in the lettering or decorative accents.
+- Text and small tasteful decorative accents only.
+- Keep the entire design compact, centered and clearly inside a wide safe area. Leave generous empty space on both sides; no text or accent may approach the image edges.
 - Do not draw, recreate or include the product.
 - Do not add a large opaque panel, black bar, button, logo, badge or watermark.
 - Use only the exact product name above and the exact price when provided.
-- Use dark, saturated text and accent colors. Do not use white, off-white, cream or very pale colors in the lettering or accents.
-- Create an exclusive premium ad look that feels tailored to this product and this background, not generic.
-- Vary the typography and styling intelligently from product to product while staying elegant and minimal.
-- You may use tasteful premium design details such as a subtle brush stroke, painterly swipe, thin decorative lines, a soft highlight shape, a luxury underline, or a small category accent behind part of the text, but keep it refined and uncluttered.
-- The design should feel balanced, editorial and high-end, with the main text kept well inside the composition and not close to the side edges.
-- Use a clean, very legible font or font pairing; the word "T-shirt" must clearly read with a real capital T, not a decorative character.
-- The final text graphic must be wider than it is tall.
+- ${contrastGuidance}
+- Create a genuinely tailored premium ad treatment based on this exact product, brand context and moving background. It must not look like a generic default template.
+- Choose an elegant, highly legible display treatment such as refined geometric sans, modern condensed sans, bold editorial sans, or a tasteful font pairing. Do not use Arial-like plain default typography and do not use an ultra-thin fashion serif for the main product name.
+- The main product name must be the visual focus, limited to one or two balanced lines. Any category, size or age information must be smaller and clearly secondary.
+- You may occasionally add one restrained premium device: a subtle brush stroke, painterly swipe, thin decorative lines, soft highlight shape, elegant underline or small framing accent. Use at most one main decorative idea and keep it minimal.
+- Maintain strong contrast, clean spacing and a polished high-end advertising composition.
+- The word "T-shirt" must clearly read with a real capital T and normal, unambiguous letterforms.
+- The finished graphic must be wider than it is tall and use no more than about 68% of the available width.
 - The text must remain static in the final video.
 `.trim();
 }
@@ -13913,11 +14232,11 @@ async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
   const strokeColor = isDarkBackground ? "#111827" : "#ffffff";
   const brandColor = isDarkBackground ? "#f3e5d1" : "#695747";
   const priceColor = isDarkBackground ? "#ffffff" : "#17202c";
-  const titleStartY = 1385;
+  const titleStartY = 1225;
   const titleMarkup = titleLines
     .map((line, index) => {
       const y = titleStartY + index * 64;
-      return `<text x="540" y="${y}" text-anchor="middle" font-family="Arial, sans-serif" font-size="54" font-weight="800" letter-spacing="-0.8" fill="${titleColor}" stroke="${strokeColor}" stroke-width="5" paint-order="stroke">${escapeSvgText(line)}</text>`;
+      return `<text x="540" y="${y}" text-anchor="middle" font-family="Trebuchet MS, Arial, sans-serif" font-size="52" font-weight="800" letter-spacing="-0.8" fill="${titleColor}" stroke="${strokeColor}" stroke-width="5" paint-order="stroke">${escapeSvgText(line)}</text>`;
     })
     .join("");
   const brandName = truncateText(
@@ -13933,7 +14252,7 @@ async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
         </filter>
       </defs>
       <g filter="url(#shadow)">
-        ${brandName ? `<text x="540" y="1330" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="1.2" fill="${brandColor}" stroke="${strokeColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(brandName)}</text>` : ""}
+        ${brandName ? `<text x="540" y="1170" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="1.2" fill="${brandColor}" stroke="${strokeColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(brandName)}</text>` : ""}
         ${titleMarkup}
         ${price ? `<text x="540" y="${priceY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" font-weight="800" fill="${priceColor}" stroke="${strokeColor}" stroke-width="4" paint-order="stroke">${escapeSvgText(price)}</text>` : ""}
       </g>
@@ -13943,7 +14262,7 @@ async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-async function extractGeneratedTextFromWhiteBackground(generatedBuffer) {
+async function extractGeneratedTextFromChromaBackground(generatedBuffer) {
   const normalized = await sharp(generatedBuffer)
     .rotate()
     .resize({
@@ -13960,14 +14279,19 @@ async function extractGeneratedTextFromWhiteBackground(generatedBuffer) {
     .toBuffer({ resolveWithObject: true });
   const background = estimateCornerBackgroundColor(data, info.width, info.height);
 
-  if (Math.min(background.r, background.g, background.b) < 205) {
-    throw new Error("Generated text overlay did not use a sufficiently white background");
+  const chromaDistance = Math.sqrt(
+    (background.r - 255) ** 2 +
+      background.g ** 2 +
+      (background.b - 255) ** 2
+  );
+  if (chromaDistance > 115) {
+    throw new Error("Generated text overlay did not use a sufficiently magenta chroma background");
   }
 
   const rgba = Buffer.alloc(info.width * info.height * 4);
   const alphaChannel = Buffer.alloc(info.width * info.height);
-  const fadeStart = 12;
-  const fadeEnd = 72;
+  const fadeStart = 16;
+  const fadeEnd = 90;
 
   for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
     const index = pixel * 4;
@@ -14021,7 +14345,7 @@ async function extractGeneratedTextFromWhiteBackground(generatedBuffer) {
 }
 
 async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
-  const cutout = await extractGeneratedTextFromWhiteBackground(generatedBuffer);
+  const cutout = await extractGeneratedTextFromChromaBackground(generatedBuffer);
   const trimmed = await sharp(cutout)
     .trim({ threshold: 8 })
     .png()
@@ -14038,8 +14362,8 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
 
   const compact = await sharp(trimmed)
     .resize({
-      width: 760,
-      height: 360,
+      width: 700,
+      height: 270,
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 },
       withoutEnlargement: false,
@@ -14062,7 +14386,7 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
       {
         input: compact,
         left: Math.round((1080 - width) / 2),
-        top: 1315,
+        top: 1165,
       },
     ])
     .png()
@@ -14136,7 +14460,7 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
   const productWidth = Number(metadata.width || 760);
   const productHeight = Number(metadata.height || 760);
   const productLeft = Math.round((1080 - productWidth) / 2);
-  const productTop = 205;
+  const productTop = 255;
   const shadowWidth = Math.max(220, Math.round(productWidth * 0.56));
   const shadowHeight = Math.max(38, Math.round(productWidth * 0.09));
   const shadowSvg = `
@@ -14170,8 +14494,8 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
   return {
     productLayerBuffer,
     productMotionBuffer: resizedProduct,
-    productWidth: Number(motionMetadata.width || productWidth),
-    productHeight: Number(motionMetadata.height || productHeight),
+    productWidth: 1080,
+    productHeight: 1920,
   };
 }
 
@@ -14308,7 +14632,7 @@ async function createAnimatedProductVideoAssets({
   const uploadTasks = [
     uploadGeneratedImageToStorage({
       supabase,
-      imageBase64: productLayer.productMotionBuffer.toString("base64"),
+      imageBase64: productLayer.productLayerBuffer.toString("base64"),
       userId,
       postId,
       fileSuffix: "animation-product-layer",
@@ -14627,6 +14951,41 @@ async function getUserAuthProfile(supabase, userId) {
   };
 }
 
+
+async function getNextRuleInPlan({ supabase, rule }) {
+  const planName = String(rule?.name || "").trim();
+  const scheduledPublishAtIso = getScheduledPublishAtIso(rule);
+
+  if (!planName || !rule?.user_id || !rule?.brand_profile_id) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("automation_rules")
+    .select(
+      "id, name, platform, post_type, content_type_id, content_type_label, content_format, generate_image, uses_website_content, campaign_post_index, campaign_post_count, publish_time, timezone, next_run_at, queue_priority"
+    )
+    .eq("user_id", rule.user_id)
+    .eq("brand_profile_id", rule.brand_profile_id)
+    .eq("name", planName)
+    .eq("is_active", true)
+    .neq("id", rule.id)
+    .gt("next_run_at", scheduledPublishAtIso)
+    .order("next_run_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("Could not load next planned post for approval email", {
+      ruleId: rule.id,
+      message: error.message,
+    });
+    return null;
+  }
+
+  return data || null;
+}
+
 async function sendApprovalEmail({
   supabase,
   resendApiKey,
@@ -14666,6 +15025,8 @@ async function sendApprovalEmail({
   const isCarouselDraft = normalizedContentFormat === "carousel";
   const approveUrl = `${APP_URL}/api/approve-post?token=${approvalToken}&lang=${locale}`;
 
+  const nextRule = await getNextRuleInPlan({ supabase, rule });
+
   let carouselSlides = [];
   if (isCarouselDraft && postId) {
     try {
@@ -14702,8 +15063,10 @@ async function sendApprovalEmail({
         imageUrl,
         carouselSlides,
         isCarouselDraft,
+        nextRule,
       }),
       text: buildApprovalEmailText({
+        locale,
         t,
         rule,
         postContent,
@@ -14711,6 +15074,7 @@ async function sendApprovalEmail({
         imageUrl,
         carouselSlides,
         isCarouselDraft,
+        nextRule,
       }),
     }),
   });
@@ -14718,6 +15082,16 @@ async function sendApprovalEmail({
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(errorText || "Resend email request failed");
+  }
+
+  if (postId) {
+    await supabase
+      .from("posts")
+      .update({
+        approval_email_sent_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", postId);
   }
 
   return response.json();
@@ -15469,12 +15843,14 @@ async function publishApprovedSocialPosts({
   const { data: posts, error } = await supabase
     .from("posts")
     .select(
-      "id, user_id, brand_profile_id, content, platform, status, published_at, approved_at, image_url, video_url, video_status, content_format"
+      "id, user_id, brand_profile_id, content, platform, status, published_at, approved_at, scheduled_for, image_url, video_url, video_status, content_format, publish_locked_until, publish_attempts, next_publish_attempt_at, last_publish_error"
     )
     .eq("status", "approved")
     .is("published_at", null)
+    .lte("scheduled_for", nowIso)
+    .order("scheduled_for", { ascending: true })
     .order("approved_at", { ascending: true })
-    .limit(BATCH_SIZE);
+    .limit(PUBLISH_BATCH_SIZE * 3);
 
   if (error) {
     console.error("Could not load approved social posts", {
@@ -15487,8 +15863,18 @@ async function publishApprovedSocialPosts({
 
   const approvedPosts = (posts || []).filter((post) => {
     const format = normalizeContentFormat(post.content_format);
-    return ["single_image", "carousel", "animated_video"].includes(format) && getPublishTargets(post.platform).length > 0;
-  });
+    const lockUntilMs = new Date(post.publish_locked_until || 0).getTime();
+    const nextAttemptMs = new Date(post.next_publish_attempt_at || 0).getTime();
+    const lockAvailable = !lockUntilMs || lockUntilMs <= new Date(nowIso).getTime();
+    const retryReady = !nextAttemptMs || nextAttemptMs <= new Date(nowIso).getTime();
+
+    return (
+      ["single_image", "carousel", "animated_video"].includes(format) &&
+      getPublishTargets(post.platform).length > 0 &&
+      lockAvailable &&
+      retryReady
+    );
+  }).slice(0, PUBLISH_BATCH_SIZE);
 
   summary.social_publish_checked += approvedPosts.length;
   let animatedVideoPublishesThisRun = 0;
@@ -15510,12 +15896,44 @@ async function publishApprovedSocialPosts({
       animatedVideoPublishesThisRun += 1;
     }
 
+    const publishAttempt = Number(post.publish_attempts || 0) + 1;
+    const publishLockUntilIso = addMinutesIso(new Date(), PUBLISH_LOCK_MINUTES);
+    const claimStartedIso = new Date().toISOString();
+    const { data: claimedPost, error: claimError } = await supabase
+      .from("posts")
+      .update({
+        publish_locked_until: publishLockUntilIso,
+        publish_attempts: publishAttempt,
+        last_publish_error: null,
+        updated_at: claimStartedIso,
+      })
+      .eq("id", post.id)
+      .eq("status", "approved")
+      .is("published_at", null)
+      .or(`publish_locked_until.is.null,publish_locked_until.lte.${claimStartedIso}`)
+      .select("id")
+      .maybeSingle();
+
+    if (claimError || !claimedPost?.id) {
+      continue;
+    }
+
     let facebookConnectionForPost = null;
     let instagramConnectionForPost = null;
     let activePublishTarget = null;
 
     try {
       if (!post.content) {
+        await supabase
+          .from("posts")
+          .update({
+            status: "failed",
+            publish_locked_until: null,
+            next_publish_attempt_at: null,
+            last_publish_error: "Post content is missing",
+            updated_at: nowIso,
+          })
+          .eq("id", post.id);
         summary.social_publish_failed += 1;
         continue;
       }
@@ -15530,6 +15948,9 @@ async function publishApprovedSocialPosts({
           .from("posts")
           .update({
             status: "failed",
+            publish_locked_until: null,
+            next_publish_attempt_at: null,
+            last_publish_error: "Post is missing required publishing data",
             updated_at: nowIso,
           })
           .eq("id", post.id);
@@ -15550,6 +15971,9 @@ async function publishApprovedSocialPosts({
           .from("posts")
           .update({
             status: "failed",
+            publish_locked_until: null,
+            next_publish_attempt_at: null,
+            last_publish_error: "Post is missing required publishing data",
             updated_at: nowIso,
           })
           .eq("id", post.id);
@@ -15572,6 +15996,9 @@ async function publishApprovedSocialPosts({
           .from("posts")
           .update({
             status: "failed",
+            publish_locked_until: null,
+            next_publish_attempt_at: null,
+            last_publish_error: "Post is missing required publishing data",
             updated_at: nowIso,
           })
           .eq("id", post.id);
@@ -15738,6 +16165,9 @@ async function publishApprovedSocialPosts({
         .update({
           status: "published",
           published_at: nowIso,
+          publish_locked_until: null,
+          next_publish_attempt_at: null,
+          last_publish_error: null,
           updated_at: nowIso,
         })
         .eq("id", post.id);
@@ -15782,10 +16212,19 @@ async function publishApprovedSocialPosts({
         }
       }
 
+      const authFailure = isConnectionAuthFailure(error);
+      const shouldRetry = !authFailure && publishAttempt < MAX_PUBLISH_ATTEMPTS;
+      const retryDelayMinutes = Math.min(60, 5 * 2 ** Math.max(0, publishAttempt - 1));
+
       await supabase
         .from("posts")
         .update({
-          status: "failed",
+          status: shouldRetry ? "approved" : "failed",
+          publish_locked_until: null,
+          next_publish_attempt_at: shouldRetry
+            ? addMinutesIso(new Date(nowIso), retryDelayMinutes)
+            : null,
+          last_publish_error: String(error.message || "Social publishing failed").slice(0, 1200),
           updated_at: nowIso,
         })
         .eq("id", post.id);
@@ -15803,50 +16242,80 @@ async function publishApprovedSocialPosts({
   }
 }
 
-async function getRulesToProcess({ supabase, nowIso, now }) {
-  const { data: dueRules, error: dueRulesError } = await supabase
+async function getRulesToProcess({
+  supabase,
+  nowIso,
+  now,
+  laneId = 0,
+  laneCount = 1,
+  batchSize = SMART_QUEUE_BATCH_SIZE,
+}) {
+  const horizonIso = addHoursIso(now, SMART_QUEUE_HORIZON_HOURS);
+  const safeLaneCount = Math.max(1, Number(laneCount) || 1);
+  const safeLaneId = Math.max(0, Number(laneId) || 0) % safeLaneCount;
+
+  const { data: upcomingRules, error: upcomingRulesError } = await supabase
     .from("automation_rules")
     .select("*")
     .eq("is_active", true)
     .not("next_run_at", "is", null)
-    .lte("next_run_at", nowIso)
+    .lte("next_run_at", horizonIso)
+    .or(`queue_locked_until.is.null,queue_locked_until.lte.${nowIso}`)
+    .order("queue_priority", { ascending: false })
     .order("next_run_at", { ascending: true })
-    .limit(BATCH_SIZE);
+    .limit(SMART_QUEUE_CANDIDATE_LIMIT);
 
-  if (dueRulesError) {
-    throw new Error(dueRulesError.message);
+  if (upcomingRulesError) {
+    throw new Error(upcomingRulesError.message);
   }
 
-  const rules = dueRules || [];
+  const readyRules = (upcomingRules || [])
+    .filter((rule) => isRuleReadyForGeneration(rule, now))
+    .filter((rule) => getRuleQueueLane(rule, safeLaneCount) === safeLaneId)
+    .sort((a, b) => {
+      const priorityDifference =
+        getQueuePriorityScore(b, now) - getQueuePriorityScore(a, now);
+      if (priorityDifference !== 0) return priorityDifference;
 
-  if (rules.length >= BATCH_SIZE) {
-    return rules;
+      return (
+        new Date(getScheduledPublishAtIso(a, now)).getTime() -
+        new Date(getScheduledPublishAtIso(b, now)).getTime()
+      );
+    });
+
+  if (readyRules.length >= batchSize) {
+    return selectFairQueuedRules(readyRules, batchSize);
   }
-
-  const remainingLimit = BATCH_SIZE - rules.length;
 
   const { data: fallbackRules, error: fallbackRulesError } = await supabase
     .from("automation_rules")
     .select("*")
     .eq("is_active", true)
     .is("next_run_at", null)
-    .limit(remainingLimit);
+    .or(`queue_locked_until.is.null,queue_locked_until.lte.${nowIso}`)
+    .limit(SMART_QUEUE_CANDIDATE_LIMIT);
 
   if (fallbackRulesError) {
     throw new Error(fallbackRulesError.message);
   }
 
-  const oldRulesThatAreDue = (fallbackRules || []).filter((rule) =>
-    isRuleDueByOldSchedule(rule, now)
-  );
+  const oldRulesThatAreDue = (fallbackRules || [])
+    .filter((rule) => isRuleDueByOldSchedule(rule, now))
+    .filter((rule) => getRuleQueueLane(rule, safeLaneCount) === safeLaneId);
 
   const uniqueRules = new Map();
-
-  for (const rule of [...rules, ...oldRulesThatAreDue]) {
+  for (const rule of [...readyRules, ...oldRulesThatAreDue]) {
     uniqueRules.set(rule.id, rule);
   }
 
-  return Array.from(uniqueRules.values()).slice(0, BATCH_SIZE);
+  const sorted = Array.from(uniqueRules.values()).sort((a, b) => {
+    const priorityDifference =
+      getQueuePriorityScore(b, now) - getQueuePriorityScore(a, now);
+    if (priorityDifference !== 0) return priorityDifference;
+    return String(a.id).localeCompare(String(b.id));
+  });
+
+  return selectFairQueuedRules(sorted, batchSize);
 }
 
 function isAuthorizedCronRequest(request, cronSecret) {
@@ -15856,7 +16325,7 @@ function isAuthorizedCronRequest(request, cronSecret) {
   return authorizationHeader === expectedAuthorizationHeader;
 }
 
-export async function GET(request) {
+async function runAutomationCron(request, options = {}) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -15894,6 +16363,12 @@ export async function GET(request) {
 
     const now = new Date();
     const nowIso = now.toISOString();
+    const laneCount = Math.max(
+      1,
+      Number(options.laneCount || SMART_QUEUE_LANE_COUNT) || SMART_QUEUE_LANE_COUNT
+    );
+    const laneId = Math.max(0, Number(options.laneId || 0) || 0) % laneCount;
+    const laneName = String(options.laneName || `lane-${laneId + 1}`);
 
     const summary = createEmptySummary();
     const usedWebsiteImageUrlsThisRun = new Set();
@@ -15910,6 +16385,9 @@ export async function GET(request) {
       supabase,
       nowIso,
       now,
+      laneId,
+      laneCount,
+      batchSize: SMART_QUEUE_BATCH_SIZE,
     });
 
     for (const rule of rules || []) {
@@ -15970,6 +16448,8 @@ export async function GET(request) {
           summary.skipped_locked += 1;
           continue;
         }
+
+        const scheduledPublishAtIso = getScheduledPublishAtIso(rule, now);
 
         automationRunStartedAtIso = new Date().toISOString();
         automationRunLogId = await createAutomationRunLog({
@@ -16382,7 +16862,7 @@ const { data: post, error: postError } = await supabase
 approval_required: true,
 approval_token: approvalToken,
 approved_at: null,
-scheduled_for: nowIso,
+scheduled_for: scheduledPublishAtIso,
             image_status: wantsImage ? "generating" : "none",
             image_prompt: wantsImage ? rule.image_prompt || null : null,
             content_format: normalizeContentFormat(rule.content_format),
@@ -17062,7 +17542,8 @@ product_research_model_used: rule.uses_website_content
         const ruleUpdatePayload = getRuleUpdatePayloadAfterSuccess(
           rule,
           nowIso,
-          now
+          now,
+          scheduledPublishAtIso
         );
 
         const { error: ruleUpdateError } = await supabase
@@ -17137,7 +17618,10 @@ product_research_model_used: rule.uses_website_content
       ok: true,
       mode: "live_text_image_facebook_brand_profile_website_content_history",
       checked_at: nowIso,
-      batch_size: BATCH_SIZE,
+      batch_size: SMART_QUEUE_BATCH_SIZE,
+      queue_lane: laneName,
+      queue_lane_id: laneId,
+      queue_lane_count: laneCount,
       fetched_rules: rules?.length || 0,
       summary,
     });
@@ -17150,4 +17634,25 @@ product_research_model_used: rule.uses_website_content
       { status: 500 }
     );
   }
+}
+
+
+export async function GET(request) {
+  const requestUrl = new URL(request.url);
+  const requestedLaneCount = Math.max(
+    1,
+    Number(requestUrl.searchParams.get("laneCount") || 1) || 1
+  );
+  const requestedLaneId = Math.max(
+    0,
+    Number(requestUrl.searchParams.get("lane") || 0) || 0
+  ) % requestedLaneCount;
+
+  return runAutomationCron(request, {
+    laneId: requestedLaneId,
+    laneCount: requestedLaneCount,
+    laneName:
+      requestUrl.searchParams.get("laneName") ||
+      (requestedLaneCount > 1 ? `lane-${requestedLaneId + 1}` : "manual"),
+  });
 }

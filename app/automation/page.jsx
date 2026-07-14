@@ -7411,6 +7411,8 @@ ${slot.campaignSummary}`
           timeZone: selectedTimeZone,
         }),
         approval_required: true,
+        queue_source: slot.isCampaignSlot ? "campaign" : "content_studio",
+        queue_priority: slot.isCampaignSlot ? 50 : 70,
         is_active: editingRuleId
           ? editingRuleSnapshot?.is_active !== false
           : false,

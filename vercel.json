@@ -1,8 +1,24 @@
 {
   "crons": [
     {
-      "path": "/api/cron/run-automations",
-      "schedule": "*/5 * * * *"
+      "path": "/api/cron/run-automations-lane-1",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/run-automations-lane-2",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/run-automations-lane-3",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/run-automations-lane-4",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/run-automations-lane-5",
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/refresh-instagram-tokens",
