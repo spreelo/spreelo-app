@@ -28,15 +28,23 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const DEFAULT_TIME_ZONE = "UTC";
-const SMART_QUEUE_LANE_COUNT = Math.max(
+const SMART_QUEUE_WORKER_COUNT = Math.max(
   1,
-  Math.min(10, Number(process.env.SMART_QUEUE_LANE_COUNT || 5) || 5)
+  Math.min(
+    10,
+    Number(
+      process.env.SMART_QUEUE_WORKER_COUNT ||
+        process.env.SMART_QUEUE_LANE_COUNT ||
+        5
+    ) || 5
+  )
 );
 const SMART_QUEUE_BATCH_SIZE = Math.max(
   1,
   Math.min(5, Number(process.env.SMART_QUEUE_BATCH_SIZE || 2) || 2)
 );
 const SMART_QUEUE_CANDIDATE_LIMIT = 250;
+const SMART_QUEUE_CLAIM_SCAN_MULTIPLIER = 4;
 const SMART_QUEUE_HORIZON_HOURS = 96;
 const PUBLISH_BATCH_SIZE = 40;
 const PUBLISH_LOCK_MINUTES = 12;
@@ -905,10 +913,6 @@ function getQueuePriorityScore(rule, now = new Date()) {
   else if (hoursUntilPublish <= 72) deadlinePriority = 500;
 
   return deadlinePriority + basePriority * 2 + Math.min(200, overdueHours * 8);
-}
-
-function getRuleQueueLane(rule, laneCount = SMART_QUEUE_LANE_COUNT) {
-  return getStableQueueHash(rule?.id) % Math.max(1, laneCount);
 }
 
 function selectFairQueuedRules(rules, limit) {
@@ -4631,6 +4635,8 @@ Output only the image.
 
 function createEmptySummary() {
   return {
+    queue_candidates: 0,
+    queue_claimed: 0,
     processed: 0,
     generated: 0,
     skipped: 0,
@@ -16246,13 +16252,18 @@ async function getRulesToProcess({
   supabase,
   nowIso,
   now,
-  laneId = 0,
-  laneCount = 1,
   batchSize = SMART_QUEUE_BATCH_SIZE,
+  workerCount = SMART_QUEUE_WORKER_COUNT,
 }) {
   const horizonIso = addHoursIso(now, SMART_QUEUE_HORIZON_HOURS);
-  const safeLaneCount = Math.max(1, Number(laneCount) || 1);
-  const safeLaneId = Math.max(0, Number(laneId) || 0) % safeLaneCount;
+  const claimScanLimit = Math.max(
+    batchSize,
+    Math.min(
+      SMART_QUEUE_CANDIDATE_LIMIT,
+      batchSize * Math.max(1, Number(workerCount) || 1) *
+        SMART_QUEUE_CLAIM_SCAN_MULTIPLIER
+    )
+  );
 
   const { data: upcomingRules, error: upcomingRulesError } = await supabase
     .from("automation_rules")
@@ -16271,7 +16282,6 @@ async function getRulesToProcess({
 
   const readyRules = (upcomingRules || [])
     .filter((rule) => isRuleReadyForGeneration(rule, now))
-    .filter((rule) => getRuleQueueLane(rule, safeLaneCount) === safeLaneId)
     .sort((a, b) => {
       const priorityDifference =
         getQueuePriorityScore(b, now) - getQueuePriorityScore(a, now);
@@ -16283,8 +16293,8 @@ async function getRulesToProcess({
       );
     });
 
-  if (readyRules.length >= batchSize) {
-    return selectFairQueuedRules(readyRules, batchSize);
+  if (readyRules.length >= claimScanLimit) {
+    return selectFairQueuedRules(readyRules, claimScanLimit);
   }
 
   const { data: fallbackRules, error: fallbackRulesError } = await supabase
@@ -16300,8 +16310,7 @@ async function getRulesToProcess({
   }
 
   const oldRulesThatAreDue = (fallbackRules || [])
-    .filter((rule) => isRuleDueByOldSchedule(rule, now))
-    .filter((rule) => getRuleQueueLane(rule, safeLaneCount) === safeLaneId);
+    .filter((rule) => isRuleDueByOldSchedule(rule, now));
 
   const uniqueRules = new Map();
   for (const rule of [...readyRules, ...oldRulesThatAreDue]) {
@@ -16315,7 +16324,7 @@ async function getRulesToProcess({
     return String(a.id).localeCompare(String(b.id));
   });
 
-  return selectFairQueuedRules(sorted, batchSize);
+  return selectFairQueuedRules(sorted, claimScanLimit);
 }
 
 function isAuthorizedCronRequest(request, cronSecret) {
@@ -16363,12 +16372,12 @@ async function runAutomationCron(request, options = {}) {
 
     const now = new Date();
     const nowIso = now.toISOString();
-    const laneCount = Math.max(
+    const workerCount = Math.max(
       1,
-      Number(options.laneCount || SMART_QUEUE_LANE_COUNT) || SMART_QUEUE_LANE_COUNT
+      Number(options.workerCount || SMART_QUEUE_WORKER_COUNT) ||
+        SMART_QUEUE_WORKER_COUNT
     );
-    const laneId = Math.max(0, Number(options.laneId || 0) || 0) % laneCount;
-    const laneName = String(options.laneName || `lane-${laneId + 1}`);
+    const workerName = String(options.workerName || "manual-worker");
 
     const summary = createEmptySummary();
     const usedWebsiteImageUrlsThisRun = new Set();
@@ -16385,12 +16394,16 @@ async function runAutomationCron(request, options = {}) {
       supabase,
       nowIso,
       now,
-      laneId,
-      laneCount,
       batchSize: SMART_QUEUE_BATCH_SIZE,
+      workerCount,
     });
+    summary.queue_candidates = rules?.length || 0;
+    let claimedRulesThisRun = 0;
 
     for (const rule of rules || []) {
+      if (claimedRulesThisRun >= SMART_QUEUE_BATCH_SIZE) {
+        break;
+      }
       if (
         isAnimatedVideoRule(rule) &&
         animatedVideoRendersThisRun >= MAX_ANIMATED_VIDEO_RENDERS_PER_RUN
@@ -16400,8 +16413,6 @@ async function runAutomationCron(request, options = {}) {
           Number(summary.video_render_deferred || 0) + 1;
         continue;
       }
-
-      summary.processed += 1;
 
       let automationRunStartedAtIso = null;
       let automationRunLogId = null;
@@ -16448,6 +16459,10 @@ async function runAutomationCron(request, options = {}) {
           summary.skipped_locked += 1;
           continue;
         }
+
+        claimedRulesThisRun += 1;
+        summary.queue_claimed += 1;
+        summary.processed += 1;
 
         const scheduledPublishAtIso = getScheduledPublishAtIso(rule, now);
 
@@ -17619,10 +17634,11 @@ product_research_model_used: rule.uses_website_content
       mode: "live_text_image_facebook_brand_profile_website_content_history",
       checked_at: nowIso,
       batch_size: SMART_QUEUE_BATCH_SIZE,
-      queue_lane: laneName,
-      queue_lane_id: laneId,
-      queue_lane_count: laneCount,
+      queue_mode: "shared_atomic_claim",
+      worker_name: workerName,
+      worker_count: workerCount,
       fetched_rules: rules?.length || 0,
+      claimed_rules: claimedRulesThisRun,
       summary,
     });
   } catch (error) {
@@ -17639,20 +17655,16 @@ product_research_model_used: rule.uses_website_content
 
 export async function GET(request) {
   const requestUrl = new URL(request.url);
-  const requestedLaneCount = Math.max(
+  const requestedWorkerCount = Math.max(
     1,
-    Number(requestUrl.searchParams.get("laneCount") || 1) || 1
+    Number(
+      requestUrl.searchParams.get("workerCount") || SMART_QUEUE_WORKER_COUNT
+    ) || SMART_QUEUE_WORKER_COUNT
   );
-  const requestedLaneId = Math.max(
-    0,
-    Number(requestUrl.searchParams.get("lane") || 0) || 0
-  ) % requestedLaneCount;
 
   return runAutomationCron(request, {
-    laneId: requestedLaneId,
-    laneCount: requestedLaneCount,
-    laneName:
-      requestUrl.searchParams.get("laneName") ||
-      (requestedLaneCount > 1 ? `lane-${requestedLaneId + 1}` : "manual"),
+    workerCount: requestedWorkerCount,
+    workerName:
+      requestUrl.searchParams.get("workerName") || "manual-worker",
   });
 }
