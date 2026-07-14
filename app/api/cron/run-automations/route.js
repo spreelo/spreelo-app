@@ -85,7 +85,7 @@ const PRODUCT_RESEARCH_FAST_MODEL =
   process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL;
 const IMAGE_MODEL = "gpt-image-2";
 const ANIMATED_OVERLAY_IMAGE_MODEL =
-  process.env.ANIMATED_OVERLAY_IMAGE_MODEL || "gpt-image-1.5";
+  process.env.ANIMATED_OVERLAY_IMAGE_MODEL || "gpt-image-2";
 const INSTAGRAM_GRAPH_API_VERSION =
   process.env.INSTAGRAM_GRAPH_API_VERSION || "v21.0";
 const FACEBOOK_GRAPH_API_VERSION =
@@ -13847,7 +13847,7 @@ async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
   const strokeColor = isDarkBackground ? "#111827" : "#ffffff";
   const brandColor = isDarkBackground ? "#f3e5d1" : "#695747";
   const priceColor = isDarkBackground ? "#ffffff" : "#17202c";
-  const titleStartY = 1135;
+  const titleStartY = 1275;
   const titleMarkup = titleLines
     .map((line, index) => {
       const y = titleStartY + index * 64;
@@ -13867,7 +13867,7 @@ async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
         </filter>
       </defs>
       <g filter="url(#shadow)">
-        ${brandName ? `<text x="540" y="1080" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="1.2" fill="${brandColor}" stroke="${strokeColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(brandName)}</text>` : ""}
+        ${brandName ? `<text x="540" y="1220" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="1.2" fill="${brandColor}" stroke="${strokeColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(brandName)}</text>` : ""}
         ${titleMarkup}
         ${price ? `<text x="540" y="${priceY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" font-weight="800" fill="${priceColor}" stroke="${strokeColor}" stroke-width="4" paint-order="stroke">${escapeSvgText(price)}</text>` : ""}
       </g>
@@ -13938,7 +13938,7 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
       {
         input: compact,
         left: Math.round((1080 - width) / 2),
-        top: 1060,
+        top: 1200,
       },
     ])
     .png()
@@ -14013,7 +14013,7 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
   const productWidth = Number(metadata.width || 760);
   const productHeight = Number(metadata.height || 760);
   const productLeft = Math.round((1080 - productWidth) / 2);
-  const productTop = 90;
+  const productTop = 145;
   const shadowWidth = Math.max(220, Math.round(productWidth * 0.56));
   const shadowHeight = Math.max(38, Math.round(productWidth * 0.09));
   const shadowSvg = `
