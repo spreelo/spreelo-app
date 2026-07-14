@@ -13797,6 +13797,7 @@ Strict rules:
 - Use only the exact product name above and the exact price when provided.
 - Keep the composition compact, centered and easy to read on a phone.
 - Premium advertising typography with strong contrast and clean spacing.
+- Use a clean sans-serif font with very legible letterforms; the word "T-shirt" must clearly read with a real capital T, not a decorative character.
 - The text must remain static in the final video.
 `.trim();
 }
@@ -13846,7 +13847,7 @@ async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
   const strokeColor = isDarkBackground ? "#111827" : "#ffffff";
   const brandColor = isDarkBackground ? "#f3e5d1" : "#695747";
   const priceColor = isDarkBackground ? "#ffffff" : "#17202c";
-  const titleStartY = 990;
+  const titleStartY = 1135;
   const titleMarkup = titleLines
     .map((line, index) => {
       const y = titleStartY + index * 64;
@@ -13866,7 +13867,7 @@ async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
         </filter>
       </defs>
       <g filter="url(#shadow)">
-        ${brandName ? `<text x="540" y="932" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="1.2" fill="${brandColor}" stroke="${strokeColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(brandName)}</text>` : ""}
+        ${brandName ? `<text x="540" y="1080" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="1.2" fill="${brandColor}" stroke="${strokeColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(brandName)}</text>` : ""}
         ${titleMarkup}
         ${price ? `<text x="540" y="${priceY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" font-weight="800" fill="${priceColor}" stroke="${strokeColor}" stroke-width="4" paint-order="stroke">${escapeSvgText(price)}</text>` : ""}
       </g>
@@ -13913,8 +13914,8 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
 
   const compact = await sharp(trimmed)
     .resize({
-      width: 900,
-      height: 250,
+      width: 930,
+      height: 290,
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 },
       withoutEnlargement: false,
@@ -13937,7 +13938,7 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
       {
         input: compact,
         left: Math.round((1080 - width) / 2),
-        top: 910,
+        top: 1060,
       },
     ])
     .png()
@@ -14001,8 +14002,8 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
   const cutoutBuffer = await extractAnimatedProductCutout(sourceImageBuffer);
   const resizedProduct = await sharp(cutoutBuffer)
     .resize({
-      width: 800,
-      height: 800,
+      width: 920,
+      height: 920,
       fit: "inside",
       withoutEnlargement: true,
     })
@@ -14012,7 +14013,7 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
   const productWidth = Number(metadata.width || 760);
   const productHeight = Number(metadata.height || 760);
   const productLeft = Math.round((1080 - productWidth) / 2);
-  const productTop = 120;
+  const productTop = 90;
   const shadowWidth = Math.max(220, Math.round(productWidth * 0.56));
   const shadowHeight = Math.max(38, Math.round(productWidth * 0.09));
   const shadowSvg = `
