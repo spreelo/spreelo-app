@@ -16,6 +16,7 @@ import {
 } from "../../../../lib/socialConnectionAlerts.js";
 import {
   buildProductPushEdit,
+  buildVideoPreviewGifEdit,
   queueShotstackRender,
   waitForShotstackRender,
 } from "../../../../lib/shotstack.js";
@@ -13912,6 +13913,13 @@ async function createAnimatedProductVideoAssets({
       .toBuffer();
   }
 
+  // Merge all fixed text and branding into the static backdrop. This avoids
+  // transparent overlay scaling/cropping differences between MP4 and GIF renders.
+  const finalBackdropBuffer = await sharp(backdropBuffer)
+    .composite([{ input: overlayBuffer, left: 0, top: 0 }])
+    .png()
+    .toBuffer();
+
   const transparentProduct = await removeEdgeConnectedBackground(sourceImageBuffer);
   const productImage = await sharp(transparentProduct)
     .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 2 })
@@ -13961,20 +13969,19 @@ async function createAnimatedProductVideoAssets({
     })
     .png()
     .toBuffer();
-  const posterBuffer = await sharp(backdropBuffer)
+  const posterBuffer = await sharp(finalBackdropBuffer)
     .composite([
       { input: ambientBuffer, left: 0, top: 0 },
       { input: posterProductLayerBuffer, left: 50, top: 178 },
-      { input: overlayBuffer, left: 0, top: 0 },
     ])
     .png()
     .toBuffer();
 
-  const [backdropUpload, ambientUpload, overlayUpload, productLayerUpload, posterUpload] =
+  const [backdropUpload, ambientUpload, productLayerUpload, posterUpload] =
     await Promise.all([
       uploadGeneratedImageToStorage({
         supabase,
-        imageBase64: backdropBuffer.toString("base64"),
+        imageBase64: finalBackdropBuffer.toString("base64"),
         userId,
         postId,
         fileSuffix: "animation-backdrop",
@@ -13985,13 +13992,6 @@ async function createAnimatedProductVideoAssets({
         userId,
         postId,
         fileSuffix: "animation-ambient",
-      }),
-      uploadGeneratedImageToStorage({
-        supabase,
-        imageBase64: overlayBuffer.toString("base64"),
-        userId,
-        postId,
-        fileSuffix: "animation-overlay",
       }),
       uploadGeneratedImageToStorage({
         supabase,
@@ -14012,7 +14012,6 @@ async function createAnimatedProductVideoAssets({
   if (
     !backdropUpload.imageUrl ||
     !ambientUpload.imageUrl ||
-    !overlayUpload.imageUrl ||
     !productLayerUpload.imageUrl ||
     !posterUpload.imageUrl
   ) {
@@ -14022,14 +14021,12 @@ async function createAnimatedProductVideoAssets({
   return {
     backdropUrl: backdropUpload.imageUrl,
     ambientUrl: ambientUpload.imageUrl,
-    overlayUrl: overlayUpload.imageUrl,
     productLayerUrl: productLayerUpload.imageUrl,
     posterUrl: posterUpload.imageUrl,
     posterStoragePath: posterUpload.imageStoragePath,
     temporaryStoragePaths: [
       backdropUpload.imageStoragePath,
       ambientUpload.imageStoragePath,
-      overlayUpload.imageStoragePath,
       productLayerUpload.imageStoragePath,
     ].filter(Boolean),
   };
@@ -14143,7 +14140,6 @@ async function generateAnimatedProductVideo({
   const videoEdit = buildProductPushEdit({
     backdropUrl: assets.backdropUrl,
     ambientUrl: assets.ambientUrl,
-    overlayUrl: assets.overlayUrl,
     productLayerUrl: assets.productLayerUrl,
     durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
     outputFormat: "mp4",
@@ -14151,29 +14147,7 @@ async function generateAnimatedProductVideo({
     fps: 25,
     quality: "medium",
   });
-  const gifEdit = buildProductPushEdit({
-    backdropUrl: assets.backdropUrl,
-    ambientUrl: assets.ambientUrl,
-    overlayUrl: assets.overlayUrl,
-    productLayerUrl: assets.productLayerUrl,
-    durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
-    outputFormat: "gif",
-    outputSize: { width: 432, height: 540 },
-    fps: 12,
-    quality: "low",
-  });
-
-  let gifRenderId = null;
   const videoRenderId = await queueShotstackRender(videoEdit);
-
-  try {
-    gifRenderId = await queueShotstackRender(gifEdit);
-  } catch (error) {
-    console.warn("Animated email GIF could not be queued", {
-      postId,
-      message: error?.message || "Unknown GIF queue error",
-    });
-  }
 
   await supabase
     .from("posts")
@@ -14185,43 +14159,39 @@ async function generateAnimatedProductVideo({
     .eq("id", postId);
 
   try {
-    const [videoRender, gifRender] = await Promise.all([
-      waitForShotstackRender({ renderId: videoRenderId }),
-      gifRenderId
-        ? waitForShotstackRender({ renderId: gifRenderId }).catch((error) => {
-            console.warn("Animated email GIF render failed", {
-              postId,
-              gifRenderId,
-              message: error?.message || "Unknown GIF render error",
-            });
-            return null;
-          })
-        : Promise.resolve(null),
-    ]);
-    const storedVideoPromise = uploadRenderedVideoToStorage({
+    const videoRender = await waitForShotstackRender({ renderId: videoRenderId });
+    const storedVideo = await uploadRenderedVideoToStorage({
       supabase,
       videoUrl: videoRender.url,
       userId,
       postId,
     });
-    const storedGifPromise = gifRender?.url
-      ? uploadRenderedGifToStorage({
-          supabase,
-          gifUrl: gifRender.url,
-          userId,
-          postId,
-        }).catch((error) => {
-          console.warn("Animated email GIF could not be stored", {
-            postId,
-            message: error?.message || "Unknown GIF upload error",
-          });
-          return null;
-        })
-      : Promise.resolve(null);
-    const [storedVideo, storedGif] = await Promise.all([
-      storedVideoPromise,
-      storedGifPromise,
-    ]);
+
+    // Build the email GIF from the finished MP4 instead of re-rendering the
+    // original large PNG layers at email resolution. This guarantees that the
+    // email preview has the exact same framing and motion as the final video.
+    let storedGif = null;
+    try {
+      const gifEdit = buildVideoPreviewGifEdit({
+        videoUrl: videoRender.url,
+        durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
+        outputSize: { width: 432, height: 540 },
+        fps: 10,
+      });
+      const gifRenderId = await queueShotstackRender(gifEdit);
+      const gifRender = await waitForShotstackRender({ renderId: gifRenderId });
+      storedGif = await uploadRenderedGifToStorage({
+        supabase,
+        gifUrl: gifRender.url,
+        userId,
+        postId,
+      });
+    } catch (error) {
+      console.warn("Animated email GIF could not be created from final video", {
+        postId,
+        message: error?.message || "Unknown GIF preview error",
+      });
+    }
 
     if (storedGif?.gifUrl) {
       await removeTemporaryAnimationAssets(supabase, [assets.posterStoragePath]);
