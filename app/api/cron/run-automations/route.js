@@ -13711,9 +13711,44 @@ async function extractAnimatedProductCutout(sourceImageBuffer) {
   const { data, info } = await sharp(normalized)
     .raw()
     .toBuffer({ resolveWithObject: true });
+  const pixelCount = info.width * info.height;
+  const originalAlphaChannel = Buffer.alloc(pixelCount);
+  let transparentPixelCount = 0;
+
+  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+    const alpha = data[pixel * 4 + 3];
+    originalAlphaChannel[pixel] = alpha;
+    if (alpha < 245) transparentPixelCount += 1;
+  }
+
+  // Many catalog PNG files are already correctly transparent. Never run the
+  // colour-key remover on those images: a white or pale product would otherwise
+  // be mistaken for a white background and become transparent itself.
+  const existingTransparencyRatio = pixelCount
+    ? transparentPixelCount / pixelCount
+    : 0;
+
+  if (existingTransparencyRatio >= 0.005) {
+    const existingBounds = findAlphaBounds(
+      originalAlphaChannel,
+      info.width,
+      info.height,
+      18
+    );
+
+    if (!existingBounds) {
+      return normalized;
+    }
+
+    return sharp(normalized)
+      .extract(existingBounds)
+      .png()
+      .toBuffer();
+  }
+
   const background = estimateCornerBackgroundColor(data, info.width, info.height);
-  const rgba = Buffer.alloc(info.width * info.height * 4);
-  const alphaChannel = Buffer.alloc(info.width * info.height);
+  const rgba = Buffer.alloc(pixelCount * 4);
+  const alphaChannel = Buffer.alloc(pixelCount);
   const fadeStart = 16;
   const fadeEnd = 58;
 
@@ -13746,6 +13781,25 @@ async function extractAnimatedProductCutout(sourceImageBuffer) {
 
   const bounds = findAlphaBounds(alphaChannel, info.width, info.height, 28);
   if (!bounds) {
+    return normalized;
+  }
+
+  let stronglyVisiblePixels = 0;
+  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+    if (alphaChannel[pixel] >= 180) stronglyVisiblePixels += 1;
+  }
+  const stronglyVisibleRatio = pixelCount
+    ? stronglyVisiblePixels / pixelCount
+    : 0;
+
+  // A very small remainder usually means that a pale product was removed
+  // together with its background. Preserve the unchanged source instead of
+  // publishing a nearly invisible product.
+  if (stronglyVisibleRatio < 0.08) {
+    console.warn("Animated product cutout was rejected because too much of the product became transparent", {
+      stronglyVisibleRatio: Number(stronglyVisibleRatio.toFixed(4)),
+      backgroundColor: rgbToHex(background),
+    });
     return normalized;
   }
 
