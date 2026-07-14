@@ -14089,8 +14089,6 @@ async function createAnimatedProductVideoAssets({
 }
 
 async function uploadRenderedVideoToStorage({
-
-async function uploadRenderedVideoToStorage({
   supabase,
   videoUrl,
   userId,
