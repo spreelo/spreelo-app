@@ -404,11 +404,6 @@ function getTrustedWebsiteItemPricing(websiteItem) {
   const isOnSale = Boolean(displayPrice && originalPrice && displayPrice !== originalPrice);
 
   if (displayPrice && isLikelyWrongUsdPriceForUrl(displayPrice, websiteItem?.url || websiteItem?.website_url)) {
-    console.warn("Ignored suspicious website item price because currency does not match product URL", {
-      productUrl: websiteItem?.url || null,
-      rawPrice: truncateText(String(fallbackPriceRaw || currentPriceRaw || originalPriceRaw || ""), 80),
-    });
-
     return {
       displayPrice: "",
       currentPrice: "",
@@ -4276,6 +4271,45 @@ function isLikelyWrongUsdPriceForUrl(price, url) {
   return /\.(?:se|dk|no|fi|de|fr|nl|be|es|it|pt|pl|cz|at|ch|eu|uz)$/i.test(host);
 }
 
+function getPreferredCurrencyRegexForUrl(url) {
+  const host = getHostnameFromUrl(url);
+
+  if (/\.se$/i.test(host)) return /\b(?:sek|kr)\b|:-/i;
+  if (/\.no$/i.test(host)) return /\b(?:nok|kr)\b|:-/i;
+  if (/\.dk$/i.test(host)) return /\b(?:dkk|kr)\b|:-/i;
+  if (/\.fi$/i.test(host)) return /€|\b(?:eur|euro)\b/i;
+  if (/\.(?:de|fr|nl|be|es|it|pt|at|eu)$/i.test(host)) {
+    return /€|\b(?:eur|euro)\b/i;
+  }
+  if (/\.ch$/i.test(host)) return /\bchf\b/i;
+  if (/\.pl$/i.test(host)) return /\bpln\b/i;
+  if (/\.cz$/i.test(host)) return /\bczk\b/i;
+
+  return null;
+}
+
+function pickPreferredPriceForUrl(prices, url) {
+  const uniquePrices = Array.from(
+    new Set((prices || []).map((price) => normalizeVerifiedPriceValue(price)).filter(Boolean))
+  );
+
+  if (!uniquePrices.length) {
+    return "";
+  }
+
+  const preferredCurrency = getPreferredCurrencyRegexForUrl(url);
+  if (preferredCurrency) {
+    const preferred = uniquePrices.find((price) => preferredCurrency.test(price));
+    if (preferred) return preferred;
+  }
+
+  const nonSuspicious = uniquePrices.find(
+    (price) => !isLikelyWrongUsdPriceForUrl(price, url)
+  );
+
+  return nonSuspicious || "";
+}
+
 function getTrustedWebsiteItemPrice(websiteItem) {
   return getTrustedWebsiteItemPricing(websiteItem).displayPrice;
 }
@@ -4441,9 +4475,11 @@ Critical brand relevance rules:
 Website factual grounding rules:
 - Always include the Destination URL in the final post when a Destination URL is available.
 - If a selected website item is provided, the Destination URL should be the selected item URL, not just the homepage.
-- Place the Destination URL near the end of the post, before hashtags if hashtags are used.
+- Place the Destination URL exactly once, only in the final CTA sentence near the end of the post, before hashtags if hashtags are used.
+- Write that final CTA naturally in the selected language and adapt the wording to the post, product, service and tone. Do not use one fixed CTA phrase for every post.
 - Keep URLs clean and professional in the visible caption: show only the website domain, such as example.com, not a long product/category/search URL. The saved internal Destination URL may still be the exact product URL.
 - Include the visible website domain exactly once in the entire caption.
+- Do not mention the domain earlier in the body and then repeat it in the final CTA.
 - Do not repeat the same domain in both a CTA sentence and again after a colon or on a separate line.
 - Never write constructions such as "See the product at example.com: example.com". Use either "See the product at example.com" or a single standalone "example.com", not both.
 - Do not paste multiple links. Use one URL maximum.
@@ -5561,6 +5597,23 @@ function resolveUrl(value, baseUrl) {
 }
 
 function canonicalizeWebsiteProductUrl(value, baseUrl = "") {
+  const rawValue = String(value || "").trim();
+  const decodedValue = (() => {
+    try {
+      return decodeURIComponent(rawValue);
+    } catch {
+      return rawValue;
+    }
+  })();
+
+  if (
+    !rawValue ||
+    /\{\{|\}\}|<%|%7b|%7d|\bplaceholder\b/i.test(rawValue) ||
+    /\{\{|\}\}|<%|\bplaceholder\b/i.test(decodedValue)
+  ) {
+    return null;
+  }
+
   const resolved = value ? resolveUrl(value, baseUrl || value) : null;
 
   if (!resolved || !isHttpUrl(resolved)) {
@@ -6530,19 +6583,7 @@ function normalizeWebsiteItem(item, websiteUrl) {
   let salePrice = trustedPricing.salePrice;
   let originalPrice = trustedPricing.originalPrice;
 
-  if (item?.price && !price) {
-    console.warn("Ignored unverified website item price because it lacked a clear currency marker", {
-      title: truncateText(title, 120),
-      rawPrice: truncateText(String(item.price), 80),
-    });
-  }
-
   if (price && isLikelyWrongUsdPriceForUrl(price, url || websiteUrl)) {
-    console.warn("Ignored suspicious website item price because currency does not match product URL", {
-      title: truncateText(title, 120),
-      productUrl: url || websiteUrl,
-      rawPrice: truncateText(String(item.price), 80),
-    });
     price = "";
     salePrice = "";
     originalPrice = "";
@@ -10417,6 +10458,207 @@ function extractVisiblePriceFromText(text) {
   return preferredLocalCurrencyMatch || matches[0] || "";
 }
 
+function extractProductPricingFromVisibleHtml({
+  html,
+  pageUrl = "",
+  productTitle = "",
+} = {}) {
+  const visibleHtml = String(html || "")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<template\b[^>]*>[\s\S]*?<\/template>/gi, " ")
+    .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, " ");
+  const visibleText = decodeHtmlEntities(stripHtmlToText(visibleHtml))
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!visibleText) {
+    return normalizeExtractedProductPricing();
+  }
+
+  const normalizedTitle = decodeHtmlEntities(String(productTitle || ""))
+    .replace(/\s+/g, " ")
+    .trim();
+  const lowerVisibleText = visibleText.toLowerCase();
+  const titleIndex = normalizedTitle
+    ? lowerVisibleText.indexOf(normalizedTitle.toLowerCase())
+    : -1;
+  const scopeStart = titleIndex >= 0 ? Math.max(0, titleIndex - 120) : 0;
+  const scopeLength = titleIndex >= 0 ? 3600 : Math.min(visibleText.length, 2200);
+  const scope = visibleText.slice(scopeStart, scopeStart + scopeLength);
+  const currentLabelRegex = new RegExp(
+    String.raw`(?:sale\s*price|current\s*price|offer\s*price|now\s*price|kampanjpris|reapris|pris\s*nu|vanligt\s*pris|price|pris)\s*[:\-–—/]?\s*(${PRICE_AMOUNT_PATTERN})`,
+    "gi"
+  );
+  const originalLabelRegex = new RegExp(
+    String.raw`(?:regular\s*price|original\s*price|list\s*price|was\s*price|ordinarie\s*pris|tidigare\s*pris|rek\.?\s*pris)\s*[:\-–—/]?\s*(${PRICE_AMOUNT_PATTERN})`,
+    "gi"
+  );
+  const saleLabelRegex = new RegExp(
+    String.raw`(?:sale\s*price|offer\s*price|now\s*price|kampanjpris|reapris|pris\s*nu)\s*[:\-–—/]?\s*(${PRICE_AMOUNT_PATTERN})`,
+    "gi"
+  );
+
+  const collectLabeledPrices = (regex) => {
+    const prices = [];
+    let match;
+    while ((match = regex.exec(scope)) !== null) {
+      const normalized = normalizeVerifiedPriceValue(match[1]);
+      if (normalized) prices.push(normalized);
+    }
+    return prices;
+  };
+
+  const salePrices = collectLabeledPrices(saleLabelRegex);
+  const originalPrices = collectLabeledPrices(originalLabelRegex);
+  const currentPrices = collectLabeledPrices(currentLabelRegex);
+  const allVisiblePrices = extractVerifiedPriceMatches(scope);
+  const currentPrice = pickPreferredPriceForUrl(
+    [...salePrices, ...currentPrices, ...allVisiblePrices],
+    pageUrl
+  );
+  const originalPrice = salePrices.length
+    ? pickPreferredPriceForUrl(originalPrices, pageUrl)
+    : "";
+
+  return normalizeExtractedProductPricing({
+    currentPrice,
+    originalPrice,
+    source: currentPrice ? "visible_product_page_price" : "",
+    confidence: currentPrice ? "high" : "",
+  });
+}
+
+
+function inferShopifyCurrencyFromHtml(html, pageUrl = "") {
+  const explicitCurrency =
+    getMetaContent(html, [
+      "product:price:currency",
+      "og:price:currency",
+      "product:currency",
+    ]) ||
+    String(html || "").match(/Shopify\.currency\.active\s*=\s*["']([A-Z]{3})["']/i)?.[1] ||
+    String(html || "").match(/["'](?:currency|presentment_currency|priceCurrency)["']\s*:\s*["']([A-Z]{3})["']/i)?.[1] ||
+    "";
+
+  if (explicitCurrency) {
+    return String(explicitCurrency).trim().toUpperCase();
+  }
+
+  const host = getHostnameFromUrl(pageUrl);
+  if (/\.se$/i.test(host)) return "SEK";
+  if (/\.no$/i.test(host)) return "NOK";
+  if (/\.dk$/i.test(host)) return "DKK";
+  if (/\.fi$/i.test(host)) return "EUR";
+  if (/\.(?:de|fr|nl|be|es|it|pt|at|eu)$/i.test(host)) return "EUR";
+  if (/\.ch$/i.test(host)) return "CHF";
+  if (/\.pl$/i.test(host)) return "PLN";
+  if (/\.cz$/i.test(host)) return "CZK";
+
+  return "";
+}
+
+function formatShopifyEmbeddedPrice(rawValue, currency) {
+  const raw = String(rawValue ?? "").trim();
+  if (!raw || !currency || !/^\d+(?:[.,]\d+)?$/.test(raw)) {
+    return "";
+  }
+
+  const normalized = raw.replace(",", ".");
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "";
+  }
+
+  // Shopify theme/product JSON often stores integer prices in minor units
+  // (for example 22900 = 229.00 SEK), while products.json may expose 229.00.
+  const looksLikeMinorUnits = !normalized.includes(".") && numeric >= 1000;
+  const majorAmount = looksLikeMinorUnits ? numeric / 100 : numeric;
+  const amountText = Number.isInteger(majorAmount)
+    ? String(majorAmount)
+    : majorAmount.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+
+  if (String(currency).toUpperCase() === "SEK") {
+    return normalizeVerifiedPriceValue(`${amountText} kr`);
+  }
+
+  return formatVerifiedPriceFromAmount(amountText, currency);
+}
+
+function getProductPricingFromShopifyEmbeddedData({
+  html,
+  pageUrl = "",
+  productTitle = "",
+} = {}) {
+  const source = String(html || "");
+  const handle = (() => {
+    try {
+      return new URL(pageUrl).pathname.match(/\/products\/([^/?#]+)/i)?.[1] || "";
+    } catch {
+      return "";
+    }
+  })();
+  const normalizedTitle = String(productTitle || "").trim().toLowerCase();
+  const currency = inferShopifyCurrencyFromHtml(source, pageUrl);
+
+  if (!currency || (!handle && !normalizedTitle)) {
+    return normalizeExtractedProductPricing();
+  }
+
+  const scriptBodies = Array.from(
+    source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi),
+    (match) => String(match[1] || "")
+  );
+  const relevantScopes = [];
+
+  for (const scriptBody of scriptBodies) {
+    const lower = scriptBody.toLowerCase();
+    const handleIndex = handle ? lower.indexOf(handle.toLowerCase()) : -1;
+    const titleIndex = normalizedTitle ? lower.indexOf(normalizedTitle) : -1;
+    const identityIndex = handleIndex >= 0 ? handleIndex : titleIndex;
+
+    if (identityIndex < 0 || !/["'](?:price|price_min|price_max)["']\s*:/i.test(scriptBody)) {
+      continue;
+    }
+
+    relevantScopes.push(
+      scriptBody.slice(Math.max(0, identityIndex - 2500), identityIndex + 7500)
+    );
+  }
+
+  const prices = [];
+  const compareAtPrices = [];
+
+  for (const scope of relevantScopes) {
+    const priceRegex = /["'](?:price|price_min)["']\s*:\s*["']?(\d+(?:[.,]\d+)?)["']?/gi;
+    const compareRegex = /["'](?:compare_at_price|compareAtPrice)["']\s*:\s*["']?(\d+(?:[.,]\d+)?)["']?/gi;
+    let match;
+
+    while ((match = priceRegex.exec(scope)) !== null) {
+      const formatted = formatShopifyEmbeddedPrice(match[1], currency);
+      if (formatted && !prices.includes(formatted)) prices.push(formatted);
+    }
+
+    while ((match = compareRegex.exec(scope)) !== null) {
+      const formatted = formatShopifyEmbeddedPrice(match[1], currency);
+      if (formatted && !compareAtPrices.includes(formatted)) compareAtPrices.push(formatted);
+    }
+  }
+
+  const currentPrice = pickPreferredPriceForUrl(prices, pageUrl);
+  const originalPrice = compareAtPrices.length
+    ? pickPreferredPriceForUrl(compareAtPrices, pageUrl)
+    : "";
+
+  return normalizeExtractedProductPricing({
+    currentPrice,
+    originalPrice,
+    source: currentPrice ? "shopify_embedded_product_price" : "",
+    confidence: currentPrice ? "high" : "",
+  });
+}
+
 function getProductPricingFromMeta(html) {
   const currency = getMetaContent(html, [
     "product:price:currency",
@@ -10486,12 +10728,25 @@ function extractProductPricingFromHtml({
   html,
   product = null,
   fallbackTitle = "",
+  pageUrl = "",
 } = {}) {
   const sources = [
+    extractProductPricingFromVisibleHtml({
+      html,
+      pageUrl,
+      productTitle: product?.name || fallbackTitle,
+    }),
+    getProductPricingFromShopifyEmbeddedData({
+      html,
+      pageUrl,
+      productTitle: product?.name || fallbackTitle,
+    }),
     getProductPricingFromJsonLd(product),
     getProductPricingFromMeta(html),
-    extractProductPricingFromTitle(fallbackTitle),
     getProductPricingFromMicrodata(html),
+    // Search/discovery text is deliberately last because it can reflect a
+    // different Shopify market or presentment currency than the product page.
+    extractProductPricingFromTitle(fallbackTitle),
   ];
 
   return (
@@ -10596,6 +10851,7 @@ async function extractProductDataFromProductPage({
     html,
     product,
     fallbackTitle: webSearchProduct?.title || rawTitle,
+    pageUrl: productUrl,
   });
   const price = pricing.price;
 
@@ -12351,6 +12607,9 @@ async function findWebsiteProductWithWebSearch({
           productUrl: websiteItem.url,
           title: websiteItem.title,
           imageUrl: websiteItem.image_url,
+          price: websiteItem.price || null,
+          priceSource: websiteItem.price_source || null,
+          priceConfidence: websiteItem.price_confidence || null,
           attempt,
           verifiedCount: verifiedItems.length,
         });
@@ -14500,8 +14759,8 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
   return {
     productLayerBuffer,
     productMotionBuffer: resizedProduct,
-    productWidth: 1080,
-    productHeight: 1920,
+    productWidth: Number(motionMetadata.width || productWidth),
+    productHeight: Number(motionMetadata.height || productHeight),
   };
 }
 
@@ -14645,6 +14904,13 @@ async function createAnimatedProductVideoAssets({
     }),
     uploadGeneratedImageToStorage({
       supabase,
+      imageBase64: productLayer.productMotionBuffer.toString("base64"),
+      userId,
+      postId,
+      fileSuffix: "animation-product-motion",
+    }),
+    uploadGeneratedImageToStorage({
+      supabase,
       imageBase64: textOverlayBuffer.toString("base64"),
       userId,
       postId,
@@ -14671,16 +14937,27 @@ async function createAnimatedProductVideoAssets({
     );
   }
 
-  const [productLayerUpload, textOverlayUpload, posterUpload, logoUpload = null] =
+  const [
+    productLayerUpload,
+    productMotionUpload,
+    textOverlayUpload,
+    posterUpload,
+    logoUpload = null,
+  ] =
     await Promise.all(uploadTasks);
 
-  if (!productLayerUpload.imageUrl || !textOverlayUpload.imageUrl || !posterUpload.imageUrl) {
+  if (
+    !productLayerUpload.imageUrl ||
+    !productMotionUpload.imageUrl ||
+    !textOverlayUpload.imageUrl ||
+    !posterUpload.imageUrl
+  ) {
     throw new Error("Could not create public animated Reel asset URLs");
   }
 
   return {
     backgroundVideoUrl: selection.asset.public_url,
-    productUrl: productLayerUpload.imageUrl,
+    productUrl: productMotionUpload.imageUrl,
     productWidth: productLayer.productWidth,
     productHeight: productLayer.productHeight,
     textOverlayUrl: textOverlayUpload.imageUrl,
@@ -15288,6 +15565,11 @@ function escapeRegExp(value) {
   return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function splitCaptionLineIntoSentenceChunks(line) {
+  const chunks = String(line || "").match(/[^.!?…]+(?:[.!?…]+|$)/gu);
+  return chunks?.length ? chunks : [String(line || "")];
+}
+
 function dedupeVisibleDestinationDomain(content, destinationUrl) {
   const host = getHostnameFromUrl(destinationUrl).replace(/^www\./, "");
 
@@ -15296,26 +15578,79 @@ function dedupeVisibleDestinationDomain(content, destinationUrl) {
   }
 
   const hostPattern = escapeRegExp(host);
-  const domainRegex = new RegExp(
-    String.raw`(?:https?:\/\/)?(?:www\.)?${hostPattern}(?:\/[^\s]*)?`,
-    "gi"
-  );
-  let seenDomain = false;
+  const createDomainRegex = () =>
+    new RegExp(
+      String.raw`(?:https?:\/\/)?(?:www\.)?${hostPattern}(?:\/[^\s]*)?`,
+      "gi"
+    );
+  const domainToken = "__SPREELO_DESTINATION_DOMAIN__";
+  const tokenizeDomains = (line) =>
+    String(line || "").replace(createDomainRegex(), (match) => {
+      const trailing = match.match(/[).,!?:;]+$/)?.[0] || "";
+      return `${domainToken}${trailing}`;
+    });
+  const originalLines = String(content || "").split("\n");
+  const tokenizedLines = originalLines.map(tokenizeDomains);
+  const domainLineIndexes = tokenizedLines
+    .map((line, index) => (line.includes(domainToken) ? index : -1))
+    .filter((index) => index >= 0);
 
-  const deduped = String(content || "").replace(domainRegex, (match) => {
-    if (seenDomain) {
-      return "";
+  if (!domainLineIndexes.length) {
+    return String(content || "").trim();
+  }
+
+  // The prompt places the domain in the final CTA. Keeping the last
+  // occurrence preserves the AI-written, language-specific CTA instead of
+  // replacing it with a hardcoded phrase.
+  const canonicalLineIndex = domainLineIndexes.at(-1);
+  const cleanedLines = tokenizedLines.map((line, lineIndex) => {
+    if (!line.includes(domainToken)) {
+      return line;
     }
 
-    seenDomain = true;
-    const trailing = match.match(/[).,!?:;]+$/)?.[0] || "";
-    return `${host}${trailing}`;
+    const chunks = splitCaptionLineIntoSentenceChunks(line);
+    const domainChunkIndexes = chunks
+      .map((chunk, chunkIndex) =>
+        chunk.includes(domainToken) ? chunkIndex : -1
+      )
+      .filter((chunkIndex) => chunkIndex >= 0);
+
+    if (lineIndex !== canonicalLineIndex) {
+      // Remove the complete earlier sentence containing the duplicate domain.
+      // This avoids leftovers such as "See the product here" in any language.
+      return chunks
+        .filter((_, chunkIndex) => !domainChunkIndexes.includes(chunkIndex))
+        .join(" ")
+        .trim();
+    }
+
+    const canonicalChunkIndex = domainChunkIndexes.at(-1);
+    return chunks
+      .map((chunk, chunkIndex) => ({ chunk, chunkIndex }))
+      .filter(({ chunkIndex }) => {
+        if (!domainChunkIndexes.includes(chunkIndex)) return true;
+        return chunkIndex === canonicalChunkIndex;
+      })
+      .map(({ chunk, chunkIndex }) => {
+        if (chunkIndex !== canonicalChunkIndex) return chunk;
+
+        let seen = false;
+        return chunk.replaceAll(domainToken, () => {
+          if (seen) return "";
+          seen = true;
+          return host;
+        });
+      })
+      .join(" ")
+      .trim();
   });
 
-  return deduped
+  return cleanedLines
+    .join("\n")
     .replace(/[ \t]+([,.;!?])/g, "$1")
     .replace(/[ \t]*[:\-–—]+[ \t]*([,.;!?])/g, "$1")
     .replace(/[ \t]*[:\-–—]+[ \t]*(?=\n|$)/gm, "")
+    .replace(/^\s*[,:;\-–—]+\s*$/gm, "")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
