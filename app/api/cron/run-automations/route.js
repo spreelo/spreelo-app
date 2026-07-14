@@ -84,8 +84,14 @@ const PRODUCT_RESEARCH_MODEL = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
 const PRODUCT_RESEARCH_FAST_MODEL =
   process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL;
 const IMAGE_MODEL = "gpt-image-2";
-const ANIMATED_OVERLAY_IMAGE_MODEL =
-  process.env.ANIMATED_OVERLAY_IMAGE_MODEL || "gpt-image-2";
+const configuredAnimatedOverlayImageModel = String(
+  process.env.ANIMATED_OVERLAY_IMAGE_MODEL || ""
+).trim();
+const ANIMATED_OVERLAY_IMAGE_MODEL = configuredAnimatedOverlayImageModel.startsWith(
+  "gpt-image-2"
+)
+  ? configuredAnimatedOverlayImageModel
+  : "gpt-image-2";
 const INSTAGRAM_GRAPH_API_VERSION =
   process.env.INSTAGRAM_GRAPH_API_VERSION || "v21.0";
 const FACEBOOK_GRAPH_API_VERSION =
@@ -13773,7 +13779,8 @@ function buildAnimatedTextOverlayPrompt({ rule, postContent, backgroundAsset }) 
     .join(", ");
 
   return `
-Create a transparent text-only overlay for a premium 9:16 product Reel.
+Create a text-only advertising graphic for a premium 9:16 product Reel.
+The finished graphic will later be cut out from its background and placed over a moving video.
 
 Write this exact product name and no alternative wording:
 "${title}"
@@ -13790,18 +13797,20 @@ Caption context:
 ${truncateText(postContent || rule?.prompt || "", 700)}
 
 Strict rules:
-- Transparent background only.
+- Use a perfectly flat, uniform pure white #FFFFFF background over the entire image.
+- No gradient, texture, vignette, shadows, objects or patterns in the white background.
 - Text and very small tasteful decorative accents only.
+- Keep all text and accents in one compact, centered, wide composition with generous empty white space around it.
 - Do not draw, recreate or include the product.
 - Do not add a rectangle, banner, black bar, opaque panel, button, logo, badge or watermark.
 - Use only the exact product name above and the exact price when provided.
-- Keep the composition compact, centered and easy to read on a phone.
+- Use dark, saturated text and accent colors. Do not use white, off-white, cream or very pale colors in the lettering or accents.
 - Premium advertising typography with strong contrast and clean spacing.
 - Use a clean sans-serif font with very legible letterforms; the word "T-shirt" must clearly read with a real capital T, not a decorative character.
+- The final text graphic must be wider than it is tall.
 - The text must remain static in the final video.
 `.trim();
 }
-
 function splitAnimatedOverlayTitle(title) {
   const cleaned = truncateText(
     String(title || "Featured product").replace(/\s+/g, " ").trim(),
@@ -13877,32 +13886,86 @@ async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
-  const { data, info } = await sharp(generatedBuffer)
+async function extractGeneratedTextFromWhiteBackground(generatedBuffer) {
+  const normalized = await sharp(generatedBuffer)
     .rotate()
+    .resize({
+      width: 1536,
+      height: 1024,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
     .ensureAlpha()
+    .png()
+    .toBuffer();
+  const { data, info } = await sharp(normalized)
     .raw()
     .toBuffer({ resolveWithObject: true });
-  let transparentPixels = 0;
-  let visiblePixels = 0;
-  const totalPixels = info.width * info.height;
+  const background = estimateCornerBackgroundColor(data, info.width, info.height);
 
-  for (let index = 3; index < data.length; index += info.channels) {
-    const alpha = data[index];
-    if (alpha <= 18) transparentPixels += 1;
-    if (alpha >= 40) visiblePixels += 1;
+  if (Math.min(background.r, background.g, background.b) < 205) {
+    throw new Error("Generated text overlay did not use a sufficiently white background");
   }
 
-  const transparentRatio = totalPixels ? transparentPixels / totalPixels : 0;
-  const visibleRatio = totalPixels ? visiblePixels / totalPixels : 0;
+  const rgba = Buffer.alloc(info.width * info.height * 4);
+  const alphaChannel = Buffer.alloc(info.width * info.height);
+  const fadeStart = 12;
+  const fadeEnd = 72;
 
-  if (transparentRatio < 0.35 || visibleRatio > 0.62) {
-    throw new Error("Generated text overlay was not sufficiently transparent");
+  for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
+    const index = pixel * 4;
+    const r = data[index];
+    const g = data[index + 1];
+    const b = data[index + 2];
+    const originalAlpha = data[index + 3];
+    const distance = Math.sqrt(
+      (r - background.r) ** 2 +
+        (g - background.g) ** 2 +
+        (b - background.b) ** 2
+    );
+
+    let alpha = originalAlpha;
+    if (distance <= fadeStart) {
+      alpha = 0;
+    } else if (distance < fadeEnd) {
+      alpha = Math.min(
+        originalAlpha,
+        Math.max(0, Math.round(((distance - fadeStart) / (fadeEnd - fadeStart)) * 255))
+      );
+    }
+
+    rgba[index] = r;
+    rgba[index + 1] = g;
+    rgba[index + 2] = b;
+    rgba[index + 3] = alpha;
+    alphaChannel[pixel] = alpha;
   }
 
-  const trimmed = await sharp(generatedBuffer)
-    .rotate()
-    .ensureAlpha()
+  const bounds = findAlphaBounds(alphaChannel, info.width, info.height, 30);
+  if (!bounds) {
+    throw new Error("Generated text overlay contained no visible text");
+  }
+
+  const visibleCoverage = (bounds.width * bounds.height) / (info.width * info.height);
+  if (visibleCoverage > 0.72) {
+    throw new Error("Generated text overlay contained too much non-text artwork");
+  }
+
+  return sharp(rgba, {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: 4,
+    },
+  })
+    .extract(bounds)
+    .png()
+    .toBuffer();
+}
+
+async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
+  const cutout = await extractGeneratedTextFromWhiteBackground(generatedBuffer);
+  const trimmed = await sharp(cutout)
     .trim({ threshold: 8 })
     .png()
     .toBuffer();
@@ -13912,10 +13975,14 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
     throw new Error("Generated text overlay contained no visible content");
   }
 
+  if (trimmedMetadata.height > trimmedMetadata.width * 0.95) {
+    throw new Error("Generated text overlay was not a compact horizontal composition");
+  }
+
   const compact = await sharp(trimmed)
     .resize({
       width: 930,
-      height: 290,
+      height: 310,
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 },
       withoutEnlargement: false,
@@ -13923,8 +13990,8 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
     .png()
     .toBuffer();
   const compactMetadata = await sharp(compact).metadata();
-  const width = Number(compactMetadata.width || 900);
-  const height = Number(compactMetadata.height || 250);
+  const width = Number(compactMetadata.width || 930);
+  const height = Number(compactMetadata.height || 310);
 
   return sharp({
     create: {
@@ -13944,7 +14011,6 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
     .png()
     .toBuffer();
 }
-
 async function createAnimatedTextOverlay({
   openai,
   rule,
@@ -13961,9 +14027,9 @@ async function createAnimatedTextOverlay({
     const response = await openai.images.generate({
       model: ANIMATED_OVERLAY_IMAGE_MODEL,
       prompt,
-      size: "1024x1536",
+      size: "1536x1024",
       quality: "medium",
-      background: "transparent",
+      background: "opaque",
       output_format: "png",
     });
     const imageBase64 = response?.data?.[0]?.b64_json;
@@ -13979,7 +14045,7 @@ async function createAnimatedTextOverlay({
     return {
       textOverlayBuffer,
       prompt,
-      provider: "openai",
+      provider: "openai_white_cutout",
     };
   } catch (error) {
     console.warn("OpenAI animated text overlay failed; using exact-text fallback", {
@@ -14042,45 +14108,11 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
     .png()
     .toBuffer();
 
-  let motionBuffer = resizedProduct;
-  let motionMime = "image/png";
-
-  if (motionBuffer.length > 620_000) {
-    motionBuffer = await sharp(cutoutBuffer)
-      .resize({
-        width: 760,
-        height: 760,
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .webp({ quality: 95, alphaQuality: 100, smartSubsample: true })
-      .toBuffer();
-    motionMime = "image/webp";
-  }
-
-  if (motionBuffer.length > 700_000) {
-    motionBuffer = await sharp(cutoutBuffer)
-      .resize({
-        width: 680,
-        height: 680,
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .webp({ quality: 92, alphaQuality: 100, smartSubsample: true })
-      .toBuffer();
-    motionMime = "image/webp";
-  }
-
-  const motionMetadata = await sharp(motionBuffer).metadata();
-  const productDataUri = `data:${motionMime};base64,${motionBuffer.toString("base64")}`;
-
-  if (productDataUri.length > 940_000) {
-    throw new Error("Product asset is too large for reliable Shotstack HTML5 animation");
-  }
+  const motionMetadata = await sharp(resizedProduct).metadata();
 
   return {
     productLayerBuffer,
-    productDataUri,
+    productMotionBuffer: resizedProduct,
     productWidth: Number(motionMetadata.width || productWidth),
     productHeight: Number(motionMetadata.height || productHeight),
   };
@@ -14219,7 +14251,7 @@ async function createAnimatedProductVideoAssets({
   const uploadTasks = [
     uploadGeneratedImageToStorage({
       supabase,
-      imageBase64: productLayer.productLayerBuffer.toString("base64"),
+      imageBase64: productLayer.productMotionBuffer.toString("base64"),
       userId,
       postId,
       fileSuffix: "animation-product-layer",
@@ -14261,10 +14293,9 @@ async function createAnimatedProductVideoAssets({
 
   return {
     backgroundVideoUrl: selection.asset.public_url,
-    productDataUri: productLayer.productDataUri,
+    productUrl: productLayerUpload.imageUrl,
     productWidth: productLayer.productWidth,
     productHeight: productLayer.productHeight,
-    productUrl: productLayerUpload.imageUrl,
     textOverlayUrl: textOverlayUpload.imageUrl,
     logoOverlayUrl: logoUpload?.imageUrl || null,
     posterUrl: posterUpload.imageUrl,
@@ -14340,7 +14371,7 @@ async function generateAnimatedProductVideo({
   });
   const edit = buildProductPushEdit({
     backgroundVideoUrl: assets.backgroundVideoUrl,
-    productDataUri: assets.productDataUri,
+    productUrl: assets.productUrl,
     productWidth: assets.productWidth,
     productHeight: assets.productHeight,
     textOverlayUrl: assets.textOverlayUrl,
