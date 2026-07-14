@@ -13854,13 +13854,16 @@ Strict rules:
 - Use a perfectly flat, uniform pure white #FFFFFF background over the entire image.
 - No gradient, texture, vignette, shadows, objects or patterns in the white background.
 - Text and very small tasteful decorative accents only.
-- Keep all text and accents in one compact, centered, wide composition with generous empty white space around it.
+- Keep all text and accents in one compact, centered, premium composition with generous empty white space around it and strong safe margins on the left and right.
 - Do not draw, recreate or include the product.
-- Do not add a rectangle, banner, black bar, opaque panel, button, logo, badge or watermark.
+- Do not add a large opaque panel, black bar, button, logo, badge or watermark.
 - Use only the exact product name above and the exact price when provided.
 - Use dark, saturated text and accent colors. Do not use white, off-white, cream or very pale colors in the lettering or accents.
-- Premium advertising typography with strong contrast and clean spacing.
-- Use a clean sans-serif font with very legible letterforms; the word "T-shirt" must clearly read with a real capital T, not a decorative character.
+- Create an exclusive premium ad look that feels tailored to this product and this background, not generic.
+- Vary the typography and styling intelligently from product to product while staying elegant and minimal.
+- You may use tasteful premium design details such as a subtle brush stroke, painterly swipe, thin decorative lines, a soft highlight shape, a luxury underline, or a small category accent behind part of the text, but keep it refined and uncluttered.
+- The design should feel balanced, editorial and high-end, with the main text kept well inside the composition and not close to the side edges.
+- Use a clean, very legible font or font pairing; the word "T-shirt" must clearly read with a real capital T, not a decorative character.
 - The final text graphic must be wider than it is tall.
 - The text must remain static in the final video.
 `.trim();
@@ -13910,7 +13913,7 @@ async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
   const strokeColor = isDarkBackground ? "#111827" : "#ffffff";
   const brandColor = isDarkBackground ? "#f3e5d1" : "#695747";
   const priceColor = isDarkBackground ? "#ffffff" : "#17202c";
-  const titleStartY = 1275;
+  const titleStartY = 1385;
   const titleMarkup = titleLines
     .map((line, index) => {
       const y = titleStartY + index * 64;
@@ -13930,7 +13933,7 @@ async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
         </filter>
       </defs>
       <g filter="url(#shadow)">
-        ${brandName ? `<text x="540" y="1220" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="1.2" fill="${brandColor}" stroke="${strokeColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(brandName)}</text>` : ""}
+        ${brandName ? `<text x="540" y="1330" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="1.2" fill="${brandColor}" stroke="${strokeColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(brandName)}</text>` : ""}
         ${titleMarkup}
         ${price ? `<text x="540" y="${priceY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" font-weight="800" fill="${priceColor}" stroke="${strokeColor}" stroke-width="4" paint-order="stroke">${escapeSvgText(price)}</text>` : ""}
       </g>
@@ -14035,8 +14038,8 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
 
   const compact = await sharp(trimmed)
     .resize({
-      width: 930,
-      height: 310,
+      width: 760,
+      height: 360,
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 },
       withoutEnlargement: false,
@@ -14059,7 +14062,7 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
       {
         input: compact,
         left: Math.round((1080 - width) / 2),
-        top: 1200,
+        top: 1315,
       },
     ])
     .png()
@@ -14133,7 +14136,7 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
   const productWidth = Number(metadata.width || 760);
   const productHeight = Number(metadata.height || 760);
   const productLeft = Math.round((1080 - productWidth) / 2);
-  const productTop = 145;
+  const productTop = 205;
   const shadowWidth = Math.max(220, Math.round(productWidth * 0.56));
   const shadowHeight = Math.max(38, Math.round(productWidth * 0.09));
   const shadowSvg = `
