@@ -16379,6 +16379,12 @@ async function runAutomationCron(request, options = {}) {
     );
     const workerName = String(options.workerName || "manual-worker");
 
+    console.info("Shared automation queue started", {
+      workerName,
+      workerCount,
+      checkedAt: nowIso,
+    });
+
     const summary = createEmptySummary();
     const usedWebsiteImageUrlsThisRun = new Set();
     let animatedVideoRendersThisRun = 0;
@@ -16398,6 +16404,13 @@ async function runAutomationCron(request, options = {}) {
       workerCount,
     });
     summary.queue_candidates = rules?.length || 0;
+
+    console.info("Shared automation queue candidates selected", {
+      workerName,
+      candidateCount: summary.queue_candidates,
+      candidateIds: (rules || []).slice(0, 10).map((rule) => rule.id),
+    });
+
     let claimedRulesThisRun = 0;
 
     for (const rule of rules || []) {
@@ -17628,6 +17641,16 @@ product_research_model_used: rule.uses_website_content
         summary.errors += 1;
       }
     }
+
+    console.info("Shared automation queue finished", {
+      workerName,
+      fetchedRules: rules?.length || 0,
+      claimedRules: claimedRulesThisRun,
+      generated: summary.generated,
+      published: summary.social_published,
+      skipped: summary.skipped,
+      errors: summary.errors,
+    });
 
     return Response.json({
       ok: true,
