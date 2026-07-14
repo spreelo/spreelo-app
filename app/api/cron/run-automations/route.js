@@ -14592,6 +14592,29 @@ async function extractGeneratedTextFromChromaBackground(generatedBuffer) {
     throw new Error("Generated text overlay contained no visible text");
   }
 
+  let visiblePixelCount = 0;
+  let strongPixelCount = 0;
+  let alphaTotal = 0;
+  for (let pixel = 0; pixel < alphaChannel.length; pixel += 1) {
+    const alpha = alphaChannel[pixel];
+    if (alpha >= 48) {
+      visiblePixelCount += 1;
+      alphaTotal += alpha;
+    }
+    if (alpha >= 150) strongPixelCount += 1;
+  }
+
+  const averageVisibleAlpha = visiblePixelCount
+    ? alphaTotal / visiblePixelCount
+    : 0;
+  if (
+    visiblePixelCount < 4500 ||
+    strongPixelCount < 1800 ||
+    averageVisibleAlpha < 78
+  ) {
+    throw new Error("Generated text overlay became too faint after chroma removal");
+  }
+
   const visibleCoverage = (bounds.width * bounds.height) / (info.width * info.height);
   if (visibleCoverage > 0.72) {
     throw new Error("Generated text overlay contained too much non-text artwork");
@@ -14639,7 +14662,7 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
   const width = Number(compactMetadata.width || 930);
   const height = Number(compactMetadata.height || 310);
 
-  return sharp({
+  const overlayBuffer = await sharp({
     create: {
       width: 1080,
       height: 1920,
@@ -14656,6 +14679,20 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
     ])
     .png()
     .toBuffer();
+
+  const { data: overlayPixels, info: overlayInfo } = await sharp(overlayBuffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let finalVisiblePixels = 0;
+  for (let index = 3; index < overlayPixels.length; index += overlayInfo.channels) {
+    if (overlayPixels[index] >= 48) finalVisiblePixels += 1;
+  }
+  if (finalVisiblePixels < 4500) {
+    throw new Error("Generated text overlay was effectively empty after placement");
+  }
+
+  return overlayBuffer;
 }
 async function createAnimatedTextOverlay({
   openai,
@@ -14691,7 +14728,7 @@ async function createAnimatedTextOverlay({
     return {
       textOverlayBuffer,
       prompt,
-      provider: "openai_white_cutout",
+      provider: "openai_chroma_cutout",
     };
   } catch (error) {
     console.warn("OpenAI animated text overlay failed; using exact-text fallback", {
