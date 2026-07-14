@@ -13772,25 +13772,49 @@ function buildAnimatedTextOverlayPrompt({ rule, postContent, backgroundAsset }) 
     .filter(Boolean)
     .join(", ");
 
-  return [
-    "Premium static overlay text for an animated product Reel.",
-    `Exact product name: \"${title}\"`,
-    price ? `Exact verified price: \"${price}\"` : "Do not display a price.",
-    `Brand: ${brand?.business_name || "Not provided"}`,
-    `Video background context: ${backgroundDescription || "a premium neutral moving background"}`,
-    `Post context: ${truncateText(postContent || rule?.prompt || "", 900)}`,
-    "Rules: keep the real product separate, preserve the exact product name and exact price, premium calm mobile-first typography, no fake call-to-action button, keep the lower area readable and elegant, no watermark.",
-  ].join("\n");
+  return `
+Create a transparent text-only overlay for a premium 9:16 product Reel.
+
+Write this exact product name and no alternative wording:
+"${title}"
+
+${price ? `Also write this exact verified price:\n"${price}"` : "Do not write a price."}
+
+Brand context:
+${brand?.business_name || "Not provided"}
+
+The moving video background is:
+${backgroundDescription || "a premium neutral background"}
+
+Caption context:
+${truncateText(postContent || rule?.prompt || "", 700)}
+
+Strict rules:
+- Transparent background only.
+- Text and very small tasteful decorative accents only.
+- Do not draw, recreate or include the product.
+- Do not add a rectangle, banner, black bar, opaque panel, button, logo, badge or watermark.
+- Use only the exact product name above and the exact price when provided.
+- Keep the composition compact, centered and easy to read on a phone.
+- Premium advertising typography with strong contrast and clean spacing.
+- The text must remain static in the final video.
+`.trim();
 }
 
 function splitAnimatedOverlayTitle(title) {
-  const cleaned = truncateText(String(title || "Featured product").replace(/\s+/g, " ").trim(), 72);
+  const cleaned = truncateText(
+    String(title || "Featured product").replace(/\s+/g, " ").trim(),
+    78
+  );
   const normalized = cleaned.replace(/\s*[\-–—]\s*/g, " – ");
-  const parts = normalized.split(/\s+–\s+/u).map((part) => part.trim()).filter(Boolean);
+  const parts = normalized
+    .split(/\s+–\s+/u)
+    .map((part) => part.trim())
+    .filter(Boolean);
   const primary = parts.shift() || normalized;
   const suffix = parts.join(" • ");
   const tokens = primary.split(/\s+/).filter(Boolean);
-  const maxChars = 24;
+  const maxChars = 25;
   const lines = [];
   let current = "";
 
@@ -13810,82 +13834,202 @@ function splitAnimatedOverlayTitle(title) {
   return lines.slice(0, 3);
 }
 
-async function createAnimatedTextOverlay({ rule, postContent, backgroundAsset }) {
+async function createFallbackAnimatedTextOverlay({ rule, backgroundAsset }) {
   const websiteItem = rule?.website_item || {};
   const brand = rule?.brand_profile || {};
   const title = websiteItem?.title || rule?.content_type_label || "Featured product";
   const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
   const titleLines = splitAnimatedOverlayTitle(title);
-  const prompt = buildAnimatedTextOverlayPrompt({ rule, postContent, backgroundAsset });
-  const isDarkBackground = String(backgroundAsset?.brightness || "").toLowerCase() === "dark";
-  const panelFill = isDarkBackground ? "rgba(11, 15, 22, 0.34)" : "rgba(255, 251, 245, 0.40)";
-  const panelStroke = isDarkBackground ? "rgba(255,255,255,0.12)" : "rgba(34, 28, 23, 0.08)";
-  const brandColor = isDarkBackground ? "#f2dfc6" : "#7e6752";
-  const titleColor = isDarkBackground ? "#ffffff" : "#18202b";
-  const priceFill = isDarkBackground ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.52)";
-  const priceText = isDarkBackground ? "#ffffff" : "#18202b";
-  const titleStartY = 1428;
-  const titleSpans = titleLines
+  const isDarkBackground =
+    String(backgroundAsset?.brightness || "").toLowerCase() === "dark";
+  const titleColor = isDarkBackground ? "#ffffff" : "#17202c";
+  const strokeColor = isDarkBackground ? "#111827" : "#ffffff";
+  const brandColor = isDarkBackground ? "#f3e5d1" : "#695747";
+  const priceColor = isDarkBackground ? "#ffffff" : "#17202c";
+  const titleStartY = 990;
+  const titleMarkup = titleLines
     .map((line, index) => {
-      const y = titleStartY + index * 70;
-      return `<text x="540" y="${y}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-weight="700" letter-spacing="-0.8" fill="${titleColor}">${escapeSvgText(line)}</text>`;
+      const y = titleStartY + index * 64;
+      return `<text x="540" y="${y}" text-anchor="middle" font-family="Arial, sans-serif" font-size="54" font-weight="800" letter-spacing="-0.8" fill="${titleColor}" stroke="${strokeColor}" stroke-width="5" paint-order="stroke">${escapeSvgText(line)}</text>`;
     })
     .join("");
-  const brandText = truncateText(String(brand?.business_name || "").replace(/\s+/g, " ").trim(), 28);
-  const priceMarkup = price
-    ? `
-      <rect x="410" y="1668" width="260" height="72" rx="36" fill="${priceFill}" />
-      <text x="540" y="1714" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700" fill="${priceText}">${escapeSvgText(price)}</text>
-    `
-    : "";
+  const brandName = truncateText(
+    String(brand?.business_name || "").replace(/\s+/g, " ").trim(),
+    28
+  );
+  const priceY = titleStartY + titleLines.length * 64 + 42;
   const svg = `
     <svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
-      <rect x="96" y="1300" width="888" height="500" rx="54" fill="${panelFill}" stroke="${panelStroke}" stroke-width="2" />
-      ${brandText ? `<text x="540" y="1370" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="600" letter-spacing="0.6" fill="${brandColor}">${escapeSvgText(brandText)}</text>` : ""}
-      ${titleSpans}
-      ${priceMarkup}
+      <defs>
+        <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#000000" flood-opacity="0.28"/>
+        </filter>
+      </defs>
+      <g filter="url(#shadow)">
+        ${brandName ? `<text x="540" y="932" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="1.2" fill="${brandColor}" stroke="${strokeColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(brandName)}</text>` : ""}
+        ${titleMarkup}
+        ${price ? `<text x="540" y="${priceY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" font-weight="800" fill="${priceColor}" stroke="${strokeColor}" stroke-width="4" paint-order="stroke">${escapeSvgText(price)}</text>` : ""}
+      </g>
     </svg>
   `;
 
-  return {
-    textOverlayBuffer: await sharp(Buffer.from(svg)).png().toBuffer(),
-    prompt,
-  };
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
+  const { data, info } = await sharp(generatedBuffer)
+    .rotate()
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let transparentPixels = 0;
+  let visiblePixels = 0;
+  const totalPixels = info.width * info.height;
+
+  for (let index = 3; index < data.length; index += info.channels) {
+    const alpha = data[index];
+    if (alpha <= 18) transparentPixels += 1;
+    if (alpha >= 40) visiblePixels += 1;
+  }
+
+  const transparentRatio = totalPixels ? transparentPixels / totalPixels : 0;
+  const visibleRatio = totalPixels ? visiblePixels / totalPixels : 0;
+
+  if (transparentRatio < 0.35 || visibleRatio > 0.62) {
+    throw new Error("Generated text overlay was not sufficiently transparent");
+  }
+
+  const trimmed = await sharp(generatedBuffer)
+    .rotate()
+    .ensureAlpha()
+    .trim({ threshold: 8 })
+    .png()
+    .toBuffer();
+  const trimmedMetadata = await sharp(trimmed).metadata();
+
+  if (!trimmedMetadata.width || !trimmedMetadata.height) {
+    throw new Error("Generated text overlay contained no visible content");
+  }
+
+  const compact = await sharp(trimmed)
+    .resize({
+      width: 900,
+      height: 250,
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      withoutEnlargement: false,
+    })
+    .png()
+    .toBuffer();
+  const compactMetadata = await sharp(compact).metadata();
+  const width = Number(compactMetadata.width || 900);
+  const height = Number(compactMetadata.height || 250);
+
+  return sharp({
+    create: {
+      width: 1080,
+      height: 1920,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([
+      {
+        input: compact,
+        left: Math.round((1080 - width) / 2),
+        top: 910,
+      },
+    ])
+    .png()
+    .toBuffer();
+}
+
+async function createAnimatedTextOverlay({
+  openai,
+  rule,
+  postContent,
+  backgroundAsset,
+}) {
+  const prompt = buildAnimatedTextOverlayPrompt({
+    rule,
+    postContent,
+    backgroundAsset,
+  });
+
+  try {
+    const response = await openai.images.generate({
+      model: ANIMATED_OVERLAY_IMAGE_MODEL,
+      prompt,
+      size: "1024x1536",
+      quality: "medium",
+      background: "transparent",
+      output_format: "png",
+    });
+    const imageBase64 = response?.data?.[0]?.b64_json;
+
+    if (!imageBase64) {
+      throw new Error("OpenAI returned no text overlay image data");
+    }
+
+    const textOverlayBuffer = await normalizeGeneratedAnimatedTextOverlay(
+      Buffer.from(imageBase64, "base64")
+    );
+
+    return {
+      textOverlayBuffer,
+      prompt,
+      provider: "openai",
+    };
+  } catch (error) {
+    console.warn("OpenAI animated text overlay failed; using exact-text fallback", {
+      ruleId: rule?.id || null,
+      message: error?.message,
+    });
+
+    return {
+      textOverlayBuffer: await createFallbackAnimatedTextOverlay({
+        rule,
+        backgroundAsset,
+      }),
+      prompt,
+      provider: "fallback_svg",
+    };
+  }
 }
 
 async function createAnimatedProductLayer({ sourceImageBuffer }) {
   const cutoutBuffer = await extractAnimatedProductCutout(sourceImageBuffer);
   const resizedProduct = await sharp(cutoutBuffer)
     .resize({
-      width: 840,
-      height: 980,
-      fit: "contain",
+      width: 800,
+      height: 800,
+      fit: "inside",
       withoutEnlargement: true,
     })
-    .png()
+    .png({ compressionLevel: 9 })
     .toBuffer();
   const metadata = await sharp(resizedProduct).metadata();
-  const productWidth = Number(metadata.width || 840);
-  const productHeight = Number(metadata.height || 980);
-  const canvasWidth = 1080;
-  const canvasHeight = 1920;
-  const productLeft = Math.round((canvasWidth - productWidth) / 2);
-  const productTop = 176;
-  const shadowWidth = Math.max(220, Math.round(productWidth * 0.54));
-  const shadowHeight = Math.max(40, Math.round(productWidth * 0.10));
+  const productWidth = Number(metadata.width || 760);
+  const productHeight = Number(metadata.height || 760);
+  const productLeft = Math.round((1080 - productWidth) / 2);
+  const productTop = 120;
+  const shadowWidth = Math.max(220, Math.round(productWidth * 0.56));
+  const shadowHeight = Math.max(38, Math.round(productWidth * 0.09));
   const shadowSvg = `
     <svg width="${shadowWidth}" height="${shadowHeight}" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="${Math.round(shadowWidth / 2)}" cy="${Math.round(shadowHeight / 2)}" rx="${Math.round(shadowWidth / 2.15)}" ry="${Math.round(shadowHeight / 2.35)}" fill="rgba(0,0,0,0.20)" />
+      <ellipse cx="${Math.round(shadowWidth / 2)}" cy="${Math.round(shadowHeight / 2)}" rx="${Math.round(shadowWidth / 2.15)}" ry="${Math.round(shadowHeight / 2.4)}" fill="#000000" opacity="0.22" />
     </svg>
   `;
-  const shadowBuffer = await sharp(Buffer.from(shadowSvg)).png().blur(16).toBuffer();
-  const shadowLeft = Math.round((canvasWidth - shadowWidth) / 2);
-  const shadowTop = productTop + productHeight - Math.round(shadowHeight * 0.2);
-
-  return sharp({
+  const shadowBuffer = await sharp(Buffer.from(shadowSvg))
+    .png()
+    .blur(16)
+    .toBuffer();
+  const shadowLeft = Math.round((1080 - shadowWidth) / 2);
+  const shadowTop = productTop + productHeight - Math.round(shadowHeight * 0.25);
+  const productLayerBuffer = await sharp({
     create: {
-      width: canvasWidth,
-      height: canvasHeight,
+      width: 1080,
+      height: 1920,
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
@@ -13896,6 +14040,49 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
     ])
     .png()
     .toBuffer();
+
+  let motionBuffer = resizedProduct;
+  let motionMime = "image/png";
+
+  if (motionBuffer.length > 620_000) {
+    motionBuffer = await sharp(cutoutBuffer)
+      .resize({
+        width: 760,
+        height: 760,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 95, alphaQuality: 100, smartSubsample: true })
+      .toBuffer();
+    motionMime = "image/webp";
+  }
+
+  if (motionBuffer.length > 700_000) {
+    motionBuffer = await sharp(cutoutBuffer)
+      .resize({
+        width: 680,
+        height: 680,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 92, alphaQuality: 100, smartSubsample: true })
+      .toBuffer();
+    motionMime = "image/webp";
+  }
+
+  const motionMetadata = await sharp(motionBuffer).metadata();
+  const productDataUri = `data:${motionMime};base64,${motionBuffer.toString("base64")}`;
+
+  if (productDataUri.length > 940_000) {
+    throw new Error("Product asset is too large for reliable Shotstack HTML5 animation");
+  }
+
+  return {
+    productLayerBuffer,
+    productDataUri,
+    productWidth: Number(motionMetadata.width || productWidth),
+    productHeight: Number(motionMetadata.height || productHeight),
+  };
 }
 
 
@@ -13935,8 +14122,8 @@ async function createAnimatedLogoOverlay({ brandProfile, includeLogo }) {
       },
     })
       .composite([
-        { input: plate, left: 54, top: 58 },
-        { input: logoPng, left: 78, top: 75 },
+        { input: plate, left: 54, top: 190 },
+        { input: logoPng, left: 78, top: 207 },
       ])
       .png()
       .toBuffer();
@@ -14010,8 +14197,9 @@ async function createAnimatedProductVideoAssets({
     dominantColor,
   });
   const includeLogo = shouldUseLogoForRule(rule, brandProfile);
-  const [{ textOverlayBuffer, prompt }, productLayerBuffer, logoOverlayBuffer] = await Promise.all([
+  const [textOverlay, productLayer, logoOverlayBuffer] = await Promise.all([
     createAnimatedTextOverlay({
+      openai,
       rule,
       postContent,
       backgroundAsset: selection.asset,
@@ -14019,9 +14207,10 @@ async function createAnimatedProductVideoAssets({
     createAnimatedProductLayer({ sourceImageBuffer }),
     createAnimatedLogoOverlay({ brandProfile, includeLogo }),
   ]);
+  const { textOverlayBuffer, prompt, provider: textOverlayProvider } = textOverlay;
   const posterBuffer = await createAnimatedPoster({
     backgroundAsset: selection.asset,
-    productLayerBuffer,
+    productLayerBuffer: productLayer.productLayerBuffer,
     textOverlayBuffer,
     logoOverlayBuffer,
   });
@@ -14029,7 +14218,7 @@ async function createAnimatedProductVideoAssets({
   const uploadTasks = [
     uploadGeneratedImageToStorage({
       supabase,
-      imageBase64: productLayerBuffer.toString("base64"),
+      imageBase64: productLayer.productLayerBuffer.toString("base64"),
       userId,
       postId,
       fileSuffix: "animation-product-layer",
@@ -14071,12 +14260,16 @@ async function createAnimatedProductVideoAssets({
 
   return {
     backgroundVideoUrl: selection.asset.public_url,
+    productDataUri: productLayer.productDataUri,
+    productWidth: productLayer.productWidth,
+    productHeight: productLayer.productHeight,
     productUrl: productLayerUpload.imageUrl,
     textOverlayUrl: textOverlayUpload.imageUrl,
     logoOverlayUrl: logoUpload?.imageUrl || null,
     posterUrl: posterUpload.imageUrl,
     posterStoragePath: posterUpload.imageStoragePath,
     foregroundPrompt: prompt,
+    textOverlayProvider,
     backgroundAsset: selection.asset,
     backgroundSelection: {
       profile: selection.profile,
@@ -14146,7 +14339,9 @@ async function generateAnimatedProductVideo({
   });
   const edit = buildProductPushEdit({
     backgroundVideoUrl: assets.backgroundVideoUrl,
-    productUrl: assets.productUrl,
+    productDataUri: assets.productDataUri,
+    productWidth: assets.productWidth,
+    productHeight: assets.productHeight,
     textOverlayUrl: assets.textOverlayUrl,
     logoOverlayUrl: assets.logoOverlayUrl,
     durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
@@ -16219,7 +16414,7 @@ product_research_model_used: rule.uses_website_content
         } else if (wantsImage && isAnimatedVideoRule(ruleWithBrandProfile)) {
           try {
             finalImagePrompt =
-              "9:16 animated product Reel using an automatically selected uploaded MP4 background, an OpenAI-designed transparent foreground and Shotstack zoom motion.";
+              "9:16 animated product Reel using an automatically selected uploaded MP4 background, the unchanged original website product, a separate OpenAI text overlay and Shotstack HTML5 zoom motion.";
 
             const animatedVideo = await generateAnimatedProductVideo({
               openai,
