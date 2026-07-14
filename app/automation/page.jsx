@@ -259,14 +259,14 @@ const contentTypes = [
   },
   {
     id: "animated_website_item",
-    label: "Animated website product",
-    shortLabel: "Animated product",
+    label: "Animated product Reel",
+    shortLabel: "Product Reel",
     description:
-      "Pick one real website product and turn it into a short animated video with static text and subtle product movement.",
+      "Pick one real website product and turn it into a 9:16 Reel using the best matching uploaded video background.",
     prompt:
       "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website. Create a social media caption that promotes that exact item in a helpful, trustworthy and sales-focused way. The caption will be paired with a short animated product video. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
     imagePrompt:
-      "Create a short animated product video using the verified website item image. Keep the headline, price and call to action still while the product card moves subtly and naturally.",
+      "Create a premium 9:16 animated product Reel. Use an uploaded moving background selected from the Spreelo library, create the product and overlay design with OpenAI, and animate the foreground with a smooth zoom in and zoom out plus only a slight side drift. Do not add a fake button.",
     usesWebsiteContent: true,
     contentFormat: "animated_video",
     animationStyle: "product_push",

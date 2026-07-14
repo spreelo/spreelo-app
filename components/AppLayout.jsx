@@ -14,6 +14,7 @@ import {
   Settings,
   Share2,
   Sparkles,
+  Video,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -55,6 +56,13 @@ const navItems = [
     Icon: Share2,
   },
   {
+    id: "video-backgrounds",
+    labelKey: "layout.nav.videoBackgrounds",
+    href: "/video-backgrounds",
+    Icon: Video,
+    adminOnly: true,
+  },
+  {
     id: "settings",
     labelKey: "layout.nav.settings",
     href: "/settings",
@@ -92,6 +100,7 @@ export default function AppLayout({ active, children }) {
   const [loadingBrands, setLoadingBrands] = useState(true);
   const [creatingBrand, setCreatingBrand] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [canManageVideoBackgrounds, setCanManageVideoBackgrounds] = useState(false);
 
   const currentBrand = useMemo(() => {
     return (
@@ -113,12 +122,37 @@ export default function AppLayout({ active, children }) {
       }
 
       setUser(user);
-      await loadBrands(user);
+      await Promise.all([loadBrands(user), checkVideoBackgroundAccess()]);
       setCheckingSession(false);
     }
 
     checkUser();
   }, []);
+
+
+  async function checkVideoBackgroundAccess() {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        setCanManageVideoBackgrounds(false);
+        return;
+      }
+
+      const response = await fetch("/api/video-backgrounds", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      setCanManageVideoBackgrounds(Boolean(response.ok && payload?.canManage));
+    } catch {
+      setCanManageVideoBackgrounds(false);
+    }
+  }
 
   async function loadBrands(currentUser) {
     setLoadingBrands(true);
@@ -361,7 +395,9 @@ export default function AppLayout({ active, children }) {
         </div>
 
         <nav className="nav spreelo-nav">
-          {navItems.map((item) => (
+          {navItems
+            .filter((item) => !item.adminOnly || canManageVideoBackgrounds)
+            .map((item) => (
             <a
               key={item.id}
               className={active === item.id ? "active" : ""}

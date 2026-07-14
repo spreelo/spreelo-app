@@ -19,6 +19,10 @@ import {
   queueShotstackRender,
   waitForShotstackRender,
 } from "../../../../lib/shotstack.js";
+import {
+  buildVideoBackgroundProfile,
+  chooseVideoBackground,
+} from "../../../../lib/videoBackgroundSelection.js";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -80,6 +84,8 @@ const PRODUCT_RESEARCH_MODEL = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
 const PRODUCT_RESEARCH_FAST_MODEL =
   process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL;
 const IMAGE_MODEL = "gpt-image-2";
+const ANIMATED_OVERLAY_IMAGE_MODEL =
+  process.env.ANIMATED_OVERLAY_IMAGE_MODEL || "gpt-image-1.5";
 const INSTAGRAM_GRAPH_API_VERSION =
   process.env.INSTAGRAM_GRAPH_API_VERSION || "v21.0";
 const FACEBOOK_GRAPH_API_VERSION =
@@ -13521,155 +13527,337 @@ async function getProductAccentColor(imageBuffer) {
   };
 }
 
-function getAnimatedVideoCta(rule) {
-  const raw = String(rule?.cta_type || "Shop now")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return truncateText(raw || "Shop now", 30).toUpperCase();
+function getAnimatedProductBrightness(dominant) {
+  const brightness = ((Number(dominant?.r) || 0) + (Number(dominant?.g) || 0) + (Number(dominant?.b) || 0)) / 3;
+  if (brightness >= 178) return "light";
+  if (brightness <= 82) return "dark";
+  return "medium";
 }
 
-async function createAnimatedProductVideoAssets({
+async function selectAnimatedVideoBackground({
   supabase,
   rule,
-  userId,
-  postId,
+  dominantColor,
 }) {
-  const websiteItem = rule?.website_item || {};
-  const sourceImageUrl = websiteItem?.image_url;
+  const { data: assets, error: assetsError } = await supabase
+    .from("video_background_assets")
+    .select(
+      "id, name, storage_path, public_url, poster_storage_path, poster_url, family, moods, industries, campaigns, colors, brightness, energy, season, text_safe, logo_safe, crop_safe_916, active, is_fallback, priority, duration_seconds, times_used"
+    )
+    .eq("active", true)
+    .eq("crop_safe_916", true);
 
-  if (!sourceImageUrl) {
-    throw new Error("Animated product video requires a verified website product image");
+  if (assetsError) {
+    throw new Error(
+      `Could not load the video background library. Run supabase/video_background_library.sql first. ${assetsError.message}`
+    );
   }
 
-  const sourceImageBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
-  const dominant = await getProductAccentColor(sourceImageBuffer);
-  const baseColor = mixRgb(dominant, { r: 15, g: 23, b: 42 }, 0.7);
-  const accentColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.18);
-  const glowColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.52);
-  const deepColor = mixRgb(baseColor, { r: 0, g: 0, b: 0 }, 0.34);
-  const ctaColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.12);
-  const brandName = truncateText(
-    rule?.brand_profile?.business_name || "Featured product",
-    42
-  );
+  if (!assets?.length) {
+    throw new Error(
+      "No active 9:16 background is available. Upload at least one background in Video backgrounds before creating an animated product Reel."
+    );
+  }
+
+  const { data: recentUsage, error: recentError } = await supabase
+    .from("posts")
+    .select("video_background_asset_id, video_background_family, created_at")
+    .eq("brand_profile_id", rule?.brand_profile?.id || rule?.brand_profile_id)
+    .not("video_background_asset_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  if (recentError) {
+    console.warn("Could not load recent background usage", {
+      brandProfileId: rule?.brand_profile?.id || rule?.brand_profile_id || null,
+      message: recentError.message,
+    });
+  }
+
+  const profile = buildVideoBackgroundProfile({
+    rule,
+    dominantColor,
+    productBrightness: getAnimatedProductBrightness(dominantColor),
+  });
+  const selected = chooseVideoBackground({
+    assets,
+    profile,
+    recentUsage: recentUsage || [],
+  });
+
+  if (!selected?.asset) {
+    throw new Error("Spreelo could not select a suitable active video background.");
+  }
+
+  return {
+    asset: selected.asset,
+    profile,
+    score: selected.score,
+    usedFallback: selected.usedFallback,
+    reasons: selected.reasons,
+    topCandidates: (selected.ranked || []).slice(0, 5).map((candidate) => ({
+      id: candidate.asset?.id,
+      name: candidate.asset?.name,
+      family: candidate.asset?.family,
+      score: candidate.score,
+    })),
+  };
+}
+
+function buildAnimatedForegroundPrompt({ rule, postContent, backgroundAsset }) {
+  const websiteItem = rule?.website_item || {};
+  const brand = rule?.brand_profile || {};
   const title = truncateText(
-    websiteItem?.title || rule?.content_type_label || "Worth a closer look",
+    websiteItem?.title || rule?.content_type_label || "Featured product",
     110
   );
-  const titleLines = splitTextIntoLines(title, 24, 3);
   const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
-  const cta = getAnimatedVideoCta(rule);
+  const backgroundDescription = [
+    backgroundAsset?.family,
+    ...(backgroundAsset?.moods || []),
+    ...(backgroundAsset?.colors || []),
+    backgroundAsset?.brightness,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
-  const titleSpans = titleLines
-    .map(
-      (line, index) =>
-        `<tspan x="88" dy="${index === 0 ? 0 : 80}">${escapeSvg(line)}</tspan>`
-    )
-    .join("");
-  const priceMarkup = price
-    ? `
-      <rect x="824" y="72" width="170" height="62" rx="31" fill="#ffffff" opacity="0.14"/>
-      <text x="909" y="114" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="32" font-weight="700" fill="#ffffff">${escapeSvg(price)}</text>
-    `
-    : "";
+  return `
+Create a transparent 9:16 foreground composition for a short premium product Reel.
 
-  const backgroundSvg = Buffer.from(`
-    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="1080" y2="1350" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="${rgbToHex(accentColor)}"/>
-          <stop offset="0.38" stop-color="${rgbToHex(baseColor)}"/>
-          <stop offset="1" stop-color="${rgbToHex(deepColor)}"/>
-        </linearGradient>
-        <radialGradient id="topGlow" cx="18%" cy="16%" r="58%">
-          <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
-          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-        </radialGradient>
-        <radialGradient id="productGlow" cx="50%" cy="58%" r="42%">
-          <stop offset="0" stop-color="${rgbToHex(glowColor)}" stop-opacity="0.42"/>
-          <stop offset="1" stop-color="${rgbToHex(glowColor)}" stop-opacity="0"/>
-        </radialGradient>
-        <filter id="blur"><feGaussianBlur stdDeviation="42"/></filter>
-      </defs>
-      <rect width="1080" height="1350" fill="url(#bg)"/>
-      <rect width="1080" height="1350" fill="url(#topGlow)"/>
-      <circle cx="840" cy="770" r="328" fill="url(#productGlow)" opacity="0.34"/>
-      <circle cx="134" cy="1046" r="250" fill="#ffffff" opacity="0.05" filter="url(#blur)"/>
-      <path d="M0 864 C204 770 415 806 646 744 C852 688 988 580 1080 602 L1080 1350 L0 1350 Z" fill="#000000" opacity="0.18"/>
-      <text x="88" y="114" font-family="DejaVu Sans, sans-serif" font-size="30" font-weight="700" letter-spacing="4" fill="#ffffff" opacity="0.82">${escapeSvg(brandName.toUpperCase())}</text>
-      ${priceMarkup}
-      <text x="88" y="204" font-family="DejaVu Sans, sans-serif" font-size="68" font-weight="800" fill="#ffffff">${titleSpans}</text>
-      <rect x="352" y="1190" width="376" height="92" rx="46" fill="${rgbToHex(ctaColor)}" opacity="0.96" stroke="#ffffff" stroke-opacity="0.18" stroke-width="2"/>
-      <text x="540" y="1251" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="34" font-weight="800" letter-spacing="1" fill="#ffffff">${escapeSvg(cta)}</text>
-    </svg>
-  `);
+Use the supplied product photo as the exact product reference.
 
-  const backgroundBuffer = await sharp(backgroundSvg).png().toBuffer();
-  const productImage = await sharp(sourceImageBuffer)
+Exact product name to display:
+"${title}"
+
+${price ? `Exact verified price to display:
+"${price}"` : "Do not display a price."}
+
+Brand:
+${brand?.business_name || "Not provided"}
+
+The moving video background behind this transparent foreground is:
+${backgroundDescription || "a premium neutral moving background"}
+
+Post context:
+${truncateText(postContent || rule?.prompt || "", 900)}
+
+Rules:
+- Output must have a genuinely transparent background. Do not create a wall, studio, gradient, scenery, floor, backdrop or full-frame color.
+- Preserve the exact product identity, shape, colors, visible design, packaging and printed details from the supplied image.
+- Do not redesign, recolor or replace the product.
+- Place the product large and clearly visible around the center of the portrait canvas.
+- Add tasteful professional advertising typography as part of this transparent foreground.
+- Use the exact product name written above. Do not rename it.
+- Place the product name near the lower part of the composition with strong mobile readability.
+- ${price ? "Include the exact verified price near the product name." : "Do not invent or display a price."}
+- Do not add a call-to-action button, fake UI button, rating, discount, urgency, delivery promise or unsupported claim.
+- Do not add a logo; Spreelo adds the customer's real logo separately.
+- Keep the design clean, spacious and premium. Use only subtle decorative accents that work over the described moving background.
+- Do not add a watermark.
+- Leave transparent breathing room around the outer edges.
+
+Output only the transparent PNG foreground.
+`.trim();
+}
+
+async function generateAnimatedForeground({
+  openai,
+  rule,
+  postContent,
+  sourceImageBuffer,
+  backgroundAsset,
+}) {
+  const normalizedReference = await sharp(sourceImageBuffer)
     .rotate()
-    .trim({ background: "#ffffff", threshold: 18 })
     .resize({
-      width: 760,
-      height: 720,
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      width: 1536,
+      height: 1536,
+      fit: "inside",
       withoutEnlargement: true,
     })
     .png()
     .toBuffer();
+  const referenceFile = await toFile(normalizedReference, "animated-product-reference.png", {
+    type: "image/png",
+  });
+  const prompt = buildAnimatedForegroundPrompt({ rule, postContent, backgroundAsset });
+  const response = await openai.images.edit({
+    model: ANIMATED_OVERLAY_IMAGE_MODEL,
+    image: referenceFile,
+    prompt,
+    size: "1024x1536",
+    quality: "medium",
+    background: "transparent",
+    output_format: "png",
+    input_fidelity: "high",
+  });
+  const imageBase64 = response?.data?.[0]?.b64_json;
 
-  const productLayerSvg = Buffer.from(`
-    <svg width="900" height="860" viewBox="0 0 900 860" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <filter id="shadowBlur" x="-100%" y="-100%" width="300%" height="300%">
-          <feGaussianBlur stdDeviation="22"/>
-        </filter>
-      </defs>
-      <ellipse cx="450" cy="748" rx="210" ry="44" fill="#000000" opacity="0.22" filter="url(#shadowBlur)"/>
-      <ellipse cx="450" cy="736" rx="162" ry="24" fill="#000000" opacity="0.14"/>
-    </svg>
-  `);
+  if (!imageBase64) {
+    throw new Error("OpenAI returned no transparent animated-product foreground.");
+  }
 
-  const productLayerBuffer = await sharp({
+  const generatedBuffer = Buffer.from(imageBase64, "base64");
+  const foregroundBuffer = await sharp({
     create: {
-      width: 900,
-      height: 860,
+      width: 1080,
+      height: 1920,
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
   })
     .composite([
-      { input: productLayerSvg, left: 0, top: 0 },
-      { input: productImage, left: 70, top: 42 },
+      {
+        input: await sharp(generatedBuffer)
+          .rotate()
+          .resize({
+            width: 1040,
+            height: 1740,
+            fit: "contain",
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          })
+          .png()
+          .toBuffer(),
+        left: 20,
+        top: 90,
+      },
     ])
     .png()
     .toBuffer();
 
-  const posterProductLayerBuffer = await sharp(productLayerBuffer)
-    .resize({ width: 920, height: 878, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .png()
-    .toBuffer();
-  const posterBuffer = await sharp(backgroundBuffer)
-    .composite([{ input: posterProductLayerBuffer, left: 80, top: 288 }])
-    .png()
-    .toBuffer();
+  return { foregroundBuffer, prompt };
+}
 
-  const [backgroundUpload, productLayerUpload, posterUpload] = await Promise.all([
-    uploadGeneratedImageToStorage({
-      supabase,
-      imageBase64: backgroundBuffer.toString("base64"),
-      userId,
-      postId,
-      fileSuffix: "animation-background",
+async function createAnimatedLogoOverlay({ brandProfile, includeLogo }) {
+  if (!includeLogo || !brandProfile?.logo_url) return null;
+
+  try {
+    const logoBuffer = await fetchImageBufferForOverlay(brandProfile.logo_url);
+    const logoPng = await sharp(logoBuffer)
+      .rotate()
+      .trim({ threshold: 10 })
+      .resize({
+        width: 220,
+        height: 100,
+        fit: "inside",
+        withoutEnlargement: true,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png()
+      .toBuffer();
+    const metadata = await sharp(logoPng).metadata();
+    const logoWidth = Number(metadata.width || 220);
+    const logoHeight = Number(metadata.height || 100);
+    const plateWidth = Math.max(logoWidth + 48, 150);
+    const plateHeight = Math.max(logoHeight + 34, 74);
+    const plate = Buffer.from(`
+      <svg width="${plateWidth}" height="${plateHeight}" xmlns="http://www.w3.org/2000/svg">
+        <rect width="${plateWidth}" height="${plateHeight}" rx="24" fill="#ffffff" opacity="0.82"/>
+      </svg>
+    `);
+    return sharp({
+      create: {
+        width: 1080,
+        height: 1920,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .composite([
+        { input: plate, left: 54, top: 58 },
+        { input: logoPng, left: 78, top: 75 },
+      ])
+      .png()
+      .toBuffer();
+  } catch (error) {
+    console.warn("Animated Reel logo overlay skipped", {
+      brandProfileId: brandProfile?.id || null,
+      message: error.message,
+    });
+    return null;
+  }
+}
+
+async function createAnimatedPoster({
+  backgroundAsset,
+  foregroundBuffer,
+  logoOverlayBuffer,
+}) {
+  let baseBuffer = null;
+
+  if (backgroundAsset?.poster_url) {
+    try {
+      baseBuffer = await fetchImageBufferForOverlay(backgroundAsset.poster_url);
+    } catch (error) {
+      console.warn("Could not fetch video background poster", {
+        backgroundAssetId: backgroundAsset?.id,
+        message: error.message,
+      });
+    }
+  }
+
+  const base = baseBuffer
+    ? sharp(baseBuffer).rotate().resize({ width: 1080, height: 1920, fit: "cover" })
+    : sharp({
+        create: {
+          width: 1080,
+          height: 1920,
+          channels: 4,
+          background: { r: 24, g: 26, b: 32, alpha: 1 },
+        },
+      });
+  const composites = [{ input: foregroundBuffer, left: 0, top: 0 }];
+  if (logoOverlayBuffer) composites.push({ input: logoOverlayBuffer, left: 0, top: 0 });
+  return base.composite(composites).jpeg({ quality: 90 }).toBuffer();
+}
+
+async function createAnimatedProductVideoAssets({
+  openai,
+  supabase,
+  rule,
+  postContent,
+  userId,
+  postId,
+}) {
+  const websiteItem = rule?.website_item || {};
+  const brandProfile = rule?.brand_profile || {};
+  const sourceImageUrl = websiteItem?.image_url;
+
+  if (!sourceImageUrl) {
+    throw new Error("Animated product Reel requires a verified website product image");
+  }
+
+  const sourceImageBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
+  const dominantColor = await getProductAccentColor(sourceImageBuffer);
+  const selection = await selectAnimatedVideoBackground({
+    supabase,
+    rule,
+    dominantColor,
+  });
+  const includeLogo = shouldUseLogoForRule(rule, brandProfile);
+  const [{ foregroundBuffer, prompt }, logoOverlayBuffer] = await Promise.all([
+    generateAnimatedForeground({
+      openai,
+      rule,
+      postContent,
+      sourceImageBuffer,
+      backgroundAsset: selection.asset,
     }),
+    createAnimatedLogoOverlay({ brandProfile, includeLogo }),
+  ]);
+  const posterBuffer = await createAnimatedPoster({
+    backgroundAsset: selection.asset,
+    foregroundBuffer,
+    logoOverlayBuffer,
+  });
+
+  const uploadTasks = [
     uploadGeneratedImageToStorage({
       supabase,
-      imageBase64: productLayerBuffer.toString("base64"),
+      imageBase64: foregroundBuffer.toString("base64"),
       userId,
       postId,
-      fileSuffix: "animation-product-layer",
+      fileSuffix: "animation-foreground",
     }),
     uploadGeneratedImageToStorage({
       supabase,
@@ -13678,17 +13866,41 @@ async function createAnimatedProductVideoAssets({
       postId,
       fileSuffix: "animation-poster",
     }),
-  ]);
+  ];
 
-  if (!backgroundUpload.imageUrl || !productLayerUpload.imageUrl || !posterUpload.imageUrl) {
-    throw new Error("Could not create public animation asset URLs");
+  if (logoOverlayBuffer) {
+    uploadTasks.push(
+      uploadGeneratedImageToStorage({
+        supabase,
+        imageBase64: logoOverlayBuffer.toString("base64"),
+        userId,
+        postId,
+        fileSuffix: "animation-logo-overlay",
+      })
+    );
+  }
+
+  const [foregroundUpload, posterUpload, logoUpload = null] = await Promise.all(uploadTasks);
+
+  if (!foregroundUpload.imageUrl || !posterUpload.imageUrl) {
+    throw new Error("Could not create public animated Reel asset URLs");
   }
 
   return {
-    backgroundUrl: backgroundUpload.imageUrl,
-    productLayerUrl: productLayerUpload.imageUrl,
+    backgroundVideoUrl: selection.asset.public_url,
+    foregroundUrl: foregroundUpload.imageUrl,
+    logoOverlayUrl: logoUpload?.imageUrl || null,
     posterUrl: posterUpload.imageUrl,
     posterStoragePath: posterUpload.imageStoragePath,
+    foregroundPrompt: prompt,
+    backgroundAsset: selection.asset,
+    backgroundSelection: {
+      profile: selection.profile,
+      score: selection.score,
+      used_fallback: selection.usedFallback,
+      reasons: selection.reasons,
+      top_candidates: selection.topCandidates,
+    },
   };
 }
 
@@ -13733,20 +13945,25 @@ async function uploadRenderedVideoToStorage({
 }
 
 async function generateAnimatedProductVideo({
+  openai,
   supabase,
   rule,
+  postContent,
   userId,
   postId,
 }) {
   const assets = await createAnimatedProductVideoAssets({
+    openai,
     supabase,
     rule,
+    postContent,
     userId,
     postId,
   });
   const edit = buildProductPushEdit({
-    backgroundUrl: assets.backgroundUrl,
-    productLayerUrl: assets.productLayerUrl,
+    backgroundVideoUrl: assets.backgroundVideoUrl,
+    foregroundUrl: assets.foregroundUrl,
+    logoOverlayUrl: assets.logoOverlayUrl,
     durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
   });
   const renderId = await queueShotstackRender(edit);
@@ -13756,6 +13973,9 @@ async function generateAnimatedProductVideo({
     .update({
       video_render_id: renderId,
       video_status: "rendering",
+      video_background_asset_id: assets.backgroundAsset.id,
+      video_background_family: assets.backgroundAsset.family,
+      video_background_selection: assets.backgroundSelection,
       updated_at: new Date().toISOString(),
     })
     .eq("id", postId);
@@ -13767,6 +13987,15 @@ async function generateAnimatedProductVideo({
     userId,
     postId,
   });
+
+  await supabase
+    .from("video_background_assets")
+    .update({
+      times_used: Number(assets.backgroundAsset.times_used || 0) + 1,
+      last_used_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", assets.backgroundAsset.id);
 
   return {
     ...assets,
@@ -14105,30 +14334,68 @@ async function publishVideoPostToFacebook({
   videoUrl,
   caption,
 }) {
-  const response = await fetch(
-    `https://graph.facebook.com/${FACEBOOK_GRAPH_API_VERSION}/${pageId}/videos`,
+  const startResponse = await fetch(
+    `https://graph.facebook.com/${FACEBOOK_GRAPH_API_VERSION}/${pageId}/video_reels`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        file_url: videoUrl,
+        upload_phase: "start",
+        access_token: pageAccessToken,
+      }),
+    }
+  );
+  const startResult = await startResponse.json();
+  const videoId = startResult?.video_id;
+  const uploadUrl = startResult?.upload_url;
+
+  if (!startResponse.ok || !videoId || !uploadUrl) {
+    throw new Error(
+      getMetaErrorMessage(startResult, "Facebook Reel upload could not be started")
+    );
+  }
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `OAuth ${pageAccessToken}`,
+      file_url: videoUrl,
+    },
+  });
+  const uploadResult = await uploadResponse.json();
+
+  if (!uploadResponse.ok || uploadResult?.success !== true) {
+    throw new Error(
+      getMetaErrorMessage(uploadResult, "Facebook Reel video upload failed")
+    );
+  }
+
+  const finishResponse = await fetch(
+    `https://graph.facebook.com/${FACEBOOK_GRAPH_API_VERSION}/${pageId}/video_reels`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        upload_phase: "finish",
+        video_id: videoId,
+        video_state: "PUBLISHED",
         description: caption,
         access_token: pageAccessToken,
       }),
     }
   );
+  const finishResult = await finishResponse.json();
 
-  const result = await response.json();
-
-  if (!response.ok || !result?.id) {
+  if (!finishResponse.ok || finishResult?.success !== true) {
     throw new Error(
-      getMetaErrorMessage(result, "Facebook video publishing failed")
+      getMetaErrorMessage(finishResult, "Facebook Reel publishing failed")
     );
   }
 
-  return result;
+  return {
+    id: videoId,
+    success: true,
+  };
 }
 
 function getPublishTargets(platformValue) {
@@ -14418,7 +14685,7 @@ async function publishVideoPostToInstagram({
         media_type: "REELS",
         video_url: videoUrl,
         caption,
-        share_to_feed: true,
+        share_to_feed: false,
         access_token: accessToken,
       }),
     }
@@ -15657,8 +15924,10 @@ scheduled_for: nowIso,
               : null,
     text_model_used: POST_TEXT_MODEL,
 image_model_used:
-  wantsImage && rule.image_source !== "uploaded" && !isAnimatedVideoRule(rule)
-    ? IMAGE_MODEL
+  wantsImage && rule.image_source !== "uploaded"
+    ? isAnimatedVideoRule(rule)
+      ? ANIMATED_OVERLAY_IMAGE_MODEL
+      : IMAGE_MODEL
     : null,
 include_logo: shouldUseLogoForRule(rule, brandProfile),
 logo_url: shouldUseLogoForRule(rule, brandProfile) ? brandProfile?.logo_url || null : null,
@@ -15765,11 +16034,13 @@ product_research_model_used: rule.uses_website_content
         } else if (wantsImage && isAnimatedVideoRule(ruleWithBrandProfile)) {
           try {
             finalImagePrompt =
-              "Animated website product video rendered with Shotstack using a static branded background, fixed overlay text and a separately animated product layer.";
+              "9:16 animated product Reel using an automatically selected uploaded MP4 background, an OpenAI-designed transparent foreground and Shotstack zoom motion.";
 
             const animatedVideo = await generateAnimatedProductVideo({
+              openai,
               supabase,
               rule: ruleWithBrandProfile,
+              postContent: generatedContent,
               userId: rule.user_id,
               postId: post.id,
             });
@@ -15794,8 +16065,13 @@ product_research_model_used: rule.uses_website_content
                 video_provider: "shotstack",
                 video_duration_seconds: ANIMATED_VIDEO_DURATION_SECONDS,
                 video_error: null,
-                include_logo: false,
-                logo_url: null,
+                include_logo: shouldUseLogoForRule(rule, brandProfile),
+                logo_url: shouldUseLogoForRule(rule, brandProfile)
+                  ? brandProfile?.logo_url || null
+                  : null,
+                video_background_asset_id: animatedVideo.backgroundAsset?.id || null,
+                video_background_family: animatedVideo.backgroundAsset?.family || null,
+                video_background_selection: animatedVideo.backgroundSelection || null,
                 updated_at: nowIso,
               })
               .eq("id", post.id);
@@ -15821,8 +16097,8 @@ product_research_model_used: rule.uses_website_content
 
             await Promise.allSettled([
               supabase.storage.from("post-images").remove([
-                `${rule.user_id}/${post.id}-animation-background.png`,
-                `${rule.user_id}/${post.id}-animation-product-card.png`,
+                `${rule.user_id}/${post.id}-animation-foreground.png`,
+                `${rule.user_id}/${post.id}-animation-logo-overlay.png`,
                 `${rule.user_id}/${post.id}-animation-poster.png`,
               ]),
               supabase.storage
