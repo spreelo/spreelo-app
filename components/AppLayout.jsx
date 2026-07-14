@@ -13,8 +13,8 @@ import {
   Plus,
   Settings,
   Share2,
+  ShieldCheck,
   Sparkles,
-  Video,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -56,10 +56,10 @@ const navItems = [
     Icon: Share2,
   },
   {
-    id: "video-backgrounds",
-    labelKey: "layout.nav.videoBackgrounds",
-    href: "/video-backgrounds",
-    Icon: Video,
+    id: "admin",
+    labelKey: "layout.nav.admin",
+    href: "/admin",
+    Icon: ShieldCheck,
     adminOnly: true,
   },
   {
@@ -100,7 +100,7 @@ export default function AppLayout({ active, children }) {
   const [loadingBrands, setLoadingBrands] = useState(true);
   const [creatingBrand, setCreatingBrand] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [canManageVideoBackgrounds, setCanManageVideoBackgrounds] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const currentBrand = useMemo(() => {
     return (
@@ -122,7 +122,7 @@ export default function AppLayout({ active, children }) {
       }
 
       setUser(user);
-      await Promise.all([loadBrands(user), checkVideoBackgroundAccess()]);
+      await Promise.all([loadBrands(user), checkAdminAccess()]);
       setCheckingSession(false);
     }
 
@@ -130,27 +130,27 @@ export default function AppLayout({ active, children }) {
   }, []);
 
 
-  async function checkVideoBackgroundAccess() {
+  async function checkAdminAccess() {
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!session?.access_token) {
-        setCanManageVideoBackgrounds(false);
+        setIsAdmin(false);
         return;
       }
 
-      const response = await fetch("/api/video-backgrounds", {
+      const response = await fetch("/api/admin/me", {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
 
       const payload = await response.json().catch(() => ({}));
-      setCanManageVideoBackgrounds(Boolean(response.ok && payload?.canManage));
+      setIsAdmin(Boolean(response.ok && payload?.isAdmin));
     } catch {
-      setCanManageVideoBackgrounds(false);
+      setIsAdmin(false);
     }
   }
 
@@ -396,7 +396,7 @@ export default function AppLayout({ active, children }) {
 
         <nav className="nav spreelo-nav">
           {navItems
-            .filter((item) => !item.adminOnly || canManageVideoBackgrounds)
+            .filter((item) => !item.adminOnly || isAdmin)
             .map((item) => (
             <a
               key={item.id}

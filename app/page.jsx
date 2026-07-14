@@ -7,6 +7,7 @@ import { useUiText } from "../lib/i18n/useUiText";
 
 const PENDING_PREVIEW_LIMIT = 3;
 const CONTENT_PLANS_PREVIEW_LIMIT = 3;
+const POST_IMAGES_BUCKET = "post-images";
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
@@ -664,20 +665,58 @@ export default function Home() {
     setContentPlanActionLoading(true);
     setMessage("");
 
-    const { error } = await supabase
-      .from("automation_rules")
-      .delete()
-      .eq("brand_profile_id", currentBrandId)
-      .in("id", ids);
+    const { data: releaseResult, error } = await supabase.rpc(
+      "release_and_delete_automation_rules",
+      { p_rule_ids: ids }
+    );
 
     if (error) {
       setMessage(error.message || t("dashboard.errorDeleteContentPlans"));
     } else {
+      const releasedRules = Array.isArray(releaseResult?.rules)
+        ? releaseResult.rules
+        : [];
+      const uploadedImagePaths = releasedRules
+        .map((rule) => rule.uploaded_image_storage_path)
+        .filter(Boolean);
+
+      if (uploadedImagePaths.length) {
+        const { error: storageDeleteError } = await supabase.storage
+          .from(POST_IMAGES_BUCKET)
+          .remove(Array.from(new Set(uploadedImagePaths)));
+
+        if (storageDeleteError) {
+          console.warn("Could not remove uploaded content-plan images", {
+            message: storageDeleteError.message,
+            ruleIds: ids,
+          });
+        }
+      }
+
+      const releasedCredits = Number(releaseResult?.released_credits || 0);
+      if (releasedCredits > 0) {
+        setCreditBalance((current) =>
+          current
+            ? {
+                ...current,
+                credits_remaining:
+                  Number(current.credits_remaining || 0) + releasedCredits,
+              }
+            : current
+        );
+      }
+
       setRules((current) => current.filter((rule) => !ids.includes(rule.id)));
       setSelectedContentPlanIds((current) =>
         current.filter((ruleId) => !ids.includes(ruleId))
       );
-      setMessage(t("dashboard.deletedContentPlans", { count: ids.length }));
+      setMessage(
+        `${t("dashboard.deletedContentPlans", { count: ids.length })}${
+          releasedCredits > 0
+            ? ` ${releasedCredits} reserved credit${releasedCredits === 1 ? " was" : "s were"} returned.`
+            : ""
+        }`
+      );
     }
 
     setContentPlanActionLoading(false);

@@ -1180,11 +1180,18 @@ export default function BrandProfile() {
         brandProfileId
       );
 
-      await deleteUserRowsByColumn(
-        "automation_rules",
-        "brand_profile_id",
-        brandProfileId
-      );
+      if (ruleIds.length > 0) {
+        const { error: releaseRulesError } = await supabase.rpc(
+          "release_and_delete_automation_rules",
+          { p_rule_ids: ruleIds }
+        );
+
+        if (releaseRulesError) {
+          throw new Error(
+            `automation_rules: ${releaseRulesError.message || "Could not release reserved credits before deleting the brand"}`
+          );
+        }
+      }
 
       await deleteUserRowsByColumn("posts", "brand_profile_id", brandProfileId);
 

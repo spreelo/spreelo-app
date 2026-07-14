@@ -311,7 +311,7 @@ export default function VideoBackgroundsPage() {
   }
 
   return (
-    <AppLayout active="video-backgrounds">
+    <AppLayout active="admin">
       <div className="video-background-page">
         <section className="video-background-hero">
           <div>
