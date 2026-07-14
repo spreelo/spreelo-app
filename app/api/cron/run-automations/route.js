@@ -13530,6 +13530,244 @@ function getAnimatedVideoCta(rule) {
   return truncateText(raw || "Shop now", 30).toUpperCase();
 }
 
+function getAnimatedVideoVisualStyle(rule, dominant) {
+  const websiteItem = rule?.website_item || {};
+  const context = [
+    websiteItem?.title,
+    websiteItem?.description,
+    rule?.brand_profile?.industry,
+    rule?.brand_profile?.brand_description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (websiteTextContainsAny(context, [
+    "beauty", "skincare", "serum", "cosmetic", "perfume", "parfum",
+    "jewelry", "jewellery", "smycke", "watch", "luxury", "premium",
+  ])) {
+    return {
+      name: "soft_luxury",
+      baseColor: mixRgb(dominant, { r: 24, g: 20, b: 38 }, 0.68),
+      accentColor: mixRgb(dominant, { r: 255, g: 245, b: 238 }, 0.28),
+      deepColor: mixRgb(dominant, { r: 10, g: 8, b: 22 }, 0.82),
+      highlightColor: mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.58),
+      backdropMarkup: `
+        <path d="M-90 520 C190 300 438 340 674 205 C846 106 1010 78 1170 132" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="92"/>
+        <path d="M-80 934 C218 770 478 824 716 680 C886 576 1004 512 1164 530" fill="none" stroke="#ffffff" stroke-opacity="0.055" stroke-width="128"/>
+      `,
+      ambientMarkup: `
+        <ellipse cx="790" cy="530" rx="338" ry="226" fill="url(#ambientGlow)" opacity="0.58"/>
+        <path d="M80 900 C290 724 480 828 690 690 C834 596 972 570 1110 620" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="64" filter="url(#ambientBlur)"/>
+      `,
+    };
+  }
+
+  if (websiteTextContainsAny(context, [
+    "food", "drink", "beverage", "snack", "chips", "candy", "godis",
+    "coffee", "kaffe", "tea", "restaurant", "bakery", "chocolate",
+  ])) {
+    return {
+      name: "vibrant_product",
+      baseColor: mixRgb(dominant, { r: 25, g: 24, b: 38 }, 0.5),
+      accentColor: mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.18),
+      deepColor: mixRgb(dominant, { r: 12, g: 10, b: 20 }, 0.72),
+      highlightColor: mixRgb(dominant, { r: 255, g: 236, b: 194 }, 0.48),
+      backdropMarkup: `
+        <circle cx="954" cy="294" r="232" fill="#ffffff" opacity="0.055"/>
+        <circle cx="122" cy="834" r="178" fill="#ffffff" opacity="0.04"/>
+        <circle cx="890" cy="930" r="92" fill="#ffffff" opacity="0.035"/>
+      `,
+      ambientMarkup: `
+        <circle cx="820" cy="470" r="230" fill="url(#ambientGlow)" opacity="0.62"/>
+        <circle cx="234" cy="854" r="152" fill="url(#ambientGlow)" opacity="0.36"/>
+        <circle cx="952" cy="952" r="96" fill="#ffffff" opacity="0.10" filter="url(#ambientBlur)"/>
+      `,
+    };
+  }
+
+  if (websiteTextContainsAny(context, [
+    "t-shirt", "shirt", "hoodie", "sweatshirt", "fashion", "clothing",
+    "apparel", "kläder", "tröja", "dress", "klänning", "shoe", "sneaker",
+  ])) {
+    return {
+      name: "editorial_fashion",
+      baseColor: mixRgb(dominant, { r: 18, g: 25, b: 38 }, 0.7),
+      accentColor: mixRgb(dominant, { r: 242, g: 244, b: 238 }, 0.22),
+      deepColor: mixRgb(dominant, { r: 8, g: 12, b: 20 }, 0.82),
+      highlightColor: mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.5),
+      backdropMarkup: `
+        <path d="M-120 790 C180 642 448 720 688 606 C866 522 1000 454 1176 486 L1176 1420 L-120 1420 Z" fill="#000000" opacity="0.16"/>
+        <path d="M102 0 L554 0 L194 1350 L-258 1350 Z" fill="#ffffff" opacity="0.045"/>
+      `,
+      ambientMarkup: `
+        <ellipse cx="705" cy="590" rx="348" ry="272" fill="url(#ambientGlow)" opacity="0.52"/>
+        <path d="M90 854 C320 730 504 806 742 650 C872 566 1006 530 1144 566" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="84" filter="url(#ambientBlur)"/>
+      `,
+    };
+  }
+
+  if (websiteTextContainsAny(context, [
+    "technology", "tech", "software", "electronics", "phone", "computer",
+    "gaming", "device", "gadget",
+  ])) {
+    return {
+      name: "modern_tech",
+      baseColor: mixRgb(dominant, { r: 10, g: 24, b: 46 }, 0.7),
+      accentColor: mixRgb(dominant, { r: 192, g: 229, b: 255 }, 0.28),
+      deepColor: mixRgb(dominant, { r: 3, g: 10, b: 24 }, 0.86),
+      highlightColor: mixRgb(dominant, { r: 184, g: 235, b: 255 }, 0.56),
+      backdropMarkup: `
+        <path d="M74 450 H1006" stroke="#ffffff" stroke-opacity="0.035" stroke-width="2"/>
+        <path d="M74 690 H1006" stroke="#ffffff" stroke-opacity="0.035" stroke-width="2"/>
+        <path d="M300 160 V1080" stroke="#ffffff" stroke-opacity="0.03" stroke-width="2"/>
+        <path d="M780 160 V1080" stroke="#ffffff" stroke-opacity="0.03" stroke-width="2"/>
+      `,
+      ambientMarkup: `
+        <ellipse cx="720" cy="560" rx="356" ry="260" fill="url(#ambientGlow)" opacity="0.54"/>
+        <rect x="174" y="680" width="620" height="180" rx="90" fill="#ffffff" opacity="0.055" filter="url(#ambientBlur)" transform="rotate(-12 174 680)"/>
+      `,
+    };
+  }
+
+  return {
+    name: "premium_layered",
+    baseColor: mixRgb(dominant, { r: 15, g: 23, b: 42 }, 0.7),
+    accentColor: mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.2),
+    deepColor: mixRgb(dominant, { r: 0, g: 0, b: 0 }, 0.72),
+    highlightColor: mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.5),
+    backdropMarkup: `
+      <path d="M-80 872 C190 718 430 798 662 678 C844 584 988 530 1160 552 L1160 1420 L-80 1420 Z" fill="#000000" opacity="0.17"/>
+      <circle cx="946" cy="240" r="260" fill="#ffffff" opacity="0.04"/>
+    `,
+    ambientMarkup: `
+      <ellipse cx="748" cy="558" rx="352" ry="266" fill="url(#ambientGlow)" opacity="0.54"/>
+      <ellipse cx="206" cy="902" rx="204" ry="154" fill="url(#ambientGlow)" opacity="0.28"/>
+    `,
+  };
+}
+
+async function removeEdgeConnectedBackground(imageBuffer) {
+  const normalized = sharp(imageBuffer)
+    .rotate()
+    .resize({
+      width: 1200,
+      height: 1200,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .ensureAlpha();
+  const { data, info } = await normalized.raw().toBuffer({ resolveWithObject: true });
+  const width = Number(info.width || 0);
+  const height = Number(info.height || 0);
+  const channels = Number(info.channels || 4);
+
+  if (!width || !height || channels < 4) {
+    return sharp(imageBuffer).rotate().png().toBuffer();
+  }
+
+  const samplePoints = [
+    [0, 0],
+    [width - 1, 0],
+    [0, height - 1],
+    [width - 1, height - 1],
+    [Math.floor(width / 2), 0],
+    [Math.floor(width / 2), height - 1],
+    [0, Math.floor(height / 2)],
+    [width - 1, Math.floor(height / 2)],
+  ];
+  const visibleSamples = samplePoints
+    .map(([x, y]) => {
+      const index = (y * width + x) * channels;
+      return {
+        r: data[index],
+        g: data[index + 1],
+        b: data[index + 2],
+        a: data[index + 3],
+      };
+    })
+    .filter((sample) => sample.a > 40);
+
+  if (!visibleSamples.length) {
+    return normalized.png().toBuffer();
+  }
+
+  const background = visibleSamples.reduce(
+    (sum, sample) => ({
+      r: sum.r + sample.r / visibleSamples.length,
+      g: sum.g + sample.g / visibleSamples.length,
+      b: sum.b + sample.b / visibleSamples.length,
+    }),
+    { r: 0, g: 0, b: 0 }
+  );
+  const backgroundBrightness = (background.r + background.g + background.b) / 3;
+  const backgroundSaturation =
+    Math.max(background.r, background.g, background.b) -
+    Math.min(background.r, background.g, background.b);
+
+  // Transparent images are already ideal. Only remove a connected, nearly
+  // uniform photo canvas; this avoids erasing white details inside a product.
+  if (visibleSamples.length < 4 || backgroundSaturation > 42) {
+    return normalized.png().toBuffer();
+  }
+
+  const visited = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let queueStart = 0;
+  let queueEnd = 0;
+  const threshold = backgroundBrightness > 210 || backgroundBrightness < 45 ? 58 : 42;
+  const thresholdSquared = threshold * threshold;
+
+  function canRemove(pixelIndex) {
+    const dataIndex = pixelIndex * channels;
+    if (data[dataIndex + 3] < 18) return true;
+    const dr = data[dataIndex] - background.r;
+    const dg = data[dataIndex + 1] - background.g;
+    const db = data[dataIndex + 2] - background.b;
+    return dr * dr + dg * dg + db * db <= thresholdSquared;
+  }
+
+  function enqueue(pixelIndex) {
+    if (visited[pixelIndex] || !canRemove(pixelIndex)) return;
+    visited[pixelIndex] = 1;
+    queue[queueEnd] = pixelIndex;
+    queueEnd += 1;
+  }
+
+  for (let x = 0; x < width; x += 1) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y += 1) {
+    enqueue(y * width);
+    enqueue(y * width + width - 1);
+  }
+
+  while (queueStart < queueEnd) {
+    const pixelIndex = queue[queueStart];
+    queueStart += 1;
+    const x = pixelIndex % width;
+    const y = Math.floor(pixelIndex / width);
+    const dataIndex = pixelIndex * channels;
+    data[dataIndex + 3] = 0;
+
+    if (x > 0) enqueue(pixelIndex - 1);
+    if (x + 1 < width) enqueue(pixelIndex + 1);
+    if (y > 0) enqueue(pixelIndex - width);
+    if (y + 1 < height) enqueue(pixelIndex + width);
+  }
+
+  return sharp(data, {
+    raw: {
+      width,
+      height,
+      channels,
+    },
+  })
+    .png()
+    .toBuffer();
+}
+
 async function createAnimatedProductVideoAssets({
   supabase,
   rule,
@@ -13537,6 +13775,7 @@ async function createAnimatedProductVideoAssets({
   postId,
 }) {
   const websiteItem = rule?.website_item || {};
+  const brandProfile = rule?.brand_profile || {};
   const sourceImageUrl = websiteItem?.image_url;
 
   if (!sourceImageUrl) {
@@ -13545,74 +13784,140 @@ async function createAnimatedProductVideoAssets({
 
   const sourceImageBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
   const dominant = await getProductAccentColor(sourceImageBuffer);
-  const baseColor = mixRgb(dominant, { r: 15, g: 23, b: 42 }, 0.7);
-  const accentColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.18);
-  const glowColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.52);
-  const deepColor = mixRgb(baseColor, { r: 0, g: 0, b: 0 }, 0.34);
-  const ctaColor = mixRgb(dominant, { r: 255, g: 255, b: 255 }, 0.12);
+  const style = getAnimatedVideoVisualStyle(rule, dominant);
   const brandName = truncateText(
-    rule?.brand_profile?.business_name || "Featured product",
+    brandProfile?.business_name || "Featured product",
     42
   );
   const title = truncateText(
     websiteItem?.title || rule?.content_type_label || "Worth a closer look",
-    110
+    94
   );
-  const titleLines = splitTextIntoLines(title, 24, 3);
+  const titleLines = splitTextIntoLines(title, 29, 2);
   const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
-  const cta = getAnimatedVideoCta(rule);
+  const includeLogo = shouldUseLogoForRule(rule, brandProfile);
+  let logoPng = null;
+  let logoMetadata = null;
 
+  if (includeLogo && brandProfile?.logo_url) {
+    try {
+      const logoBuffer = await fetchImageBufferForOverlay(brandProfile.logo_url);
+      logoPng = await sharp(logoBuffer)
+        .rotate()
+        .resize({
+          width: 220,
+          height: 86,
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .png()
+        .toBuffer();
+      logoMetadata = await sharp(logoPng).metadata();
+    } catch (error) {
+      console.warn("Animated video logo could not be prepared", {
+        postId,
+        message: error?.message || "Unknown logo error",
+      });
+      logoPng = null;
+      logoMetadata = null;
+    }
+  }
+
+  const titleFontSize = title.length <= 38 ? 64 : title.length <= 62 ? 56 : 48;
+  const titleLineHeight = Math.round(titleFontSize * 1.16);
+  const titleStartY = titleLines.length > 1 ? 1118 : 1168;
   const titleSpans = titleLines
     .map(
       (line, index) =>
-        `<tspan x="88" dy="${index === 0 ? 0 : 80}">${escapeSvg(line)}</tspan>`
+        `<tspan x="540" dy="${index === 0 ? 0 : titleLineHeight}">${escapeSvg(line)}</tspan>`
     )
     .join("");
+  const priceY = titleStartY + Math.max(1, titleLines.length) * titleLineHeight + 28;
+  const brandFallbackMarkup = logoPng
+    ? ""
+    : `<text x="66" y="98" font-family="DejaVu Sans, sans-serif" font-size="30" font-weight="700" letter-spacing="4" fill="#ffffff" opacity="0.86">${escapeSvg(brandName.toUpperCase())}</text>`;
+  const logoPlateMarkup = logoPng
+    ? `<rect x="48" y="38" width="268" height="116" rx="28" fill="#ffffff" opacity="0.10" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1.5"/>`
+    : "";
   const priceMarkup = price
-    ? `
-      <rect x="824" y="72" width="170" height="62" rx="31" fill="#ffffff" opacity="0.14"/>
-      <text x="909" y="114" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="32" font-weight="700" fill="#ffffff">${escapeSvg(price)}</text>
-    `
+    ? `<text x="540" y="${priceY}" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#ffffff" opacity="0.82">${escapeSvg(price)}</text>`
     : "";
 
-  const backgroundSvg = Buffer.from(`
+  const backdropSvg = Buffer.from(`
     <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="bg" x1="0" y1="0" x2="1080" y2="1350" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="${rgbToHex(accentColor)}"/>
-          <stop offset="0.38" stop-color="${rgbToHex(baseColor)}"/>
-          <stop offset="1" stop-color="${rgbToHex(deepColor)}"/>
+          <stop offset="0" stop-color="${rgbToHex(style.accentColor)}"/>
+          <stop offset="0.44" stop-color="${rgbToHex(style.baseColor)}"/>
+          <stop offset="1" stop-color="${rgbToHex(style.deepColor)}"/>
         </linearGradient>
-        <radialGradient id="topGlow" cx="18%" cy="16%" r="58%">
-          <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+        <radialGradient id="topGlow" cx="18%" cy="12%" r="62%">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.20"/>
           <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
         </radialGradient>
-        <radialGradient id="productGlow" cx="50%" cy="58%" r="42%">
-          <stop offset="0" stop-color="${rgbToHex(glowColor)}" stop-opacity="0.42"/>
-          <stop offset="1" stop-color="${rgbToHex(glowColor)}" stop-opacity="0"/>
+        <radialGradient id="productGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stop-color="${rgbToHex(style.highlightColor)}" stop-opacity="0.24"/>
+          <stop offset="1" stop-color="${rgbToHex(style.highlightColor)}" stop-opacity="0"/>
         </radialGradient>
-        <filter id="blur"><feGaussianBlur stdDeviation="42"/></filter>
+        <linearGradient id="bottomShade" x1="0" y1="930" x2="0" y2="1350" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#000000" stop-opacity="0"/>
+          <stop offset="1" stop-color="#000000" stop-opacity="0.42"/>
+        </linearGradient>
       </defs>
       <rect width="1080" height="1350" fill="url(#bg)"/>
       <rect width="1080" height="1350" fill="url(#topGlow)"/>
-      <circle cx="840" cy="770" r="328" fill="url(#productGlow)" opacity="0.34"/>
-      <circle cx="134" cy="1046" r="250" fill="#ffffff" opacity="0.05" filter="url(#blur)"/>
-      <path d="M0 864 C204 770 415 806 646 744 C852 688 988 580 1080 602 L1080 1350 L0 1350 Z" fill="#000000" opacity="0.18"/>
-      <text x="88" y="114" font-family="DejaVu Sans, sans-serif" font-size="30" font-weight="700" letter-spacing="4" fill="#ffffff" opacity="0.82">${escapeSvg(brandName.toUpperCase())}</text>
-      ${priceMarkup}
-      <text x="88" y="204" font-family="DejaVu Sans, sans-serif" font-size="68" font-weight="800" fill="#ffffff">${titleSpans}</text>
-      <rect x="352" y="1190" width="376" height="92" rx="46" fill="${rgbToHex(ctaColor)}" opacity="0.96" stroke="#ffffff" stroke-opacity="0.18" stroke-width="2"/>
-      <text x="540" y="1251" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="34" font-weight="800" letter-spacing="1" fill="#ffffff">${escapeSvg(cta)}</text>
+      <ellipse cx="540" cy="650" rx="420" ry="380" fill="url(#productGlow)"/>
+      ${style.backdropMarkup}
+      <rect x="0" y="860" width="1080" height="490" fill="url(#bottomShade)"/>
     </svg>
   `);
 
-  const backgroundBuffer = await sharp(backgroundSvg).png().toBuffer();
-  const productImage = await sharp(sourceImageBuffer)
-    .rotate()
-    .trim({ background: "#ffffff", threshold: 18 })
+  const ambientSvg = Buffer.from(`
+    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="ambientGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stop-color="${rgbToHex(style.highlightColor)}" stop-opacity="0.52"/>
+          <stop offset="1" stop-color="${rgbToHex(style.highlightColor)}" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="ambientBlur" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="48"/>
+        </filter>
+      </defs>
+      ${style.ambientMarkup}
+    </svg>
+  `);
+
+  const overlaySvg = Buffer.from(`
+    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+      ${logoPlateMarkup}
+      ${brandFallbackMarkup}
+      <line x1="424" y1="1070" x2="656" y2="1070" stroke="#ffffff" stroke-opacity="0.34" stroke-width="2"/>
+      <text x="540" y="${titleStartY}" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="${titleFontSize}" font-weight="800" fill="#ffffff">${titleSpans}</text>
+      ${priceMarkup}
+    </svg>
+  `);
+
+  const backdropBuffer = await sharp(backdropSvg).png().toBuffer();
+  const ambientBuffer = await sharp(ambientSvg).png().toBuffer();
+  let overlayBuffer = await sharp(overlaySvg).png().toBuffer();
+
+  if (logoPng && logoMetadata) {
+    const logoWidth = Number(logoMetadata.width || 220);
+    const logoHeight = Number(logoMetadata.height || 86);
+    const logoLeft = 182 - Math.round(logoWidth / 2);
+    const logoTop = 96 - Math.round(logoHeight / 2);
+    overlayBuffer = await sharp(overlayBuffer)
+      .composite([{ input: logoPng, left: logoLeft, top: logoTop }])
+      .png()
+      .toBuffer();
+  }
+
+  const transparentProduct = await removeEdgeConnectedBackground(sourceImageBuffer);
+  const productImage = await sharp(transparentProduct)
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 2 })
     .resize({
-      width: 760,
-      height: 720,
+      width: 840,
+      height: 790,
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 },
       withoutEnlargement: true,
@@ -13621,74 +13926,152 @@ async function createAnimatedProductVideoAssets({
     .toBuffer();
 
   const productLayerSvg = Buffer.from(`
-    <svg width="900" height="860" viewBox="0 0 900 860" xmlns="http://www.w3.org/2000/svg">
+    <svg width="960" height="940" viewBox="0 0 960 940" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <filter id="shadowBlur" x="-100%" y="-100%" width="300%" height="300%">
-          <feGaussianBlur stdDeviation="22"/>
+          <feGaussianBlur stdDeviation="24"/>
         </filter>
       </defs>
-      <ellipse cx="450" cy="748" rx="210" ry="44" fill="#000000" opacity="0.22" filter="url(#shadowBlur)"/>
-      <ellipse cx="450" cy="736" rx="162" ry="24" fill="#000000" opacity="0.14"/>
+      <ellipse cx="480" cy="844" rx="226" ry="46" fill="#000000" opacity="0.25" filter="url(#shadowBlur)"/>
+      <ellipse cx="480" cy="834" rx="172" ry="24" fill="#000000" opacity="0.16"/>
     </svg>
   `);
 
   const productLayerBuffer = await sharp({
     create: {
-      width: 900,
-      height: 860,
+      width: 960,
+      height: 940,
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
   })
     .composite([
       { input: productLayerSvg, left: 0, top: 0 },
-      { input: productImage, left: 70, top: 42 },
+      { input: productImage, left: 60, top: 34 },
     ])
     .png()
     .toBuffer();
 
   const posterProductLayerBuffer = await sharp(productLayerBuffer)
-    .resize({ width: 920, height: 878, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .resize({
+      width: 980,
+      height: 960,
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
     .png()
     .toBuffer();
-  const posterBuffer = await sharp(backgroundBuffer)
-    .composite([{ input: posterProductLayerBuffer, left: 80, top: 288 }])
+  const posterBuffer = await sharp(backdropBuffer)
+    .composite([
+      { input: ambientBuffer, left: 0, top: 0 },
+      { input: posterProductLayerBuffer, left: 50, top: 178 },
+      { input: overlayBuffer, left: 0, top: 0 },
+    ])
     .png()
     .toBuffer();
 
-  const [backgroundUpload, productLayerUpload, posterUpload] = await Promise.all([
-    uploadGeneratedImageToStorage({
-      supabase,
-      imageBase64: backgroundBuffer.toString("base64"),
-      userId,
-      postId,
-      fileSuffix: "animation-background",
-    }),
-    uploadGeneratedImageToStorage({
-      supabase,
-      imageBase64: productLayerBuffer.toString("base64"),
-      userId,
-      postId,
-      fileSuffix: "animation-product-layer",
-    }),
-    uploadGeneratedImageToStorage({
-      supabase,
-      imageBase64: posterBuffer.toString("base64"),
-      userId,
-      postId,
-      fileSuffix: "animation-poster",
-    }),
-  ]);
+  const [backdropUpload, ambientUpload, overlayUpload, productLayerUpload, posterUpload] =
+    await Promise.all([
+      uploadGeneratedImageToStorage({
+        supabase,
+        imageBase64: backdropBuffer.toString("base64"),
+        userId,
+        postId,
+        fileSuffix: "animation-backdrop",
+      }),
+      uploadGeneratedImageToStorage({
+        supabase,
+        imageBase64: ambientBuffer.toString("base64"),
+        userId,
+        postId,
+        fileSuffix: "animation-ambient",
+      }),
+      uploadGeneratedImageToStorage({
+        supabase,
+        imageBase64: overlayBuffer.toString("base64"),
+        userId,
+        postId,
+        fileSuffix: "animation-overlay",
+      }),
+      uploadGeneratedImageToStorage({
+        supabase,
+        imageBase64: productLayerBuffer.toString("base64"),
+        userId,
+        postId,
+        fileSuffix: "animation-product-layer",
+      }),
+      uploadGeneratedImageToStorage({
+        supabase,
+        imageBase64: posterBuffer.toString("base64"),
+        userId,
+        postId,
+        fileSuffix: "animation-poster",
+      }),
+    ]);
 
-  if (!backgroundUpload.imageUrl || !productLayerUpload.imageUrl || !posterUpload.imageUrl) {
+  if (
+    !backdropUpload.imageUrl ||
+    !ambientUpload.imageUrl ||
+    !overlayUpload.imageUrl ||
+    !productLayerUpload.imageUrl ||
+    !posterUpload.imageUrl
+  ) {
     throw new Error("Could not create public animation asset URLs");
   }
 
   return {
-    backgroundUrl: backgroundUpload.imageUrl,
+    backdropUrl: backdropUpload.imageUrl,
+    ambientUrl: ambientUpload.imageUrl,
+    overlayUrl: overlayUpload.imageUrl,
     productLayerUrl: productLayerUpload.imageUrl,
     posterUrl: posterUpload.imageUrl,
     posterStoragePath: posterUpload.imageStoragePath,
+    temporaryStoragePaths: [
+      backdropUpload.imageStoragePath,
+      ambientUpload.imageStoragePath,
+      overlayUpload.imageStoragePath,
+      productLayerUpload.imageStoragePath,
+    ].filter(Boolean),
+  };
+}
+
+async function uploadRenderedAssetToStorage({
+  supabase,
+  sourceUrl,
+  bucket,
+  filePath,
+  contentType,
+}) {
+  const safeSourceUrl = await assertPublicHttpUrl(sourceUrl);
+  const response = await fetch(safeSourceUrl);
+
+  if (!response.ok) {
+    throw new Error(`Could not download rendered asset: ${response.status}`);
+  }
+
+  const fileBuffer = Buffer.from(await response.arrayBuffer());
+  const { error: uploadError } = await supabase.storage
+    .from(bucket)
+    .upload(filePath, fileBuffer, {
+      contentType,
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message || "Could not upload rendered asset");
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from(bucket)
+    .getPublicUrl(filePath);
+
+  if (!publicUrlData?.publicUrl) {
+    throw new Error("Could not create a public URL for the rendered asset");
+  }
+
+  return {
+    url: publicUrlData.publicUrl,
+    storagePath: filePath,
   };
 }
 
@@ -13698,38 +14081,51 @@ async function uploadRenderedVideoToStorage({
   userId,
   postId,
 }) {
-  const safeVideoUrl = await assertPublicHttpUrl(videoUrl);
-  const response = await fetch(safeVideoUrl);
-
-  if (!response.ok) {
-    throw new Error(`Could not download rendered video: ${response.status}`);
-  }
-
-  const videoBuffer = Buffer.from(await response.arrayBuffer());
-  const filePath = `${userId}/${postId}.mp4`;
-  const { error: uploadError } = await supabase.storage
-    .from(POST_VIDEOS_BUCKET)
-    .upload(filePath, videoBuffer, {
-      contentType: "video/mp4",
-      upsert: true,
-    });
-
-  if (uploadError) {
-    throw new Error(uploadError.message || "Could not upload rendered video");
-  }
-
-  const { data: publicUrlData } = supabase.storage
-    .from(POST_VIDEOS_BUCKET)
-    .getPublicUrl(filePath);
-
-  if (!publicUrlData?.publicUrl) {
-    throw new Error("Could not create a public URL for the rendered video");
-  }
+  const stored = await uploadRenderedAssetToStorage({
+    supabase,
+    sourceUrl: videoUrl,
+    bucket: POST_VIDEOS_BUCKET,
+    filePath: `${userId}/${postId}.mp4`,
+    contentType: "video/mp4",
+  });
 
   return {
-    videoUrl: publicUrlData.publicUrl,
-    videoStoragePath: filePath,
+    videoUrl: stored.url,
+    videoStoragePath: stored.storagePath,
   };
+}
+
+async function uploadRenderedGifToStorage({
+  supabase,
+  gifUrl,
+  userId,
+  postId,
+}) {
+  const stored = await uploadRenderedAssetToStorage({
+    supabase,
+    sourceUrl: gifUrl,
+    bucket: "post-images",
+    filePath: `${userId}/${postId}-animation-preview.gif`,
+    contentType: "image/gif",
+  });
+
+  return {
+    gifUrl: stored.url,
+    gifStoragePath: stored.storagePath,
+  };
+}
+
+async function removeTemporaryAnimationAssets(supabase, storagePaths = []) {
+  const paths = [...new Set((storagePaths || []).filter(Boolean))];
+  if (!paths.length) return;
+
+  const { error } = await supabase.storage.from("post-images").remove(paths);
+  if (error) {
+    console.warn("Could not remove temporary animated video assets", {
+      paths,
+      message: error.message,
+    });
+  }
 }
 
 async function generateAnimatedProductVideo({
@@ -13744,35 +14140,104 @@ async function generateAnimatedProductVideo({
     userId,
     postId,
   });
-  const edit = buildProductPushEdit({
-    backgroundUrl: assets.backgroundUrl,
+  const videoEdit = buildProductPushEdit({
+    backdropUrl: assets.backdropUrl,
+    ambientUrl: assets.ambientUrl,
+    overlayUrl: assets.overlayUrl,
     productLayerUrl: assets.productLayerUrl,
     durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
+    outputFormat: "mp4",
+    outputSize: { width: 1080, height: 1350 },
+    fps: 25,
+    quality: "medium",
   });
-  const renderId = await queueShotstackRender(edit);
+  const gifEdit = buildProductPushEdit({
+    backdropUrl: assets.backdropUrl,
+    ambientUrl: assets.ambientUrl,
+    overlayUrl: assets.overlayUrl,
+    productLayerUrl: assets.productLayerUrl,
+    durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
+    outputFormat: "gif",
+    outputSize: { width: 432, height: 540 },
+    fps: 12,
+    quality: "low",
+  });
+
+  let gifRenderId = null;
+  const videoRenderId = await queueShotstackRender(videoEdit);
+
+  try {
+    gifRenderId = await queueShotstackRender(gifEdit);
+  } catch (error) {
+    console.warn("Animated email GIF could not be queued", {
+      postId,
+      message: error?.message || "Unknown GIF queue error",
+    });
+  }
 
   await supabase
     .from("posts")
     .update({
-      video_render_id: renderId,
+      video_render_id: videoRenderId,
       video_status: "rendering",
       updated_at: new Date().toISOString(),
     })
     .eq("id", postId);
 
-  const render = await waitForShotstackRender({ renderId });
-  const storedVideo = await uploadRenderedVideoToStorage({
-    supabase,
-    videoUrl: render.url,
-    userId,
-    postId,
-  });
+  try {
+    const [videoRender, gifRender] = await Promise.all([
+      waitForShotstackRender({ renderId: videoRenderId }),
+      gifRenderId
+        ? waitForShotstackRender({ renderId: gifRenderId }).catch((error) => {
+            console.warn("Animated email GIF render failed", {
+              postId,
+              gifRenderId,
+              message: error?.message || "Unknown GIF render error",
+            });
+            return null;
+          })
+        : Promise.resolve(null),
+    ]);
+    const storedVideoPromise = uploadRenderedVideoToStorage({
+      supabase,
+      videoUrl: videoRender.url,
+      userId,
+      postId,
+    });
+    const storedGifPromise = gifRender?.url
+      ? uploadRenderedGifToStorage({
+          supabase,
+          gifUrl: gifRender.url,
+          userId,
+          postId,
+        }).catch((error) => {
+          console.warn("Animated email GIF could not be stored", {
+            postId,
+            message: error?.message || "Unknown GIF upload error",
+          });
+          return null;
+        })
+      : Promise.resolve(null);
+    const [storedVideo, storedGif] = await Promise.all([
+      storedVideoPromise,
+      storedGifPromise,
+    ]);
 
-  return {
-    ...assets,
-    ...storedVideo,
-    renderId,
-  };
+    if (storedGif?.gifUrl) {
+      await removeTemporaryAnimationAssets(supabase, [assets.posterStoragePath]);
+    }
+
+    return {
+      ...assets,
+      ...storedVideo,
+      renderId: videoRenderId,
+      posterUrl: storedGif?.gifUrl || assets.posterUrl,
+      posterStoragePath: storedGif?.gifStoragePath || assets.posterStoragePath,
+      emailPreviewUrl: storedGif?.gifUrl || assets.posterUrl,
+    };
+  } finally {
+    await removeTemporaryAnimationAssets(supabase, assets.temporaryStoragePaths);
+  }
 }
 
 function shouldUseLogoForRule(rule, brandProfile) {
@@ -15765,7 +16230,7 @@ product_research_model_used: rule.uses_website_content
         } else if (wantsImage && isAnimatedVideoRule(ruleWithBrandProfile)) {
           try {
             finalImagePrompt =
-              "Animated website product video rendered with Shotstack using a static branded background, fixed overlay text and a separately animated product layer.";
+              "Premium animated website product video rendered with Shotstack using a large product, a seamless zoom loop, a subtly moving background, fixed product text and optional brand logo.";
 
             const animatedVideo = await generateAnimatedProductVideo({
               supabase,

@@ -266,7 +266,7 @@ const contentTypes = [
     prompt:
       "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website. Create a social media caption that promotes that exact item in a helpful, trustworthy and sales-focused way. The caption will be paired with a short animated product video. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
     imagePrompt:
-      "Create a short animated product video using the verified website item image. Keep the headline, price and call to action still while the product card moves subtly and naturally.",
+      "Create a premium short animated product video using the verified website item image. Show the product large against a branded premium background. Keep the uploaded brand logo at the top left and the exact product name and verified price at the bottom. Do not add a button or false clickable element. Animate the product with a seamless slow zoom in and back out, while the background has only subtle ambient movement.",
     usesWebsiteContent: true,
     contentFormat: "animated_video",
     animationStyle: "product_push",
