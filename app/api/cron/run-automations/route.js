@@ -941,8 +941,9 @@ async function deleteIncompleteAnimatedVideoDrafts({ supabase, posts }) {
 
     return [
       post.image_storage_path,
-      `${userId}/${post.id}-animation-background.png`,
-      `${userId}/${post.id}-animation-product-card.png`,
+      `${userId}/${post.id}-animation-product-layer.png`,
+      `${userId}/${post.id}-animation-text-overlay.png`,
+      `${userId}/${post.id}-animation-logo-overlay.png`,
       `${userId}/${post.id}-animation-poster.png`,
     ].filter(Boolean);
   });
@@ -13604,7 +13605,157 @@ async function selectAnimatedVideoBackground({
   };
 }
 
-function buildAnimatedForegroundPrompt({ rule, postContent, backgroundAsset }) {
+function escapeSvgText(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function estimateCornerBackgroundColor(data, width, height) {
+  const sampleSize = Math.max(10, Math.min(24, Math.floor(Math.min(width, height) * 0.05)));
+  const corners = [
+    { startX: 0, startY: 0 },
+    { startX: Math.max(0, width - sampleSize), startY: 0 },
+    { startX: 0, startY: Math.max(0, height - sampleSize) },
+    {
+      startX: Math.max(0, width - sampleSize),
+      startY: Math.max(0, height - sampleSize),
+    },
+  ];
+  let rTotal = 0;
+  let gTotal = 0;
+  let bTotal = 0;
+  let count = 0;
+
+  for (const corner of corners) {
+    for (let y = corner.startY; y < Math.min(height, corner.startY + sampleSize); y += 1) {
+      for (let x = corner.startX; x < Math.min(width, corner.startX + sampleSize); x += 1) {
+        const index = (y * width + x) * 4;
+        const alpha = data[index + 3];
+        if (alpha < 8) continue;
+        rTotal += data[index];
+        gTotal += data[index + 1];
+        bTotal += data[index + 2];
+        count += 1;
+      }
+    }
+  }
+
+  if (!count) {
+    return { r: 245, g: 245, b: 245 };
+  }
+
+  return {
+    r: Math.round(rTotal / count),
+    g: Math.round(gTotal / count),
+    b: Math.round(bTotal / count),
+  };
+}
+
+function findAlphaBounds(alphaChannel, width, height, threshold = 24) {
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const alpha = alphaChannel[y * width + x];
+      if (alpha < threshold) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+
+  if (maxX < 0 || maxY < 0) {
+    return null;
+  }
+
+  const padding = 12;
+  const left = Math.max(0, minX - padding);
+  const top = Math.max(0, minY - padding);
+  const right = Math.min(width - 1, maxX + padding);
+  const bottom = Math.min(height - 1, maxY + padding);
+
+  return {
+    left,
+    top,
+    width: Math.max(1, right - left + 1),
+    height: Math.max(1, bottom - top + 1),
+  };
+}
+
+async function extractAnimatedProductCutout(sourceImageBuffer) {
+  const normalized = await sharp(sourceImageBuffer)
+    .rotate()
+    .resize({
+      width: 1400,
+      height: 1400,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .ensureAlpha()
+    .png()
+    .toBuffer();
+  const { data, info } = await sharp(normalized)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const background = estimateCornerBackgroundColor(data, info.width, info.height);
+  const rgba = Buffer.alloc(info.width * info.height * 4);
+  const alphaChannel = Buffer.alloc(info.width * info.height);
+  const fadeStart = 16;
+  const fadeEnd = 58;
+
+  for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
+    const index = pixel * 4;
+    const r = data[index];
+    const g = data[index + 1];
+    const b = data[index + 2];
+    const originalAlpha = data[index + 3];
+    const distance = Math.sqrt(
+      (r - background.r) ** 2 + (g - background.g) ** 2 + (b - background.b) ** 2
+    );
+
+    let alpha = originalAlpha;
+    if (distance <= fadeStart) {
+      alpha = 0;
+    } else if (distance < fadeEnd) {
+      alpha = Math.min(
+        originalAlpha,
+        Math.max(0, Math.round(((distance - fadeStart) / (fadeEnd - fadeStart)) * 255))
+      );
+    }
+
+    rgba[index] = r;
+    rgba[index + 1] = g;
+    rgba[index + 2] = b;
+    rgba[index + 3] = alpha;
+    alphaChannel[pixel] = alpha;
+  }
+
+  const bounds = findAlphaBounds(alphaChannel, info.width, info.height, 28);
+  if (!bounds) {
+    return normalized;
+  }
+
+  return sharp(rgba, {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: 4,
+    },
+  })
+    .extract(bounds)
+    .png()
+    .toBuffer();
+}
+
+function buildAnimatedTextOverlayPrompt({ rule, postContent, backgroundAsset }) {
   const websiteItem = rule?.website_item || {};
   const brand = rule?.brand_profile || {};
   const title = truncateText(
@@ -13621,112 +13772,132 @@ function buildAnimatedForegroundPrompt({ rule, postContent, backgroundAsset }) {
     .filter(Boolean)
     .join(", ");
 
-  return `
-Create a transparent 9:16 foreground composition for a short premium product Reel.
-
-Use the supplied product photo as the exact product reference.
-
-Exact product name to display:
-"${title}"
-
-${price ? `Exact verified price to display:
-"${price}"` : "Do not display a price."}
-
-Brand:
-${brand?.business_name || "Not provided"}
-
-The moving video background behind this transparent foreground is:
-${backgroundDescription || "a premium neutral moving background"}
-
-Post context:
-${truncateText(postContent || rule?.prompt || "", 900)}
-
-Rules:
-- Output must have a genuinely transparent background. Do not create a wall, studio, gradient, scenery, floor, backdrop or full-frame color.
-- Preserve the exact product identity, shape, colors, visible design, packaging and printed details from the supplied image.
-- Do not redesign, recolor or replace the product.
-- Place the product large and clearly visible around the center of the portrait canvas.
-- Add tasteful professional advertising typography as part of this transparent foreground.
-- Use the exact product name written above. Do not rename it.
-- Place the product name near the lower part of the composition with strong mobile readability.
-- ${price ? "Include the exact verified price near the product name." : "Do not invent or display a price."}
-- Do not add a call-to-action button, fake UI button, rating, discount, urgency, delivery promise or unsupported claim.
-- Do not add a logo; Spreelo adds the customer's real logo separately.
-- Keep the design clean, spacious and premium. Use only subtle decorative accents that work over the described moving background.
-- Do not add a watermark.
-- Leave transparent breathing room around the outer edges.
-
-Output only the transparent PNG foreground.
-`.trim();
+  return [
+    "Premium static overlay text for an animated product Reel.",
+    `Exact product name: \"${title}\"`,
+    price ? `Exact verified price: \"${price}\"` : "Do not display a price.",
+    `Brand: ${brand?.business_name || "Not provided"}`,
+    `Video background context: ${backgroundDescription || "a premium neutral moving background"}`,
+    `Post context: ${truncateText(postContent || rule?.prompt || "", 900)}`,
+    "Rules: keep the real product separate, preserve the exact product name and exact price, premium calm mobile-first typography, no fake call-to-action button, keep the lower area readable and elegant, no watermark.",
+  ].join("\n");
 }
 
-async function generateAnimatedForeground({
-  openai,
-  rule,
-  postContent,
-  sourceImageBuffer,
-  backgroundAsset,
-}) {
-  const normalizedReference = await sharp(sourceImageBuffer)
-    .rotate()
+function splitAnimatedOverlayTitle(title) {
+  const cleaned = truncateText(String(title || "Featured product").replace(/\s+/g, " ").trim(), 72);
+  const normalized = cleaned.replace(/\s*[\-–—]\s*/g, " – ");
+  const parts = normalized.split(/\s+–\s+/u).map((part) => part.trim()).filter(Boolean);
+  const primary = parts.shift() || normalized;
+  const suffix = parts.join(" • ");
+  const tokens = primary.split(/\s+/).filter(Boolean);
+  const maxChars = 24;
+  const lines = [];
+  let current = "";
+
+  for (const token of tokens) {
+    const next = current ? `${current} ${token}` : token;
+    if (next.length <= maxChars || !current) {
+      current = next;
+    } else {
+      lines.push(current);
+      current = token;
+    }
+  }
+
+  if (current) lines.push(current);
+  if (suffix) lines.push(suffix);
+
+  return lines.slice(0, 3);
+}
+
+async function createAnimatedTextOverlay({ rule, postContent, backgroundAsset }) {
+  const websiteItem = rule?.website_item || {};
+  const brand = rule?.brand_profile || {};
+  const title = websiteItem?.title || rule?.content_type_label || "Featured product";
+  const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
+  const titleLines = splitAnimatedOverlayTitle(title);
+  const prompt = buildAnimatedTextOverlayPrompt({ rule, postContent, backgroundAsset });
+  const isDarkBackground = String(backgroundAsset?.brightness || "").toLowerCase() === "dark";
+  const panelFill = isDarkBackground ? "rgba(11, 15, 22, 0.34)" : "rgba(255, 251, 245, 0.40)";
+  const panelStroke = isDarkBackground ? "rgba(255,255,255,0.12)" : "rgba(34, 28, 23, 0.08)";
+  const brandColor = isDarkBackground ? "#f2dfc6" : "#7e6752";
+  const titleColor = isDarkBackground ? "#ffffff" : "#18202b";
+  const priceFill = isDarkBackground ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.52)";
+  const priceText = isDarkBackground ? "#ffffff" : "#18202b";
+  const titleStartY = 1428;
+  const titleSpans = titleLines
+    .map((line, index) => {
+      const y = titleStartY + index * 70;
+      return `<text x="540" y="${y}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-weight="700" letter-spacing="-0.8" fill="${titleColor}">${escapeSvgText(line)}</text>`;
+    })
+    .join("");
+  const brandText = truncateText(String(brand?.business_name || "").replace(/\s+/g, " ").trim(), 28);
+  const priceMarkup = price
+    ? `
+      <rect x="410" y="1668" width="260" height="72" rx="36" fill="${priceFill}" />
+      <text x="540" y="1714" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700" fill="${priceText}">${escapeSvgText(price)}</text>
+    `
+    : "";
+  const svg = `
+    <svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
+      <rect x="96" y="1300" width="888" height="500" rx="54" fill="${panelFill}" stroke="${panelStroke}" stroke-width="2" />
+      ${brandText ? `<text x="540" y="1370" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="600" letter-spacing="0.6" fill="${brandColor}">${escapeSvgText(brandText)}</text>` : ""}
+      ${titleSpans}
+      ${priceMarkup}
+    </svg>
+  `;
+
+  return {
+    textOverlayBuffer: await sharp(Buffer.from(svg)).png().toBuffer(),
+    prompt,
+  };
+}
+
+async function createAnimatedProductLayer({ sourceImageBuffer }) {
+  const cutoutBuffer = await extractAnimatedProductCutout(sourceImageBuffer);
+  const resizedProduct = await sharp(cutoutBuffer)
     .resize({
-      width: 1536,
-      height: 1536,
-      fit: "inside",
+      width: 840,
+      height: 980,
+      fit: "contain",
       withoutEnlargement: true,
     })
     .png()
     .toBuffer();
-  const referenceFile = await toFile(normalizedReference, "animated-product-reference.png", {
-    type: "image/png",
-  });
-  const prompt = buildAnimatedForegroundPrompt({ rule, postContent, backgroundAsset });
-  const response = await openai.images.edit({
-    model: ANIMATED_OVERLAY_IMAGE_MODEL,
-    image: referenceFile,
-    prompt,
-    size: "1024x1536",
-    quality: "medium",
-    background: "transparent",
-    output_format: "png",
-    input_fidelity: "high",
-  });
-  const imageBase64 = response?.data?.[0]?.b64_json;
+  const metadata = await sharp(resizedProduct).metadata();
+  const productWidth = Number(metadata.width || 840);
+  const productHeight = Number(metadata.height || 980);
+  const canvasWidth = 1080;
+  const canvasHeight = 1920;
+  const productLeft = Math.round((canvasWidth - productWidth) / 2);
+  const productTop = 176;
+  const shadowWidth = Math.max(220, Math.round(productWidth * 0.54));
+  const shadowHeight = Math.max(40, Math.round(productWidth * 0.10));
+  const shadowSvg = `
+    <svg width="${shadowWidth}" height="${shadowHeight}" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="${Math.round(shadowWidth / 2)}" cy="${Math.round(shadowHeight / 2)}" rx="${Math.round(shadowWidth / 2.15)}" ry="${Math.round(shadowHeight / 2.35)}" fill="rgba(0,0,0,0.20)" />
+    </svg>
+  `;
+  const shadowBuffer = await sharp(Buffer.from(shadowSvg)).png().blur(16).toBuffer();
+  const shadowLeft = Math.round((canvasWidth - shadowWidth) / 2);
+  const shadowTop = productTop + productHeight - Math.round(shadowHeight * 0.2);
 
-  if (!imageBase64) {
-    throw new Error("OpenAI returned no transparent animated-product foreground.");
-  }
-
-  const generatedBuffer = Buffer.from(imageBase64, "base64");
-  const foregroundBuffer = await sharp({
+  return sharp({
     create: {
-      width: 1080,
-      height: 1920,
+      width: canvasWidth,
+      height: canvasHeight,
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
   })
     .composite([
-      {
-        input: await sharp(generatedBuffer)
-          .rotate()
-          .resize({
-            width: 1040,
-            height: 1740,
-            fit: "contain",
-            background: { r: 0, g: 0, b: 0, alpha: 0 },
-          })
-          .png()
-          .toBuffer(),
-        left: 20,
-        top: 90,
-      },
+      { input: shadowBuffer, left: shadowLeft, top: shadowTop },
+      { input: resizedProduct, left: productLeft, top: productTop },
     ])
     .png()
     .toBuffer();
-
-  return { foregroundBuffer, prompt };
 }
+
 
 async function createAnimatedLogoOverlay({ brandProfile, includeLogo }) {
   if (!includeLogo || !brandProfile?.logo_url) return null;
@@ -13780,7 +13951,8 @@ async function createAnimatedLogoOverlay({ brandProfile, includeLogo }) {
 
 async function createAnimatedPoster({
   backgroundAsset,
-  foregroundBuffer,
+  productLayerBuffer,
+  textOverlayBuffer,
   logoOverlayBuffer,
 }) {
   let baseBuffer = null;
@@ -13806,7 +13978,10 @@ async function createAnimatedPoster({
           background: { r: 24, g: 26, b: 32, alpha: 1 },
         },
       });
-  const composites = [{ input: foregroundBuffer, left: 0, top: 0 }];
+  const composites = [
+    { input: productLayerBuffer, left: 0, top: 0 },
+    { input: textOverlayBuffer, left: 0, top: 0 },
+  ];
   if (logoOverlayBuffer) composites.push({ input: logoOverlayBuffer, left: 0, top: 0 });
   return base.composite(composites).jpeg({ quality: 90 }).toBuffer();
 }
@@ -13835,29 +14010,36 @@ async function createAnimatedProductVideoAssets({
     dominantColor,
   });
   const includeLogo = shouldUseLogoForRule(rule, brandProfile);
-  const [{ foregroundBuffer, prompt }, logoOverlayBuffer] = await Promise.all([
-    generateAnimatedForeground({
-      openai,
+  const [{ textOverlayBuffer, prompt }, productLayerBuffer, logoOverlayBuffer] = await Promise.all([
+    createAnimatedTextOverlay({
       rule,
       postContent,
-      sourceImageBuffer,
       backgroundAsset: selection.asset,
     }),
+    createAnimatedProductLayer({ sourceImageBuffer }),
     createAnimatedLogoOverlay({ brandProfile, includeLogo }),
   ]);
   const posterBuffer = await createAnimatedPoster({
     backgroundAsset: selection.asset,
-    foregroundBuffer,
+    productLayerBuffer,
+    textOverlayBuffer,
     logoOverlayBuffer,
   });
 
   const uploadTasks = [
     uploadGeneratedImageToStorage({
       supabase,
-      imageBase64: foregroundBuffer.toString("base64"),
+      imageBase64: productLayerBuffer.toString("base64"),
       userId,
       postId,
-      fileSuffix: "animation-foreground",
+      fileSuffix: "animation-product-layer",
+    }),
+    uploadGeneratedImageToStorage({
+      supabase,
+      imageBase64: textOverlayBuffer.toString("base64"),
+      userId,
+      postId,
+      fileSuffix: "animation-text-overlay",
     }),
     uploadGeneratedImageToStorage({
       supabase,
@@ -13880,15 +14062,17 @@ async function createAnimatedProductVideoAssets({
     );
   }
 
-  const [foregroundUpload, posterUpload, logoUpload = null] = await Promise.all(uploadTasks);
+  const [productLayerUpload, textOverlayUpload, posterUpload, logoUpload = null] =
+    await Promise.all(uploadTasks);
 
-  if (!foregroundUpload.imageUrl || !posterUpload.imageUrl) {
+  if (!productLayerUpload.imageUrl || !textOverlayUpload.imageUrl || !posterUpload.imageUrl) {
     throw new Error("Could not create public animated Reel asset URLs");
   }
 
   return {
     backgroundVideoUrl: selection.asset.public_url,
-    foregroundUrl: foregroundUpload.imageUrl,
+    productUrl: productLayerUpload.imageUrl,
+    textOverlayUrl: textOverlayUpload.imageUrl,
     logoOverlayUrl: logoUpload?.imageUrl || null,
     posterUrl: posterUpload.imageUrl,
     posterStoragePath: posterUpload.imageStoragePath,
@@ -13903,6 +14087,8 @@ async function createAnimatedProductVideoAssets({
     },
   };
 }
+
+async function uploadRenderedVideoToStorage({
 
 async function uploadRenderedVideoToStorage({
   supabase,
@@ -13962,7 +14148,8 @@ async function generateAnimatedProductVideo({
   });
   const edit = buildProductPushEdit({
     backgroundVideoUrl: assets.backgroundVideoUrl,
-    foregroundUrl: assets.foregroundUrl,
+    productUrl: assets.productUrl,
+    textOverlayUrl: assets.textOverlayUrl,
     logoOverlayUrl: assets.logoOverlayUrl,
     durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
   });
@@ -16097,7 +16284,8 @@ product_research_model_used: rule.uses_website_content
 
             await Promise.allSettled([
               supabase.storage.from("post-images").remove([
-                `${rule.user_id}/${post.id}-animation-foreground.png`,
+                `${rule.user_id}/${post.id}-animation-product-layer.png`,
+                `${rule.user_id}/${post.id}-animation-text-overlay.png`,
                 `${rule.user_id}/${post.id}-animation-logo-overlay.png`,
                 `${rule.user_id}/${post.id}-animation-poster.png`,
               ]),
