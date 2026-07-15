@@ -13,6 +13,7 @@ import {
   HelpCircle,
   Layers,
   Lightbulb,
+  Link2,
   ListChecks,
   MailCheck,
   MapPin,
@@ -1749,6 +1750,11 @@ productMatchTerms: normalizeCampaignTermList(overrides.productMatchTerms, 30),
 productSearchQueries: normalizeCampaignTermList(overrides.productSearchQueries, 30),
 productAvoidTerms: normalizeCampaignTermList(overrides.productAvoidTerms, 30),
 productSearchIntent: overrides.productSearchIntent || "",
+contentSourceScope: overrides.contentSourceScope || "whole_website",
+contentSourceUrl: overrides.contentSourceUrl || "",
+contentSourceTitle: overrides.contentSourceTitle || "",
+contentSourceSummary: overrides.contentSourceSummary || "",
+contentSourceVerifiedAt: overrides.contentSourceVerifiedAt || null,
 dateLocked: Boolean(overrides.dateLocked),
   };
 }
@@ -1793,6 +1799,11 @@ function createSlotFromContentType(type, index = 0, options = {}) {
     usesWebsiteContent: Boolean(type.usesWebsiteContent),
     contentFormat: type.contentFormat || "single_image",
     animationStyle: type.animationStyle || null,
+    contentSourceScope: options.contentSource?.sourceScope || "whole_website",
+    contentSourceUrl: options.contentSource?.url || "",
+    contentSourceTitle: options.contentSource?.displayTitle || "",
+    contentSourceSummary: options.contentSource?.summary || "",
+    contentSourceVerifiedAt: options.contentSource?.verifiedAt || null,
     timeZone,
   });
 }
@@ -5062,6 +5073,11 @@ const [currentBrandProfile, setCurrentBrandProfile] = useState(null);
 const [campaignOpportunity, setCampaignOpportunity] = useState(null);
 const [campaignDebugInfo, setCampaignDebugInfo] = useState(null);
 const [currentUserEmail, setCurrentUserEmail] = useState("");
+const [showFocusSourcePanel, setShowFocusSourcePanel] = useState(false);
+const [focusSourceInput, setFocusSourceInput] = useState("");
+const [focusSource, setFocusSource] = useState(null);
+const [focusSourceLoading, setFocusSourceLoading] = useState(false);
+const [focusSourceError, setFocusSourceError] = useState("");
 
   const [planStartDate, setPlanStartDate] = useState(initialStartDate);
   const [defaultPublishTime, setDefaultPublishTime] = useState(
@@ -5246,6 +5262,14 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
   const visibleContentTypes = useMemo(() => {
     return getVisibleContentTypes(websiteProductModeAvailable);
   }, [websiteProductModeAvailable]);
+
+  const focusedSourceContentTypes = useMemo(() => {
+    const types = getVisibleContentTypes(websiteProductModeAvailable);
+    if (focusSource?.sourceScope === "exact_product") {
+      return types.filter((type) => type.id !== "carousel_website_item");
+    }
+    return types;
+  }, [websiteProductModeAvailable, focusSource?.sourceScope]);
   const includedContentTypes = useMemo(() => {
   return getPlanIncludedContentTypes({
     planCreationMode,
@@ -5269,6 +5293,116 @@ const shouldShowPlannerDetails =
     (planCreationMode === "select" && slots.length > 0) ||
     (planCreationMode === "manual" && slots.length > 0) ||
     Boolean(autoPlanGoal));
+
+  function getFocusSourceCopy(key) {
+    return t(`automation.focusSource.${key}`);
+  }
+
+  function getFocusSourceKindLabel(source) {
+    if (source?.sourceScope === "exact_product") return getFocusSourceCopy("exactProduct");
+    if (source?.sourceScope === "product_category") return getFocusSourceCopy("category");
+    return getFocusSourceCopy("page");
+  }
+
+  function clearFocusSource() {
+    setFocusSource(null);
+    setFocusSourceInput("");
+    setFocusSourceError("");
+  }
+
+  function openFocusSourceSelector() {
+    setShowAddPostModal(false);
+    setShowFocusSourcePanel(true);
+    setFocusSourceError("");
+
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        document
+          .querySelector(".planner-focus-source-panel")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    }
+  }
+
+  function addFocusedContentType(typeId) {
+    if (!focusSource?.url) return;
+
+    if (selectedContentTypeIds.length >= autoPlanPostCount) {
+      setMessage(t("automation.errorAlreadySelectedPosts", { count: autoPlanPostCount }));
+      return;
+    }
+
+    const selectedType = getContentTypeById(typeId);
+    if (!selectedType) return;
+
+    const nextIndex = selectedContentTypeIds.length;
+    const nextContentTypeIds = [...selectedContentTypeIds, typeId];
+    const newSlot = createSlotFromContentType(selectedType, nextIndex, {
+      startDate: planStartDate,
+      timeZone,
+      contentTypeIds: nextContentTypeIds,
+      goalId: autoPlanGoal,
+      contentSource: focusSource,
+    });
+
+    setSelectedContentTypeIds((current) => [...current, typeId]);
+    setSlots((current) => [...current, newSlot]);
+    setRecentlyAddedContentTypeId(typeId);
+    setTimeout(() => setRecentlyAddedContentTypeId(""), 450);
+    clearFocusSource();
+    setShowFocusSourcePanel(false);
+
+    if (nextIndex + 1 >= autoPlanPostCount) {
+      scrollToPlannerSchedule();
+    }
+  }
+
+  async function inspectFocusSource() {
+    const requestedUrl = String(focusSourceInput || "").trim();
+    if (!requestedUrl) {
+      setFocusSourceError(
+        getFocusSourceCopy("enterUrl")
+      );
+      return;
+    }
+
+    setFocusSourceLoading(true);
+    setFocusSourceError("");
+    setMessage("");
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        throw new Error(getFocusSourceCopy("sessionExpired"));
+      }
+
+      const response = await fetch("/api/inspect-content-source", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          brandProfileId: currentBrandId,
+          url: requestedUrl,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.ok || !payload?.source?.url) {
+        throw new Error(payload?.error || getFocusSourceCopy("verifyFailed"));
+      }
+
+      setFocusSource(payload.source);
+      setFocusSourceInput(payload.source.url);
+    } catch (error) {
+      setFocusSource(null);
+      setFocusSourceError(error.message || (plannerLocaleIsSwedish ? "Sidan kunde inte verifieras." : "The page could not be verified."));
+    } finally {
+      setFocusSourceLoading(false);
+    }
+  }
 async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
   if (preferredBrandId) {
     const { data: preferredBrand, error: preferredBrandError } = await supabase
@@ -6049,7 +6183,7 @@ if (!selectedBrandId) {
 
 const { data: brandProfileData, error: brandProfileError } = await supabase
   .from("brand_profiles")
-  .select("id, business_name, website_product_mode_available, logo_url, logo_enabled_by_default")
+  .select("id, business_name, website_url, website_product_source_url, website_product_mode_available, logo_url, logo_enabled_by_default")
   .eq("id", selectedBrandId)
   .eq("user_id", user.id)
   .maybeSingle();
@@ -6059,6 +6193,10 @@ if (brandProfileError) {
   setCurrentBrandProfile(null);
 } else {
   setCurrentBrandProfile(brandProfileData || null);
+  setFocusSource(null);
+  setFocusSourceInput("");
+  setFocusSourceError("");
+  setShowFocusSourcePanel(false);
 
   setSlots((currentSlots) =>
     currentSlots.map((slot) => {
@@ -7042,6 +7180,21 @@ function toggleContentType(typeId) {
     setDefaultPublishTime(normalizeTime(firstRule.publish_time || defaultPublishTime));
     setAutoPlanGoal("");
 
+    const existingFocusSource = firstRule.content_source_url
+      ? {
+          sourceScope: firstRule.content_source_scope || "focus_page",
+          url: firstRule.content_source_url,
+          displayTitle: firstRule.content_source_title || firstRule.content_source_url,
+          summary: firstRule.content_source_summary || "",
+          verifiedAt: firstRule.content_source_verified_at || null,
+          websiteProductModeAvailable: Boolean(currentBrandProfile?.website_product_mode_available),
+        }
+      : null;
+    setFocusSource(existingFocusSource);
+    setFocusSourceInput(existingFocusSource?.url || "");
+    setShowFocusSourcePanel(Boolean(existingFocusSource));
+    setFocusSourceError("");
+
     const preparedSlots = groupedRules.map((rule) => {
       const ruleStartDate =
         rule.run_date ||
@@ -7081,6 +7234,11 @@ function toggleContentType(typeId) {
         usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
         contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
         animationStyle: rule.animation_style || contentType?.animationStyle || null,
+        contentSourceScope: rule.content_source_scope || "whole_website",
+        contentSourceUrl: rule.content_source_url || "",
+        contentSourceTitle: rule.content_source_title || "",
+        contentSourceSummary: rule.content_source_summary || "",
+        contentSourceVerifiedAt: rule.content_source_verified_at || null,
         timeZone: selectedTimeZone,
       });
     });
@@ -7128,6 +7286,20 @@ function toggleContentType(typeId) {
     setPlanStartDate(ruleStartDate);
     setDefaultPublishTime(rulePublishTime);
     setAutoPlanGoal("");
+    const existingFocusSource = rule.content_source_url
+      ? {
+          sourceScope: rule.content_source_scope || "focus_page",
+          url: rule.content_source_url,
+          displayTitle: rule.content_source_title || rule.content_source_url,
+          summary: rule.content_source_summary || "",
+          verifiedAt: rule.content_source_verified_at || null,
+          websiteProductModeAvailable: Boolean(currentBrandProfile?.website_product_mode_available),
+        }
+      : null;
+    setFocusSource(existingFocusSource);
+    setFocusSourceInput(existingFocusSource?.url || "");
+    setShowFocusSourcePanel(Boolean(existingFocusSource));
+    setFocusSourceError("");
     setSelectedContentTypeIds(contentTypeId ? [contentTypeId] : []);
     setSlots([
       createSlot({
@@ -7160,6 +7332,11 @@ function toggleContentType(typeId) {
         usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
         contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
         animationStyle: rule.animation_style || contentType?.animationStyle || null,
+        contentSourceScope: rule.content_source_scope || "whole_website",
+        contentSourceUrl: rule.content_source_url || "",
+        contentSourceTitle: rule.content_source_title || "",
+        contentSourceSummary: rule.content_source_summary || "",
+        contentSourceVerifiedAt: rule.content_source_verified_at || null,
         timeZone: selectedTimeZone,
       }),
     ]);
@@ -7436,6 +7613,13 @@ ${slot.campaignSummary}`
         uses_website_content: Boolean(slot.usesWebsiteContent),
         content_format: slot.contentFormat || "single_image",
         animation_style: slot.animationStyle || null,
+        content_source_scope: slot.contentSourceUrl
+          ? slot.contentSourceScope || "focus_page"
+          : "whole_website",
+        content_source_url: slot.contentSourceUrl || null,
+        content_source_title: slot.contentSourceTitle || null,
+        content_source_summary: slot.contentSourceSummary || null,
+        content_source_verified_at: slot.contentSourceVerifiedAt || null,
 
         campaign_phase: slot.campaignPhase || null,
         marketing_angle: slot.marketingAngle || null,
@@ -7514,6 +7698,11 @@ ${slot.campaignSummary}`
               content_format: editingRuleSnapshot.content_format,
               animation_style: editingRuleSnapshot.animation_style,
               uses_website_content: editingRuleSnapshot.uses_website_content,
+              content_source_scope: editingRuleSnapshot.content_source_scope || "whole_website",
+              content_source_url: editingRuleSnapshot.content_source_url || null,
+              content_source_title: editingRuleSnapshot.content_source_title || null,
+              content_source_summary: editingRuleSnapshot.content_source_summary || null,
+              content_source_verified_at: editingRuleSnapshot.content_source_verified_at || null,
               generate_image: editingRuleSnapshot.generate_image,
               image_source: editingRuleSnapshot.image_source,
               updated_at: new Date().toISOString(),
@@ -8095,6 +8284,17 @@ setRules((currentRules) =>
         </div>
 
         <div className="planner-content-grid">
+          <button
+            type="button"
+            className={`planner-content-chip planner-focus-source-chip ${
+              showFocusSourcePanel || focusSource ? "active" : ""
+            }`}
+            onClick={() => setShowFocusSourcePanel((current) => !current)}
+          >
+            <span><Link2 size={20} aria-hidden="true" /></span>
+            <strong>{getFocusSourceCopy("cardTitle")}</strong>
+            <p>{getFocusSourceCopy("cardText")}</p>
+          </button>
                     {visibleContentTypes.map((type) => {
             const isRecentlyAdded = recentlyAddedContentTypeId === type.id;
 
@@ -8114,6 +8314,91 @@ setRules((currentRules) =>
             );
           })}
         </div>
+
+        {(showFocusSourcePanel || focusSource) && (
+          <div className="planner-focus-source-panel">
+            <div className="planner-focus-source-heading">
+              <div>
+                <strong>{getFocusSourceCopy("heading")}</strong>
+                <p>{getFocusSourceCopy("help")}</p>
+              </div>
+              {focusSource && (
+                <button type="button" className="planner-focus-source-remove" onClick={clearFocusSource}>
+                  {getFocusSourceCopy("remove")}
+                </button>
+              )}
+            </div>
+
+            <div className="planner-focus-source-form">
+              <input
+                type="url"
+                className="input"
+                value={focusSourceInput}
+                onChange={(event) => {
+                  setFocusSourceInput(event.target.value);
+                  setFocusSourceError("");
+                }}
+                placeholder={getFocusSourceCopy("placeholder")}
+                autoComplete="url"
+              />
+              <button
+                type="button"
+                className="add-plan-button"
+                onClick={inspectFocusSource}
+                disabled={focusSourceLoading}
+              >
+                {focusSourceLoading
+                  ? getFocusSourceCopy("inspecting")
+                  : getFocusSourceCopy("inspect")}
+              </button>
+            </div>
+
+            {focusSourceError && (
+              <div className="planner-focus-source-error">
+                <AlertTriangle size={17} aria-hidden="true" />
+                <span>{focusSourceError}</span>
+              </div>
+            )}
+
+            {focusSource && (
+              <div className="planner-focus-source-result">
+                <div className="planner-focus-source-result-icon">
+                  <CheckCircle2 size={22} aria-hidden="true" />
+                </div>
+                <div>
+                  <span>{getFocusSourceCopy("verified")} · {getFocusSourceKindLabel(focusSource)}</span>
+                  <strong>{focusSource.displayTitle}</strong>
+                  <p>{focusSource.summary}</p>
+                  <small>{focusSource.url}</small>
+                  <em>
+                    {websiteProductModeAvailable
+                      ? getFocusSourceCopy("shopEnabled")
+                      : getFocusSourceCopy("shopDisabled")}
+                  </em>
+                </div>
+
+                <div className="planner-focus-source-types">
+                  <span>
+                    {getFocusSourceCopy("choosePostType")}
+                  </span>
+                  <div>
+                    {focusedSourceContentTypes.map((type) => (
+                      <button
+                        type="button"
+                        key={`focused-${type.id}`}
+                        onClick={() => addFocusedContentType(type.id)}
+                      >
+                        <strong>{translateContentTypeShortLabel(type)}</strong>
+                        <small>{translateContentTypeDescription(type)}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="content-picker-progress-note">
   {selectedContentTypeIds.length < autoPlanPostCount ? (
     <span>
@@ -8269,6 +8554,16 @@ setRules((currentRules) =>
                 </div>
 
                 <span>{displayDescription}</span>
+
+                {slot.contentSourceUrl && (
+                  <span className="planner-post-source-badge" title={slot.contentSourceUrl}>
+                    <Link2 size={13} aria-hidden="true" />
+                    <span>
+                      {slot.contentSourceTitle ||
+                        getFocusSourceCopy("selectedPage")}
+                    </span>
+                  </span>
+                )}
               </div>
               <div className="planner-post-date">
                 {slot.dateLocked ? (
@@ -9264,6 +9559,14 @@ setRules((currentRules) =>
               </div>
 
               <div className="add-post-modal-grid">
+                <button
+                  type="button"
+                  className="add-post-type-card add-post-focus-source-card"
+                  onClick={openFocusSourceSelector}
+                >
+                  <strong>{getFocusSourceCopy("cardTitle")}</strong>
+                  <p>{getFocusSourceCopy("cardText")}</p>
+                </button>
                               {visibleContentTypes.map((type) => (
                   <button
                     type="button"

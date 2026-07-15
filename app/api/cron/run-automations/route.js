@@ -1449,10 +1449,54 @@ Target audience: ${brandProfile.target_audience || "Not provided"}
 `.trim();
 }
 
-function getWebsiteProductSourceUrl(brandProfile) {
+function getRuleContentSourceScope(rule) {
+  const scope = String(rule?.content_source_scope || "whole_website").trim();
+  return ["whole_website", "focus_page", "exact_product", "product_category"].includes(scope)
+    ? scope
+    : "whole_website";
+}
+
+function getRuleContentSourceUrl(rule) {
+  return normalizeWebsiteUrl(rule?.content_source_url || "");
+}
+
+function isProductContentTypeRule(rule) {
+  return [
+    "website_item",
+    "website_item_text_ad",
+    "animated_website_item",
+    "carousel_website_item",
+  ].includes(String(rule?.content_type_id || "").trim());
+}
+
+function getWebsiteProductSourceUrl(brandProfile, rule = null) {
+  const focusedUrl = getRuleContentSourceUrl(rule);
+  if (focusedUrl) return focusedUrl;
+
   return normalizeWebsiteUrl(
     brandProfile?.website_product_source_url || brandProfile?.website_url
   );
+}
+
+function formatFocusedPageContextForPrompt(rule) {
+  const context = rule?.focused_page_context;
+  if (!context?.url) return "";
+
+  return `
+Focused website page selected by the customer:
+Page type: ${context.sourceScope || getRuleContentSourceScope(rule)}
+Page title: ${context.title || rule?.content_source_title || "Not provided"}
+Page URL: ${context.url}
+Verified summary: ${context.summary || rule?.content_source_summary || "Not provided"}
+Current page content:
+${truncateText(context.text || "", 9000)}
+
+Mandatory focus rules:
+- Base this post on this selected page and the information above.
+- Do not switch to an unrelated part of the website.
+- Do not invent facts that are not supported by this page or the Brand profile.
+- If the selected page is a service, event, auction, article or information section, keep the post focused on that subject and do not turn it into a webshop product post.
+`.trim();
 }
 
 function formatCampaignStrategyForPrompt(rule) {
@@ -2978,8 +3022,9 @@ async function prepareCarouselProductsForRule({
 }) {
   rule = await ensureProductSearchQueriesForRule({ supabase, rule });
 
-  const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
+  const websiteUrl = getWebsiteProductSourceUrl(brandProfile, rule);
   const contentType = rule.content_type_id || "carousel_website_item";
+  const contentSourceScope = getRuleContentSourceScope(rule);
 
   if (!websiteUrl) {
     throw new Error("Website carousel requires a website URL in Brand profile");
@@ -2993,6 +3038,68 @@ async function prepareCarouselProductsForRule({
     contentType,
     limit: WEBSITE_PRODUCT_REUSE_LIMIT,
   });
+
+  if (contentSourceScope === "exact_product") {
+    throw new Error(
+      "A website carousel needs a product category or collection URL. Choose another content type for one exact product."
+    );
+  }
+
+  if (contentSourceScope === "product_category" || contentSourceScope === "focus_page") {
+    const focusedCategoryItems = await discoverProductsFromFocusedCategory({
+      categoryUrl: websiteUrl,
+      rule,
+      limit: Math.max(CAROUSEL_PRODUCT_SLIDE_TARGET * 2, 12),
+    });
+    const validFocusedItems = focusedCategoryItems.filter(isValidCarouselProduct);
+    let selectedFocusedItems = selectCarouselProductsFromPool({
+      items: validFocusedItems,
+      rule,
+      sourceUrl: websiteUrl,
+      recentUsedItems,
+      usedWebsiteImageUrlsThisRun,
+      allowReuseWhenExhausted: false,
+    });
+
+    if (selectedFocusedItems.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+      selectedFocusedItems = selectCarouselProductsFromPool({
+        items: validFocusedItems,
+        rule,
+        sourceUrl: websiteUrl,
+        recentUsedItems,
+        usedWebsiteImageUrlsThisRun,
+        allowReuseWhenExhausted: true,
+      });
+    }
+
+    if (selectedFocusedItems.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+      throw new Error(
+        `The selected category did not provide at least ${CAROUSEL_MIN_PRODUCT_SLIDES} verified products with usable images.`
+      );
+    }
+
+    selectedFocusedItems = selectedFocusedItems.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+    await upsertWebsiteProductCatalogItems({
+      supabase,
+      userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id,
+      sourceUrl: websiteUrl,
+      items: selectedFocusedItems,
+      discoverySource: "customer_selected_category",
+    });
+
+    summary.website_items_found += selectedFocusedItems.length;
+    summary.website_content_success += 1;
+
+    return {
+      websiteItems: selectedFocusedItems,
+      websiteItem: selectedFocusedItems[0],
+      websiteSourceUrl: websiteUrl,
+      websiteCycleNumber: 1,
+      useWebsiteImage: true,
+      websiteRule: rule,
+    };
+  }
 
   let catalogItems = filterWebsiteCatalogItemsForRule(
     await getWebsiteProductCatalogItems({
@@ -4000,9 +4107,12 @@ async function prepareCarouselProductsForRule({
 }
 
 function getPostDestinationUrl(rule) {
+  const focusedUrl = getRuleContentSourceUrl(rule);
+
   if (isCarouselRule(rule)) {
     return (
-      getWebsiteProductSourceUrl(rule?.brand_profile) ||
+      focusedUrl ||
+      getWebsiteProductSourceUrl(rule?.brand_profile, rule) ||
       rule?.brand_profile?.website_url ||
       rule?.website_url ||
       ""
@@ -4011,6 +4121,7 @@ function getPostDestinationUrl(rule) {
 
   return (
     rule?.website_item?.url ||
+    focusedUrl ||
     rule?.brand_profile?.website_url ||
     rule?.website_url ||
     ""
@@ -4412,6 +4523,7 @@ function buildAutomationPrompt(rule) {
     ? `Selected carousel products:\n${formatWebsiteItemsForPrompt(carouselProducts)}`
     : formatWebsiteItemForPrompt(rule.website_item);
   const campaignStrategyText = formatCampaignStrategyForPrompt(rule);
+  const focusedPageContextText = formatFocusedPageContextForPrompt(rule);
   const destinationUrl = getPostDestinationUrl(rule);
 
   return `
@@ -4432,6 +4544,8 @@ ${websiteItemText}
 `.trim()
     : ""
 }
+
+${focusedPageContextText}
 
 ${campaignStrategyText}
 
@@ -4455,6 +4569,7 @@ Critical brand relevance rules:
 - Do not write generic advice that could apply to any random company.
 - Do not write about shopping, product care, cars, restaurants, salons, real estate or other unrelated industries unless the Brand profile says that is the business.
 - Use the User instruction as the content angle or post type, but always adapt it to the Brand profile.
+- If a Focused website page is provided, keep the entire post anchored to that page and do not switch to another website section.
 - If this is Website content mode and this is not a carousel, focus on the selected website item.
 - If this is a carousel, focus on the selected carousel products as a small collection and do not present it as a single-product post.
 - If the User instruction says "common mistakes", write common mistakes related to this specific business, industry and audience.
@@ -4580,6 +4695,7 @@ function buildImagePrompt(rule, postContent) {
   const visualConcept = pickVisualConcept(rule, postContent);
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
   const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
+  const focusedPageContextText = formatFocusedPageContextForPrompt(rule);
 
   return `
 Create one high-quality square social media image for a business post.
@@ -4595,6 +4711,8 @@ ${websiteItemText}
 `.trim()
     : ""
 }
+
+${focusedPageContextText}
 
 This image must be adapted to the specific business, industry, post topic and audience.
 Do not create a generic stock-photo image unless that clearly fits the business.
@@ -6295,6 +6413,67 @@ async function fetchHtml(url) {
     return await response.text();
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+async function prepareFocusedPageContextForRule(rule) {
+  const sourceUrl = getRuleContentSourceUrl(rule);
+  if (!sourceUrl) return null;
+
+  const sourceScope = getRuleContentSourceScope(rule);
+  const shouldFetchAsPageContext =
+    !isProductContentTypeRule(rule) || sourceScope === "focus_page";
+
+  if (!shouldFetchAsPageContext) {
+    return null;
+  }
+
+  try {
+    const html = await fetchHtml(sourceUrl);
+    const title =
+      extractPageTitle(html) ||
+      String(rule?.content_source_title || "").trim() ||
+      sourceUrl;
+    const metaDescription = getMetaContent(html, [
+      "description",
+      "og:description",
+      "twitter:description",
+    ]);
+    const text = truncateText(stripHtmlToText(html), 12000);
+
+    if (!text && !metaDescription && !rule?.content_source_summary) {
+      throw new Error("The selected page did not contain readable content");
+    }
+
+    return {
+      sourceScope,
+      url: sourceUrl,
+      title: truncateText(title, 220),
+      summary: truncateText(
+        metaDescription || rule?.content_source_summary || text,
+        900
+      ),
+      text,
+    };
+  } catch (error) {
+    if (rule?.content_source_summary || rule?.content_source_title) {
+      console.warn("Could not refresh focused page; using the verified saved page summary", {
+        ruleId: rule?.id,
+        sourceUrl,
+        message: error.message,
+      });
+
+      return {
+        sourceScope,
+        url: sourceUrl,
+        title: rule?.content_source_title || sourceUrl,
+        summary: rule?.content_source_summary || "",
+        text: rule?.content_source_summary || "",
+        stale: true,
+      };
+    }
+
+    throw new Error(`The selected focus page could not be refreshed: ${error.message}`);
   }
 }
 
@@ -10929,6 +11108,40 @@ const imageUrl =
     product_confidence: confidence,
   };
 }
+async function discoverProductsFromFocusedCategory({
+  categoryUrl,
+  rule,
+  limit = WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT,
+}) {
+  const html = await fetchHtml(categoryUrl);
+  const campaignPrompt = buildCampaignResearchText(rule);
+  const cardCandidates = extractProductCardCandidatesFromHtml({
+    html,
+    pageUrl: categoryUrl,
+    websiteUrl: categoryUrl,
+    campaignPrompt,
+  });
+  const jsonLdCandidates = extractJsonLdProductCandidatesFromHtml({
+    html,
+    pageUrl: categoryUrl,
+    websiteUrl: categoryUrl,
+  });
+  const candidates = dedupeUrlItems([
+    ...cardCandidates,
+    ...jsonLdCandidates,
+  ]).slice(0, Math.max(limit * 3, 24));
+
+  if (!candidates.length) {
+    return [];
+  }
+
+  return verifyDiscoveredWebsiteProductCandidates({
+    candidates,
+    websiteUrl: categoryUrl,
+    limit,
+  });
+}
+
 function isLikelyBadDiscoveryPageUrl(value, websiteUrl) {
   try {
     const url = new URL(value);
@@ -12733,12 +12946,50 @@ async function prepareWebsiteContentForRule({
     brandProfile,
   });
 
-  const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
+  const websiteUrl = getWebsiteProductSourceUrl(brandProfile, rule);
+  const contentSourceScope = getRuleContentSourceScope(rule);
   const contentType = rule.content_type_id || "website_item";
   const productIntentScoped = isProductIntentScopedWebsiteRule(rule);
 
   if (!websiteUrl) {
     throw new Error("This automation requires a website URL in Brand profile");
+  }
+
+  if (contentSourceScope === "exact_product") {
+    const exactProduct = await extractProductDataFromProductPage({
+      productUrl: websiteUrl,
+      websiteUrl,
+      webSearchProduct: {
+        title: rule.content_source_title || "",
+        reason: "Customer selected this exact product URL.",
+        source_page_url: websiteUrl,
+        campaign_fit_source: "customer_selected_exact_product",
+      },
+    });
+
+    if (!exactProduct?.url || !exactProduct?.title) {
+      throw new Error("The exact product URL could not be verified as a usable product page.");
+    }
+
+    await upsertWebsiteProductCatalogItems({
+      supabase,
+      userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id,
+      sourceUrl: websiteUrl,
+      items: [exactProduct],
+      discoverySource: "customer_selected_exact_product",
+    });
+
+    summary.website_items_found += 1;
+    summary.website_content_success += 1;
+
+    return {
+      websiteItem: exactProduct,
+      websiteSourceUrl: websiteUrl,
+      websiteCycleNumber: 1,
+      useWebsiteImage: Boolean(exactProduct.image_url),
+      websiteRule: rule,
+    };
   }
 
   const recentUsedItems = await getRecentUsedWebsiteItems({
@@ -12749,6 +13000,65 @@ async function prepareWebsiteContentForRule({
     contentType,
     limit: WEBSITE_PRODUCT_REUSE_LIMIT,
   });
+
+  if (contentSourceScope === "product_category" || contentSourceScope === "focus_page") {
+    let focusedCategoryItems = await discoverProductsFromFocusedCategory({
+      categoryUrl: websiteUrl,
+      rule,
+      limit: WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT,
+    });
+
+    if (productIntentScoped && focusedCategoryItems.length) {
+      focusedCategoryItems = await applyAiCampaignFitScores({
+        openai,
+        rule,
+        brandProfile,
+        items: focusedCategoryItems,
+        maxItems: WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT,
+        model: PRODUCT_RESEARCH_FAST_MODEL,
+        minimumStrongProducts: 1,
+      });
+    }
+
+    const focusedSelection = await chooseUnusedWebsiteItem({
+      supabase,
+      userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id,
+      sourceUrl: websiteUrl,
+      contentType,
+      items: focusedCategoryItems,
+      rule,
+      usedWebsiteImageUrlsThisRun,
+      recentUsedItems,
+      allowReuseWhenExhausted: true,
+    });
+
+    if (!focusedSelection?.item) {
+      throw new Error(
+        "No verified product could be selected from the customer-selected category or page. Spreelo will not search outside it."
+      );
+    }
+
+    await upsertWebsiteProductCatalogItems({
+      supabase,
+      userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id,
+      sourceUrl: websiteUrl,
+      items: [focusedSelection.item],
+      discoverySource: "customer_selected_category",
+    });
+
+    summary.website_items_found += 1;
+    summary.website_content_success += 1;
+
+    return {
+      websiteItem: focusedSelection.item,
+      websiteSourceUrl: websiteUrl,
+      websiteCycleNumber: focusedSelection.cycleNumber,
+      useWebsiteImage: focusedSelection.useWebsiteImage,
+      websiteRule: rule,
+    };
+  }
 
   let catalogItems = filterWebsiteCatalogItemsForRule(
     await getWebsiteProductCatalogItems({
@@ -14273,7 +14583,79 @@ function findAlphaBounds(alphaChannel, width, height, threshold = 24) {
   };
 }
 
-async function extractAnimatedProductCutout(sourceImageBuffer) {
+
+function getCornerBackgroundStats(data, width, height) {
+  const sampleSize = Math.max(10, Math.min(28, Math.floor(Math.min(width, height) * 0.05)));
+  const corners = [
+    { left: 0, top: 0 },
+    { left: Math.max(0, width - sampleSize), top: 0 },
+    { left: 0, top: Math.max(0, height - sampleSize) },
+    { left: Math.max(0, width - sampleSize), top: Math.max(0, height - sampleSize) },
+  ];
+  const averages = corners.map((corner) => {
+    let rTotal = 0;
+    let gTotal = 0;
+    let bTotal = 0;
+    let count = 0;
+    for (let y = corner.top; y < Math.min(height, corner.top + sampleSize); y += 1) {
+      for (let x = corner.left; x < Math.min(width, corner.left + sampleSize); x += 1) {
+        const index = (y * width + x) * 4;
+        if (data[index + 3] < 8) continue;
+        rTotal += data[index];
+        gTotal += data[index + 1];
+        bTotal += data[index + 2];
+        count += 1;
+      }
+    }
+    return count
+      ? {
+          r: Math.round(rTotal / count),
+          g: Math.round(gTotal / count),
+          b: Math.round(bTotal / count),
+        }
+      : { r: 245, g: 245, b: 245 };
+  });
+  const background = {
+    r: Math.round(averages.reduce((sum, color) => sum + color.r, 0) / averages.length),
+    g: Math.round(averages.reduce((sum, color) => sum + color.g, 0) / averages.length),
+    b: Math.round(averages.reduce((sum, color) => sum + color.b, 0) / averages.length),
+  };
+  let maximumDistance = 0;
+  for (let first = 0; first < averages.length; first += 1) {
+    for (let second = first + 1; second < averages.length; second += 1) {
+      const a = averages[first];
+      const b = averages[second];
+      maximumDistance = Math.max(
+        maximumDistance,
+        Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2)
+      );
+    }
+  }
+  return { background, maximumDistance, averages };
+}
+
+function getAlphaEdgeRatio(alphaChannel, width, height, threshold = 48) {
+  const edgeSize = Math.max(3, Math.round(Math.min(width, height) * 0.025));
+  let visible = 0;
+  let area = 0;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (
+        x >= edgeSize &&
+        x < width - edgeSize &&
+        y >= edgeSize &&
+        y < height - edgeSize
+      ) {
+        continue;
+      }
+      area += 1;
+      if (alphaChannel[y * width + x] >= threshold) visible += 1;
+    }
+  }
+  return area ? visible / area : 0;
+}
+
+async function prepareAnimatedProductCutout(sourceImageBuffer) {
   const normalized = await sharp(sourceImageBuffer)
     .rotate()
     .resize({
@@ -14298,9 +14680,6 @@ async function extractAnimatedProductCutout(sourceImageBuffer) {
     if (alpha < 245) transparentPixelCount += 1;
   }
 
-  // Many catalog PNG files are already correctly transparent. Never run the
-  // colour-key remover on those images: a white or pale product would otherwise
-  // be mistaken for a white background and become transparent itself.
   const existingTransparencyRatio = pixelCount
     ? transparentPixelCount / pixelCount
     : 0;
@@ -14312,24 +14691,46 @@ async function extractAnimatedProductCutout(sourceImageBuffer) {
       info.height,
       18
     );
-
     if (!existingBounds) {
-      return normalized;
+      throw new Error("Product image transparency contained no visible product");
     }
-
-    return sharp(normalized)
-      .extract(existingBounds)
-      .png()
-      .toBuffer();
+    const boundsAreaRatio =
+      (existingBounds.width * existingBounds.height) / Math.max(1, pixelCount);
+    const edgeVisibleRatio = getAlphaEdgeRatio(
+      originalAlphaChannel,
+      info.width,
+      info.height,
+      48
+    );
+    if (boundsAreaRatio > 0.97 && edgeVisibleRatio > 0.22) {
+      throw new Error("Product image still contained a full rectangular background");
+    }
+    return {
+      cutoutBuffer: await sharp(normalized).extract(existingBounds).png().toBuffer(),
+      score: 210 - boundsAreaRatio * 30 - edgeVisibleRatio * 40,
+      analysis: {
+        mode: "existing_transparency",
+        existingTransparencyRatio,
+        boundsAreaRatio,
+        edgeVisibleRatio,
+      },
+    };
   }
 
-  const background = estimateCornerBackgroundColor(data, info.width, info.height);
+  const cornerStats = getCornerBackgroundStats(data, info.width, info.height);
+  if (cornerStats.maximumDistance > 62) {
+    throw new Error(
+      `Product image background was too complex to remove safely (corner distance ${Math.round(cornerStats.maximumDistance)})`
+    );
+  }
+
+  const background = cornerStats.background;
   const rgba = Buffer.alloc(pixelCount * 4);
   const alphaChannel = Buffer.alloc(pixelCount);
-  const fadeStart = 16;
-  const fadeEnd = 58;
+  const fadeStart = 14;
+  const fadeEnd = 62;
 
-  for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
+  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
     const index = pixel * 4;
     const r = data[index];
     const g = data[index + 1];
@@ -14338,7 +14739,6 @@ async function extractAnimatedProductCutout(sourceImageBuffer) {
     const distance = Math.sqrt(
       (r - background.r) ** 2 + (g - background.g) ** 2 + (b - background.b) ** 2
     );
-
     let alpha = originalAlpha;
     if (distance <= fadeStart) {
       alpha = 0;
@@ -14348,7 +14748,6 @@ async function extractAnimatedProductCutout(sourceImageBuffer) {
         Math.max(0, Math.round(((distance - fadeStart) / (fadeEnd - fadeStart)) * 255))
       );
     }
-
     rgba[index] = r;
     rgba[index + 1] = g;
     rgba[index + 2] = b;
@@ -14358,7 +14757,7 @@ async function extractAnimatedProductCutout(sourceImageBuffer) {
 
   const bounds = findAlphaBounds(alphaChannel, info.width, info.height, 28);
   if (!bounds) {
-    return normalized;
+    throw new Error("Product image background removal left no visible product");
   }
 
   let stronglyVisiblePixels = 0;
@@ -14368,19 +14767,17 @@ async function extractAnimatedProductCutout(sourceImageBuffer) {
   const stronglyVisibleRatio = pixelCount
     ? stronglyVisiblePixels / pixelCount
     : 0;
+  const boundsAreaRatio = (bounds.width * bounds.height) / Math.max(1, pixelCount);
+  const edgeVisibleRatio = getAlphaEdgeRatio(alphaChannel, info.width, info.height, 48);
 
-  // A very small remainder usually means that a pale product was removed
-  // together with its background. Preserve the unchanged source instead of
-  // publishing a nearly invisible product.
   if (stronglyVisibleRatio < 0.08) {
-    console.warn("Animated product cutout was rejected because too much of the product became transparent", {
-      stronglyVisibleRatio: Number(stronglyVisibleRatio.toFixed(4)),
-      backgroundColor: rgbToHex(background),
-    });
-    return normalized;
+    throw new Error("Product image background removal removed too much of the product");
+  }
+  if (boundsAreaRatio > 0.93 || edgeVisibleRatio > 0.08) {
+    throw new Error("Product image still contained a visible rectangular or lifestyle background");
   }
 
-  return sharp(rgba, {
+  const cutoutBuffer = await sharp(rgba, {
     raw: {
       width: info.width,
       height: info.height,
@@ -14390,6 +14787,148 @@ async function extractAnimatedProductCutout(sourceImageBuffer) {
     .extract(bounds)
     .png()
     .toBuffer();
+
+  return {
+    cutoutBuffer,
+    score:
+      150 -
+      cornerStats.maximumDistance * 0.7 -
+      boundsAreaRatio * 25 -
+      edgeVisibleRatio * 80,
+    analysis: {
+      mode: "uniform_background_cutout",
+      backgroundColor: rgbToHex(background),
+      maximumCornerDistance: cornerStats.maximumDistance,
+      stronglyVisibleRatio,
+      boundsAreaRatio,
+      edgeVisibleRatio,
+    },
+  };
+}
+
+async function extractAnimatedProductCutout(sourceImageBuffer) {
+  const prepared = await prepareAnimatedProductCutout(sourceImageBuffer);
+  return prepared.cutoutBuffer;
+}
+
+function animatedImageAltMatchesProduct(alt, title) {
+  const altText = normalizeSearchText(alt || "");
+  const titleTokens = normalizeSearchText(title || "")
+    .split(/\s+/)
+    .filter((token) => token.length >= 4);
+  if (!altText || !titleTokens.length) return false;
+  const matches = titleTokens.filter((token) => altText.includes(token)).length;
+  return matches >= Math.min(2, titleTokens.length);
+}
+
+async function collectAnimatedProductImageCandidates(websiteItem) {
+  const candidates = [];
+  const seen = new Set();
+  const add = (url, metadata = {}) => {
+    const resolved = resolveUrl(url, websiteItem?.url || url);
+    if (!resolved || !isHttpUrl(resolved) || isBadProductImageUrl(resolved)) return;
+    const key = normalizeComparableValue(resolved);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    candidates.push({ url: resolved, ...metadata });
+  };
+
+  add(websiteItem?.image_url, { source: "selected_product_image", identityScore: 120 });
+
+  if (websiteItem?.url && isHttpUrl(websiteItem.url)) {
+    try {
+      const html = await fetchHtml(websiteItem.url);
+      const jsonLdProduct = findBestJsonLdProduct(
+        html,
+        websiteItem.url,
+        websiteItem?.title || ""
+      );
+      add(getProductImageFromJsonLd(jsonLdProduct, websiteItem.url), {
+        source: "product_json_ld",
+        identityScore: 105,
+      });
+      const ogImage = getMetaContent(html, ["og:image", "twitter:image"]);
+      add(ogImage, { source: "product_meta_image", identityScore: 90 });
+
+      for (const image of extractImageCandidates(html, websiteItem.url).slice(0, 60)) {
+        const identityMatch =
+          imageUrlMatchesProductIdentity(
+            image.url,
+            websiteItem.url,
+            websiteItem?.title || ""
+          ) || animatedImageAltMatchesProduct(image.alt, websiteItem?.title || "");
+        if (!identityMatch) continue;
+        add(image.url, {
+          source: image.source || "product_gallery",
+          identityScore: 95 + Number(image.score || 0),
+          alt: image.alt || "",
+        });
+      }
+    } catch (error) {
+      console.warn("Could not inspect product gallery for a clean animated product image", {
+        productUrl: websiteItem?.url || null,
+        message: error?.message,
+      });
+    }
+  }
+
+  return candidates
+    .sort((left, right) => Number(right.identityScore || 0) - Number(left.identityScore || 0))
+    .slice(0, 12);
+}
+
+async function selectAnimatedProductImage(websiteItem) {
+  const candidates = await collectAnimatedProductImageCandidates(websiteItem);
+  const accepted = [];
+  const rejected = [];
+
+  for (const candidate of candidates.slice(0, 9)) {
+    try {
+      const sourceImageBuffer = await fetchImageBufferForOverlay(candidate.url);
+      const prepared = await prepareAnimatedProductCutout(sourceImageBuffer);
+      const metadata = await sharp(prepared.cutoutBuffer).metadata();
+      const resolutionScore = Math.min(
+        24,
+        (Number(metadata.width || 0) * Number(metadata.height || 0)) / 70000
+      );
+      accepted.push({
+        ...candidate,
+        sourceImageBuffer,
+        cutoutBuffer: prepared.cutoutBuffer,
+        analysis: prepared.analysis,
+        score: Number(candidate.identityScore || 0) + Number(prepared.score || 0) + resolutionScore,
+      });
+    } catch (error) {
+      rejected.push({
+        url: candidate.url,
+        source: candidate.source,
+        message: error?.message,
+      });
+    }
+  }
+
+  accepted.sort((left, right) => right.score - left.score);
+  const selected = accepted[0];
+  if (!selected) {
+    console.warn("Animated product image candidates rejected", {
+      productUrl: websiteItem?.url || null,
+      rejected: rejected.slice(0, 8),
+    });
+    throw new Error(
+      "No clean product image with a removable or transparent background was available for this animated Reel"
+    );
+  }
+
+  console.log("Animated product image selected", {
+    productUrl: websiteItem?.url || null,
+    imageUrl: selected.url,
+    source: selected.source,
+    score: Number(selected.score.toFixed(2)),
+    analysis: selected.analysis,
+    rejectedCount: rejected.length,
+  });
+
+  return selected;
 }
 
 function chooseAnimatedOverlayChroma(dominantColor) {
@@ -14692,6 +15231,127 @@ function countVisiblePixelsInRegion(data, info, region, alphaThreshold = 48) {
   };
 }
 
+
+function analyzeTextLikeContent(data, info, region, alphaThreshold = 110) {
+  const left = Math.max(0, Math.min(info.width, Math.round(region.left)));
+  const top = Math.max(0, Math.min(info.height, Math.round(region.top)));
+  const right = Math.max(left, Math.min(info.width, Math.round(region.right)));
+  const bottom = Math.max(top, Math.min(info.height, Math.round(region.bottom)));
+  const width = right - left;
+  const height = bottom - top;
+  const mask = new Uint8Array(Math.max(1, width * height));
+  let occupiedRows = 0;
+  let totalRuns = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    let rowRuns = 0;
+    let inRun = false;
+    let rowVisible = false;
+    for (let x = 0; x < width; x += 1) {
+      const alpha = data[((top + y) * info.width + (left + x)) * info.channels + 3];
+      const visible = alpha >= alphaThreshold;
+      if (visible) {
+        mask[y * width + x] = 1;
+        rowVisible = true;
+        if (!inRun) rowRuns += 1;
+      }
+      inRun = visible;
+    }
+    if (rowVisible) {
+      occupiedRows += 1;
+      totalRuns += rowRuns;
+    }
+  }
+
+  const visited = new Uint8Array(mask.length);
+  const queue = new Int32Array(mask.length);
+  let meaningfulComponents = 0;
+  let largestComponent = 0;
+  const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+  for (let index = 0; index < mask.length; index += 1) {
+    if (!mask[index] || visited[index]) continue;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = index;
+    visited[index] = 1;
+    let area = 0;
+    while (head < tail) {
+      const current = queue[head++];
+      area += 1;
+      const x = current % width;
+      const y = Math.floor(current / width);
+      for (const [dx, dy] of neighbors) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+        const next = ny * width + nx;
+        if (!mask[next] || visited[next]) continue;
+        visited[next] = 1;
+        queue[tail++] = next;
+      }
+    }
+    largestComponent = Math.max(largestComponent, area);
+    if (area >= 18) meaningfulComponents += 1;
+  }
+
+  const averageRuns = occupiedRows ? totalRuns / occupiedRows : 0;
+  return {
+    meaningfulComponents,
+    largestComponent,
+    occupiedRows,
+    averageRuns,
+    looksTextLike:
+      meaningfulComponents >= 4 ||
+      (meaningfulComponents >= 2 && averageRuns >= 4.5) ||
+      averageRuns >= 7,
+  };
+}
+
+function removeEdgeConnectedBackground(data, info, background, threshold = 88) {
+  const pixelCount = info.width * info.height;
+  const removable = new Uint8Array(pixelCount);
+  const connected = new Uint8Array(pixelCount);
+  const queue = new Int32Array(pixelCount);
+  const colorDistance = (pixel) => {
+    const index = pixel * 4;
+    return Math.sqrt(
+      (data[index] - background.r) ** 2 +
+        (data[index + 1] - background.g) ** 2 +
+        (data[index + 2] - background.b) ** 2
+    );
+  };
+  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+    removable[pixel] = data[pixel * 4 + 3] >= 8 && colorDistance(pixel) <= threshold ? 1 : 0;
+  }
+  let head = 0;
+  let tail = 0;
+  const enqueue = (pixel) => {
+    if (!removable[pixel] || connected[pixel]) return;
+    connected[pixel] = 1;
+    queue[tail++] = pixel;
+  };
+  for (let x = 0; x < info.width; x += 1) {
+    enqueue(x);
+    enqueue((info.height - 1) * info.width + x);
+  }
+  for (let y = 0; y < info.height; y += 1) {
+    enqueue(y * info.width);
+    enqueue(y * info.width + info.width - 1);
+  }
+  while (head < tail) {
+    const pixel = queue[head++];
+    const x = pixel % info.width;
+    const y = Math.floor(pixel / info.width);
+    if (x > 0) enqueue(pixel - 1);
+    if (x + 1 < info.width) enqueue(pixel + 1);
+    if (y > 0) enqueue(pixel - info.width);
+    if (y + 1 < info.height) enqueue(pixel + info.width);
+  }
+  return connected;
+}
+
+
 async function extractGeneratedTextFromChromaBackground(generatedBuffer, chromaKey) {
   const normalized = await sharp(generatedBuffer)
     .rotate()
@@ -14706,98 +15366,36 @@ async function extractGeneratedTextFromChromaBackground(generatedBuffer, chromaK
   const { data, info } = await sharp(normalized)
     .raw()
     .toBuffer({ resolveWithObject: true });
-  const background = estimateCornerBackgroundColor(data, info.width, info.height);
-
-  // gpt-image-2 does not always reproduce an exact requested chroma value.
-  // The important requirement is a mostly uniform technical background, not
-  // that the RGB value matches the prompt perfectly. Measure the actual corner
-  // colour and remove that instead so a valid premium design is not rejected
-  // merely because cyan became pale blue, white or another flat colour.
-  const sampleSize = Math.max(
-    10,
-    Math.min(24, Math.floor(Math.min(info.width, info.height) * 0.05))
-  );
-  const cornerRegions = [
-    { left: 0, top: 0 },
-    { left: Math.max(0, info.width - sampleSize), top: 0 },
-    { left: 0, top: Math.max(0, info.height - sampleSize) },
-    {
-      left: Math.max(0, info.width - sampleSize),
-      top: Math.max(0, info.height - sampleSize),
-    },
-  ];
-  const cornerAverages = cornerRegions.map((corner) => {
-    let rTotal = 0;
-    let gTotal = 0;
-    let bTotal = 0;
-    let count = 0;
-    for (let y = corner.top; y < Math.min(info.height, corner.top + sampleSize); y += 1) {
-      for (let x = corner.left; x < Math.min(info.width, corner.left + sampleSize); x += 1) {
-        const index = (y * info.width + x) * 4;
-        if (data[index + 3] < 8) continue;
-        rTotal += data[index];
-        gTotal += data[index + 1];
-        bTotal += data[index + 2];
-        count += 1;
-      }
-    }
-    return count
-      ? {
-          r: Math.round(rTotal / count),
-          g: Math.round(gTotal / count),
-          b: Math.round(bTotal / count),
-        }
-      : background;
-  });
-  let maximumCornerDistance = 0;
-  for (let first = 0; first < cornerAverages.length; first += 1) {
-    for (let second = first + 1; second < cornerAverages.length; second += 1) {
-      const a = cornerAverages[first];
-      const b = cornerAverages[second];
-      maximumCornerDistance = Math.max(
-        maximumCornerDistance,
-        Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2)
-      );
-    }
-  }
-  if (maximumCornerDistance > 105) {
+  const cornerStats = getCornerBackgroundStats(data, info.width, info.height);
+  if (cornerStats.maximumDistance > 88) {
     throw new Error("Generated premium overlay did not use a sufficiently uniform removable background");
   }
 
-  const rgba = Buffer.alloc(info.width * info.height * 4);
+  const background = cornerStats.background;
+  const connectedBackground = removeEdgeConnectedBackground(
+    data,
+    info,
+    background,
+    92
+  );
+  const rgba = Buffer.from(data);
   const alphaChannel = Buffer.alloc(info.width * info.height);
-  const fadeStart = 16;
-  const fadeEnd = 88;
+  let removedPixels = 0;
 
   for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
     const index = pixel * 4;
-    const r = data[index];
-    const g = data[index + 1];
-    const b = data[index + 2];
-    const originalAlpha = data[index + 3];
-    const distance = Math.sqrt(
-      (r - background.r) ** 2 +
-        (g - background.g) ** 2 +
-        (b - background.b) ** 2
-    );
-
-    let alpha = originalAlpha;
-    if (distance <= fadeStart) {
+    let alpha = data[index + 3];
+    if (connectedBackground[pixel]) {
       alpha = 0;
-    } else if (distance < fadeEnd) {
-      alpha = Math.min(
-        originalAlpha,
-        Math.max(0, Math.round(((distance - fadeStart) / (fadeEnd - fadeStart)) * 255))
-      );
+      removedPixels += 1;
     }
-
-    rgba[index] = r;
-    rgba[index + 1] = g;
-    rgba[index + 2] = b;
     rgba[index + 3] = alpha;
     alphaChannel[pixel] = alpha;
   }
 
+  if (removedPixels / Math.max(1, info.width * info.height) < 0.45) {
+    throw new Error("Generated premium overlay background could not be cleanly separated from the design");
+  }
   const bounds = findAlphaBounds(alphaChannel, info.width, info.height, 36);
   if (!bounds) {
     throw new Error("Generated premium overlay contained no visible design");
@@ -14891,6 +15489,15 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer, chromaKey)
   if (sideEdges > 800) {
     throw new Error("Generated premium overlay was too close to the side edges");
   }
+  const textShape = analyzeTextLikeContent(data, info, {
+    left: 108,
+    top: 1260,
+    right: 972,
+    bottom: 1600,
+  });
+  if (!textShape.looksTextLike) {
+    throw new Error("Generated premium overlay contained decoration but no reliable title text");
+  }
 
   return overlayBuffer;
 }
@@ -14969,8 +15576,8 @@ async function createAnimatedTextOverlay({
   };
 }
 
-async function createAnimatedProductLayer({ sourceImageBuffer }) {
-  const cutoutBuffer = await extractAnimatedProductCutout(sourceImageBuffer);
+async function createAnimatedProductLayer({ sourceImageBuffer, preparedCutoutBuffer = null }) {
+  const cutoutBuffer = preparedCutoutBuffer || (await extractAnimatedProductCutout(sourceImageBuffer));
   const resizedProduct = await sharp(cutoutBuffer)
     .resize({
       width: 920,
@@ -15171,8 +15778,9 @@ async function createAnimatedProductVideoAssets({
     throw new Error("Animated product Reel requires a verified website product image");
   }
 
-  const sourceImageBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
-  const dominantColor = await getProductAccentColor(sourceImageBuffer);
+  const selectedProductImage = await selectAnimatedProductImage(websiteItem);
+  const sourceImageBuffer = selectedProductImage.sourceImageBuffer;
+  const dominantColor = await getProductAccentColor(selectedProductImage.cutoutBuffer);
   const selection = await selectAnimatedVideoBackground({
     supabase,
     rule,
@@ -15187,7 +15795,10 @@ async function createAnimatedProductVideoAssets({
       backgroundAsset: selection.asset,
       dominantColor,
     }),
-    createAnimatedProductLayer({ sourceImageBuffer }),
+    createAnimatedProductLayer({
+      sourceImageBuffer,
+      preparedCutoutBuffer: selectedProductImage.cutoutBuffer,
+    }),
     createAnimatedLogoOverlay({ brandProfile, includeLogo }),
   ]);
   const { textOverlayBuffer, prompt, provider: textOverlayProvider } = textOverlay;
@@ -17385,6 +17996,7 @@ let websiteSourceUrl = null;
 let websiteCycleNumber = null;
 let useWebsiteImage = false;
 let websitePreparedRule = rule;
+const focusedPageContext = await prepareFocusedPageContextForRule(rule);
 
         if (isCarouselRule(rule)) {
           try {
@@ -17450,6 +18062,7 @@ let websitePreparedRule = rule;
           brand_profile: brandProfile,
           website_item: websiteItem,
           website_items: websiteItems,
+          focused_page_context: focusedPageContext,
         };
 
         if (isWebsiteTextAdRule(ruleWithBrandProfile) && !websiteItem?.image_url) {
@@ -17510,6 +18123,7 @@ const { data: post, error: postError } = await supabase
             post_type: rule.post_type || null,
             website_url:
   websiteItem?.url ||
+  getRuleContentSourceUrl(ruleWithBrandProfile) ||
   websiteSourceUrl ||
   brandProfile?.website_product_source_url ||
   brandProfile?.website_url ||
@@ -17521,7 +18135,9 @@ const { data: post, error: postError } = await supabase
             cta_type: rule.cta_type || null,
 
             source: "automation",
-            source_label: rule.uses_website_content
+            source_label: getRuleContentSourceUrl(ruleWithBrandProfile)
+              ? "Generated from selected website page"
+              : rule.uses_website_content
               ? "Generated from website"
               : "Generated by automation",
             automation_rule_id: rule.id,
