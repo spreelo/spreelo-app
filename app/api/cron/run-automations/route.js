@@ -58,6 +58,12 @@ const APP_URL = "https://app.spreelo.com";
 const RESEND_FROM_EMAIL = "Spreelo <noreply@spreelo.com>";
 const POST_VIDEOS_BUCKET = "post-videos";
 const ANIMATED_VIDEO_DURATION_SECONDS = 5;
+const ANIMATED_TEXT_PANEL_SOURCE_WIDTH = 1408;
+const ANIMATED_TEXT_PANEL_SOURCE_HEIGHT = 480;
+const ANIMATED_TEXT_PANEL_LEFT = 128;
+const ANIMATED_TEXT_PANEL_TOP = 1280;
+const ANIMATED_TEXT_PANEL_WIDTH = 824;
+const ANIMATED_TEXT_PANEL_HEIGHT = 281;
 const MAX_ANIMATED_VIDEO_RENDERS_PER_RUN = 1;
 const MAX_ANIMATED_VIDEO_PUBLISHES_PER_RUN = 1;
 const INCOMPLETE_ANIMATED_VIDEO_GRACE_MINUTES = 20;
@@ -15083,18 +15089,99 @@ ${retryGuidance}
 `.trim();
 }
 
+function buildAnimatedTextPanelPrompt({
+  rule,
+  postContent,
+  backgroundAsset,
+  backgroundBrightness,
+  dominantColor,
+}) {
+  const websiteItem = rule?.website_item || {};
+  const brand = rule?.brand_profile || {};
+  const title = truncateText(
+    websiteItem?.title || rule?.content_type_label || "Featured product",
+    110
+  );
+  const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
+  const effectiveBackgroundBrightness = String(
+    backgroundBrightness || backgroundAsset?.brightness || ""
+  ).toLowerCase();
+  const backgroundDescription = [
+    backgroundAsset?.family,
+    ...(backgroundAsset?.moods || []),
+    ...(backgroundAsset?.colors || []),
+    effectiveBackgroundBrightness,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const contentLanguage =
+    rule?.language || brand?.content_language || "the same language as the post";
+  const productColorHex = rgbToHex(dominantColor || { r: 70, g: 85, b: 110 });
+  const themeContext = truncateText(
+    getAnimatedOverlayThemeContext(rule, postContent),
+    850
+  );
+
+  return `
+Create only one finished horizontal typography card for a premium product Reel.
+The returned image itself is the final visible card. Spreelo will keep every pixel of it and place it below a real product that zooms gently over a moving video background.
+
+Canvas and permanent card background:
+- Wide horizontal ${ANIMATED_TEXT_PANEL_SOURCE_WIDTH} x ${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT} composition.
+- Fill the complete canvas edge to edge with a clean opaque white or subtly warm ivory background.
+- The white or ivory background is an intentional part of the finished design. It will not be removed.
+- Do not use transparency, chroma key, green screen, cyan screen, magenta screen, a room, a wall, a floor, a product photo or a background scene.
+- Keep the background calm and nearly uniform. A very subtle paper tone is allowed, but no strong gradient, vignette or busy texture.
+
+Exact text:
+- Write this exact product name without renaming or rewriting it:
+"${title}"
+${price ? `- Also write this exact verified price: "${price}"` : "- Do not write a price."}
+- The product name must remain readable and correctly spelled.
+- You may separate a descriptive suffix after a dash into a smaller secondary line, but never omit, replace or invent a word.
+
+Unique marketing copy:
+- In ${contentLanguage}, create one short unique eyebrow of 2 to 4 words and one short supporting line of 3 to 7 words for this exact post.
+- Base both lines only on the supplied product, caption and campaign context. Do not invent a feature, offer, price, discount, result or guarantee.
+- Keep both lines clearly secondary to the exact product name. Do not copy hashtags, emojis or the full social caption.
+- Make the wording and typographic treatment feel created for this particular product rather than reused from another post.
+
+Visual context:
+- Product dominant color: ${productColorHex}
+- Moving video background: ${backgroundDescription || "a premium neutral background"}
+- Product, caption and campaign context: ${themeContext || "No additional theme context"}
+
+Creative direction:
+- Create a genuinely unique premium typography treatment tailored to this product, its dominant color and its campaign theme.
+- Infer the visual language intelligently. Premium fashion may use editorial type, a humorous statement product may use a bold poster treatment, and a seasonal product may use one restrained thematic accent.
+- Use an elegant highly legible display treatment: tall condensed display, refined serif, modern geometric sans or a carefully balanced font pairing.
+- The exact product name must be the clear visual focus and fit in one or two balanced lines.
+- Keep every letter comfortably inside generous outer margins. No letter may touch or be clipped by an edge.
+- Use deep charcoal, dark navy, burgundy, forest green or another clearly dark premium ink for all essential lettering.
+- Never use white, off-white, cream, very pale grey or near-white lettering. All text must contrast clearly against the permanent white or ivory card.
+- Use the product color only as a restrained accent when it remains clearly visible on the light card.
+- You may use one restrained premium device such as a thin line, elegant underline or small editorial accent.
+- Decorative elements must support the words and never reduce legibility.
+- The word "T-shirt" must clearly read with a real capital T and unambiguous letterforms.
+- Do not write the brand name. Spreelo adds the brand separately above the product.
+- No product image, logo, button, watermark, mockup, packaging, frame around another scene or fake clickable element.
+- No pixel font, bitmap font, arcade style, block lettering made from squares, jagged outline or colored fringe.
+- Render clean smooth high-resolution letter edges suitable for a professional Scandinavian fashion advertisement.
+`.trim();
+}
+
 function splitAnimatedOverlayTitle(title) {
   const cleaned = truncateText(
     String(title || "Featured product").replace(/\s+/g, " ").trim(),
     78
   );
-  const normalized = cleaned.replace(/\s*[\-–—]\s*/g, " – ");
+  const normalized = cleaned.replace(/\s+-\s+|\s*[\u2013\u2014]\s*/g, " - ");
   const parts = normalized
-    .split(/\s+–\s+/u)
+    .split(/\s+-\s+/u)
     .map((part) => part.trim())
     .filter(Boolean);
   const primary = parts.shift() || normalized;
-  const suffix = parts.join(" • ");
+  const suffix = parts.join(" - ");
   const tokens = primary.split(/\s+/).filter(Boolean);
   const maxChars = 25;
   const lines = [];
@@ -15369,6 +15456,87 @@ async function createFallbackAnimatedTextOverlay({
         ${titleMarkup}
         ${priceMarkup}
       </g>
+    </svg>
+  `;
+
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+async function createProfessionalFallbackAnimatedTextOverlay({
+  rule,
+  backgroundAsset,
+  backgroundBrightness,
+  dominantColor,
+}) {
+  const websiteItem = rule?.website_item || {};
+  const brand = rule?.brand_profile || {};
+  const title = websiteItem?.title || rule?.content_type_label || "Featured product";
+  const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
+  const titleLines = splitAnimatedOverlayTitle(title);
+  const style = getPremiumFallbackTextStyle({
+    rule,
+    dominantColor,
+    backgroundAsset,
+    backgroundBrightness,
+  });
+  const maxCharacters = Math.max(
+    1,
+    ...titleLines.map((line) => Array.from(line).length)
+  );
+  const baseFontSize = titleLines.length >= 3 ? 46 : titleLines.length === 2 ? 60 : 76;
+  const fittedFontSize = Math.floor(
+    (ANIMATED_TEXT_PANEL_WIDTH - 112) / Math.max(1, maxCharacters * 0.58)
+  );
+  const titleFontSize = Math.max(36, Math.min(baseFontSize, fittedFontSize));
+  const titleLineHeight = Math.round(titleFontSize * 1.06);
+  const priceHeight = price ? 34 : 0;
+  const textBlockHeight =
+    titleLines.length * titleLineHeight + priceHeight + (price ? 14 : 0);
+  const firstBaseline = Math.round(
+    ANIMATED_TEXT_PANEL_TOP +
+      (ANIMATED_TEXT_PANEL_HEIGHT - textBlockHeight) / 2 +
+      titleFontSize * 0.82
+  );
+  const titleMarkup = titleLines
+    .map((line, index) => {
+      const estimatedWidth = Array.from(line).length * titleFontSize * 0.58;
+      const fitAttributes =
+        estimatedWidth > ANIMATED_TEXT_PANEL_WIDTH - 112
+          ? ` textLength="${ANIMATED_TEXT_PANEL_WIDTH - 112}" lengthAdjust="spacingAndGlyphs"`
+          : "";
+      return `<text x="540" y="${firstBaseline + index * titleLineHeight}" text-anchor="middle" font-family="${style.font}" font-size="${titleFontSize}" font-style="${style.fontStyle}" font-weight="${style.weight}" letter-spacing="1.5" fill="${style.mainColor}"${fitAttributes}>${escapeSvgText(line)}</text>`;
+    })
+    .join("");
+  const priceMarkup = price
+    ? `<text x="540" y="${firstBaseline + titleLines.length * titleLineHeight + 8}" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="28" font-weight="700" letter-spacing="2" fill="${style.accentColor}">${escapeSvgText(price)}</text>`
+    : "";
+  const brandName = truncateText(
+    String(brand?.business_name || "").replace(/\s+/g, " ").trim(),
+    28
+  );
+  const brandFontSize = Math.max(
+    25,
+    Math.min(38, Math.floor(680 / Math.max(8, brandName.length * 0.7)))
+  );
+  const brandLetterSpacing = Math.max(
+    4,
+    Math.min(12, Math.floor(130 / Math.max(1, brandName.length)))
+  );
+  const brandMarkup = brandName
+    ? `<text x="540" y="150" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${brandFontSize}" font-weight="600" letter-spacing="${brandLetterSpacing}" fill="#0f172a">${escapeSvgText(brandName.toUpperCase())}</text><line x1="510" y1="178" x2="570" y2="178" stroke="${style.accentColor}" stroke-width="3" stroke-linecap="round"/>`
+    : "";
+  const svg = `
+    <svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="panelShadow" x="-30%" y="-40%" width="160%" height="190%">
+          <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0f172a" flood-opacity="0.22"/>
+        </filter>
+      </defs>
+      ${brandMarkup}
+      <rect x="${ANIMATED_TEXT_PANEL_LEFT}" y="${ANIMATED_TEXT_PANEL_TOP}" width="${ANIMATED_TEXT_PANEL_WIDTH}" height="${ANIMATED_TEXT_PANEL_HEIGHT}" rx="28" fill="#f8f6f1" filter="url(#panelShadow)"/>
+      ${titleMarkup}
+      ${priceMarkup}
+      <line x1="390" y1="${ANIMATED_TEXT_PANEL_TOP + ANIMATED_TEXT_PANEL_HEIGHT - 21}" x2="690" y2="${ANIMATED_TEXT_PANEL_TOP + ANIMATED_TEXT_PANEL_HEIGHT - 21}" stroke="${style.accentColor}" stroke-width="3" stroke-linecap="round" opacity="0.72"/>
     </svg>
   `;
 
@@ -15916,6 +16084,123 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer, chromaKey)
   }
 }
 
+async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, {
+  brandName,
+  dominantColor,
+}) {
+  const normalizedPanel = await sharp(generatedBuffer)
+    .rotate()
+    .resize({
+      width: ANIMATED_TEXT_PANEL_SOURCE_WIDTH,
+      height: ANIMATED_TEXT_PANEL_SOURCE_HEIGHT,
+      fit: "fill",
+      kernel: sharp.kernel.lanczos3,
+    })
+    .removeAlpha()
+    .png()
+    .toBuffer();
+  const { data, info } = await sharp(normalizedPanel)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let darkPixels = 0;
+  let lightNeutralPixels = 0;
+
+  for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
+    const index = pixel * info.channels;
+    const r = data[index];
+    const g = data[index + 1];
+    const b = data[index + 2];
+    const luminance = r * 0.2126 + g * 0.7152 + b * 0.0722;
+    const channelSpread = Math.max(r, g, b) - Math.min(r, g, b);
+
+    if (luminance <= 182) darkPixels += 1;
+    if (luminance >= 205 && channelSpread <= 38) lightNeutralPixels += 1;
+  }
+
+  const pixelCount = Math.max(1, info.width * info.height);
+  const darkRatio = darkPixels / pixelCount;
+  const lightNeutralRatio = lightNeutralPixels / pixelCount;
+
+  if (darkRatio < 0.002) {
+    throw new Error("Generated premium text panel contained no visible dark typography");
+  }
+
+  const resizedPanel = await sharp(normalizedPanel)
+    .resize({
+      width: ANIMATED_TEXT_PANEL_WIDTH,
+      height: ANIMATED_TEXT_PANEL_HEIGHT,
+      fit: "fill",
+      kernel: sharp.kernel.lanczos3,
+    })
+    .ensureAlpha()
+    .png()
+    .toBuffer();
+  const panelMask = Buffer.from(`
+    <svg width="${ANIMATED_TEXT_PANEL_WIDTH}" height="${ANIMATED_TEXT_PANEL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${ANIMATED_TEXT_PANEL_WIDTH}" height="${ANIMATED_TEXT_PANEL_HEIGHT}" rx="28" fill="#ffffff"/>
+    </svg>
+  `);
+  const roundedPanel = await sharp(resizedPanel)
+    .composite([{ input: panelMask, blend: "dest-in" }])
+    .png()
+    .toBuffer();
+  const safeBrandName = truncateText(
+    String(brandName || "").replace(/\s+/g, " ").trim(),
+    28
+  );
+  const accentColor = rgbToHex(
+    mixRgb(dominantColor || { r: 70, g: 85, b: 110 }, { r: 15, g: 23, b: 42 }, 0.5)
+  );
+  const brandFontSize = Math.max(
+    25,
+    Math.min(38, Math.floor(680 / Math.max(8, safeBrandName.length * 0.7)))
+  );
+  const brandLetterSpacing = Math.max(
+    4,
+    Math.min(12, Math.floor(130 / Math.max(1, safeBrandName.length)))
+  );
+  const brandMarkup = safeBrandName
+    ? `<text x="540" y="150" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${brandFontSize}" font-weight="600" letter-spacing="${brandLetterSpacing}" fill="#0f172a">${escapeSvgText(safeBrandName.toUpperCase())}</text><line x1="510" y1="178" x2="570" y2="178" stroke="${accentColor}" stroke-width="3" stroke-linecap="round"/>`
+    : "";
+  const panelFrame = Buffer.from(`
+    <svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="panelShadow" x="-30%" y="-40%" width="160%" height="190%">
+          <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0f172a" flood-opacity="0.22"/>
+        </filter>
+      </defs>
+      ${brandMarkup}
+      <rect x="${ANIMATED_TEXT_PANEL_LEFT}" y="${ANIMATED_TEXT_PANEL_TOP}" width="${ANIMATED_TEXT_PANEL_WIDTH}" height="${ANIMATED_TEXT_PANEL_HEIGHT}" rx="28" fill="#f8f6f1" filter="url(#panelShadow)"/>
+    </svg>
+  `);
+  const textOverlayBuffer = await sharp({
+    create: {
+      width: 1080,
+      height: 1920,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([
+      { input: panelFrame, left: 0, top: 0 },
+      {
+        input: roundedPanel,
+        left: ANIMATED_TEXT_PANEL_LEFT,
+        top: ANIMATED_TEXT_PANEL_TOP,
+      },
+    ])
+    .png()
+    .toBuffer();
+
+  return {
+    textOverlayBuffer,
+    analysis: {
+      darkRatio: Number(darkRatio.toFixed(4)),
+      lightNeutralRatio: Number(lightNeutralRatio.toFixed(4)),
+    },
+  };
+}
+
 async function createAnimatedTextOverlay({
   openai,
   rule,
@@ -15923,7 +16208,6 @@ async function createAnimatedTextOverlay({
   backgroundAsset,
   dominantColor,
 }) {
-  const chromaKey = chooseAnimatedOverlayChroma(dominantColor);
   const backgroundReferenceBuffer =
     await getAnimatedOverlayBackgroundReference(backgroundAsset);
   const backgroundLuminance = await getAnimatedOverlayBackgroundLuminance(
@@ -15932,95 +16216,65 @@ async function createAnimatedTextOverlay({
   );
   const backgroundBrightness =
     getAnimatedOverlayBrightnessLabel(backgroundLuminance);
-  let lastError = null;
-  let lastPrompt = null;
-
-  for (let attempt = 1; attempt <= 1; attempt += 1) {
-    const prompt = buildAnimatedTextOverlayPrompt({
-      rule,
-      postContent,
-      backgroundAsset,
-      backgroundBrightness,
-      dominantColor,
-      chromaKey,
-      attempt,
-    });
-    lastPrompt = prompt;
-
-    try {
-      const response = await openai.images.generate({
-        model: ANIMATED_OVERLAY_IMAGE_MODEL,
-        prompt,
-        size: "864x1536",
-        quality: "medium",
-        background: "opaque",
-        output_format: "png",
-      });
-      const imageBase64 = response?.data?.[0]?.b64_json;
-
-      if (!imageBase64) {
-        throw new Error("OpenAI returned no premium overlay image data");
-      }
-
-      const normalizedOverlay = await normalizeGeneratedAnimatedTextOverlay(
-        Buffer.from(imageBase64, "base64"),
-        chromaKey
-      );
-      const textOverlayBuffer = await addAnimatedOverlayContrastHalo(
-        normalizedOverlay.textOverlayBuffer,
-        backgroundLuminance
-      );
-
-      if (normalizedOverlay.repaired) {
-        console.info("OpenAI premium animated overlay repaired to allowed text zones", {
-          ruleId: rule?.id || null,
-          attempt,
-          message: normalizedOverlay.repairReason,
-        });
-      }
-
-      return {
-        textOverlayBuffer,
-        prompt,
-        provider: normalizedOverlay.repaired
-          ? attempt === 1
-            ? "openai_premium_zoned_repaired"
-            : "openai_premium_zoned_retry_repaired"
-          : attempt === 1
-            ? "openai_premium_zoned"
-            : "openai_premium_zoned_retry",
-      };
-    } catch (error) {
-      lastError = error;
-      console.warn("OpenAI premium animated overlay attempt failed validation", {
-        ruleId: rule?.id || null,
-        attempt,
-        chromaKey: chromaKey.hex,
-        message: error?.message,
-      });
-    }
-  }
-
-  console.warn("Single OpenAI premium animated overlay was unusable; using emergency fallback", {
-    ruleId: rule?.id || null,
-    message: lastError?.message,
-  });
-
-  const fallbackTextOverlayBuffer = await createFallbackAnimatedTextOverlay({
+  const prompt = buildAnimatedTextPanelPrompt({
     rule,
+    postContent,
     backgroundAsset,
     backgroundBrightness,
     dominantColor,
   });
 
-  return {
-    textOverlayBuffer: await addAnimatedOverlayContrastHalo(
-      fallbackTextOverlayBuffer,
-      backgroundLuminance
-    ),
-    prompt: lastPrompt,
-    provider: "fallback_premium_svg",
-  };
+  try {
+    const response = await openai.images.generate({
+      model: ANIMATED_OVERLAY_IMAGE_MODEL,
+      prompt,
+      size: `${ANIMATED_TEXT_PANEL_SOURCE_WIDTH}x${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT}`,
+      quality: "medium",
+      background: "opaque",
+      output_format: "png",
+    });
+    const imageBase64 = response?.data?.[0]?.b64_json;
+
+    if (!imageBase64) {
+      throw new Error("OpenAI returned no premium text panel image data");
+    }
+
+    const normalizedPanel = await normalizeGeneratedAnimatedTextPanel(
+      Buffer.from(imageBase64, "base64"),
+      {
+        brandName: rule?.brand_profile?.business_name,
+        dominantColor,
+      }
+    );
+
+    console.info("OpenAI premium animated text panel created", {
+      ruleId: rule?.id || null,
+      model: ANIMATED_OVERLAY_IMAGE_MODEL,
+      ...normalizedPanel.analysis,
+    });
+
+    return {
+      textOverlayBuffer: normalizedPanel.textOverlayBuffer,
+      prompt,
+      provider: "openai_premium_opaque_panel",
+    };
+  } catch (error) {
+    console.warn("Single OpenAI premium animated text panel was unusable; using emergency fallback", {
+      ruleId: rule?.id || null,
+      message: error?.message,
+    });
+
+    return {
+      textOverlayBuffer: await createProfessionalFallbackAnimatedTextOverlay({
+        rule,
+        backgroundAsset,
+        backgroundBrightness,
+        dominantColor,
+      }),
+      prompt,
+      provider: "fallback_premium_type_panel",
+    };
+  }
 }
 
 async function createAnimatedProductLayer({ sourceImageBuffer, preparedCutoutBuffer = null }) {

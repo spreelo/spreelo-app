@@ -27,9 +27,9 @@ Example:
 
 Optional:
 
-`ANIMATED_OVERLAY_IMAGE_MODEL=gpt-image-1.5`
+`ANIMATED_OVERLAY_IMAGE_MODEL=gpt-image-2`
 
-The default is already `gpt-image-1.5`, because the animated foreground needs a transparent PNG.
+The default is `gpt-image-2`. It creates one opaque white or warm-white typography panel for each animated product post. Spreelo keeps that panel intact, so no generated background color has to be removed around the letters.
 
 ## 3. Upload backgrounds
 
