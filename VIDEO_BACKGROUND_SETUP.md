@@ -29,7 +29,11 @@ Optional:
 
 `ANIMATED_OVERLAY_IMAGE_MODEL=gpt-image-2`
 
-The default is `gpt-image-2`. It creates one opaque white or warm-white typography panel for each animated product post. Spreelo keeps that panel intact, so no generated background color has to be removed around the letters.
+The default is `gpt-image-2`. For each animated product post, Spreelo makes exactly one image-edit request with the selected video poster and the real product cutout as visual references. GPT Image 2 creates one opaque typography panel whose colors, typography and layout can adapt to those references. Spreelo keeps the complete panel intact, so no generated background color has to be removed around the letters.
+
+Product-title separators such as `Name - Herr - T-Shirt` are treated as metadata, not as punctuation that must be printed. The model receives `Name` as the main title and `Herr T-Shirt` as the secondary descriptor, and no line may begin or end with a dash.
+
+Spreelo does not render a local brand-name text above the product. This prevents missing-font square glyphs. If the brand has a real uploaded logo and the rule allows it, that logo is still added separately.
 
 ## 3. Upload backgrounds
 

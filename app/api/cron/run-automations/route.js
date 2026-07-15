@@ -15089,19 +15089,42 @@ ${retryGuidance}
 `.trim();
 }
 
+function parseAnimatedTextPanelTitle(rawTitle) {
+  const cleaned = truncateText(
+    String(rawTitle || "Featured product").replace(/\s+/g, " ").trim(),
+    110
+  );
+  const parts = cleaned
+    .split(/\s+(?:[-\u2013\u2014|\u2022])\s+/u)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length <= 1) {
+    return { mainTitle: cleaned, descriptor: "" };
+  }
+
+  return {
+    mainTitle: parts[0],
+    descriptor: parts.slice(1).join(" "),
+  };
+}
+
 function buildAnimatedTextPanelPrompt({
   rule,
   postContent,
   backgroundAsset,
   backgroundBrightness,
   dominantColor,
+  hasBackgroundReference,
+  hasProductReference,
 }) {
   const websiteItem = rule?.website_item || {};
   const brand = rule?.brand_profile || {};
-  const title = truncateText(
+  const rawTitle = truncateText(
     websiteItem?.title || rule?.content_type_label || "Featured product",
     110
   );
+  const { mainTitle, descriptor } = parseAnimatedTextPanelTitle(rawTitle);
   const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
   const effectiveBackgroundBrightness = String(
     backgroundBrightness || backgroundAsset?.brightness || ""
@@ -15121,30 +15144,46 @@ function buildAnimatedTextPanelPrompt({
     getAnimatedOverlayThemeContext(rule, postContent),
     850
   );
+  const referenceGuidance = hasBackgroundReference && hasProductReference
+    ? `- Reference image 1 is the actual moving-video poster. Use its palette, brightness and visual mood as design context only.\n- Reference image 2 is the actual product cutout. Use its color, category and visual character as design context only.`
+    : hasProductReference
+      ? "- Reference image 1 is the actual product cutout. Use its color, category and visual character as design context only."
+      : hasBackgroundReference
+        ? "- Reference image 1 is the actual moving-video poster. Use its palette, brightness and visual mood as design context only."
+        : "- No visual reference image is available; use the written visual context below.";
 
   return `
 Create only one finished horizontal typography card for a premium product Reel.
 The returned image itself is the final visible card. Spreelo will keep every pixel of it and place it below a real product that zooms gently over a moving video background.
 
-Canvas and permanent card background:
-- Wide horizontal ${ANIMATED_TEXT_PANEL_SOURCE_WIDTH} x ${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT} composition.
-- Fill the complete canvas edge to edge with a clean opaque white or subtly warm ivory background.
-- The white or ivory background is an intentional part of the finished design. It will not be removed.
-- Do not use transparency, chroma key, green screen, cyan screen, magenta screen, a room, a wall, a floor, a product photo or a background scene.
-- Keep the background calm and nearly uniform. A very subtle paper tone is allowed, but no strong gradient, vignette or busy texture.
+Visual references:
+${referenceGuidance}
+- Do not reproduce either reference image, and do not place the product or the background scene inside the card.
 
-Exact text:
-- Write this exact product name without renaming or rewriting it:
-"${title}"
+Canvas and permanent card:
+- Wide horizontal ${ANIMATED_TEXT_PANEL_SOURCE_WIDTH} x ${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT} composition.
+- Fill the complete canvas edge to edge with one intentional opaque card background that visually harmonizes with the supplied product and moving background.
+- Choose the card color intelligently: it may be a warm or cool neutral, a restrained complementary color, or a deep premium tone. It does not have to be white.
+- A subtle paper, print or tonal texture is allowed when it improves the design, but the card must stay calm and highly legible.
+- The complete background is an intentional part of the finished card. It will not be removed.
+- Do not use transparency, chroma key, green screen, cyan screen, magenta screen, a room, a wall, a floor, a product photo or a background scene.
+- Do not create a second card, inset mockup, photo frame or fake interface inside the canvas.
+
+Product-name content:
+- Main product name, with exact spelling and all words preserved: "${mainTitle}"
+${descriptor ? `- Secondary descriptor, with exact spelling and all words preserved: "${descriptor}"` : "- There is no secondary descriptor."}
 ${price ? `- Also write this exact verified price: "${price}"` : "- Do not write a price."}
-- The product name must remain readable and correctly spelled.
-- You may separate a descriptive suffix after a dash into a smaller secondary line, but never omit, replace or invent a word.
+- Treat separators from the source title as metadata separators, not as characters that must be printed.
+- Never begin or end a line with a hyphen, dash, bullet, colon or other separator. Never print an isolated separator.
+- You may choose capitalization and balanced line breaks, but do not rename, translate, omit, replace or invent a product-name word.
+- Keep the main name dominant in one or two balanced lines. When present, make the descriptor a smaller, natural secondary line.
 
 Unique marketing copy:
 - In ${contentLanguage}, create one short unique eyebrow of 2 to 4 words and one short supporting line of 3 to 7 words for this exact post.
 - Base both lines only on the supplied product, caption and campaign context. Do not invent a feature, offer, price, discount, result or guarantee.
 - Keep both lines clearly secondary to the exact product name. Do not copy hashtags, emojis or the full social caption.
 - Make the wording and typographic treatment feel created for this particular product rather than reused from another post.
+- If an extra line would make the layout crowded or uncertain, omit the supporting line before compromising the product name.
 
 Visual context:
 - Product dominant color: ${productColorHex}
@@ -15152,14 +15191,15 @@ Visual context:
 - Product, caption and campaign context: ${themeContext || "No additional theme context"}
 
 Creative direction:
-- Create a genuinely unique premium typography treatment tailored to this product, its dominant color and its campaign theme.
+- Create a genuinely unique premium typography treatment tailored to the actual product, actual video palette and campaign theme.
 - Infer the visual language intelligently. Premium fashion may use editorial type, a humorous statement product may use a bold poster treatment, and a seasonal product may use one restrained thematic accent.
-- Use an elegant highly legible display treatment: tall condensed display, refined serif, modern geometric sans or a carefully balanced font pairing.
-- The exact product name must be the clear visual focus and fit in one or two balanced lines.
+- Choose the most suitable typography for this exact product: tall condensed display, refined serif, modern geometric sans, tasteful expressive display lettering, or a carefully balanced font pairing.
+- Vary the composition between posts when appropriate: centered editorial, asymmetric magazine layout, refined stacked poster or another professional arrangement that suits the references.
+- The product name must be the clear visual focus and feel deliberately composed rather than inserted into a fixed template.
 - Keep every letter comfortably inside generous outer margins. No letter may touch or be clipped by an edge.
-- Use deep charcoal, dark navy, burgundy, forest green or another clearly dark premium ink for all essential lettering.
-- Never use white, off-white, cream, very pale grey or near-white lettering. All text must contrast clearly against the permanent white or ivory card.
-- Use the product color only as a restrained accent when it remains clearly visible on the light card.
+- Choose text colors with strong contrast against the card. Light lettering is allowed only on a clearly dark card; dark lettering is required on a light card.
+- Never use white or near-white lettering on a white, cream or pale card.
+- Use the product color as inspiration or a restrained accent when it remains clearly legible with the card and moving background.
 - You may use one restrained premium device such as a thin line, elegant underline or small editorial accent.
 - Decorative elements must support the words and never reduce legibility.
 - The word "T-shirt" must clearly read with a real capital T and unambiguous letterforms.
@@ -15383,7 +15423,6 @@ async function createFallbackAnimatedTextOverlay({
   dominantColor,
 }) {
   const websiteItem = rule?.website_item || {};
-  const brand = rule?.brand_profile || {};
   const title = websiteItem?.title || rule?.content_type_label || "Featured product";
   const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
   const titleLines = splitAnimatedOverlayTitle(title);
@@ -15410,21 +15449,6 @@ async function createFallbackAnimatedTextOverlay({
       return renderedLine.svg;
     })
     .join("");
-  const brandName = truncateText(
-    String(brand?.business_name || "").replace(/\s+/g, " ").trim(),
-    28
-  );
-  const brandMarkup = brandName
-    ? renderAnimatedFallbackVectorLine({
-        text: brandName,
-        centerX: 540,
-        top: 120,
-        maxWidth: 620,
-        maxPixelSize: 4,
-        fill: style.accentColor,
-        shadow: style.shadowColor,
-      }).svg
-    : "";
   const priceMarkup = price
     ? renderAnimatedFallbackVectorLine({
         text: price,
@@ -15450,7 +15474,6 @@ async function createFallbackAnimatedTextOverlay({
           <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#000000" flood-opacity="0.24"/>
         </filter>
       </defs>
-      ${brandMarkup}
       <g filter="url(#shadow)">
         ${decoration}
         ${titleMarkup}
@@ -15469,7 +15492,6 @@ async function createProfessionalFallbackAnimatedTextOverlay({
   dominantColor,
 }) {
   const websiteItem = rule?.website_item || {};
-  const brand = rule?.brand_profile || {};
   const title = websiteItem?.title || rule?.content_type_label || "Featured product";
   const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
   const titleLines = splitAnimatedOverlayTitle(title);
@@ -15499,31 +15521,11 @@ async function createProfessionalFallbackAnimatedTextOverlay({
   );
   const titleMarkup = titleLines
     .map((line, index) => {
-      const estimatedWidth = Array.from(line).length * titleFontSize * 0.58;
-      const fitAttributes =
-        estimatedWidth > ANIMATED_TEXT_PANEL_WIDTH - 112
-          ? ` textLength="${ANIMATED_TEXT_PANEL_WIDTH - 112}" lengthAdjust="spacingAndGlyphs"`
-          : "";
-      return `<text x="540" y="${firstBaseline + index * titleLineHeight}" text-anchor="middle" font-family="${style.font}" font-size="${titleFontSize}" font-style="${style.fontStyle}" font-weight="${style.weight}" letter-spacing="1.5" fill="${style.mainColor}"${fitAttributes}>${escapeSvgText(line)}</text>`;
+      return `<text x="540" y="${firstBaseline + index * titleLineHeight}" text-anchor="middle" font-family="${style.font}" font-size="${titleFontSize}" font-style="${style.fontStyle}" font-weight="${style.weight}" letter-spacing="1.5" fill="${style.mainColor}">${escapeSvgText(line)}</text>`;
     })
     .join("");
   const priceMarkup = price
     ? `<text x="540" y="${firstBaseline + titleLines.length * titleLineHeight + 8}" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="28" font-weight="700" letter-spacing="2" fill="${style.accentColor}">${escapeSvgText(price)}</text>`
-    : "";
-  const brandName = truncateText(
-    String(brand?.business_name || "").replace(/\s+/g, " ").trim(),
-    28
-  );
-  const brandFontSize = Math.max(
-    25,
-    Math.min(38, Math.floor(680 / Math.max(8, brandName.length * 0.7)))
-  );
-  const brandLetterSpacing = Math.max(
-    4,
-    Math.min(12, Math.floor(130 / Math.max(1, brandName.length)))
-  );
-  const brandMarkup = brandName
-    ? `<text x="540" y="150" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${brandFontSize}" font-weight="600" letter-spacing="${brandLetterSpacing}" fill="#0f172a">${escapeSvgText(brandName.toUpperCase())}</text><line x1="510" y1="178" x2="570" y2="178" stroke="${style.accentColor}" stroke-width="3" stroke-linecap="round"/>`
     : "";
   const svg = `
     <svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
@@ -15532,7 +15534,6 @@ async function createProfessionalFallbackAnimatedTextOverlay({
           <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0f172a" flood-opacity="0.22"/>
         </filter>
       </defs>
-      ${brandMarkup}
       <rect x="${ANIMATED_TEXT_PANEL_LEFT}" y="${ANIMATED_TEXT_PANEL_TOP}" width="${ANIMATED_TEXT_PANEL_WIDTH}" height="${ANIMATED_TEXT_PANEL_HEIGHT}" rx="28" fill="#f8f6f1" filter="url(#panelShadow)"/>
       ${titleMarkup}
       ${priceMarkup}
@@ -16084,16 +16085,14 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer, chromaKey)
   }
 }
 
-async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, {
-  brandName,
-  dominantColor,
-}) {
+async function normalizeGeneratedAnimatedTextPanel(generatedBuffer) {
   const normalizedPanel = await sharp(generatedBuffer)
     .rotate()
     .resize({
       width: ANIMATED_TEXT_PANEL_SOURCE_WIDTH,
       height: ANIMATED_TEXT_PANEL_SOURCE_HEIGHT,
-      fit: "fill",
+      fit: "contain",
+      background: { r: 248, g: 246, b: 241, alpha: 1 },
       kernel: sharp.kernel.lanczos3,
     })
     .removeAlpha()
@@ -16120,16 +16119,21 @@ async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, {
   const pixelCount = Math.max(1, info.width * info.height);
   const darkRatio = darkPixels / pixelCount;
   const lightNeutralRatio = lightNeutralPixels / pixelCount;
+  const panelStats = await sharp(normalizedPanel).stats();
+  const tonalStdDev = panelStats.channels
+    .slice(0, 3)
+    .reduce((total, channel) => total + Number(channel.stdev || 0), 0) / 3;
 
-  if (darkRatio < 0.002) {
-    throw new Error("Generated premium text panel contained no visible dark typography");
+  if (tonalStdDev < 2) {
+    throw new Error("Generated premium text panel was visually blank");
   }
 
   const resizedPanel = await sharp(normalizedPanel)
     .resize({
       width: ANIMATED_TEXT_PANEL_WIDTH,
       height: ANIMATED_TEXT_PANEL_HEIGHT,
-      fit: "fill",
+      fit: "contain",
+      background: { r: 248, g: 246, b: 241, alpha: 1 },
       kernel: sharp.kernel.lanczos3,
     })
     .ensureAlpha()
@@ -16144,24 +16148,6 @@ async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, {
     .composite([{ input: panelMask, blend: "dest-in" }])
     .png()
     .toBuffer();
-  const safeBrandName = truncateText(
-    String(brandName || "").replace(/\s+/g, " ").trim(),
-    28
-  );
-  const accentColor = rgbToHex(
-    mixRgb(dominantColor || { r: 70, g: 85, b: 110 }, { r: 15, g: 23, b: 42 }, 0.5)
-  );
-  const brandFontSize = Math.max(
-    25,
-    Math.min(38, Math.floor(680 / Math.max(8, safeBrandName.length * 0.7)))
-  );
-  const brandLetterSpacing = Math.max(
-    4,
-    Math.min(12, Math.floor(130 / Math.max(1, safeBrandName.length)))
-  );
-  const brandMarkup = safeBrandName
-    ? `<text x="540" y="150" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${brandFontSize}" font-weight="600" letter-spacing="${brandLetterSpacing}" fill="#0f172a">${escapeSvgText(safeBrandName.toUpperCase())}</text><line x1="510" y1="178" x2="570" y2="178" stroke="${accentColor}" stroke-width="3" stroke-linecap="round"/>`
-    : "";
   const panelFrame = Buffer.from(`
     <svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -16169,7 +16155,6 @@ async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, {
           <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0f172a" flood-opacity="0.22"/>
         </filter>
       </defs>
-      ${brandMarkup}
       <rect x="${ANIMATED_TEXT_PANEL_LEFT}" y="${ANIMATED_TEXT_PANEL_TOP}" width="${ANIMATED_TEXT_PANEL_WIDTH}" height="${ANIMATED_TEXT_PANEL_HEIGHT}" rx="28" fill="#f8f6f1" filter="url(#panelShadow)"/>
     </svg>
   `);
@@ -16197,6 +16182,7 @@ async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, {
     analysis: {
       darkRatio: Number(darkRatio.toFixed(4)),
       lightNeutralRatio: Number(lightNeutralRatio.toFixed(4)),
+      tonalStdDev: Number(tonalStdDev.toFixed(2)),
     },
   };
 }
@@ -16207,6 +16193,7 @@ async function createAnimatedTextOverlay({
   postContent,
   backgroundAsset,
   dominantColor,
+  productReferenceBuffer,
 }) {
   const backgroundReferenceBuffer =
     await getAnimatedOverlayBackgroundReference(backgroundAsset);
@@ -16222,11 +16209,51 @@ async function createAnimatedTextOverlay({
     backgroundAsset,
     backgroundBrightness,
     dominantColor,
+    hasBackgroundReference: Boolean(backgroundReferenceBuffer),
+    hasProductReference: Boolean(productReferenceBuffer),
   });
 
   try {
-    const response = await openai.images.generate({
+    const referenceFiles = [];
+
+    if (backgroundReferenceBuffer) {
+      const compactBackgroundReference = await sharp(backgroundReferenceBuffer)
+        .resize({ width: 576, height: 1024, fit: "cover" })
+        .png({ compressionLevel: 9 })
+        .toBuffer();
+      referenceFiles.push(
+        await toFile(compactBackgroundReference, "reel-background-reference.png", {
+          type: "image/png",
+        })
+      );
+    }
+
+    if (productReferenceBuffer) {
+      const compactProductReference = await sharp(productReferenceBuffer)
+        .rotate()
+        .resize({
+          width: 768,
+          height: 768,
+          fit: "contain",
+          withoutEnlargement: true,
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        })
+        .png({ compressionLevel: 9 })
+        .toBuffer();
+      referenceFiles.push(
+        await toFile(compactProductReference, "product-reference.png", {
+          type: "image/png",
+        })
+      );
+    }
+
+    if (referenceFiles.length === 0) {
+      throw new Error("No visual reference was available for the premium text panel");
+    }
+
+    const response = await openai.images.edit({
       model: ANIMATED_OVERLAY_IMAGE_MODEL,
+      image: referenceFiles,
       prompt,
       size: `${ANIMATED_TEXT_PANEL_SOURCE_WIDTH}x${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT}`,
       quality: "medium",
@@ -16240,26 +16267,23 @@ async function createAnimatedTextOverlay({
     }
 
     const normalizedPanel = await normalizeGeneratedAnimatedTextPanel(
-      Buffer.from(imageBase64, "base64"),
-      {
-        brandName: rule?.brand_profile?.business_name,
-        dominantColor,
-      }
+      Buffer.from(imageBase64, "base64")
     );
 
-    console.info("OpenAI premium animated text panel created", {
+    console.info("OpenAI context-aware animated text panel created", {
       ruleId: rule?.id || null,
       model: ANIMATED_OVERLAY_IMAGE_MODEL,
+      referenceCount: referenceFiles.length,
       ...normalizedPanel.analysis,
     });
 
     return {
       textOverlayBuffer: normalizedPanel.textOverlayBuffer,
       prompt,
-      provider: "openai_premium_opaque_panel",
+      provider: "openai_premium_context_panel",
     };
   } catch (error) {
-    console.warn("Single OpenAI premium animated text panel was unusable; using emergency fallback", {
+    console.warn("Single OpenAI context-aware text panel was unusable; using emergency fallback", {
       ruleId: rule?.id || null,
       message: error?.message,
     });
@@ -16495,6 +16519,7 @@ async function createAnimatedProductVideoAssets({
       postContent,
       backgroundAsset: selection.asset,
       dominantColor,
+      productReferenceBuffer: selectedProductImage.cutoutBuffer,
     }),
     createAnimatedProductLayer({
       sourceImageBuffer,
