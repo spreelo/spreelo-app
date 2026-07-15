@@ -35,6 +35,10 @@ Product-title separators such as `Name - Herr - T-Shirt` are treated as metadata
 
 Spreelo does not render a local brand-name text above the product. This prevents missing-font square glyphs. If the brand has a real uploaded logo and the rule allows it, that logo is still added separately.
 
+The GPT Image 2 card uses a mobile-Reel hierarchy: one large main headline and at most one readable secondary line. Tiny eyebrows, fine print and third text blocks are forbidden. Premium character should instead come from the card color, typography, texture, linework, border, pattern or restrained ornament.
+
+For animated product Reels, a verified product price is required in the generated caption. If the selected item has no stored price, Spreelo makes one non-AI attempt to recover it from Shopify's product JSON endpoint. A recovered or already verified price is inserted next to the product title if the text model omitted it. Spreelo still never invents a price when none can be verified.
+
 ## 3. Upload backgrounds
 
 Open:

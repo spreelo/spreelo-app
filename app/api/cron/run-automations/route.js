@@ -432,6 +432,79 @@ function getTrustedProductCardPrice(item) {
   return getTrustedWebsiteItemPricing(item).displayPrice;
 }
 
+function getShopifyProductJsonUrl(productUrl) {
+  try {
+    const url = new URL(productUrl);
+    const handle = url.pathname.match(/\/products\/([^/?#]+)/i)?.[1]
+      ?.replace(/\.js$/i, "")
+      .trim();
+
+    if (!handle) return "";
+
+    url.pathname = `/products/${handle}.js`;
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+async function enrichAnimatedProductPriceFromShopify(websiteItem) {
+  if (!websiteItem || getTrustedProductCardPrice(websiteItem)) {
+    return websiteItem;
+  }
+
+  const productJsonUrl = getShopifyProductJsonUrl(websiteItem.url);
+  if (!productJsonUrl) return websiteItem;
+
+  try {
+    const payload = await fetchJson(productJsonUrl);
+    const product = payload?.product || payload;
+    const firstVariant = Array.isArray(product?.variants)
+      ? product.variants[0]
+      : null;
+    const currency = String(
+      payload?.currency ||
+        product?.currency ||
+        inferShopifyCurrencyFromHtml("", websiteItem.url)
+    )
+      .trim()
+      .toUpperCase();
+    const currentPrice = formatShopifyEmbeddedPrice(
+      product?.price ?? product?.price_min ?? firstVariant?.price ?? "",
+      currency
+    );
+    const originalPrice = formatShopifyEmbeddedPrice(
+      product?.compare_at_price ??
+        product?.compare_at_price_min ??
+        firstVariant?.compare_at_price ??
+        "",
+      currency
+    );
+    const pricing = normalizeExtractedProductPricing({
+      currentPrice,
+      originalPrice,
+      source: "shopify_product_json",
+      confidence: "high",
+    });
+
+    if (!pricing.price) return websiteItem;
+
+    console.info("Animated product price recovered from Shopify product JSON", {
+      productUrl: websiteItem.url || null,
+      price: pricing.price,
+    });
+
+    return {
+      ...websiteItem,
+      ...pricing,
+    };
+  } catch {
+    return websiteItem;
+  }
+}
+
 function buildCenteredSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400, fill = "#0f172a" }) {
   if (!Array.isArray(lines) || !lines.length) {
     return "";
@@ -4517,6 +4590,63 @@ function sanitizeUnsupportedOfferLanguage(postContent, websiteItem) {
   return sanitized.trim();
 }
 
+function ensureAnimatedCaptionHasVerifiedPrice(postContent, rule) {
+  const content = String(postContent || "").trim();
+
+  if (!content || !isAnimatedVideoRule(rule)) {
+    return content;
+  }
+
+  const websiteItem = rule?.website_item || {};
+  const verifiedPrice = getTrustedWebsiteItemPrice(websiteItem);
+  const verifiedDigits = normalizePriceDigits(verifiedPrice);
+
+  if (!verifiedPrice || !verifiedDigits || segmentContainsVerifiedPrice(content, verifiedDigits)) {
+    return content;
+  }
+
+  const title = String(websiteItem?.title || "").replace(/\s+/g, " ").trim();
+  let contentWithPrice = content;
+
+  if (title) {
+    const titlePattern = new RegExp(escapeRegExp(title), "i");
+
+    if (titlePattern.test(contentWithPrice)) {
+      contentWithPrice = contentWithPrice.replace(
+        titlePattern,
+        (matchedTitle) => `${matchedTitle} (${verifiedPrice})`
+      );
+    }
+  }
+
+  if (contentWithPrice === content) {
+    const paragraphs = content.split(/\n{2,}/);
+    const targetIndex = paragraphs.findIndex((paragraph) => {
+      const trimmed = paragraph.trim();
+      return trimmed && !trimmed.startsWith("#");
+    });
+
+    if (targetIndex >= 0) {
+      const paragraph = paragraphs[targetIndex].trim();
+      const punctuation = paragraph.match(/([.!?])$/)?.[1] || "";
+      const withoutPunctuation = punctuation
+        ? paragraph.slice(0, -1).trimEnd()
+        : paragraph;
+      paragraphs[targetIndex] = `${withoutPunctuation} (${verifiedPrice})${punctuation}`;
+      contentWithPrice = paragraphs.join("\n\n");
+    }
+  }
+
+  if (contentWithPrice !== content) {
+    console.info("Verified price added to animated Reel caption", {
+      ruleId: rule?.id || null,
+      price: verifiedPrice,
+    });
+  }
+
+  return contentWithPrice;
+}
+
 function buildAutomationPrompt(rule) {
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
   const carouselProducts = getCarouselProducts(rule).filter(isValidCarouselProduct);
@@ -4531,6 +4661,9 @@ function buildAutomationPrompt(rule) {
   const campaignStrategyText = formatCampaignStrategyForPrompt(rule);
   const focusedPageContextText = formatFocusedPageContextForPrompt(rule);
   const destinationUrl = getPostDestinationUrl(rule);
+  const animatedVerifiedPrice = isAnimatedVideoRule(rule)
+    ? getTrustedWebsiteItemPrice(rule?.website_item)
+    : "";
 
   return `
 Create a ready-to-publish social media post.
@@ -4550,6 +4683,12 @@ ${websiteItemText}
 `.trim()
     : ""
 }
+
+${isAnimatedVideoRule(rule)
+  ? animatedVerifiedPrice
+    ? `Animated Reel price requirement:\n- Include the exact verified price "${animatedVerifiedPrice}" naturally in the caption. This is required, not optional.\n- Mention it once only and do not describe it as a discount or offer unless the product data explicitly confirms that.`
+    : `Animated Reel price requirement:\n- No verified price is available. Do not invent or guess a price.`
+  : ""}
 
 ${focusedPageContextText}
 
@@ -15126,6 +15265,7 @@ function buildAnimatedTextPanelPrompt({
   );
   const { mainTitle, descriptor } = parseAnimatedTextPanelTitle(rawTitle);
   const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
+  const secondaryLineContent = [descriptor, price].filter(Boolean).join(" \u2022 ");
   const effectiveBackgroundBrightness = String(
     backgroundBrightness || backgroundAsset?.brightness || ""
   ).toLowerCase();
@@ -15171,19 +15311,23 @@ Canvas and permanent card:
 
 Product-name content:
 - Main product name, with exact spelling and all words preserved: "${mainTitle}"
-${descriptor ? `- Secondary descriptor, with exact spelling and all words preserved: "${descriptor}"` : "- There is no secondary descriptor."}
-${price ? `- Also write this exact verified price: "${price}"` : "- Do not write a price."}
+${secondaryLineContent
+  ? `- Use exactly one clearly readable secondary line containing: "${secondaryLineContent}"`
+  : `- Create at most one short secondary phrase of 2 to 4 words in ${contentLanguage}, based only on the supplied product and campaign context.`}
 - Treat separators from the source title as metadata separators, not as characters that must be printed.
 - Never begin or end a line with a hyphen, dash, bullet, colon or other separator. Never print an isolated separator.
 - You may choose capitalization and balanced line breaks, but do not rename, translate, omit, replace or invent a product-name word.
-- Keep the main name dominant in one or two balanced lines. When present, make the descriptor a smaller, natural secondary line.
+- Keep the main name dominant in one or two balanced lines.
+- Use no more than two text blocks in the entire card: the large main headline and at most one secondary line above or below it.
+- Do not create an eyebrow plus a supporting line. Do not add a third line of copy, fine print, slogan, caption, brand name or decorative pseudo-text.
 
-Unique marketing copy:
-- In ${contentLanguage}, create one short unique eyebrow of 2 to 4 words and one short supporting line of 3 to 7 words for this exact post.
-- Base both lines only on the supplied product, caption and campaign context. Do not invent a feature, offer, price, discount, result or guarantee.
-- Keep both lines clearly secondary to the exact product name. Do not copy hashtags, emojis or the full social caption.
-- Make the wording and typographic treatment feel created for this particular product rather than reused from another post.
-- If an extra line would make the layout crowded or uncertain, omit the supporting line before compromising the product name.
+Mobile Reel readability requirements:
+- This design will be viewed primarily as a Facebook or Instagram Reel on a phone. Every word must remain immediately readable at small screen size.
+- The main headline must occupy roughly 50 to 65 percent of the usable card height and be the unmistakable focal point.
+- Render the main headline at the visual equivalent of approximately 112 to 168 px high on this ${ANIMATED_TEXT_PANEL_SOURCE_WIDTH} x ${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT} canvas. If it needs two lines, keep both lines large and balanced.
+- When a secondary line is used, render it at least 64 px high with normal readable spacing.
+- Never render any text smaller than 58 px. No microcopy, tiny capitals, widely letter-spaced fine print or hairline lettering.
+- If all supplied words do not fit at these readable sizes, simplify decoration and line breaks instead of shrinking the text.
 
 Visual context:
 - Product dominant color: ${productColorHex}
@@ -15200,8 +15344,10 @@ Creative direction:
 - Choose text colors with strong contrast against the card. Light lettering is allowed only on a clearly dark card; dark lettering is required on a light card.
 - Never use white or near-white lettering on a white, cream or pale card.
 - Use the product color as inspiration or a restrained accent when it remains clearly legible with the card and moving background.
-- You may use one restrained premium device such as a thin line, elegant underline or small editorial accent.
-- Decorative elements must support the words and never reduce legibility.
+- Make the card feel exclusive and art-directed rather than like a plain colored rectangle.
+- Add one or two non-text premium devices that fit the product: for example elegant editorial linework, a tasteful border, foil-like accent, embossed or debossed shape, subtle fabric or paper texture, restrained abstract geometry, a refined print pattern or a small thematic ornament.
+- Decoration may be visually expressive, but it must frame and support the large text rather than compete with it.
+- Never simulate decoration with unreadable letters, glyphs, symbols or fake words.
 - The word "T-shirt" must clearly read with a real capital T and unambiguous letterforms.
 - Do not write the brand name. Spreelo adds the brand separately above the product.
 - No product image, logo, button, watermark, mockup, packaging, frame around another scene or fake clickable element.
@@ -18783,6 +18929,12 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
           }
         }
 
+        if (isAnimatedVideoRule(websitePreparedRule) && websiteItem) {
+          websiteItem = await enrichAnimatedProductPriceFromShopify(websiteItem);
+          automationRunWebsiteItem = websiteItem;
+          automationRunWebsiteItems = [websiteItem];
+        }
+
         const ruleWithBrandProfile = {
           ...websitePreparedRule,
           brand_profile: brandProfile,
@@ -18808,10 +18960,14 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
           ruleWithBrandProfile
         );
 
+        const sanitizedGeneratedContent = sanitizeUnsupportedOfferLanguage(
+          rawGeneratedContent,
+          websiteItem
+        );
         const generatedContent = cleanPostContentUrls(
-          sanitizeUnsupportedOfferLanguage(
-            rawGeneratedContent,
-            websiteItem
+          ensureAnimatedCaptionHasVerifiedPrice(
+            sanitizedGeneratedContent,
+            ruleWithBrandProfile
           ),
           getPostDestinationUrl(ruleWithBrandProfile)
         );
