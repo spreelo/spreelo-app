@@ -432,79 +432,6 @@ function getTrustedProductCardPrice(item) {
   return getTrustedWebsiteItemPricing(item).displayPrice;
 }
 
-function getShopifyProductJsonUrl(productUrl) {
-  try {
-    const url = new URL(productUrl);
-    const handle = url.pathname.match(/\/products\/([^/?#]+)/i)?.[1]
-      ?.replace(/\.js$/i, "")
-      .trim();
-
-    if (!handle) return "";
-
-    url.pathname = `/products/${handle}.js`;
-    url.search = "";
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return "";
-  }
-}
-
-async function enrichAnimatedProductPriceFromShopify(websiteItem) {
-  if (!websiteItem || getTrustedProductCardPrice(websiteItem)) {
-    return websiteItem;
-  }
-
-  const productJsonUrl = getShopifyProductJsonUrl(websiteItem.url);
-  if (!productJsonUrl) return websiteItem;
-
-  try {
-    const payload = await fetchJson(productJsonUrl);
-    const product = payload?.product || payload;
-    const firstVariant = Array.isArray(product?.variants)
-      ? product.variants[0]
-      : null;
-    const currency = String(
-      payload?.currency ||
-        product?.currency ||
-        inferShopifyCurrencyFromHtml("", websiteItem.url)
-    )
-      .trim()
-      .toUpperCase();
-    const currentPrice = formatShopifyEmbeddedPrice(
-      product?.price ?? product?.price_min ?? firstVariant?.price ?? "",
-      currency
-    );
-    const originalPrice = formatShopifyEmbeddedPrice(
-      product?.compare_at_price ??
-        product?.compare_at_price_min ??
-        firstVariant?.compare_at_price ??
-        "",
-      currency
-    );
-    const pricing = normalizeExtractedProductPricing({
-      currentPrice,
-      originalPrice,
-      source: "shopify_product_json",
-      confidence: "high",
-    });
-
-    if (!pricing.price) return websiteItem;
-
-    console.info("Animated product price recovered from Shopify product JSON", {
-      productUrl: websiteItem.url || null,
-      price: pricing.price,
-    });
-
-    return {
-      ...websiteItem,
-      ...pricing,
-    };
-  } catch {
-    return websiteItem;
-  }
-}
-
 function buildCenteredSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400, fill = "#0f172a" }) {
   if (!Array.isArray(lines) || !lines.length) {
     return "";
@@ -1623,12 +1550,12 @@ Important campaign strategy rules:
 `.trim();
 }
 
-function formatWebsiteItemForPrompt(websiteItem) {
+function formatWebsiteItemForPrompt(websiteItem, { includePrice = true } = {}) {
   if (!websiteItem) {
     return "No specific website item was selected.";
   }
 
-  const verifiedPrice = getTrustedWebsiteItemPrice(websiteItem);
+  const verifiedPrice = includePrice ? getTrustedWebsiteItemPrice(websiteItem) : "";
 
   return `
 Selected website item:
@@ -1636,7 +1563,7 @@ Title: ${websiteItem.title || "Not provided"}
 Type: ${websiteItem.type || "Not provided"}
 URL: ${websiteItem.url || "Not provided"}
 Description: ${websiteItem.description || "Not provided"}
-Verified price: ${verifiedPrice || "Not provided"}
+Verified price: ${includePrice ? verifiedPrice || "Not provided" : "Intentionally omitted for this format"}
 Image URL: ${websiteItem.image_url || "Not provided"}
 
 Important website item rules:
@@ -4590,61 +4517,48 @@ function sanitizeUnsupportedOfferLanguage(postContent, websiteItem) {
   return sanitized.trim();
 }
 
-function ensureAnimatedCaptionHasVerifiedPrice(postContent, rule) {
+function stripDetectedPrices(value) {
+  const content = String(value || "");
+  const detectedPrices = extractVerifiedPriceMatches(content);
+  if (!detectedPrices.length) {
+    return content;
+  }
+
+  let cleaned = content;
+  for (const detectedPrice of detectedPrices) {
+    const escapedPrice = escapeRegExp(detectedPrice);
+    cleaned = cleaned
+      .replace(new RegExp(`\\(\\s*${escapedPrice}\\s*\\)`, "gi"), "")
+      .replace(new RegExp(escapedPrice, "gi"), "");
+  }
+
+  cleaned = cleaned
+    .replace(/\b(?:pris|price)\s*:\s*(?=$|[\s,.;!?])/gi, "")
+    .replace(/\(\s*\)/g, "")
+    .replace(/[ \t]+([,.;!?])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return cleaned;
+}
+
+function removePricesFromAnimatedCaption(postContent, rule) {
   const content = String(postContent || "").trim();
 
   if (!content || !isAnimatedVideoRule(rule)) {
     return content;
   }
 
-  const websiteItem = rule?.website_item || {};
-  const verifiedPrice = getTrustedWebsiteItemPrice(websiteItem);
-  const verifiedDigits = normalizePriceDigits(verifiedPrice);
+  const cleaned = stripDetectedPrices(content);
 
-  if (!verifiedPrice || !verifiedDigits || segmentContainsVerifiedPrice(content, verifiedDigits)) {
-    return content;
-  }
-
-  const title = String(websiteItem?.title || "").replace(/\s+/g, " ").trim();
-  let contentWithPrice = content;
-
-  if (title) {
-    const titlePattern = new RegExp(escapeRegExp(title), "i");
-
-    if (titlePattern.test(contentWithPrice)) {
-      contentWithPrice = contentWithPrice.replace(
-        titlePattern,
-        (matchedTitle) => `${matchedTitle} (${verifiedPrice})`
-      );
-    }
-  }
-
-  if (contentWithPrice === content) {
-    const paragraphs = content.split(/\n{2,}/);
-    const targetIndex = paragraphs.findIndex((paragraph) => {
-      const trimmed = paragraph.trim();
-      return trimmed && !trimmed.startsWith("#");
-    });
-
-    if (targetIndex >= 0) {
-      const paragraph = paragraphs[targetIndex].trim();
-      const punctuation = paragraph.match(/([.!?])$/)?.[1] || "";
-      const withoutPunctuation = punctuation
-        ? paragraph.slice(0, -1).trimEnd()
-        : paragraph;
-      paragraphs[targetIndex] = `${withoutPunctuation} (${verifiedPrice})${punctuation}`;
-      contentWithPrice = paragraphs.join("\n\n");
-    }
-  }
-
-  if (contentWithPrice !== content) {
-    console.info("Verified price added to animated Reel caption", {
+  if (cleaned !== content) {
+    console.info("Price removed from animated Reel caption", {
       ruleId: rule?.id || null,
-      price: verifiedPrice,
     });
   }
 
-  return contentWithPrice;
+  return cleaned;
 }
 
 function buildAutomationPrompt(rule) {
@@ -4657,13 +4571,12 @@ function buildAutomationPrompt(rule) {
     : `This automation rule is supposed to create a campaign carousel. Only ${carouselProducts.length} clearly relevant website product${carouselProducts.length === 1 ? "" : "s"} could be safely selected, so use them as campaign-relevant examples and keep the caption focused on the campaign theme. Do not invent additional products.`;
   const websiteItemText = hasCarouselProducts
     ? `Selected carousel products:\n${formatWebsiteItemsForPrompt(carouselProducts)}`
-    : formatWebsiteItemForPrompt(rule.website_item);
+    : formatWebsiteItemForPrompt(rule.website_item, {
+        includePrice: !isAnimatedVideoRule(rule),
+      });
   const campaignStrategyText = formatCampaignStrategyForPrompt(rule);
   const focusedPageContextText = formatFocusedPageContextForPrompt(rule);
   const destinationUrl = getPostDestinationUrl(rule);
-  const animatedVerifiedPrice = isAnimatedVideoRule(rule)
-    ? getTrustedWebsiteItemPrice(rule?.website_item)
-    : "";
 
   return `
 Create a ready-to-publish social media post.
@@ -4685,9 +4598,7 @@ ${websiteItemText}
 }
 
 ${isAnimatedVideoRule(rule)
-  ? animatedVerifiedPrice
-    ? `Animated Reel price requirement:\n- Include the exact verified price "${animatedVerifiedPrice}" naturally in the caption. This is required, not optional.\n- Mention it once only and do not describe it as a discount or offer unless the product data explicitly confirms that.`
-    : `Animated Reel price requirement:\n- No verified price is available. Do not invent or guess a price.`
+  ? `Animated Reel price rule:\n- Do not mention a product price anywhere in this caption.\n- Do not write a currency symbol, currency code, monetary amount, discount price or "from" price.`
   : ""}
 
 ${focusedPageContextText}
@@ -15142,10 +15053,11 @@ function buildAnimatedTextOverlayPrompt({
   const websiteItem = rule?.website_item || {};
   const brand = rule?.brand_profile || {};
   const title = truncateText(
-    websiteItem?.title || rule?.content_type_label || "Featured product",
+    sanitizeProductTitleForCard(
+      websiteItem?.title || rule?.content_type_label || "Featured product"
+    ) || "Featured product",
     110
   );
-  const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
   const effectiveBackgroundBrightness = String(
     backgroundBrightness || backgroundAsset?.brightness || ""
   ).toLowerCase();
@@ -15186,7 +15098,7 @@ Canvas and chroma background:
 Exact text:
 - Write this exact product name without renaming or rewriting it:
 "${title}"
-${price ? `- Also write this exact verified price: "${price}"` : "- Do not write a price."}
+- Do not write a product price, currency symbol, currency code or monetary amount.
 - The product name must remain readable and correctly spelled.
 - You may separate a descriptive suffix after a dash into a smaller secondary line, but do not omit or rewrite any words.
 
@@ -15205,7 +15117,7 @@ Brand and visual context:
 MANDATORY SAFE-ZONE LAYOUT:
 - TOP DESIGN ZONE: only the upper 4% to 14% of the canvas. Optional small brand name, category eyebrow, short part of the exact title, or restrained decoration may appear here.
 - RESERVED PRODUCT ZONE: from 14% to 65% of the canvas height and from 9% to 91% of the canvas width. Keep this entire large center area completely empty. No text, brush stroke, border, glow, ornament, line or shadow may enter it.
-- LOWER PREMIUM TEXT ZONE: from 66% to 83% of the canvas height and from 10% to 90% of the canvas width. The main product name must be clearly centered here. Price, when supplied, is smaller and secondary.
+- LOWER PREMIUM TEXT ZONE: from 66% to 83% of the canvas height and from 10% to 90% of the canvas width. The main product name must be clearly centered here.
 - PLATFORM SAFE ZONE: the bottom 17% of the canvas must remain completely empty for Reel interface controls and captions.
 - Keep generous left and right margins. Nothing may touch or approach the canvas edges.
 
@@ -15260,12 +15172,13 @@ function buildAnimatedTextPanelPrompt({
   const websiteItem = rule?.website_item || {};
   const brand = rule?.brand_profile || {};
   const rawTitle = truncateText(
-    websiteItem?.title || rule?.content_type_label || "Featured product",
+    sanitizeProductTitleForCard(
+      websiteItem?.title || rule?.content_type_label || "Featured product"
+    ) || "Featured product",
     110
   );
   const { mainTitle, descriptor } = parseAnimatedTextPanelTitle(rawTitle);
-  const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
-  const secondaryLineContent = [descriptor, price].filter(Boolean).join(" \u2022 ");
+  const secondaryLineContent = descriptor;
   const effectiveBackgroundBrightness = String(
     backgroundBrightness || backgroundAsset?.brightness || ""
   ).toLowerCase();
@@ -15281,7 +15194,7 @@ function buildAnimatedTextPanelPrompt({
     rule?.language || brand?.content_language || "the same language as the post";
   const productColorHex = rgbToHex(dominantColor || { r: 70, g: 85, b: 110 });
   const themeContext = truncateText(
-    getAnimatedOverlayThemeContext(rule, postContent),
+    stripDetectedPrices(getAnimatedOverlayThemeContext(rule, postContent)),
     850
   );
   const referenceGuidance = hasBackgroundReference && hasProductReference
@@ -15314,6 +15227,7 @@ Product-name content:
 ${secondaryLineContent
   ? `- Use exactly one clearly readable secondary line containing: "${secondaryLineContent}"`
   : `- Create at most one short secondary phrase of 2 to 4 words in ${contentLanguage}, based only on the supplied product and campaign context.`}
+- Do not write a product price, currency symbol, currency code or monetary amount anywhere on the card.
 - Treat separators from the source title as metadata separators, not as characters that must be printed.
 - Never begin or end a line with a hyphen, dash, bullet, colon or other separator. Never print an isolated separator.
 - You may choose capitalization and balanced line breaks, but do not rename, translate, omit, replace or invent a product-name word.
@@ -15569,8 +15483,9 @@ async function createFallbackAnimatedTextOverlay({
   dominantColor,
 }) {
   const websiteItem = rule?.website_item || {};
-  const title = websiteItem?.title || rule?.content_type_label || "Featured product";
-  const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
+  const title = sanitizeProductTitleForCard(
+    websiteItem?.title || rule?.content_type_label || "Featured product"
+  ) || "Featured product";
   const titleLines = splitAnimatedOverlayTitle(title);
   const style = getPremiumFallbackTextStyle({
     rule,
@@ -15595,17 +15510,6 @@ async function createFallbackAnimatedTextOverlay({
       return renderedLine.svg;
     })
     .join("");
-  const priceMarkup = price
-    ? renderAnimatedFallbackVectorLine({
-        text: price,
-        centerX: 540,
-        top: Math.min(1535, titleCursorY + 12),
-        maxWidth: 540,
-        maxPixelSize: 5,
-        fill: style.accentColor,
-        shadow: style.shadowColor,
-      }).svg
-    : "";
   const decoration = {
     line: `<line x1="360" y1="1270" x2="720" y2="1270" stroke="${style.accentColor}" stroke-width="5" stroke-linecap="round"/>`,
     brush: `<path d="M280 1328 C390 1290 690 1290 800 1330 C690 1365 385 1368 280 1328 Z" fill="${style.accentColor}" opacity="0.24"/>`,
@@ -15623,7 +15527,6 @@ async function createFallbackAnimatedTextOverlay({
       <g filter="url(#shadow)">
         ${decoration}
         ${titleMarkup}
-        ${priceMarkup}
       </g>
     </svg>
   `;
@@ -15638,8 +15541,9 @@ async function createProfessionalFallbackAnimatedTextOverlay({
   dominantColor,
 }) {
   const websiteItem = rule?.website_item || {};
-  const title = websiteItem?.title || rule?.content_type_label || "Featured product";
-  const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
+  const title = sanitizeProductTitleForCard(
+    websiteItem?.title || rule?.content_type_label || "Featured product"
+  ) || "Featured product";
   const titleLines = splitAnimatedOverlayTitle(title);
   const style = getPremiumFallbackTextStyle({
     rule,
@@ -15657,9 +15561,7 @@ async function createProfessionalFallbackAnimatedTextOverlay({
   );
   const titleFontSize = Math.max(36, Math.min(baseFontSize, fittedFontSize));
   const titleLineHeight = Math.round(titleFontSize * 1.06);
-  const priceHeight = price ? 34 : 0;
-  const textBlockHeight =
-    titleLines.length * titleLineHeight + priceHeight + (price ? 14 : 0);
+  const textBlockHeight = titleLines.length * titleLineHeight;
   const firstBaseline = Math.round(
     ANIMATED_TEXT_PANEL_TOP +
       (ANIMATED_TEXT_PANEL_HEIGHT - textBlockHeight) / 2 +
@@ -15670,9 +15572,6 @@ async function createProfessionalFallbackAnimatedTextOverlay({
       return `<text x="540" y="${firstBaseline + index * titleLineHeight}" text-anchor="middle" font-family="${style.font}" font-size="${titleFontSize}" font-style="${style.fontStyle}" font-weight="${style.weight}" letter-spacing="1.5" fill="${style.mainColor}">${escapeSvgText(line)}</text>`;
     })
     .join("");
-  const priceMarkup = price
-    ? `<text x="540" y="${firstBaseline + titleLines.length * titleLineHeight + 8}" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="28" font-weight="700" letter-spacing="2" fill="${style.accentColor}">${escapeSvgText(price)}</text>`
-    : "";
   const svg = `
     <svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -15682,7 +15581,6 @@ async function createProfessionalFallbackAnimatedTextOverlay({
       </defs>
       <rect x="${ANIMATED_TEXT_PANEL_LEFT}" y="${ANIMATED_TEXT_PANEL_TOP}" width="${ANIMATED_TEXT_PANEL_WIDTH}" height="${ANIMATED_TEXT_PANEL_HEIGHT}" rx="28" fill="#f8f6f1" filter="url(#panelShadow)"/>
       ${titleMarkup}
-      ${priceMarkup}
       <line x1="390" y1="${ANIMATED_TEXT_PANEL_TOP + ANIMATED_TEXT_PANEL_HEIGHT - 21}" x2="690" y2="${ANIMATED_TEXT_PANEL_TOP + ANIMATED_TEXT_PANEL_HEIGHT - 21}" stroke="${style.accentColor}" stroke-width="3" stroke-linecap="round" opacity="0.72"/>
     </svg>
   `;
@@ -18929,12 +18827,6 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
           }
         }
 
-        if (isAnimatedVideoRule(websitePreparedRule) && websiteItem) {
-          websiteItem = await enrichAnimatedProductPriceFromShopify(websiteItem);
-          automationRunWebsiteItem = websiteItem;
-          automationRunWebsiteItems = [websiteItem];
-        }
-
         const ruleWithBrandProfile = {
           ...websitePreparedRule,
           brand_profile: brandProfile,
@@ -18965,7 +18857,7 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
           websiteItem
         );
         const generatedContent = cleanPostContentUrls(
-          ensureAnimatedCaptionHasVerifiedPrice(
+          removePricesFromAnimatedCaption(
             sanitizedGeneratedContent,
             ruleWithBrandProfile
           ),

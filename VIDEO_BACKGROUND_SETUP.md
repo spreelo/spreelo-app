@@ -37,7 +37,7 @@ Spreelo does not render a local brand-name text above the product. This prevents
 
 The GPT Image 2 card uses a mobile-Reel hierarchy: one large main headline and at most one readable secondary line. Tiny eyebrows, fine print and third text blocks are forbidden. Premium character should instead come from the card color, typography, texture, linework, border, pattern or restrained ornament.
 
-For animated product Reels, a verified product price is required in the generated caption. If the selected item has no stored price, Spreelo makes one non-AI attempt to recover it from Shopify's product JSON endpoint. A recovered or already verified price is inserted next to the product title if the text model omitted it. Spreelo still never invents a price when none can be verified.
+Animated product Reels intentionally omit product prices from both the GPT Image 2 card and the generated caption. This avoids incorrect market or currency conversions when a store exposes ambiguous price data. Other content formats keep their existing price behavior.
 
 ## 3. Upload backgrounds
 
