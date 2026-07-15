@@ -15154,6 +15154,137 @@ function getPremiumFallbackTextStyle({
   };
 }
 
+const ANIMATED_FALLBACK_GLYPHS = {
+  A: ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+  B: ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+  C: ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+  D: ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+  E: ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+  F: ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+  G: ["01111", "10000", "10000", "10111", "10001", "10001", "01111"],
+  H: ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+  I: ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
+  J: ["00111", "00010", "00010", "00010", "10010", "10010", "01100"],
+  K: ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+  L: ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+  M: ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
+  N: ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
+  O: ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+  P: ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+  Q: ["01110", "10001", "10001", "10001", "10101", "10010", "01101"],
+  R: ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+  S: ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+  T: ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+  U: ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+  V: ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
+  W: ["10001", "10001", "10001", "10101", "10101", "11011", "10001"],
+  X: ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
+  Y: ["10001", "10001", "01010", "00100", "00100", "00100", "00100"],
+  Z: ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
+  0: ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+  1: ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+  2: ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+  3: ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+  4: ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+  5: ["11111", "10000", "10000", "11110", "00001", "00001", "11110"],
+  6: ["01110", "10000", "10000", "11110", "10001", "10001", "01110"],
+  7: ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+  8: ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+  9: ["01110", "10001", "10001", "01111", "00001", "00001", "01110"],
+  "-": ["00000", "00000", "00000", "11111", "00000", "00000", "00000"],
+  ".": ["00000", "00000", "00000", "00000", "00000", "00110", "00110"],
+  ",": ["00000", "00000", "00000", "00000", "00110", "00110", "00100"],
+  ":": ["00000", "00110", "00110", "00000", "00110", "00110", "00000"],
+  "/": ["00001", "00010", "00010", "00100", "01000", "01000", "10000"],
+  "&": ["01100", "10010", "10100", "01000", "10101", "10010", "01101"],
+  "!": ["00100", "00100", "00100", "00100", "00100", "00000", "00100"],
+  "?": ["01110", "10001", "00001", "00010", "00100", "00000", "00100"],
+  "'": ["00100", "00100", "00010", "00000", "00000", "00000", "00000"],
+};
+
+function renderAnimatedFallbackVectorLine({
+  text,
+  centerX,
+  top,
+  maxWidth,
+  maxPixelSize,
+  fill,
+  shadow,
+}) {
+  const characters = String(text || "")
+    .toUpperCase()
+    .replace(/[\u2013\u2014]/g, "-")
+    .split("");
+  const characterWidths = characters.map((character) =>
+    character === " " ? 3 : 5
+  );
+  const totalUnits = Math.max(
+    1,
+    characterWidths.reduce((sum, width) => sum + width, 0) +
+      Math.max(0, characters.length - 1)
+  );
+  const pixelSize = Math.max(
+    3,
+    Math.min(maxPixelSize, Math.floor(maxWidth / totalUnits))
+  );
+  const lineWidth = totalUnits * pixelSize;
+  const startX = Math.round(centerX - lineWidth / 2);
+  const glyphTop = top + pixelSize * 2;
+  const pathCommands = [];
+  let cursorUnits = 0;
+
+  const addPixel = (unitX, unitY) => {
+    const x = startX + unitX * pixelSize;
+    const y = top + unitY * pixelSize;
+    pathCommands.push(
+      `M${x} ${y}h${pixelSize}v${pixelSize}h-${pixelSize}Z`
+    );
+  };
+
+  characters.forEach((character, characterIndex) => {
+    const width = characterWidths[characterIndex];
+    if (character !== " ") {
+      const accentCharacter = ["\u00c5", "\u00c4", "\u00d6"].includes(character);
+      const baseCharacter =
+        character === "\u00c5" || character === "\u00c4"
+          ? "A"
+          : character === "\u00d6"
+            ? "O"
+            : character;
+      const glyph = ANIMATED_FALLBACK_GLYPHS[baseCharacter] || ANIMATED_FALLBACK_GLYPHS["?"];
+
+      if (accentCharacter) {
+        if (character === "\u00c5") {
+          addPixel(cursorUnits + 2, 0);
+          addPixel(cursorUnits + 1, 1);
+          addPixel(cursorUnits + 3, 1);
+        } else {
+          addPixel(cursorUnits + 1, 0);
+          addPixel(cursorUnits + 3, 0);
+        }
+      }
+
+      glyph.forEach((row, rowIndex) => {
+        row.split("").forEach((pixel, columnIndex) => {
+          if (pixel === "1") {
+            addPixel(cursorUnits + columnIndex, rowIndex + 2);
+          }
+        });
+      });
+    }
+    cursorUnits += width + 1;
+  });
+
+  const path = pathCommands.join("");
+  const shadowOffset = Math.max(2, Math.round(pixelSize * 0.45));
+  return {
+    svg: path
+      ? `<path d="${path}" fill="${shadow}" opacity="0.9" transform="translate(${shadowOffset} ${shadowOffset})"/><path d="${path}" fill="${fill}"/>`
+      : "",
+    height: glyphTop - top + 7 * pixelSize,
+  };
+}
+
 async function createFallbackAnimatedTextOverlay({
   rule,
   backgroundAsset,
@@ -15171,20 +15302,49 @@ async function createFallbackAnimatedTextOverlay({
     backgroundAsset,
     backgroundBrightness,
   });
-  const titleStartY = titleLines.length >= 3 ? 1315 : 1355;
-  const lineHeight = titleLines.length >= 3 ? 58 : 68;
-  const fontSize = titleLines.length >= 3 ? 48 : titleLines.length === 2 ? 56 : 62;
+  const titleStartY = titleLines.length >= 3 ? 1278 : 1320;
+  let titleCursorY = titleStartY;
   const titleMarkup = titleLines
-    .map((line, index) => {
-      const y = titleStartY + index * lineHeight;
-      return `<text x="540" y="${y}" text-anchor="middle" font-family="${style.font}" font-style="${style.fontStyle}" font-size="${fontSize}" font-weight="${style.weight}" letter-spacing="-0.7" fill="${style.mainColor}" stroke="${style.shadowColor}" stroke-width="4" paint-order="stroke">${escapeSvgText(line)}</text>`;
+    .map((line) => {
+      const renderedLine = renderAnimatedFallbackVectorLine({
+        text: line,
+        centerX: 540,
+        top: titleCursorY,
+        maxWidth: 760,
+        maxPixelSize: titleLines.length >= 3 ? 6 : 7,
+        fill: style.mainColor,
+        shadow: style.shadowColor,
+      });
+      titleCursorY += renderedLine.height + 14;
+      return renderedLine.svg;
     })
     .join("");
   const brandName = truncateText(
     String(brand?.business_name || "").replace(/\s+/g, " ").trim(),
     28
   );
-  const priceY = titleStartY + titleLines.length * lineHeight + 36;
+  const brandMarkup = brandName
+    ? renderAnimatedFallbackVectorLine({
+        text: brandName,
+        centerX: 540,
+        top: 120,
+        maxWidth: 620,
+        maxPixelSize: 4,
+        fill: style.accentColor,
+        shadow: style.shadowColor,
+      }).svg
+    : "";
+  const priceMarkup = price
+    ? renderAnimatedFallbackVectorLine({
+        text: price,
+        centerX: 540,
+        top: Math.min(1535, titleCursorY + 12),
+        maxWidth: 540,
+        maxPixelSize: 5,
+        fill: style.accentColor,
+        shadow: style.shadowColor,
+      }).svg
+    : "";
   const decoration = {
     line: `<line x1="360" y1="1270" x2="720" y2="1270" stroke="${style.accentColor}" stroke-width="5" stroke-linecap="round"/>`,
     brush: `<path d="M280 1328 C390 1290 690 1290 800 1330 C690 1365 385 1368 280 1328 Z" fill="${style.accentColor}" opacity="0.24"/>`,
@@ -15199,11 +15359,11 @@ async function createFallbackAnimatedTextOverlay({
           <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#000000" flood-opacity="0.24"/>
         </filter>
       </defs>
-      ${brandName ? `<text x="540" y="180" text-anchor="middle" font-family="Trebuchet MS, sans-serif" font-size="28" font-weight="700" letter-spacing="2.2" fill="${style.accentColor}" stroke="${style.shadowColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(brandName.toUpperCase())}</text>` : ""}
+      ${brandMarkup}
       <g filter="url(#shadow)">
         ${decoration}
         ${titleMarkup}
-        ${price ? `<text x="540" y="${priceY}" text-anchor="middle" font-family="Trebuchet MS, sans-serif" font-size="38" font-weight="800" fill="${style.accentColor}" stroke="${style.shadowColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(price)}</text>` : ""}
+        ${priceMarkup}
       </g>
     </svg>
   `;
@@ -15530,15 +15690,7 @@ async function extractGeneratedTextFromChromaBackground(generatedBuffer, chromaK
     .toBuffer();
 }
 
-async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer, chromaKey) {
-  const cutout = await extractGeneratedTextFromChromaBackground(
-    generatedBuffer,
-    chromaKey
-  );
-  const overlayBuffer = await sharp(cutout)
-    .resize({ width: 1080, height: 1920, fit: "fill" })
-    .png()
-    .toBuffer();
+async function validateGeneratedAnimatedTextOverlay(overlayBuffer) {
   const { data, info } = await sharp(overlayBuffer)
     .ensureAlpha()
     .raw()
@@ -15616,8 +15768,81 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer, chromaKey)
   if (!textShape.looksTextLike) {
     throw new Error("Generated premium overlay contained decoration but no reliable title text");
   }
+}
 
-  return overlayBuffer;
+async function trimGeneratedAnimatedTextOverlayToSafeZones(overlayBuffer) {
+  const { data, info } = await sharp(overlayBuffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const rgba = Buffer.from(data);
+
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const inTopTextZone = x >= 72 && x < 1008 && y >= 40 && y < 241;
+      const inLowerTextZone = x >= 108 && x < 972 && y >= 1258 && y < 1594;
+
+      if (!inTopTextZone && !inLowerTextZone) {
+        rgba[(y * info.width + x) * 4 + 3] = 0;
+      }
+    }
+  }
+
+  return sharp(rgba, {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: 4,
+    },
+  })
+    .png()
+    .toBuffer();
+}
+
+async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer, chromaKey) {
+  const cutout = await extractGeneratedTextFromChromaBackground(
+    generatedBuffer,
+    chromaKey
+  );
+  const overlayBuffer = await sharp(cutout)
+    .resize({ width: 1080, height: 1920, fit: "fill" })
+    .png()
+    .toBuffer();
+
+  try {
+    await validateGeneratedAnimatedTextOverlay(overlayBuffer);
+    return {
+      textOverlayBuffer: overlayBuffer,
+      repaired: false,
+      repairReason: null,
+    };
+  } catch (error) {
+    const repairableZoneViolation =
+      /reserved product zone|Reel platform safe zone|side edges/i.test(
+        String(error?.message || "")
+      );
+
+    if (!repairableZoneViolation) {
+      throw error;
+    }
+
+    const repairedOverlayBuffer =
+      await trimGeneratedAnimatedTextOverlayToSafeZones(overlayBuffer);
+
+    try {
+      await validateGeneratedAnimatedTextOverlay(repairedOverlayBuffer);
+    } catch (repairError) {
+      throw new Error(
+        `${error.message}; safe-zone repair failed: ${repairError.message}`
+      );
+    }
+
+    return {
+      textOverlayBuffer: repairedOverlayBuffer,
+      repaired: true,
+      repairReason: error.message,
+    };
+  }
 }
 
 async function createAnimatedTextOverlay({
@@ -15666,19 +15891,33 @@ async function createAnimatedTextOverlay({
         throw new Error("OpenAI returned no premium overlay image data");
       }
 
-      const normalizedTextOverlayBuffer = await normalizeGeneratedAnimatedTextOverlay(
+      const normalizedOverlay = await normalizeGeneratedAnimatedTextOverlay(
         Buffer.from(imageBase64, "base64"),
         chromaKey
       );
       const textOverlayBuffer = await addAnimatedOverlayContrastHalo(
-        normalizedTextOverlayBuffer,
+        normalizedOverlay.textOverlayBuffer,
         backgroundLuminance
       );
+
+      if (normalizedOverlay.repaired) {
+        console.info("OpenAI premium animated overlay repaired to allowed text zones", {
+          ruleId: rule?.id || null,
+          attempt,
+          message: normalizedOverlay.repairReason,
+        });
+      }
 
       return {
         textOverlayBuffer,
         prompt,
-        provider: attempt === 1 ? "openai_premium_zoned" : "openai_premium_zoned_retry",
+        provider: normalizedOverlay.repaired
+          ? attempt === 1
+            ? "openai_premium_zoned_repaired"
+            : "openai_premium_zoned_retry_repaired"
+          : attempt === 1
+            ? "openai_premium_zoned"
+            : "openai_premium_zoned_retry",
       };
     } catch (error) {
       lastError = error;
