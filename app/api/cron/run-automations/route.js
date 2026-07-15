@@ -14708,19 +14708,66 @@ async function extractGeneratedTextFromChromaBackground(generatedBuffer, chromaK
     .toBuffer({ resolveWithObject: true });
   const background = estimateCornerBackgroundColor(data, info.width, info.height);
 
-  const chromaDistance = Math.sqrt(
-    (background.r - chromaKey.rgb.r) ** 2 +
-      (background.g - chromaKey.rgb.g) ** 2 +
-      (background.b - chromaKey.rgb.b) ** 2
+  // gpt-image-2 does not always reproduce an exact requested chroma value.
+  // The important requirement is a mostly uniform technical background, not
+  // that the RGB value matches the prompt perfectly. Measure the actual corner
+  // colour and remove that instead so a valid premium design is not rejected
+  // merely because cyan became pale blue, white or another flat colour.
+  const sampleSize = Math.max(
+    10,
+    Math.min(24, Math.floor(Math.min(info.width, info.height) * 0.05))
   );
-  if (chromaDistance > 105) {
-    throw new Error("Generated premium overlay did not use the requested chroma background");
+  const cornerRegions = [
+    { left: 0, top: 0 },
+    { left: Math.max(0, info.width - sampleSize), top: 0 },
+    { left: 0, top: Math.max(0, info.height - sampleSize) },
+    {
+      left: Math.max(0, info.width - sampleSize),
+      top: Math.max(0, info.height - sampleSize),
+    },
+  ];
+  const cornerAverages = cornerRegions.map((corner) => {
+    let rTotal = 0;
+    let gTotal = 0;
+    let bTotal = 0;
+    let count = 0;
+    for (let y = corner.top; y < Math.min(info.height, corner.top + sampleSize); y += 1) {
+      for (let x = corner.left; x < Math.min(info.width, corner.left + sampleSize); x += 1) {
+        const index = (y * info.width + x) * 4;
+        if (data[index + 3] < 8) continue;
+        rTotal += data[index];
+        gTotal += data[index + 1];
+        bTotal += data[index + 2];
+        count += 1;
+      }
+    }
+    return count
+      ? {
+          r: Math.round(rTotal / count),
+          g: Math.round(gTotal / count),
+          b: Math.round(bTotal / count),
+        }
+      : background;
+  });
+  let maximumCornerDistance = 0;
+  for (let first = 0; first < cornerAverages.length; first += 1) {
+    for (let second = first + 1; second < cornerAverages.length; second += 1) {
+      const a = cornerAverages[first];
+      const b = cornerAverages[second];
+      maximumCornerDistance = Math.max(
+        maximumCornerDistance,
+        Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2)
+      );
+    }
+  }
+  if (maximumCornerDistance > 105) {
+    throw new Error("Generated premium overlay did not use a sufficiently uniform removable background");
   }
 
   const rgba = Buffer.alloc(info.width * info.height * 4);
   const alphaChannel = Buffer.alloc(info.width * info.height);
-  const fadeStart = 18;
-  const fadeEnd = 94;
+  const fadeStart = 16;
+  const fadeEnd = 88;
 
   for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
     const index = pixel * 4;
@@ -14729,9 +14776,9 @@ async function extractGeneratedTextFromChromaBackground(generatedBuffer, chromaK
     const b = data[index + 2];
     const originalAlpha = data[index + 3];
     const distance = Math.sqrt(
-      (r - chromaKey.rgb.r) ** 2 +
-        (g - chromaKey.rgb.g) ** 2 +
-        (b - chromaKey.rgb.b) ** 2
+      (r - background.r) ** 2 +
+        (g - background.g) ** 2 +
+        (b - background.b) ** 2
     );
 
     let alpha = originalAlpha;
@@ -14967,22 +15014,25 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
     .toBuffer();
 
   // Version 77 animated the actual visible product inside an HTML5/GSAP layer.
-  // Keep that proven mechanism, but compress the tightly cropped product enough
-  // that the Shotstack request cannot exceed its payload limit.
+  // Keep that proven mechanism, but make the inline asset much smaller than
+  // Shotstack's request-body limit. A public URL proved unreliable inside the
+  // HTML5 renderer, while a large Base64 asset triggers "Payload Too Large".
+  const targetDataUriLength = 145_000;
+  const maximumDataUriLength = 175_000;
   const candidates = [
-    { width: 840, quality: 96 },
-    { width: 780, quality: 95 },
-    { width: 720, quality: 94 },
-    { width: 660, quality: 93 },
-    { width: 600, quality: 92 },
+    { width: 700, quality: 88, alphaQuality: 96 },
+    { width: 620, quality: 86, alphaQuality: 95 },
+    { width: 560, quality: 84, alphaQuality: 94 },
+    { width: 500, quality: 82, alphaQuality: 93 },
+    { width: 440, quality: 80, alphaQuality: 92 },
+    { width: 380, quality: 78, alphaQuality: 90 },
   ];
-  let motionBuffer = resizedProduct;
-  let motionMime = "image/png";
+  let motionBuffer = null;
+  let motionMime = "image/webp";
   let motionMetadata = metadata;
-  let productDataUri = `data:${motionMime};base64,${motionBuffer.toString("base64")}`;
+  let productDataUri = "";
 
   for (const candidate of candidates) {
-    if (productDataUri.length <= 420_000) break;
     motionBuffer = await sharp(cutoutBuffer)
       .resize({
         width: candidate.width,
@@ -14992,18 +15042,20 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
       })
       .webp({
         quality: candidate.quality,
-        alphaQuality: 100,
+        alphaQuality: candidate.alphaQuality,
         smartSubsample: true,
+        effort: 5,
       })
       .toBuffer();
-    motionMime = "image/webp";
     motionMetadata = await sharp(motionBuffer).metadata();
     productDataUri = `data:${motionMime};base64,${motionBuffer.toString("base64")}`;
+    if (productDataUri.length <= targetDataUriLength) break;
   }
 
-  if (productDataUri.length > 480_000) {
+  if (!motionBuffer || productDataUri.length > maximumDataUriLength) {
     throw new Error("Product asset is too large for reliable Shotstack HTML5 animation");
   }
+
 
   return {
     productLayerBuffer,
