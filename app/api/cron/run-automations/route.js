@@ -14931,7 +14931,7 @@ async function selectAnimatedProductImage(websiteItem) {
   return selected;
 }
 
-function chooseAnimatedOverlayChroma(dominantColor) {
+function getAnimatedOverlayChromaCandidates(dominantColor) {
   const productColor = dominantColor || { r: 70, g: 85, b: 110 };
   const candidates = [
     {
@@ -14963,7 +14963,11 @@ function chooseAnimatedOverlayChroma(dominantColor) {
           (candidate.rgb.b - Number(productColor.b || 0)) ** 2
       ),
     }))
-    .sort((left, right) => right.distance - left.distance)[0];
+    .sort((left, right) => right.distance - left.distance);
+}
+
+function chooseAnimatedOverlayChroma(dominantColor) {
+  return getAnimatedOverlayChromaCandidates(dominantColor)[0];
 }
 
 function getAnimatedOverlayThemeContext(rule, postContent) {
@@ -15021,7 +15025,7 @@ function buildAnimatedTextOverlayPrompt({
   );
   const retryGuidance =
     attempt > 1
-      ? "This is a validation retry. Follow every zone boundary exactly, make the main title clearly visible, and keep the reserved product area completely empty."
+      ? `This is validation retry ${attempt}. Follow every zone boundary exactly, make the main title clearly visible, and keep the reserved product area completely empty. Every empty pixel, including all four corners and the complete space around the lettering, must remain the exact flat technical chroma color ${chromaKey.hex}. Do not add lighting, shadows, gradients, texture, a room, a wall, paper, fabric or any other background treatment.`
       : "";
 
   return `
@@ -15586,47 +15590,82 @@ function analyzeTextLikeContent(data, info, region, alphaThreshold = 110) {
   };
 }
 
-function removeEdgeConnectedBackground(data, info, background, threshold = 88) {
-  const pixelCount = info.width * info.height;
-  const removable = new Uint8Array(pixelCount);
-  const connected = new Uint8Array(pixelCount);
-  const queue = new Int32Array(pixelCount);
-  const colorDistance = (pixel) => {
-    const index = pixel * 4;
-    return Math.sqrt(
-      (data[index] - background.r) ** 2 +
-        (data[index + 1] - background.g) ** 2 +
-        (data[index + 2] - background.b) ** 2
+function getAnimatedChromaChannelGroups(chromaRgb) {
+  const values = [
+    Number(chromaRgb?.r || 0),
+    Number(chromaRgb?.g || 0),
+    Number(chromaRgb?.b || 0),
+  ];
+  const active = [];
+  const inactive = [];
+
+  values.forEach((value, index) => {
+    if (value >= 128) active.push(index);
+    else inactive.push(index);
+  });
+
+  return {
+    active: active.length ? active : [0, 1, 2],
+    inactive,
+  };
+}
+
+function getAnimatedChromaDominance(r, g, b, channelGroups) {
+  const channels = [r, g, b];
+  let activeFloor = 255;
+  let inactiveCeiling = 0;
+
+  for (const channel of channelGroups.active) {
+    activeFloor = Math.min(activeFloor, channels[channel]);
+  }
+  for (const channel of channelGroups.inactive) {
+    inactiveCeiling = Math.max(inactiveCeiling, channels[channel]);
+  }
+
+  return {
+    activeFloor,
+    dominance: channelGroups.inactive.length
+      ? activeFloor - inactiveCeiling
+      : 0,
+  };
+}
+
+function getAnimatedRgbDistance(color, reference) {
+  return Math.sqrt(
+    (color.r - reference.r) ** 2 +
+      (color.g - reference.g) ** 2 +
+      (color.b - reference.b) ** 2
+  );
+}
+
+function getAdaptiveAnimatedChromaRemovalStrength({
+  r,
+  g,
+  b,
+  channelGroups,
+  referenceColors,
+}) {
+  let nearestReferenceDistance = Number.POSITIVE_INFINITY;
+  const color = { r, g, b };
+
+  for (const reference of referenceColors) {
+    nearestReferenceDistance = Math.min(
+      nearestReferenceDistance,
+      getAnimatedRgbDistance(color, reference)
     );
-  };
-  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-    removable[pixel] = data[pixel * 4 + 3] >= 8 && colorDistance(pixel) <= threshold ? 1 : 0;
   }
-  let head = 0;
-  let tail = 0;
-  const enqueue = (pixel) => {
-    if (!removable[pixel] || connected[pixel]) return;
-    connected[pixel] = 1;
-    queue[tail++] = pixel;
-  };
-  for (let x = 0; x < info.width; x += 1) {
-    enqueue(x);
-    enqueue((info.height - 1) * info.width + x);
-  }
-  for (let y = 0; y < info.height; y += 1) {
-    enqueue(y * info.width);
-    enqueue(y * info.width + info.width - 1);
-  }
-  while (head < tail) {
-    const pixel = queue[head++];
-    const x = pixel % info.width;
-    const y = Math.floor(pixel / info.width);
-    if (x > 0) enqueue(pixel - 1);
-    if (x + 1 < info.width) enqueue(pixel + 1);
-    if (y > 0) enqueue(pixel - info.width);
-    if (y + 1 < info.height) enqueue(pixel + info.width);
-  }
-  return connected;
+
+  const referenceStrength = Math.max(
+    0,
+    Math.min(1, (172 - nearestReferenceDistance) / 124)
+  );
+  const chroma = getAnimatedChromaDominance(r, g, b, channelGroups);
+  const dominanceStrength =
+    chroma.activeFloor >= 34
+      ? Math.max(0, Math.min(1, (chroma.dominance - 10) / 68))
+      : 0;
+
+  return Math.max(referenceStrength, dominanceStrength);
 }
 
 
@@ -15645,39 +15684,71 @@ async function extractGeneratedTextFromChromaBackground(generatedBuffer, chromaK
     .raw()
     .toBuffer({ resolveWithObject: true });
   const cornerStats = getCornerBackgroundStats(data, info.width, info.height);
-  if (cornerStats.maximumDistance > 88) {
-    throw new Error("Generated premium overlay did not use a sufficiently uniform removable background");
+  const expectedChroma = chromaKey?.rgb || cornerStats.background;
+  const channelGroups = getAnimatedChromaChannelGroups(expectedChroma);
+  const referenceColors = [expectedChroma];
+
+  for (const cornerColor of cornerStats.averages) {
+    const cornerChroma = getAnimatedChromaDominance(
+      cornerColor.r,
+      cornerColor.g,
+      cornerColor.b,
+      channelGroups
+    );
+    if (
+      cornerChroma.dominance >= 6 ||
+      getAnimatedRgbDistance(cornerColor, expectedChroma) <= 210
+    ) {
+      referenceColors.push(cornerColor);
+    }
   }
 
-  const background = cornerStats.background;
-  const connectedBackground = removeEdgeConnectedBackground(
-    data,
-    info,
-    background,
-    92
-  );
   const rgba = Buffer.from(data);
   const alphaChannel = Buffer.alloc(info.width * info.height);
   let removedPixels = 0;
+  let softenedPixels = 0;
 
   for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
     const index = pixel * 4;
-    let alpha = data[index + 3];
-    if (connectedBackground[pixel]) {
-      alpha = 0;
+    const originalAlpha = data[index + 3];
+    const removalStrength = getAdaptiveAnimatedChromaRemovalStrength({
+      r: data[index],
+      g: data[index + 1],
+      b: data[index + 2],
+      channelGroups,
+      referenceColors,
+    });
+    const alpha = Math.max(
+      0,
+      Math.min(255, Math.round(originalAlpha * (1 - removalStrength)))
+    );
+
+    if (originalAlpha >= 8 && alpha < 36) {
       removedPixels += 1;
     }
+    if (alpha < originalAlpha) softenedPixels += 1;
     rgba[index + 3] = alpha;
     alphaChannel[pixel] = alpha;
   }
 
-  if (removedPixels / Math.max(1, info.width * info.height) < 0.45) {
+  const removedRatio = removedPixels / Math.max(1, info.width * info.height);
+  if (removedRatio < 0.38) {
     throw new Error("Generated premium overlay background could not be cleanly separated from the design");
   }
   const bounds = findAlphaBounds(alphaChannel, info.width, info.height, 36);
   if (!bounds) {
     throw new Error("Generated premium overlay contained no visible design");
   }
+
+  console.info("Generated premium overlay chroma background removed adaptively", {
+    chromaKey: chromaKey?.hex || null,
+    maximumCornerDistance: Number(cornerStats.maximumDistance.toFixed(2)),
+    referenceColors: referenceColors.length,
+    removedRatio: Number(removedRatio.toFixed(4)),
+    softenedRatio: Number(
+      (softenedPixels / Math.max(1, info.width * info.height)).toFixed(4)
+    ),
+  });
 
   return sharp(rgba, {
     raw: {
@@ -15864,7 +15935,7 @@ async function createAnimatedTextOverlay({
   let lastError = null;
   let lastPrompt = null;
 
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  for (let attempt = 1; attempt <= 1; attempt += 1) {
     const prompt = buildAnimatedTextOverlayPrompt({
       rule,
       postContent,
@@ -15930,7 +16001,7 @@ async function createAnimatedTextOverlay({
     }
   }
 
-  console.warn("OpenAI premium animated overlay failed twice; using varied premium fallback", {
+  console.warn("Single OpenAI premium animated overlay was unusable; using emergency fallback", {
     ruleId: rule?.id || null,
     message: lastError?.message,
   });
