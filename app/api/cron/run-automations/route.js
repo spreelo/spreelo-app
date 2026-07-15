@@ -14985,6 +14985,7 @@ function buildAnimatedTextOverlayPrompt({
   rule,
   postContent,
   backgroundAsset,
+  backgroundBrightness,
   dominantColor,
   chromaKey,
   attempt = 1,
@@ -14996,19 +14997,23 @@ function buildAnimatedTextOverlayPrompt({
     110
   );
   const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
+  const effectiveBackgroundBrightness = String(
+    backgroundBrightness || backgroundAsset?.brightness || ""
+  ).toLowerCase();
   const backgroundDescription = [
     backgroundAsset?.family,
     ...(backgroundAsset?.moods || []),
     ...(backgroundAsset?.colors || []),
-    backgroundAsset?.brightness,
+    effectiveBackgroundBrightness,
   ]
     .filter(Boolean)
     .join(", ");
-  const isDarkBackground =
-    String(backgroundAsset?.brightness || "").toLowerCase() === "dark";
+  const isDarkBackground = effectiveBackgroundBrightness === "dark";
   const contrastGuidance = isDarkBackground
     ? "Use bright premium high-contrast lettering such as warm ivory, champagne gold, soft silver, pale blue or one vivid accent. Do not use black, charcoal or very dark grey as the main title color."
     : "Use deep premium high-contrast lettering such as charcoal, dark navy, forest green, burgundy or one rich accent. Avoid very pale main lettering.";
+  const contentLanguage =
+    rule?.language || brand?.content_language || "the same language as the post";
   const productColorHex = rgbToHex(dominantColor || { r: 70, g: 85, b: 110 });
   const themeContext = truncateText(
     getAnimatedOverlayThemeContext(rule, postContent),
@@ -15030,11 +15035,17 @@ Canvas and chroma background:
 - Never use ${chromaKey.forbidden} in any lettering or decorative detail.
 
 Exact text:
-- Write this exact product name and no alternative wording:
+- Write this exact product name without renaming or rewriting it:
 "${title}"
 ${price ? `- Also write this exact verified price: "${price}"` : "- Do not write a price."}
 - The product name must remain readable and correctly spelled.
 - You may separate a descriptive suffix after a dash into a smaller secondary line, but do not omit or rewrite any words.
+
+Unique marketing copy:
+- In ${contentLanguage}, create one short, unique eyebrow of 2 to 5 words and one short supporting line of 3 to 8 words for this exact post.
+- Base both lines only on the supplied product, caption and campaign context. Do not invent a feature, offer, price, discount, result or guarantee.
+- Keep both lines clearly secondary to the exact product name. Do not copy hashtags, emojis or the full social caption.
+- The wording and typographic treatment should feel created for this particular product rather than reused from another post.
 
 Brand and visual context:
 - Brand: ${brand?.business_name || "Not provided"}
@@ -15062,6 +15073,7 @@ Creative direction:
 - Use the product color as inspiration, not necessarily as the main text color. Choose complementary colors that remain readable over the described moving background.
 - The word "T-shirt" must clearly read with a real capital T and unambiguous letterforms.
 - No product image, logo, button, watermark, large panel or full-width opaque banner.
+- Do not turn any text into a fake clickable button.
 - The finished overlay remains static in the final video.
 ${retryGuidance}
 `.trim();
@@ -15100,7 +15112,12 @@ function splitAnimatedOverlayTitle(title) {
   return lines.slice(0, 3);
 }
 
-function getPremiumFallbackTextStyle({ rule, dominantColor, backgroundAsset }) {
+function getPremiumFallbackTextStyle({
+  rule,
+  dominantColor,
+  backgroundAsset,
+  backgroundBrightness,
+}) {
   const seed = [
     rule?.website_item?.title,
     rule?.website_item?.url,
@@ -15112,7 +15129,8 @@ function getPremiumFallbackTextStyle({ rule, dominantColor, backgroundAsset }) {
     .join("|");
   const index = getDeterministicLayoutIndex(seed, 5);
   const isDarkBackground =
-    String(backgroundAsset?.brightness || "").toLowerCase() === "dark";
+    String(backgroundBrightness || backgroundAsset?.brightness || "").toLowerCase() ===
+    "dark";
   const baseColor = dominantColor || { r: 80, g: 95, b: 120 };
   const mainRgb = isDarkBackground
     ? mixRgb(baseColor, { r: 255, g: 255, b: 255 }, 0.68)
@@ -15139,6 +15157,7 @@ function getPremiumFallbackTextStyle({ rule, dominantColor, backgroundAsset }) {
 async function createFallbackAnimatedTextOverlay({
   rule,
   backgroundAsset,
+  backgroundBrightness,
   dominantColor,
 }) {
   const websiteItem = rule?.website_item || {};
@@ -15146,7 +15165,12 @@ async function createFallbackAnimatedTextOverlay({
   const title = websiteItem?.title || rule?.content_type_label || "Featured product";
   const price = truncateText(getTrustedProductCardPrice(websiteItem) || "", 30);
   const titleLines = splitAnimatedOverlayTitle(title);
-  const style = getPremiumFallbackTextStyle({ rule, dominantColor, backgroundAsset });
+  const style = getPremiumFallbackTextStyle({
+    rule,
+    dominantColor,
+    backgroundAsset,
+    backgroundBrightness,
+  });
   const titleStartY = titleLines.length >= 3 ? 1315 : 1355;
   const lineHeight = titleLines.length >= 3 ? 58 : 68;
   const fontSize = titleLines.length >= 3 ? 48 : titleLines.length === 2 ? 56 : 62;
@@ -15185,6 +15209,100 @@ async function createFallbackAnimatedTextOverlay({
   `;
 
   return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+async function getAnimatedOverlayBackgroundReference(backgroundAsset) {
+  if (!backgroundAsset?.poster_url) return null;
+
+  try {
+    const backgroundBuffer = await fetchImageBufferForOverlay(
+      backgroundAsset.poster_url
+    );
+
+    return sharp(backgroundBuffer)
+      .rotate()
+      .resize({ width: 1080, height: 1920, fit: "cover" })
+      .png()
+      .toBuffer();
+  } catch (error) {
+    console.warn("Could not load animated Reel background for text contrast", {
+      backgroundAssetId: backgroundAsset?.id || null,
+      message: error?.message,
+    });
+    return null;
+  }
+}
+
+async function getAnimatedOverlayBackgroundLuminance(
+  backgroundReferenceBuffer,
+  backgroundAsset
+) {
+  if (backgroundReferenceBuffer) {
+    const stats = await sharp(backgroundReferenceBuffer)
+      .extract({ left: 108, top: 1248, width: 864, height: 360 })
+      .stats();
+    const red = Number(stats?.channels?.[0]?.mean || 0);
+    const green = Number(stats?.channels?.[1]?.mean || 0);
+    const blue = Number(stats?.channels?.[2]?.mean || 0);
+
+    return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+  }
+
+  const brightness = String(backgroundAsset?.brightness || "").toLowerCase();
+  if (brightness === "dark") return 55;
+  if (brightness === "light") return 210;
+  return 132;
+}
+
+function getAnimatedOverlayBrightnessLabel(luminance) {
+  if (luminance <= 86) return "dark";
+  if (luminance >= 166) return "light";
+  return "medium";
+}
+
+async function addAnimatedOverlayContrastHalo(overlayBuffer, backgroundLuminance) {
+  const normalizedOverlay = await sharp(overlayBuffer)
+    .resize({ width: 1080, height: 1920, fit: "fill" })
+    .ensureAlpha()
+    .png()
+    .toBuffer();
+  const haloColor =
+    backgroundLuminance >= 132
+      ? { r: 8, g: 15, b: 26 }
+      : { r: 255, g: 252, b: 245 };
+  const haloAlpha = await sharp(normalizedOverlay)
+    .extractChannel(3)
+    .dilate(5)
+    .blur(1.2)
+    .linear(0.58)
+    .png()
+    .toBuffer();
+  const haloBuffer = await sharp({
+    create: {
+      width: 1080,
+      height: 1920,
+      channels: 3,
+      background: haloColor,
+    },
+  })
+    .joinChannel(haloAlpha)
+    .png()
+    .toBuffer();
+
+  return sharp({
+    create: {
+      width: 1080,
+      height: 1920,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([
+      { input: haloBuffer, left: 0, top: 0 },
+      { input: normalizedOverlay, left: 0, top: 0 },
+    ])
+    .png()
+    .toBuffer();
 }
 
 function countVisiblePixelsInRegion(data, info, region, alphaThreshold = 48) {
@@ -15510,6 +15628,14 @@ async function createAnimatedTextOverlay({
   dominantColor,
 }) {
   const chromaKey = chooseAnimatedOverlayChroma(dominantColor);
+  const backgroundReferenceBuffer =
+    await getAnimatedOverlayBackgroundReference(backgroundAsset);
+  const backgroundLuminance = await getAnimatedOverlayBackgroundLuminance(
+    backgroundReferenceBuffer,
+    backgroundAsset
+  );
+  const backgroundBrightness =
+    getAnimatedOverlayBrightnessLabel(backgroundLuminance);
   let lastError = null;
   let lastPrompt = null;
 
@@ -15518,6 +15644,7 @@ async function createAnimatedTextOverlay({
       rule,
       postContent,
       backgroundAsset,
+      backgroundBrightness,
       dominantColor,
       chromaKey,
       attempt,
@@ -15539,9 +15666,13 @@ async function createAnimatedTextOverlay({
         throw new Error("OpenAI returned no premium overlay image data");
       }
 
-      const textOverlayBuffer = await normalizeGeneratedAnimatedTextOverlay(
+      const normalizedTextOverlayBuffer = await normalizeGeneratedAnimatedTextOverlay(
         Buffer.from(imageBase64, "base64"),
         chromaKey
+      );
+      const textOverlayBuffer = await addAnimatedOverlayContrastHalo(
+        normalizedTextOverlayBuffer,
+        backgroundLuminance
       );
 
       return {
@@ -15565,12 +15696,18 @@ async function createAnimatedTextOverlay({
     message: lastError?.message,
   });
 
+  const fallbackTextOverlayBuffer = await createFallbackAnimatedTextOverlay({
+    rule,
+    backgroundAsset,
+    backgroundBrightness,
+    dominantColor,
+  });
+
   return {
-    textOverlayBuffer: await createFallbackAnimatedTextOverlay({
-      rule,
-      backgroundAsset,
-      dominantColor,
-    }),
+    textOverlayBuffer: await addAnimatedOverlayContrastHalo(
+      fallbackTextOverlayBuffer,
+      backgroundLuminance
+    ),
     prompt: lastPrompt,
     provider: "fallback_premium_svg",
   };
