@@ -9167,3 +9167,54 @@ textarea.input:focus,
   border-color: rgba(14, 116, 144, 0.38) !important;
   background: linear-gradient(145deg, rgba(236, 254, 255, 0.96), rgba(255, 255, 255, 0.98)) !important;
 }
+
+/* Focused page flow inside the add-post modal */
+.add-post-modal.add-post-modal-focus {
+  width: min(920px, 100%);
+}
+
+.add-post-modal-header .add-post-modal-back {
+  width: auto;
+  height: auto;
+  margin: 0 0 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.add-post-modal-header .add-post-modal-back:hover {
+  color: #0f172a;
+}
+
+.add-post-focus-source-panel {
+  margin-top: 0;
+  padding: 18px;
+  box-shadow: none;
+  background: #f8fafc;
+}
+
+.add-post-focus-source-panel .planner-focus-source-result {
+  background: #ffffff;
+}
+
+@media (max-width: 720px) {
+  .add-post-modal-backdrop {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .add-post-modal {
+    max-height: calc(100vh - 24px);
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .add-post-focus-source-panel {
+    padding: 14px;
+  }
+}

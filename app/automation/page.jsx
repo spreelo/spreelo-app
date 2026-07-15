@@ -5088,6 +5088,7 @@ const [autoPlanPostCount, setAutoPlanPostCount] = useState(
   DEFAULT_AUTO_PLAN_POST_COUNT
 );
 const [showAddPostModal, setShowAddPostModal] = useState(false);
+const [addPostModalView, setAddPostModalView] = useState("types");
 const [slots, setSlots] = useState([]);
   const [planCreationMode, setPlanCreationMode] = useState("auto");
   const [selectedContentTypeIds, setSelectedContentTypeIds] = useState(
@@ -5265,9 +5266,21 @@ const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
 
   const focusedSourceContentTypes = useMemo(() => {
     const types = getVisibleContentTypes(websiteProductModeAvailable);
+    const productTypeIds = new Set([
+      "website_item",
+      "website_item_text_ad",
+      "animated_website_item",
+      "carousel_website_item",
+    ]);
+
+    if (focusSource?.sourceScope === "focus_page") {
+      return types.filter((type) => !productTypeIds.has(type.id));
+    }
+
     if (focusSource?.sourceScope === "exact_product") {
       return types.filter((type) => type.id !== "carousel_website_item");
     }
+
     return types;
   }, [websiteProductModeAvailable, focusSource?.sourceScope]);
   const includedContentTypes = useMemo(() => {
@@ -5310,18 +5323,19 @@ const shouldShowPlannerDetails =
     setFocusSourceError("");
   }
 
-  function openFocusSourceSelector() {
+  function closeAddPostModal() {
     setShowAddPostModal(false);
-    setShowFocusSourcePanel(true);
+    setAddPostModalView("types");
+    setFocusSource(null);
+    setFocusSourceInput("");
     setFocusSourceError("");
+  }
 
-    if (typeof window !== "undefined") {
-      window.requestAnimationFrame(() => {
-        document
-          .querySelector(".planner-focus-source-panel")
-          ?.scrollIntoView({ behavior: "smooth", block: "center" });
-      });
-    }
+  function openFocusSourceSelector() {
+    setAddPostModalView("focus_source");
+    setFocusSource(null);
+    setFocusSourceInput("");
+    setFocusSourceError("");
   }
 
   function addFocusedContentType(typeId) {
@@ -5354,6 +5368,57 @@ const shouldShowPlannerDetails =
 
     if (nextIndex + 1 >= autoPlanPostCount) {
       scrollToPlannerSchedule();
+    }
+  }
+
+
+  function addFocusedSlotFromModal(typeId) {
+    const selectedSource = focusSource;
+    const selectedType = getContentTypeById(typeId);
+
+    if (!selectedSource?.url || !selectedType) return;
+
+    setSlots((currentSlots) => {
+      const nextContentTypeIds = [
+        ...currentSlots.map((slot) => slot.contentTypeId).filter(Boolean),
+        selectedType.id,
+      ];
+      const nextIndex = currentSlots.length;
+      const newSlot = createSlotFromContentType(selectedType, nextIndex, {
+        startDate: planStartDate,
+        timeZone,
+        contentTypeIds: nextContentTypeIds,
+        goalId: autoPlanGoal,
+        contentSource: selectedSource,
+      });
+
+      const preparedSlot = {
+        ...newSlot,
+        manualImageMode: selectedType.id === "manual_prompt" ? "ai" : newSlot.manualImageMode,
+        imageSource:
+          selectedType.id === "manual_prompt"
+            ? "ai"
+            : selectedType.contentFormat === "carousel"
+            ? "website_carousel"
+            : selectedType.usesWebsiteContent
+            ? "website"
+            : "ai",
+      };
+
+      if (selectedType.id === "manual_prompt") {
+        setExpandedInstructionSlotIds((currentIds) => [
+          ...currentIds,
+          preparedSlot.id,
+        ]);
+      }
+
+      return [...currentSlots, preparedSlot];
+    });
+
+    closeAddPostModal();
+
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => scrollToPlannerSchedule());
     }
   }
 
@@ -6695,6 +6760,10 @@ function addSlot() {
     return;
   }
 
+  setAddPostModalView("types");
+  setFocusSource(null);
+  setFocusSourceInput("");
+  setFocusSourceError("");
   setShowAddPostModal(true);
 }
 
@@ -6758,7 +6827,7 @@ function addSlot() {
       return [...currentSlots, newSlot];
     });
 
-    setShowAddPostModal(false);
+    closeAddPostModal();
   }
   function duplicateSlot(slotId) {
     const slotToCopy = slots.find((slot) => slot.id === slotId);
@@ -9535,50 +9604,158 @@ setRules((currentRules) =>
         {showAddPostModal && (
           <div
             className="add-post-modal-backdrop"
-            onClick={() => setShowAddPostModal(false)}
+            onClick={closeAddPostModal}
           >
             <div
-              className="add-post-modal"
+              className={`add-post-modal ${
+                addPostModalView === "focus_source" ? "add-post-modal-focus" : ""
+              }`}
               onClick={(event) => event.stopPropagation()}
             >
               <div className="add-post-modal-header">
                 <div>
-                  <p>{t("automation.addPlannedPost")}</p>
-                  <h3>{t("automation.chooseContentType")}</h3>
+                  {addPostModalView === "focus_source" && (
+                    <button
+                      type="button"
+                      className="add-post-modal-back"
+                      onClick={() => {
+                        setAddPostModalView("types");
+                        setFocusSource(null);
+                        setFocusSourceInput("");
+                        setFocusSourceError("");
+                      }}
+                    >
+                      ← {getFocusSourceCopy("back")}
+                    </button>
+                  )}
+                  <p>
+                    {addPostModalView === "focus_source"
+                      ? getFocusSourceCopy("modalEyebrow")
+                      : t("automation.addPlannedPost")}
+                  </p>
+                  <h3>
+                    {addPostModalView === "focus_source"
+                      ? getFocusSourceCopy("heading")
+                      : t("automation.chooseContentType")}
+                  </h3>
                   <span>
-                    {t("automation.chooseContentTypeText")}
+                    {addPostModalView === "focus_source"
+                      ? getFocusSourceCopy("help")
+                      : t("automation.chooseContentTypeText")}
                   </span>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setShowAddPostModal(false)}
+                  className="add-post-modal-close"
+                  onClick={closeAddPostModal}
+                  aria-label={getFocusSourceCopy("close")}
                 >
                   ✕
                 </button>
               </div>
 
-              <div className="add-post-modal-grid">
-                <button
-                  type="button"
-                  className="add-post-type-card add-post-focus-source-card"
-                  onClick={openFocusSourceSelector}
-                >
-                  <strong>{getFocusSourceCopy("cardTitle")}</strong>
-                  <p>{getFocusSourceCopy("cardText")}</p>
-                </button>
-                              {visibleContentTypes.map((type) => (
+              {addPostModalView === "focus_source" ? (
+                <div className="planner-focus-source-panel add-post-focus-source-panel">
+                  <div className="planner-focus-source-form">
+                    <input
+                      type="url"
+                      className="input"
+                      value={focusSourceInput}
+                      onChange={(event) => {
+                        setFocusSourceInput(event.target.value);
+                        setFocusSource(null);
+                        setFocusSourceError("");
+                      }}
+                      placeholder={getFocusSourceCopy("placeholder")}
+                      autoComplete="url"
+                      autoFocus
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          inspectFocusSource();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="add-plan-button"
+                      onClick={inspectFocusSource}
+                      disabled={focusSourceLoading}
+                    >
+                      {focusSourceLoading
+                        ? getFocusSourceCopy("inspecting")
+                        : getFocusSourceCopy("inspect")}
+                    </button>
+                  </div>
+
+                  {focusSourceError && (
+                    <div className="planner-focus-source-error">
+                      <AlertTriangle size={17} aria-hidden="true" />
+                      <span>{focusSourceError}</span>
+                    </div>
+                  )}
+
+                  {focusSource && (
+                    <div className="planner-focus-source-result">
+                      <div className="planner-focus-source-result-icon">
+                        <CheckCircle2 size={22} aria-hidden="true" />
+                      </div>
+                      <div>
+                        <span>
+                          {getFocusSourceCopy("verified")} · {getFocusSourceKindLabel(focusSource)}
+                        </span>
+                        <strong>{focusSource.displayTitle}</strong>
+                        <p>{focusSource.summary}</p>
+                        <small>{focusSource.url}</small>
+                        <em>
+                          {websiteProductModeAvailable
+                            ? getFocusSourceCopy("shopEnabled")
+                            : getFocusSourceCopy("shopDisabled")}
+                        </em>
+                      </div>
+
+                      <div className="planner-focus-source-types">
+                        <span>{getFocusSourceCopy("choosePostType")}</span>
+                        <div>
+                          {focusedSourceContentTypes.map((type) => (
+                            <button
+                              type="button"
+                              key={`modal-focused-${type.id}`}
+                              onClick={() => addFocusedSlotFromModal(type.id)}
+                            >
+                              <strong>{translateContentTypeShortLabel(type)}</strong>
+                              <small>{translateContentTypeDescription(type)}</small>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="add-post-modal-grid">
                   <button
                     type="button"
-                    key={type.id}
-                    className="add-post-type-card"
-                    onClick={() => addSlotFromContentType(type.id)}
+                    className="add-post-type-card add-post-focus-source-card"
+                    onClick={openFocusSourceSelector}
                   >
-                    <strong>{translateContentTypeLabel(type)}</strong>
-                    <p>{translateContentTypeDescription(type)}</p>
+                    <strong>{getFocusSourceCopy("cardTitle")}</strong>
+                    <p>{getFocusSourceCopy("cardText")}</p>
                   </button>
-                ))}
-              </div>
+                  {visibleContentTypes.map((type) => (
+                    <button
+                      type="button"
+                      key={type.id}
+                      className="add-post-type-card"
+                      onClick={() => addSlotFromContentType(type.id)}
+                    >
+                      <strong>{translateContentTypeLabel(type)}</strong>
+                      <p>{translateContentTypeDescription(type)}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
