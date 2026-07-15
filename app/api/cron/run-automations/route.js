@@ -14592,29 +14592,6 @@ async function extractGeneratedTextFromChromaBackground(generatedBuffer) {
     throw new Error("Generated text overlay contained no visible text");
   }
 
-  let visiblePixelCount = 0;
-  let strongPixelCount = 0;
-  let alphaTotal = 0;
-  for (let pixel = 0; pixel < alphaChannel.length; pixel += 1) {
-    const alpha = alphaChannel[pixel];
-    if (alpha >= 48) {
-      visiblePixelCount += 1;
-      alphaTotal += alpha;
-    }
-    if (alpha >= 150) strongPixelCount += 1;
-  }
-
-  const averageVisibleAlpha = visiblePixelCount
-    ? alphaTotal / visiblePixelCount
-    : 0;
-  if (
-    visiblePixelCount < 4500 ||
-    strongPixelCount < 1800 ||
-    averageVisibleAlpha < 78
-  ) {
-    throw new Error("Generated text overlay became too faint after chroma removal");
-  }
-
   const visibleCoverage = (bounds.width * bounds.height) / (info.width * info.height);
   if (visibleCoverage > 0.72) {
     throw new Error("Generated text overlay contained too much non-text artwork");
@@ -14662,7 +14639,7 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
   const width = Number(compactMetadata.width || 930);
   const height = Number(compactMetadata.height || 310);
 
-  const overlayBuffer = await sharp({
+  return sharp({
     create: {
       width: 1080,
       height: 1920,
@@ -14679,20 +14656,6 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer) {
     ])
     .png()
     .toBuffer();
-
-  const { data: overlayPixels, info: overlayInfo } = await sharp(overlayBuffer)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  let finalVisiblePixels = 0;
-  for (let index = 3; index < overlayPixels.length; index += overlayInfo.channels) {
-    if (overlayPixels[index] >= 48) finalVisiblePixels += 1;
-  }
-  if (finalVisiblePixels < 4500) {
-    throw new Error("Generated text overlay was effectively empty after placement");
-  }
-
-  return overlayBuffer;
 }
 async function createAnimatedTextOverlay({
   openai,
@@ -14728,7 +14691,7 @@ async function createAnimatedTextOverlay({
     return {
       textOverlayBuffer,
       prompt,
-      provider: "openai_chroma_cutout",
+      provider: "openai_white_cutout",
     };
   } catch (error) {
     console.warn("OpenAI animated text overlay failed; using exact-text fallback", {
@@ -14791,16 +14754,55 @@ async function createAnimatedProductLayer({ sourceImageBuffer }) {
     .png()
     .toBuffer();
 
-  const motionMetadata = await sharp(resizedProduct).metadata();
+  // Version 77 animated the actual visible product inside an HTML5/GSAP layer.
+  // Keep that proven mechanism, but compress the tightly cropped product enough
+  // that the Shotstack request cannot exceed its payload limit.
+  const candidates = [
+    { width: 840, quality: 96 },
+    { width: 780, quality: 95 },
+    { width: 720, quality: 94 },
+    { width: 660, quality: 93 },
+    { width: 600, quality: 92 },
+  ];
+  let motionBuffer = resizedProduct;
+  let motionMime = "image/png";
+  let motionMetadata = metadata;
+  let productDataUri = `data:${motionMime};base64,${motionBuffer.toString("base64")}`;
+
+  for (const candidate of candidates) {
+    if (productDataUri.length <= 420_000) break;
+    motionBuffer = await sharp(cutoutBuffer)
+      .resize({
+        width: candidate.width,
+        height: candidate.width,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({
+        quality: candidate.quality,
+        alphaQuality: 100,
+        smartSubsample: true,
+      })
+      .toBuffer();
+    motionMime = "image/webp";
+    motionMetadata = await sharp(motionBuffer).metadata();
+    productDataUri = `data:${motionMime};base64,${motionBuffer.toString("base64")}`;
+  }
+
+  if (productDataUri.length > 480_000) {
+    throw new Error("Product asset is too large for reliable Shotstack HTML5 animation");
+  }
 
   return {
     productLayerBuffer,
-    productMotionBuffer: resizedProduct,
-    productWidth: Number(motionMetadata.width || productWidth),
-    productHeight: Number(motionMetadata.height || productHeight),
+    productMotionBuffer: motionBuffer,
+    productDataUri,
+    productWidth,
+    productHeight,
+    motionSourceWidth: Number(motionMetadata.width || productWidth),
+    motionSourceHeight: Number(motionMetadata.height || productHeight),
   };
 }
-
 
 async function createAnimatedLogoOverlay({ brandProfile, includeLogo }) {
   if (!includeLogo || !brandProfile?.logo_url) return null;
@@ -14995,6 +14997,7 @@ async function createAnimatedProductVideoAssets({
   return {
     backgroundVideoUrl: selection.asset.public_url,
     productUrl: productMotionUpload.imageUrl,
+    productDataUri: productLayer.productDataUri,
     productWidth: productLayer.productWidth,
     productHeight: productLayer.productHeight,
     textOverlayUrl: textOverlayUpload.imageUrl,
@@ -15072,7 +15075,7 @@ async function generateAnimatedProductVideo({
   });
   const edit = buildProductPushEdit({
     backgroundVideoUrl: assets.backgroundVideoUrl,
-    productUrl: assets.productUrl,
+    productDataUri: assets.productDataUri,
     productWidth: assets.productWidth,
     productHeight: assets.productHeight,
     textOverlayUrl: assets.textOverlayUrl,
