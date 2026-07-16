@@ -22,6 +22,32 @@ import { supabase } from "../lib/supabaseClient";
 import { useUiText } from "../lib/i18n/useUiText";
 import LanguageSuggestionBanner from "./LanguageSuggestionBanner";
 
+const SESSION_CHECK_ATTEMPTS = 3;
+const SESSION_CHECK_RETRY_DELAY_MS = 900;
+const SESSION_REQUEST_TIMEOUT_MS = 12000;
+const WORKSPACE_REQUEST_TIMEOUT_MS = 20000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withTimeout(promise, timeoutMs) {
+  let timeoutId;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error("Request timeout"));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 const navItems = [
   {
     id: "dashboard",
@@ -95,6 +121,7 @@ export default function AppLayout({ active, children }) {
   const { t, locale } = useUiText(["layout"]);
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [sessionCheckError, setSessionCheckError] = useState("");
   const [brandProfiles, setBrandProfiles] = useState([]);
   const [currentBrandId, setCurrentBrandId] = useState("");
   const [loadingBrands, setLoadingBrands] = useState(true);
@@ -111,41 +138,99 @@ export default function AppLayout({ active, children }) {
   }, [brandProfiles, currentBrandId]);
 
   useEffect(() => {
-    async function checkUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    checkUser();
+  }, []);
 
-      if (!user) {
+  async function getSessionWithRetry() {
+    let lastError = null;
+
+    for (let attempt = 0; attempt < SESSION_CHECK_ATTEMPTS; attempt++) {
+      try {
+        const { data, error } = await withTimeout(
+          supabase.auth.getSession(),
+          SESSION_REQUEST_TIMEOUT_MS
+        );
+
+        if (data?.session?.user) {
+          return { session: data.session, error: null };
+        }
+
+        if (!error) {
+          return { session: null, error: null };
+        }
+
+        lastError = error;
+      } catch (error) {
+        lastError = error;
+      }
+
+      if (attempt < SESSION_CHECK_ATTEMPTS - 1) {
+        await sleep(SESSION_CHECK_RETRY_DELAY_MS * (attempt + 1));
+      }
+    }
+
+    return { session: null, error: lastError };
+  }
+
+  async function checkUser() {
+    setCheckingSession(true);
+    setSessionCheckError("");
+
+    try {
+      const { session, error } = await getSessionWithRetry();
+
+      if (error) {
+        console.error("Could not verify session:", error);
+        setSessionCheckError(t("layout.sessionTemporaryError"));
+        return;
+      }
+
+      if (!session?.user) {
         window.location.href = "/login";
         return;
       }
 
-      setUser(user);
-      await Promise.all([loadBrands(user), checkAdminAccess()]);
+      setUser(session.user);
+
+      const [brandsLoaded] = await Promise.all([
+        loadBrands(session.user),
+        checkAdminAccess(),
+      ]);
+
+      if (!brandsLoaded) {
+        setSessionCheckError(t("layout.workspaceTemporaryError"));
+      }
+    } catch (error) {
+      console.error("Could not load workspace:", error);
+      setSessionCheckError(t("layout.workspaceTemporaryError"));
+    } finally {
       setCheckingSession(false);
     }
-
-    checkUser();
-  }, []);
+  }
 
 
   async function checkAdminAccess() {
     try {
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } = await withTimeout(
+        supabase.auth.getSession(),
+        SESSION_REQUEST_TIMEOUT_MS
+      );
 
       if (!session?.access_token) {
         setIsAdmin(false);
         return;
       }
 
-      const response = await fetch("/api/admin/me", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      const response = await withTimeout(
+        fetch("/api/admin/me", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }),
+        SESSION_REQUEST_TIMEOUT_MS
+      );
 
       const payload = await response.json().catch(() => ({}));
       setIsAdmin(Boolean(response.ok && payload?.isAdmin));
@@ -157,19 +242,30 @@ export default function AppLayout({ active, children }) {
   async function loadBrands(currentUser) {
     setLoadingBrands(true);
 
-    const { data, error } = await supabase
-      .from("brand_profiles")
-      .select("id, business_name, is_default, created_at")
-      .eq("user_id", currentUser.id)
-      .order("is_default", { ascending: false })
-      .order("created_at", { ascending: true });
+    let data;
 
-    if (error) {
+    try {
+      const result = await withTimeout(
+        supabase
+          .from("brand_profiles")
+          .select("id, business_name, is_default, created_at")
+          .eq("user_id", currentUser.id)
+          .order("is_default", { ascending: false })
+          .order("created_at", { ascending: true }),
+        WORKSPACE_REQUEST_TIMEOUT_MS
+      );
+
+      if (result.error) {
+        throw result.error;
+      }
+
+      data = result.data;
+    } catch (error) {
       console.error("Could not load brands:", error);
       setBrandProfiles([]);
       setCurrentBrandId("");
       setLoadingBrands(false);
-      return;
+      return false;
     }
 
     const brands = data || [];
@@ -177,7 +273,7 @@ export default function AppLayout({ active, children }) {
 
     if (brands.length === 0) {
       window.location.href = "/onboarding";
-      return;
+      return true;
     }
 
     const storageKey = getBrandStorageKey(currentUser.id);
@@ -198,6 +294,7 @@ export default function AppLayout({ active, children }) {
     }
 
     setLoadingBrands(false);
+    return true;
   }
 
   function handleBrandChange(event) {
@@ -281,7 +378,7 @@ export default function AppLayout({ active, children }) {
     window.location.href = "/login";
   }
 
-  if (checkingSession) {
+  if (checkingSession || sessionCheckError) {
     return (
       <main className="login-page">
         <section className="login-card">
@@ -293,7 +390,21 @@ export default function AppLayout({ active, children }) {
             />
           </div>
 
-          <p className="login-message">{t("layout.loadingWorkspace")}</p>
+          <p className="login-message">
+            {checkingSession
+              ? t("layout.loadingWorkspace")
+              : sessionCheckError}
+          </p>
+
+          {!checkingSession && sessionCheckError && (
+            <button
+              type="button"
+              className="primary-button full"
+              onClick={checkUser}
+            >
+              {t("layout.retry")}
+            </button>
+          )}
         </section>
       </main>
     );

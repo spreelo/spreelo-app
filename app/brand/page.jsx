@@ -116,7 +116,13 @@ const analysisProgressStages = [
 
 const ANALYSIS_STATUS_POLL_INTERVAL_MS = 2000;
 const ANALYSIS_STATUS_MAX_POLLS = 180;
-const ANALYSIS_DISPLAY_DURATION_MS = 120000; // Smooth progress target, not a forced wait.
+const ANALYSIS_MAIN_PROGRESS_DURATION_MS = 120000;
+const ANALYSIS_DISPLAY_DURATION_MS = 150000; // Typical analysis reaches 96% after about 2.5 minutes.
+const ANALYSIS_FINAL_CREEP_TIME_CONSTANT_MS = 60000;
+const ANALYSIS_START_REQUEST_TIMEOUT_MS = 45000;
+const ANALYSIS_STATUS_REQUEST_TIMEOUT_MS = 20000;
+const ANALYSIS_SESSION_ATTEMPTS = 3;
+const ANALYSIS_SESSION_TIMEOUT_MS = 12000;
 const ANALYSIS_MIN_VISIBLE_DURATION_MS = 2500;
 const BRAND_ASSETS_BUCKET = "brand-assets";
 const MAX_LOGO_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -168,13 +174,97 @@ function getSmoothAnalysisProgress(startedAt) {
   }
 
   const elapsedMs = Date.now() - startedAt;
-  const ratio = elapsedMs / ANALYSIS_DISPLAY_DURATION_MS;
 
-  if (ratio >= 1) {
-    return 96;
+  if (elapsedMs <= ANALYSIS_MAIN_PROGRESS_DURATION_MS) {
+    const ratio = elapsedMs / ANALYSIS_MAIN_PROGRESS_DURATION_MS;
+    return Math.max(1, Math.min(90, 1 + ratio * 89));
   }
 
-  return Math.max(1, Math.min(96, ratio * 96));
+  if (elapsedMs <= ANALYSIS_DISPLAY_DURATION_MS) {
+    const finalStretchRatio =
+      (elapsedMs - ANALYSIS_MAIN_PROGRESS_DURATION_MS) /
+      (ANALYSIS_DISPLAY_DURATION_MS - ANALYSIS_MAIN_PROGRESS_DURATION_MS);
+
+    return Math.min(96, 90 + finalStretchRatio * 6);
+  }
+
+  const finalPhaseElapsedMs = elapsedMs - ANALYSIS_DISPLAY_DURATION_MS;
+  const finalCreep =
+    2.8 *
+    (1 -
+      Math.exp(
+        -finalPhaseElapsedMs / ANALYSIS_FINAL_CREEP_TIME_CONSTANT_MS
+      ));
+
+  return Math.min(98.8, 96 + finalCreep);
+}
+
+async function withTimeout(promise, timeoutMs) {
+  let timeoutId;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error("Request timeout"));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("Request timeout");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function getAnalysisSessionWithRetry() {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < ANALYSIS_SESSION_ATTEMPTS; attempt++) {
+    try {
+      const { data, error } = await withTimeout(
+        supabase.auth.getSession(),
+        ANALYSIS_SESSION_TIMEOUT_MS
+      );
+
+      if (data?.session?.access_token) {
+        return { session: data.session, error: null };
+      }
+
+      if (!error) {
+        return { session: null, error: null };
+      }
+
+      lastError = error;
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < ANALYSIS_SESSION_ATTEMPTS - 1) {
+      await sleep(800 * (attempt + 1));
+    }
+  }
+
+  return { session: null, error: lastError };
 }
 function getFriendlyAnalysisError(value) {
   const cleanError = String(value || "");
@@ -673,6 +763,8 @@ export default function BrandProfile() {
   }) {
     let runFinished = false;
     let runResult = null;
+    let consecutiveStatusErrors = 0;
+    let queuedPollsAfterRunFailure = 0;
 
     runRequest
       .then((result) => {
@@ -692,25 +784,40 @@ export default function BrandProfile() {
         pollCount === 0 ? 1000 : ANALYSIS_STATUS_POLL_INTERVAL_MS
       );
 
-      const statusResponse = await fetch(
-        `/api/analyze-brand/status?jobId=${encodeURIComponent(jobId)}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
+      let statusResponse;
+      let statusResult;
+
+      try {
+        statusResponse = await fetchWithTimeout(
+          `/api/analyze-brand/status?jobId=${encodeURIComponent(jobId)}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
           },
-        }
-      );
-
-      const statusResult = await readApiJson(statusResponse);
-
-      if (!statusResponse.ok || !statusResult?.ok) {
-        throw new Error(
-          getFriendlyAnalysisError(
-            statusResult?.error ||
-              t("brand.errorReadStatus")
-          )
+          ANALYSIS_STATUS_REQUEST_TIMEOUT_MS
         );
+
+        statusResult = await readApiJson(statusResponse);
+
+        if (!statusResponse.ok || !statusResult?.ok) {
+          throw new Error(
+            getFriendlyAnalysisError(
+              statusResult?.error || t("brand.errorReadStatus")
+            )
+          );
+        }
+
+        consecutiveStatusErrors = 0;
+      } catch (error) {
+        consecutiveStatusErrors += 1;
+
+        if (consecutiveStatusErrors < 4) {
+          continue;
+        }
+
+        throw error;
       }
 
       const job = statusResult.job || {};
@@ -737,11 +844,21 @@ export default function BrandProfile() {
       }
 
       if (runFinished && runResult && runResult.ok === false) {
-        throw new Error(
-          getFriendlyAnalysisError(
-            runResult.error || t("brand.errorFinishAnalysis")
-          )
-        );
+        if (job.status === "queued") {
+          queuedPollsAfterRunFailure += 1;
+
+          if (queuedPollsAfterRunFailure >= 5) {
+            throw new Error(
+              getFriendlyAnalysisError(
+                runResult.error || t("brand.errorFinishAnalysis")
+              )
+            );
+          }
+        } else {
+          // The browser can lose the long /run response while the server-side
+          // job continues. In that case the job status is the source of truth.
+          queuedPollsAfterRunFailure = 0;
+        }
       }
     }
 
@@ -789,11 +906,14 @@ export default function BrandProfile() {
     }, 500);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { session, error: sessionError } =
+        await getAnalysisSessionWithRetry();
 
       if (!session?.access_token) {
+        if (sessionError) {
+          throw new Error(t("brand.errorVerifySession"));
+        }
+
         window.location.href = "/login";
         return;
       }
@@ -808,14 +928,18 @@ export default function BrandProfile() {
         contentLanguage: contentSettingsTouched ? contentLanguage : "",
       };
 
-      const startResponse = await fetch("/api/analyze-brand/start", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+      const startResponse = await fetchWithTimeout(
+        "/api/analyze-brand/start",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(analysisPayload),
         },
-        body: JSON.stringify(analysisPayload),
-      });
+        ANALYSIS_START_REQUEST_TIMEOUT_MS
+      );
 
       const startResult = await readApiJson(startResponse);
 

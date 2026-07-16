@@ -25,6 +25,37 @@ function getBrandStorageKey(userId) {
 
 const SAVED_LOGIN_EMAIL_KEY = "spreelo_last_login_email";
 const EMPTY_OTP_DIGITS = ["", "", "", "", "", ""];
+const LOGIN_REQUEST_TIMEOUT_MS = 25000;
+const OTP_RESEND_COOLDOWN_SECONDS = 60;
+
+async function withTimeout(promise, timeoutMs = LOGIN_REQUEST_TIMEOUT_MS) {
+  let timeoutId;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          const error = new Error("LOGIN_REQUEST_TIMEOUT");
+          error.code = "LOGIN_REQUEST_TIMEOUT";
+          reject(error);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function isRateLimitError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return (
+    message.includes("rate limit") ||
+    message.includes("too many requests") ||
+    message.includes("email rate limit") ||
+    message.includes("429")
+  );
+}
 
 function renderMarketingTitle(value) {
   const title = String(value || "").trim();
@@ -53,6 +84,7 @@ export default function LoginPage() {
   const [messageType, setMessageType] = useState("info");
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const otpInputRefs = useRef([]);
 
@@ -76,6 +108,17 @@ export default function LoginPage() {
     return () => window.clearTimeout(timeout);
   }, [codeSent]);
 
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+
+    const timeout = window.setTimeout(() => {
+      setResendCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timeout);
+  }, [resendCooldown]);
+
   function normalizeEmail(value) {
     return String(value || "").trim().toLowerCase();
   }
@@ -97,20 +140,28 @@ export default function LoginPage() {
 
   async function redirectAfterLogin(loggedInUser) {
     if (!loggedInUser?.id) {
-      window.location.href = buildLocalizedPath("/login");
-      return;
+      throw new Error(t("login.errorCheckWorkspace"));
     }
 
-    const { data: existingBrands, error } = await supabase
-      .from("brand_profiles")
-      .select("id")
-      .eq("user_id", loggedInUser.id)
-      .limit(1);
+    let existingBrands = [];
 
-    if (error) {
-      setMessage(error.message || t("login.errorCheckWorkspace"));
-      setMessageType("error");
-      setVerifying(false);
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from("brand_profiles")
+          .select("id")
+          .eq("user_id", loggedInUser.id)
+          .limit(1)
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      existingBrands = data || [];
+    } catch (error) {
+      console.error("Could not check workspace after login:", error);
+      window.location.href = "/";
       return;
     }
 
@@ -134,6 +185,14 @@ export default function LoginPage() {
 
     if (loading || verifying) return;
 
+    if (resendCooldown > 0) {
+      setMessage(
+        t("login.sendNewCodeIn", { seconds: resendCooldown })
+      );
+      setMessageType("info");
+      return;
+    }
+
     const normalizedEmail = normalizeEmail(email);
 
     if (!normalizedEmail) {
@@ -146,31 +205,58 @@ export default function LoginPage() {
     setMessage("");
     setMessageType("info");
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        shouldCreateUser: true,
-      },
-    });
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.signInWithOtp({
+          email: normalizedEmail,
+          options: {
+            shouldCreateUser: true,
+          },
+        })
+      );
 
-    if (error) {
-      setMessage(error.message || t("login.errorSendCode"));
-      setMessageType("error");
+      if (error) {
+        throw error;
+      }
+
+      setEmail(normalizedEmail);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
+      }
+
+      setCodeSent(true);
+      setResendCooldown(OTP_RESEND_COOLDOWN_SECONDS);
+      resetOtpDigits();
+      setMessage(t("login.codeSentMessage"));
+      setMessageType("success");
+    } catch (error) {
+      if (
+        isRateLimitError(error) ||
+        error?.code === "LOGIN_REQUEST_TIMEOUT"
+      ) {
+        setEmail(normalizedEmail);
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
+        }
+
+        setCodeSent(true);
+        setResendCooldown(OTP_RESEND_COOLDOWN_SECONDS);
+        resetOtpDigits();
+        setMessage(
+          isRateLimitError(error)
+            ? t("login.errorTooManyCodes")
+            : t("login.errorRequestTimeout")
+        );
+        setMessageType("info");
+      } else {
+        setMessage(error?.message || t("login.errorSendCode"));
+        setMessageType("error");
+      }
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setEmail(normalizedEmail);
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
-    }
-
-    setCodeSent(true);
-    resetOtpDigits();
-    setMessage("");
-    setMessageType("success");
-    setLoading(false);
   }
 
   async function handleVerifyCode(event) {
@@ -197,24 +283,35 @@ export default function LoginPage() {
     setMessage("");
     setMessageType("info");
 
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: normalizedEmail,
-      token: normalizedCode,
-      type: "email",
-    });
+    try {
+      const { data, error } = await withTimeout(
+        supabase.auth.verifyOtp({
+          email: normalizedEmail,
+          token: normalizedCode,
+          type: "email",
+        })
+      );
 
-    if (error) {
-      setMessage(error.message || t("login.errorCodeRejected"));
+      if (error) {
+        throw error;
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
+      }
+
+      await redirectAfterLogin(data?.user);
+    } catch (error) {
+      if (error?.code === "LOGIN_REQUEST_TIMEOUT") {
+        setMessage(t("login.errorRequestTimeout"));
+      } else {
+        setMessage(error?.message || t("login.errorCodeRejected"));
+      }
+
       setMessageType("error");
+    } finally {
       setVerifying(false);
-      return;
     }
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
-    }
-
-    await redirectAfterLogin(data?.user);
   }
 
   function handleChangeEmail() {
@@ -470,9 +567,15 @@ export default function LoginPage() {
                 <button
                   className="login-refresh-primary"
                   type="submit"
-                  disabled={loading || verifying}
+                  disabled={loading || verifying || resendCooldown > 0}
                 >
-                  <span>{loading ? t("login.sending") : t("login.sendCode")}</span>
+                  <span>
+                    {loading
+                      ? t("login.sending")
+                      : resendCooldown > 0
+                        ? t("login.sendNewCodeIn", { seconds: resendCooldown })
+                        : t("login.sendCode")}
+                  </span>
                   <ArrowRight size={20} aria-hidden="true" />
                 </button>
               </form>
@@ -513,10 +616,14 @@ export default function LoginPage() {
                   className="login-refresh-secondary"
                   type="button"
                   onClick={handleSendCode}
-                  disabled={loading || verifying}
+                  disabled={loading || verifying || resendCooldown > 0}
                 >
                   <RefreshCw size={19} aria-hidden="true" />
-                  {loading ? t("login.sending") : t("login.sendNewCode")}
+                  {loading
+                    ? t("login.sending")
+                    : resendCooldown > 0
+                      ? t("login.sendNewCodeIn", { seconds: resendCooldown })
+                      : t("login.sendNewCode")}
                 </button>
 
                 <div className="login-refresh-or"><span>{t("login.or")}</span></div>
