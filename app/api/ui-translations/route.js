@@ -193,11 +193,14 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
   }
 
   const existingLabels = existingPack?.labels || {};
-  const missingLabels = getLabelsNeedingTranslation(
-    defaultLabels,
-    existingLabels,
-    locale
-  );
+  const refreshRequested = existingPack?.status === "refresh_requested";
+  const missingLabels = refreshRequested
+    ? { ...defaultLabels }
+    : getLabelsNeedingTranslation(
+        defaultLabels,
+        existingLabels,
+        locale
+      );
 
   if (Object.keys(missingLabels).length === 0) {
     return existingLabels;

@@ -133,6 +133,93 @@ const WEEKDAYS = [
   "Saturday",
 ];
 
+const ADAPTIVE_PLAN_PREFIX = "SPREELO_ADAPTIVE_V1:";
+
+function parseAdaptivePlanConfig(rule) {
+  if (rule?.schedule_type !== "weekly") return null;
+
+  const notes = String(rule?.strategy_notes || "");
+  const markerIndex = notes.indexOf(ADAPTIVE_PLAN_PREFIX);
+  if (markerIndex === -1) return null;
+
+  const jsonLine = notes
+    .slice(markerIndex + ADAPTIVE_PLAN_PREFIX.length)
+    .split("\n", 1)[0]
+    .trim();
+
+  if (!jsonLine) return null;
+
+  try {
+    const config = JSON.parse(jsonLine);
+    if (!config?.enabled || !Array.isArray(config?.variants) || !config.variants.length) {
+      return null;
+    }
+    return config;
+  } catch (error) {
+    console.warn("Could not parse adaptive weekly plan configuration", {
+      ruleId: rule?.id,
+      message: error?.message,
+    });
+    return null;
+  }
+}
+
+function getAdaptiveWeeklyCycle(rule, scheduledPublishAtIso, config = null) {
+  const configuredStart = String(config?.baseStartDate || "").trim();
+  const cycleStartMs = new Date(
+    configuredStart
+      ? `${configuredStart}T00:00:00Z`
+      : rule?.created_at || rule?.updated_at || 0
+  ).getTime();
+  const scheduledAtMs = new Date(
+    scheduledPublishAtIso || rule?.next_run_at || Date.now()
+  ).getTime();
+
+  if (!Number.isFinite(cycleStartMs) || !Number.isFinite(scheduledAtMs)) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor((scheduledAtMs - cycleStartMs) / (7 * 24 * 60 * 60 * 1000))
+  );
+}
+
+function resolveAdaptiveWeeklyRule(rule, scheduledPublishAtIso) {
+  const config = parseAdaptivePlanConfig(rule);
+  if (!config) return rule;
+
+  const cycle = getAdaptiveWeeklyCycle(rule, scheduledPublishAtIso, config);
+  const slotIndex = Math.max(0, Number(config.slotIndex || 0));
+  const variant = config.variants[(cycle + slotIndex) % config.variants.length];
+
+  if (!variant || typeof variant !== "object") return rule;
+
+  return {
+    ...rule,
+    content_type_id: variant.contentTypeId || rule.content_type_id,
+    content_type_label: variant.contentTypeLabel || rule.content_type_label,
+    prompt: variant.prompt || rule.prompt,
+    image_prompt: variant.imagePrompt || rule.image_prompt,
+    generate_image:
+      typeof variant.generateImage === "boolean"
+        ? variant.generateImage
+        : rule.generate_image,
+    image_source: variant.imageSource || rule.image_source,
+    uses_website_content:
+      typeof variant.usesWebsiteContent === "boolean"
+        ? variant.usesWebsiteContent
+        : rule.uses_website_content,
+    content_format: variant.contentFormat || rule.content_format,
+    animation_style: variant.animationStyle || null,
+    marketing_angle: variant.marketingAngle || rule.marketing_angle,
+    customer_stage: variant.customerStage || rule.customer_stage,
+    cta_strength: variant.ctaStrength || rule.cta_strength,
+    adaptive_cycle: cycle,
+    adaptive_goal: config.goalId || null,
+  };
+}
+
 function getRuleTimeZone(rule) {
   return rule?.timezone || DEFAULT_TIME_ZONE;
 }
@@ -18434,10 +18521,17 @@ async function runAutomationCron(request, options = {}) {
 
     let claimedRulesThisRun = 0;
 
-    for (const rule of rules || []) {
+    for (const queuedRule of rules || []) {
       if (claimedRulesThisRun >= SMART_QUEUE_BATCH_SIZE) {
         break;
       }
+
+      const scheduledPublishAtIso = getScheduledPublishAtIso(queuedRule, now);
+      const rule = resolveAdaptiveWeeklyRule(
+        queuedRule,
+        scheduledPublishAtIso
+      );
+
       if (
         isAnimatedVideoRule(rule) &&
         animatedVideoRendersThisRun >= MAX_ANIMATED_VIDEO_RENDERS_PER_RUN
@@ -18497,8 +18591,6 @@ async function runAutomationCron(request, options = {}) {
         claimedRulesThisRun += 1;
         summary.queue_claimed += 1;
         summary.processed += 1;
-
-        const scheduledPublishAtIso = getScheduledPublishAtIso(rule, now);
 
         automationRunStartedAtIso = new Date().toISOString();
         automationRunLogId = await createAutomationRunLog({

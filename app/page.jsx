@@ -604,12 +604,42 @@ export default function Home() {
       });
   }, [rules]);
 
-  const visibleDashboardContentPlans = useMemo(() => {
-    if (showAllContentPlans) return dashboardContentPlans;
-    return dashboardContentPlans.slice(0, CONTENT_PLANS_PREVIEW_LIMIT);
-  }, [dashboardContentPlans, showAllContentPlans]);
+  const ongoingContentPlans = useMemo(
+    () =>
+      dashboardContentPlans.filter((plan) =>
+        (plan.rules || [plan]).some((rule) => rule.schedule_type === "weekly")
+      ),
+    [dashboardContentPlans]
+  );
+
+  const plannedContentPlans = useMemo(
+    () =>
+      dashboardContentPlans.filter((plan) =>
+        !(plan.rules || [plan]).some((rule) => rule.schedule_type === "weekly")
+      ),
+    [dashboardContentPlans]
+  );
+
+  const visibleOngoingContentPlans = useMemo(() => {
+    if (showAllContentPlans) return ongoingContentPlans;
+    return ongoingContentPlans.slice(0, CONTENT_PLANS_PREVIEW_LIMIT);
+  }, [ongoingContentPlans, showAllContentPlans]);
+
+  const visiblePlannedContentPlans = useMemo(() => {
+    if (showAllContentPlans) return plannedContentPlans;
+    return plannedContentPlans.slice(0, CONTENT_PLANS_PREVIEW_LIMIT);
+  }, [plannedContentPlans, showAllContentPlans]);
+
+  const visibleDashboardContentPlans = useMemo(
+    () => [...visibleOngoingContentPlans, ...visiblePlannedContentPlans],
+    [visibleOngoingContentPlans, visiblePlannedContentPlans]
+  );
 
   const visibleContentPlanIds = visibleDashboardContentPlans.map((rule) => rule.id);
+  const hiddenContentPlanCount = Math.max(
+    0,
+    dashboardContentPlans.length - visibleDashboardContentPlans.length
+  );
   const allVisibleContentPlansSelected =
     visibleContentPlanIds.length > 0 &&
     visibleContentPlanIds.every((ruleId) => selectedContentPlanIds.includes(ruleId));
@@ -970,59 +1000,136 @@ export default function Home() {
                           )}
                         </div>
 
-                        <div className="dashboard-plan-list">
-                          {visibleDashboardContentPlans.map((rule) => {
-                            const status = getContentPlanStatus(rule, t);
-
-                            return (
-                              <article className="dashboard-plan-row" key={rule.id}>
-                                <label className="dashboard-plan-check">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedContentPlanIds.includes(rule.id)}
-                                    onChange={() => toggleContentPlanSelection(rule.id)}
-                                    aria-label={t("dashboard.selectContentPlan")}
-                                  />
-                                </label>
-
-                                <div className="dashboard-plan-main">
-                                  <div className="dashboard-plan-title-row">
-                                    <h4>{formatPlanName(rule, t)}</h4>
-                                    <span
-                                      className={`dashboard-plan-status dashboard-plan-status-${status.key}`}
-                                    >
-                                      {status.label}
-                                    </span>
-                                  </div>
-                                  <p>
-                                    {getContentPlanSummary(rule, t)}
-                                  </p>
+                        <div className="dashboard-plan-split">
+                          <section className="dashboard-plan-group">
+                            <div className="dashboard-plan-group-heading">
+                              <div>
+                                <span className="dashboard-plan-group-icon ongoing">↻</span>
+                                <div>
+                                  <h4>{t("dashboard.ongoingPlansTitle")}</h4>
+                                  <p>{t("dashboard.ongoingPlansText")}</p>
                                 </div>
+                              </div>
+                              <strong>{ongoingContentPlans.length}</strong>
+                            </div>
 
-                                <div className="dashboard-plan-meta">
-                                  <span>{formatScheduleType(rule.schedule_type, t)}</span>
-                                  <strong>{formatDate(getPlanNextDate(rule), t)}</strong>
-                                </div>
+                            {visibleOngoingContentPlans.length ? (
+                              <div className="dashboard-plan-list">
+                                {visibleOngoingContentPlans.map((rule) => {
+                                  const status = getContentPlanStatus(rule, t);
 
-                                <div className="dashboard-plan-actions">
-                                  <a href={`/automation?plan=${encodeURIComponent(rule.primary_rule_id || rule.id)}`}>
-                                    {t("dashboard.manage")}
-                                  </a>
-                                  <button
-                                    type="button"
-                                    className="dashboard-plan-delete"
-                                    disabled={contentPlanActionLoading}
-                                    onClick={() => deleteContentPlans([rule.id])}
-                                  >
-                                    {t("dashboard.delete")}
-                                  </button>
+                                  return (
+                                    <article className="dashboard-plan-row" key={rule.id}>
+                                      <label className="dashboard-plan-check">
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedContentPlanIds.includes(rule.id)}
+                                          onChange={() => toggleContentPlanSelection(rule.id)}
+                                          aria-label={t("dashboard.selectContentPlan")}
+                                        />
+                                      </label>
+
+                                      <div className="dashboard-plan-main">
+                                        <div className="dashboard-plan-title-row">
+                                          <h4>{formatPlanName(rule, t)}</h4>
+                                          <span className={`dashboard-plan-status dashboard-plan-status-${status.key}`}>
+                                            {status.label}
+                                          </span>
+                                        </div>
+                                        <p>{getContentPlanSummary(rule, t)}</p>
+                                        <small className="dashboard-recurring-credit-note">
+                                          {t("dashboard.weeklyCreditsNote")}
+                                        </small>
+                                      </div>
+
+                                      <div className="dashboard-plan-meta">
+                                        <span>{formatScheduleType(rule.schedule_type, t)}</span>
+                                        <strong>{formatDate(getPlanNextDate(rule), t)}</strong>
+                                      </div>
+
+                                      <div className="dashboard-plan-actions">
+                                        <a href={`/automation?plan=${encodeURIComponent(rule.primary_rule_id || rule.id)}`}>
+                                          {t("dashboard.manage")}
+                                        </a>
+                                        <button type="button" className="dashboard-plan-delete" disabled={contentPlanActionLoading} onClick={() => deleteContentPlans([rule.id])}>
+                                          {t("dashboard.delete")}
+                                        </button>
+                                      </div>
+                                    </article>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="dashboard-plan-group-empty">
+                                {t("dashboard.noOngoingPlans")}
+                              </div>
+                            )}
+                          </section>
+
+                          <section className="dashboard-plan-group">
+                            <div className="dashboard-plan-group-heading">
+                              <div>
+                                <span className="dashboard-plan-group-icon planned">◷</span>
+                                <div>
+                                  <h4>{t("dashboard.plannedPlansTitle")}</h4>
+                                  <p>{t("dashboard.plannedPlansText")}</p>
                                 </div>
-                              </article>
-                            );
-                          })}
+                              </div>
+                              <strong>{plannedContentPlans.length}</strong>
+                            </div>
+
+                            {visiblePlannedContentPlans.length ? (
+                              <div className="dashboard-plan-list">
+                                {visiblePlannedContentPlans.map((rule) => {
+                                  const status = getContentPlanStatus(rule, t);
+
+                                  return (
+                                    <article className="dashboard-plan-row" key={rule.id}>
+                                      <label className="dashboard-plan-check">
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedContentPlanIds.includes(rule.id)}
+                                          onChange={() => toggleContentPlanSelection(rule.id)}
+                                          aria-label={t("dashboard.selectContentPlan")}
+                                        />
+                                      </label>
+
+                                      <div className="dashboard-plan-main">
+                                        <div className="dashboard-plan-title-row">
+                                          <h4>{formatPlanName(rule, t)}</h4>
+                                          <span className={`dashboard-plan-status dashboard-plan-status-${status.key}`}>
+                                            {status.label}
+                                          </span>
+                                        </div>
+                                        <p>{getContentPlanSummary(rule, t)}</p>
+                                      </div>
+
+                                      <div className="dashboard-plan-meta">
+                                        <span>{formatScheduleType(rule.schedule_type, t)}</span>
+                                        <strong>{formatDate(getPlanNextDate(rule), t)}</strong>
+                                      </div>
+
+                                      <div className="dashboard-plan-actions">
+                                        <a href={`/automation?plan=${encodeURIComponent(rule.primary_rule_id || rule.id)}`}>
+                                          {t("dashboard.manage")}
+                                        </a>
+                                        <button type="button" className="dashboard-plan-delete" disabled={contentPlanActionLoading} onClick={() => deleteContentPlans([rule.id])}>
+                                          {t("dashboard.delete")}
+                                        </button>
+                                      </div>
+                                    </article>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="dashboard-plan-group-empty">
+                                {t("dashboard.noPlannedPlans")}
+                              </div>
+                            )}
+                          </section>
                         </div>
 
-                        {dashboardContentPlans.length > CONTENT_PLANS_PREVIEW_LIMIT && (
+                        {(showAllContentPlans || hiddenContentPlanCount > 0) && (
                           <div className="dashboard-plan-footer">
                             <button
                               type="button"
@@ -1035,9 +1142,7 @@ export default function Home() {
                               {showAllContentPlans
                                 ? t("dashboard.showLess")
                                 : t("dashboard.showAllContentPlans", {
-                                    count:
-                                      dashboardContentPlans.length -
-                                      CONTENT_PLANS_PREVIEW_LIMIT,
+                                    count: hiddenContentPlanCount,
                                   })}
                             </button>
                           </div>

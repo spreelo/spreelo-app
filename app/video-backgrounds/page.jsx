@@ -5,13 +5,16 @@ import {
   CheckCircle2,
   Film,
   Loader2,
+  Pencil,
   ShieldAlert,
   Star,
   Trash2,
   UploadCloud,
+  X,
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
 
 const EMPTY_FORM = {
   name: "",
@@ -110,6 +113,7 @@ function formatTags(values) {
 }
 
 export default function VideoBackgroundsPage() {
+  const { t } = useUiText(["videoBackgrounds"]);
   const [assets, setAssets] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [file, setFile] = useState(null);
@@ -118,6 +122,9 @@ export default function VideoBackgroundsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [configurationMissing, setConfigurationMissing] = useState(false);
+  const [editingAsset, setEditingAsset] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const activeCount = useMemo(
     () => assets.filter((asset) => asset.active !== false).length,
@@ -263,10 +270,10 @@ export default function VideoBackgroundsPage() {
         body: JSON.stringify({
           ...asset,
           ...changes,
-          moods: asset.moods,
-          industries: asset.industries,
-          campaigns: asset.campaigns,
-          colors: asset.colors,
+          moods: changes.moods ?? asset.moods,
+          industries: changes.industries ?? asset.industries,
+          campaigns: changes.campaigns ?? asset.campaigns,
+          colors: changes.colors ?? asset.colors,
         }),
       });
       const payload = await response.json();
@@ -283,6 +290,81 @@ export default function VideoBackgroundsPage() {
       );
     } catch (updateError) {
       setError(updateError.message || "Could not update the background.");
+    }
+  }
+
+  function openEditAsset(asset) {
+    setEditingAsset(asset);
+    setEditForm({
+      name: asset.name || "",
+      family: asset.family || "abstract",
+      moods: formatTags(asset.moods),
+      industries: formatTags(asset.industries),
+      campaigns: formatTags(asset.campaigns),
+      colors: formatTags(asset.colors),
+      brightness: asset.brightness || "medium",
+      energy: asset.energy || "low",
+      season: asset.season || "all",
+      priority: Number(asset.priority || 0),
+      text_safe: asset.text_safe !== false,
+      logo_safe: asset.logo_safe !== false,
+      crop_safe_916: asset.crop_safe_916 !== false,
+      active: asset.active !== false,
+      is_fallback: Boolean(asset.is_fallback),
+      notes: asset.notes || "",
+    });
+    setError("");
+    setMessage("");
+  }
+
+  function updateEditForm(key, value) {
+    setEditForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function saveEditedAsset(event) {
+    event.preventDefault();
+    if (!editingAsset || !editForm) return;
+
+    if (!String(editForm.name || "").trim()) {
+      setError(t("videoBackgrounds.editNameRequired"));
+      return;
+    }
+
+    setSavingEdit(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch("/api/video-backgrounds", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          ...editingAsset,
+          ...editForm,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || t("videoBackgrounds.editError"));
+      }
+
+      setAssets((current) =>
+        current.map((item) => {
+          if (payload.asset.is_fallback && item.id !== payload.asset.id) {
+            return { ...item, is_fallback: false };
+          }
+          return item.id === payload.asset.id ? payload.asset : item;
+        })
+      );
+      setEditingAsset(null);
+      setEditForm(null);
+      setMessage(t("videoBackgrounds.editSuccess"));
+    } catch (saveError) {
+      setError(saveError.message || t("videoBackgrounds.editError"));
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -492,6 +574,9 @@ export default function VideoBackgroundsPage() {
                     <div className="video-background-card-footer">
                       <span>{Number(asset.duration_seconds || 0).toFixed(1)} sec · used {asset.times_used || 0} times</span>
                       <div>
+                        <button type="button" onClick={() => openEditAsset(asset)}>
+                          <Pencil size={15} /> {t("videoBackgrounds.edit")}
+                        </button>
                         {!asset.is_fallback && (
                           <button type="button" onClick={() => patchAsset(asset, { is_fallback: true })}><Star size={15} /> Set fallback</button>
                         )}
@@ -504,6 +589,86 @@ export default function VideoBackgroundsPage() {
             </div>
           )}
         </section>
+
+        {editingAsset && editForm ? (
+          <div className="video-background-edit-backdrop" onClick={() => !savingEdit && setEditingAsset(null)}>
+            <form
+              className="video-background-edit-modal"
+              onSubmit={saveEditedAsset}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="video-background-edit-heading">
+                <div>
+                  <span>{t("videoBackgrounds.editEyebrow")}</span>
+                  <h2>{t("videoBackgrounds.editTitle")}</h2>
+                  <p>{t("videoBackgrounds.editDescription")}</p>
+                </div>
+                <button
+                  type="button"
+                  className="video-background-edit-close"
+                  onClick={() => setEditingAsset(null)}
+                  aria-label={t("videoBackgrounds.closeEdit")}
+                  disabled={savingEdit}
+                >
+                  <X size={19} />
+                </button>
+              </div>
+
+              <div className="video-background-fields video-background-edit-fields">
+                <label><span>Internal name</span><input value={editForm.name} onChange={(event) => updateEditForm("name", event.target.value)} /></label>
+                <label><span>Family</span><input value={editForm.family} onChange={(event) => updateEditForm("family", event.target.value)} /></label>
+                <label><span>Moods</span><input value={editForm.moods} onChange={(event) => updateEditForm("moods", event.target.value)} /></label>
+                <label><span>Industries</span><input value={editForm.industries} onChange={(event) => updateEditForm("industries", event.target.value)} /></label>
+                <label><span>Campaigns</span><input value={editForm.campaigns} onChange={(event) => updateEditForm("campaigns", event.target.value)} /></label>
+                <label><span>Colors</span><input value={editForm.colors} onChange={(event) => updateEditForm("colors", event.target.value)} /></label>
+                <label>
+                  <span>Brightness</span>
+                  <select value={editForm.brightness} onChange={(event) => updateEditForm("brightness", event.target.value)}>
+                    <option value="light">Light</option><option value="medium">Medium</option><option value="dark">Dark</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Energy</span>
+                  <select value={editForm.energy} onChange={(event) => updateEditForm("energy", event.target.value)}>
+                    <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+                  </select>
+                </label>
+                <label><span>Season / campaign lock</span><input value={editForm.season} onChange={(event) => updateEditForm("season", event.target.value)} /></label>
+                <label><span>Priority</span><input type="number" min="-100" max="100" value={editForm.priority} onChange={(event) => updateEditForm("priority", Number(event.target.value))} /></label>
+              </div>
+
+              <div className="video-background-checks">
+                {[
+                  ["text_safe", "Clear text area"],
+                  ["logo_safe", "Clear logo area"],
+                  ["crop_safe_916", "9:16 safe"],
+                  ["active", "Active"],
+                  ["is_fallback", "Neutral fallback"],
+                ].map(([key, label]) => (
+                  <label key={key}>
+                    <input type="checkbox" checked={Boolean(editForm[key])} onChange={(event) => updateEditForm(key, event.target.checked)} />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+
+              <label className="video-background-notes">
+                <span>Notes</span>
+                <textarea value={editForm.notes} onChange={(event) => updateEditForm("notes", event.target.value)} />
+              </label>
+
+              <div className="video-background-edit-actions">
+                <button type="button" onClick={() => setEditingAsset(null)} disabled={savingEdit}>
+                  {t("videoBackgrounds.cancel")}
+                </button>
+                <button className="primary" type="submit" disabled={savingEdit}>
+                  {savingEdit ? <Loader2 className="spin" size={17} /> : <CheckCircle2 size={17} />}
+                  {savingEdit ? t("videoBackgrounds.saving") : t("videoBackgrounds.saveChanges")}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
       </div>
     </AppLayout>
   );

@@ -380,30 +380,48 @@ export default function AppLayout({ active, children }) {
 
   if (checkingSession || sessionCheckError) {
     return (
-      <main className="login-page">
-        <section className="login-card">
-          <div className="brand login-brand">
+      <main className="workspace-loader-page" aria-live="polite">
+        <section className={`workspace-loader-card${sessionCheckError ? " error" : ""}`}>
+          <div className="workspace-loader-brand">
             <img
               src="/brand/spreelologo.png"
               alt="Spreelo"
-              className="spreelo-logo-image"
+              className="workspace-loader-logo"
             />
           </div>
 
-          <p className="login-message">
-            {checkingSession
-              ? t("layout.loadingWorkspace")
-              : sessionCheckError}
-          </p>
-
-          {!checkingSession && sessionCheckError && (
-            <button
-              type="button"
-              className="primary-button full"
-              onClick={checkUser}
-            >
-              {t("layout.retry")}
-            </button>
+          {checkingSession ? (
+            <>
+              <div className="workspace-loader-motion" aria-hidden="true">
+                <span className="workspace-loader-orbit orbit-one" />
+                <span className="workspace-loader-orbit orbit-two" />
+                <span className="workspace-loader-core">
+                  <Sparkles size={18} strokeWidth={2.2} />
+                </span>
+              </div>
+              <div className="workspace-loader-copy">
+                <strong>{t("layout.preparingWorkspace")}</strong>
+                <p>{t("layout.loadingWorkspace")}</p>
+              </div>
+              <div className="workspace-loader-progress" aria-hidden="true">
+                <span />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="workspace-loader-error-icon" aria-hidden="true">!</div>
+              <div className="workspace-loader-copy">
+                <strong>{t("layout.workspaceConnectionTitle")}</strong>
+                <p>{sessionCheckError}</p>
+              </div>
+              <button
+                type="button"
+                className="primary-button full workspace-loader-retry"
+                onClick={checkUser}
+              >
+                {t("layout.retry")}
+              </button>
+            </>
           )}
         </section>
       </main>

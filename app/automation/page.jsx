@@ -4,13 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
+  Bookmark,
   CalendarClock,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   ClipboardList,
   CreditCard,
   HelpCircle,
+  Info,
+  LayoutGrid,
+  List,
   Layers,
   Lightbulb,
   Link2,
@@ -20,13 +25,16 @@ import {
   Globe2,
   Languages,
   PenLine,
+  Plus,
   Puzzle,
   Repeat2,
+  Rocket,
   Scale,
   Send,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
+  Tag,
   Target,
   Trophy,
   Video,
@@ -553,37 +561,23 @@ const autoPlanGoals = [
   {
     id: "sell_more",
     icon: "💰",
-    label: "Sell more",
+    label: "Drive sales",
     description:
-      "More product, service and offer focused posts that help people take action.",
+      "A commercial mix that creates interest, helps customers choose and leads to a clear next step.",
   },
   {
     id: "get_followers",
     icon: "📈",
-    label: "Reach more customers",
+    label: "Grow reach & engagement",
     description:
-      "Shareable, useful and visible posts that help more potential customers discover the business.",
+      "Useful, shareable and timely content that helps more people discover and interact with the brand.",
   },
   {
     id: "build_trust",
     icon: "🤝",
-    label: "Build trust",
+    label: "Build trust & customer value",
     description:
-      "Posts that show expertise, process, examples and answers to common questions.",
-  },
-  {
-    id: "educate_customers",
-    icon: "🎓",
-    label: "Give tips & advice",
-    description:
-      "Helpful posts that guide customers, answer questions and make it easier to choose.",
-  },
-  {
-    id: "stay_visible",
-    icon: "📅",
-    label: "Keep the account active",
-    description:
-      "A balanced weekly mix that keeps the business visible, useful and consistent.",
+      "Expertise, guidance, examples and answers that make the business easier to understand and choose.",
   },
 ];
 
@@ -845,6 +839,110 @@ function getVisibleContentTypes(websiteProductModeAvailable) {
 
     return true;
   });
+}
+
+function buildAdaptiveWeeklyVariants({
+  slot,
+  goalId,
+  slotIndex,
+  websiteProductModeAvailable,
+}) {
+  if (!slot || !goalId) return [];
+
+  const originalCost = getCreditCostForContent(slot);
+  const sequence = getGoalMarketingSequence(goalId);
+  const candidateSteps = [
+    ...sequence,
+    ...getGoalMarketingSequence("educate_customers"),
+    ...getGoalMarketingSequence("stay_visible"),
+  ];
+  const variants = [];
+  const seenTypeIds = new Set();
+
+  for (const rawStep of candidateSteps) {
+    const safeTypeId = getBrandSafeContentTypeId(
+      rawStep.contentTypeId,
+      websiteProductModeAvailable
+    );
+    if (!safeTypeId || seenTypeIds.has(safeTypeId)) continue;
+
+    const type = getContentTypeById(safeTypeId);
+    if (!type || type.id === "manual_prompt") continue;
+
+    const draftSlot = {
+      ...slot,
+      contentTypeId: type.id,
+      contentTypeLabel: type.label,
+      usesWebsiteContent: Boolean(type.usesWebsiteContent),
+      contentFormat: type.contentFormat || "single_image",
+      animationStyle: type.animationStyle || null,
+      generateImage: true,
+      imageSource: type.usesWebsiteContent ? "website" : "ai",
+    };
+
+    if (getCreditCostForContent(draftSlot) !== originalCost) continue;
+
+    const step = {
+      ...rawStep,
+      contentTypeId: type.id,
+    };
+    const prompt = buildGoalSlotPrompt(type, step, goalId);
+
+    variants.push({
+      contentTypeId: type.id,
+      contentTypeLabel: type.label,
+      prompt,
+      imagePrompt: type.imagePrompt || slot.imagePrompt || "",
+      generateImage: true,
+      imageSource: getRuleImageSource(draftSlot),
+      usesWebsiteContent: Boolean(type.usesWebsiteContent),
+      contentFormat: type.contentFormat || "single_image",
+      animationStyle: type.animationStyle || null,
+      marketingAngle: rawStep.marketingAngle || "",
+      customerStage: rawStep.customerStage || "",
+      ctaStrength: rawStep.ctaStrength || "",
+    });
+    seenTypeIds.add(type.id);
+
+    if (variants.length >= 6) break;
+  }
+
+  if (!seenTypeIds.has(slot.contentTypeId)) {
+    variants.unshift({
+      contentTypeId: slot.contentTypeId,
+      contentTypeLabel: slot.contentTypeLabel,
+      prompt: slot.prompt,
+      imagePrompt: slot.imagePrompt || "",
+      generateImage: Boolean(slot.generateImage),
+      imageSource: getRuleImageSource(slot),
+      usesWebsiteContent: Boolean(slot.usesWebsiteContent),
+      contentFormat: slot.contentFormat || "single_image",
+      animationStyle: slot.animationStyle || null,
+      marketingAngle: slot.marketingAngle || "",
+      customerStage: slot.customerStage || "",
+      ctaStrength: slot.ctaStrength || "",
+    });
+  }
+
+  if (variants.length <= 1) return [];
+
+  const rotation = Math.max(0, Number(slotIndex || 0)) % variants.length;
+  return [...variants.slice(rotation), ...variants.slice(0, rotation)];
+}
+
+function encodeAdaptiveStrategyNotes(existingNotes, config) {
+  const cleanExisting = String(existingNotes || "")
+    .split("\n")
+    .filter((line) => !line.startsWith("SPREELO_ADAPTIVE_V1:"))
+    .join("\n")
+    .trim();
+
+  if (!config?.enabled || !Array.isArray(config?.variants) || config.variants.length < 2) {
+    return cleanExisting || null;
+  }
+
+  const adaptiveLine = `SPREELO_ADAPTIVE_V1:${JSON.stringify(config)}`;
+  return [adaptiveLine, cleanExisting].filter(Boolean).join("\n");
 }
 function getAutoPlanStrategy(goalId) {
   return autoPlanStrategies[goalId] || autoPlanStrategies.stay_visible;
@@ -3794,8 +3892,20 @@ function shouldUseCarouselForCampaignPost(campaign, postPlanItem = {}, index = 0
 }
 
 function getCampaignSlotContentTypeId(sourceMode) {
-  if (sourceMode === "website_carousel") return "carousel_website_item";
-  return "manual_prompt";
+  const mappedContentTypes = {
+    website_carousel: "carousel_website_item",
+    website_product: "website_item",
+    website_service: "service_focus",
+    problem_solution: "problem_solution",
+    tips: "tips",
+    faq: "faq",
+    checklist: "checklist",
+    comparison: "comparison",
+    case_example: "case_example",
+    seasonal: "seasonal",
+  };
+
+  return mappedContentTypes[sourceMode] || "manual_prompt";
 }
 
 function getCampaignSlotContentFormat(sourceMode) {
@@ -3804,8 +3914,8 @@ function getCampaignSlotContentFormat(sourceMode) {
 }
 
 function getCampaignSlotContentTypeLabel(campaign, sourceMode) {
-  if (sourceMode === "website_carousel") return "Website carousel";
-  return campaign?.title || "Campaign post";
+  const contentType = getContentTypeById(getCampaignSlotContentTypeId(sourceMode));
+  return contentType?.label || campaign?.title || "Campaign post";
 }
 function getDaysBetweenDateStrings(startDateString, endDateString) {
   const startParts = getDatePartsFromDateString(startDateString);
@@ -5100,6 +5210,17 @@ const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [scheduleType, setScheduleType] = useState("weekly");
+  const [varyWeeklyContentTypes, setVaryWeeklyContentTypes] = useState(true);
+  const [offerPlannerOpen, setOfferPlannerOpen] = useState(false);
+  const [offerSourceScope, setOfferSourceScope] = useState("whole_website");
+  const [offerSourceUrl, setOfferSourceUrl] = useState("");
+  const [offerCode, setOfferCode] = useState("");
+  const [offerStartDate, setOfferStartDate] = useState(initialStartDate);
+  const [offerEndDate, setOfferEndDate] = useState(
+    addDaysToDateString(initialStartDate, 14)
+  );
+  const [offerPlannerLoading, setOfferPlannerLoading] = useState(false);
+  const [offerPlannerError, setOfferPlannerError] = useState("");
   const [editingRuleId, setEditingRuleId] = useState("");
 
   const [planName, setPlanName] = useState("");
@@ -5232,22 +5353,14 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
 
   const creditsRemaining = creditBalance?.credits_remaining ?? 0;
   const monthlyCreditLimit = creditBalance?.monthly_credit_limit ?? 0;
-  const creditsAfterSaving = creditBalance
-    ? Math.max(creditsRemaining - plannedCredits, 0)
-    : 0;
   const creditUsagePercent =
     monthlyCreditLimit > 0
       ? Math.min(100, Math.round((creditsRemaining / monthlyCreditLimit) * 100))
       : 0;
-const subscriptionPlanLabel = getPlanBadgeLabel(creditBalance);
   const subscriptionDateLabel = getSubscriptionDateLabel(creditBalance);
   const subscriptionDateValue = getSubscriptionDateValue(
     creditBalance,
     timeZone
-  );
-  const subscriptionNextStepText = getSubscriptionNextStepText(creditBalance);
-  const subscriptionStatusLabel = getSubscriptionStatusLabel(
-    creditBalance?.subscription_status
   );
 
   const savedRulesPreview = rules.slice(0, 3);
@@ -5466,6 +5579,181 @@ const shouldShowPlannerDetails =
       setFocusSourceError(error.message || (plannerLocaleIsSwedish ? "Sidan kunde inte verifieras." : "The page could not be verified."));
     } finally {
       setFocusSourceLoading(false);
+    }
+  }
+
+
+  async function inspectContentSourceUrl(requestedUrl) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) {
+      throw new Error(getFocusSourceCopy("sessionExpired"));
+    }
+
+    const response = await fetch("/api/inspect-content-source", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        brandProfileId: currentBrandId,
+        url: requestedUrl,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload?.ok || !payload?.source?.url) {
+      throw new Error(payload?.error || getFocusSourceCopy("verifyFailed"));
+    }
+
+    return payload.source;
+  }
+
+  async function createOfferCampaignPlan() {
+    setOfferPlannerError("");
+    setMessage("");
+
+    const normalizedCode = String(offerCode || "").trim();
+    const normalizedUrl = String(offerSourceUrl || "").trim();
+
+    if (!normalizedCode) {
+      setOfferPlannerError(t("automation.offerPlan.codeRequired"));
+      return;
+    }
+
+    if (!offerStartDate || !offerEndDate || offerEndDate < offerStartDate) {
+      setOfferPlannerError(t("automation.offerPlan.dateError"));
+      return;
+    }
+
+    if (offerSourceScope === "specific_url" && !normalizedUrl) {
+      setOfferPlannerError(t("automation.offerPlan.urlRequired"));
+      return;
+    }
+
+    setOfferPlannerLoading(true);
+
+    try {
+      const source =
+        offerSourceScope === "specific_url"
+          ? await inspectContentSourceUrl(normalizedUrl)
+          : null;
+      const start = new Date(`${offerStartDate}T00:00:00Z`);
+      const end = new Date(`${offerEndDate}T00:00:00Z`);
+      const durationDays = Math.max(
+        1,
+        Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1
+      );
+      const postCount = durationDays <= 7 ? 3 : durationDays <= 21 ? 5 : 7;
+      const sourceScope = source?.sourceScope || "whole_website";
+      const sourceAllowsCarousel = sourceScope !== "exact_product";
+      const typeIds = websiteProductModeAvailable
+        ? [
+            "problem_solution",
+            "website_item_text_ad",
+            sourceAllowsCarousel ? "carousel_website_item" : "website_item",
+            "comparison",
+            "website_item",
+            "faq",
+            "animated_website_item",
+          ]
+        : [
+            "problem_solution",
+            "service_focus",
+            "tips",
+            "faq",
+            "case_example",
+            "comparison",
+            "checklist",
+          ];
+      const selectedTypeIds = typeIds.slice(0, postCount);
+      const commonCampaignInstruction = [
+        `This post belongs to a time-limited campaign using the exact campaign code: ${normalizedCode}.`,
+        `The campaign is valid from ${offerStartDate} through ${offerEndDate}.`,
+        "Mention the campaign code and validity only when it is natural and useful. Never invent the discount amount, product availability, terms or exclusions.",
+        "Build the sequence for the strongest realistic result: introduce the need first, help the customer choose, then use a clearer call to action before the campaign ends.",
+      ].join("\n");
+
+      const nextSlots = selectedTypeIds.map((typeId, index) => {
+        const type = getContentTypeById(typeId);
+        const fraction = postCount <= 1 ? 0 : index / (postCount - 1);
+        const offsetDays = Math.min(
+          durationDays - 1,
+          Math.round((durationDays - 1) * fraction)
+        );
+        const slotDate = addDaysToDateString(offerStartDate, offsetDays);
+        const planningStep = getGoalPlanningStep({
+          goalId: "sell_more",
+          index,
+          websiteProductModeAvailable,
+        });
+        const slot = createSlotFromContentType(type, index, {
+          startDate: offerStartDate,
+          timeZone,
+          contentTypeIds: selectedTypeIds,
+          goalId: "sell_more",
+          contentSource: source,
+        });
+
+        return {
+          ...slot,
+          startDate: slotDate,
+          weekday: getWeekdayFromDateString(slotDate, timeZone),
+          publishTime: getRecommendedTimeForDate(slotDate, timeZone),
+          prompt: `${commonCampaignInstruction}\n\n${buildGoalSlotPrompt(
+            type,
+            planningStep,
+            "sell_more"
+          )}`,
+          isCampaignSlot: true,
+          campaignRole: planningStep.label || type.label,
+          campaignSummary: planningStep.description || type.description,
+          campaignPhase:
+            index === 0
+              ? "awareness"
+              : index === postCount - 1
+              ? "conversion"
+              : "consideration",
+          marketingAngle: planningStep.marketingAngle || "offer",
+          customerStage: planningStep.customerStage || "warm",
+          ctaStrength: planningStep.ctaStrength || "medium",
+          campaignPostIndex: index + 1,
+          campaignPostCount: postCount,
+          campaignGoal: `Campaign code ${normalizedCode}`,
+          strategyNotes: `Campaign code: ${normalizedCode}. Valid ${offerStartDate}–${offerEndDate}. Source scope: ${sourceScope}.`,
+          contentSourceScope: sourceScope,
+          contentSourceUrl: source?.url || "",
+          contentSourceTitle:
+            source?.displayTitle || currentBrandProfile?.business_name || "",
+          contentSourceSummary: source?.summary || "",
+          contentSourceVerifiedAt: source?.verifiedAt || null,
+          dateLocked: true,
+        };
+      });
+
+      setPlanCreationMode("campaign");
+      setAutoPlanGoal("sell_more");
+      setAutoPlanPostCount(postCount);
+      setSelectedContentTypeIds(selectedTypeIds);
+      setSlots(nextSlots);
+      setScheduleType("once");
+      setPlanStartDate(offerStartDate);
+      setPlanName(
+        t("automation.offerPlan.generatedName", { code: normalizedCode })
+      );
+      setOfferPlannerOpen(false);
+      setOfferPlannerError("");
+
+      if (typeof window !== "undefined") {
+        window.requestAnimationFrame(() => scrollToPlannerSchedule());
+      }
+    } catch (error) {
+      setOfferPlannerError(
+        error.message || t("automation.offerPlan.createError")
+      );
+    } finally {
+      setOfferPlannerLoading(false);
     }
   }
 async function getCurrentBrandIdForUser(currentUser, preferredBrandId = "") {
@@ -7596,7 +7884,7 @@ const editingRuleSnapshot = editingRuleId
   ? rules.find((rule) => rule.id === editingRuleId) || null
   : null;
 
-const rows = preparedSlots.map((slot) => {
+const rows = preparedSlots.map((slot, slotIndex) => {
       const slotWeekday = getWeekdayFromDateString(
         slot.startDate,
         selectedTimeZone
@@ -7698,7 +7986,23 @@ ${slot.campaignSummary}`
         campaign_post_count: slot.campaignPostCount || null,
         campaign_goal: slot.campaignGoal || null,
         target_customer_need: slot.targetCustomerNeed || null,
-        strategy_notes: slot.strategyNotes || null,
+        strategy_notes: encodeAdaptiveStrategyNotes(
+          slot.strategyNotes,
+          scheduleType === "weekly" && varyWeeklyContentTypes
+            ? {
+                enabled: true,
+                goalId: autoPlanGoal || "stay_visible",
+                slotIndex,
+                baseStartDate: slot.startDate || planStartDate,
+                variants: buildAdaptiveWeeklyVariants({
+                  slot,
+                  goalId: autoPlanGoal || "stay_visible",
+                  slotIndex,
+                  websiteProductModeAvailable,
+                }),
+              }
+            : null
+        ),
         product_match_terms: productMetadata.productMatchTerms.length
           ? productMetadata.productMatchTerms
           : null,
@@ -7960,6 +8264,28 @@ setRules((currentRules) =>
 
     setSaving(false);
   }
+ function chooseRedesignFormat(typeId) {
+  const selectedType = getContentTypeById(typeId);
+  if (!selectedType) return;
+
+  const nextSlot = createSlotFromContentType(selectedType, 0, {
+    startDate: planStartDate,
+    timeZone,
+    contentTypeIds: [selectedType.id],
+    goalId: autoPlanGoal || "get_followers",
+  });
+
+  setMessage("");
+  setSavedPlanSummary(null);
+  setPlanCreationMode("select");
+  setSelectedContentTypeIds([selectedType.id]);
+  setSlots([nextSlot]);
+
+  if (typeof window !== "undefined") {
+    window.requestAnimationFrame(() => scrollToPlannerSchedule());
+  }
+}
+
  function startAnotherPlan() {
   setMessage("");
   setSavedPlanSummary(null);
@@ -7978,6 +8304,13 @@ setRules((currentRules) =>
   setLength("Medium");
   setCtaType("Learn more");
   setScheduleType("weekly");
+  setVaryWeeklyContentTypes(true);
+  setOfferPlannerOpen(false);
+  setOfferSourceScope("whole_website");
+  setOfferSourceUrl("");
+  setOfferCode("");
+  setOfferStartDate(initialStartDate);
+  setOfferEndDate(addDaysToDateString(initialStartDate, 14));
   setEditingRuleId("");
   setShowAdvancedSettings(false);
 
@@ -8010,6 +8343,284 @@ setRules((currentRules) =>
       >
         <div className="wizard-layout">
           <main className="wizard-main">
+            <section className="plan-v70-shell">
+              <header className="plan-v70-header">
+                <div>
+                  <h1>{t("automation.redesign.title")}</h1>
+                  <p>{t("automation.redesign.subtitle")}</p>
+                </div>
+                <button type="button" className="plan-v70-template-button">
+                  <Bookmark size={17} aria-hidden="true" />
+                  {t("automation.redesign.saveTemplate")}
+                </button>
+              </header>
+
+              <section className="plan-v70-card plan-v70-settings-card">
+                <div className="plan-v70-section-heading">
+                  <span className="plan-v70-icon purple"><Sparkles size={19} /></span>
+                  <div>
+                    <h2>{t("automation.redesign.settingsTitle")}</h2>
+                    <p>{t("automation.redesign.settingsText")}</p>
+                  </div>
+                </div>
+
+                <div className="plan-v70-settings-grid">
+                  <label className="plan-v70-field">
+                    <span>{t("automation.goal")}</span>
+                    <select value={autoPlanGoal} onChange={(event) => changeAutoPlanGoal(event.target.value)}>
+                      <option value="">{t("automation.redesign.chooseGoal")}</option>
+                      {autoPlanGoals.map((goal) => (
+                        <option value={goal.id} key={goal.id}>
+                          {translateAutoPlanGoalLabel(goal.id)}
+                        </option>
+                      ))}
+                    </select>
+                    <small>{translateAutoPlanGoalDescription(autoPlanGoal) || t("automation.redesign.goalHelp")}</small>
+                  </label>
+
+                  <label className="plan-v70-field">
+                    <span>{t("automation.postsPerWeek")}</span>
+                    <select
+                      value={autoPlanPostCount}
+                      onChange={(event) => changeAutoPlanPostCount(Number(event.target.value))}
+                      disabled={planCreationMode === "campaign"}
+                    >
+                      {autoPlanPostCountOptions.map((count) => (
+                        <option value={count} key={count}>
+                          {t("automation.redesign.postsPerWeekValue", { count })}
+                        </option>
+                      ))}
+                    </select>
+                    <small>{t("automation.redesign.frequencyHelp")}</small>
+                  </label>
+
+                  <div className="plan-v70-field">
+                    <span>{t("automation.startDate")}</span>
+                    <DatePickerField
+                      value={planStartDate}
+                      onChange={updatePlanStartDate}
+                      pickerId="v70-start-date"
+                      openPickerId={openPickerId}
+                      setOpenPickerId={setOpenPickerId}
+                      timeZone={timeZone}
+                      compact
+                      weekdayLabels={weekdayLabels}
+                      locale={locale}
+                    />
+                    <small>{t("automation.redesign.startDateHelp")}</small>
+                  </div>
+
+                  <label className="plan-v70-field">
+                    <span>{t("automation.redesign.postLanguage")}</span>
+                    <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+                      {languageOptions.map((option) => (
+                        <option value={option.value} key={`${option.value}-${option.label}`}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="plan-v70-field">
+                    <span>{t("automation.redesign.publishing")}</span>
+                    <select
+                      value={scheduleType}
+                      onChange={(event) => setScheduleType(event.target.value)}
+                      disabled={planCreationMode === "campaign"}
+                    >
+                      <option value="weekly">{t("automation.weekly")}</option>
+                      <option value="once">{t("automation.once")}</option>
+                    </select>
+                  </label>
+
+                  <label className="plan-v70-field">
+                    <span>{t("automation.platform")}</span>
+                    <select
+                      value={selectedPlatformKeys[0] || ""}
+                      onChange={(event) => setPlatform(event.target.value)}
+                    >
+                      <option value="">{t("automation.choosePlatform")}</option>
+                      {connectedPlatformOptions.map((option) => (
+                        <option value={option.value} key={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <label className={`plan-v70-smart-toggle${scheduleType !== "weekly" ? " disabled" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={scheduleType === "weekly" && varyWeeklyContentTypes}
+                    disabled={scheduleType !== "weekly"}
+                    onChange={(event) => setVaryWeeklyContentTypes(event.target.checked)}
+                  />
+                  <span className="plan-v70-toggle-track"><span /></span>
+                  <span className="plan-v70-toggle-copy">
+                    <strong>{t("automation.redesign.varyWeeklyTitle")}</strong>
+                    <small>{t("automation.redesign.varyWeeklyText")}</small>
+                  </span>
+                  <Info size={16} aria-hidden="true" />
+                </label>
+              </section>
+
+              {scheduleType === "weekly" && planCreationMode !== "campaign" ? (
+                <section className="plan-v70-recurring-card">
+                  <div className="plan-v70-recurring-main">
+                    <span className="plan-v70-icon lavender"><Repeat2 size={19} /></span>
+                    <div>
+                      <h2>{t("automation.redesign.ongoingTitle")}</h2>
+                      <p>{t("automation.redesign.ongoingText")}</p>
+                    </div>
+                  </div>
+                  <label className="plan-v70-inline-toggle">
+                    <input
+                      type="checkbox"
+                      checked={scheduleType === "weekly"}
+                      onChange={(event) => setScheduleType(event.target.checked ? "weekly" : "once")}
+                    />
+                    <span />
+                    <strong>{t("automation.redesign.active")}</strong>
+                  </label>
+                  <div className="plan-v70-credit-notice">
+                    <Info size={17} aria-hidden="true" />
+                    <p>
+                      <strong>{t("automation.redesign.weeklyCreditsTitle", { credits: plannedCredits })}</strong>
+                      <span>{t("automation.redesign.weeklyCreditsText")}</span>
+                    </p>
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="plan-v70-card plan-v70-formats-card">
+                <div className="plan-v70-formats-head">
+                  <div>
+                    <h2>{t("automation.redesign.exploreFormats")}</h2>
+                    <p>{t("automation.redesign.exploreFormatsText")}</p>
+                  </div>
+                  <div className="plan-v70-view-actions">
+                    <button type="button">{t("automation.redesign.allChannels")} <ChevronDown size={15} /></button>
+                    <button type="button" className="active" aria-label="Grid"><LayoutGrid size={16} /></button>
+                    <button type="button" aria-label="List"><List size={16} /></button>
+                  </div>
+                </div>
+
+                <div className="plan-v70-filter-row" aria-label={t("automation.redesign.formatFilters") }>
+                  <button type="button" className="active">{t("automation.redesign.allFormats")}</button>
+                  <button type="button">{t("automation.redesign.popular")}</button>
+                  <button type="button">{t("automation.redesign.text")}</button>
+                  <button type="button">{t("automation.redesign.imageAds")}</button>
+                  <button type="button">{t("automation.redesign.video")}</button>
+                  <button type="button">{t("automation.redesign.educational")}</button>
+                </div>
+
+                <div className="plan-v70-format-carousel">
+                  {visibleContentTypes.slice(0, 6).map((type, index) => (
+                    <button
+                      type="button"
+                      className={`plan-v70-format-card tone-${(index % 4) + 1}`}
+                      key={`v70-${type.id}`}
+                      onClick={() => chooseRedesignFormat(type.id)}
+                    >
+                      <span className="plan-v70-format-preview">
+                        <span className="plan-v70-format-glyph">{getContentTypeIcon(type.id)}</span>
+                        <span className="plan-v70-preview-line wide" />
+                        <span className="plan-v70-preview-line" />
+                        <span className="plan-v70-preview-line short" />
+                      </span>
+                      <strong>{translateContentTypeShortLabel(type)}</strong>
+                      <small>{translateContentTypeDescription(type)}</small>
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    className="plan-v70-format-card plan-v70-offer-card"
+                    onClick={() => setOfferPlannerOpen((current) => !current)}
+                  >
+                    <span className="plan-v70-format-preview offer">
+                      <Tag size={22} />
+                      <span>{t("automation.offerPlan.cardCode")}</span>
+                      <span>{t("automation.offerPlan.cardDate")}</span>
+                    </span>
+                    <strong>{t("automation.offerPlan.cardTitle")}</strong>
+                    <small>{t("automation.offerPlan.cardText")}</small>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  className="plan-v70-more-formats"
+                  onClick={() => {
+                    setAddPostModalView("types");
+                    setShowAddPostModal(true);
+                  }}
+                >
+                  {t("automation.redesign.showMoreFormats")} <ChevronDown size={16} />
+                </button>
+              </section>
+
+              {offerPlannerOpen ? (
+                <section className="plan-v70-offer-builder">
+                  <div className="plan-v70-offer-heading">
+                    <span className="plan-v70-icon amber"><ShoppingBag size={19} /></span>
+                    <div>
+                      <h2>{t("automation.offerPlan.title")}</h2>
+                      <p>{t("automation.offerPlan.description")}</p>
+                    </div>
+                    <button type="button" onClick={() => setOfferPlannerOpen(false)}>×</button>
+                  </div>
+
+                  <div className="plan-v70-offer-scope">
+                    <button
+                      type="button"
+                      className={offerSourceScope === "whole_website" ? "active" : ""}
+                      onClick={() => setOfferSourceScope("whole_website")}
+                    >
+                      <Globe2 size={16} /> {t("automation.offerPlan.wholeWebsite")}
+                    </button>
+                    <button
+                      type="button"
+                      className={offerSourceScope === "specific_url" ? "active" : ""}
+                      onClick={() => setOfferSourceScope("specific_url")}
+                    >
+                      <Link2 size={16} /> {t("automation.offerPlan.specificUrl")}
+                    </button>
+                  </div>
+
+                  <div className="plan-v70-offer-grid">
+                    {offerSourceScope === "specific_url" ? (
+                      <label className="span-2">
+                        <span>{t("automation.offerPlan.urlLabel")}</span>
+                        <input type="url" value={offerSourceUrl} onChange={(event) => setOfferSourceUrl(event.target.value)} placeholder="https://business.com/product-or-category" />
+                      </label>
+                    ) : null}
+                    <label>
+                      <span>{t("automation.offerPlan.codeLabel")}</span>
+                      <input value={offerCode} onChange={(event) => setOfferCode(event.target.value)} placeholder="SUMMER25" />
+                    </label>
+                    <label>
+                      <span>{t("automation.offerPlan.startLabel")}</span>
+                      <input type="date" value={offerStartDate} onChange={(event) => setOfferStartDate(event.target.value)} />
+                    </label>
+                    <label>
+                      <span>{t("automation.offerPlan.endLabel")}</span>
+                      <input type="date" value={offerEndDate} onChange={(event) => setOfferEndDate(event.target.value)} />
+                    </label>
+                  </div>
+
+                  {offerPlannerError ? <p className="plan-v70-offer-error">{offerPlannerError}</p> : null}
+
+                  <div className="plan-v70-offer-actions">
+                    <p>{t("automation.offerPlan.aiDecisionText")}</p>
+                    <button type="button" onClick={createOfferCampaignPlan} disabled={offerPlannerLoading}>
+                      {offerPlannerLoading ? <span className="plan-v70-mini-spinner" /> : <WandSparkles size={17} />}
+                      {offerPlannerLoading ? t("automation.offerPlan.creating") : t("automation.offerPlan.createButton")}
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+            </section>
+
      <header className="planner-hero planner-hero-final">
   <div className="planner-hero-copy">
     <h2>
@@ -9556,27 +10167,9 @@ setRules((currentRules) =>
                     <div style={{ width: `${creditUsagePercent}%` }} />
                   </div>
 
-                  <div className="planner-credit-included">
-                    <span className="planner-credit-included-icon">✓</span>
-                    <span>
-                      {t("automation.creditsReservedForPlan", { credits: plannedCredits })}
-                      <small>{t("automation.creditsAfterSaving", { credits: creditsAfterSaving })}</small>
-                    </span>
-                  </div>
-
                             <p className="planner-credit-reset">
                     {subscriptionDateLabel}: {subscriptionDateValue}
                   </p>
-
-                  <div className="planner-credit-included">
-                    <span className="planner-credit-included-icon">✓</span>
-                    <span>
-                      {t("automation.creditsIncludedIn")} 
-                      {creditBalance.subscription_status === "trialing"
-                        ? t("automation.starterTrial")
-                        : subscriptionPlanLabel}
-                    </span>
-                  </div>
 
                   <div className="planner-credit-wave" />
 

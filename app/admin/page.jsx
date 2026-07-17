@@ -1,20 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Bot,
   Building2,
+  CheckCircle2,
   CircleDollarSign,
   FileVideo2,
   ImagePlay,
+  Languages,
   LoaderCircle,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   Users,
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
 
 const initialStats = {
   users: 0,
@@ -40,41 +44,144 @@ async function getAdminHeaders() {
   } = await supabase.auth.getSession();
 
   return session?.access_token
-    ? { Authorization: `Bearer ${session.access_token}` }
-    : {};
+    ? {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      }
+    : { "Content-Type": "application/json" };
 }
 
 export default function AdminDashboardPage() {
+  const { t } = useUiText(["admin"]);
   const [stats, setStats] = useState(initialStats);
   const [recentAdjustments, setRecentAdjustments] = useState([]);
+  const [warnings, setWarnings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [translationLocales, setTranslationLocales] = useState([]);
+  const [translationStatuses, setTranslationStatuses] = useState({});
+  const [selectedLocales, setSelectedLocales] = useState([]);
+  const [translationLoading, setTranslationLoading] = useState(true);
+  const [translationSaving, setTranslationSaving] = useState(false);
+  const [translationMessage, setTranslationMessage] = useState("");
 
   useEffect(() => {
-    loadOverview();
+    loadAdminData();
   }, []);
 
-  async function loadOverview() {
+  async function loadAdminData() {
     setLoading(true);
+    setTranslationLoading(true);
     setError("");
 
     try {
       const headers = await getAdminHeaders();
-      const response = await fetch("/api/admin/overview", { headers });
+      const [overviewResponse, translationsResponse] = await Promise.all([
+        fetch("/api/admin/overview", { headers }),
+        fetch("/api/admin/translations", { headers }),
+      ]);
+      const overviewPayload = await overviewResponse.json().catch(() => ({}));
+      const translationsPayload = await translationsResponse.json().catch(() => ({}));
+
+      if (!overviewResponse.ok) {
+        throw new Error(
+          overviewPayload?.error || t("admin.errorLoadDashboard")
+        );
+      }
+
+      setStats({ ...initialStats, ...(overviewPayload?.stats || {}) });
+      setRecentAdjustments(overviewPayload?.recentAdjustments || []);
+      setWarnings(overviewPayload?.warnings || []);
+
+      if (translationsResponse.ok) {
+        setTranslationLocales(
+          (translationsPayload?.locales || []).filter(
+            (item) => item.locale !== translationsPayload?.defaultLocale
+          )
+        );
+        setTranslationStatuses(translationsPayload?.statuses || {});
+      } else {
+        setWarnings((current) => [
+          ...current,
+          {
+            key: "translations",
+            message:
+              translationsPayload?.error || t("admin.translationStatusError"),
+          },
+        ]);
+      }
+    } catch (loadError) {
+      setError(loadError.message || t("admin.errorLoadDashboard"));
+    } finally {
+      setLoading(false);
+      setTranslationLoading(false);
+    }
+  }
+
+  function toggleLocale(locale) {
+    setSelectedLocales((current) =>
+      current.includes(locale)
+        ? current.filter((item) => item !== locale)
+        : [...current, locale]
+    );
+  }
+
+  async function requestTranslationRefresh() {
+    if (!selectedLocales.length) {
+      setTranslationMessage(t("admin.translationChooseLanguage"));
+      return;
+    }
+
+    setTranslationSaving(true);
+    setTranslationMessage("");
+
+    try {
+      const headers = await getAdminHeaders();
+      const response = await fetch("/api/admin/translations", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ locales: selectedLocales }),
+      });
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload?.error || "Could not load the admin dashboard.");
+        throw new Error(payload?.error || t("admin.translationRefreshError"));
       }
 
-      setStats({ ...initialStats, ...(payload?.stats || {}) });
-      setRecentAdjustments(payload?.recentAdjustments || []);
-    } catch (loadError) {
-      setError(loadError.message || "Could not load the admin dashboard.");
+      const now = new Date().toISOString();
+      setTranslationStatuses((current) => {
+        const next = { ...current };
+        selectedLocales.forEach((locale) => {
+          next[locale] = [
+            {
+              namespace: "all",
+              status: "refresh_requested",
+              updatedAt: now,
+            },
+          ];
+        });
+        return next;
+      });
+      setTranslationMessage(
+        t("admin.translationRefreshQueued", { count: selectedLocales.length })
+      );
+      setSelectedLocales([]);
+    } catch (saveError) {
+      setTranslationMessage(
+        saveError.message || t("admin.translationRefreshError")
+      );
     } finally {
-      setLoading(false);
+      setTranslationSaving(false);
     }
   }
+
+  const requestedLocaleCount = useMemo(
+    () =>
+      Object.values(translationStatuses).filter((packs) =>
+        (packs || []).some((pack) => pack.status === "refresh_requested")
+      ).length,
+    [translationStatuses]
+  );
 
   const statCards = [
     { label: "Accounts", value: stats.users, Icon: Users },
@@ -93,7 +200,7 @@ export default function AdminDashboardPage() {
             <span className="admin-eyebrow">Spreelo administration</span>
             <h1>Admin dashboard</h1>
             <p>
-              Manage shared creative assets, customer credits and operational checks from one protected workspace.
+              Manage shared creative assets, customer credits, translations and operational checks from one protected workspace.
             </p>
           </div>
 
@@ -106,7 +213,26 @@ export default function AdminDashboardPage() {
           </div>
         </header>
 
-        {error ? <div className="admin-alert error">{error}</div> : null}
+        {error ? (
+          <div className="admin-alert error admin-alert-with-action">
+            <span>{error}</span>
+            <button type="button" onClick={loadAdminData}>
+              <RefreshCw size={15} aria-hidden="true" />
+              {t("admin.retry")}
+            </button>
+          </div>
+        ) : null}
+
+        {!error && warnings.length ? (
+          <div className="admin-alert warning">
+            <AlertTriangle size={19} aria-hidden="true" />
+            <div>
+              <strong>{t("admin.partialOverviewTitle")}</strong>
+              <span>{t("admin.partialOverviewText")}</span>
+              <small>{warnings.map((warning) => warning.key).join(", ")}</small>
+            </div>
+          </div>
+        ) : null}
 
         {loading ? (
           <section className="admin-loading-card">
@@ -141,7 +267,7 @@ export default function AdminDashboardPage() {
                 <div>
                   <span className="admin-card-kicker">Creative library</span>
                   <h2>Video backgrounds</h2>
-                  <p>Upload, tag, preview and manage the reusable 9:16 motion background library.</p>
+                  <p>Upload, tag, preview, edit and manage the reusable 9:16 motion background library.</p>
                 </div>
                 <strong>Open library →</strong>
               </a>
@@ -155,6 +281,83 @@ export default function AdminDashboardPage() {
                 </div>
                 <strong>Manage credits →</strong>
               </a>
+            </section>
+
+            <section className="admin-panel admin-translation-panel">
+              <div className="admin-panel-heading">
+                <div>
+                  <span className="admin-card-kicker">{t("admin.translationKicker")}</span>
+                  <h2>{t("admin.translationTitle")}</h2>
+                  <p>{t("admin.translationDescription")}</p>
+                </div>
+                <span className="admin-translation-status">
+                  <Languages size={18} aria-hidden="true" />
+                  {t("admin.translationPendingCount", { count: requestedLocaleCount })}
+                </span>
+              </div>
+
+              {translationLoading ? (
+                <div className="admin-inline-loading">
+                  <LoaderCircle className="admin-spin" size={18} aria-hidden="true" />
+                  {t("admin.translationLoading")}
+                </div>
+              ) : (
+                <>
+                  <div className="admin-language-grid">
+                    {translationLocales.map((item) => {
+                      const packs = translationStatuses[item.locale] || [];
+                      const refreshRequested = packs.some(
+                        (pack) => pack.status === "refresh_requested"
+                      );
+                      const selected = selectedLocales.includes(item.locale);
+
+                      return (
+                        <button
+                          type="button"
+                          key={item.locale}
+                          className={`admin-language-option${selected ? " selected" : ""}`}
+                          onClick={() => toggleLocale(item.locale)}
+                          aria-pressed={selected}
+                        >
+                          <span className="admin-language-checkbox">
+                            {selected ? <CheckCircle2 size={17} aria-hidden="true" /> : null}
+                          </span>
+                          <span>
+                            <strong>{item.nativeName}</strong>
+                            <small>{item.language}</small>
+                          </span>
+                          {refreshRequested ? (
+                            <em>{t("admin.translationQueued")}</em>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="admin-translation-actions">
+                    <p>{t("admin.translationNextVisitNote")}</p>
+                    <button
+                      type="button"
+                      className="admin-primary-button"
+                      onClick={requestTranslationRefresh}
+                      disabled={translationSaving || !selectedLocales.length}
+                    >
+                      {translationSaving ? (
+                        <LoaderCircle className="admin-spin" size={17} aria-hidden="true" />
+                      ) : (
+                        <RefreshCw size={17} aria-hidden="true" />
+                      )}
+                      {translationSaving
+                        ? t("admin.translationRequesting")
+                        : t("admin.translationRequest")}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {translationMessage ? (
+                <div className="admin-translation-message">{translationMessage}</div>
+              ) : null}
             </section>
 
             <section className="admin-panel">
