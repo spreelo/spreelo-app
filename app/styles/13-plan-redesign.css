@@ -1811,3 +1811,272 @@ html body .automation-page.plan-v70-active .plan-v70-tip-card button {
   .plan-v70-planned-actions { flex-wrap: wrap; }
   html body .automation-page.plan-v70-active .plan-v70-add-button { flex: 1 1 auto; }
 }
+
+/* ========================================================================== */
+/* Spreelo v73 – brand-aligned plan experience                                */
+/* ========================================================================== */
+
+html body .automation-page.plan-v70-active {
+  --plan-v73-accent: #ef6b4d;
+  --plan-v73-accent-dark: #b84931;
+  --plan-v73-accent-soft: #fff0ea;
+  --plan-v73-accent-softer: #fff8f4;
+  --plan-v73-border: #efc9bc;
+}
+
+/* Replace the isolated violet system with the warm Spreelo accent. */
+html body .automation-page.plan-v70-active .plan-v70-icon.purple,
+html body .automation-page.plan-v70-active .plan-v70-icon.lavender,
+html body .automation-page.plan-v70-active .plan-v72-format-modal-icon,
+html body .automation-page.plan-v70-active .plan-v72-format-modal-benefits article > span {
+  color: var(--plan-v73-accent-dark) !important;
+  background: var(--plan-v73-accent-soft) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-smart-toggle input:checked + .plan-v70-toggle-track,
+html body .automation-page.plan-v70-active .plan-v70-inline-toggle input:checked + span {
+  background: linear-gradient(90deg, #f47a58, #db5538) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-filter-row button.active,
+html body .automation-page.plan-v70-active .plan-v70-add-button,
+html body .automation-page.plan-v70-active .plan-v70-activate-actions > button,
+html body .automation-page.plan-v70-active .plan-v70-review-button,
+html body .automation-page.plan-v70-active .plan-v72-format-modal-actions .primary,
+html body .automation-page.plan-v70-active .plan-v70-offer-actions button {
+  border-color: #e45f42 !important;
+  background: linear-gradient(135deg, #f57b58, #d94f34) !important;
+  box-shadow: 0 11px 25px rgba(185, 73, 49, .22) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-filter-row button.active:hover,
+html body .automation-page.plan-v70-active .plan-v70-add-button:hover,
+html body .automation-page.plan-v70-active .plan-v70-activate-actions > button:hover,
+html body .automation-page.plan-v70-active .plan-v70-review-button:hover,
+html body .automation-page.plan-v70-active .plan-v72-format-modal-actions .primary:hover {
+  background: linear-gradient(135deg, #ed6a49, #c8432a) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-more-formats,
+html body .automation-page.plan-v70-active .plan-v70-credit-details,
+html body .automation-page.plan-v70-active .plan-v70-tip-card button,
+html body .automation-page.plan-v70-active .plan-v72-format-card-action,
+html body .automation-page.plan-v70-active .plan-v72-format-plan-impact strong {
+  color: var(--plan-v73-accent-dark) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v72-format-guard {
+  border-color: #f1cabc !important;
+  color: #853e2c !important;
+  background: #fff7f2 !important;
+}
+html body .automation-page.plan-v70-active .plan-v72-format-guard svg,
+html body .automation-page.plan-v70-active .plan-v70-credit-notice svg {
+  color: var(--plan-v73-accent-dark) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-recurring-card {
+  border-color: #f0cbbf !important;
+  background: linear-gradient(110deg, #fffaf7 0%, #fff3ed 100%) !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-credit-notice {
+  border-color: #f0d4c9 !important;
+  background: rgba(255,255,255,.76) !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-activate-card {
+  border-color: #f0c9bc !important;
+  background: linear-gradient(110deg, #fffaf6, #fff0e9) !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-activate-visual {
+  color: #fff !important;
+  background: linear-gradient(145deg, #f57a58, #d34a30) !important;
+  box-shadow: 0 14px 28px rgba(189, 72, 45, .22) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v72-format-modal-visual {
+  background: linear-gradient(150deg, #fff0ea, #fff8f4 48%, #f7e5dd) !important;
+}
+html body .automation-page.plan-v70-active .plan-v72-format-plan-impact {
+  background: #fff3ed !important;
+}
+
+/* Fixed desktop card dimensions. A single result should never stretch across the row. */
+@media (min-width: 761px) {
+  html body .automation-page.plan-v70-active .plan-v72-format-library.grid {
+    grid-auto-columns: 218px !important;
+    padding: 5px 4px 12px !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+  html body .automation-page.plan-v70-active .plan-v72-format-card.grid {
+    width: 218px !important;
+    min-width: 218px !important;
+    max-width: 218px !important;
+    height: 238px !important;
+    min-height: 238px !important;
+  }
+  html body .automation-page.plan-v70-active .plan-v72-all-formats-grid.grid {
+    grid-template-columns: repeat(auto-fill, 218px) !important;
+    justify-content: start !important;
+    align-items: start !important;
+  }
+  html body .automation-page.plan-v70-active .plan-v72-all-formats-grid.grid .plan-v72-format-card {
+    width: 218px !important;
+    min-width: 218px !important;
+    max-width: 218px !important;
+    height: 238px !important;
+    min-height: 238px !important;
+  }
+
+  /* The desktop recurring-plan card should feel deliberate rather than empty. */
+  html body .automation-page.plan-v70-active .plan-v70-recurring-card {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 12px 22px !important;
+    padding: 18px 20px !important;
+    align-items: center !important;
+  }
+  html body .automation-page.plan-v70-active .plan-v70-recurring-main {
+    align-items: center !important;
+  }
+  html body .automation-page.plan-v70-active .plan-v70-credit-notice {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 11px 14px !important;
+  }
+}
+
+/* Border was clipped at the top because the scrolling rail had no vertical room. */
+html body .automation-page.plan-v70-active .plan-v72-format-library {
+  overflow-y: visible !important;
+}
+html body .automation-page.plan-v70-active .plan-v72-format-card {
+  box-sizing: border-box !important;
+}
+html body .automation-page.plan-v70-active .plan-v72-format-card:hover {
+  transform: translateY(-1px) !important;
+  border-color: var(--plan-v73-accent) !important;
+  box-shadow: 0 13px 28px rgba(156, 67, 44, .13) !important;
+}
+html body .automation-page.plan-v70-active .plan-v72-format-card.disabled:hover {
+  border-color: #dfe4ee !important;
+  box-shadow: 0 4px 14px rgba(30, 38, 65, .035) !important;
+}
+
+/* User-uploaded icon assets are centered everywhere they are used. */
+.plan-v73-custom-icon {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+html body .automation-page.plan-v70-active .plan-v70-post-thumb {
+  display: grid !important;
+  place-items: center !important;
+  line-height: 1 !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-post-thumb > svg,
+html body .automation-page.plan-v70-active .plan-v70-post-thumb > img {
+  margin: 0 !important;
+}
+
+/* Social platform multiselect in the new settings card. */
+.plan-v73-platform-field { position: relative; }
+.plan-v73-platform-multiselect { position: relative; }
+.plan-v73-platform-multiselect .platform-multiselect-button,
+.plan-v73-platform-loading,
+.plan-v73-connect-platform {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #dce1eb;
+  border-radius: 9px;
+  background: #fff;
+  color: #1a2540;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.plan-v73-platform-multiselect .platform-selected-icons {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.plan-v73-selected-platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.plan-v73-platform-multiselect .platform-icon-img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+.plan-v73-platform-multiselect .platform-multiselect-menu {
+  position: absolute;
+  z-index: 120;
+  top: calc(100% + 7px);
+  left: 0;
+  right: 0;
+  padding: 7px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid #e2d6d0;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 18px 38px rgba(22, 28, 44, .16);
+}
+.plan-v73-platform-multiselect .platform-multiselect-option {
+  min-height: 40px;
+  padding: 7px 9px;
+  display: grid;
+  grid-template-columns: 18px 22px minmax(0,1fr);
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.plan-v73-platform-multiselect .platform-multiselect-option:hover { background: #fff4ef; }
+.plan-v73-platform-multiselect .platform-multiselect-option input {
+  width: 16px !important;
+  min-height: 16px !important;
+  accent-color: var(--plan-v73-accent);
+}
+.plan-v73-connect-platform { color: var(--plan-v73-accent-dark); }
+
+/* Keep the modal and full-library surfaces in the same visual family. */
+html body .automation-page.plan-v70-active .add-post-modal:not(.add-post-modal-focus) {
+  background: #fffdfb !important;
+  border: 1px solid #eadbd5 !important;
+}
+html body .automation-page.plan-v70-active .add-post-modal-header p,
+html body .automation-page.plan-v70-active .add-post-modal-back {
+  color: var(--plan-v73-accent-dark) !important;
+}
+
+/* Planned posts now always render every row; keep the header compact. */
+html body .automation-page.plan-v70-active .plan-v70-planned-actions {
+  margin-left: auto;
+}
+
+@media (max-width: 760px) {
+  .plan-v73-platform-multiselect .platform-multiselect-menu {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 18px;
+    z-index: 13000;
+    max-height: 48vh;
+    overflow-y: auto;
+  }
+}

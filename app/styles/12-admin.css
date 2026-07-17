@@ -645,3 +645,125 @@
   .admin-format-fields { grid-template-columns: 1fr 1fr; }
   .admin-format-fields label:last-child { grid-column: 1 / -1; }
 }
+
+/* Spreelo v73: format icon library and approval review */
+.admin-icon-library-page,
+.admin-approvals-page { max-width: 1480px; margin: 0 auto; }
+.admin-format-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(285px, 1fr));
+  gap: 16px;
+}
+.admin-format-icon-card,
+.admin-approval-card {
+  border: 1px solid #e7ddd7;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(31, 27, 24, .055);
+}
+.admin-format-icon-card { padding: 18px; }
+.admin-format-icon-preview {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 16px;
+  color: #b84931;
+  background: #fff0ea;
+}
+.admin-format-icon-preview img { width: 34px; height: 34px; object-fit: contain; }
+.admin-format-icon-fields { margin-top: 14px; display: grid; gap: 10px; }
+.admin-format-icon-fields label { display: grid; gap: 6px; font-weight: 700; }
+.admin-format-icon-fields select,
+.admin-format-icon-fields input[type="file"],
+.admin-rejection-fields select,
+.admin-rejection-fields textarea {
+  width: 100%;
+  border: 1px solid #dfd7d2;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 11px;
+  font: inherit;
+}
+.admin-format-icon-actions { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-approval-tabs { margin: 18px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-approval-tabs button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #dfd7d2;
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 800;
+}
+.admin-approval-tabs button.active { color: #fff; border-color: #d95b3f; background: #d95b3f; }
+.admin-approval-list { display: grid; gap: 16px; }
+.admin-approval-card { overflow: hidden; }
+.admin-approval-card-main { padding: 20px; display: grid; gap: 14px; }
+.admin-approval-card-main h2 { margin: 5px 0; }
+.admin-approval-card-main p { margin: 0; color: #616a7a; line-height: 1.55; }
+.admin-approval-card-main dl { margin: 0; display: flex; flex-wrap: wrap; gap: 18px; }
+.admin-approval-card-main dl div { display: grid; gap: 3px; }
+.admin-approval-card-main dt { color: #7b8494; font-size: 12px; }
+.admin-approval-card-main dd { margin: 0; font-weight: 700; }
+.admin-approval-status { width: max-content; display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 999px; font-weight: 800; }
+.admin-approval-status.pending { color: #8b6200; background: #fff4cf; }
+.admin-approval-status.approved { color: #176a43; background: #e8f8ef; }
+.admin-approval-status.rejected { color: #a8382b; background: #ffeceb; }
+.admin-rejection-review { padding: 20px; display: grid; grid-template-columns: minmax(0, .9fr) minmax(360px, 1.1fr); gap: 22px; border-top: 1px solid #eee5df; background: #fffaf7; }
+.admin-rejection-copy p { white-space: pre-wrap; }
+.admin-rejection-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.admin-rejection-fields label { display: grid; gap: 6px; }
+.admin-rejection-fields .span-2 { grid-column: 1 / -1; }
+.admin-rejection-fields textarea { min-height: 100px; resize: vertical; }
+@media (max-width: 850px) {
+  .admin-rejection-review { grid-template-columns: 1fr; }
+  .admin-rejection-fields { grid-template-columns: 1fr; }
+  .admin-rejection-fields .span-2 { grid-column: auto; }
+}
+
+.admin-icons-page { max-width: 1480px; margin: 0 auto; }
+.admin-icon-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.admin-icon-library-card {
+  padding: 18px;
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 14px;
+  border: 1px solid #e7ddd7;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(31, 27, 24, .055);
+}
+.admin-icon-preview {
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 16px;
+  color: #b84931;
+  background: #fff0ea;
+}
+.admin-icon-preview img { width: 34px; height: 34px; object-fit: contain; }
+.admin-icon-card-copy small { color: #8b7e77; }
+.admin-icon-card-copy h2 { margin: 5px 0 0; font-size: 17px; }
+.admin-icon-library-card > label { grid-column: 1 / -1; display: grid; gap: 6px; font-weight: 750; }
+.admin-icon-library-card > label select { min-height: 42px; border: 1px solid #dfd7d2; border-radius: 10px; padding: 0 11px; background: #fff; }
+.admin-icon-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-upload-button {
+  min-height: 40px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #dfd7d2;
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+.admin-upload-button input { display: none; }

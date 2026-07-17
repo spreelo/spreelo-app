@@ -5260,6 +5260,7 @@ function buildApprovalEmailHtml({
   rule,
   postContent,
   approveUrl,
+  rejectUrl,
   imageUrl,
   carouselSlides = [],
   isCarouselDraft = false,
@@ -5348,9 +5349,20 @@ function buildApprovalEmailHtml({
 
             <tr>
               <td align="center" style="padding:4px 28px 28px;">
-                <a href="${approveUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:999px;">
-                  ${escapeHtml(t(buttonKey))}
-                </a>
+                <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto;">
+                  <tr>
+                    <td style="padding:4px;">
+                      <a href="${approveUrl}" style="display:inline-block;background:#0b1724;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:11px;">
+                        ${escapeHtml(t(buttonKey))}
+                      </a>
+                    </td>
+                    <td style="padding:4px;">
+                      <a href="${rejectUrl}" style="display:inline-block;background:#fff7f1;color:#9a412b;border:1px solid #efc6b7;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:11px;">
+                        ${escapeHtml(t("emails.approval.rejectButton"))}
+                      </a>
+                    </td>
+                  </tr>
+                </table>
 
                 <p style="margin:18px 0 0;color:#6b7280;font-size:13px;line-height:1.5;">
                   ${escapeHtml(t(afterKey))}
@@ -5376,6 +5388,7 @@ function buildApprovalEmailText({
   rule,
   postContent,
   approveUrl,
+  rejectUrl,
   imageUrl,
   isCarouselDraft = false,
   nextRule = null,
@@ -5404,6 +5417,9 @@ ${postContent}
 
 ${t(textActionKey)}
 ${approveUrl}
+
+${t("emails.approval.textRejectPost")}
+${rejectUrl}
 
 ${t(afterKey)}
 `.trim();
@@ -17080,6 +17096,7 @@ async function sendApprovalEmail({
   const normalizedContentFormat = normalizeContentFormat(contentFormat || rule?.content_format);
   const isCarouselDraft = normalizedContentFormat === "carousel";
   const approveUrl = `${APP_URL}/api/approve-post?token=${approvalToken}&lang=${locale}`;
+  const rejectUrl = `${APP_URL}/api/reject-post?token=${approvalToken}&lang=${locale}`;
 
   const nextRule = await getNextRuleInPlan({ supabase, rule });
 
@@ -17116,6 +17133,7 @@ async function sendApprovalEmail({
         rule,
         postContent,
         approveUrl,
+        rejectUrl,
         imageUrl,
         carouselSlides,
         isCarouselDraft,
@@ -17127,6 +17145,7 @@ async function sendApprovalEmail({
         rule,
         postContent,
         approveUrl,
+        rejectUrl,
         imageUrl,
         carouselSlides,
         isCarouselDraft,

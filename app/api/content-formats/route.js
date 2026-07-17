@@ -18,7 +18,7 @@ export async function GET() {
 
     const { data, error } = await admin
       .from("content_format_library")
-      .select("content_type_id, icon_name, image_url, image_storage_path, category, is_featured, active, sort_order, updated_at")
+      .select("content_type_id, icon_name, image_url, image_storage_path, icon_url, icon_storage_path, category, is_featured, active, sort_order, updated_at")
       .order("sort_order", { ascending: true });
 
     if (error) {

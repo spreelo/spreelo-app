@@ -33,6 +33,8 @@ function sanitizeFormatPayload(body, userId) {
     icon_name: iconName,
     image_url: String(body?.image_url || "").trim() || null,
     image_storage_path: String(body?.image_storage_path || "").trim() || null,
+    icon_url: String(body?.icon_url || "").trim() || null,
+    icon_storage_path: String(body?.icon_storage_path || "").trim() || null,
     category,
     is_featured: Boolean(body?.is_featured),
     active: body?.active !== false,
@@ -48,14 +50,14 @@ export async function GET(request) {
 
   const { data, error } = await context.admin
     .from("content_format_library")
-    .select("content_type_id, icon_name, image_url, image_storage_path, category, is_featured, active, sort_order, updated_at")
+    .select("content_type_id, icon_name, image_url, image_storage_path, icon_url, icon_storage_path, category, is_featured, active, sort_order, updated_at")
     .order("sort_order", { ascending: true });
 
   if (error) {
     return Response.json(
       {
         ok: false,
-        error: `${error.message}. Run supabase/content_format_library.sql first.`,
+        error: `${error.message}. Run supabase/content_format_library.sql and supabase/v73_plan_experience_and_approval_rejections.sql first.`,
       },
       { status: 500 }
     );
@@ -71,7 +73,7 @@ export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const action = String(body?.action || "");
 
-  if (action !== "create_upload") {
+  if (!new Set(["create_upload", "create_icon_upload"]).has(action)) {
     return Response.json({ ok: false, error: "Unknown content-format action." }, { status: 400 });
   }
 
@@ -92,7 +94,8 @@ export async function POST(request) {
   }
 
   const extension = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
-  const storagePath = `formats/${contentTypeId}-${crypto.randomUUID()}.${extension}`;
+  const folder = action === "create_icon_upload" ? "icons" : "formats";
+  const storagePath = `${folder}/${contentTypeId}-${crypto.randomUUID()}.${extension}`;
   const { data, error } = await context.admin.storage
     .from(CONTENT_FORMAT_ASSET_BUCKET)
     .createSignedUploadUrl(storagePath);
@@ -125,27 +128,37 @@ export async function PATCH(request) {
 
   const { data: existing } = await context.admin
     .from("content_format_library")
-    .select("image_storage_path")
+    .select("image_storage_path, icon_storage_path")
     .eq("content_type_id", payload.content_type_id)
     .maybeSingle();
 
   const { data, error } = await context.admin
     .from("content_format_library")
     .upsert(payload, { onConflict: "content_type_id" })
-    .select("content_type_id, icon_name, image_url, image_storage_path, category, is_featured, active, sort_order, updated_at")
+    .select("content_type_id, icon_name, image_url, image_storage_path, icon_url, icon_storage_path, category, is_featured, active, sort_order, updated_at")
     .single();
 
   if (error) {
     return Response.json({ ok: false, error: error.message }, { status: 500 });
   }
 
+  const pathsToRemove = [];
   if (
     existing?.image_storage_path &&
     existing.image_storage_path !== payload.image_storage_path
   ) {
+    pathsToRemove.push(existing.image_storage_path);
+  }
+  if (
+    existing?.icon_storage_path &&
+    existing.icon_storage_path !== payload.icon_storage_path
+  ) {
+    pathsToRemove.push(existing.icon_storage_path);
+  }
+  if (pathsToRemove.length) {
     await context.admin.storage
       .from(CONTENT_FORMAT_ASSET_BUCKET)
-      .remove([existing.image_storage_path]);
+      .remove(pathsToRemove);
   }
 
   return Response.json({ ok: true, format: data });

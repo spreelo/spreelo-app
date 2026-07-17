@@ -16,8 +16,6 @@ import {
   CreditCard,
   HelpCircle,
   Info,
-  LayoutGrid,
-  List,
   Layers,
   Lightbulb,
   Link2,
@@ -541,6 +539,24 @@ function ContentFormatGlyph({ name, size = 23 }) {
   return <Icon size={size} strokeWidth={2} aria-hidden="true" />;
 }
 
+function ContentFormatIconVisual({ item, size = 23, className = "" }) {
+  const iconUrl = String(item?.icon_url || "").trim();
+
+  if (iconUrl) {
+    return (
+      <img
+        src={iconUrl}
+        alt=""
+        loading="lazy"
+        className={`plan-v73-custom-icon ${className}`.trim()}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
+  return <ContentFormatGlyph name={item?.icon_name} size={size} />;
+}
+
 function ContentFormatArtwork({ item, index = 0, large = false }) {
   const imageUrl = String(item?.image_url || "").trim();
 
@@ -551,7 +567,7 @@ function ContentFormatArtwork({ item, index = 0, large = false }) {
       ) : (
         <>
           <span className="plan-v72-format-art-icon">
-            <ContentFormatGlyph name={item?.icon_name} size={large ? 34 : 24} />
+            <ContentFormatIconVisual item={item} size={large ? 34 : 24} />
           </span>
           <span className="plan-v72-format-art-lines" aria-hidden="true">
             <i />
@@ -5304,9 +5320,8 @@ const [slots, setSlots] = useState([]);
     normalizeContentFormatRows([])
   );
   const [formatFilter, setFormatFilter] = useState("all");
-  const [formatView, setFormatView] = useState("grid");
-  const [formatChannel, setFormatChannel] = useState("all");
   const [formatPreviewId, setFormatPreviewId] = useState("");
+  const [returnToAllFormatsAfterPreview, setReturnToAllFormatsAfterPreview] = useState(false);
   const [formatGuardMessage, setFormatGuardMessage] = useState("");
   const [editingRuleId, setEditingRuleId] = useState("");
 
@@ -5352,7 +5367,6 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
   const canManuallyEditCampaignPlan = String(currentUserEmail || "").toLowerCase() === SPREELO_INTERNAL_TESTER_EMAIL;
   const [showSavedRules, setShowSavedRules] = useState(false);
-  const [showAllRedesignSlots, setShowAllRedesignSlots] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [showLearnMoreModal, setShowLearnMoreModal] = useState(false);
   const [recentlyAddedContentTypeId, setRecentlyAddedContentTypeId] =
@@ -5560,6 +5574,18 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
     () => exploreFormatItems.find((item) => item.id === formatPreviewId) || null,
     [exploreFormatItems, formatPreviewId]
   );
+
+  function getExploreFormatItem(contentTypeId) {
+    return exploreFormatItems.find((item) => item.id === contentTypeId) || null;
+  }
+
+  function getUnifiedContentTypeLabel(contentTypeId, fallback = "") {
+    const formatItem = getExploreFormatItem(contentTypeId);
+    if (formatItem?.label) return formatItem.label;
+    const type = getContentTypeById(contentTypeId);
+    if (type) return translateContentTypeShortLabel(type);
+    return fallback || t("automation.contentPlan");
+  }
 
   const hasInitialGoalPlan = Boolean(autoPlanGoal && slots.length > 0);
 
@@ -7912,6 +7938,35 @@ function toggleContentType(typeId) {
     }
   }
 
+  async function sendPlanActivationSummaryEmail(summary) {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) return;
+
+      const response = await fetch("/api/plan-activation-email", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ locale, summary }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        console.warn(
+          "Plan activation email could not be sent",
+          payload?.error || response.statusText
+        );
+      }
+    } catch (emailError) {
+      console.warn("Plan activation email could not be sent", emailError);
+    }
+  }
+
   async function savePlan() {
     setMessage("");
     setSavedPlanSummary(null);
@@ -8171,7 +8226,10 @@ ${slot.campaignSummary}`
           ? editingRuleSnapshot?.credit_released_at || null
           : null,
                content_type_id: slot.contentTypeId,
-        content_type_label: slot.contentTypeLabel,
+        content_type_label: getUnifiedContentTypeLabel(
+          slot.contentTypeId,
+          slot.contentTypeLabel
+        ),
         uses_website_content: Boolean(slot.usesWebsiteContent),
         content_format: slot.contentFormat || "single_image",
         animation_style: slot.animationStyle || null,
@@ -8459,6 +8517,28 @@ ${slot.campaignSummary}`
         method: formatPlanMode(planCreationMode),
       });
 
+      void sendPlanActivationSummaryEmail({
+        brand: currentBrandProfile?.business_name || sharedGeneratedPlanName,
+        goal: translateAutoPlanGoalLabel(autoPlanGoal),
+        frequency:
+          scheduleType === "weekly"
+            ? t("automation.redesign.postsPerWeekValue", { count: rows.length })
+            : `${rows.length} ${t("automation.redesign.plannedPostsTitle")}`,
+        start: firstPostLabel,
+        channels:
+          selectedPlatformOptions.map((item) => item.label).join(", ") ||
+          platform,
+        language: getLanguageDisplayLabel(language),
+        credits: `${plannedCredits} ${t("automation.credits")}`,
+        formats: Array.from(
+          new Set(
+            slots.map((slot) =>
+              getUnifiedContentTypeLabel(slot.contentTypeId, slot.contentTypeLabel)
+            )
+          )
+        ),
+      });
+
 setPlanName("");
 setLanguage("Auto");
 
@@ -8484,7 +8564,7 @@ setRules((currentRules) =>
   }
 }
 
- function requestFormatPreview(formatId) {
+ function requestFormatPreview(formatId, options = {}) {
   if (!hasInitialGoalPlan) {
     showChooseGoalFirstMessage();
     return;
@@ -8496,8 +8576,20 @@ setRules((currentRules) =>
   setMessage("");
   setFormatGuardMessage("");
   setOfferPlannerOpen(false);
+  setReturnToAllFormatsAfterPreview(Boolean(options?.fromAllFormats));
   setShowAddPostModal(false);
   setFormatPreviewId(formatId);
+}
+
+ function closeFormatPreview() {
+  const shouldReturn = returnToAllFormatsAfterPreview;
+  setFormatPreviewId("");
+  setReturnToAllFormatsAfterPreview(false);
+
+  if (shouldReturn) {
+    setAddPostModalView("types");
+    setShowAddPostModal(true);
+  }
 }
 
  function openAllFormats() {
@@ -8516,6 +8608,7 @@ setRules((currentRules) =>
   if (!selectedFormatPreview) return;
 
   if (selectedFormatPreview.kind === "offer_campaign") {
+    setReturnToAllFormatsAfterPreview(false);
     setFormatPreviewId("");
     setOfferPlannerOpen(true);
     if (typeof window !== "undefined") {
@@ -8530,6 +8623,7 @@ setRules((currentRules) =>
   }
 
   if (selectedFormatPreview.kind === "focus_source") {
+    setReturnToAllFormatsAfterPreview(false);
     setFormatPreviewId("");
     setAddPostModalView("focus_source");
     setFocusSource(null);
@@ -8539,6 +8633,7 @@ setRules((currentRules) =>
     return;
   }
 
+  setReturnToAllFormatsAfterPreview(false);
   addSlotFromContentType(selectedFormatPreview.id);
 }
 
@@ -8567,9 +8662,9 @@ setRules((currentRules) =>
   setVaryWeeklyContentTypes(true);
   setOfferPlannerOpen(false);
   setFormatPreviewId("");
+  setReturnToAllFormatsAfterPreview(false);
   setFormatGuardMessage("");
   setFormatFilter("all");
-  setFormatView("grid");
   setOfferSourceScope("whole_website");
   setOfferSourceUrl("");
   setOfferCode("");
@@ -8697,18 +8792,65 @@ setRules((currentRules) =>
                     </select>
                   </label>
 
-                  <label className="plan-v70-field">
+                  <div className="plan-v70-field plan-v73-platform-field">
                     <span>{t("automation.platform")}</span>
-                    <select
-                      value={selectedPlatformKeys[0] || ""}
-                      onChange={(event) => setPlatform(event.target.value)}
-                    >
-                      <option value="">{t("automation.choosePlatform")}</option>
-                      {connectedPlatformOptions.map((option) => (
-                        <option value={option.value} key={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </label>
+                    {loadingConnectedPlatforms ? (
+                      <div className="plan-v73-platform-loading">{t("automation.loadingConnectedChannels")}</div>
+                    ) : connectedPlatformOptions.length > 0 ? (
+                      <div className={`platform-multiselect plan-v73-platform-multiselect ${platformDropdownOpen ? "open" : ""}`}>
+                        <button
+                          type="button"
+                          className="platform-multiselect-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setPlatformDropdownOpen((current) => !current);
+                          }}
+                        >
+                          <span className="platform-selected-icons">
+                            {selectedPlatformOptions.length > 0 ? (
+                              selectedPlatformOptions.map((item) => (
+                                <span className="plan-v73-selected-platform" key={item.value}>
+                                  <img src={item.icon} alt="" className="platform-icon-img" />
+                                  <span>{item.label}</span>
+                                </span>
+                              ))
+                            ) : (
+                              <span className="platform-placeholder">{t("automation.choosePlatform")}</span>
+                            )}
+                          </span>
+                          <ChevronDown size={15} aria-hidden="true" />
+                        </button>
+
+                        {platformDropdownOpen ? (
+                          <div className="platform-multiselect-menu" onClick={(event) => event.stopPropagation()}>
+                            {connectedPlatformOptions.map((item) => {
+                              const checked = selectedPlatformKeys.includes(item.value);
+                              return (
+                                <label key={`v73-platform-${item.value}`} className="platform-multiselect-option">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      const nextKeys = checked
+                                        ? selectedPlatformKeys.filter((key) => key !== item.value)
+                                        : [...selectedPlatformKeys, item.value];
+                                      setPlatform(formatPlatformSelectionFromKeys(nextKeys, connectedPlatformOptions));
+                                    }}
+                                  />
+                                  <img src={item.icon} alt="" className="platform-icon-img" />
+                                  <span>{item.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <a className="plan-v73-connect-platform" href="/social-channels">
+                        {t("automation.connectSocialChannelFirst")}
+                      </a>
+                    )}
+                  </div>
                 </div>
 
                 <label className={`plan-v70-smart-toggle${scheduleType !== "weekly" ? " disabled" : ""}`}>
@@ -8748,8 +8890,15 @@ setRules((currentRules) =>
                   <div className="plan-v70-credit-notice">
                     <Info size={17} aria-hidden="true" />
                     <p>
-                      <strong>{t("automation.redesign.weeklyCreditsTitle", { credits: plannedCredits })}</strong>
-                      <span>{t("automation.redesign.weeklyCreditsText")}</span>
+                      <strong>
+                        {plannedCredits > 0
+                          ? t("automation.redesign.weeklyChargeTitleV2", {
+                              credits: plannedCredits,
+                              count: slots.length,
+                            })
+                          : t("automation.redesign.weeklyChargePendingV2")}
+                      </strong>
+                      <span>{t("automation.redesign.weeklyChargeTextV2")}</span>
                     </p>
                   </div>
                 </section>
@@ -8760,34 +8909,6 @@ setRules((currentRules) =>
                   <div>
                     <h2>{t("automation.redesign.exploreFormats")}</h2>
                     <p>{t("automation.redesign.exploreFormatsText")}</p>
-                  </div>
-                  <div className="plan-v70-view-actions">
-                    <label className="plan-v72-channel-filter">
-                      <span className="sr-only">{t("automation.redesign.channel")}</span>
-                      <select value={formatChannel} onChange={(event) => setFormatChannel(event.target.value)}>
-                        <option value="all">{t("automation.redesign.allChannels")}</option>
-                        {connectedPlatformOptions.map((option) => (
-                          <option key={`format-channel-${option.value}`} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
-                      <ChevronDown size={15} aria-hidden="true" />
-                    </label>
-                    <button
-                      type="button"
-                      className={formatView === "grid" ? "active" : ""}
-                      aria-label={t("automation.format.gridView")}
-                      onClick={() => setFormatView("grid")}
-                    >
-                      <LayoutGrid size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className={formatView === "list" ? "active" : ""}
-                      aria-label={t("automation.format.listView")}
-                      onClick={() => setFormatView("list")}
-                    >
-                      <List size={16} />
-                    </button>
                   </div>
                 </div>
 
@@ -8819,12 +8940,12 @@ setRules((currentRules) =>
                   </div>
                 ) : null}
 
-                <div className={`plan-v72-format-library ${formatView === "list" ? "list" : "grid"}`}>
+                <div className="plan-v72-format-library grid">
                   {mainExploreFormatItems.map((item, index) => (
                     <ContentFormatCard
                       item={item}
                       index={index}
-                      view={formatView}
+                      view="grid"
                       disabled={!hasInitialGoalPlan}
                       key={`v72-${item.id}`}
                       onClick={() => requestFormatPreview(item.id)}
@@ -8914,19 +9035,10 @@ setRules((currentRules) =>
                       <span>{slots.length}</span>
                     </div>
                     <div className="plan-v70-planned-actions">
-                      <button type="button" className="plan-v70-quiet-button">
-                        {t("automation.redesign.thisWeek")} <ChevronDown size={14} />
-                      </button>
-                      <button type="button" className="plan-v70-quiet-button">
-                        <ListChecks size={14} /> {t("automation.redesign.filter")}
-                      </button>
                       <button
                         type="button"
                         className="plan-v70-add-button"
-                        onClick={() => {
-                          setAddPostModalView("types");
-                          setShowAddPostModal(true);
-                        }}
+                        onClick={openAllFormats}
                       >
                         <Plus size={15} /> {t("automation.redesign.addPost")} <ChevronDown size={14} />
                       </button>
@@ -8943,9 +9055,10 @@ setRules((currentRules) =>
                       <span />
                     </div>
 
-                    {(showAllRedesignSlots ? slots : slots.slice(0, 4)).map((slot, index) => {
+                    {slots.map((slot, index) => {
                       const rowExpanded = expandedInstructionSlotIds.includes(slot.id);
                       const platformLabel = selectedPlatformOptions[0]?.label || platform || t("automation.choosePlatform");
+                      const formatItem = getExploreFormatItem(slot.contentTypeId);
 
                       return (
                         <article className={`plan-v70-planned-row${rowExpanded ? " expanded" : ""}`} key={`v70-row-${slot.id}`}>
@@ -8955,10 +9068,13 @@ setRules((currentRules) =>
                           </div>
                           <div className="plan-v70-planned-post">
                             <span className={`plan-v70-post-thumb tone-${(index % 4) + 1}`} aria-hidden="true">
-                              {getContentTypeIcon(slot.contentTypeId)}
+                              <ContentFormatIconVisual
+                                item={formatItem || { icon_name: "Sparkles" }}
+                                size={19}
+                              />
                             </span>
                             <div>
-                              <strong>{getCustomerSlotLabel(slot)}</strong>
+                              <strong>{getUnifiedContentTypeLabel(slot.contentTypeId, slot.contentTypeLabel)}</strong>
                               <span>{getCustomerSlotPurpose(slot)}</span>
                             </div>
                           </div>
@@ -9022,18 +9138,6 @@ setRules((currentRules) =>
                     })}
                   </div>
 
-                  {slots.length > 4 ? (
-                    <button
-                      type="button"
-                      className="plan-v70-show-all"
-                      onClick={() => setShowAllRedesignSlots((current) => !current)}
-                    >
-                      {showAllRedesignSlots
-                        ? t("automation.redesign.showFewerPlanned")
-                        : t("automation.redesign.showAllPlanned", { count: slots.length })}
-                      <ChevronDown size={15} className={showAllRedesignSlots ? "rotated" : ""} />
-                    </button>
-                  ) : null}
                 </section>
               ) : null}
 
@@ -10677,7 +10781,7 @@ setRules((currentRules) =>
         {selectedFormatPreview && (
           <div
             className="plan-v72-format-modal-backdrop"
-            onClick={() => setFormatPreviewId("")}
+            onClick={closeFormatPreview}
           >
             <section
               className="plan-v72-format-modal"
@@ -10689,7 +10793,7 @@ setRules((currentRules) =>
               <button
                 type="button"
                 className="plan-v72-format-modal-close"
-                onClick={() => setFormatPreviewId("")}
+                onClick={closeFormatPreview}
                 aria-label={t("automation.format.close")}
               >
                 <X size={20} aria-hidden="true" />
@@ -10703,7 +10807,7 @@ setRules((currentRules) =>
               <div className="plan-v72-format-modal-content">
                 <div className="plan-v72-format-modal-heading">
                   <span className="plan-v72-format-modal-icon">
-                    <ContentFormatGlyph name={selectedFormatPreview.icon_name} size={24} />
+                    <ContentFormatIconVisual item={selectedFormatPreview} size={24} />
                   </span>
                   <div>
                     <p>{t("automation.format.recommendedForGoal", { goal: translateAutoPlanGoalLabel(autoPlanGoal) })}</p>
@@ -10740,7 +10844,7 @@ setRules((currentRules) =>
                 </div>
 
                 <div className="plan-v72-format-modal-actions">
-                  <button type="button" className="secondary" onClick={() => setFormatPreviewId("")}>
+                  <button type="button" className="secondary" onClick={closeFormatPreview}>
                     {t("automation.format.cancel")}
                   </button>
                   <button type="button" className="primary" onClick={confirmSelectedFormat}>
@@ -10888,14 +10992,14 @@ setRules((currentRules) =>
                   )}
                 </div>
               ) : (
-                <div className={`plan-v72-all-formats-grid ${formatView === "list" ? "list" : "grid"}`}>
+                <div className="plan-v72-all-formats-grid grid">
                   {exploreFormatItems.map((item, index) => (
                     <ContentFormatCard
                       item={item}
                       index={index}
-                      view={formatView}
+                      view="grid"
                       key={`modal-format-${item.id}`}
-                      onClick={() => requestFormatPreview(item.id)}
+                      onClick={() => requestFormatPreview(item.id, { fromAllFormats: true })}
                     />
                   ))}
                 </div>

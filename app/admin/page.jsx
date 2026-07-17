@@ -8,12 +8,14 @@ import {
   CheckCircle2,
   CircleDollarSign,
   FileVideo2,
+  FileCheck2,
   ImagePlay,
   LayoutGrid,
   Languages,
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
+  Shapes,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -291,6 +293,27 @@ export default function AdminDashboardPage() {
                   <p>{t("admin.formats.dashboardDescription")}</p>
                 </div>
                 <strong>{t("admin.formats.manage")} →</strong>
+              </a>
+
+
+              <a className="admin-tool-card" href="/admin/icons">
+                <span className="admin-tool-icon"><Shapes size={24} aria-hidden="true" /></span>
+                <div>
+                  <span className="admin-card-kicker">{t("admin.icons.kicker")}</span>
+                  <h2>{t("admin.icons.title")}</h2>
+                  <p>{t("admin.icons.description")}</p>
+                </div>
+                <strong>{t("admin.icons.manage")} →</strong>
+              </a>
+
+              <a className="admin-tool-card" href="/admin/post-approvals">
+                <span className="admin-tool-icon"><FileCheck2 size={24} aria-hidden="true" /></span>
+                <div>
+                  <span className="admin-card-kicker">{t("admin.approvals.kicker")}</span>
+                  <h2>{t("admin.approvals.title")}</h2>
+                  <p>{t("admin.approvals.description")}</p>
+                </div>
+                <strong>{t("admin.approvals.open")} →</strong>
               </a>
             </section>
 
