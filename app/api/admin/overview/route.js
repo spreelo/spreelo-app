@@ -3,7 +3,9 @@ import { adminContextError, getAdminContext } from "../../../../lib/adminAuth";
 export const dynamic = "force-dynamic";
 
 async function countRows(admin, table, applyFilters) {
-  let query = admin.from(table).select("id", { count: "exact", head: true });
+  // Some admin tables use user_id or another primary key instead of id.
+  // Selecting * with head:true counts rows without assuming a specific column.
+  let query = admin.from(table).select("*", { count: "exact", head: true });
   if (typeof applyFilters === "function") {
     query = applyFilters(query);
   }
@@ -50,9 +52,9 @@ export async function GET(request) {
       )
     ),
     safeAdminQuery("failedMedia", 0, () =>
-      countRows(context.admin, "posts", (query) =>
-        query.or("image_status.eq.failed,video_status.eq.failed")
-      )
+      // Only surface posts whose overall generation actually failed.
+      // A post may still be usable as text even when an optional image failed.
+      countRows(context.admin, "posts", (query) => query.eq("status", "failed"))
     ),
     safeAdminQuery("pendingApproval", 0, () =>
       countRows(context.admin, "posts", (query) =>

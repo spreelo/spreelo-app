@@ -5265,6 +5265,7 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
   const canManuallyEditCampaignPlan = String(currentUserEmail || "").toLowerCase() === SPREELO_INTERNAL_TESTER_EMAIL;
   const [showSavedRules, setShowSavedRules] = useState(false);
+  const [showAllRedesignSlots, setShowAllRedesignSlots] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [showLearnMoreModal, setShowLearnMoreModal] = useState(false);
   const [recentlyAddedContentTypeId, setRecentlyAddedContentTypeId] =
@@ -8330,7 +8331,7 @@ setRules((currentRules) =>
   return (
     <AppLayout active="automation">
       <div
-        className={`automation-page planner-wizard-page ${campaignOpportunity ? "campaign-planner-clean" : ""}`}
+        className={`automation-page planner-wizard-page ${campaignOpportunity ? "campaign-planner-clean" : "plan-v70-active"}`}
         onClick={(event) => {
           if (!event.target.closest(".custom-picker-field")) {
             setOpenPickerId(null);
@@ -8619,6 +8620,174 @@ setRules((currentRules) =>
                   </div>
                 </section>
               ) : null}
+
+              {shouldShowPlannerDetails ? (
+                <section className="plan-v70-card plan-v70-planned-card" id="plan-v70-planned-posts">
+                  <div className="plan-v70-planned-head">
+                    <div>
+                      <h2>{t("automation.redesign.plannedPostsTitle")}</h2>
+                      <span>{slots.length}</span>
+                    </div>
+                    <div className="plan-v70-planned-actions">
+                      <button type="button" className="plan-v70-quiet-button">
+                        {t("automation.redesign.thisWeek")} <ChevronDown size={14} />
+                      </button>
+                      <button type="button" className="plan-v70-quiet-button">
+                        <ListChecks size={14} /> {t("automation.redesign.filter")}
+                      </button>
+                      <button
+                        type="button"
+                        className="plan-v70-add-button"
+                        onClick={() => {
+                          setAddPostModalView("types");
+                          setShowAddPostModal(true);
+                        }}
+                      >
+                        <Plus size={15} /> {t("automation.redesign.addPost")} <ChevronDown size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="plan-v70-planned-table">
+                    <div className="plan-v70-planned-table-head" aria-hidden="true">
+                      <span>{t("automation.redesign.dateTime")}</span>
+                      <span>{t("automation.redesign.post")}</span>
+                      <span>{t("automation.redesign.format")}</span>
+                      <span>{t("automation.redesign.channel")}</span>
+                      <span>{t("automation.redesign.status")}</span>
+                      <span />
+                    </div>
+
+                    {(showAllRedesignSlots ? slots : slots.slice(0, 4)).map((slot, index) => {
+                      const rowExpanded = expandedInstructionSlotIds.includes(slot.id);
+                      const platformLabel = selectedPlatformOptions[0]?.label || platform || t("automation.choosePlatform");
+
+                      return (
+                        <article className={`plan-v70-planned-row${rowExpanded ? " expanded" : ""}`} key={`v70-row-${slot.id}`}>
+                          <div className="plan-v70-planned-date">
+                            <strong>{formatStartDateLabel(slot.startDate, timeZone, locale)}</strong>
+                            <span>{normalizeTime(slot.publishTime)}</span>
+                          </div>
+                          <div className="plan-v70-planned-post">
+                            <span className={`plan-v70-post-thumb tone-${(index % 4) + 1}`} aria-hidden="true">
+                              {getContentTypeIcon(slot.contentTypeId)}
+                            </span>
+                            <div>
+                              <strong>{getCustomerSlotLabel(slot)}</strong>
+                              <span>{getCustomerSlotPurpose(slot)}</span>
+                            </div>
+                          </div>
+                          <div className="plan-v70-planned-format">
+                            <strong>{getLocalizedSlotFormatLabel(slot)}</strong>
+                            <span>{getSlotCreditLabel(slot)}</span>
+                          </div>
+                          <div className="plan-v70-planned-channel">
+                            {selectedPlatformOptions[0]?.icon ? (
+                              <img src={selectedPlatformOptions[0].icon} alt="" className="platform-icon-img" />
+                            ) : null}
+                            <span>{platformLabel}</span>
+                          </div>
+                          <span className="plan-v70-status-pill">{t("automation.redesign.planned")}</span>
+                          <button
+                            type="button"
+                            className="plan-v70-row-menu"
+                            aria-label={t("automation.redesign.editPlannedPost")}
+                            onClick={() => {
+                              setExpandedInstructionSlotIds((current) =>
+                                current.includes(slot.id)
+                                  ? current.filter((id) => id !== slot.id)
+                                  : [...current, slot.id]
+                              );
+                            }}
+                          >
+                            ···
+                          </button>
+
+                          {rowExpanded ? (
+                            <div className="plan-v70-row-editor">
+                              <DatePickerField
+                                value={slot.startDate}
+                                onChange={(value) => updateSlot(slot.id, "startDate", value)}
+                                pickerId={`v70-row-date-${slot.id}`}
+                                openPickerId={openPickerId}
+                                setOpenPickerId={setOpenPickerId}
+                                timeZone={timeZone}
+                                compact
+                                weekdayLabels={weekdayLabels}
+                                locale={locale}
+                              />
+                              <TimePickerField
+                                value={slot.publishTime}
+                                onChange={(value) => updateSlot(slot.id, "publishTime", value)}
+                                pickerId={`v70-row-time-${slot.id}`}
+                                openPickerId={openPickerId}
+                                setOpenPickerId={setOpenPickerId}
+                                compact
+                              />
+                              <button type="button" onClick={() => duplicateSlot(slot.id)}>
+                                {t("automation.duplicate")}
+                              </button>
+                              <button type="button" className="danger" onClick={() => removeSlot(slot.id)}>
+                                {t("automation.delete")}
+                              </button>
+                            </div>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  {slots.length > 4 ? (
+                    <button
+                      type="button"
+                      className="plan-v70-show-all"
+                      onClick={() => setShowAllRedesignSlots((current) => !current)}
+                    >
+                      {showAllRedesignSlots
+                        ? t("automation.redesign.showFewerPlanned")
+                        : t("automation.redesign.showAllPlanned", { count: slots.length })}
+                      <ChevronDown size={15} className={showAllRedesignSlots ? "rotated" : ""} />
+                    </button>
+                  ) : null}
+                </section>
+              ) : null}
+
+              <section className={`plan-v70-activate-card${savedPlanSummary ? " saved" : ""}`}>
+                <span className="plan-v70-activate-visual" aria-hidden="true">
+                  {savedPlanSummary ? <CheckCircle2 size={27} /> : <CalendarClock size={27} />}
+                </span>
+                <div className="plan-v70-activate-copy">
+                  <h2>
+                    {savedPlanSummary
+                      ? t("automation.planSaved")
+                      : t("automation.redesign.readyTitle")}
+                  </h2>
+                  <p>
+                    {savedPlanSummary
+                      ? t("automation.automationPlanReady")
+                      : t("automation.redesign.readyText")}
+                  </p>
+                </div>
+                {savedPlanSummary ? (
+                  <div className="plan-v70-success-actions">
+                    <button type="button" onClick={startAnotherPlan}>{t("automation.createAnotherPlan")}</button>
+                    <a href="/">{t("automation.goToDashboard")}</a>
+                  </div>
+                ) : (
+                  <div className="plan-v70-activate-actions">
+                    <button
+                      type="button"
+                      onClick={savePlan}
+                      disabled={saving || !hasEnoughCredits || !slots.length}
+                    >
+                      <Rocket size={17} />
+                      {saving ? t("automation.saving") : t("automation.startActivatePlan")}
+                    </button>
+                    <span><ShieldCheck size={14} /> {t("automation.redesign.pauseAnytime")}</span>
+                  </div>
+                )}
+                {message ? <p className="plan-v70-activate-message">{message}</p> : null}
+              </section>
             </section>
 
      <header className="planner-hero planner-hero-final">
@@ -10038,8 +10207,8 @@ setRules((currentRules) =>
               <div className="planner-sidebar-title planner-summary-title">
                 <PlannerSummaryIcon type="title" />
                 <div>
-                  <h3>{safePlannerText("planSummary")}</h3>
-                  <p>{safePlannerText("readyToCreate")}</p>
+                  <h3>{t("automation.redesign.planOverview")}</h3>
+                  <p>{t("automation.redesign.planOverviewReady")}</p>
                 </div>
               </div>
 
@@ -10135,6 +10304,14 @@ setRules((currentRules) =>
 
               </div>
 
+              <button
+                type="button"
+                className="plan-v70-review-button"
+                onClick={() => document.getElementById("plan-v70-planned-posts")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              >
+                {t("automation.redesign.reviewPlan")} <span>→</span>
+              </button>
+
               <div className="planner-summary-status">
                 <PlannerSummaryIcon type="ready" success />
                 <div>
@@ -10190,6 +10367,24 @@ setRules((currentRules) =>
                   </p>
                 </div>
               )}
+              {creditBalance ? (
+                <button
+                  type="button"
+                  className="plan-v70-credit-details"
+                  onClick={() => document.getElementById("plan-v70-planned-posts")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                >
+                  {t("automation.redesign.viewDetails")} <span>→</span>
+                </button>
+              ) : null}
+            </section>
+
+            <section className="plan-v70-tip-card">
+              <div className="plan-v70-tip-title">
+                <Lightbulb size={18} aria-hidden="true" />
+                <strong>{t("automation.redesign.tipTitle")}</strong>
+              </div>
+              <p>{t("automation.redesign.tipText")}</p>
+              <button type="button">{t("automation.learnMore")} <span>→</span></button>
             </section>
           </aside>
             </div>

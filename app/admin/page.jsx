@@ -229,7 +229,7 @@ export default function AdminDashboardPage() {
             <div>
               <strong>{t("admin.partialOverviewTitle")}</strong>
               <span>{t("admin.partialOverviewText")}</span>
-              <small>{warnings.map((warning) => warning.key).join(", ")}</small>
+              <small>{t("admin.partialOverviewDetails", { count: warnings.length })}</small>
             </div>
           </div>
         ) : null}
@@ -255,8 +255,8 @@ export default function AdminDashboardPage() {
               <div className="admin-alert warning">
                 <AlertTriangle size={19} aria-hidden="true" />
                 <div>
-                  <strong>{stats.failedMedia} post{stats.failedMedia === 1 ? " has" : "s have"} failed media processing</strong>
-                  <span>These should be reviewed in logs before retrying or compensating credits.</span>
+                  <strong>{t("admin.failedJobsTitle", { count: stats.failedMedia })}</strong>
+                  <span>{t("admin.failedJobsText")}</span>
                 </div>
               </div>
             ) : null}

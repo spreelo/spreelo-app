@@ -546,43 +546,22 @@
 }
 .plan-v70-mini-spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; animation: workspace-orbit .75s linear infinite; }
 
-/* The new compact setup replaces the previous large intro and method cards. */
-.automation-page .planner-hero-final,
-.automation-page .planner-primary-builder,
-.automation-page > .wizard-layout .planner-mode-card,
-.automation-page .planner-manual-intro-card {
+/* Version 71: the reference design replaces the legacy builder on normal plans. */
+html body .automation-page.plan-v70-active .wizard-main > .planner-hero,
+html body .automation-page.plan-v70-active .wizard-main > .planner-primary-builder,
+html body .automation-page.plan-v70-active .wizard-main > .planner-mode-card,
+html body .automation-page.plan-v70-active .wizard-main > .planner-manual-intro-card,
+html body .automation-page.plan-v70-active .wizard-main > .planner-schedule-card,
+html body .automation-page.plan-v70-active .wizard-main > .planner-settings-builder,
+html body .automation-page.plan-v70-active .wizard-main > .planner-includes-preview-card,
+html body .automation-page.plan-v70-active .wizard-main > .planner-how-it-works-card,
+html body .automation-page.plan-v70-active .wizard-main > .planner-save-card,
+html body .automation-page.plan-v70-active .wizard-main > .saved-card {
   display: none !important;
 }
 
-.automation-page .planner-schedule-card,
-.automation-page .planner-settings-card,
-.automation-page .planner-includes-card,
-.automation-page .planner-save-card,
-.automation-page .saved-card {
-  border-radius: 16px;
-  border-color: var(--plan-v70-line);
-  box-shadow: var(--plan-v70-shadow);
-}
-.automation-page .planner-schedule-card { margin-top: 0; }
-.automation-page .planner-schedule-header h3::before {
-  content: "";
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: #6941f5;
-  vertical-align: 2px;
-}
-.automation-page .planner-settings-builder {
-  margin-top: 14px;
-}
-.automation-page .planner-settings-builder .planner-builder-step-badge { display: none; }
-.automation-page .planner-settings-builder .planner-builder-header h3::after {
-  content: " · advanced";
-  color: #8a91a3;
-  font-size: 11px;
-  font-weight: 600;
+html body .automation-page.campaign-planner-clean .plan-v70-shell {
+  display: none !important;
 }
 
 /* Dashboard split: ongoing vs fixed plans */
@@ -796,4 +775,321 @@
   .plan-v70-offer-scope { flex-direction: column; }
   .plan-v70-offer-scope button { justify-content: flex-start; }
   .plan-v70-format-carousel { grid-auto-columns: 75%; }
+}
+
+/* Version 71 plan-page finish: reference colors, compact planned list and clean right rail. */
+html body .automation-page.plan-v70-active {
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 26px 30px 42px !important;
+  color: #101a33 !important;
+  background: linear-gradient(180deg, #fbfcff 0%, #f7f9fd 100%) !important;
+}
+html body .automation-page.plan-v70-active .wizard-layout {
+  width: 100% !important;
+  max-width: 1560px !important;
+  margin: 0 auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 286px !important;
+  gap: 24px !important;
+  align-items: start !important;
+}
+html body .automation-page.plan-v70-active .wizard-main { display: block !important; min-width: 0 !important; }
+html body .automation-page.plan-v70-active .plan-v70-shell { gap: 16px !important; margin: 0 !important; }
+html body .automation-page.plan-v70-active .plan-v70-header { min-height: 58px; padding: 0 2px; }
+html body .automation-page.plan-v70-active .plan-v70-header h1 {
+  color: #101a33 !important;
+  font-size: clamp(31px, 2.35vw, 39px) !important;
+  line-height: 1.04 !important;
+  font-weight: 820 !important;
+  letter-spacing: -.045em !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-header p { color: #687493 !important; font-size: 14px !important; }
+
+html body .automation-page.plan-v70-active .plan-v70-card,
+html body .automation-page.plan-v70-active .plan-v70-recurring-card,
+html body .automation-page.plan-v70-active .plan-v70-offer-builder,
+html body .automation-page.plan-v70-active .plan-v70-activate-card,
+html body .automation-page.plan-v70-active .planner-summary-card,
+html body .automation-page.plan-v70-active .planner-credits-card,
+html body .automation-page.plan-v70-active .plan-v70-tip-card {
+  border: 1px solid #e5e8f1 !important;
+  border-radius: 15px !important;
+  background: rgba(255,255,255,.98) !important;
+  box-shadow: 0 12px 34px rgba(31,42,75,.055) !important;
+}
+html body .automation-page.plan-v70-active button,
+html body .automation-page.plan-v70-active a,
+html body .automation-page.plan-v70-active input,
+html body .automation-page.plan-v70-active select,
+html body .automation-page.plan-v70-active textarea { border-radius: 9px !important; }
+html body .automation-page.plan-v70-active .plan-v70-template-button {
+  border: 1px solid #e1e5ef !important;
+  color: #24304b !important;
+  background: #fff !important;
+  box-shadow: 0 8px 24px rgba(23,31,58,.045) !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-settings-card { padding: 19px 20px 0 !important; overflow: hidden; }
+html body .automation-page.plan-v70-active .plan-v70-settings-grid { gap: 15px 24px; }
+html body .automation-page.plan-v70-active .plan-v70-field select,
+html body .automation-page.plan-v70-active .plan-v70-field input,
+html body .automation-page.plan-v70-active .plan-v70-field .custom-picker-field,
+html body .automation-page.plan-v70-active .plan-v70-offer-grid input {
+  min-height: 43px !important;
+  border: 1px solid #dfe4ee !important;
+  color: #17213b !important;
+  background: #fff !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-smart-toggle {
+  margin: 18px -20px 0 !important;
+  padding: 14px 20px !important;
+  background: #fcfdff !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-recurring-card {
+  border-color: #ddd6ff !important;
+  background: linear-gradient(112deg,#fbfaff,#f6f3ff) !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-view-actions button,
+html body .automation-page.plan-v70-active .plan-v70-filter-row button,
+html body .automation-page.plan-v70-active .plan-v70-more-formats {
+  border: 1px solid #e0e4ed !important;
+  color: #59647b !important;
+  background: #fff !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-view-actions button.active {
+  color: #5f38f5 !important;
+  border-color: #ddd5ff !important;
+  background: #f3efff !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-filter-row button.active {
+  color: #fff !important;
+  border-color: #6840f8 !important;
+  background: linear-gradient(135deg,#754bff,#5d32ef) !important;
+  box-shadow: 0 6px 14px rgba(99,59,240,.2) !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-format-card {
+  border: 1px solid #e1e5ee !important;
+  border-radius: 11px !important;
+  color: #1b2641 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-format-card:hover {
+  border-color: #8b6cf8 !important;
+  box-shadow: 0 12px 26px rgba(79,55,158,.11) !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-more-formats { color: #5f38f5 !important; }
+
+/* Planned posts */
+html body .automation-page.plan-v70-active .plan-v70-planned-card { padding: 0 !important; overflow: hidden; }
+.plan-v70-planned-head {
+  min-height: 58px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid #e7eaf1;
+}
+.plan-v70-planned-head > div:first-child { display: flex; align-items: center; gap: 8px; }
+.plan-v70-planned-head h2 { margin: 0; color: #121c35; font-size: 16px; }
+.plan-v70-planned-head > div:first-child > span {
+  min-width: 22px; height: 22px; padding: 0 7px; display: grid; place-items: center;
+  border-radius: 99px; color: #5e6474; background: #eef1f6; font-size: 10px; font-weight: 800;
+}
+.plan-v70-planned-actions { display: flex; align-items: center; gap: 7px; }
+html body .automation-page.plan-v70-active .plan-v70-quiet-button,
+html body .automation-page.plan-v70-active .plan-v70-add-button {
+  min-height: 34px !important; padding: 0 12px !important; display: inline-flex !important;
+  align-items: center !important; justify-content: center !important; gap: 6px !important;
+  font-size: 10.5px !important; font-weight: 760 !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-quiet-button {
+  border: 1px solid #dfe4ed !important; color: #33405c !important; background: #fff !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-add-button {
+  border: 0 !important; color: #fff !important; background: linear-gradient(135deg,#7047ff,#5b31ed) !important;
+  box-shadow: 0 8px 18px rgba(94,53,236,.22) !important;
+}
+.plan-v70-planned-table-head,
+.plan-v70-planned-row {
+  display: grid;
+  grid-template-columns: 148px minmax(220px,1.55fr) minmax(130px,.9fr) 105px 82px 34px;
+  gap: 12px;
+  align-items: center;
+}
+.plan-v70-planned-table-head {
+  min-height: 35px; padding: 0 16px; color: #74809a; background: #fbfcfe;
+  border-bottom: 1px solid #e8ebf2; font-size: 9px; font-weight: 800; text-transform: uppercase;
+}
+.plan-v70-planned-row {
+  position: relative; min-height: 55px; padding: 8px 16px; color: #1d2944;
+  border-bottom: 1px solid #e8ebf2; background: #fff;
+}
+.plan-v70-planned-row:last-child { border-bottom: 0; }
+.plan-v70-planned-date,
+.plan-v70-planned-format { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.plan-v70-planned-date strong,
+.plan-v70-planned-format strong { overflow: hidden; color: #43516e; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.plan-v70-planned-date span,
+.plan-v70-planned-format span { color: #8790a4; font-size: 9px; }
+.plan-v70-planned-post { display: grid; grid-template-columns: 38px minmax(0,1fr); gap: 9px; align-items: center; min-width: 0; }
+.plan-v70-post-thumb {
+  width: 38px; height: 38px; display: grid; place-items: center; border-radius: 8px;
+  font-size: 16px; background: linear-gradient(140deg,#fff0f7,#efeaff);
+}
+.plan-v70-post-thumb.tone-2 { background: linear-gradient(140deg,#eafaf4,#edf6ff); }
+.plan-v70-post-thumb.tone-3 { background: linear-gradient(140deg,#eeebff,#edf4ff); }
+.plan-v70-post-thumb.tone-4 { background: linear-gradient(140deg,#fff4e7,#f5efff); }
+.plan-v70-planned-post > div { min-width: 0; }
+.plan-v70-planned-post strong,
+.plan-v70-planned-post span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-v70-planned-post strong { color: #1a2540; font-size: 10.5px; }
+.plan-v70-planned-post span { margin-top: 3px; color: #7a8499; font-size: 9px; }
+.plan-v70-planned-channel { display: flex; align-items: center; gap: 6px; min-width: 0; color: #52607a; font-size: 9.5px; }
+.plan-v70-planned-channel img { width: 18px !important; height: 18px !important; }
+.plan-v70-status-pill { width: max-content; padding: 5px 8px; border-radius: 7px; color: #2167dc; background: #eaf3ff; font-size: 9px; font-weight: 800; }
+html body .automation-page.plan-v70-active .plan-v70-row-menu {
+  width: 31px !important; height: 31px !important; padding: 0 !important;
+  border: 1px solid #e0e4ed !important; color: #526079 !important; background: #fff !important;
+}
+.plan-v70-row-editor {
+  grid-column: 1 / -1; display: grid; grid-template-columns: minmax(170px,1fr) minmax(120px,.7fr) auto auto;
+  gap: 8px; align-items: center; padding: 11px; border: 1px solid #e2e5ed; border-radius: 10px; background: #f8f9fc;
+}
+html body .automation-page.plan-v70-active .plan-v70-row-editor button {
+  min-height: 37px !important; padding: 0 12px !important; border: 1px solid #dce1eb !important;
+  color: #34415c !important; background: #fff !important; font-size: 10px !important; font-weight: 750 !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-row-editor button.danger {
+  color: #a93f43 !important; border-color: #f1ced1 !important; background: #fff6f6 !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-show-all {
+  min-height: 35px !important; margin: 10px auto 12px !important; padding: 0 13px !important;
+  display: flex !important; align-items: center !important; gap: 5px !important;
+  border: 0 !important; color: #5f38f5 !important; background: transparent !important;
+  font-size: 10px !important; font-weight: 780 !important;
+}
+.plan-v70-show-all .rotated { transform: rotate(180deg); }
+
+/* Activation banner */
+html body .automation-page.plan-v70-active .plan-v70-activate-card {
+  min-height: 104px; padding: 18px 20px; display: grid; grid-template-columns: 96px minmax(0,1fr) auto;
+  gap: 18px; align-items: center; overflow: hidden; border-color: #ddd6ff !important;
+  background: linear-gradient(108deg,#f6f1ff,#fbfaff 54%,#f3efff) !important;
+}
+.plan-v70-activate-visual {
+  width: 76px; height: 66px; display: grid; place-items: center; border-radius: 17px;
+  color: #fff; background: linear-gradient(145deg,#8b70ff,#5e35ec); box-shadow: 0 14px 30px rgba(91,49,222,.25);
+}
+.plan-v70-activate-copy h2 { margin: 0; color: #121c35; font-size: 17px; }
+.plan-v70-activate-copy p { max-width: 520px; margin: 5px 0 0; color: #68738d; font-size: 11px; line-height: 1.45; }
+.plan-v70-activate-actions { min-width: 275px; display: flex; flex-direction: column; gap: 7px; }
+html body .automation-page.plan-v70-active .plan-v70-activate-actions > button {
+  min-height: 44px !important; padding: 0 22px !important; display: inline-flex !important;
+  align-items: center !important; justify-content: center !important; gap: 8px !important;
+  border: 0 !important; color: #fff !important; background: linear-gradient(135deg,#7148ff,#5a31ec) !important;
+  box-shadow: 0 10px 22px rgba(91,49,232,.24) !important; font-size: 12px !important; font-weight: 800 !important;
+}
+.plan-v70-activate-actions > span { display: flex; align-items: center; justify-content: center; gap: 5px; color: #707a91; font-size: 9px; }
+.plan-v70-success-actions { display: flex; gap: 8px; }
+html body .automation-page.plan-v70-active .plan-v70-success-actions button,
+html body .automation-page.plan-v70-active .plan-v70-success-actions a {
+  min-height: 40px !important; padding: 0 14px !important; display: inline-flex !important; align-items: center !important;
+  border: 1px solid #dcdff0 !important; color: #4f3bc0 !important; background: #fff !important;
+  font-size: 10px !important; font-weight: 760 !important; text-decoration: none !important;
+}
+.plan-v70-activate-message { grid-column: 2 / -1; margin: -7px 0 0; color: #a23c45; font-size: 10px; }
+
+/* Right rail */
+html body .automation-page.plan-v70-active .planner-sidebar { position: sticky !important; top: 22px !important; gap: 15px !important; }
+html body .automation-page.plan-v70-active .planner-summary-card,
+html body .automation-page.plan-v70-active .planner-credits-card,
+html body .automation-page.plan-v70-active .plan-v70-tip-card { padding: 17px !important; }
+html body .automation-page.plan-v70-active .planner-summary-title,
+html body .automation-page.plan-v70-active .planner-sidebar-title { margin: 0 0 12px !important; padding: 0 !important; border: 0 !important; }
+html body .automation-page.plan-v70-active .planner-summary-title > .planner-summary-icon { display: none !important; }
+html body .automation-page.plan-v70-active .planner-summary-title h3,
+html body .automation-page.plan-v70-active .planner-sidebar-title h3 { margin: 0 !important; color: #141e36 !important; font-size: 15px !important; }
+html body .automation-page.plan-v70-active .planner-summary-title p { margin: 3px 0 0 !important; color: #7b8498 !important; font-size: 9.5px !important; }
+html body .automation-page.plan-v70-active .planner-summary-list.premium { margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; }
+html body .automation-page.plan-v70-active .planner-summary-list.premium .planner-summary-item {
+  min-height: 48px !important; padding: 9px 0 !important; display: grid !important;
+  grid-template-columns: 28px minmax(0,1fr) !important; gap: 9px !important;
+  border: 0 !important; border-top: 1px solid #edf0f4 !important; border-radius: 0 !important; background: transparent !important;
+}
+html body .automation-page.plan-v70-active .planner-summary-list.premium .planner-summary-item:first-child { border-top: 0 !important; }
+html body .automation-page.plan-v70-active .planner-summary-list.premium .planner-summary-item:nth-last-child(-n+2) { display: none !important; }
+html body .automation-page.plan-v70-active .planner-summary-icon {
+  width: 27px !important; height: 27px !important; border-radius: 8px !important;
+  color: #6542e9 !important; background: #f0ecff !important;
+}
+html body .automation-page.plan-v70-active .planner-summary-list.premium .planner-summary-item span:not(.planner-summary-icon) { color: #7d8699 !important; font-size: 9px !important; }
+html body .automation-page.plan-v70-active .planner-summary-list.premium .planner-summary-item strong { color: #26324d !important; font-size: 10.5px !important; }
+html body .automation-page.plan-v70-active .planner-summary-status { display: none !important; }
+html body .automation-page.plan-v70-active .plan-v70-review-button {
+  width: 100% !important; min-height: 43px !important; margin-top: 13px !important; padding: 0 14px !important;
+  display: flex !important; align-items: center !important; justify-content: space-between !important;
+  border: 0 !important; color: #fff !important; background: linear-gradient(135deg,#7148ff,#5b31ef) !important;
+  box-shadow: 0 9px 20px rgba(94,51,235,.22) !important; font-size: 10.5px !important; font-weight: 800 !important;
+}
+html body .automation-page.plan-v70-active .planner-credit-progress { height: 6px !important; border-radius: 99px !important; background: #eceef3 !important; }
+html body .automation-page.plan-v70-active .planner-credit-progress div { border-radius: 99px !important; background: linear-gradient(90deg,#7250ff,#5934ec) !important; }
+html body .automation-page.plan-v70-active .planner-credit-wave,
+html body .automation-page.plan-v70-active .planner-credit-help,
+html body .automation-page.plan-v70-active .planner-upgrade-button { display: none !important; }
+html body .automation-page.plan-v70-active .plan-v70-credit-details,
+html body .automation-page.plan-v70-active .plan-v70-tip-card button {
+  min-height: 30px !important; margin-top: 8px !important; padding: 0 !important;
+  display: inline-flex !important; align-items: center !important; gap: 6px !important;
+  border: 0 !important; color: #5f38f5 !important; background: transparent !important;
+  font-size: 10px !important; font-weight: 780 !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-tip-card { border-color: #f0dfc9 !important; background: linear-gradient(145deg,#fffdf8,#fffaf2) !important; }
+.plan-v70-tip-title { display: flex; align-items: center; gap: 8px; color: #17213a; }
+.plan-v70-tip-title svg { color: #d79325; }
+.plan-v70-tip-card p { margin: 10px 0 0; color: #66718a; font-size: 10.5px; line-height: 1.55; }
+
+@media (max-width: 1280px) {
+  html body .automation-page.plan-v70-active { padding: 22px 22px 36px !important; }
+  html body .automation-page.plan-v70-active .wizard-layout { grid-template-columns: minmax(0,1fr) 260px !important; gap: 17px !important; }
+  html body .automation-page.plan-v70-active .plan-v70-settings-grid { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+  .plan-v70-planned-table-head,
+  .plan-v70-planned-row { grid-template-columns: 125px minmax(180px,1.4fr) minmax(110px,.8fr) 88px 72px 32px; gap: 9px; }
+}
+@media (max-width: 1020px) {
+  html body .automation-page.plan-v70-active .wizard-layout { grid-template-columns: 1fr !important; }
+  html body .automation-page.plan-v70-active .planner-sidebar { position: static !important; grid-template-columns: repeat(3,minmax(0,1fr)) !important; }
+}
+@media (max-width: 760px) {
+  html body .automation-page.plan-v70-active { padding: 18px 12px 30px !important; }
+  html body .automation-page.plan-v70-active .plan-v70-settings-grid { grid-template-columns: 1fr !important; }
+  html body .automation-page.plan-v70-active .plan-v70-format-carousel { grid-auto-columns: 68% !important; }
+  .plan-v70-planned-head { align-items: flex-start; flex-direction: column; }
+  .plan-v70-planned-actions { width: 100%; }
+  html body .automation-page.plan-v70-active .plan-v70-planned-actions .plan-v70-quiet-button:first-child { display: none !important; }
+  html body .automation-page.plan-v70-active .plan-v70-add-button { margin-left: auto !important; }
+  .plan-v70-planned-table-head { display: none; }
+  .plan-v70-planned-row { grid-template-columns: 72px minmax(0,1fr) auto; gap: 9px; padding: 12px 13px; }
+  .plan-v70-planned-date { grid-row: 1 / span 2; }
+  .plan-v70-planned-post,
+  .plan-v70-planned-format,
+  .plan-v70-planned-channel { grid-column: 2; }
+  .plan-v70-status-pill { grid-column: 3; grid-row: 1; }
+  .plan-v70-row-menu { grid-column: 3; grid-row: 2; }
+  .plan-v70-row-editor { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+  html body .automation-page.plan-v70-active .plan-v70-activate-card { grid-template-columns: 64px minmax(0,1fr) !important; gap: 13px !important; padding: 16px !important; }
+  .plan-v70-activate-visual { width: 58px; height: 58px; }
+  .plan-v70-activate-actions,
+  .plan-v70-success-actions { grid-column: 1 / -1; width: 100%; min-width: 0; }
+  .plan-v70-activate-message { grid-column: 1 / -1; }
+  html body .automation-page.plan-v70-active .planner-sidebar { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 480px) {
+  html body .automation-page.plan-v70-active .plan-v70-template-button { width: 42px !important; min-width: 42px !important; padding: 0 !important; font-size: 0 !important; }
+  html body .automation-page.plan-v70-active .plan-v70-format-carousel { grid-auto-columns: 78% !important; }
+  .plan-v70-planned-row { grid-template-columns: 58px minmax(0,1fr) 31px; }
+  .plan-v70-planned-channel span { display: none; }
+  .plan-v70-row-editor { grid-template-columns: 1fr; }
 }
