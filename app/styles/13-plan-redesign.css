@@ -1093,3 +1093,721 @@ html body .automation-page.plan-v70-active .plan-v70-tip-card { border-color: #f
   .plan-v70-planned-channel span { display: none; }
   .plan-v70-row-editor { grid-template-columns: 1fr; }
 }
+
+/* v72 — usable type scale, configurable format library and responsive plan layout */
+html body .app-shell.spreelo-shell {
+  align-items: stretch !important;
+  min-height: 100vh !important;
+}
+
+@media (min-width: 761px) {
+  html body .sidebar.spreelo-sidebar {
+    position: sticky !important;
+    top: 0 !important;
+    align-self: flex-start !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    margin: 0 !important;
+  }
+}
+
+html body .automation-page.plan-v70-active .plan-v70-settings-card {
+  position: relative !important;
+  z-index: 30 !important;
+  overflow: visible !important;
+}
+html body .automation-page.plan-v70-active .custom-picker-anchor {
+  position: relative !important;
+}
+html body .automation-page.plan-v70-active .custom-calendar-popover {
+  z-index: 10000 !important;
+  box-shadow: 0 22px 52px rgba(22, 29, 52, .2) !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-recurring-card,
+html body .automation-page.plan-v70-active .plan-v70-formats-card {
+  position: relative;
+  z-index: 1;
+}
+
+/* Normal readable text sizing */
+html body .automation-page.plan-v70-active .plan-v70-section-heading h2,
+html body .automation-page.plan-v70-active .plan-v70-formats-head h2,
+html body .automation-page.plan-v70-active .plan-v70-recurring-main h2,
+html body .automation-page.plan-v70-active .plan-v70-offer-heading h2,
+html body .automation-page.plan-v70-active .plan-v70-planned-head h2 {
+  font-size: 18px !important;
+  line-height: 1.25 !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-section-heading p,
+html body .automation-page.plan-v70-active .plan-v70-formats-head p,
+html body .automation-page.plan-v70-active .plan-v70-recurring-main p,
+html body .automation-page.plan-v70-active .plan-v70-offer-heading p {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-field > span,
+html body .automation-page.plan-v70-active .plan-v70-offer-grid label > span {
+  font-size: 12px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-field select,
+html body .automation-page.plan-v70-active .plan-v70-field input,
+html body .automation-page.plan-v70-active .custom-picker-button,
+html body .automation-page.plan-v70-active .plan-v70-offer-grid input {
+  font-size: 14px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-field small,
+html body .automation-page.plan-v70-active .plan-v70-toggle-copy small,
+html body .automation-page.plan-v70-active .plan-v70-credit-notice span {
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-toggle-copy strong,
+html body .automation-page.plan-v70-active .plan-v70-inline-toggle strong,
+html body .automation-page.plan-v70-active .plan-v70-credit-notice strong {
+  font-size: 13px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-view-actions button,
+html body .automation-page.plan-v70-active .plan-v70-filter-row button,
+html body .automation-page.plan-v70-active .plan-v70-more-formats,
+html body .automation-page.plan-v70-active .plan-v70-quiet-button,
+html body .automation-page.plan-v70-active .plan-v70-add-button {
+  font-size: 12px !important;
+}
+
+/* Functional channel and display controls */
+.plan-v72-channel-filter {
+  position: relative;
+  min-width: 132px;
+  display: flex;
+  align-items: center;
+}
+.plan-v72-channel-filter select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 34px 0 12px;
+  appearance: none;
+  border: 1px solid #e0e4ed;
+  border-radius: 9px;
+  color: #4f5b73;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.plan-v72-channel-filter > svg {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
+  color: #69748a;
+}
+
+.plan-v72-format-guard {
+  margin-top: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #ded5ff;
+  border-radius: 11px;
+  color: #4c3b91;
+  background: #f8f5ff;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.plan-v72-format-guard svg { flex: 0 0 auto; color: #6b43f5; }
+
+.plan-v72-format-library {
+  margin-top: 14px;
+}
+.plan-v72-format-library.grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(188px, 1fr);
+  gap: 11px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  padding: 1px 1px 10px;
+  scrollbar-width: thin;
+}
+.plan-v72-format-library.list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+html body .automation-page.plan-v70-active .plan-v72-format-card {
+  position: relative;
+  min-width: 0;
+  padding: 0 !important;
+  overflow: hidden;
+  display: flex !important;
+  flex-direction: column;
+  text-align: left;
+  scroll-snap-align: start;
+  border: 1px solid #dfe4ee !important;
+  border-radius: 13px !important;
+  color: #172039 !important;
+  background: #fff !important;
+  box-shadow: 0 4px 14px rgba(30, 38, 65, .035) !important;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+html body .automation-page.plan-v70-active .plan-v72-format-card.grid {
+  min-height: 230px;
+}
+html body .automation-page.plan-v70-active .plan-v72-format-card:hover {
+  transform: translateY(-2px);
+  border-color: #8b72f6 !important;
+  box-shadow: 0 14px 28px rgba(68, 48, 142, .11) !important;
+}
+html body .automation-page.plan-v70-active .plan-v72-format-card.disabled {
+  opacity: .72;
+}
+html body .automation-page.plan-v70-active .plan-v72-format-card.disabled:hover {
+  transform: none;
+}
+.plan-v72-format-art {
+  position: relative;
+  width: 100%;
+  min-height: 116px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 16px;
+  color: #6138e8;
+  background: linear-gradient(145deg, #fff0f7, #f6efff);
+}
+.plan-v72-format-art.tone-2 { color: #17846f; background: linear-gradient(145deg, #eafaf5, #edf8ff); }
+.plan-v72-format-art.tone-3 { color: #4d4fe3; background: linear-gradient(145deg, #eef0ff, #f6f1ff); }
+.plan-v72-format-art.tone-4 { color: #b36a18; background: linear-gradient(145deg, #fff3e9, #fff7f3); }
+.plan-v72-format-art.tone-5 { color: #6c40e8; background: linear-gradient(145deg, #f7efff, #eef8ff); }
+.plan-v72-format-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.plan-v72-format-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(20,24,43,.04));
+}
+.plan-v72-format-art-icon {
+  position: relative;
+  z-index: 1;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255,255,255,.78);
+  box-shadow: 0 8px 20px rgba(54, 44, 105, .08);
+}
+.plan-v72-format-art-lines {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 7px;
+}
+.plan-v72-format-art-lines i {
+  width: 82%;
+  height: 6px;
+  border-radius: 99px;
+  background: currentColor;
+  opacity: .13;
+}
+.plan-v72-format-art-lines i:nth-child(2) { width: 62%; }
+.plan-v72-format-art-lines i:nth-child(3) { width: 43%; }
+.plan-v72-format-card-copy {
+  min-height: 105px;
+  padding: 13px 14px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plan-v72-format-card-copy strong {
+  color: #18223b;
+  font-size: 14px;
+  line-height: 1.25;
+}
+.plan-v72-format-card-copy small {
+  color: #657189;
+  font-size: 12px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+.plan-v72-format-card-action {
+  position: absolute;
+  right: 11px;
+  bottom: 10px;
+  color: #6842ed;
+  font-size: 15px;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: .18s ease;
+}
+.plan-v72-format-card:hover .plan-v72-format-card-action { opacity: 1; transform: translateX(0); }
+.plan-v72-format-library.list .plan-v72-format-card,
+.plan-v72-all-formats-grid.list .plan-v72-format-card {
+  min-height: 132px;
+  display: grid !important;
+  grid-template-columns: 142px minmax(0, 1fr);
+}
+.plan-v72-format-library.list .plan-v72-format-art,
+.plan-v72-all-formats-grid.list .plan-v72-format-art {
+  min-height: 132px;
+  height: 100%;
+}
+.plan-v72-format-library.list .plan-v72-format-card-copy,
+.plan-v72-all-formats-grid.list .plan-v72-format-card-copy {
+  min-height: 0;
+  justify-content: center;
+  padding: 18px;
+}
+.plan-v72-format-empty {
+  margin: 18px 0 8px;
+  color: #778198;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Same premium cards inside the full library */
+.plan-v72-all-formats-grid {
+  max-height: min(68vh, 720px);
+  overflow-y: auto;
+  padding: 2px 4px 8px;
+}
+.plan-v72-all-formats-grid.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.plan-v72-all-formats-grid.list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+html body .automation-page.plan-v70-active .add-post-modal:not(.add-post-modal-focus) {
+  width: min(1080px, calc(100vw - 36px)) !important;
+  max-height: 90vh;
+  padding: 24px !important;
+  border-radius: 20px !important;
+  background: #fbfcff !important;
+}
+
+/* Premium explanation modal */
+.plan-v72-format-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  padding: 22px;
+  display: grid;
+  place-items: center;
+  background: rgba(9, 16, 35, .62);
+  backdrop-filter: blur(7px);
+}
+.plan-v72-format-modal {
+  position: relative;
+  width: min(920px, calc(100vw - 32px));
+  max-height: min(88vh, 760px);
+  overflow: auto;
+  display: grid;
+  grid-template-columns: minmax(300px, .88fr) minmax(0, 1.12fr);
+  border: 1px solid rgba(222,226,238,.95);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 34px 90px rgba(7, 12, 30, .3);
+}
+.plan-v72-format-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e0e4ec;
+  border-radius: 12px;
+  color: #34415a;
+  background: rgba(255,255,255,.92);
+  cursor: pointer;
+}
+.plan-v72-format-modal-visual {
+  position: relative;
+  min-height: 480px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  background: linear-gradient(150deg, #eee9ff, #f7efff 48%, #eaf8ff);
+}
+.plan-v72-format-modal-visual .plan-v72-format-art.large {
+  position: absolute;
+  inset: 0;
+  min-height: 100%;
+  border-radius: 0;
+  padding: 38px;
+}
+.plan-v72-format-modal-visual .plan-v72-format-art.large .plan-v72-format-art-icon {
+  width: 74px;
+  height: 74px;
+  border-radius: 22px;
+}
+.plan-v72-format-modal-visual > span:last-child {
+  position: relative;
+  z-index: 2;
+  width: max-content;
+  padding: 7px 10px;
+  border-radius: 99px;
+  color: #fff;
+  background: rgba(17,23,43,.72);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+.plan-v72-format-modal-content {
+  padding: 42px 38px 32px;
+  display: flex;
+  flex-direction: column;
+}
+.plan-v72-format-modal-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.plan-v72-format-modal-icon {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #643af0;
+  background: #f0ebff;
+}
+.plan-v72-format-modal-heading p {
+  margin: 0 0 4px;
+  color: #6c7690;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.plan-v72-format-modal-heading h2 {
+  margin: 0;
+  color: #131d35;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.08;
+  letter-spacing: -.035em;
+}
+.plan-v72-format-modal-lead {
+  margin: 20px 0 0;
+  color: #4f5b72;
+  font-size: 15px;
+  line-height: 1.65;
+}
+.plan-v72-format-modal-benefits {
+  margin-top: 22px;
+  display: grid;
+  gap: 11px;
+}
+.plan-v72-format-modal-benefits article {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 38px minmax(0,1fr);
+  gap: 11px;
+  border: 1px solid #e7e9f0;
+  border-radius: 13px;
+  background: #fafbfe;
+}
+.plan-v72-format-modal-benefits article > span {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #613be7;
+  background: #efeaff;
+}
+.plan-v72-format-modal-benefits strong {
+  color: #1b2741;
+  font-size: 13px;
+}
+.plan-v72-format-modal-benefits p {
+  margin: 4px 0 0;
+  color: #69748b;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.plan-v72-format-plan-impact {
+  margin-top: 18px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-radius: 11px;
+  color: #5c6680;
+  background: #f5f2ff;
+  font-size: 12px;
+}
+.plan-v72-format-plan-impact strong { color: #4f36b9; text-align: right; }
+.plan-v72-format-modal-actions {
+  margin-top: auto;
+  padding-top: 24px;
+  display: grid;
+  grid-template-columns: auto minmax(190px, 1fr);
+  gap: 10px;
+}
+.plan-v72-format-modal-actions button {
+  min-height: 46px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.plan-v72-format-modal-actions .secondary {
+  border: 1px solid #dde1ea;
+  color: #39465f;
+  background: #fff;
+}
+.plan-v72-format-modal-actions .primary {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(135deg, #754bff, #5c31ed);
+  box-shadow: 0 12px 26px rgba(91,49,232,.25);
+}
+
+/* Planned post table: readable desktop text */
+html body .automation-page.plan-v70-active .plan-v70-planned-table-head {
+  font-size: 10.5px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-planned-date strong,
+html body .automation-page.plan-v70-active .plan-v70-planned-format strong {
+  font-size: 12px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-planned-date span,
+html body .automation-page.plan-v70-active .plan-v70-planned-format span,
+html body .automation-page.plan-v70-active .plan-v70-planned-post span,
+html body .automation-page.plan-v70-active .plan-v70-planned-channel {
+  font-size: 11px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-planned-post strong {
+  font-size: 13px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-status-pill {
+  font-size: 10.5px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-show-all {
+  font-size: 12px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-activate-copy h2 {
+  font-size: 19px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-activate-copy p,
+html body .automation-page.plan-v70-active .plan-v70-activate-actions > span {
+  font-size: 12px !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-activate-actions > button {
+  font-size: 13px !important;
+}
+
+/* Right rail: prevent the one-letter columns seen on tablet */
+html body .automation-page.plan-v70-active .planner-sidebar,
+html body .automation-page.plan-v70-active .planner-sidebar * {
+  min-width: 0;
+}
+html body .automation-page.plan-v70-active .planner-sidebar h3,
+html body .automation-page.plan-v70-active .planner-sidebar p,
+html body .automation-page.plan-v70-active .planner-sidebar span,
+html body .automation-page.plan-v70-active .planner-sidebar strong,
+html body .automation-page.plan-v70-active .planner-sidebar button {
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  hyphens: none !important;
+}
+html body .automation-page.plan-v70-active .planner-summary-title h3,
+html body .automation-page.plan-v70-active .planner-sidebar-title h3 {
+  font-size: 17px !important;
+  line-height: 1.2 !important;
+}
+html body .automation-page.plan-v70-active .planner-summary-title p,
+html body .automation-page.plan-v70-active .planner-summary-list.premium .planner-summary-item span:not(.planner-summary-icon),
+html body .automation-page.plan-v70-active .planner-credit-reset,
+html body .automation-page.plan-v70-active .plan-v70-tip-card p {
+  font-size: 11.5px !important;
+}
+html body .automation-page.plan-v70-active .planner-summary-list.premium .planner-summary-item strong {
+  font-size: 12.5px !important;
+  line-height: 1.35 !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-review-button,
+html body .automation-page.plan-v70-active .plan-v70-credit-details,
+html body .automation-page.plan-v70-active .plan-v70-tip-card button {
+  font-size: 12px !important;
+}
+
+@media (max-width: 1320px) {
+  html body .automation-page.plan-v70-active .wizard-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  html body .automation-page.plan-v70-active .planner-sidebar {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    align-items: stretch !important;
+  }
+  html body .automation-page.plan-v70-active .planner-sidebar > section {
+    height: 100%;
+  }
+}
+
+@media (max-width: 920px) {
+  html body .automation-page.plan-v70-active .planner-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  html body .automation-page.plan-v70-active .planner-sidebar > section:first-child {
+    grid-column: 1 / -1;
+  }
+  .plan-v72-all-formats-grid.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .plan-v72-format-modal { grid-template-columns: 1fr; }
+  .plan-v72-format-modal-visual { min-height: 260px; }
+  .plan-v72-format-modal-content { padding: 28px; }
+}
+
+@media (max-width: 760px) {
+  .plan-v70-formats-head { align-items: stretch; flex-direction: column; }
+  .plan-v70-view-actions { justify-content: flex-end; }
+  .plan-v72-channel-filter { margin-right: auto; }
+  .plan-v70-filter-row { overflow-x: auto; flex-wrap: nowrap !important; padding-bottom: 5px; }
+  .plan-v70-filter-row button { white-space: nowrap; }
+  .plan-v72-format-library.grid { grid-auto-columns: minmax(210px, 76vw); }
+  .plan-v72-format-library.list { grid-template-columns: 1fr; }
+  .plan-v72-all-formats-grid.grid { grid-template-columns: 1fr; }
+  html body .automation-page.plan-v70-active .add-post-modal:not(.add-post-modal-focus) {
+    padding: 18px 14px !important;
+  }
+  .plan-v72-format-modal-backdrop { padding: 10px; }
+  .plan-v72-format-modal { width: 100%; max-height: 94vh; border-radius: 19px; }
+  .plan-v72-format-modal-visual { min-height: 210px; }
+  .plan-v72-format-modal-content { padding: 24px 20px 20px; }
+  .plan-v72-format-modal-heading h2 { font-size: 25px; }
+  .plan-v72-format-modal-lead { font-size: 14px; }
+  .plan-v72-format-plan-impact { align-items: flex-start; flex-direction: column; }
+  .plan-v72-format-plan-impact strong { text-align: left; }
+  .plan-v72-format-modal-actions { grid-template-columns: 1fr; }
+  .plan-v72-format-modal-actions .primary { grid-row: 1; }
+
+  /* Mobile planned posts become clear cards instead of a compressed table */
+  html body .automation-page.plan-v70-active .plan-v70-planned-table {
+    padding: 10px;
+    display: grid;
+    gap: 10px;
+    background: #f7f8fb;
+  }
+  html body .automation-page.plan-v70-active .plan-v70-planned-row {
+    min-height: 0;
+    padding: 14px !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: auto auto auto auto !important;
+    gap: 10px 12px !important;
+    border: 1px solid #e1e5ed !important;
+    border-radius: 13px !important;
+    background: #fff !important;
+    box-shadow: 0 6px 18px rgba(29, 38, 64, .04);
+  }
+  .plan-v70-planned-date {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 7px !important;
+  }
+  .plan-v70-planned-date strong { white-space: normal !important; }
+  .plan-v70-planned-date span::before { content: "• "; }
+  .plan-v70-status-pill { grid-column: 2 !important; grid-row: 1 !important; align-self: center; }
+  .plan-v70-planned-post {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    grid-template-columns: 46px minmax(0, 1fr) !important;
+    gap: 11px !important;
+  }
+  .plan-v70-post-thumb { width: 46px !important; height: 46px !important; }
+  .plan-v70-planned-post strong,
+  .plan-v70-planned-post span {
+    white-space: normal !important;
+  }
+  .plan-v70-planned-post span {
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .plan-v70-planned-format {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px !important;
+  }
+  .plan-v70-planned-format span::before { content: "• "; }
+  .plan-v70-row-menu {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+    justify-self: end;
+  }
+  .plan-v70-planned-channel {
+    grid-column: 1 / -1 !important;
+    grid-row: 4 !important;
+  }
+  .plan-v70-planned-channel span { display: inline !important; }
+  .plan-v70-row-editor {
+    grid-column: 1 / -1 !important;
+    grid-row: 5 !important;
+  }
+  html body .automation-page.plan-v70-active .plan-v70-activate-card {
+    grid-template-columns: 58px minmax(0,1fr) !important;
+  }
+  .plan-v70-activate-copy h2,
+  .plan-v70-activate-copy p {
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+  }
+  .plan-v70-activate-actions { grid-column: 1 / -1 !important; }
+  html body .automation-page.plan-v70-active .planner-sidebar {
+    grid-template-columns: 1fr !important;
+  }
+  html body .automation-page.plan-v70-active .planner-sidebar > section:first-child { grid-column: auto; }
+}
+
+@media (max-width: 480px) {
+  .plan-v72-format-library.grid { grid-auto-columns: minmax(205px, 84vw); }
+  .plan-v72-format-library.list .plan-v72-format-card,
+  .plan-v72-all-formats-grid.list .plan-v72-format-card {
+    grid-template-columns: 105px minmax(0, 1fr);
+  }
+  .plan-v72-format-card-copy { padding: 12px; }
+  .plan-v72-format-card-copy strong { font-size: 13px; }
+  .plan-v72-format-card-copy small { font-size: 11.5px; }
+  .plan-v70-planned-actions { flex-wrap: wrap; }
+  html body .automation-page.plan-v70-active .plan-v70-add-button { flex: 1 1 auto; }
+}

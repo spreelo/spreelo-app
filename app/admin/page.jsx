@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   FileVideo2,
   ImagePlay,
+  LayoutGrid,
   Languages,
   LoaderCircle,
   RefreshCw,
@@ -280,6 +281,16 @@ export default function AdminDashboardPage() {
                   <p>Look up an account by email, add compensation credits or correct a balance with an audit trail.</p>
                 </div>
                 <strong>Manage credits →</strong>
+              </a>
+
+              <a className="admin-tool-card" href="/admin/content-formats">
+                <span className="admin-tool-icon"><LayoutGrid size={24} aria-hidden="true" /></span>
+                <div>
+                  <span className="admin-card-kicker">{t("admin.formats.kicker")}</span>
+                  <h2>{t("admin.formats.title")}</h2>
+                  <p>{t("admin.formats.dashboardDescription")}</p>
+                </div>
+                <strong>{t("admin.formats.manage")} →</strong>
               </a>
             </section>
 

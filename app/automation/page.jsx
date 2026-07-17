@@ -9,6 +9,8 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  CircleHelp,
+  Clapperboard,
   Clock3,
   ClipboardList,
   CreditCard,
@@ -22,9 +24,12 @@ import {
   ListChecks,
   MailCheck,
   MapPin,
+  Megaphone,
   Globe2,
+  GalleryHorizontalEnd,
   Languages,
   PenLine,
+  PlayCircle,
   Plus,
   Puzzle,
   Repeat2,
@@ -40,12 +45,17 @@ import {
   Video,
   WandSparkles,
   Wrench,
+  X,
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
 import { getCreditCostForContent } from "../../lib/credits";
+import {
+  DEFAULT_CONTENT_FORMAT_MAP,
+  normalizeContentFormatRows,
+} from "../../lib/contentFormatLibrary";
 
 const DEFAULT_TIME_ZONE = "UTC";
 const SPREELO_INTERNAL_TESTER_EMAIL = "johan@foldern.com";
@@ -501,6 +511,75 @@ function SlotTypeGlyph({ slot }) {
     slotTypeIconComponents[slot?.contentTypeId] || slotTypeIconComponents.custom;
 
   return <Icon size={15} strokeWidth={2.1} aria-hidden="true" />;
+}
+
+const contentFormatIconComponents = {
+  ShoppingBag,
+  Megaphone,
+  PlayCircle,
+  GalleryHorizontalEnd,
+  Puzzle,
+  Lightbulb,
+  AlertTriangle,
+  CircleHelp,
+  Clapperboard,
+  ListChecks,
+  Wrench,
+  Trophy,
+  Sparkles,
+  MapPin,
+  CalendarDays,
+  Scale,
+  BookOpen,
+  Link2,
+  Tag,
+  PenLine,
+};
+
+function ContentFormatGlyph({ name, size = 23 }) {
+  const Icon = contentFormatIconComponents[name] || Sparkles;
+  return <Icon size={size} strokeWidth={2} aria-hidden="true" />;
+}
+
+function ContentFormatArtwork({ item, index = 0, large = false }) {
+  const imageUrl = String(item?.image_url || "").trim();
+
+  return (
+    <span className={`plan-v72-format-art tone-${(index % 5) + 1}${large ? " large" : ""}`}>
+      {imageUrl ? (
+        <img src={imageUrl} alt="" loading="lazy" />
+      ) : (
+        <>
+          <span className="plan-v72-format-art-icon">
+            <ContentFormatGlyph name={item?.icon_name} size={large ? 34 : 24} />
+          </span>
+          <span className="plan-v72-format-art-lines" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
+function ContentFormatCard({ item, index = 0, view = "grid", onClick, disabled = false }) {
+  return (
+    <button
+      type="button"
+      className={`plan-v72-format-card ${view === "list" ? "list" : "grid"}${disabled ? " disabled" : ""}`}
+      onClick={onClick}
+      aria-disabled={disabled}
+    >
+      <ContentFormatArtwork item={item} index={index} />
+      <span className="plan-v72-format-card-copy">
+        <strong>{item?.label}</strong>
+        <small>{item?.description}</small>
+      </span>
+      <span className="plan-v72-format-card-action" aria-hidden="true">→</span>
+    </button>
+  );
 }
 
 const howItWorksIconComponents = {
@@ -5221,6 +5300,14 @@ const [slots, setSlots] = useState([]);
   );
   const [offerPlannerLoading, setOfferPlannerLoading] = useState(false);
   const [offerPlannerError, setOfferPlannerError] = useState("");
+  const [contentFormatLibrary, setContentFormatLibrary] = useState(() =>
+    normalizeContentFormatRows([])
+  );
+  const [formatFilter, setFormatFilter] = useState("all");
+  const [formatView, setFormatView] = useState("grid");
+  const [formatChannel, setFormatChannel] = useState("all");
+  const [formatPreviewId, setFormatPreviewId] = useState("");
+  const [formatGuardMessage, setFormatGuardMessage] = useState("");
   const [editingRuleId, setEditingRuleId] = useState("");
 
   const [planName, setPlanName] = useState("");
@@ -5310,6 +5397,27 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
     loadRules();
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadContentFormatLibrary() {
+      try {
+        const response = await fetch("/api/content-formats", { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!cancelled && response.ok && Array.isArray(payload?.formats)) {
+          setContentFormatLibrary(normalizeContentFormatRows(payload.formats));
+        }
+      } catch (error) {
+        console.warn("Could not load the content format library; using defaults.", error);
+      }
+    }
+
+    loadContentFormatLibrary();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const timeZoneOptions = useMemo(() => {
     const options = new Set([timeZone, getLocaleDefaultTimeZone(locale), DEFAULT_TIME_ZONE, ...commonTimeZones]);
 
@@ -5358,7 +5466,6 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
     monthlyCreditLimit > 0
       ? Math.min(100, Math.round((creditsRemaining / monthlyCreditLimit) * 100))
       : 0;
-  const subscriptionDateLabel = getSubscriptionDateLabel(creditBalance);
   const subscriptionDateValue = getSubscriptionDateValue(
     creditBalance,
     timeZone
@@ -5377,6 +5484,84 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   const visibleContentTypes = useMemo(() => {
     return getVisibleContentTypes(websiteProductModeAvailable);
   }, [websiteProductModeAvailable]);
+
+  const displayedAutoPlanPostCountOptions = useMemo(
+    () => Array.from(new Set([...autoPlanPostCountOptions, autoPlanPostCount])).sort((a, b) => a - b),
+    [autoPlanPostCount]
+  );
+
+  const exploreFormatItems = useMemo(() => {
+    const visibleTypeMap = Object.fromEntries(
+      visibleContentTypes.map((type) => [type.id, type])
+    );
+
+    return contentFormatLibrary
+      .filter((config) => config.active !== false)
+      .map((config) => {
+        const formatId = config.content_type_id;
+
+        if (formatId === "offer_campaign") {
+          return {
+            ...config,
+            id: formatId,
+            kind: "offer_campaign",
+            label: t("automation.formatCard.offer_campaign.label"),
+            description: t("automation.formatCard.offer_campaign.description"),
+            howItWorks: t("automation.formatCard.offer_campaign.howItWorks"),
+            benefit: t("automation.formatCard.offer_campaign.benefit"),
+          };
+        }
+
+        if (formatId === "focus_source") {
+          return {
+            ...config,
+            id: formatId,
+            kind: "focus_source",
+            label: t("automation.formatCard.focus_source.label"),
+            description: t("automation.formatCard.focus_source.description"),
+            howItWorks: t("automation.formatCard.focus_source.howItWorks"),
+            benefit: t("automation.formatCard.focus_source.benefit"),
+          };
+        }
+
+        const type = visibleTypeMap[formatId];
+        if (!type) return null;
+
+        return {
+          ...config,
+          id: formatId,
+          kind: "content_type",
+          type,
+          label: translateContentTypeShortLabel(type),
+          description: t(`automation.formatCard.${formatId}.description`),
+          howItWorks: t(`automation.formatCard.${formatId}.howItWorks`),
+          benefit: t(`automation.formatCard.${formatId}.benefit`),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+  }, [contentFormatLibrary, visibleContentTypes, locale]);
+
+  const filteredExploreFormatItems = useMemo(() => {
+    if (formatFilter === "all") return exploreFormatItems;
+    if (formatFilter === "popular") {
+      return exploreFormatItems.filter((item) => item.is_featured || item.category === "popular");
+    }
+    return exploreFormatItems.filter((item) => item.category === formatFilter);
+  }, [exploreFormatItems, formatFilter]);
+
+  const mainExploreFormatItems = useMemo(() => {
+    if (formatFilter !== "all") return filteredExploreFormatItems;
+    const featured = exploreFormatItems.filter((item) => item.is_featured);
+    return (featured.length ? featured : exploreFormatItems).slice(0, 8);
+  }, [exploreFormatItems, filteredExploreFormatItems, formatFilter]);
+
+  const selectedFormatPreview = useMemo(
+    () => exploreFormatItems.find((item) => item.id === formatPreviewId) || null,
+    [exploreFormatItems, formatPreviewId]
+  );
+
+  const hasInitialGoalPlan = Boolean(autoPlanGoal && slots.length > 0);
 
   const focusedSourceContentTypes = useMemo(() => {
     const types = getVisibleContentTypes(websiteProductModeAvailable);
@@ -5423,6 +5608,15 @@ const shouldShowPlannerDetails =
 
   function getFocusSourceCopy(key) {
     return t(`automation.focusSource.${key}`);
+  }
+
+  function getLocalizedCreditDateLabel(balance) {
+    if (balance?.subscription_status === "trialing") return t("automation.creditDate.trialEnds");
+    if (balance?.cancel_at_period_end) return t("automation.creditDate.accessUntil");
+    if (balance?.subscription_status === "past_due") return t("automation.creditDate.paymentDue");
+    if (balance?.subscription_status === "canceled") return t("automation.creditDate.ended");
+    if (balance?.subscription_status === "expired") return t("automation.creditDate.expired");
+    return t("automation.creditDate.renews");
   }
 
   function getFocusSourceKindLabel(source) {
@@ -5492,6 +5686,10 @@ const shouldShowPlannerDetails =
 
     if (!selectedSource?.url || !selectedType) return;
 
+    const nextPlanCount = slots.length + 1;
+    setSelectedContentTypeIds((currentIds) => [...currentIds, selectedType.id]);
+    setAutoPlanPostCount(nextPlanCount);
+
     setSlots((currentSlots) => {
       const nextContentTypeIds = [
         ...currentSlots.map((slot) => slot.contentTypeId).filter(Boolean),
@@ -5520,16 +5718,14 @@ const shouldShowPlannerDetails =
       };
 
       if (selectedType.id === "manual_prompt") {
-        setExpandedInstructionSlotIds((currentIds) => [
-          ...currentIds,
-          preparedSlot.id,
-        ]);
+        setExpandedInstructionSlotIds((currentIds) => [...currentIds, preparedSlot.id]);
       }
 
       return [...currentSlots, preparedSlot];
     });
 
     closeAddPostModal();
+    setFormatPreviewId("");
 
     if (typeof window !== "undefined") {
       window.requestAnimationFrame(() => scrollToPlannerSchedule());
@@ -7059,9 +7255,13 @@ function addSlot() {
   function addSlotFromContentType(typeId) {
     const selectedType = getContentTypeById(typeId);
 
-    if (!selectedType) {
-      return;
-    }
+    if (!selectedType) return;
+
+    const nextPlanCount = slots.length + 1;
+    setMessage("");
+    setFormatGuardMessage("");
+    setSelectedContentTypeIds((currentIds) => [...currentIds, selectedType.id]);
+    setAutoPlanPostCount(nextPlanCount);
 
     setSlots((currentSlots) => {
       const nextContentTypeIds = [
@@ -7107,16 +7307,20 @@ function addSlot() {
       });
 
       if (selectedType.id === "manual_prompt") {
-        setExpandedInstructionSlotIds((currentIds) => [
-          ...currentIds,
-          newSlot.id,
-        ]);
+        setExpandedInstructionSlotIds((currentIds) => [...currentIds, newSlot.id]);
       }
 
       return [...currentSlots, newSlot];
     });
 
+    setRecentlyAddedContentTypeId(typeId);
+    window.setTimeout(() => setRecentlyAddedContentTypeId(""), 450);
+    setFormatPreviewId("");
     closeAddPostModal();
+
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => scrollToPlannerSchedule());
+    }
   }
   function duplicateSlot(slotId) {
     const slotToCopy = slots.find((slot) => slot.id === slotId);
@@ -8265,26 +8469,81 @@ setRules((currentRules) =>
 
     setSaving(false);
   }
- function chooseRedesignFormat(typeId) {
-  const selectedType = getContentTypeById(typeId);
-  if (!selectedType) return;
-
-  const nextSlot = createSlotFromContentType(selectedType, 0, {
-    startDate: planStartDate,
-    timeZone,
-    contentTypeIds: [selectedType.id],
-    goalId: autoPlanGoal || "get_followers",
-  });
-
-  setMessage("");
-  setSavedPlanSummary(null);
-  setPlanCreationMode("select");
-  setSelectedContentTypeIds([selectedType.id]);
-  setSlots([nextSlot]);
+ function showChooseGoalFirstMessage() {
+  const copy = t("automation.format.chooseGoalFirst");
+  setFormatGuardMessage(copy);
+  setMessage(copy);
 
   if (typeof window !== "undefined") {
-    window.requestAnimationFrame(() => scrollToPlannerSchedule());
+    window.requestAnimationFrame(() => {
+      document.querySelector(".plan-v70-settings-card")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   }
+}
+
+ function requestFormatPreview(formatId) {
+  if (!hasInitialGoalPlan) {
+    showChooseGoalFirstMessage();
+    return;
+  }
+
+  const item = exploreFormatItems.find((formatItem) => formatItem.id === formatId);
+  if (!item) return;
+
+  setMessage("");
+  setFormatGuardMessage("");
+  setOfferPlannerOpen(false);
+  setShowAddPostModal(false);
+  setFormatPreviewId(formatId);
+}
+
+ function openAllFormats() {
+  if (!hasInitialGoalPlan) {
+    showChooseGoalFirstMessage();
+    return;
+  }
+
+  setFormatGuardMessage("");
+  setOfferPlannerOpen(false);
+  setAddPostModalView("types");
+  setShowAddPostModal(true);
+}
+
+ function confirmSelectedFormat() {
+  if (!selectedFormatPreview) return;
+
+  if (selectedFormatPreview.kind === "offer_campaign") {
+    setFormatPreviewId("");
+    setOfferPlannerOpen(true);
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        document.getElementById("plan-v72-offer-builder")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    }
+    return;
+  }
+
+  if (selectedFormatPreview.kind === "focus_source") {
+    setFormatPreviewId("");
+    setAddPostModalView("focus_source");
+    setFocusSource(null);
+    setFocusSourceInput("");
+    setFocusSourceError("");
+    setShowAddPostModal(true);
+    return;
+  }
+
+  addSlotFromContentType(selectedFormatPreview.id);
+}
+
+ function chooseRedesignFormat(typeId) {
+  requestFormatPreview(typeId);
 }
 
  function startAnotherPlan() {
@@ -8307,6 +8566,10 @@ setRules((currentRules) =>
   setScheduleType("weekly");
   setVaryWeeklyContentTypes(true);
   setOfferPlannerOpen(false);
+  setFormatPreviewId("");
+  setFormatGuardMessage("");
+  setFormatFilter("all");
+  setFormatView("grid");
   setOfferSourceScope("whole_website");
   setOfferSourceUrl("");
   setOfferCode("");
@@ -8386,7 +8649,7 @@ setRules((currentRules) =>
                       onChange={(event) => changeAutoPlanPostCount(Number(event.target.value))}
                       disabled={planCreationMode === "campaign"}
                     >
-                      {autoPlanPostCountOptions.map((count) => (
+                      {displayedAutoPlanPostCountOptions.map((count) => (
                         <option value={count} key={count}>
                           {t("automation.redesign.postsPerWeekValue", { count })}
                         </option>
@@ -8499,71 +8762,93 @@ setRules((currentRules) =>
                     <p>{t("automation.redesign.exploreFormatsText")}</p>
                   </div>
                   <div className="plan-v70-view-actions">
-                    <button type="button">{t("automation.redesign.allChannels")} <ChevronDown size={15} /></button>
-                    <button type="button" className="active" aria-label="Grid"><LayoutGrid size={16} /></button>
-                    <button type="button" aria-label="List"><List size={16} /></button>
+                    <label className="plan-v72-channel-filter">
+                      <span className="sr-only">{t("automation.redesign.channel")}</span>
+                      <select value={formatChannel} onChange={(event) => setFormatChannel(event.target.value)}>
+                        <option value="all">{t("automation.redesign.allChannels")}</option>
+                        {connectedPlatformOptions.map((option) => (
+                          <option key={`format-channel-${option.value}`} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={15} aria-hidden="true" />
+                    </label>
+                    <button
+                      type="button"
+                      className={formatView === "grid" ? "active" : ""}
+                      aria-label={t("automation.format.gridView")}
+                      onClick={() => setFormatView("grid")}
+                    >
+                      <LayoutGrid size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className={formatView === "list" ? "active" : ""}
+                      aria-label={t("automation.format.listView")}
+                      onClick={() => setFormatView("list")}
+                    >
+                      <List size={16} />
+                    </button>
                   </div>
                 </div>
 
                 <div className="plan-v70-filter-row" aria-label={t("automation.redesign.formatFilters") }>
-                  <button type="button" className="active">{t("automation.redesign.allFormats")}</button>
-                  <button type="button">{t("automation.redesign.popular")}</button>
-                  <button type="button">{t("automation.redesign.text")}</button>
-                  <button type="button">{t("automation.redesign.imageAds")}</button>
-                  <button type="button">{t("automation.redesign.video")}</button>
-                  <button type="button">{t("automation.redesign.educational")}</button>
-                </div>
-
-                <div className="plan-v70-format-carousel">
-                  {visibleContentTypes.slice(0, 6).map((type, index) => (
+                  {[
+                    ["all", t("automation.redesign.allFormats")],
+                    ["popular", t("automation.redesign.popular")],
+                    ["text", t("automation.redesign.text")],
+                    ["image_ads", t("automation.redesign.imageAds")],
+                    ["video", t("automation.redesign.video")],
+                    ["educational", t("automation.redesign.educational")],
+                    ["sales", t("automation.format.sales")],
+                  ].map(([value, label]) => (
                     <button
                       type="button"
-                      className={`plan-v70-format-card tone-${(index % 4) + 1}`}
-                      key={`v70-${type.id}`}
-                      onClick={() => chooseRedesignFormat(type.id)}
+                      className={formatFilter === value ? "active" : ""}
+                      key={`format-filter-${value}`}
+                      onClick={() => setFormatFilter(value)}
                     >
-                      <span className="plan-v70-format-preview">
-                        <span className="plan-v70-format-glyph">{getContentTypeIcon(type.id)}</span>
-                        <span className="plan-v70-preview-line wide" />
-                        <span className="plan-v70-preview-line" />
-                        <span className="plan-v70-preview-line short" />
-                      </span>
-                      <strong>{translateContentTypeShortLabel(type)}</strong>
-                      <small>{translateContentTypeDescription(type)}</small>
+                      {label}
                     </button>
                   ))}
-
-                  <button
-                    type="button"
-                    className="plan-v70-format-card plan-v70-offer-card"
-                    onClick={() => setOfferPlannerOpen((current) => !current)}
-                  >
-                    <span className="plan-v70-format-preview offer">
-                      <Tag size={22} />
-                      <span>{t("automation.offerPlan.cardCode")}</span>
-                      <span>{t("automation.offerPlan.cardDate")}</span>
-                    </span>
-                    <strong>{t("automation.offerPlan.cardTitle")}</strong>
-                    <small>{t("automation.offerPlan.cardText")}</small>
-                  </button>
                 </div>
+
+                {formatGuardMessage ? (
+                  <div className="plan-v72-format-guard" role="status">
+                    <Info size={18} aria-hidden="true" />
+                    <span>{formatGuardMessage}</span>
+                  </div>
+                ) : null}
+
+                <div className={`plan-v72-format-library ${formatView === "list" ? "list" : "grid"}`}>
+                  {mainExploreFormatItems.map((item, index) => (
+                    <ContentFormatCard
+                      item={item}
+                      index={index}
+                      view={formatView}
+                      disabled={!hasInitialGoalPlan}
+                      key={`v72-${item.id}`}
+                      onClick={() => requestFormatPreview(item.id)}
+                    />
+                  ))}
+                </div>
+
+                {mainExploreFormatItems.length === 0 ? (
+                  <p className="plan-v72-format-empty">{t("automation.format.noMatches")}</p>
+                ) : null}
 
                 <button
                   type="button"
                   className="plan-v70-more-formats"
-                  onClick={() => {
-                    setAddPostModalView("types");
-                    setShowAddPostModal(true);
-                  }}
+                  onClick={openAllFormats}
                 >
                   {t("automation.redesign.showMoreFormats")} <ChevronDown size={16} />
                 </button>
               </section>
 
               {offerPlannerOpen ? (
-                <section className="plan-v70-offer-builder">
+                <section className="plan-v70-offer-builder" id="plan-v72-offer-builder">
                   <div className="plan-v70-offer-heading">
-                    <span className="plan-v70-icon amber"><ShoppingBag size={19} /></span>
+                    <span className="plan-v70-icon amber"><Tag size={19} /></span>
                     <div>
                       <h2>{t("automation.offerPlan.title")}</h2>
                       <p>{t("automation.offerPlan.description")}</p>
@@ -8990,7 +9275,7 @@ setRules((currentRules) =>
                   </div>
                 ) : (
                   <div className="planner-segmented-buttons">
-                    {autoPlanPostCountOptions.map((option) => (
+                    {displayedAutoPlanPostCountOptions.map((option) => (
                    <button
   type="button"
   key={option}
@@ -10345,7 +10630,7 @@ setRules((currentRules) =>
                   </div>
 
                             <p className="planner-credit-reset">
-                    {subscriptionDateLabel}: {subscriptionDateValue}
+                    {getLocalizedCreditDateLabel(creditBalance)}: {subscriptionDateValue === "Not set yet" ? t("automation.notSetYet") : subscriptionDateValue}
                   </p>
 
                   <div className="planner-credit-wave" />
@@ -10388,6 +10673,87 @@ setRules((currentRules) =>
             </section>
           </aside>
             </div>
+
+        {selectedFormatPreview && (
+          <div
+            className="plan-v72-format-modal-backdrop"
+            onClick={() => setFormatPreviewId("")}
+          >
+            <section
+              className="plan-v72-format-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="plan-v72-format-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="plan-v72-format-modal-close"
+                onClick={() => setFormatPreviewId("")}
+                aria-label={t("automation.format.close")}
+              >
+                <X size={20} aria-hidden="true" />
+              </button>
+
+              <div className="plan-v72-format-modal-visual">
+                <ContentFormatArtwork item={selectedFormatPreview} index={0} large />
+                <span>{t("automation.format.detailsEyebrow")}</span>
+              </div>
+
+              <div className="plan-v72-format-modal-content">
+                <div className="plan-v72-format-modal-heading">
+                  <span className="plan-v72-format-modal-icon">
+                    <ContentFormatGlyph name={selectedFormatPreview.icon_name} size={24} />
+                  </span>
+                  <div>
+                    <p>{t("automation.format.recommendedForGoal", { goal: translateAutoPlanGoalLabel(autoPlanGoal) })}</p>
+                    <h2 id="plan-v72-format-title">{selectedFormatPreview.label}</h2>
+                  </div>
+                </div>
+
+                <p className="plan-v72-format-modal-lead">{selectedFormatPreview.description}</p>
+
+                <div className="plan-v72-format-modal-benefits">
+                  <article>
+                    <span><WandSparkles size={18} aria-hidden="true" /></span>
+                    <div>
+                      <strong>{t("automation.format.howItWorks")}</strong>
+                      <p>{selectedFormatPreview.howItWorks}</p>
+                    </div>
+                  </article>
+                  <article>
+                    <span><Target size={18} aria-hidden="true" /></span>
+                    <div>
+                      <strong>{t("automation.format.goodFor")}</strong>
+                      <p>{selectedFormatPreview.benefit}</p>
+                    </div>
+                  </article>
+                </div>
+
+                <div className="plan-v72-format-plan-impact">
+                  <span>{t("automation.format.currentPlan")}</span>
+                  <strong>
+                    {selectedFormatPreview.kind === "content_type"
+                      ? t("automation.format.planCountChange", { before: slots.length, after: slots.length + 1 })
+                      : t("automation.format.opensPlanner")}
+                  </strong>
+                </div>
+
+                <div className="plan-v72-format-modal-actions">
+                  <button type="button" className="secondary" onClick={() => setFormatPreviewId("")}>
+                    {t("automation.format.cancel")}
+                  </button>
+                  <button type="button" className="primary" onClick={confirmSelectedFormat}>
+                    {selectedFormatPreview.kind === "content_type" ? <Plus size={18} /> : <ChevronDown size={18} />}
+                    {selectedFormatPreview.kind === "content_type"
+                      ? t("automation.format.addToPlan")
+                      : t("automation.format.continue")}
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
 
         {showAddPostModal && (
           <div
@@ -10522,25 +10888,15 @@ setRules((currentRules) =>
                   )}
                 </div>
               ) : (
-                <div className="add-post-modal-grid">
-                  <button
-                    type="button"
-                    className="add-post-type-card add-post-focus-source-card"
-                    onClick={openFocusSourceSelector}
-                  >
-                    <strong>{getFocusSourceCopy("cardTitle")}</strong>
-                    <p>{getFocusSourceCopy("cardText")}</p>
-                  </button>
-                  {visibleContentTypes.map((type) => (
-                    <button
-                      type="button"
-                      key={type.id}
-                      className="add-post-type-card"
-                      onClick={() => addSlotFromContentType(type.id)}
-                    >
-                      <strong>{translateContentTypeLabel(type)}</strong>
-                      <p>{translateContentTypeDescription(type)}</p>
-                    </button>
+                <div className={`plan-v72-all-formats-grid ${formatView === "list" ? "list" : "grid"}`}>
+                  {exploreFormatItems.map((item, index) => (
+                    <ContentFormatCard
+                      item={item}
+                      index={index}
+                      view={formatView}
+                      key={`modal-format-${item.id}`}
+                      onClick={() => requestFormatPreview(item.id)}
+                    />
                   ))}
                 </div>
               )}
