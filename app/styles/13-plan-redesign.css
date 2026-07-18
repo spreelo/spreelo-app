@@ -2802,3 +2802,61 @@ html body .automation-page.plan-v70-active .platform-multiselect .platform-multi
   font-size: 14px !important;
   font-weight: 600 !important;
 }
+
+/* v81 — polish plan settings, content-type intro copy, and date-field shell */
+html body .automation-page.plan-v70-active .plan-v70-field .custom-picker-field {
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-field .custom-picker-anchor,
+html body .automation-page.plan-v70-active .plan-v70-field .custom-picker-button {
+  width: 100% !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-smart-toggle .plan-v70-toggle-track,
+html body .automation-page.plan-v70-active .plan-v70-inline-toggle > span {
+  width: 38px !important;
+  height: 22px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-smart-toggle .plan-v70-toggle-track > span,
+html body .automation-page.plan-v70-active .plan-v70-inline-toggle > span::after {
+  width: 18px !important;
+  height: 18px !important;
+  top: 2px !important;
+  left: 2px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-smart-toggle input:checked + .plan-v70-toggle-track > span,
+html body .automation-page.plan-v70-active .plan-v70-inline-toggle input:checked + span::after {
+  transform: translateX(16px) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-formats-head p,
+html body .automation-page.plan-v70-active .plan-v74-content-types-note {
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v74-content-types-note {
+  display: block !important;
+  margin-top: 6px !important;
+  color: #b45d3f !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-field select,
+html body .automation-page.plan-v70-active .plan-v70-field input,
+html body .automation-page.plan-v70-active .custom-picker-button,
+html body .automation-page.plan-v70-active .platform-multiselect-button,
+html body .automation-page.plan-v70-active .plan-v70-offer-grid input,
+html body .automation-page.plan-v70-active .plan-v73-platform-loading,
+html body .automation-page.plan-v70-active .plan-v73-connect-platform,
+html body .automation-page.plan-v70-active .plan-v73-selected-platform,
+html body .automation-page.plan-v70-active .platform-placeholder {
+  font-weight: 600 !important;
+}
