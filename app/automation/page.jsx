@@ -8761,7 +8761,7 @@ setRules((currentRules) =>
                   <label className="plan-v70-field">
                     <span>{t("automation.goal")}</span>
                     <select value={autoPlanGoal} onChange={(event) => changeAutoPlanGoal(event.target.value)}>
-                      <option value="">{t("automation.redesign.chooseGoal")}</option>
+                      <option value="" disabled hidden>{t("automation.redesign.chooseGoal")}</option>
                       {autoPlanGoals.map((goal) => (
                         <option value={goal.id} key={goal.id}>
                           {translateAutoPlanGoalLabel(goal.id)}
@@ -9379,7 +9379,7 @@ setRules((currentRules) =>
     changeAutoPlanGoal(event.target.value);
   }}
 >
- <option value="" disabled>
+ <option value="" disabled hidden>
   {planCreationMode === "manual"
     ? t("automation.notUsedForManual")
     : t("automation.chooseGoalToBuild")}

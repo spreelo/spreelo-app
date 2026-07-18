@@ -3458,3 +3458,54 @@ html body .dashboard-plan-hub-section .saved-header {
     padding: 8px 12px 9px !important;
   }
 }
+
+/* v80 — more readable mobile/tablet sidebar typography */
+@media (max-width: 900px) {
+  html body .sidebar.spreelo-sidebar .current-brand-card label,
+  html body .spreelo-sidebar .current-brand-card label,
+  html body .sidebar.spreelo-sidebar .current-brand-loading,
+  html body .spreelo-sidebar .current-brand-loading {
+    font-size: 12px !important;
+  }
+
+  html body .sidebar.spreelo-sidebar .current-brand-select,
+  html body .spreelo-sidebar .current-brand-select {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+  }
+
+  html body .sidebar.spreelo-sidebar .current-brand-new,
+  html body .spreelo-sidebar .current-brand-new {
+    min-height: 42px !important;
+    font-size: 15px !important;
+    font-weight: 720 !important;
+  }
+
+  html body .sidebar.spreelo-sidebar .spreelo-nav a,
+  html body .sidebar.spreelo-sidebar .nav.spreelo-nav a,
+  html body .spreelo-sidebar .spreelo-nav a,
+  html body .spreelo-sidebar .nav.spreelo-nav a {
+    min-height: 48px !important;
+    font-size: 16px !important;
+    font-weight: 650 !important;
+    line-height: 1.3 !important;
+  }
+
+  html body .sidebar.spreelo-sidebar .sidebar-plan-card strong,
+  html body .spreelo-sidebar .sidebar-plan-card strong {
+    font-size: 15px !important;
+  }
+
+  html body .sidebar.spreelo-sidebar .sidebar-plan-card span,
+  html body .spreelo-sidebar .sidebar-plan-card span {
+    font-size: 13.5px !important;
+    line-height: 1.35 !important;
+  }
+
+  html body .sidebar.spreelo-sidebar .sidebar-logout-button,
+  html body .spreelo-sidebar .sidebar-logout-button {
+    min-height: 44px !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+  }
+}

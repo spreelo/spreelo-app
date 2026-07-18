@@ -2733,3 +2733,72 @@ html body .automation-page.plan-v70-active .plan-v76-credit-breakdown strong {
     overflow-y: auto !important;
   }
 }
+
+/* v78 — lighter field text weight across desktop, tablet and mobile */
+html body .automation-page.plan-v70-active .plan-v70-field select,
+html body .automation-page.plan-v70-active .plan-v70-field input,
+html body .automation-page.plan-v70-active .custom-picker-button,
+html body .automation-page.plan-v70-active .platform-multiselect-button,
+html body .automation-page.plan-v70-active .plan-v70-offer-grid input,
+html body .automation-page.plan-v70-active .plan-v73-platform-loading,
+html body .automation-page.plan-v70-active .plan-v73-connect-platform,
+html body .automation-page.plan-v70-active .plan-v73-selected-platform,
+html body .automation-page.plan-v70-active .platform-placeholder {
+  font-weight: 600 !important;
+}
+
+html body .automation-page.plan-v70-active .custom-picker-button strong {
+  font-weight: 600 !important;
+}
+
+/* v79 — restore compact clickable checkboxes in the platform multiselect.
+   The generic field-height rules must never style checkbox inputs as full-size fields. */
+html body .automation-page.plan-v70-active .plan-v73-platform-multiselect .platform-multiselect-option input[type="checkbox"],
+html body .automation-page.plan-v70-active .platform-multiselect .platform-multiselect-option input[type="checkbox"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  width: 17px !important;
+  min-width: 17px !important;
+  max-width: 17px !important;
+  height: 17px !important;
+  min-height: 17px !important;
+  max-height: 17px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 3px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  accent-color: #ef6849 !important;
+  cursor: pointer !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v73-platform-multiselect .platform-multiselect-option,
+html body .automation-page.plan-v70-active .platform-multiselect .platform-multiselect-option {
+  grid-template-columns: 18px 24px minmax(0, 1fr) !important;
+  min-height: 44px !important;
+  padding: 8px 10px !important;
+  gap: 9px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v73-platform-multiselect .platform-multiselect-option .platform-icon-img,
+html body .automation-page.plan-v70-active .platform-multiselect .platform-multiselect-option .platform-icon-img {
+  width: 22px !important;
+  min-width: 22px !important;
+  max-width: 22px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  max-height: 22px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  object-fit: contain !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v73-platform-multiselect .platform-multiselect-option span,
+html body .automation-page.plan-v70-active .platform-multiselect .platform-multiselect-option span {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
