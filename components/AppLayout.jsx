@@ -51,7 +51,7 @@ async function withTimeout(promise, timeoutMs) {
 const navItems = [
   {
     id: "dashboard",
-    labelKey: "layout.nav.dashboard",
+    labelKey: "layout.nav.home",
     href: "/",
     Icon: LayoutDashboard,
   },

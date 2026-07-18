@@ -556,8 +556,7 @@ export default function Home() {
   const upcomingRules = useMemo(() => {
     return activeRules
       .filter((rule) => rule.next_run_at && isFutureDate(rule.next_run_at))
-      .sort((a, b) => new Date(a.next_run_at) - new Date(b.next_run_at))
-      .slice(0, 5);
+      .sort((a, b) => new Date(a.next_run_at) - new Date(b.next_run_at));
   }, [activeRules]);
 
   const publishedThisMonthCount = useMemo(() => {

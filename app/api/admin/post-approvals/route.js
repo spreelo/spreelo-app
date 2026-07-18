@@ -16,7 +16,7 @@ export async function GET(request) {
   let query = context.admin
     .from("posts")
     .select(
-      "id, user_id, brand_profile_id, automation_rule_id, status, content, platform, post_type, content_format, scheduled_for, created_at, updated_at, approved_at, approval_email_sent_at"
+      "id, user_id, brand_profile_id, automation_rule_id, status, content, platform, post_type, content_format, image_url, video_url, image_status, video_status, scheduled_for, created_at, updated_at, approved_at, approval_email_sent_at"
     )
     .in("status", Array.from(VISIBLE_STATUSES))
     .order("created_at", { ascending: false })
@@ -34,7 +34,7 @@ export async function GET(request) {
   const userIds = Array.from(new Set(postRows.map((item) => item.user_id).filter(Boolean)));
   const postIds = postRows.map((item) => item.id);
 
-  const [{ data: brands }, { data: feedbackRows }] = await Promise.all([
+  const [{ data: brands }, { data: feedbackRows }, { data: slideRows }] = await Promise.all([
     brandIds.length
       ? context.admin.from("brand_profiles").select("id, business_name").in("id", brandIds)
       : Promise.resolve({ data: [] }),
@@ -45,6 +45,13 @@ export async function GET(request) {
             "id, post_id, reason_category, reason_text, contact_email, review_status, refund_status, admin_note, reviewed_at, created_at"
           )
           .in("post_id", postIds)
+      : Promise.resolve({ data: [] }),
+    postIds.length
+      ? context.admin
+          .from("post_slides")
+          .select("post_id, slide_order, headline, body, cta_text, image_url, product_url, metadata")
+          .in("post_id", postIds)
+          .order("slide_order", { ascending: true })
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -62,6 +69,11 @@ export async function GET(request) {
   const brandMap = Object.fromEntries((brands || []).map((item) => [item.id, item.business_name]));
   const userMap = Object.fromEntries(userEntries);
   const feedbackMap = Object.fromEntries((feedbackRows || []).map((item) => [item.post_id, item]));
+  const slidesMap = (slideRows || []).reduce((map, slide) => {
+    if (!map[slide.post_id]) map[slide.post_id] = [];
+    map[slide.post_id].push(slide);
+    return map;
+  }, {});
 
   return Response.json({
     ok: true,
@@ -70,6 +82,7 @@ export async function GET(request) {
       brand_name: brandMap[item.brand_profile_id] || "",
       customer_email: userMap[item.user_id] || "",
       rejection: feedbackMap[item.id] || null,
+      slides: slidesMap[item.id] || [],
     })),
   });
 }

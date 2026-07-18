@@ -1,9 +1,4 @@
-/*
-  Spreelo global CSS entrypoint.
-  The old 21k-line globals.css has been split into ordered style layers.
-  Keep this import order: later files intentionally contain overrides that win in the cascade.
-*/
-
+/* Ordered global style layers. Later files intentionally contain scoped overrides. */
 @import "./styles/01-foundation.css";
 @import "./styles/02-campaign-calendar.css";
 @import "./styles/03-planner-builder.css";
@@ -14,8 +9,7 @@
 @import "./styles/08-integrated-shell.css";
 @import "./styles/09-reference-polish.css";
 @import "./styles/10-login-refresh.css";
-
 @import "./styles/11-video-backgrounds.css";
 @import "./styles/12-admin.css";
-
 @import "./styles/13-plan-redesign.css";
+@import "./styles/14-v74-channel-upcoming-admin.css";

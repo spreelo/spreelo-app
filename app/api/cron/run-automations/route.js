@@ -23,6 +23,7 @@ import {
   buildVideoBackgroundProfile,
   chooseVideoBackground,
 } from "../../../../lib/videoBackgroundSelection.js";
+import { createPlanPreviewToken } from "../../../../lib/planPreviewToken.js";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -5265,6 +5266,7 @@ function buildApprovalEmailHtml({
   carouselSlides = [],
   isCarouselDraft = false,
   nextRule = null,
+  upcomingPlanUrl = "",
 }) {
   const platformLabel = rule.platform || "Social media";
   const postTypeLabel = rule.post_type || "Post";
@@ -5280,6 +5282,20 @@ function buildApprovalEmailHtml({
     rule,
     nextRule,
   });
+  const upcomingPlanHtml = upcomingPlanUrl ? `
+    <tr>
+      <td style="padding:0 28px 24px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff7f1;border:1px solid #efc6b7;border-radius:14px;">
+          <tr>
+            <td style="padding:18px 20px;">
+              <p style="margin:0 0 6px;color:#9a412b;font-size:14px;font-weight:800;">${escapeHtml(t("emails.approval.upcomingPlanTitle"))}</p>
+              <p style="margin:0 0 14px;color:#4b5563;font-size:14px;line-height:1.55;">${escapeHtml(t("emails.approval.upcomingPlanText"))}</p>
+              <a href="${escapeHtml(upcomingPlanUrl)}" style="display:inline-block;background:#ea5b3f;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">${escapeHtml(t("emails.approval.upcomingPlanButton"))}</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>` : "";
   return `
 <!doctype html>
 <html lang="${escapeHtml(locale || "en")}">
@@ -5369,6 +5385,7 @@ function buildApprovalEmailHtml({
                 </p>
               </td>
             </tr>
+            ${upcomingPlanHtml}
           </table>
 
           <p style="margin:18px 0 0;color:#9ca3af;font-size:12px;">
@@ -5392,6 +5409,7 @@ function buildApprovalEmailText({
   imageUrl,
   isCarouselDraft = false,
   nextRule = null,
+  upcomingPlanUrl = "",
 }) {
   const platformLabel = rule.platform || "Social media";
   const postTypeLabel = rule.post_type || "Post";
@@ -5421,7 +5439,10 @@ ${approveUrl}
 ${t("emails.approval.textRejectPost")}
 ${rejectUrl}
 
-${t(afterKey)}
+${upcomingPlanUrl ? `${t("emails.approval.textUpcomingPlan")}
+${upcomingPlanUrl}
+
+` : ""}${t(afterKey)}
 `.trim();
 }
 
@@ -17058,6 +17079,68 @@ async function getNextRuleInPlan({ supabase, rule }) {
   return data || null;
 }
 
+
+function getInitialPlanSlotSortValue(rule) {
+  const date = String(rule?.run_date || "").trim();
+  const time = String(rule?.publish_time || "00:00").slice(0, 5);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return `${date}T${time}`;
+  const weekdayIndex = WEEKDAYS.findIndex(
+    (weekday) => weekday.toLowerCase() === String(rule?.weekday || "").toLowerCase()
+  );
+  return `${String(weekdayIndex === -1 ? 99 : weekdayIndex).padStart(2, "0")}-${time}`;
+}
+
+async function getUpcomingPlanUrlForFinalWeeklyRule({ supabase, rule, locale }) {
+  const planName = String(rule?.name || "").trim();
+  if (
+    rule?.schedule_type !== "weekly" ||
+    !planName ||
+    !rule?.user_id ||
+    !rule?.brand_profile_id
+  ) {
+    return "";
+  }
+
+  const { data: planRules, error } = await supabase
+    .from("automation_rules")
+    .select("id, run_date, weekday, publish_time")
+    .eq("user_id", rule.user_id)
+    .eq("brand_profile_id", rule.brand_profile_id)
+    .eq("name", planName)
+    .eq("schedule_type", "weekly")
+    .eq("is_active", true);
+
+  if (error || !planRules?.length) {
+    if (error) {
+      console.warn("Could not determine final weekly rule for upcoming plan link", {
+        ruleId: rule.id,
+        message: error.message,
+      });
+    }
+    return "";
+  }
+
+  const orderedRules = planRules
+    .slice()
+    .sort((a, b) => getInitialPlanSlotSortValue(a).localeCompare(getInitialPlanSlotSortValue(b)));
+  if (orderedRules.at(-1)?.id !== rule.id) return "";
+
+  try {
+    const token = createPlanPreviewToken({
+      userId: rule.user_id,
+      brandId: rule.brand_profile_id,
+      planName,
+    });
+    return `${APP_URL}/upcoming-plan?token=${encodeURIComponent(token)}&lang=${encodeURIComponent(locale || "en")}`;
+  } catch (tokenError) {
+    console.warn("Could not create upcoming plan link", {
+      ruleId: rule.id,
+      message: tokenError.message,
+    });
+    return "";
+  }
+}
+
 async function sendApprovalEmail({
   supabase,
   resendApiKey,
@@ -17099,6 +17182,11 @@ async function sendApprovalEmail({
   const rejectUrl = `${APP_URL}/api/reject-post?token=${approvalToken}&lang=${locale}`;
 
   const nextRule = await getNextRuleInPlan({ supabase, rule });
+  const upcomingPlanUrl = await getUpcomingPlanUrlForFinalWeeklyRule({
+    supabase,
+    rule,
+    locale,
+  });
 
   let carouselSlides = [];
   if (isCarouselDraft && postId) {
@@ -17138,6 +17226,7 @@ async function sendApprovalEmail({
         carouselSlides,
         isCarouselDraft,
         nextRule,
+        upcomingPlanUrl,
       }),
       text: buildApprovalEmailText({
         locale,
@@ -17150,6 +17239,7 @@ async function sendApprovalEmail({
         carouselSlides,
         isCarouselDraft,
         nextRule,
+        upcomingPlanUrl,
       }),
     }),
   });

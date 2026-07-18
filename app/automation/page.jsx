@@ -8766,7 +8766,7 @@ setRules((currentRules) =>
                       weekdayLabels={weekdayLabels}
                       locale={locale}
                     />
-                    <small>{t("automation.redesign.startDateHelp")}</small>
+                    <small>{t("automation.redesign.startDateHelpV2")}</small>
                   </div>
 
                   <label className="plan-v70-field">
@@ -8875,7 +8875,8 @@ setRules((currentRules) =>
                     <span className="plan-v70-icon lavender"><Repeat2 size={19} /></span>
                     <div>
                       <h2>{t("automation.redesign.ongoingTitle")}</h2>
-                      <p>{t("automation.redesign.ongoingText")}</p>
+                      <p>{t("automation.redesign.ongoingTextV2")}</p>
+                      <span className="plan-v74-recurring-variation">{t("automation.redesign.ongoingVariationNote")}</span>
                     </div>
                   </div>
                   <label className="plan-v70-inline-toggle">
@@ -8907,8 +8908,9 @@ setRules((currentRules) =>
               <section className="plan-v70-card plan-v70-formats-card">
                 <div className="plan-v70-formats-head">
                   <div>
-                    <h2>{t("automation.redesign.exploreFormats")}</h2>
-                    <p>{t("automation.redesign.exploreFormatsText")}</p>
+                    <h2>{t("automation.redesign.contentTypesTitleV2")}</h2>
+                    <p>{t("automation.redesign.contentTypesTextV2")}</p>
+                    <span className="plan-v74-content-types-note">{t("automation.redesign.contentTypesNote")}</span>
                   </div>
                 </div>
 
@@ -9082,11 +9084,19 @@ setRules((currentRules) =>
                             <strong>{getLocalizedSlotFormatLabel(slot)}</strong>
                             <span>{getSlotCreditLabel(slot)}</span>
                           </div>
-                          <div className="plan-v70-planned-channel">
-                            {selectedPlatformOptions[0]?.icon ? (
-                              <img src={selectedPlatformOptions[0].icon} alt="" className="platform-icon-img" />
-                            ) : null}
-                            <span>{platformLabel}</span>
+                          <div className="plan-v70-planned-channel plan-v74-planned-channels">
+                            {selectedPlatformOptions.length > 0 ? (
+                              <span className="plan-v74-channel-stack" aria-label={selectedPlatformOptions.map((item) => item.label).join(", ")}>
+                                {selectedPlatformOptions.map((item) => (
+                                  <span className="plan-v74-channel-chip" key={`${slot.id}-${item.value}`}>
+                                    <img src={item.icon} alt="" className="platform-icon-img" />
+                                    <span>{item.label}</span>
+                                  </span>
+                                ))}
+                              </span>
+                            ) : (
+                              <span>{platformLabel}</span>
+                            )}
                           </div>
                           <span className="plan-v70-status-pill">{t("automation.redesign.planned")}</span>
                           <button
@@ -9175,6 +9185,12 @@ setRules((currentRules) =>
                     <span><ShieldCheck size={14} /> {t("automation.redesign.pauseAnytime")}</span>
                   </div>
                 )}
+                {!savedPlanSummary ? (
+                  <p className="plan-v74-approval-publishing-note">
+                    <MailCheck size={16} aria-hidden="true" />
+                    {t("automation.redesign.approvalPublishingNote")}
+                  </p>
+                ) : null}
                 {message ? <p className="plan-v70-activate-message">{message}</p> : null}
               </section>
             </section>
