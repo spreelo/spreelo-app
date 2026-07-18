@@ -538,3 +538,221 @@ html body .automation-page.plan-v70-active .plan-v70-row-editor button { min-hei
   .admin-v74-detail-body { padding-left: 16px; padding-right: 16px; }
   .admin-v74-slide-grid { grid-template-columns: 1fr; }
 }
+
+/* v76 — align Social Channels with AI Content Studio visual system */
+.social-v74-page {
+  gap: 22px;
+}
+
+.social-v74-hero {
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: start;
+  gap: 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.social-v74-eyebrow {
+  margin-bottom: 10px;
+  color: #7d736b;
+  font-size: 11px;
+  letter-spacing: .08em;
+}
+
+.social-v74-hero h1 {
+  color: #121d37;
+  font-size: clamp(40px, 4vw, 58px);
+  line-height: .98;
+  letter-spacing: -.055em;
+}
+
+.social-v74-hero-copy {
+  max-width: 760px;
+  margin-top: 12px;
+  color: #697489;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.social-v74-current-brand {
+  margin-top: 16px;
+  padding: 7px 12px;
+  border: 1px solid #ece3db;
+  border-radius: 999px;
+  background: #fffdf9;
+  color: #706761;
+  font-size: 13px;
+}
+
+.social-v74-hero-summary,
+.social-v74-intro-strip,
+.social-v74-card {
+  border: 1px solid #dfe4ee;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(31, 38, 61, .05);
+}
+
+.social-v74-hero-summary {
+  width: 100%;
+  min-width: 0;
+  padding: 18px 18px;
+  grid-template-columns: 48px minmax(0, 1fr) 40px;
+  border-color: #eadfd7;
+  background: linear-gradient(145deg, #fffdfa 0%, #fff6f1 100%);
+}
+
+.social-v74-hero-summary > span {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+}
+
+.social-v74-hero-summary strong {
+  font-size: 17px;
+}
+
+.social-v74-hero-summary p {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.social-v74-notice {
+  border-radius: 16px;
+  font-size: 14px;
+}
+
+.social-v74-intro-strip {
+  padding: 18px 20px;
+  align-items: center;
+  gap: 18px;
+}
+
+.social-v74-intro-strip strong {
+  font-size: 16px;
+}
+
+.social-v74-intro-strip p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.social-v74-intro-strip > span {
+  padding: 9px 12px;
+  font-size: 12px;
+}
+
+.social-v74-grid {
+  gap: 18px;
+}
+
+.social-v74-card {
+  padding: 24px;
+}
+
+.social-v74-platform-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+}
+
+.social-v74-card-identity p {
+  font-size: 11px;
+}
+
+.social-v74-card-identity h2 {
+  font-size: 24px;
+}
+
+.social-v74-status {
+  padding: 8px 11px;
+  font-size: 11px;
+}
+
+.social-v74-description {
+  margin: 16px 0;
+  color: #657187;
+  font-size: 14px;
+}
+
+.social-v74-connected-panel,
+.social-v74-connect-panel {
+  padding: 16px;
+  border-radius: 14px;
+}
+
+.social-v74-account-row strong,
+.social-v74-brand-chip strong {
+  font-size: 15px;
+}
+
+.social-v74-meta-grid strong {
+  font-size: 13px;
+}
+
+.social-v74-primary-action,
+.social-v74-secondary-action {
+  min-height: 48px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.social-v74-primary-action {
+  background: linear-gradient(135deg, #071626 0%, #122840 100%);
+  box-shadow: 0 14px 28px rgba(7, 22, 38, .18);
+}
+
+.social-v74-secondary-action {
+  color: #8a412f;
+}
+
+@media (max-width: 900px) {
+  .social-v74-hero {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 620px) {
+  .social-v74-page {
+    gap: 14px;
+  }
+
+  .social-v74-hero h1 {
+    font-size: 32px;
+    line-height: 1.02;
+  }
+
+  .social-v74-hero-copy {
+    font-size: 15px;
+  }
+
+  .social-v74-hero-summary,
+  .social-v74-intro-strip,
+  .social-v74-card {
+    border-radius: 18px;
+  }
+
+  .social-v74-intro-strip {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .social-v74-card {
+    padding: 18px;
+  }
+
+  .social-v74-card-identity h2 {
+    font-size: 21px;
+  }
+
+  .social-v74-description,
+  .social-v74-intro-strip p,
+  .social-v74-connect-panel p {
+    font-size: 13px;
+  }
+}

@@ -2542,3 +2542,194 @@ html body .automation-page.plan-v70-active .plan-v70-planned-actions {
     grid-auto-columns: minmax(238px, 82vw) !important;
   }
 }
+
+/* v76 — mobile polish, clearer settings fields and final activation cleanup */
+html body .automation-page.plan-v70-active .plan-v70-field > span,
+html body .automation-page.plan-v70-active .plan-v70-offer-grid label > span {
+  font-size: 14px !important;
+  line-height: 1.3 !important;
+  font-weight: 850 !important;
+  letter-spacing: -.01em !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-field select,
+html body .automation-page.plan-v70-active .plan-v70-field input,
+html body .automation-page.plan-v70-active .custom-picker-button,
+html body .automation-page.plan-v70-active .platform-multiselect-button,
+html body .automation-page.plan-v70-active .plan-v70-offer-grid input,
+html body .automation-page.plan-v70-active .plan-v73-platform-loading,
+html body .automation-page.plan-v70-active .plan-v73-connect-platform {
+  min-height: 54px !important;
+  height: 54px !important;
+  padding-left: 16px !important;
+  padding-right: 44px !important;
+  border-width: 1.5px !important;
+  border-radius: 14px !important;
+  font-size: 15px !important;
+  line-height: 1.25 !important;
+  font-weight: 750 !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+html body .automation-page.plan-v70-active .custom-picker-button {
+  justify-content: space-between !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-field small,
+html body .automation-page.plan-v70-active .plan-v70-toggle-copy small,
+html body .automation-page.plan-v70-active .plan-v70-credit-notice span {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-field select:focus,
+html body .automation-page.plan-v70-active .plan-v70-field input:focus,
+html body .automation-page.plan-v70-active .platform-multiselect-button:focus,
+html body .automation-page.plan-v70-active .custom-picker-button:focus {
+  outline: none !important;
+  border-color: #7d96ff !important;
+  box-shadow: 0 0 0 3px rgba(125, 150, 255, .14) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-review-button {
+  display: none !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-activate-actions > button,
+html body .automation-page.plan-v70-active .plan-v72-format-modal-actions .primary,
+html body .automation-page.plan-v70-active .plan-v70-offer-actions button {
+  border: 1px solid #18314a !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #071626 0%, #122840 100%) !important;
+  box-shadow: 0 16px 32px rgba(7, 22, 38, .22) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-activate-actions > button:hover,
+html body .automation-page.plan-v70-active .plan-v72-format-modal-actions .primary:hover,
+html body .automation-page.plan-v70-active .plan-v70-offer-actions button:hover {
+  background: linear-gradient(135deg, #0b1d31 0%, #173450 100%) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-activate-actions > button::after {
+  content: "→";
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ff967b;
+  background: rgba(239, 107, 77, .15);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-credit-details {
+  width: 100% !important;
+  min-height: 46px !important;
+  margin-top: 14px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  padding: 0 14px !important;
+  border: 1px solid #e5d8d1 !important;
+  border-radius: 13px !important;
+  color: #a34b34 !important;
+  background: #fff8f4 !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-credit-details.open {
+  border-color: #efcbbf !important;
+  background: #fff4ee !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v76-credit-breakdown {
+  margin-top: 12px !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v76-credit-breakdown > div {
+  padding: 12px 13px !important;
+  border: 1px solid #ece6e1 !important;
+  border-radius: 13px !important;
+  background: #fff !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v76-credit-breakdown span {
+  display: block;
+  color: #7a8497 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v76-credit-breakdown strong {
+  display: block;
+  margin-top: 5px;
+  color: #1f2a43 !important;
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+}
+
+@media (max-width: 760px) {
+  html body .automation-page.plan-v70-active .plan-v70-field > span,
+  html body .automation-page.plan-v70-active .plan-v70-offer-grid label > span {
+    font-size: 16px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-field select,
+  html body .automation-page.plan-v70-active .plan-v70-field input,
+  html body .automation-page.plan-v70-active .custom-picker-button,
+  html body .automation-page.plan-v70-active .platform-multiselect-button,
+  html body .automation-page.plan-v70-active .plan-v70-offer-grid input,
+  html body .automation-page.plan-v70-active .plan-v73-platform-loading,
+  html body .automation-page.plan-v70-active .plan-v73-connect-platform {
+    min-height: 58px !important;
+    height: 58px !important;
+    font-size: 16px !important;
+    border-radius: 15px !important;
+  }
+
+  html body .automation-page.plan-v70-active .custom-picker-button strong {
+    font-size: 18px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-field small,
+  html body .automation-page.plan-v70-active .plan-v70-toggle-copy small,
+  html body .automation-page.plan-v70-active .plan-v70-credit-notice span {
+    font-size: 14px !important;
+  }
+
+  .plan-v73-platform-multiselect .platform-multiselect-menu {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    bottom: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 13000 !important;
+    max-height: 280px !important;
+    overflow-y: auto !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v76-credit-breakdown {
+    grid-template-columns: 1fr !important;
+  }
+}
+@media (max-width: 760px) {
+  .platform-multiselect .platform-multiselect-menu {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    bottom: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 13000 !important;
+    max-height: 280px !important;
+    overflow-y: auto !important;
+  }
+}

@@ -3317,3 +3317,144 @@ html body .dashboard-plan-hub-section .saved-header {
     line-height: 1.35 !important;
   }
 }
+
+/* v77 — sticky two-row mobile header with brand strip */
+@media (max-width: 900px) {
+  html body {
+    --spreelo-mobile-topbar-height: 62px;
+    --spreelo-mobile-brandbar-height: 48px;
+    --spreelo-mobile-header-total: calc(var(--spreelo-mobile-topbar-height) + var(--spreelo-mobile-brandbar-height));
+  }
+
+  html body .spreelo-mobile-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 120 !important;
+    display: block !important;
+    min-height: var(--spreelo-mobile-header-total) !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+
+  html body .spreelo-mobile-topbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 42px !important;
+    gap: 12px !important;
+    align-items: center !important;
+    min-height: var(--spreelo-mobile-topbar-height) !important;
+    padding: 10px 14px !important;
+    background: linear-gradient(180deg, #06101c 0%, #0a1625 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+    box-shadow: 0 14px 28px rgba(5, 11, 19, 0.26) !important;
+  }
+
+  html body .spreelo-mobile-topbar .spreelo-logo-lockup {
+    justify-self: start !important;
+  }
+
+  html body .spreelo-mobile-topbar .spreelo-logo-word {
+    color: #fff !important;
+  }
+
+  html body .spreelo-mobile-topbar .spreelo-logo-mark {
+    box-shadow: 0 10px 24px rgba(239, 107, 77, 0.36) !important;
+  }
+
+  html body .spreelo-mobile-brandbar {
+    display: flex !important;
+    align-items: center !important;
+    min-height: var(--spreelo-mobile-brandbar-height) !important;
+    padding: 9px 14px 10px !important;
+    background: #f2ede4 !important;
+    border-bottom: 1px solid rgba(42, 31, 23, 0.09) !important;
+    box-shadow: 0 12px 26px rgba(47, 31, 21, 0.08) !important;
+  }
+
+  html body .spreelo-mobile-brand {
+    display: grid !important;
+    gap: 2px !important;
+    min-width: 0 !important;
+  }
+
+  html body .spreelo-mobile-brand span {
+    color: #6e665f !important;
+    font-size: 9px !important;
+    line-height: 1 !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+  }
+
+  html body .spreelo-mobile-brand strong {
+    color: #171d29 !important;
+    font-size: 14px !important;
+    line-height: 1.15 !important;
+    font-weight: 850 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  html body .spreelo-mobile-menu-button {
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: #fff !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04) !important;
+  }
+
+  html body .spreelo-mobile-menu-button:hover,
+  html body .spreelo-mobile-menu-button:focus-visible {
+    background: rgba(255, 255, 255, 0.11) !important;
+    border-color: rgba(255,255,255,0.2) !important;
+    outline: none !important;
+  }
+
+  html body .spreelo-mobile-menu-icon {
+    width: 20px !important;
+    height: 20px !important;
+    stroke: currentColor !important;
+  }
+
+  html body .content.spreelo-content {
+    padding-top: calc(var(--spreelo-mobile-header-total) + 8px) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  html body {
+    --spreelo-mobile-topbar-height: 60px;
+    --spreelo-mobile-brandbar-height: 46px;
+  }
+
+  html body .spreelo-mobile-topbar {
+    grid-template-columns: minmax(0, 1fr) 40px !important;
+    padding: 10px 12px !important;
+  }
+
+  html body .spreelo-mobile-logo {
+    display: inline-flex !important;
+    min-width: 0 !important;
+  }
+
+  html body .spreelo-mobile-logo .spreelo-logo-word {
+    font-size: 28px !important;
+  }
+
+  html body .spreelo-mobile-menu-button {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 11px !important;
+  }
+
+  html body .spreelo-mobile-brandbar {
+    padding: 8px 12px 9px !important;
+  }
+}

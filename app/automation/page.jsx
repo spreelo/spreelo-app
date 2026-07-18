@@ -4976,6 +4976,26 @@ export default function AutomationPage() {
     return t(`automation.contentType.${type.id}.description`);
   }
 
+  function getFormatCardDescription(type, fallback = "") {
+    const translated = translateContentTypeDescription(type);
+    if (translated && !/^automation\./.test(String(translated))) {
+      return translated;
+    }
+
+    const rawDescription = String(type?.description || "").trim();
+    if (rawDescription) return rawDescription;
+
+    return fallback || t("automation.customPostExplanation");
+  }
+
+  function getSafeText(key, fallback = "") {
+    const value = t(key);
+    if (value && !String(value).startsWith("automation.")) {
+      return value;
+    }
+    return fallback;
+  }
+
   function getSlotContentExplanation(slot) {
     if (slot?.isCampaignSlot && slot.campaignSummary) {
       return slot.campaignSummary;
@@ -5369,6 +5389,7 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   const [showSavedRules, setShowSavedRules] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [showLearnMoreModal, setShowLearnMoreModal] = useState(false);
+  const [showCreditDetails, setShowCreditDetails] = useState(false);
   const [recentlyAddedContentTypeId, setRecentlyAddedContentTypeId] =
   useState("");
   const [expandedInstructionSlotIds, setExpandedInstructionSlotIds] = useState(
@@ -5520,7 +5541,12 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
             id: formatId,
             kind: "offer_campaign",
             label: t("automation.formatCard.offer_campaign.label"),
-            description: t("automation.formatCard.offer_campaign.description"),
+            description: getSafeText(
+              "automation.formatCard.offer_campaign.description",
+              plannerLocaleIsSwedish
+                ? "Låt Spreelo bygga en tidsstyrd erbjudandeplan kring en kampanj, lansering eller promotion."
+                : "Let Spreelo build a time-based offer plan around one campaign, promotion or launch."
+            ),
             howItWorks: t("automation.formatCard.offer_campaign.howItWorks"),
             benefit: t("automation.formatCard.offer_campaign.benefit"),
           };
@@ -5532,7 +5558,12 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
             id: formatId,
             kind: "focus_source",
             label: t("automation.formatCard.focus_source.label"),
-            description: t("automation.formatCard.focus_source.description"),
+            description: getSafeText(
+              "automation.formatCard.focus_source.description",
+              plannerLocaleIsSwedish
+                ? "Välj en exakt sida, produkt eller kategori så att hela planen håller samma fokus."
+                : "Choose one exact page, product or category so every post stays focused on that source."
+            ),
             howItWorks: t("automation.formatCard.focus_source.howItWorks"),
             benefit: t("automation.formatCard.focus_source.benefit"),
           };
@@ -5547,7 +5578,10 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
           kind: "content_type",
           type,
           label: translateContentTypeShortLabel(type),
-          description: t(`automation.formatCard.${formatId}.description`),
+          description: getSafeText(
+            `automation.formatCard.${formatId}.description`,
+            getFormatCardDescription(type, config.description || "")
+          ),
           howItWorks: t(`automation.formatCard.${formatId}.howItWorks`),
           benefit: t(`automation.formatCard.${formatId}.benefit`),
         };
@@ -10773,13 +10807,45 @@ setRules((currentRules) =>
                 </div>
               )}
               {creditBalance ? (
-                <button
-                  type="button"
-                  className="plan-v70-credit-details"
-                  onClick={() => document.getElementById("plan-v70-planned-posts")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                >
-                  {t("automation.redesign.viewDetails")} <span>→</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className={`plan-v70-credit-details${showCreditDetails ? " open" : ""}`}
+                    onClick={() => setShowCreditDetails((current) => !current)}
+                    aria-expanded={showCreditDetails}
+                  >
+                    {t("automation.redesign.viewDetails")} <span>{showCreditDetails ? "−" : "→"}</span>
+                  </button>
+
+                  {showCreditDetails ? (
+                    <div className="plan-v76-credit-breakdown" role="status">
+                      <div>
+                        <span>{t("automation.creditsLeft")}</span>
+                        <strong>{creditsRemaining}</strong>
+                      </div>
+                      <div>
+                        <span>{scheduleType === "weekly" ? t("automation.postsPerWeek") : t("common.posts")}</span>
+                        <strong>{t("automation.postCount", { count: slots.length })}</strong>
+                      </div>
+                      <div>
+                        <span>{plannerLocaleIsSwedish ? "Veckoförbrukning" : "Weekly usage"}</span>
+                        <strong>
+                          {plannedCredits > 0
+                            ? plannerLocaleIsSwedish
+                              ? `${plannedCredits} krediter`
+                              : `${plannedCredits} credits`
+                            : plannerLocaleIsSwedish
+                              ? "Välj ett mål"
+                              : "Choose a goal"}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>{t("automation.creditDate.renews")}</span>
+                        <strong>{subscriptionDateValue === "Not set yet" ? t("automation.notSetYet") : subscriptionDateValue}</strong>
+                      </div>
+                    </div>
+                  ) : null}
+                </>
               ) : null}
             </section>
 

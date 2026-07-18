@@ -431,33 +431,37 @@ export default function AppLayout({ active, children }) {
   return (
     <main className="app-shell spreelo-shell">
       <header className="spreelo-mobile-header">
-        <a href="/" className="spreelo-mobile-logo">
-          <SpreeloLogo />
-        </a>
+        <div className="spreelo-mobile-topbar">
+          <a href="/" className="spreelo-mobile-logo">
+            <SpreeloLogo />
+          </a>
 
-        <div className="spreelo-mobile-brand">
-          <span>{t("common.currentBrand")}</span>
-          <strong>
-            {loadingBrands
-              ? t("common.loading")
-              : currentBrand?.business_name || t("common.noBrand")}
-          </strong>
+          <button
+            type="button"
+            className={`spreelo-mobile-menu-button ${
+              mobileMenuOpen ? "open" : ""
+            }`}
+            onClick={() => setMobileMenuOpen((current) => !current)}
+            aria-label={mobileMenuOpen ? t("layout.closeMenu") : t("layout.openMenu")}
+          >
+            {mobileMenuOpen ? (
+              <X className="spreelo-mobile-menu-icon" aria-hidden="true" />
+            ) : (
+              <Menu className="spreelo-mobile-menu-icon" aria-hidden="true" />
+            )}
+          </button>
         </div>
 
-        <button
-          type="button"
-          className={`spreelo-mobile-menu-button ${
-            mobileMenuOpen ? "open" : ""
-          }`}
-          onClick={() => setMobileMenuOpen((current) => !current)}
-          aria-label={mobileMenuOpen ? t("layout.closeMenu") : t("layout.openMenu")}
-        >
-          {mobileMenuOpen ? (
-            <X className="spreelo-mobile-menu-icon" aria-hidden="true" />
-          ) : (
-            <Menu className="spreelo-mobile-menu-icon" aria-hidden="true" />
-          )}
-        </button>
+        <div className="spreelo-mobile-brandbar">
+          <div className="spreelo-mobile-brand">
+            <span>{t("common.currentBrand")}</span>
+            <strong>
+              {loadingBrands
+                ? t("common.loading")
+                : currentBrand?.business_name || t("common.noBrand")}
+            </strong>
+          </div>
+        </div>
       </header>
 
       {mobileMenuOpen && (
