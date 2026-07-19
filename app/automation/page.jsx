@@ -8899,6 +8899,7 @@ function blockFormatCardClickAfterDrag(event) {
                 <div className="plan-v70-settings-grid plan-v84-settings-grid">
                   <label className="plan-v70-field plan-v83-setting-tile">
                     <span className="plan-v83-setting-label"><Target size={16} aria-hidden="true" />{t("automation.goal")}</span>
+                    <small className="plan-v86-mobile-helper">{t("automation.redesign.goalHelpMobile")}</small>
                     <select value={autoPlanGoal} onChange={(event) => changeAutoPlanGoal(event.target.value)}>
                       <option value="" disabled hidden>{t("automation.redesign.chooseGoal")}</option>
                       {autoPlanGoals.map((goal) => (
@@ -8907,11 +8908,12 @@ function blockFormatCardClickAfterDrag(event) {
                         </option>
                       ))}
                     </select>
-                    <small>{translateAutoPlanGoalDescription(autoPlanGoal) || t("automation.redesign.goalHelp")}</small>
+                    <small className="plan-v86-desktop-helper">{translateAutoPlanGoalDescription(autoPlanGoal) || t("automation.redesign.goalHelp")}</small>
                   </label>
 
                   <label className="plan-v70-field plan-v83-setting-tile">
                     <span className="plan-v83-setting-label"><ListChecks size={16} aria-hidden="true" />{t("automation.postsPerWeek")}</span>
+                    <small className="plan-v86-mobile-helper">{t("automation.redesign.frequencyHelpMobile")}</small>
                     <select
                       value={autoPlanPostCount}
                       onChange={(event) => changeAutoPlanPostCount(Number(event.target.value))}
@@ -8923,11 +8925,12 @@ function blockFormatCardClickAfterDrag(event) {
                         </option>
                       ))}
                     </select>
-                    <small>{t("automation.redesign.frequencyHelp")}</small>
+                    <small className="plan-v86-desktop-helper">{t("automation.redesign.frequencyHelp")}</small>
                   </label>
 
                   <div className="plan-v70-field plan-v83-setting-tile">
                     <span className="plan-v83-setting-label"><CalendarDays size={16} aria-hidden="true" />{t("automation.startDate")}</span>
+                    <small className="plan-v86-mobile-helper">{t("automation.redesign.startDateHelpMobile")}</small>
                     <DatePickerField
                       value={planStartDate}
                       onChange={updatePlanStartDate}
@@ -8939,11 +8942,12 @@ function blockFormatCardClickAfterDrag(event) {
                       weekdayLabels={weekdayLabels}
                       locale={locale}
                     />
-                    <small>{t("automation.redesign.startDateHelpV2")}</small>
+                    <small className="plan-v86-desktop-helper">{t("automation.redesign.startDateHelpV2")}</small>
                   </div>
 
                   <label className="plan-v70-field plan-v83-setting-tile">
                     <span className="plan-v83-setting-label"><Languages size={16} aria-hidden="true" />{t("automation.redesign.postLanguage")}</span>
+                    <small className="plan-v86-mobile-helper">{t("automation.redesign.languageHelpShort")}</small>
                     <select value={language} onChange={(event) => setLanguage(event.target.value)}>
                       {languageOptions.map((option) => (
                         <option value={option.value} key={`${option.value}-${option.label}`}>
@@ -8951,10 +8955,12 @@ function blockFormatCardClickAfterDrag(event) {
                         </option>
                       ))}
                     </select>
+                    <small className="plan-v86-desktop-helper">{t("automation.redesign.languageHelpShort")}</small>
                   </label>
 
                   <label className="plan-v70-field plan-v83-setting-tile">
                     <span className="plan-v83-setting-label"><Repeat2 size={16} aria-hidden="true" />{t("automation.redesign.publishing")}</span>
+                    <small className="plan-v86-mobile-helper">{t("automation.redesign.publishingHelpMobile")}</small>
                     <select
                       value={scheduleType}
                       onChange={(event) => setScheduleType(event.target.value)}
@@ -8963,10 +8969,12 @@ function blockFormatCardClickAfterDrag(event) {
                       <option value="weekly">{t("automation.weekly")}</option>
                       <option value="once">{t("automation.once")}</option>
                     </select>
+                    <small className="plan-v86-desktop-helper">{t("automation.redesign.publishingHelpShort")}</small>
                   </label>
 
                   <div className="plan-v70-field plan-v73-platform-field plan-v83-setting-tile">
                     <span className="plan-v83-setting-label"><Globe2 size={16} aria-hidden="true" />{t("automation.platform")}</span>
+                    <small className="plan-v86-mobile-helper">{t("automation.redesign.platformHelpMobile")}</small>
                     {loadingConnectedPlatforms ? (
                       <div className="plan-v73-platform-loading">{t("automation.loadingConnectedChannels")}</div>
                     ) : connectedPlatformOptions.length > 0 ? (
@@ -9027,6 +9035,7 @@ function blockFormatCardClickAfterDrag(event) {
                         {t("automation.connectSocialChannelFirst")}
                       </a>
                     )}
+                    <small className="plan-v86-desktop-helper">{t("automation.redesign.platformHelpShort")}</small>
                   </div>
                 </div>
 
@@ -9192,6 +9201,7 @@ function blockFormatCardClickAfterDrag(event) {
 
                   <div className="plan-v70-planned-table">
                     <div className="plan-v70-planned-table-head" aria-hidden="true">
+                      <span />
                       <span>{t("automation.redesign.dateTime")}</span>
                       <span>{t("automation.redesign.post")}</span>
                       <span>{t("automation.redesign.format")}</span>
@@ -9206,7 +9216,15 @@ function blockFormatCardClickAfterDrag(event) {
                       const formatItem = getExploreFormatItem(slot.contentTypeId);
 
                       return (
-                        <article className={`plan-v70-planned-row${rowExpanded ? " expanded" : ""}`} key={`v70-row-${slot.id}`}>
+                        <article className={`plan-v70-planned-row plan-v86-planned-row${rowExpanded ? " expanded" : ""}`} key={`v70-row-${slot.id}`}>
+                          <div className={`plan-v86-planned-visual tone-${(index % 4) + 1}`} aria-hidden="true">
+                            <span>
+                              <ContentFormatIconVisual
+                                item={formatItem || { icon_name: "Sparkles" }}
+                                size={23}
+                              />
+                            </span>
+                          </div>
                           <div className="plan-v70-planned-date">
                             <strong>{formatStartDateLabel(slot.startDate, timeZone, locale)}</strong>
                             <span>{normalizeTime(slot.publishTime)}</span>
