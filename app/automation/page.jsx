@@ -9259,12 +9259,6 @@ function blockFormatCardClickAfterDrag(event) {
                             <span>{normalizeTime(slot.publishTime)}</span>
                           </div>
                           <div className="plan-v70-planned-post">
-                            <span className={`plan-v70-post-thumb tone-${(index % 4) + 1}`} aria-hidden="true">
-                              <ContentFormatIconVisual
-                                item={formatItem || { icon_name: "Sparkles" }}
-                                size={19}
-                              />
-                            </span>
                             <div>
                               <strong>{getUnifiedContentTypeLabel(slot.contentTypeId, slot.contentTypeLabel)}</strong>
                               <span>{getCustomerSlotPurpose(slot)}</span>
