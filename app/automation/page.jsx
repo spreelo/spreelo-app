@@ -5393,8 +5393,16 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   const [guideInitialized, setGuideInitialized] = useState(false);
   const [showGuideInfoModal, setShowGuideInfoModal] = useState(false);
   const [showVariationInfoModal, setShowVariationInfoModal] = useState(false);
+  const [showRecommendationInfoModal, setShowRecommendationInfoModal] = useState(false);
   const formatStripRef = useRef(null);
-  const formatDragRef = useRef({ active: false, startX: 0, startScrollLeft: 0, didDrag: false });
+  const formatDragRef = useRef({
+    active: false,
+    dragging: false,
+    startX: 0,
+    startScrollLeft: 0,
+    pointerId: null,
+    suppressClickUntil: 0,
+  });
   const [recentlyAddedContentTypeId, setRecentlyAddedContentTypeId] =
   useState("");
   const [expandedInstructionSlotIds, setExpandedInstructionSlotIds] = useState(
@@ -8782,40 +8790,59 @@ function handleFormatStripPointerDown(event) {
   if (event.pointerType !== "mouse" || event.button !== 0) return;
   const node = formatStripRef.current;
   if (!node) return;
+
   formatDragRef.current = {
     active: true,
+    dragging: false,
     startX: event.clientX,
     startScrollLeft: node.scrollLeft,
-    didDrag: false,
+    pointerId: event.pointerId,
+    suppressClickUntil: formatDragRef.current.suppressClickUntil || 0,
   };
-  node.classList.add("dragging");
-  node.setPointerCapture?.(event.pointerId);
 }
 
 function handleFormatStripPointerMove(event) {
   const node = formatStripRef.current;
   const drag = formatDragRef.current;
   if (!node || !drag.active || event.pointerType !== "mouse") return;
+
   const distance = event.clientX - drag.startX;
-  if (Math.abs(distance) > 4) drag.didDrag = true;
+  if (!drag.dragging && Math.abs(distance) > 7) {
+    drag.dragging = true;
+    node.classList.add("dragging");
+    try {
+      node.setPointerCapture?.(event.pointerId);
+    } catch {}
+  }
+
+  if (!drag.dragging) return;
+  event.preventDefault();
   node.scrollLeft = drag.startScrollLeft - distance;
 }
 
 function finishFormatStripDrag(event) {
   const node = formatStripRef.current;
-  if (!node || !formatDragRef.current.active) return;
-  formatDragRef.current.active = false;
+  const drag = formatDragRef.current;
+  if (!node || !drag.active) return;
+
+  if (drag.dragging) {
+    drag.suppressClickUntil = Date.now() + 280;
+  }
+
+  drag.active = false;
+  drag.dragging = false;
   node.classList.remove("dragging");
   try {
-    node.releasePointerCapture?.(event.pointerId);
+    if (node.hasPointerCapture?.(event.pointerId)) {
+      node.releasePointerCapture?.(event.pointerId);
+    }
   } catch {}
 }
 
 function blockFormatCardClickAfterDrag(event) {
-  if (!formatDragRef.current.didDrag) return;
+  if (Date.now() > (formatDragRef.current.suppressClickUntil || 0)) return;
   event.preventDefault();
   event.stopPropagation();
-  formatDragRef.current.didDrag = false;
 }
 
   return (
@@ -9093,6 +9120,8 @@ function blockFormatCardClickAfterDrag(event) {
                   onPointerMove={handleFormatStripPointerMove}
                   onPointerUp={finishFormatStripDrag}
                   onPointerCancel={finishFormatStripDrag}
+                  onPointerLeave={finishFormatStripDrag}
+                  onDragStart={(event) => event.preventDefault()}
                   onClickCapture={blockFormatCardClickAfterDrag}
                 >
                   {mainExploreFormatItems.map((item, index) => (
@@ -9102,7 +9131,7 @@ function blockFormatCardClickAfterDrag(event) {
                       view="grid"
                       disabled={!hasInitialGoalPlan}
                       key={`v72-${item.id}`}
-                      onClick={() => requestFormatPreview(item.id)}
+                      onClick={() => requestFormatPreview(item.id, { fromAllFormats: true })}
                     />
                   ))}
                 </div>
@@ -11038,7 +11067,9 @@ function blockFormatCardClickAfterDrag(event) {
                 <strong>{t("automation.redesign.tipTitle")}</strong>
               </div>
               <p>{t("automation.redesign.tipText")}</p>
-              <button type="button">{t("automation.learnMore")} <span>→</span></button>
+              <button type="button" onClick={() => setShowRecommendationInfoModal(true)}>
+                {t("automation.learnMore")}
+              </button>
             </section>
           </aside>
             </div>
@@ -11160,6 +11191,24 @@ function blockFormatCardClickAfterDrag(event) {
                 <p><CheckCircle2 size={17} />{t("automation.redesign.varyWeeklyPoint2")}</p>
                 <p><CheckCircle2 size={17} />{t("automation.redesign.varyWeeklyPoint3")}</p>
               </div>
+            </section>
+          </div>
+        ) : null}
+
+        {showRecommendationInfoModal ? (
+          <div className="plan-v83-modal-backdrop" onClick={() => setShowRecommendationInfoModal(false)}>
+            <section className="plan-v83-info-modal compact plan-v87-recommendation-modal" onClick={(event) => event.stopPropagation()}>
+              <button type="button" className="plan-v83-modal-close" onClick={() => setShowRecommendationInfoModal(false)} aria-label={t("automation.format.close")}>×</button>
+              <span className="plan-v83-modal-icon"><Lightbulb size={24} aria-hidden="true" /></span>
+              <p className="plan-v83-modal-eyebrow">{t("automation.redesign.tipTitle")}</p>
+              <h2>{t("automation.recommendationModal.title")}</h2>
+              <p className="plan-v83-modal-lead">{t("automation.recommendationModal.intro")}</p>
+              <div className="plan-v83-variation-points">
+                <p><CheckCircle2 size={17} />{t("automation.recommendationModal.point1")}</p>
+                <p><CheckCircle2 size={17} />{t("automation.recommendationModal.point2")}</p>
+                <p><CheckCircle2 size={17} />{t("automation.recommendationModal.point3")}</p>
+              </div>
+              <p className="plan-v87-recommendation-note">{t("automation.recommendationModal.note")}</p>
             </section>
           </div>
         ) : null}

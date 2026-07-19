@@ -4187,3 +4187,303 @@ html body .automation-page.plan-v70-active .plan-v86-mobile-helper {
     font-weight: 400 !important;
   }
 }
+
+/* v87 — smoother content rail, responsive planned posts, contained calendars */
+html body .automation-page.plan-v70-active .plan-v83-draggable-strip {
+  scroll-snap-type: none !important;
+  scroll-behavior: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  cursor: grab;
+}
+
+html body .automation-page.plan-v70-active .plan-v83-draggable-strip .plan-v72-format-card {
+  scroll-snap-align: none !important;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+html body .automation-page.plan-v70-active .plan-v83-draggable-strip img {
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+html body .automation-page.plan-v70-active .plan-v83-draggable-strip.dragging {
+  cursor: grabbing !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v83-draggable-strip.dragging .plan-v72-format-card {
+  pointer-events: none !important;
+}
+
+/* Keep compact row calendars inside the planned-post card instead of floating outside it. */
+html body .automation-page.plan-v70-active .plan-v70-row-editor .custom-picker-field.compact {
+  overflow: visible !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-row-editor .custom-picker-field.compact .custom-calendar-popover {
+  position: static !important;
+  width: min(320px, 100%) !important;
+  max-width: 100% !important;
+  margin-top: 8px !important;
+  box-sizing: border-box !important;
+  transform: none !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-row-editor .custom-calendar-grid,
+html body .automation-page.plan-v70-active .plan-v70-row-editor .custom-calendar-weekdays {
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-row-editor .custom-calendar-day {
+  min-width: 0 !important;
+}
+
+/* Main date picker: constrain the popover to the viewport and favor an inward opening. */
+html body .automation-page.plan-v70-active .plan-v83-setting-tile .custom-calendar-popover {
+  width: min(314px, calc(100vw - 40px)) !important;
+  max-width: calc(100vw - 40px) !important;
+  left: auto !important;
+  right: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Recommendation card now has a real explanation action. */
+html body .automation-page.plan-v70-active .plan-v70-tip-card button {
+  padding: 0 !important;
+  border: 0 !important;
+  color: #b84e34 !important;
+  background: transparent !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-tip-card button:hover {
+  text-decoration: underline;
+}
+
+html body .automation-page.plan-v70-active .plan-v87-recommendation-note {
+  margin: 14px 0 0 !important;
+  padding: 12px 14px !important;
+  border: 1px solid #efddd4 !important;
+  border-radius: 13px !important;
+  color: #6b554b !important;
+  background: #fff8f4 !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+
+/* Tablet: keep every planned-post column inside the card and reduce noisy labels. */
+@media (max-width: 1180px) and (min-width: 761px) {
+  html body .automation-page.plan-v70-active .plan-v70-planned-table {
+    padding: 8px 9px 12px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-planned-table-head,
+  html body .automation-page.plan-v70-active .plan-v86-planned-row {
+    grid-template-columns: 54px 96px minmax(135px, 1fr) 96px minmax(68px, .52fr) 70px 36px !important;
+    gap: 7px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row {
+    padding-right: 9px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row > * {
+    min-width: 0 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v74-channel-stack {
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v74-channel-chip {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    padding: 3px !important;
+    justify-content: center !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v74-channel-chip > span {
+    display: none !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-row-menu {
+    justify-self: end !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* Keep the planned-post heading compact. The add button is secondary, not a primary CTA. */
+  html body .automation-page.plan-v70-active .plan-v70-planned-head {
+    min-height: 54px !important;
+    padding: 10px 12px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-planned-head h2 {
+    font-size: 19px !important;
+    white-space: nowrap !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-planned-head > div:first-child > span {
+    min-width: 24px !important;
+    width: 24px !important;
+    height: 24px !important;
+    padding: 0 !important;
+    font-size: 11px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-planned-actions {
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-add-button {
+    width: auto !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0 11px !important;
+    flex: 0 0 auto !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    box-shadow: 0 6px 14px rgba(213, 80, 50, .16) !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-add-button svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  /* Compact premium mobile card: visual rail and content end at the same height. */
+  html body .automation-page.plan-v70-active .plan-v86-planned-row {
+    grid-template-columns: 56px minmax(0, 1fr) 40px !important;
+    grid-template-rows: auto auto auto !important;
+    gap: 6px 10px !important;
+    min-height: 132px !important;
+    margin-top: 8px !important;
+    padding: 10px 10px 10px 0 !important;
+    align-items: center !important;
+    overflow: visible !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-visual {
+    grid-column: 1 !important;
+    grid-row: 1 / 4 !important;
+    align-self: stretch !important;
+    min-height: 100% !important;
+    height: auto !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-planned-date {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-status-pill {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    min-height: 28px !important;
+    padding: 0 8px !important;
+    justify-self: end !important;
+    font-size: 10px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-planned-post {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    min-width: 0 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-planned-post strong {
+    font-size: 15px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-planned-post span {
+    margin-top: 2px !important;
+    font-size: 11px !important;
+    -webkit-line-clamp: 1 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-row-menu {
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+    width: 36px !important;
+    height: 36px !important;
+    justify-self: end !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-planned-format {
+    grid-column: 2 / 4 !important;
+    grid-row: 3 !important;
+    justify-self: start !important;
+    width: auto !important;
+    max-width: 58% !important;
+    min-height: 30px !important;
+    padding: 5px 8px !important;
+    gap: 5px !important;
+    font-size: 10.5px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-planned-format strong,
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-planned-format span {
+    font-size: 10.5px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-planned-channel {
+    grid-column: 2 / 4 !important;
+    grid-row: 3 !important;
+    justify-self: end !important;
+    width: auto !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v74-channel-stack {
+    flex-wrap: nowrap !important;
+    gap: 5px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v74-channel-chip {
+    width: 27px !important;
+    min-width: 27px !important;
+    height: 27px !important;
+    padding: 2px !important;
+    display: grid !important;
+    place-items: center !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v74-channel-chip > span {
+    display: none !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v74-channel-chip .platform-icon-img {
+    width: 23px !important;
+    height: 23px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-row .plan-v70-row-editor {
+    grid-column: 1 / -1 !important;
+    grid-row: 4 !important;
+    margin: 6px 0 0 10px !important;
+  }
+
+  /* Mobile date popover stays within the viewport. */
+  html body .automation-page.plan-v70-active .plan-v83-setting-tile .custom-calendar-popover {
+    position: fixed !important;
+    left: 16px !important;
+    right: 16px !important;
+    top: 50% !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: translateY(-50%) !important;
+    z-index: 15000 !important;
+  }
+}

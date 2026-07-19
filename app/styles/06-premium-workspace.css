@@ -3619,3 +3619,10 @@ html body .dashboard-plan-hub-section .saved-header {
   .spreelo-user-profile-copy strong { font-size: 15px; }
   .spreelo-user-profile-copy span { font-size: 12px; }
 }
+
+/* v87 — fixed mobile/tablet header must never cover the first page section */
+@media (max-width: 900px) {
+  html body .content.spreelo-content {
+    padding-top: calc(var(--spreelo-mobile-header-total) + 24px) !important;
+  }
+}
