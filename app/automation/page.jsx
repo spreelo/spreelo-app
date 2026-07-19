@@ -6929,7 +6929,7 @@ const { data, error } = await supabase
       setRules(sortedRules);
       if (!guideInitialized) {
         const hasActivatedPlan = Boolean(
-          user?.user_metadata?.spreelo_first_plan_activated || sortedRules.length > 0
+          user?.user_metadata?.spreelo_plan_guide_completed
         );
         setGuideExpanded(!hasActivatedPlan);
         setGuideInitialized(true);
@@ -8602,7 +8602,10 @@ ${slot.campaignSummary}`
       setGuideExpanded(false);
       setGuideInitialized(true);
       void supabase.auth.updateUser({
-        data: { spreelo_first_plan_activated: true },
+        data: {
+          spreelo_first_plan_activated: true,
+          spreelo_plan_guide_completed: true,
+        },
       });
 
       void sendPlanActivationSummaryEmail({
@@ -8843,48 +8846,7 @@ function blockFormatCardClickAfterDrag(event) {
                 </button>
               </header>
 
-              <section className={`plan-v83-guide${guideExpanded ? " expanded" : " collapsed"}`}>
-                <button
-                  type="button"
-                  className="plan-v83-guide-heading"
-                  onClick={() => setGuideExpanded((current) => !current)}
-                  aria-expanded={guideExpanded}
-                >
-                  <span>
-                    <CircleHelp size={18} aria-hidden="true" />
-                    <strong>{t("automation.guide.title")}</strong>
-                  </span>
-                  <ChevronDown size={18} aria-hidden="true" />
-                </button>
-
-                {guideExpanded ? (
-                  <div className="plan-v83-guide-body">
-                    <div className="plan-v83-guide-steps">
-                      <article>
-                        <span>1</span>
-                        <p>{t("automation.guide.step1")}</p>
-                      </article>
-                      <article>
-                        <span>2</span>
-                        <p>{t("automation.guide.step2")}</p>
-                      </article>
-                      <article>
-                        <span>3</span>
-                        <p>{t("automation.guide.step3")}</p>
-                      </article>
-                    </div>
-                    <button
-                      type="button"
-                      className="plan-v83-guide-more"
-                      onClick={() => setShowGuideInfoModal(true)}
-                    >
-                      {t("automation.guide.learnMore")} <span>→</span>
-                    </button>
-                  </div>
-                ) : null}
-              </section>
-
-              <section className="plan-v70-card plan-v70-settings-card">
+              <section className="plan-v70-card plan-v70-settings-card plan-v84-settings-card">
                 <div className="plan-v70-section-heading">
                   <span className="plan-v70-icon purple"><Sparkles size={19} /></span>
                   <div>
@@ -8893,7 +8855,48 @@ function blockFormatCardClickAfterDrag(event) {
                   </div>
                 </div>
 
-                <div className="plan-v70-settings-grid">
+                <section className={`plan-v83-guide plan-v84-guide${guideExpanded ? " expanded" : " collapsed"}`}>
+                  <button
+                    type="button"
+                    className="plan-v83-guide-heading"
+                    onClick={() => setGuideExpanded((current) => !current)}
+                    aria-expanded={guideExpanded}
+                  >
+                    <span>
+                      <CircleHelp size={18} aria-hidden="true" />
+                      <strong>{t("automation.guide.title")}</strong>
+                    </span>
+                    <ChevronDown size={18} aria-hidden="true" />
+                  </button>
+
+                  {guideExpanded ? (
+                    <div className="plan-v83-guide-body">
+                      <div className="plan-v83-guide-steps">
+                        <article>
+                          <span>1</span>
+                          <p>{t("automation.guide.step1")}</p>
+                        </article>
+                        <article>
+                          <span>2</span>
+                          <p>{t("automation.guide.step2")}</p>
+                        </article>
+                        <article>
+                          <span>3</span>
+                          <p>{t("automation.guide.step3")}</p>
+                        </article>
+                      </div>
+                      <button
+                        type="button"
+                        className="plan-v83-guide-more"
+                        onClick={() => setShowGuideInfoModal(true)}
+                      >
+                        {t("automation.guide.learnMore")} <span>→</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </section>
+
+                <div className="plan-v70-settings-grid plan-v84-settings-grid">
                   <label className="plan-v70-field plan-v83-setting-tile">
                     <span className="plan-v83-setting-label"><Target size={16} aria-hidden="true" />{t("automation.goal")}</span>
                     <select value={autoPlanGoal} onChange={(event) => changeAutoPlanGoal(event.target.value)}>
@@ -9029,8 +9032,16 @@ function blockFormatCardClickAfterDrag(event) {
                 <div className="plan-v70-formats-head">
                   <div>
                     <h2>{t("automation.redesign.contentTypesTitleV2")}</h2>
-                    <p>{t("automation.redesign.contentTypesTextV3")}</p>
-                    <span className="plan-v74-content-types-note">{t("automation.redesign.contentTypesNoteV2")}</span>
+                    <p>
+                      {plannerLocaleIsSwedish
+                        ? "Spreelos AI har redan skapat ett färdigt upplägg anpassat efter ditt företag och dina mål. Planen behöver inte ändras, men kan när som helst justeras eller kompletteras."
+                        : t("automation.redesign.contentTypesTextV3")}
+                    </p>
+                    <span className="plan-v74-content-types-note">
+                      {plannerLocaleIsSwedish
+                        ? "Klicka på en innehållstyp för att läsa mer och lägga till den i planen."
+                        : t("automation.redesign.contentTypesNoteV2")}
+                    </span>
                   </div>
                 </div>
 
@@ -9279,7 +9290,7 @@ function blockFormatCardClickAfterDrag(event) {
                 </section>
               ) : null}
 
-              {scheduleType === "weekly" && planCreationMode !== "campaign" ? (
+              {shouldShowPlannerDetails && scheduleType === "weekly" && planCreationMode !== "campaign" ? (
                 <section className="plan-v83-continuation-card">
                   <div className="plan-v83-continuation-head">
                     <span className="plan-v70-icon lavender"><Repeat2 size={19} /></span>
@@ -9335,7 +9346,7 @@ function blockFormatCardClickAfterDrag(event) {
                 </section>
               ) : null}
 
-              <section className={`plan-v70-activate-card${savedPlanSummary ? " saved" : ""}`}>
+              <section className={`plan-v70-activate-card${savedPlanSummary ? " saved" : ""}${!shouldShowPlannerDetails && !savedPlanSummary ? " no-plan" : ""}`}>
                 <span className="plan-v70-activate-visual" aria-hidden="true">
                   {savedPlanSummary ? <CheckCircle2 size={27} /> : <CalendarClock size={27} />}
                 </span>
