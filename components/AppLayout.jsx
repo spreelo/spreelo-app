@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
   BriefcaseBusiness,
   CalendarDays,
+  Camera,
   ChevronDown,
   ChevronRight,
   LayoutDashboard,
@@ -15,6 +16,8 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  Trash2,
+  UserRound,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -128,6 +131,8 @@ export default function AppLayout({ active, children }) {
   const [creatingBrand, setCreatingBrand] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef(null);
 
   const currentBrand = useMemo(() => {
     return (
@@ -373,6 +378,90 @@ export default function AppLayout({ active, children }) {
     return t(item.labelKey);
   }
 
+  function getUserDisplayName() {
+    return (
+      user?.user_metadata?.full_name ||
+      user?.user_metadata?.name ||
+      String(user?.email || "").split("@")[0] ||
+      t("layout.account")
+    );
+  }
+
+  async function handleAvatarUpload(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !user?.id || avatarUploading) return;
+
+    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+    if (!allowedTypes.has(file.type) || file.size > 5 * 1024 * 1024) {
+      alert(t("layout.avatarInvalid"));
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const storagePath = `${user.id}/avatar-${Date.now()}.${extension}`;
+      const oldPath = String(user?.user_metadata?.spreelo_avatar_path || "").trim();
+
+      const { error: uploadError } = await supabase.storage
+        .from("user-avatars")
+        .upload(storagePath, file, {
+          cacheControl: "3600",
+          contentType: file.type,
+          upsert: false,
+        });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("user-avatars")
+        .getPublicUrl(storagePath);
+      const avatarUrl = publicUrlData?.publicUrl || "";
+      if (!avatarUrl) throw new Error(t("layout.avatarUploadError"));
+
+      const { data, error: updateError } = await supabase.auth.updateUser({
+        data: {
+          spreelo_avatar_url: avatarUrl,
+          spreelo_avatar_path: storagePath,
+        },
+      });
+      if (updateError) throw updateError;
+
+      setUser(data?.user || user);
+
+      if (oldPath && oldPath !== storagePath) {
+        void supabase.storage.from("user-avatars").remove([oldPath]);
+      }
+    } catch (error) {
+      console.error("Could not update avatar:", error);
+      alert(error.message || t("layout.avatarUploadError"));
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
+  async function handleAvatarRemove() {
+    if (!user?.id || avatarUploading) return;
+    const oldPath = String(user?.user_metadata?.spreelo_avatar_path || "").trim();
+    setAvatarUploading(true);
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        data: {
+          spreelo_avatar_url: null,
+          spreelo_avatar_path: null,
+        },
+      });
+      if (error) throw error;
+      setUser(data?.user || user);
+      if (oldPath) void supabase.storage.from("user-avatars").remove([oldPath]);
+    } catch (error) {
+      console.error("Could not remove avatar:", error);
+      alert(error.message || t("layout.avatarUploadError"));
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -544,6 +633,52 @@ export default function AppLayout({ active, children }) {
         </nav>
 
         <div className="sidebar-footer spreelo-sidebar-footer">
+          <div className="spreelo-user-profile-card">
+            <button
+              type="button"
+              className="spreelo-user-avatar-button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              aria-label={t("layout.changeProfileImage")}
+            >
+              {user?.user_metadata?.spreelo_avatar_url ? (
+                <img src={user.user_metadata.spreelo_avatar_url} alt="" />
+              ) : (
+                <span className="spreelo-user-avatar-fallback" aria-hidden="true">
+                  <UserRound size={22} strokeWidth={1.9} />
+                </span>
+              )}
+              <span className="spreelo-user-avatar-camera" aria-hidden="true">
+                <Camera size={12} strokeWidth={2.1} />
+              </span>
+            </button>
+
+            <div className="spreelo-user-profile-copy">
+              <strong>{getUserDisplayName()}</strong>
+              <span>{user?.email || t("layout.account")}</span>
+            </div>
+
+            {user?.user_metadata?.spreelo_avatar_url ? (
+              <button
+                type="button"
+                className="spreelo-user-avatar-remove"
+                onClick={handleAvatarRemove}
+                disabled={avatarUploading}
+                aria-label={t("layout.removeProfileImage")}
+              >
+                <Trash2 size={14} aria-hidden="true" />
+              </button>
+            ) : null}
+
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleAvatarUpload}
+              hidden
+            />
+          </div>
+
           <div className="sidebar-plan-card">
             <div className="sidebar-plan-icon" aria-hidden="true">
               <Sparkles size={17} strokeWidth={2.1} />

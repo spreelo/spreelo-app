@@ -22,7 +22,7 @@ export default function UpcomingPlanPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [plan, setPlan] = useState({ brandName: "", planName: "", rules: [] });
+  const [plan, setPlan] = useState({ brandName: "", planName: "", totalCredits: 0, rules: [] });
   const token = useMemo(() => getToken(), []);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function UpcomingPlanPage() {
       const response = await fetch(`/api/upcoming-plan?token=${encodeURIComponent(token)}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(response.status === 401 ? t("upcomingPlan.invalid") : payload?.error || t("upcomingPlan.loadError"));
-      setPlan({ brandName: payload.brandName || "", planName: payload.planName || "", rules: payload.rules || [] });
+      setPlan({ brandName: payload.brandName || "", planName: payload.planName || "", totalCredits: Number(payload.totalCredits || 0), rules: payload.rules || [] });
     } catch (loadError) {
       setError(loadError.message || t("upcomingPlan.loadError"));
     } finally {
@@ -69,7 +69,7 @@ export default function UpcomingPlanPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || t("upcomingPlan.saveError"));
-      setPlan({ brandName: payload.brandName || plan.brandName, planName: payload.planName || plan.planName, rules: payload.rules || plan.rules });
+      setPlan({ brandName: payload.brandName || plan.brandName, planName: payload.planName || plan.planName, totalCredits: Number(payload.totalCredits || plan.totalCredits || 0), rules: payload.rules || plan.rules });
       setSuccess(t("upcomingPlan.saved"));
     } catch (saveError) {
       setError(saveError.message || t("upcomingPlan.saveError"));
@@ -100,6 +100,7 @@ export default function UpcomingPlanPage() {
               <div><span>{t("upcomingPlan.brand")}</span><strong>{plan.brandName || "—"}</strong></div>
               <div><span>{t("upcomingPlan.plan")}</span><strong>{plan.planName || "—"}</strong></div>
               <div><span>{t("upcomingPlan.tabUpcoming")}</span><strong>{plan.rules.length}</strong></div>
+              <div><span>{t("upcomingPlan.credits")}</span><strong>{plan.totalCredits}</strong></div>
             </div>
 
             {plan.rules.length ? (
@@ -110,6 +111,7 @@ export default function UpcomingPlanPage() {
                     <div className="upcoming-v74-copy">
                       <strong>{rule.content_type_label || rule.post_type || t("upcomingPlan.contentType")}</strong>
                       <span>{platformLabels(rule.platform).join(" · ") || "—"}</span>
+                      <small>{t("upcomingPlan.creditCost", { credits: Math.max(1, Number(rule.credit_cost || 1)) })}</small>
                     </div>
                     <label><span><CalendarDays size={15} />{t("upcomingPlan.date")}</span><input type="date" value={rule.date || ""} onChange={(event) => updateRule(rule.id, "date", event.target.value)} /></label>
                     <label><span><Clock3 size={15} />{t("upcomingPlan.time")}</span><input type="time" value={rule.time || ""} onChange={(event) => updateRule(rule.id, "time", event.target.value)} /></label>

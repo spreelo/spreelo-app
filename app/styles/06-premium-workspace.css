@@ -3509,3 +3509,113 @@ html body .dashboard-plan-hub-section .saved-header {
     font-weight: 700 !important;
   }
 }
+
+/* v83 — optional personal avatar in the sidebar */
+.spreelo-user-profile-card {
+  margin-bottom: 12px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 30px;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.spreelo-user-avatar-button {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.spreelo-user-avatar-button > img,
+.spreelo-user-avatar-fallback {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  object-fit: cover;
+  color: #fff;
+  background: linear-gradient(145deg, #ef6b4d 0%, #9f4736 100%);
+  box-shadow: 0 8px 18px rgba(239, 107, 77, .22);
+}
+
+.spreelo-user-avatar-camera {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #07131f;
+  border-radius: 50%;
+  color: #07131f;
+  background: #fff;
+}
+
+.spreelo-user-profile-copy {
+  min-width: 0;
+}
+
+.spreelo-user-profile-copy strong,
+.spreelo-user-profile-copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spreelo-user-profile-copy strong {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.spreelo-user-profile-copy span {
+  margin-top: 3px;
+  color: rgba(255,255,255,.58);
+  font-size: 10.5px;
+}
+
+.spreelo-user-avatar-remove {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 9px;
+  color: rgba(255,255,255,.58);
+  background: rgba(255,255,255,.035);
+  cursor: pointer;
+}
+
+.spreelo-user-avatar-remove:hover {
+  color: #fff;
+  background: rgba(255,255,255,.08);
+}
+
+@media (max-width: 900px) {
+  .spreelo-user-profile-card {
+    grid-template-columns: 48px minmax(0, 1fr) 34px;
+    padding: 12px;
+  }
+
+  .spreelo-user-avatar-button,
+  .spreelo-user-avatar-button > img,
+  .spreelo-user-avatar-fallback {
+    width: 48px;
+    height: 48px;
+  }
+
+  .spreelo-user-profile-copy strong { font-size: 15px; }
+  .spreelo-user-profile-copy span { font-size: 12px; }
+}

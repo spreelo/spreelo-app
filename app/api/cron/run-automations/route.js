@@ -192,7 +192,11 @@ function resolveAdaptiveWeeklyRule(rule, scheduledPublishAtIso) {
 
   const cycle = getAdaptiveWeeklyCycle(rule, scheduledPublishAtIso, config);
   const slotIndex = Math.max(0, Number(config.slotIndex || 0));
-  const variant = config.variants[(cycle + slotIndex) % config.variants.length];
+  const variantIndex =
+    config.selectionMode === "cycle"
+      ? cycle % config.variants.length
+      : (cycle + slotIndex) % config.variants.length;
+  const variant = config.variants[variantIndex];
 
   if (!variant || typeof variant !== "object") return rule;
 
@@ -213,6 +217,7 @@ function resolveAdaptiveWeeklyRule(rule, scheduledPublishAtIso) {
         : rule.uses_website_content,
     content_format: variant.contentFormat || rule.content_format,
     animation_style: variant.animationStyle || null,
+    credit_cost: Number(variant.creditCost || rule.credit_cost || 1),
     marketing_angle: variant.marketingAngle || rule.marketing_angle,
     customer_stage: variant.customerStage || rule.customer_stage,
     cta_strength: variant.ctaStrength || rule.cta_strength,
@@ -19804,6 +19809,16 @@ product_research_model_used: rule.uses_website_content
           now,
           scheduledPublishAtIso
         );
+
+        if (rule.schedule_type === "weekly" && ruleUpdatePayload.next_run_at) {
+          const nextAdaptiveRule = resolveAdaptiveWeeklyRule(
+            queuedRule,
+            ruleUpdatePayload.next_run_at
+          );
+          ruleUpdatePayload.credit_cost = Number(
+            nextAdaptiveRule?.credit_cost || queuedRule.credit_cost || rule.credit_cost || 1
+          );
+        }
 
         const { error: ruleUpdateError } = await supabase
           .from("automation_rules")

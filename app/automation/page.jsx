@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -944,7 +944,6 @@ function buildAdaptiveWeeklyVariants({
 }) {
   if (!slot || !goalId) return [];
 
-  const originalCost = getCreditCostForContent(slot);
   const sequence = getGoalMarketingSequence(goalId);
   const candidateSteps = [
     ...sequence,
@@ -953,6 +952,27 @@ function buildAdaptiveWeeklyVariants({
   ];
   const variants = [];
   const seenTypeIds = new Set();
+
+  const baseVariant = {
+    contentTypeId: slot.contentTypeId,
+    contentTypeLabel: slot.contentTypeLabel,
+    prompt: slot.prompt,
+    imagePrompt: slot.imagePrompt || "",
+    generateImage: Boolean(slot.generateImage),
+    imageSource: getRuleImageSource(slot),
+    usesWebsiteContent: Boolean(slot.usesWebsiteContent),
+    contentFormat: slot.contentFormat || "single_image",
+    animationStyle: slot.animationStyle || null,
+    marketingAngle: slot.marketingAngle || "",
+    customerStage: slot.customerStage || "",
+    ctaStrength: slot.ctaStrength || "",
+    creditCost: getCreditCostForContent(slot),
+  };
+
+  if (baseVariant.contentTypeId) {
+    variants.push(baseVariant);
+    seenTypeIds.add(baseVariant.contentTypeId);
+  }
 
   for (const rawStep of candidateSteps) {
     const safeTypeId = getBrandSafeContentTypeId(
@@ -975,8 +995,6 @@ function buildAdaptiveWeeklyVariants({
       imageSource: type.usesWebsiteContent ? "website" : "ai",
     };
 
-    if (getCreditCostForContent(draftSlot) !== originalCost) continue;
-
     const step = {
       ...rawStep,
       contentTypeId: type.id,
@@ -996,33 +1014,14 @@ function buildAdaptiveWeeklyVariants({
       marketingAngle: rawStep.marketingAngle || "",
       customerStage: rawStep.customerStage || "",
       ctaStrength: rawStep.ctaStrength || "",
+      creditCost: getCreditCostForContent(draftSlot),
     });
     seenTypeIds.add(type.id);
 
     if (variants.length >= 6) break;
   }
 
-  if (!seenTypeIds.has(slot.contentTypeId)) {
-    variants.unshift({
-      contentTypeId: slot.contentTypeId,
-      contentTypeLabel: slot.contentTypeLabel,
-      prompt: slot.prompt,
-      imagePrompt: slot.imagePrompt || "",
-      generateImage: Boolean(slot.generateImage),
-      imageSource: getRuleImageSource(slot),
-      usesWebsiteContent: Boolean(slot.usesWebsiteContent),
-      contentFormat: slot.contentFormat || "single_image",
-      animationStyle: slot.animationStyle || null,
-      marketingAngle: slot.marketingAngle || "",
-      customerStage: slot.customerStage || "",
-      ctaStrength: slot.ctaStrength || "",
-    });
-  }
-
-  if (variants.length <= 1) return [];
-
-  const rotation = Math.max(0, Number(slotIndex || 0)) % variants.length;
-  return [...variants.slice(rotation), ...variants.slice(0, rotation)];
+  return variants.length > 1 ? variants : [];
 }
 
 function encodeAdaptiveStrategyNotes(existingNotes, config) {
@@ -5390,6 +5389,12 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [showLearnMoreModal, setShowLearnMoreModal] = useState(false);
   const [showCreditDetails, setShowCreditDetails] = useState(false);
+  const [guideExpanded, setGuideExpanded] = useState(true);
+  const [guideInitialized, setGuideInitialized] = useState(false);
+  const [showGuideInfoModal, setShowGuideInfoModal] = useState(false);
+  const [showVariationInfoModal, setShowVariationInfoModal] = useState(false);
+  const formatStripRef = useRef(null);
+  const formatDragRef = useRef({ active: false, startX: 0, startScrollLeft: 0, didDrag: false });
   const [recentlyAddedContentTypeId, setRecentlyAddedContentTypeId] =
   useState("");
   const [expandedInstructionSlotIds, setExpandedInstructionSlotIds] = useState(
@@ -5622,6 +5627,41 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   }
 
   const hasInitialGoalPlan = Boolean(autoPlanGoal && slots.length > 0);
+
+  const nextWeekPlanPreview = useMemo(() => {
+    if (scheduleType !== "weekly") return [];
+
+    return slots.map((slot, slotIndex) => {
+      const variants = varyWeeklyContentTypes
+        ? buildAdaptiveWeeklyVariants({
+            slot,
+            goalId: autoPlanGoal || "stay_visible",
+            slotIndex,
+            websiteProductModeAvailable,
+          })
+        : [];
+      const nextVariant = variants.length > 1 ? variants[1] : null;
+
+      return {
+        contentTypeId: nextVariant?.contentTypeId || slot.contentTypeId,
+        contentTypeLabel: nextVariant?.contentTypeLabel || slot.contentTypeLabel,
+        creditCost: Number(nextVariant?.creditCost || getCreditCostForContent(slot) || 1),
+        startDate: slot.startDate,
+        publishTime: slot.publishTime,
+      };
+    });
+  }, [
+    slots,
+    scheduleType,
+    varyWeeklyContentTypes,
+    autoPlanGoal,
+    websiteProductModeAvailable,
+  ]);
+
+  const nextWeekCredits = useMemo(
+    () => nextWeekPlanPreview.reduce((total, item) => total + Number(item.creditCost || 1), 0),
+    [nextWeekPlanPreview]
+  );
 
   const focusedSourceContentTypes = useMemo(() => {
     const types = getVisibleContentTypes(websiteProductModeAvailable);
@@ -6887,6 +6927,13 @@ const { data, error } = await supabase
     const sortedRules = sortAutomationRules(data || []);
 
       setRules(sortedRules);
+      if (!guideInitialized) {
+        const hasActivatedPlan = Boolean(
+          user?.user_metadata?.spreelo_first_plan_activated || sortedRules.length > 0
+        );
+        setGuideExpanded(!hasActivatedPlan);
+        setGuideInitialized(true);
+      }
       setSelectedRuleIds((currentIds) =>
         currentIds.filter((ruleId) =>
           sortedRules.some((rule) => rule.id === ruleId)
@@ -8288,6 +8335,7 @@ ${slot.campaignSummary}`
           scheduleType === "weekly" && varyWeeklyContentTypes
             ? {
                 enabled: true,
+                selectionMode: "cycle",
                 goalId: autoPlanGoal || "stay_visible",
                 slotIndex,
                 baseStartDate: slot.startDate || planStartDate,
@@ -8551,6 +8599,12 @@ ${slot.campaignSummary}`
         method: formatPlanMode(planCreationMode),
       });
 
+      setGuideExpanded(false);
+      setGuideInitialized(true);
+      void supabase.auth.updateUser({
+        data: { spreelo_first_plan_activated: true },
+      });
+
       void sendPlanActivationSummaryEmail({
         brand: currentBrandProfile?.business_name || sharedGeneratedPlanName,
         goal: translateAutoPlanGoalLabel(autoPlanGoal),
@@ -8720,6 +8774,47 @@ setRules((currentRules) =>
     behavior: "smooth",
   });
 }
+
+function handleFormatStripPointerDown(event) {
+  if (event.pointerType !== "mouse" || event.button !== 0) return;
+  const node = formatStripRef.current;
+  if (!node) return;
+  formatDragRef.current = {
+    active: true,
+    startX: event.clientX,
+    startScrollLeft: node.scrollLeft,
+    didDrag: false,
+  };
+  node.classList.add("dragging");
+  node.setPointerCapture?.(event.pointerId);
+}
+
+function handleFormatStripPointerMove(event) {
+  const node = formatStripRef.current;
+  const drag = formatDragRef.current;
+  if (!node || !drag.active || event.pointerType !== "mouse") return;
+  const distance = event.clientX - drag.startX;
+  if (Math.abs(distance) > 4) drag.didDrag = true;
+  node.scrollLeft = drag.startScrollLeft - distance;
+}
+
+function finishFormatStripDrag(event) {
+  const node = formatStripRef.current;
+  if (!node || !formatDragRef.current.active) return;
+  formatDragRef.current.active = false;
+  node.classList.remove("dragging");
+  try {
+    node.releasePointerCapture?.(event.pointerId);
+  } catch {}
+}
+
+function blockFormatCardClickAfterDrag(event) {
+  if (!formatDragRef.current.didDrag) return;
+  event.preventDefault();
+  event.stopPropagation();
+  formatDragRef.current.didDrag = false;
+}
+
   return (
     <AppLayout active="automation">
       <div
@@ -8748,6 +8843,47 @@ setRules((currentRules) =>
                 </button>
               </header>
 
+              <section className={`plan-v83-guide${guideExpanded ? " expanded" : " collapsed"}`}>
+                <button
+                  type="button"
+                  className="plan-v83-guide-heading"
+                  onClick={() => setGuideExpanded((current) => !current)}
+                  aria-expanded={guideExpanded}
+                >
+                  <span>
+                    <CircleHelp size={18} aria-hidden="true" />
+                    <strong>{t("automation.guide.title")}</strong>
+                  </span>
+                  <ChevronDown size={18} aria-hidden="true" />
+                </button>
+
+                {guideExpanded ? (
+                  <div className="plan-v83-guide-body">
+                    <div className="plan-v83-guide-steps">
+                      <article>
+                        <span>1</span>
+                        <p>{t("automation.guide.step1")}</p>
+                      </article>
+                      <article>
+                        <span>2</span>
+                        <p>{t("automation.guide.step2")}</p>
+                      </article>
+                      <article>
+                        <span>3</span>
+                        <p>{t("automation.guide.step3")}</p>
+                      </article>
+                    </div>
+                    <button
+                      type="button"
+                      className="plan-v83-guide-more"
+                      onClick={() => setShowGuideInfoModal(true)}
+                    >
+                      {t("automation.guide.learnMore")} <span>→</span>
+                    </button>
+                  </div>
+                ) : null}
+              </section>
+
               <section className="plan-v70-card plan-v70-settings-card">
                 <div className="plan-v70-section-heading">
                   <span className="plan-v70-icon purple"><Sparkles size={19} /></span>
@@ -8758,8 +8894,8 @@ setRules((currentRules) =>
                 </div>
 
                 <div className="plan-v70-settings-grid">
-                  <label className="plan-v70-field">
-                    <span>{t("automation.goal")}</span>
+                  <label className="plan-v70-field plan-v83-setting-tile">
+                    <span className="plan-v83-setting-label"><Target size={16} aria-hidden="true" />{t("automation.goal")}</span>
                     <select value={autoPlanGoal} onChange={(event) => changeAutoPlanGoal(event.target.value)}>
                       <option value="" disabled hidden>{t("automation.redesign.chooseGoal")}</option>
                       {autoPlanGoals.map((goal) => (
@@ -8771,8 +8907,8 @@ setRules((currentRules) =>
                     <small>{translateAutoPlanGoalDescription(autoPlanGoal) || t("automation.redesign.goalHelp")}</small>
                   </label>
 
-                  <label className="plan-v70-field">
-                    <span>{t("automation.postsPerWeek")}</span>
+                  <label className="plan-v70-field plan-v83-setting-tile">
+                    <span className="plan-v83-setting-label"><ListChecks size={16} aria-hidden="true" />{t("automation.postsPerWeek")}</span>
                     <select
                       value={autoPlanPostCount}
                       onChange={(event) => changeAutoPlanPostCount(Number(event.target.value))}
@@ -8787,8 +8923,8 @@ setRules((currentRules) =>
                     <small>{t("automation.redesign.frequencyHelp")}</small>
                   </label>
 
-                  <div className="plan-v70-field">
-                    <span>{t("automation.startDate")}</span>
+                  <div className="plan-v70-field plan-v83-setting-tile">
+                    <span className="plan-v83-setting-label"><CalendarDays size={16} aria-hidden="true" />{t("automation.startDate")}</span>
                     <DatePickerField
                       value={planStartDate}
                       onChange={updatePlanStartDate}
@@ -8803,8 +8939,8 @@ setRules((currentRules) =>
                     <small>{t("automation.redesign.startDateHelpV2")}</small>
                   </div>
 
-                  <label className="plan-v70-field">
-                    <span>{t("automation.redesign.postLanguage")}</span>
+                  <label className="plan-v70-field plan-v83-setting-tile">
+                    <span className="plan-v83-setting-label"><Languages size={16} aria-hidden="true" />{t("automation.redesign.postLanguage")}</span>
                     <select value={language} onChange={(event) => setLanguage(event.target.value)}>
                       {languageOptions.map((option) => (
                         <option value={option.value} key={`${option.value}-${option.label}`}>
@@ -8814,8 +8950,8 @@ setRules((currentRules) =>
                     </select>
                   </label>
 
-                  <label className="plan-v70-field">
-                    <span>{t("automation.redesign.publishing")}</span>
+                  <label className="plan-v70-field plan-v83-setting-tile">
+                    <span className="plan-v83-setting-label"><Repeat2 size={16} aria-hidden="true" />{t("automation.redesign.publishing")}</span>
                     <select
                       value={scheduleType}
                       onChange={(event) => setScheduleType(event.target.value)}
@@ -8826,8 +8962,8 @@ setRules((currentRules) =>
                     </select>
                   </label>
 
-                  <div className="plan-v70-field plan-v73-platform-field">
-                    <span>{t("automation.platform")}</span>
+                  <div className="plan-v70-field plan-v73-platform-field plan-v83-setting-tile">
+                    <span className="plan-v83-setting-label"><Globe2 size={16} aria-hidden="true" />{t("automation.platform")}</span>
                     {loadingConnectedPlatforms ? (
                       <div className="plan-v73-platform-loading">{t("automation.loadingConnectedChannels")}</div>
                     ) : connectedPlatformOptions.length > 0 ? (
@@ -8887,64 +9023,14 @@ setRules((currentRules) =>
                   </div>
                 </div>
 
-                <label className={`plan-v70-smart-toggle${scheduleType !== "weekly" ? " disabled" : ""}`}>
-                  <input
-                    type="checkbox"
-                    checked={scheduleType === "weekly" && varyWeeklyContentTypes}
-                    disabled={scheduleType !== "weekly"}
-                    onChange={(event) => setVaryWeeklyContentTypes(event.target.checked)}
-                  />
-                  <span className="plan-v70-toggle-track"><span /></span>
-                  <span className="plan-v70-toggle-copy">
-                    <strong>{t("automation.redesign.varyWeeklyTitle")}</strong>
-                    <small>{t("automation.redesign.varyWeeklyText")}</small>
-                  </span>
-                  <Info size={16} aria-hidden="true" />
-                </label>
               </section>
-
-              {scheduleType === "weekly" && planCreationMode !== "campaign" ? (
-                <section className="plan-v70-recurring-card">
-                  <div className="plan-v70-recurring-main">
-                    <span className="plan-v70-icon lavender"><Repeat2 size={19} /></span>
-                    <div>
-                      <h2>{t("automation.redesign.ongoingTitle")}</h2>
-                      <p>{t("automation.redesign.ongoingTextV2")}</p>
-                      <span className="plan-v74-recurring-variation">{t("automation.redesign.ongoingVariationNote")}</span>
-                    </div>
-                  </div>
-                  <label className="plan-v70-inline-toggle">
-                    <input
-                      type="checkbox"
-                      checked={scheduleType === "weekly"}
-                      onChange={(event) => setScheduleType(event.target.checked ? "weekly" : "once")}
-                    />
-                    <span />
-                    <strong>{t("automation.redesign.active")}</strong>
-                  </label>
-                  <div className="plan-v70-credit-notice">
-                    <Info size={17} aria-hidden="true" />
-                    <p>
-                      <strong>
-                        {plannedCredits > 0
-                          ? t("automation.redesign.weeklyChargeTitleV2", {
-                              credits: plannedCredits,
-                              count: slots.length,
-                            })
-                          : t("automation.redesign.weeklyChargePendingV2")}
-                      </strong>
-                      <span>{t("automation.redesign.weeklyChargeTextV2")}</span>
-                    </p>
-                  </div>
-                </section>
-              ) : null}
 
               <section className="plan-v70-card plan-v70-formats-card">
                 <div className="plan-v70-formats-head">
                   <div>
                     <h2>{t("automation.redesign.contentTypesTitleV2")}</h2>
-                    <p>{t("automation.redesign.contentTypesTextV2")}</p>
-                    <span className="plan-v74-content-types-note">{t("automation.redesign.contentTypesNote")}</span>
+                    <p>{t("automation.redesign.contentTypesTextV3")}</p>
+                    <span className="plan-v74-content-types-note">{t("automation.redesign.contentTypesNoteV2")}</span>
                   </div>
                 </div>
 
@@ -8976,7 +9062,15 @@ setRules((currentRules) =>
                   </div>
                 ) : null}
 
-                <div className="plan-v72-format-library grid">
+                <div
+                  className="plan-v72-format-library grid plan-v83-draggable-strip"
+                  ref={formatStripRef}
+                  onPointerDown={handleFormatStripPointerDown}
+                  onPointerMove={handleFormatStripPointerMove}
+                  onPointerUp={finishFormatStripDrag}
+                  onPointerCancel={finishFormatStripDrag}
+                  onClickCapture={blockFormatCardClickAfterDrag}
+                >
                   {mainExploreFormatItems.map((item, index) => (
                     <ContentFormatCard
                       item={item}
@@ -9182,6 +9276,62 @@ setRules((currentRules) =>
                     })}
                   </div>
 
+                </section>
+              ) : null}
+
+              {scheduleType === "weekly" && planCreationMode !== "campaign" ? (
+                <section className="plan-v83-continuation-card">
+                  <div className="plan-v83-continuation-head">
+                    <span className="plan-v70-icon lavender"><Repeat2 size={19} /></span>
+                    <div>
+                      <h2>{t("automation.redesign.ongoingTitle")}</h2>
+                      <p>{t("automation.redesign.ongoingTextV3")}</p>
+                    </div>
+                    <label className="plan-v70-inline-toggle">
+                      <input
+                        type="checkbox"
+                        checked={scheduleType === "weekly"}
+                        onChange={(event) => setScheduleType(event.target.checked ? "weekly" : "once")}
+                      />
+                      <span />
+                      <strong>{t("automation.redesign.active")}</strong>
+                    </label>
+                  </div>
+
+                  <div className="plan-v83-variation-row">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={varyWeeklyContentTypes}
+                        onChange={(event) => setVaryWeeklyContentTypes(event.target.checked)}
+                      />
+                      <span className="plan-v70-toggle-track"><span /></span>
+                      <span className="plan-v83-variation-copy">
+                        <strong>{t("automation.redesign.varyWeeklyTitle")}</strong>
+                        <small>{t("automation.redesign.varyWeeklyTextShort")}</small>
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      className="plan-v83-info-button"
+                      onClick={() => setShowVariationInfoModal(true)}
+                      aria-label={t("automation.redesign.varyWeeklyLearnMore")}
+                    >
+                      <Info size={17} aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <div className="plan-v83-next-cycle">
+                    <Info size={18} aria-hidden="true" />
+                    <div>
+                      <strong>
+                        {nextWeekCredits > 0
+                          ? t("automation.redesign.nextWeekCreditsSummary", { credits: nextWeekCredits })
+                          : t("automation.redesign.weeklyChargePendingV2")}
+                      </strong>
+                      <span>{t("automation.redesign.nextWeekPreviewNote")}</span>
+                    </div>
+                  </div>
                 </section>
               ) : null}
 
@@ -10940,6 +11090,46 @@ setRules((currentRules) =>
             </section>
           </div>
         )}
+
+        {showGuideInfoModal ? (
+          <div className="plan-v83-modal-backdrop" onClick={() => setShowGuideInfoModal(false)}>
+            <section className="plan-v83-info-modal" onClick={(event) => event.stopPropagation()}>
+              <button type="button" className="plan-v83-modal-close" onClick={() => setShowGuideInfoModal(false)} aria-label={t("automation.format.close")}>×</button>
+              <span className="plan-v83-modal-icon"><Sparkles size={24} aria-hidden="true" /></span>
+              <p className="plan-v83-modal-eyebrow">{t("automation.guide.title")}</p>
+              <h2>{t("automation.guide.modalTitle")}</h2>
+              <p className="plan-v83-modal-lead">{t("automation.guide.modalIntro")}</p>
+              <div className="plan-v83-modal-steps">
+                {[1, 2, 3, 4, 5].map((step) => (
+                  <article key={`guide-modal-${step}`}>
+                    <span>{step}</span>
+                    <div>
+                      <strong>{t(`automation.guide.modalStep${step}Title`)}</strong>
+                      <p>{t(`automation.guide.modalStep${step}Text`)}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {showVariationInfoModal ? (
+          <div className="plan-v83-modal-backdrop" onClick={() => setShowVariationInfoModal(false)}>
+            <section className="plan-v83-info-modal compact" onClick={(event) => event.stopPropagation()}>
+              <button type="button" className="plan-v83-modal-close" onClick={() => setShowVariationInfoModal(false)} aria-label={t("automation.format.close")}>×</button>
+              <span className="plan-v83-modal-icon"><Repeat2 size={24} aria-hidden="true" /></span>
+              <p className="plan-v83-modal-eyebrow">{t("automation.redesign.ongoingTitle")}</p>
+              <h2>{t("automation.redesign.varyWeeklyModalTitle")}</h2>
+              <p className="plan-v83-modal-lead">{t("automation.redesign.varyWeeklyModalIntro")}</p>
+              <div className="plan-v83-variation-points">
+                <p><CheckCircle2 size={17} />{t("automation.redesign.varyWeeklyPoint1")}</p>
+                <p><CheckCircle2 size={17} />{t("automation.redesign.varyWeeklyPoint2")}</p>
+                <p><CheckCircle2 size={17} />{t("automation.redesign.varyWeeklyPoint3")}</p>
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         {showAddPostModal && (
           <div

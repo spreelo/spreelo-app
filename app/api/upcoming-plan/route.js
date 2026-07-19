@@ -14,6 +14,57 @@ const WEEKDAYS = [
   "Saturday",
 ];
 
+const ADAPTIVE_PLAN_PREFIX = "SPREELO_ADAPTIVE_V1:";
+
+function parseAdaptivePlanConfig(rule) {
+  if (rule?.schedule_type !== "weekly") return null;
+  const notes = String(rule?.strategy_notes || "");
+  const markerIndex = notes.indexOf(ADAPTIVE_PLAN_PREFIX);
+  if (markerIndex === -1) return null;
+  const jsonLine = notes
+    .slice(markerIndex + ADAPTIVE_PLAN_PREFIX.length)
+    .split("\n", 1)[0]
+    .trim();
+  if (!jsonLine) return null;
+  try {
+    const config = JSON.parse(jsonLine);
+    if (!config?.enabled || !Array.isArray(config?.variants) || !config.variants.length) return null;
+    return config;
+  } catch {
+    return null;
+  }
+}
+
+function getAdaptiveWeeklyCycle(rule, scheduledPublishAtIso, config = null) {
+  const configuredStart = String(config?.baseStartDate || "").trim();
+  const cycleStartMs = new Date(
+    configuredStart ? `${configuredStart}T00:00:00Z` : rule?.created_at || rule?.updated_at || 0
+  ).getTime();
+  const scheduledAtMs = new Date(scheduledPublishAtIso || rule?.next_run_at || Date.now()).getTime();
+  if (!Number.isFinite(cycleStartMs) || !Number.isFinite(scheduledAtMs)) return 0;
+  return Math.max(0, Math.floor((scheduledAtMs - cycleStartMs) / (7 * 24 * 60 * 60 * 1000)));
+}
+
+function resolveAdaptiveWeeklyRule(rule, scheduledPublishAtIso) {
+  const config = parseAdaptivePlanConfig(rule);
+  if (!config) return rule;
+  const cycle = getAdaptiveWeeklyCycle(rule, scheduledPublishAtIso, config);
+  const slotIndex = Math.max(0, Number(config.slotIndex || 0));
+  const variantIndex = config.selectionMode === "cycle"
+    ? cycle % config.variants.length
+    : (cycle + slotIndex) % config.variants.length;
+  const variant = config.variants[variantIndex];
+  if (!variant || typeof variant !== "object") return rule;
+  return {
+    ...rule,
+    content_type_id: variant.contentTypeId || rule.content_type_id,
+    content_type_label: variant.contentTypeLabel || rule.content_type_label,
+    content_format: variant.contentFormat || rule.content_format,
+    credit_cost: Number(variant.creditCost || rule.credit_cost || 1),
+    adaptive_cycle: cycle,
+  };
+}
+
 function getAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -100,7 +151,7 @@ function getToken(request) {
 async function loadPlan(admin, payload) {
   const { data: rules, error } = await admin
     .from("automation_rules")
-    .select("id, name, platform, content_type_id, content_type_label, post_type, content_format, next_run_at, run_date, publish_time, timezone, weekday, is_active")
+    .select("id, name, platform, content_type_id, content_type_label, post_type, content_format, next_run_at, run_date, publish_time, timezone, weekday, is_active, schedule_type, strategy_notes, credit_cost, created_at, updated_at")
     .eq("user_id", payload.userId)
     .eq("brand_profile_id", payload.brandId)
     .eq("name", payload.planName)
@@ -117,13 +168,22 @@ async function loadPlan(admin, payload) {
     .eq("user_id", payload.userId)
     .maybeSingle();
 
+  const resolvedRules = (rules || []).map((rule) => {
+    const resolvedRule = resolveAdaptiveWeeklyRule(rule, rule.next_run_at);
+    return {
+      ...resolvedRule,
+      ...formatLocalParts(rule.next_run_at, rule.timezone || DEFAULT_TIME_ZONE),
+    };
+  });
+
   return {
     brandName: brand?.business_name || "",
     planName: payload.planName,
-    rules: (rules || []).map((rule) => ({
-      ...rule,
-      ...formatLocalParts(rule.next_run_at, rule.timezone || DEFAULT_TIME_ZONE),
-    })),
+    totalCredits: resolvedRules.reduce(
+      (total, rule) => total + Math.max(1, Number(rule.credit_cost || 1)),
+      0
+    ),
+    rules: resolvedRules,
   };
 }
 

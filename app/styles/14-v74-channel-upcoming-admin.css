@@ -756,3 +756,39 @@ html body .automation-page.plan-v70-active .plan-v70-row-editor button { min-hei
     font-size: 13px;
   }
 }
+
+/* v82 — respect the fixed two-row mobile header on all app pages */
+@media (max-width: 900px) {
+  html body .content.spreelo-content {
+    padding-top: calc(var(--spreelo-mobile-header-total, 110px) + 12px) !important;
+  }
+
+  html body .social-v74-page {
+    padding-top: 8px !important;
+  }
+}
+
+/* v83 — upcoming weekly preview includes exact next-cycle credit cost */
+.upcoming-v74-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.upcoming-v74-copy small {
+  display: block;
+  margin-top: 4px;
+  color: #a4513c;
+  font-size: 10.5px;
+  font-weight: 750;
+}
+
+@media (max-width: 760px) {
+  .upcoming-v74-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .upcoming-v74-summary {
+    grid-template-columns: 1fr;
+  }
+}
