@@ -8982,9 +8982,13 @@ function blockFormatCardClickAfterDrag(event) {
                           <span className="platform-selected-icons">
                             {selectedPlatformOptions.length > 0 ? (
                               selectedPlatformOptions.map((item) => (
-                                <span className="plan-v73-selected-platform" key={item.value}>
+                                <span
+                                  className="plan-v73-selected-platform plan-v85-selected-platform-icon"
+                                  key={item.value}
+                                  title={item.label}
+                                  aria-label={item.label}
+                                >
                                   <img src={item.icon} alt="" className="platform-icon-img" />
-                                  <span>{item.label}</span>
                                 </span>
                               ))
                             ) : (

@@ -3577,3 +3577,210 @@ html body .automation-page.plan-v70-active .plan-v70-activate-actions > button s
 html body .automation-page.plan-v70-active .plan-v70-activate-card.no-plan {
   display: none !important;
 }
+
+/* v85 — bring the plan settings layout closer to the approved compact reference */
+html body .automation-page.plan-v70-active .plan-v84-settings-card {
+  padding: 18px 20px 20px !important;
+  overflow: visible !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v84-settings-grid {
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+  gap: 14px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile {
+  height: 100%;
+  min-height: 132px !important;
+  box-sizing: border-box;
+}
+
+/* The guide is one coherent card; the three steps are not separate cards. */
+html body .automation-page.plan-v70-active .plan-v84-guide {
+  border: 1px solid #efcfc1 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(145deg, #fffaf6 0%, #fff7f1 100%) !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-heading {
+  min-height: 44px !important;
+  padding: 12px 14px 8px !important;
+  border-bottom: 0 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-body {
+  padding: 4px 14px 14px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-steps {
+  gap: 8px 18px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-steps article {
+  min-height: 0 !important;
+  padding: 3px 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-steps article > span {
+  width: 24px !important;
+  height: 24px !important;
+  flex-basis: 24px !important;
+  font-size: 11px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-steps p {
+  margin: 0 !important;
+  font-size: 12.5px !important;
+  line-height: 1.4 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-more {
+  margin-top: 10px !important;
+  font-size: 12.5px !important;
+}
+
+/* Closed platform field shows only selected network icons. Names remain visible in the dropdown. */
+html body .automation-page.plan-v70-active .plan-v85-selected-platform-icon {
+  width: auto !important;
+  min-width: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v85-selected-platform-icon .platform-icon-img {
+  width: 25px !important;
+  height: 25px !important;
+  margin: 0 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v84-settings-grid .platform-selected-icons {
+  gap: 7px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+
+@media (min-width: 761px) {
+  html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* On mobile the settings area itself is no longer an outer rounded card. */
+  html body .automation-page.plan-v70-active .plan-v84-settings-card {
+    margin: 0 !important;
+    padding: 14px 12px 16px !important;
+    gap: 14px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-settings-card > .plan-v70-section-heading {
+    padding: 0 2px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-guide {
+    margin: 0 !important;
+    border-radius: 14px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-heading {
+    min-height: 42px !important;
+    padding: 11px 12px 6px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-body {
+    padding: 4px 12px 13px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-steps {
+    grid-template-columns: 1fr !important;
+    gap: 5px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-steps article {
+    padding: 2px 0 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-steps p {
+    font-size: 12px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-guide .plan-v83-guide-more {
+    margin-top: 9px !important;
+    font-size: 12px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-rows: 1fr !important;
+    gap: 8px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile {
+    min-height: 92px !important;
+    height: 100% !important;
+    padding: 10px !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-label {
+    margin-bottom: 6px !important;
+    font-size: 11.5px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile select,
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile input,
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile .custom-picker-button,
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile .platform-multiselect-button {
+    min-height: 44px !important;
+    height: 44px !important;
+    padding-left: 10px !important;
+    padding-right: 30px !important;
+    border-radius: 10px !important;
+    font-size: 12.5px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile small {
+    display: none !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v85-selected-platform-icon .platform-icon-img {
+    width: 24px !important;
+    height: 24px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile {
+    min-height: 88px !important;
+    padding: 8px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile select,
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile input,
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile .custom-picker-button,
+  html body .automation-page.plan-v70-active .plan-v84-settings-grid .plan-v83-setting-tile .platform-multiselect-button {
+    font-size: 12px !important;
+  }
+}
