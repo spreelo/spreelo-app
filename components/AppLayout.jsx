@@ -16,6 +16,7 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  CreditCard,
   Trash2,
   UserRound,
   WandSparkles,
@@ -132,6 +133,8 @@ export default function AppLayout({ active, children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [creditBalance, setCreditBalance] = useState(null);
+  const [loadingCredits, setLoadingCredits] = useState(true);
   const avatarInputRef = useRef(null);
 
   const currentBrand = useMemo(() => {
@@ -200,6 +203,7 @@ export default function AppLayout({ active, children }) {
       const [brandsLoaded] = await Promise.all([
         loadBrands(session.user),
         checkAdminAccess(),
+        loadCreditBalance(session.user),
       ]);
 
       if (!brandsLoaded) {
@@ -213,6 +217,55 @@ export default function AppLayout({ active, children }) {
     }
   }
 
+
+  async function loadCreditBalance(currentUser) {
+    setLoadingCredits(true);
+
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from("user_credit_balances")
+          .select("credits_remaining, monthly_credit_limit, plan_name, subscription_plan, current_period_end, credits_renewed_at")
+          .eq("user_id", currentUser.id)
+          .maybeSingle(),
+        WORKSPACE_REQUEST_TIMEOUT_MS
+      );
+
+      if (error) throw error;
+      setCreditBalance(data || null);
+    } catch (error) {
+      console.error("Could not load credit balance:", error);
+      setCreditBalance(null);
+    } finally {
+      setLoadingCredits(false);
+    }
+  }
+
+  function getCreditResetLabel() {
+    const value = creditBalance?.current_period_end || creditBalance?.credits_renewed_at;
+    if (!value) return t("layout.creditsResetUnknown");
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return t("layout.creditsResetUnknown");
+
+    try {
+      return new Intl.DateTimeFormat(locale || "en", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(date);
+    } catch {
+      return date.toLocaleDateString();
+    }
+  }
+
+  function getPlanLabel() {
+    const raw = String(
+      creditBalance?.plan_name || creditBalance?.subscription_plan || "Pro"
+    ).trim();
+    if (!raw) return "Pro";
+    return raw.replace(/^plan\s*:\s*/i, "");
+  }
 
   async function checkAdminAccess() {
     try {
@@ -633,6 +686,44 @@ export default function AppLayout({ active, children }) {
         </nav>
 
         <div className="sidebar-footer spreelo-sidebar-footer">
+          <a className="sidebar-plan-card sidebar-credit-card" href="/settings">
+            <div className="sidebar-credit-heading">
+              <span>{t("layout.planLabel", { plan: getPlanLabel() })}</span>
+              <CreditCard size={16} aria-hidden="true" />
+            </div>
+
+            {loadingCredits ? (
+              <p className="sidebar-credit-loading">{t("layout.loadingCredits")}</p>
+            ) : creditBalance ? (
+              <>
+                <div className="sidebar-credit-count">
+                  <strong>{Number(creditBalance.credits_remaining || 0)}</strong>
+                  <span>/ {Number(creditBalance.monthly_credit_limit || 0)} {t("layout.creditsLeft")}</span>
+                </div>
+                <div className="sidebar-credit-progress" aria-hidden="true">
+                  <span
+                    style={{
+                      width: `${Math.max(
+                        0,
+                        Math.min(
+                          100,
+                          Number(creditBalance.monthly_credit_limit || 0) > 0
+                            ? (Number(creditBalance.credits_remaining || 0) /
+                                Number(creditBalance.monthly_credit_limit || 1)) *
+                              100
+                            : 0
+                        )
+                      )}%`,
+                    }}
+                  />
+                </div>
+                <small>{t("layout.creditsReset", { date: getCreditResetLabel() })}</small>
+              </>
+            ) : (
+              <p className="sidebar-credit-loading">{t("layout.creditsUnavailable")}</p>
+            )}
+          </a>
+
           <div className="spreelo-user-profile-card">
             <button
               type="button"
@@ -655,7 +746,7 @@ export default function AppLayout({ active, children }) {
 
             <div className="spreelo-user-profile-copy">
               <strong>{getUserDisplayName()}</strong>
-              <span>{user?.email || t("layout.account")}</span>
+              <span>{t("layout.companyAdmin")}</span>
             </div>
 
             {user?.user_metadata?.spreelo_avatar_url ? (
@@ -668,7 +759,9 @@ export default function AppLayout({ active, children }) {
               >
                 <Trash2 size={14} aria-hidden="true" />
               </button>
-            ) : null}
+            ) : (
+              <ChevronDown className="spreelo-user-profile-chevron" size={16} aria-hidden="true" />
+            )}
 
             <input
               ref={avatarInputRef}
@@ -676,24 +769,6 @@ export default function AppLayout({ active, children }) {
               accept="image/jpeg,image/png,image/webp"
               onChange={handleAvatarUpload}
               hidden
-            />
-          </div>
-
-          <div className="sidebar-plan-card">
-            <div className="sidebar-plan-icon" aria-hidden="true">
-              <Sparkles size={17} strokeWidth={2.1} />
-            </div>
-
-            <div>
-              <strong>{t("layout.planPro")}</strong>
-              <span>{t("layout.upgradeText")}</span>
-            </div>
-
-            <ChevronRight
-              className="sidebar-plan-arrow"
-              size={18}
-              strokeWidth={2}
-              aria-hidden="true"
             />
           </div>
 

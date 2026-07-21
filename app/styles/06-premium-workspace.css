@@ -3626,3 +3626,91 @@ html body .dashboard-plan-hub-section .saved-header {
     padding-top: calc(var(--spreelo-mobile-header-total) + 24px) !important;
   }
 }
+
+/* v89 — subscription and credits live in the left navigation */
+.spreelo-sidebar-footer {
+  gap: 12px !important;
+}
+
+.sidebar-credit-card,
+.spreelo-sidebar .sidebar-credit-card {
+  display: block !important;
+  width: 100% !important;
+  padding: 15px !important;
+  color: #fff !important;
+  text-decoration: none !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(155deg, rgba(19,31,47,.96), rgba(7,17,29,.96)) !important;
+  box-shadow: none !important;
+}
+
+.sidebar-credit-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  color: #ff8a67 !important;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+
+.sidebar-credit-count {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 4px !important;
+  margin-top: 9px !important;
+}
+
+.sidebar-credit-count strong {
+  color: #fff !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  font-weight: 850 !important;
+}
+
+.sidebar-credit-count span {
+  color: rgba(255,255,255,.82) !important;
+  font-size: 10px !important;
+  font-weight: 650 !important;
+}
+
+.sidebar-credit-progress {
+  height: 5px !important;
+  margin-top: 11px !important;
+  overflow: hidden !important;
+  border-radius: 999px !important;
+  background: rgba(255,255,255,.15) !important;
+}
+
+.sidebar-credit-progress > span {
+  display: block !important;
+  height: 100% !important;
+  min-width: 3px !important;
+  border-radius: inherit !important;
+  background: linear-gradient(90deg, #ff6b45, #ff9a5a) !important;
+}
+
+.sidebar-credit-card small,
+.sidebar-credit-loading {
+  display: block !important;
+  margin: 9px 0 0 !important;
+  color: rgba(255,255,255,.64) !important;
+  font-size: 10px !important;
+  line-height: 1.35 !important;
+}
+
+.spreelo-user-profile-card {
+  border-top: 1px solid rgba(255,255,255,.09) !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 13px 0 0 !important;
+}
+
+.spreelo-user-profile-chevron {
+  margin-left: auto;
+  color: rgba(255,255,255,.72);
+}

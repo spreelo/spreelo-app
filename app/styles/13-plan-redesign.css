@@ -4616,3 +4616,434 @@ html body .automation-page.plan-v70-active .plan-v86-planned-visual {
     min-height: 100% !important;
   }
 }
+
+/* v89 — full-width planner, premium 3-step guide and reference-style setting cards */
+html body .automation-page.plan-v70-active .wizard-layout {
+  max-width: 1500px !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0 !important;
+}
+
+html body .automation-page.plan-v70-active .wizard-main,
+html body .automation-page.plan-v70-active .plan-v70-shell {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-section {
+  display: grid !important;
+  gap: 22px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-banner {
+  position: relative !important;
+  overflow: hidden !important;
+  border: 1px solid #eadfdc !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 93% 22%, rgba(255,255,255,.82) 0 3px, transparent 4px),
+    linear-gradient(112deg, #f3efff 0%, #fbf5f7 51%, #fff0e4 100%) !important;
+  box-shadow: 0 14px 36px rgba(35, 42, 70, .055) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-banner.expanded {
+  min-height: 188px !important;
+  padding: 30px 36px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-banner.expanded::after {
+  content: "";
+  position: absolute;
+  right: -25px;
+  bottom: -54px;
+  width: 360px;
+  height: 190px;
+  opacity: .42;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 55%, rgba(255,255,255,.95) 0 4px, transparent 5px),
+    radial-gradient(circle at 48% 35%, rgba(255,255,255,.95) 0 4px, transparent 5px),
+    radial-gradient(circle at 73% 58%, rgba(255,255,255,.95) 0 4px, transparent 5px),
+    radial-gradient(circle at 93% 26%, rgba(255,255,255,.95) 0 4px, transparent 5px);
+  border-top: 1px solid rgba(255,255,255,.75);
+  border-radius: 50% 0 0 0;
+  transform: rotate(-8deg);
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid {
+  position: relative;
+  z-index: 1;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  align-items: stretch !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid article {
+  display: grid !important;
+  grid-template-columns: 76px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 20px !important;
+  min-width: 0 !important;
+  padding: 8px 34px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid article:first-child {
+  padding-left: 0 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid article:last-child {
+  padding-right: 8px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid article + article {
+  border-left: 1px solid rgba(126, 119, 145, .2) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-icon {
+  width: 72px !important;
+  height: 72px !important;
+  display: grid !important;
+  place-items: center !important;
+  color: #ee6542 !important;
+  border: 1px solid rgba(255,255,255,.86) !important;
+  border-radius: 50% !important;
+  background: rgba(255,255,255,.64) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid h2 {
+  margin: 0 0 8px !important;
+  color: #121b32 !important;
+  font-size: 21px !important;
+  line-height: 1.1 !important;
+  font-weight: 850 !important;
+  letter-spacing: -.025em !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid p {
+  max-width: 300px !important;
+  margin: 0 !important;
+  color: #37445e !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+  font-weight: 500 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-collapse {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  z-index: 2 !important;
+  width: 34px !important;
+  height: 34px !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 0 !important;
+  color: #5f6676 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-collapse svg {
+  transform: rotate(180deg);
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-banner.collapsed {
+  min-height: 54px !important;
+  padding: 0 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-compact {
+  width: 100% !important;
+  min-height: 54px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 18px !important;
+  color: #202941 !important;
+  border: 0 !important;
+  background: transparent !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-compact > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-heading {
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  padding: 0 4px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-heading h2 {
+  margin: 0 !important;
+  color: #111b32 !important;
+  font-size: 24px !important;
+  line-height: 1.15 !important;
+  font-weight: 850 !important;
+  letter-spacing: -.03em !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-heading p {
+  margin: 6px 0 0 !important;
+  color: #65718a !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-heading > button {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 7px 3px !important;
+  color: #55617b !important;
+  border: 0 !important;
+  background: transparent !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-auto-rows: 1fr !important;
+  gap: 16px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v83-setting-tile {
+  position: relative !important;
+  min-height: 154px !important;
+  display: grid !important;
+  grid-template-rows: auto auto minmax(52px, auto) 1fr !important;
+  align-content: start !important;
+  padding: 18px !important;
+  border: 1px solid #e0e5ef !important;
+  border-radius: 18px !important;
+  background: #fff !important;
+  box-shadow: 0 8px 24px rgba(31, 42, 75, .045) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v83-setting-label {
+  min-height: 42px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin: 0 !important;
+  color: #18223a !important;
+  font-size: 15px !important;
+  font-weight: 850 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v83-setting-label > svg {
+  width: 38px !important;
+  height: 38px !important;
+  flex: 0 0 38px !important;
+  padding: 9px !important;
+  color: #f06440 !important;
+  border-radius: 50% !important;
+  background: #fff3ee !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v86-mobile-helper {
+  display: block !important;
+  margin: 1px 0 10px 50px !important;
+  color: #63708a !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  font-weight: 500 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v86-desktop-helper {
+  display: none !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-grid select,
+html body .automation-page.plan-v70-active .plan-v89-settings-grid input,
+html body .automation-page.plan-v70-active .plan-v89-settings-grid .custom-picker-button,
+html body .automation-page.plan-v70-active .plan-v89-settings-grid .platform-multiselect-button,
+html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v73-platform-loading,
+html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v73-connect-platform {
+  width: 100% !important;
+  min-height: 50px !important;
+  height: 50px !important;
+  align-self: end !important;
+  padding-left: 14px !important;
+  padding-right: 38px !important;
+  color: #182137 !important;
+  border: 1px solid #dce2ec !important;
+  border-radius: 12px !important;
+  background-color: #fff !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+  box-shadow: none !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-settings-grid .platform-multiselect {
+  align-self: end !important;
+}
+
+@media (max-width: 1120px) {
+  html body .automation-page.plan-v70-active .plan-v89-guide-banner.expanded {
+    padding: 24px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article {
+    grid-template-columns: 58px minmax(0, 1fr) !important;
+    gap: 14px !important;
+    padding: 7px 20px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-icon {
+    width: 56px !important;
+    height: 56px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid h2 {
+    font-size: 18px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid p {
+    font-size: 12.5px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html body .automation-page.plan-v70-active .plan-v89-settings-section {
+    gap: 15px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-banner.expanded {
+    min-height: 0 !important;
+    padding: 17px 16px !important;
+    border-radius: 17px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-banner.expanded::after {
+    display: none !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article,
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article:first-child,
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article:last-child {
+    grid-template-columns: 38px minmax(0, 1fr) !important;
+    gap: 10px !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-icon svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid h2 {
+    margin: 0 0 2px !important;
+    font-size: 14px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid p {
+    max-width: none !important;
+    font-size: 11.5px !important;
+    line-height: 1.42 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-collapse {
+    top: 7px !important;
+    right: 7px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-heading {
+    align-items: flex-start !important;
+    padding: 0 2px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-heading h2 {
+    font-size: 20px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-heading p {
+    font-size: 12px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-heading > button {
+    width: 34px !important;
+    height: 34px !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    color: transparent !important;
+    padding: 0 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-heading > button svg {
+    color: #5c6880 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 9px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v83-setting-tile {
+    min-height: 132px !important;
+    grid-template-rows: auto auto minmax(44px, auto) !important;
+    padding: 11px !important;
+    border-radius: 13px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v83-setting-label {
+    min-height: 28px !important;
+    gap: 7px !important;
+    font-size: 11.5px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v83-setting-label > svg {
+    width: 27px !important;
+    height: 27px !important;
+    flex-basis: 27px !important;
+    padding: 6px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v86-mobile-helper {
+    min-height: 30px !important;
+    margin: 3px 0 7px !important;
+    font-size: 9.5px !important;
+    line-height: 1.35 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid select,
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid input,
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid .custom-picker-button,
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid .platform-multiselect-button,
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v73-platform-loading,
+  html body .automation-page.plan-v70-active .plan-v89-settings-grid .plan-v73-connect-platform {
+    min-height: 43px !important;
+    height: 43px !important;
+    padding-left: 10px !important;
+    padding-right: 28px !important;
+    border-radius: 10px !important;
+    font-size: 11.5px !important;
+  }
+}

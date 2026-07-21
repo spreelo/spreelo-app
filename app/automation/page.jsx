@@ -8873,57 +8873,66 @@ function blockFormatCardClickAfterDrag(event) {
                 </button>
               </header>
 
-              <section className="plan-v70-card plan-v70-settings-card plan-v84-settings-card">
-                <div className="plan-v70-section-heading">
-                  <span className="plan-v70-icon purple"><Sparkles size={19} /></span>
-                  <div>
-                    <h2>{t("automation.redesign.settingsTitle")}</h2>
-                    <p>{t("automation.redesign.settingsText")}</p>
-                  </div>
-                </div>
-
-                <section className={`plan-v83-guide plan-v84-guide${guideExpanded ? " expanded" : " collapsed"}`}>
-                  <button
-                    type="button"
-                    className="plan-v83-guide-heading"
-                    onClick={() => setGuideExpanded((current) => !current)}
-                    aria-expanded={guideExpanded}
-                  >
-                    <span>
-                      <CircleHelp size={18} aria-hidden="true" />
-                      <strong>{t("automation.guide.title")}</strong>
-                    </span>
-                    <ChevronDown size={18} aria-hidden="true" />
-                  </button>
-
+              <section className="plan-v70-settings-card plan-v84-settings-card plan-v89-settings-section">
+                <section className={`plan-v89-guide-banner${guideExpanded ? " expanded" : " collapsed"}`}>
                   {guideExpanded ? (
-                    <div className="plan-v83-guide-body">
-                      <div className="plan-v83-guide-steps">
+                    <>
+                      <div className="plan-v89-guide-grid">
                         <article>
-                          <span>1</span>
-                          <p>{t("automation.guide.step1")}</p>
+                          <span className="plan-v89-guide-icon"><Wrench size={27} aria-hidden="true" /></span>
+                          <div>
+                            <h2>{t("automation.guide.step1TitleV2")}</h2>
+                            <p>{t("automation.guide.step1TextV2")}</p>
+                          </div>
                         </article>
                         <article>
-                          <span>2</span>
-                          <p>{t("automation.guide.step2")}</p>
+                          <span className="plan-v89-guide-icon"><ClipboardList size={27} aria-hidden="true" /></span>
+                          <div>
+                            <h2>{t("automation.guide.step2TitleV2")}</h2>
+                            <p>{t("automation.guide.step2TextV2")}</p>
+                          </div>
                         </article>
                         <article>
-                          <span>3</span>
-                          <p>{t("automation.guide.step3")}</p>
+                          <span className="plan-v89-guide-icon"><Rocket size={27} aria-hidden="true" /></span>
+                          <div>
+                            <h2>{t("automation.guide.step3TitleV2")}</h2>
+                            <p>{t("automation.guide.step3TextV2")}</p>
+                          </div>
                         </article>
                       </div>
                       <button
                         type="button"
-                        className="plan-v83-guide-more"
-                        onClick={() => setShowGuideInfoModal(true)}
+                        className="plan-v89-guide-collapse"
+                        onClick={() => setGuideExpanded(false)}
+                        aria-label={t("automation.guide.collapse")}
                       >
-                        {t("automation.guide.learnMore")} <span>→</span>
+                        <ChevronDown size={18} aria-hidden="true" />
                       </button>
-                    </div>
-                  ) : null}
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="plan-v89-guide-compact"
+                      onClick={() => setGuideExpanded(true)}
+                      aria-expanded={false}
+                    >
+                      <span><CircleHelp size={18} aria-hidden="true" />{t("automation.guide.title")}</span>
+                      <ChevronDown size={18} aria-hidden="true" />
+                    </button>
+                  )}
                 </section>
 
-                <div className="plan-v70-settings-grid plan-v84-settings-grid">
+                <div className="plan-v89-settings-heading">
+                  <div>
+                    <h2>{t("automation.redesign.settingsTitle")}</h2>
+                    <p>{t("automation.redesign.settingsTextV2")}</p>
+                  </div>
+                  <button type="button" onClick={() => setShowGuideInfoModal(true)}>
+                    {t("automation.guide.needHelp")} <CircleHelp size={17} aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div className="plan-v70-settings-grid plan-v84-settings-grid plan-v89-settings-grid">
                   <label className="plan-v70-field plan-v83-setting-tile">
                     <span className="plan-v83-setting-label"><Target size={16} aria-hidden="true" />{t("automation.goal")}</span>
                     <small className="plan-v86-mobile-helper">{t("automation.redesign.goalHelpMobile")}</small>
@@ -10847,225 +10856,7 @@ function blockFormatCardClickAfterDrag(event) {
             </section>
           </main>
 
-                   <aside className="planner-sidebar">
-                      <section className="planner-summary-card">
-              <div className="planner-sidebar-title planner-summary-title">
-                <PlannerSummaryIcon type="title" />
-                <div>
-                  <h3>{t("automation.redesign.planOverview")}</h3>
-                  <p>{t("automation.redesign.planOverviewReady")}</p>
-                </div>
-              </div>
 
-              <div className="planner-summary-list premium">
-                {planCreationMode === "auto" && (
-                  <div className="planner-summary-item">
-                    <PlannerSummaryIcon type="goal" />
-                    <div>
-                      <span>{t("automation.goal")}</span>
-                      <strong>{translateAutoPlanGoalLabel(autoPlanGoal)}</strong>
-                    </div>
-                  </div>
-                )}
-
-
-<div className="planner-summary-item">
-  <PlannerSummaryIcon type="posts" />
-  <div>
-    <span>
-      {scheduleType === "weekly" && planCreationMode !== "campaign"
-        ? t("automation.postsPerWeek")
-        : t("common.posts")}
-    </span>
-    <strong>
-      {t("automation.postCount", { count: slots.length })}
-    </strong>
-  </div>
-</div>
-                <div className="planner-summary-item">
-                  <PlannerSummaryIcon type="start" />
-                  <div>
-                    <span>{t("automation.start")}</span>
-                    <strong>
-                      {formatStartDateLabel(planStartDate, timeZone, locale)},{" "}
-                      {defaultPublishTime}
-                    </strong>
-                  </div>
-                </div>
-
-
-                <div className="planner-summary-item">
-                  <PlannerSummaryIcon type="platform" />
-                  <div>
-                    <span>{t("automation.platform")}</span>
-                    <div className="planner-social-icon-row mini">
-                      {selectedPlatformOptions.length > 0 ? (
-                        selectedPlatformOptions.map((item) => (
-                          <img
-                            key={item.value}
-                            src={item.icon}
-                            alt={item.label}
-                            className="platform-icon-img"
-                          />
-                        ))
-                      ) : (
-                        <strong>{t("automation.choosePlatform")}</strong>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="planner-summary-item">
-                  <PlannerSummaryIcon type="language" />
-                  <div>
-                    <span>{safePlannerText("languageForPosts")}</span>
-                    <strong>{getLanguageDisplayLabel(language)}</strong>
-                  </div>
-                </div>
-
-                <div className="planner-summary-item">
-                  <PlannerSummaryIcon type="repeat" />
-                  <div>
-                    <span>{safePlannerText("repeatFull")}</span>
-                    <strong>{translateScheduleType(scheduleType)}</strong>
-                  </div>
-                </div>
-
-                <div className="planner-summary-item">
-                  <PlannerSummaryIcon type="timezone" />
-                  <div>
-                    <span>{t("automation.timezone")}</span>
-                    <strong>{timeZone}</strong>
-                  </div>
-                </div>
-
-                <div className="planner-summary-item">
-                  <PlannerSummaryIcon type="approval" success />
-                  <div>
-                    <span>{t("automation.approval")}</span>
-                    <strong>{t("automation.approvalAlwaysRequired")}</strong>
-                  </div>
-                </div>
-
-              </div>
-
-              <button
-                type="button"
-                className="plan-v70-review-button"
-                onClick={() => document.getElementById("plan-v70-planned-posts")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              >
-                {t("automation.redesign.reviewPlan")} <span>→</span>
-              </button>
-
-              <div className="planner-summary-status">
-                <PlannerSummaryIcon type="ready" success />
-                <div>
-                  <strong>{t("automation.planIsReady")}</strong>
-                  <p>{t("automation.planReadyText")}</p>
-                </div>
-              </div>
-
-              {creditBalance && !hasEnoughCredits && (
-                <div className="planner-sidebar-warning">
-                  {t("automation.sidebarCreditWarning", { credits: plannedCredits, remaining: creditBalance.credits_remaining })}
-                </div>
-              )}
-            </section>
-
-            <section className="planner-credits-card">
-              <div className="planner-sidebar-title">
-                <PlannerSummaryIcon type="credits" />
-                <h3>{t("automation.credits")}</h3>
-              </div>
-
-              {creditBalance ? (
-                <>
-                  <div className="planner-credit-number">
-                    <strong>{creditsRemaining}</strong>
-                    <span>/ {monthlyCreditLimit || "—"} {t("automation.creditsLeft")}</span>
-                  </div>
-
-                  <div className="planner-credit-progress">
-                    <div style={{ width: `${creditUsagePercent}%` }} />
-                  </div>
-
-                            <p className="planner-credit-reset">
-                    {getLocalizedCreditDateLabel(creditBalance)}: {subscriptionDateValue === "Not set yet" ? t("automation.notSetYet") : subscriptionDateValue}
-                  </p>
-
-                  <div className="planner-credit-wave" />
-
-                  <div className="planner-credit-help">
-                    <strong>{t("automation.needMoreCredits")}</strong>
-                    <p>{t("automation.upgradeText")}</p>
-                  </div>
-
-                  <button type="button" className="planner-upgrade-button">
-                    {t("automation.upgradePlan")}
-                  </button>
-                </>
-              ) : (
-                <div className="summary-note">
-                  <strong>{t("automation.noCreditBalance")}</strong>
-                  <p>
-                    {t("automation.noCreditBalanceText")}
-                  </p>
-                </div>
-              )}
-              {creditBalance ? (
-                <>
-                  <button
-                    type="button"
-                    className={`plan-v70-credit-details${showCreditDetails ? " open" : ""}`}
-                    onClick={() => setShowCreditDetails((current) => !current)}
-                    aria-expanded={showCreditDetails}
-                  >
-                    {t("automation.redesign.viewDetails")} <span>{showCreditDetails ? "−" : "→"}</span>
-                  </button>
-
-                  {showCreditDetails ? (
-                    <div className="plan-v76-credit-breakdown" role="status">
-                      <div>
-                        <span>{t("automation.creditsLeft")}</span>
-                        <strong>{creditsRemaining}</strong>
-                      </div>
-                      <div>
-                        <span>{scheduleType === "weekly" ? t("automation.postsPerWeek") : t("common.posts")}</span>
-                        <strong>{t("automation.postCount", { count: slots.length })}</strong>
-                      </div>
-                      <div>
-                        <span>{plannerLocaleIsSwedish ? "Veckoförbrukning" : "Weekly usage"}</span>
-                        <strong>
-                          {plannedCredits > 0
-                            ? plannerLocaleIsSwedish
-                              ? `${plannedCredits} krediter`
-                              : `${plannedCredits} credits`
-                            : plannerLocaleIsSwedish
-                              ? "Välj ett mål"
-                              : "Choose a goal"}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>{t("automation.creditDate.renews")}</span>
-                        <strong>{subscriptionDateValue === "Not set yet" ? t("automation.notSetYet") : subscriptionDateValue}</strong>
-                      </div>
-                    </div>
-                  ) : null}
-                </>
-              ) : null}
-            </section>
-
-            <section className="plan-v70-tip-card">
-              <div className="plan-v70-tip-title">
-                <Lightbulb size={18} aria-hidden="true" />
-                <strong>{t("automation.redesign.tipTitle")}</strong>
-              </div>
-              <p>{t("automation.redesign.tipText")}</p>
-              <button type="button" onClick={() => setShowRecommendationInfoModal(true)}>
-                {t("automation.learnMore")}
-              </button>
-            </section>
-          </aside>
             </div>
 
         {selectedFormatPreview && (
