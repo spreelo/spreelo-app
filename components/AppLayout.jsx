@@ -745,8 +745,8 @@ export default function AppLayout({ active, children }) {
             </button>
 
             <div className="spreelo-user-profile-copy">
-              <strong>{getUserDisplayName()}</strong>
-              <span>{t("layout.companyAdmin")}</span>
+              <strong>{t("layout.account")}</strong>
+              <span>{user?.email || ""}</span>
             </div>
 
             {user?.user_metadata?.spreelo_avatar_url ? (

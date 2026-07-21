@@ -3714,3 +3714,58 @@ html body .dashboard-plan-hub-section .saved-header {
   margin-left: auto;
   color: rgba(255,255,255,.72);
 }
+
+/* v90 — honest, compact account identity with a clean default avatar */
+.spreelo-user-avatar-fallback {
+  position: relative !important;
+  overflow: hidden !important;
+  color: #ee6542 !important;
+  background:
+    radial-gradient(circle at 22% 25%, rgba(239,101,66,.18) 0 3px, transparent 4px),
+    radial-gradient(circle at 78% 72%, rgba(239,101,66,.14) 0 4px, transparent 5px),
+    linear-gradient(145deg, #ffffff 0%, #fff9f5 100%) !important;
+  border: 1px solid rgba(255,255,255,.92) !important;
+  box-shadow: 0 8px 18px rgba(0,0,0,.16) !important;
+}
+
+.spreelo-user-avatar-fallback::before,
+.spreelo-user-avatar-fallback::after {
+  content: "";
+  position: absolute;
+  border: 2px solid rgba(239,101,66,.18);
+  border-radius: 50%;
+}
+
+.spreelo-user-avatar-fallback::before {
+  width: 34px;
+  height: 34px;
+  right: -17px;
+  top: -12px;
+}
+
+.spreelo-user-avatar-fallback::after {
+  width: 28px;
+  height: 28px;
+  left: -14px;
+  bottom: -10px;
+}
+
+.spreelo-user-avatar-fallback > svg {
+  position: relative;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  stroke-width: 2;
+}
+
+.spreelo-user-profile-copy strong {
+  color: rgba(255,255,255,.92) !important;
+  font-size: 11.5px !important;
+  font-weight: 750 !important;
+}
+
+.spreelo-user-profile-copy span {
+  margin-top: 2px !important;
+  color: rgba(255,255,255,.68) !important;
+  font-size: 10px !important;
+}
