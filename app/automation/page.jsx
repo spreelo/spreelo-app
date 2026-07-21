@@ -25,6 +25,7 @@ import {
   Globe2,
   GalleryHorizontalEnd,
   Languages,
+  LayoutGrid,
   PenLine,
   PlayCircle,
   Plus,
@@ -35,6 +36,7 @@ import {
   Send,
   ShieldCheck,
   ShoppingBag,
+  SlidersHorizontal,
   Sparkles,
   Tag,
   Target,
@@ -5047,6 +5049,53 @@ export default function AutomationPage() {
 
   const plannerLocaleIsSwedish = String(locale || "").toLowerCase().startsWith("sv");
 
+  const guideStepCopy = plannerLocaleIsSwedish
+    ? [
+        {
+          title: "Ställ in",
+          text: "Välj dina inställningar så att Spreelo optimerar planen för ditt företag och ditt mål.",
+          Icon: SlidersHorizontal,
+        },
+        {
+          title: "Granska",
+          text: "Se över din färdiga plan. Vill du göra ändringar kan du enkelt lägga till, ta bort eller byta innehållstyper.",
+          Icon: ClipboardList,
+        },
+        {
+          title: "Aktivera",
+          text: "Starta planen när du är redo. Därefter sköter Spreelo skapande, schemaläggning och publicering åt dig.",
+          Icon: Rocket,
+        },
+      ]
+    : [
+        {
+          title: t("automation.guide.step1TitleV2"),
+          text: t("automation.guide.step1TextV2"),
+          Icon: SlidersHorizontal,
+        },
+        {
+          title: t("automation.guide.step2TitleV2"),
+          text: t("automation.guide.step2TextV2"),
+          Icon: ClipboardList,
+        },
+        {
+          title: t("automation.guide.step3TitleV2"),
+          text: t("automation.guide.step3TextV2"),
+          Icon: Rocket,
+        },
+      ];
+
+  const plannerSectionCopy = {
+    settingsTitle: plannerLocaleIsSwedish ? "Planinställningar" : t("automation.redesign.settingsTitle"),
+    settingsText: plannerLocaleIsSwedish ? "Justera inställningarna för din plan." : t("automation.redesign.settingsTextV2"),
+    goalHelp: plannerLocaleIsSwedish ? "Välj vad planen ska prioritera." : t("automation.redesign.goalCardHelp"),
+    frequencyHelp: plannerLocaleIsSwedish ? "Hur ofta Spreelo skapar nya inlägg." : t("automation.redesign.frequencyCardHelp"),
+    startDateHelp: plannerLocaleIsSwedish ? "Datumet Spreelo använder som startpunkt." : t("automation.redesign.startDateCardHelp"),
+    languageHelp: plannerLocaleIsSwedish ? "Språk som används för dina inlägg." : t("automation.redesign.languageCardHelp"),
+    publishingHelp: plannerLocaleIsSwedish ? "Hur planen publiceras över tid." : t("automation.redesign.publishingCardHelp"),
+    platformHelp: plannerLocaleIsSwedish ? "Kanaler där inläggen publiceras." : t("automation.redesign.platformCardHelp"),
+  };
+
   const plannerGoalCopy = {
     sell_more: {
       label: t("automation.planGoal.sell_more.label"),
@@ -8873,27 +8922,15 @@ function blockFormatCardClickAfterDrag(event) {
                   {guideExpanded ? (
                     <>
                       <div className="plan-v89-guide-grid">
-                        <article>
-                          <span className="plan-v89-guide-icon"><Wrench size={27} aria-hidden="true" /></span>
-                          <div>
-                            <h2>{t("automation.guide.step1TitleV2")}</h2>
-                            <p>{t("automation.guide.step1TextV2")}</p>
-                          </div>
-                        </article>
-                        <article>
-                          <span className="plan-v89-guide-icon"><ClipboardList size={27} aria-hidden="true" /></span>
-                          <div>
-                            <h2>{t("automation.guide.step2TitleV2")}</h2>
-                            <p>{t("automation.guide.step2TextV2")}</p>
-                          </div>
-                        </article>
-                        <article>
-                          <span className="plan-v89-guide-icon"><Rocket size={27} aria-hidden="true" /></span>
-                          <div>
-                            <h2>{t("automation.guide.step3TitleV2")}</h2>
-                            <p>{t("automation.guide.step3TextV2")}</p>
-                          </div>
-                        </article>
+                        {guideStepCopy.map(({ title, text, Icon }) => (
+                          <article key={title}>
+                            <span className="plan-v89-guide-icon"><Icon size={29} aria-hidden="true" /></span>
+                            <div>
+                              <h2>{title}</h2>
+                              <p>{text}</p>
+                            </div>
+                          </article>
+                        ))}
                       </div>
                       <button
                         type="button"
@@ -8919,8 +8956,8 @@ function blockFormatCardClickAfterDrag(event) {
 
                 <div className="plan-v89-settings-heading">
                   <div>
-                    <h2>{t("automation.redesign.settingsTitle")}</h2>
-                    <p>{t("automation.redesign.settingsTextV2")}</p>
+                    <h2>{plannerSectionCopy.settingsTitle}</h2>
+                    <p>{plannerSectionCopy.settingsText}</p>
                   </div>
                   <button type="button" onClick={() => setShowGuideInfoModal(true)}>
                     {t("automation.guide.needHelp")} <CircleHelp size={17} aria-hidden="true" />
@@ -8933,7 +8970,7 @@ function blockFormatCardClickAfterDrag(event) {
                       <span className="plan-v90-setting-icon"><Target size={20} aria-hidden="true" /></span>
                       <div className="plan-v90-setting-copy">
                         <span className="plan-v90-setting-title">{t("automation.goal")}</span>
-                        <small>{plannerLocaleIsSwedish ? "Välj vad planen ska prioritera." : t("automation.redesign.goalCardHelp")}</small>
+                        <small>{plannerSectionCopy.goalHelp}</small>
                       </div>
                     </div>
                     <select value={autoPlanGoal} onChange={(event) => changeAutoPlanGoal(event.target.value)}>
@@ -8951,7 +8988,7 @@ function blockFormatCardClickAfterDrag(event) {
                       <span className="plan-v90-setting-icon"><ListChecks size={20} aria-hidden="true" /></span>
                       <div className="plan-v90-setting-copy">
                         <span className="plan-v90-setting-title">{t("automation.postsPerWeek")}</span>
-                        <small>{plannerLocaleIsSwedish ? "Hur ofta Spreelo skapar nya inlägg." : t("automation.redesign.frequencyCardHelp")}</small>
+                        <small>{plannerSectionCopy.frequencyHelp}</small>
                       </div>
                     </div>
                     <select
@@ -8972,7 +9009,7 @@ function blockFormatCardClickAfterDrag(event) {
                       <span className="plan-v90-setting-icon"><CalendarDays size={20} aria-hidden="true" /></span>
                       <div className="plan-v90-setting-copy">
                         <span className="plan-v90-setting-title">{t("automation.startDate")}</span>
-                        <small>{plannerLocaleIsSwedish ? "Datumet Spreelo använder som startpunkt." : t("automation.redesign.startDateCardHelp")}</small>
+                        <small>{plannerSectionCopy.startDateHelp}</small>
                       </div>
                     </div>
                     <DatePickerField
@@ -8993,7 +9030,7 @@ function blockFormatCardClickAfterDrag(event) {
                       <span className="plan-v90-setting-icon"><Languages size={20} aria-hidden="true" /></span>
                       <div className="plan-v90-setting-copy">
                         <span className="plan-v90-setting-title">{t("automation.redesign.postLanguage")}</span>
-                        <small>{plannerLocaleIsSwedish ? "Språk som används för dina inlägg." : t("automation.redesign.languageCardHelp")}</small>
+                        <small>{plannerSectionCopy.languageHelp}</small>
                       </div>
                     </div>
                     <select value={language} onChange={(event) => setLanguage(event.target.value)}>
@@ -9007,10 +9044,10 @@ function blockFormatCardClickAfterDrag(event) {
 
                   <label className="plan-v70-field plan-v83-setting-tile plan-v90-setting-tile">
                     <div className="plan-v90-setting-head">
-                      <span className="plan-v90-setting-icon"><Repeat2 size={20} aria-hidden="true" /></span>
+                      <span className="plan-v90-setting-icon"><Send size={20} aria-hidden="true" /></span>
                       <div className="plan-v90-setting-copy">
                         <span className="plan-v90-setting-title">{t("automation.redesign.publishing")}</span>
-                        <small>{plannerLocaleIsSwedish ? "Hur planen publiceras över tid." : t("automation.redesign.publishingCardHelp")}</small>
+                        <small>{plannerSectionCopy.publishingHelp}</small>
                       </div>
                     </div>
                     <select
@@ -9025,10 +9062,10 @@ function blockFormatCardClickAfterDrag(event) {
 
                   <div className="plan-v70-field plan-v73-platform-field plan-v83-setting-tile plan-v90-setting-tile">
                     <div className="plan-v90-setting-head">
-                      <span className="plan-v90-setting-icon"><Globe2 size={20} aria-hidden="true" /></span>
+                      <span className="plan-v90-setting-icon"><LayoutGrid size={20} aria-hidden="true" /></span>
                       <div className="plan-v90-setting-copy">
                         <span className="plan-v90-setting-title">{t("automation.platform")}</span>
-                        <small>{plannerLocaleIsSwedish ? "Kanaler där inläggen publiceras." : t("automation.redesign.platformCardHelp")}</small>
+                        <small>{plannerSectionCopy.platformHelp}</small>
                       </div>
                     </div>
                     {loadingConnectedPlatforms ? (

@@ -3803,3 +3803,46 @@ html body .dashboard-plan-hub-section .saved-header {
   height: 18px !important;
   border-width: 2px !important;
 }
+
+/* v92 — clean centered fallback avatar so the profile face is never cropped */
+.spreelo-user-avatar-fallback {
+  position: relative !important;
+  overflow: hidden !important;
+  display: block !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fff8f3 100%) !important;
+  border: 1px solid rgba(235, 224, 217, .96) !important;
+  box-shadow: 0 8px 18px rgba(0,0,0,.10) !important;
+}
+
+.spreelo-user-avatar-fallback > svg {
+  display: none !important;
+}
+
+.spreelo-user-avatar-fallback::before,
+.spreelo-user-avatar-fallback::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  display: block !important;
+}
+
+.spreelo-user-avatar-fallback::before {
+  top: 9px !important;
+  width: 10px !important;
+  height: 10px !important;
+  margin-left: -5px !important;
+  border: 2px solid #e96342 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+}
+
+.spreelo-user-avatar-fallback::after {
+  top: 21px !important;
+  width: 22px !important;
+  height: 11px !important;
+  margin-left: -11px !important;
+  border: 2px solid #e96342 !important;
+  border-top: 0 !important;
+  border-radius: 0 0 12px 12px !important;
+  background: transparent !important;
+}
