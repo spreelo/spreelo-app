@@ -72,6 +72,126 @@ const ALLOWED_MANUAL_IMAGE_FILE_TYPES = new Set([
 const CAMPAIGN_HANDOFF_STORAGE_KEY = "spreelo_calendar_campaign_handoff";
 const autoPlanPostCountOptions = [3, 5, 7];
 
+const OFFER_CURRENCY_OPTIONS = [
+  "SEK",
+  "EUR",
+  "USD",
+  "GBP",
+  "NOK",
+  "DKK",
+  "CHF",
+  "PLN",
+  "CAD",
+  "AUD",
+  "NZD",
+  "JPY",
+];
+
+const OFFER_CURRENCY_BY_COUNTRY = {
+  SE: "SEK",
+  NO: "NOK",
+  DK: "DKK",
+  GB: "GBP",
+  UK: "GBP",
+  US: "USD",
+  CA: "CAD",
+  AU: "AUD",
+  NZ: "NZD",
+  CH: "CHF",
+  PL: "PLN",
+  JP: "JPY",
+  AT: "EUR",
+  BE: "EUR",
+  CY: "EUR",
+  DE: "EUR",
+  EE: "EUR",
+  ES: "EUR",
+  FI: "EUR",
+  FR: "EUR",
+  GR: "EUR",
+  IE: "EUR",
+  IT: "EUR",
+  LT: "EUR",
+  LU: "EUR",
+  LV: "EUR",
+  MT: "EUR",
+  NL: "EUR",
+  PT: "EUR",
+  SI: "EUR",
+  SK: "EUR",
+};
+
+function inferOfferCurrency(brandProfile, locale = "en") {
+  const explicitCurrency = String(
+    brandProfile?.currency ||
+      brandProfile?.website_currency ||
+      brandProfile?.business_currency ||
+      ""
+  )
+    .trim()
+    .toUpperCase();
+
+  if (OFFER_CURRENCY_OPTIONS.includes(explicitCurrency)) {
+    return explicitCurrency;
+  }
+
+  const countryCode = String(brandProfile?.country_code || "")
+    .trim()
+    .toUpperCase();
+  if (OFFER_CURRENCY_BY_COUNTRY[countryCode]) {
+    return OFFER_CURRENCY_BY_COUNTRY[countryCode];
+  }
+
+  const marketText = String(brandProfile?.content_market || "").toLowerCase();
+  const marketCurrencyMatchers = [
+    [/(sweden|sverige|swedish)/, "SEK"],
+    [/(norway|norge|norwegian)/, "NOK"],
+    [/(denmark|danmark|danish)/, "DKK"],
+    [/(united kingdom|great britain|england|uk\b)/, "GBP"],
+    [/(united states|usa|america)/, "USD"],
+    [/(canada|canadian)/, "CAD"],
+    [/(australia|australian)/, "AUD"],
+    [/(new zealand)/, "NZD"],
+    [/(switzerland|swiss)/, "CHF"],
+    [/(poland|polska|polish)/, "PLN"],
+    [/(japan|japanese)/, "JPY"],
+    [/(euro|germany|france|spain|italy|netherlands|finland|ireland|portugal|austria|belgium)/, "EUR"],
+  ];
+
+  for (const [pattern, currency] of marketCurrencyMatchers) {
+    if (pattern.test(marketText)) return currency;
+  }
+
+  const localeLanguage = String(locale || "").toLowerCase().split("-")[0];
+  if (localeLanguage === "sv") return "SEK";
+  if (localeLanguage === "no" || localeLanguage === "nb" || localeLanguage === "nn") return "NOK";
+  if (localeLanguage === "da") return "DKK";
+
+  return "EUR";
+}
+
+function formatOfferDiscount({ discountType, discountValue, currency }) {
+  const value = String(discountValue || "").trim().replace(",", ".");
+  if (!value) return "";
+
+  return discountType === "amount"
+    ? `${value} ${String(currency || "EUR").toUpperCase()}`
+    : `${value}%`;
+}
+
+function getCampaignCodeFromSlot(slot) {
+  if (slot?.campaignCode) return String(slot.campaignCode).trim();
+
+  const source = [slot?.strategyNotes, slot?.campaignGoal, slot?.prompt]
+    .filter(Boolean)
+    .join("\n");
+  return (
+    source.match(/Campaign code:\s*([^\n.]+)/i)?.[1]?.trim() ||
+    source.match(/exact campaign code:\s*([^\n.]+)/i)?.[1]?.trim() ||
+    ""
+  );
+}
+
 const weekdays = [
   "Monday",
   "Tuesday",
@@ -267,14 +387,14 @@ const contentTypes = [
   },
   {
     id: "website_item_text_ad",
-    label: "Text + ad from website",
-    shortLabel: "Text + ad",
+    label: "Product ad with text",
+    shortLabel: "Product ad",
     description:
       "Pick one website product and let AI create a full ad-style post image with text, tailored to that product.",
     prompt:
       "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website. Create a social media post caption that promotes that specific item in a helpful, trustworthy and sales-focused way. The caption should work together with a product-specific ad image. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
     imagePrompt:
-      "Create a full ad-style image around the selected website item. Use the real website item image as the basis when possible, and design a unique social media ad that fits that exact product. Include short readable marketing text in the image, but do not include price, discounts or ratings.",
+      "Create a full ad-style image around the selected website item. Use the real website item image as the basis when possible, and design a unique social media ad that fits that exact product. Include short readable marketing text in the image. Do not include price, ratings or invented discounts. If an authorized campaign offer is explicitly supplied in the post instruction, show only that exact discount and campaign code without changing them.",
     usesWebsiteContent: true,
   },
   {
@@ -293,10 +413,10 @@ const contentTypes = [
   },
   {
     id: "carousel_website_item",
-    label: "Website carousel",
-    shortLabel: "Carousel",
+    label: "Product image carousel",
+    shortLabel: "Image carousel",
     description:
-      "Turn several relevant website products into a swipeable product collection, guide or campaign draft.",
+      "Show five verified products plus one AI-designed closing campaign image in a swipeable carousel.",
     prompt:
       "Use the website URL from the brand profile. Identify several concrete products, services, listings, offers or other sellable items from the website and create a swipeable carousel draft around them. The carousel should feel like a curated collection, guide, comparison or campaign post with one clear shared theme. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
     imagePrompt:
@@ -1939,6 +2059,10 @@ ctaStrength: overrides.ctaStrength || "",
 campaignPostIndex: overrides.campaignPostIndex || null,
 campaignPostCount: overrides.campaignPostCount || null,
 campaignGoal: overrides.campaignGoal || "",
+campaignCode: overrides.campaignCode || "",
+campaignDiscountType: overrides.campaignDiscountType || "",
+campaignDiscountValue: overrides.campaignDiscountValue || "",
+campaignCurrency: overrides.campaignCurrency || "",
 targetCustomerNeed: overrides.targetCustomerNeed || "",
 strategyNotes: overrides.strategyNotes || "",
 productMatchTerms: normalizeCampaignTermList(overrides.productMatchTerms, 30),
@@ -4965,16 +5089,42 @@ export default function AutomationPage() {
 
   function translateContentTypeLabel(type) {
     if (type?.id === "manual_prompt") return t("automation.customPostLabel");
+    if (type?.id === "website_item_text_ad") {
+      return plannerLocaleIsSwedish ? "Produktannons med text" : "Product ad with text";
+    }
+    if (type?.id === "carousel_website_item") {
+      return plannerLocaleIsSwedish
+        ? "Bildkarusell – 5 produkter + AI-slutbild"
+        : "Image carousel – 5 products + AI closing image";
+    }
     return t(`automation.contentType.${type.id}.label`);
   }
 
   function translateContentTypeShortLabel(type) {
     if (type?.id === "manual_prompt") return t("automation.customPostShortLabel");
+    if (type?.id === "website_item_text_ad") {
+      return plannerLocaleIsSwedish ? "Produktannons" : "Product ad";
+    }
+    if (type?.id === "carousel_website_item") {
+      return plannerLocaleIsSwedish
+        ? "Bildkarusell – 5 produkter + AI-slutbild"
+        : "Image carousel – 5 products + AI closing image";
+    }
     return t(`automation.contentType.${type.id}.shortLabel`);
   }
 
   function translateContentTypeDescription(type) {
     if (type?.id === "manual_prompt") return t("automation.customPostDescription");
+    if (type?.id === "website_item_text_ad") {
+      return plannerLocaleIsSwedish
+        ? "Spreelo väljer en verifierad produkt och skapar både inläggstext och en färdig annonsbild med kort, läsbar text."
+        : "Spreelo selects a verified product and creates both the caption and a finished ad image with short, readable text.";
+    }
+    if (type?.id === "carousel_website_item") {
+      return plannerLocaleIsSwedish
+        ? "Fem verifierade produkter visas i en bildkarusell som avslutas med en AI-designad kampanjbild."
+        : "Five verified products are shown in an image carousel followed by an AI-designed campaign closing image.";
+    }
     return t(`automation.contentType.${type.id}.description`);
   }
 
@@ -5140,9 +5290,9 @@ export default function AutomationPage() {
       description: plannerLocaleIsSwedish ? "Framhäver relevanta produkter eller tjänster." : "Highlights relevant products or services.",
     },
     product_ad: {
-      label: plannerLocaleIsSwedish ? "Text + annons" : "Text + ad",
+      label: plannerLocaleIsSwedish ? "Produktannons" : "Product ad",
       description: plannerLocaleIsSwedish
-        ? "Hämtar en produkt och skapar både inläggstext och en unik AI-designad annonsbild."
+        ? "Väljer en verifierad produkt och skapar både inläggstext och en unik annonsbild med text."
         : "Picks a product and creates both the post text and a unique AI-designed ad image.",
     },
     animated_product: {
@@ -5152,10 +5302,12 @@ export default function AutomationPage() {
         : "Picks a real website product and creates a short video with subtle product movement.",
     },
     website_carousel: {
-      label: plannerLocaleIsSwedish ? "Webbplatskarusell" : "Website carousel",
+      label: plannerLocaleIsSwedish
+        ? "Bildkarusell – 5 produkter + AI-slutbild"
+        : "Image carousel – 5 products + AI closing image",
       description: plannerLocaleIsSwedish
-        ? "Skapar flera slides från webbplats, produkt eller tjänst."
-        : "Creates multiple slides from a website item, product or service.",
+        ? "Visar fem verifierade produkter och avslutar med en AI-designad kampanjbild."
+        : "Shows five verified products and finishes with an AI-designed campaign image.",
     },
     offers: {
       label: plannerLocaleIsSwedish ? "Kampanjer & erbjudanden" : "Campaigns & offers",
@@ -5309,13 +5461,11 @@ export default function AutomationPage() {
 
   function getCustomerSlotLabel(slot) {
     const cardId = getContentPreviewCardId(slot?.contentTypeId);
-    if (slot?.isCampaignSlot && slot.marketingAngle) return getCampaignAngleLabel(slot.marketingAngle);
     return translatePreviewCardLabel(cardId);
   }
 
   function getCustomerSlotPurpose(slot) {
     const cardId = getContentPreviewCardId(slot?.contentTypeId);
-    if (slot?.isCampaignSlot && slot.campaignSummary) return slot.campaignSummary;
     return translatePreviewCardDescription(cardId);
   }
 
@@ -5379,6 +5529,9 @@ const [slots, setSlots] = useState([]);
   const [offerSourceScope, setOfferSourceScope] = useState("whole_website");
   const [offerSourceUrl, setOfferSourceUrl] = useState("");
   const [offerCode, setOfferCode] = useState("");
+  const [offerDiscountType, setOfferDiscountType] = useState("percent");
+  const [offerDiscountValue, setOfferDiscountValue] = useState("");
+  const [offerCurrency, setOfferCurrency] = useState("SEK");
   const [offerStartDate, setOfferStartDate] = useState(initialStartDate);
   const [offerEndDate, setOfferEndDate] = useState(
     addDaysToDateString(initialStartDate, 14)
@@ -5444,6 +5597,7 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   const [showGuideInfoModal, setShowGuideInfoModal] = useState(false);
   const [showVariationInfoModal, setShowVariationInfoModal] = useState(false);
   const [showRecommendationInfoModal, setShowRecommendationInfoModal] = useState(false);
+  const [showSocialChannelRequiredModal, setShowSocialChannelRequiredModal] = useState(false);
   const formatStripRef = useRef(null);
   const formatDragRef = useRef({
     active: false,
@@ -5603,15 +5757,16 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
             ...config,
             id: formatId,
             kind: "offer_campaign",
-            label: t("automation.formatCard.offer_campaign.label"),
-            description: getSafeText(
-              "automation.formatCard.offer_campaign.description",
-              plannerLocaleIsSwedish
-                ? "Låt Spreelo bygga en tidsstyrd erbjudandeplan kring en kampanj, lansering eller promotion."
-                : "Let Spreelo build a time-based offer plan around one campaign, promotion or launch."
-            ),
-            howItWorks: t("automation.formatCard.offer_campaign.howItWorks"),
-            benefit: t("automation.formatCard.offer_campaign.benefit"),
+            label: plannerLocaleIsSwedish ? "Rabattkampanj med kod" : "Discount campaign with code",
+            description: plannerLocaleIsSwedish
+              ? "Skapa en samordnad kampanj för hela webbplatsen, en produktkategori eller en enskild produkt."
+              : "Create a coordinated campaign for the whole website, a product category or one product.",
+            howItWorks: plannerLocaleIsSwedish
+              ? "Du väljer omfattning, rabatt, kampanjkod och datum. Spreelo väljer sedan antal inlägg, format, produkter, datum och tider."
+              : "You choose the scope, discount, campaign code and dates. Spreelo then selects the number of posts, formats, products, dates and times.",
+            benefit: plannerLocaleIsSwedish
+              ? "Inläggen får olika roller men använder samma verifierade rabatt och kod, så kampanjen bygger intresse och leder fram till en tydlig avslutning."
+              : "Posts receive different roles while using the same verified discount and code, building interest toward a clear finish.",
           };
         }
 
@@ -5971,9 +6126,32 @@ const shouldShowPlannerDetails =
 
     const normalizedCode = String(offerCode || "").trim();
     const normalizedUrl = String(offerSourceUrl || "").trim();
+    const normalizedDiscountValue = String(offerDiscountValue || "")
+      .trim()
+      .replace(",", ".");
+    const numericDiscountValue = Number(normalizedDiscountValue);
+    const formattedDiscount = formatOfferDiscount({
+      discountType: offerDiscountType,
+      discountValue: normalizedDiscountValue,
+      currency: offerCurrency,
+    });
 
     if (!normalizedCode) {
       setOfferPlannerError(t("automation.offerPlan.codeRequired"));
+      return;
+    }
+
+    if (
+      !normalizedDiscountValue ||
+      !Number.isFinite(numericDiscountValue) ||
+      numericDiscountValue <= 0 ||
+      (offerDiscountType === "percent" && numericDiscountValue > 100)
+    ) {
+      setOfferPlannerError(
+        plannerLocaleIsSwedish
+          ? "Ange en giltig rabatt. Procentrabatt måste vara mellan 0 och 100."
+          : "Enter a valid discount. A percentage discount must be between 0 and 100."
+      );
       return;
     }
 
@@ -5982,7 +6160,7 @@ const shouldShowPlannerDetails =
       return;
     }
 
-    if (offerSourceScope === "specific_url" && !normalizedUrl) {
+    if (offerSourceScope !== "whole_website" && !normalizedUrl) {
       setOfferPlannerError(t("automation.offerPlan.urlRequired"));
       return;
     }
@@ -5991,7 +6169,7 @@ const shouldShowPlannerDetails =
 
     try {
       const source =
-        offerSourceScope === "specific_url"
+        offerSourceScope !== "whole_website"
           ? await inspectContentSourceUrl(normalizedUrl)
           : null;
       const start = new Date(`${offerStartDate}T00:00:00Z`);
@@ -6001,7 +6179,12 @@ const shouldShowPlannerDetails =
         Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1
       );
       const postCount = durationDays <= 7 ? 3 : durationDays <= 21 ? 5 : 7;
-      const sourceScope = source?.sourceScope || "whole_website";
+      const sourceScope =
+        offerSourceScope === "product_url"
+          ? "exact_product"
+          : offerSourceScope === "category_url"
+          ? "product_category"
+          : "whole_website";
       const sourceAllowsCarousel = sourceScope !== "exact_product";
       const typeIds = websiteProductModeAvailable
         ? [
@@ -6023,11 +6206,26 @@ const shouldShowPlannerDetails =
             "checklist",
           ];
       const selectedTypeIds = typeIds.slice(0, postCount);
+      const campaignScopeDescription =
+        sourceScope === "exact_product"
+          ? `The campaign applies to this exact verified product URL: ${source?.url || normalizedUrl}.`
+          : sourceScope === "product_category"
+          ? `The campaign applies to this verified product category URL: ${source?.url || normalizedUrl}.`
+          : "The campaign applies to products across the whole verified website.";
       const commonCampaignInstruction = [
         `This post belongs to a time-limited campaign using the exact campaign code: ${normalizedCode}.`,
+        `AUTHORIZED CAMPAIGN OFFER: Customers receive exactly ${formattedDiscount} discount when using code ${normalizedCode}. This offer was explicitly entered by the customer and is verified campaign information.`,
         `The campaign is valid from ${offerStartDate} through ${offerEndDate}.`,
-        "Mention the campaign code and validity only when it is natural and useful. Never invent the discount amount, product availability, terms or exclusions.",
+        campaignScopeDescription,
+        `Use the exact discount ${formattedDiscount}, exact code ${normalizedCode}, and exact dates above. Never alter, convert, translate or invent campaign values, terms, exclusions, prices or product availability.`,
+        "Mention the offer naturally according to the post's role. Early awareness posts may introduce it softly; consideration and conversion posts should make the discount and code clear.",
         "Build the sequence for the strongest realistic result: introduce the need first, help the customer choose, then use a clearer call to action before the campaign ends.",
+      ].join("\n");
+      const campaignImageInstruction = [
+        `AUTHORIZED CAMPAIGN OFFER FOR IMAGE: Show the exact discount "${formattedDiscount}" and exact campaign code "${normalizedCode}" as short, readable marketing text when the image format supports text.`,
+        "This customer-supplied campaign overlay instruction overrides any earlier generic instruction to avoid readable text or discounts.",
+        `The offer is valid ${offerStartDate} through ${offerEndDate}. Do not change the values, currency or code.`,
+        "Do not invent extra discounts, prices, terms, countdowns or urgency claims.",
       ].join("\n");
 
       const nextSlots = selectedTypeIds.map((typeId, index) => {
@@ -6061,6 +6259,7 @@ const shouldShowPlannerDetails =
             planningStep,
             "sell_more"
           )}`,
+          imagePrompt: `${slot.imagePrompt || type.imagePrompt || ""}\n\n${campaignImageInstruction}`.trim(),
           isCampaignSlot: true,
           campaignRole: planningStep.label || type.label,
           campaignSummary: planningStep.description || type.description,
@@ -6075,8 +6274,12 @@ const shouldShowPlannerDetails =
           ctaStrength: planningStep.ctaStrength || "medium",
           campaignPostIndex: index + 1,
           campaignPostCount: postCount,
-          campaignGoal: `Campaign code ${normalizedCode}`,
-          strategyNotes: `Campaign code: ${normalizedCode}. Valid ${offerStartDate}–${offerEndDate}. Source scope: ${sourceScope}.`,
+          campaignGoal: `${formattedDiscount} discount with campaign code ${normalizedCode}`,
+          strategyNotes: `Campaign code: ${normalizedCode}. Authorized discount: ${formattedDiscount}. Valid ${offerStartDate}–${offerEndDate}. Source scope: ${sourceScope}.`,
+          campaignCode: normalizedCode,
+          campaignDiscountType: offerDiscountType,
+          campaignDiscountValue: normalizedDiscountValue,
+          campaignCurrency: offerDiscountType === "amount" ? offerCurrency : "",
           contentSourceScope: sourceScope,
           contentSourceUrl: source?.url || "",
           contentSourceTitle:
@@ -6891,7 +7094,7 @@ if (!selectedBrandId) {
 
 const { data: brandProfileData, error: brandProfileError } = await supabase
   .from("brand_profiles")
-  .select("id, business_name, website_url, website_product_source_url, website_product_mode_available, logo_url, logo_enabled_by_default")
+  .select("id, business_name, website_url, website_product_source_url, website_product_mode_available, logo_url, logo_enabled_by_default, country_code, content_market")
   .eq("id", selectedBrandId)
   .eq("user_id", user.id)
   .maybeSingle();
@@ -6901,6 +7104,7 @@ if (brandProfileError) {
   setCurrentBrandProfile(null);
 } else {
   setCurrentBrandProfile(brandProfileData || null);
+  setOfferCurrency(inferOfferCurrency(brandProfileData, locale));
   setFocusSource(null);
   setFocusSourceInput("");
   setFocusSourceError("");
@@ -7881,6 +8085,13 @@ function toggleContentType(typeId) {
     }
 
     const firstRule = groupedRules[0];
+    const isCampaignRuleGroup = groupedRules.some(
+      (rule) =>
+        rule?.queue_source === "campaign" ||
+        rule?.campaign_goal ||
+        rule?.campaign_phase ||
+        rule?.campaign_post_index
+    );
     const selectedTimeZone = firstRule.timezone || timeZone || DEFAULT_TIME_ZONE;
     const firstStartDate =
       firstRule.run_date ||
@@ -7893,7 +8104,7 @@ function toggleContentType(typeId) {
     setSavedPlanSummary(null);
     setMessage("");
     setCampaignOpportunity(null);
-    setPlanCreationMode("auto");
+    setPlanCreationMode(isCampaignRuleGroup ? "campaign" : "auto");
     setPlanName(firstRule.name || "");
     setPlatform(firstRule.platform || "");
     setTone(firstRule.tone || "Friendly");
@@ -7961,6 +8172,21 @@ function toggleContentType(typeId) {
         usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
         contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
         animationStyle: rule.animation_style || contentType?.animationStyle || null,
+        isCampaignSlot: Boolean(
+          rule.queue_source === "campaign" ||
+            rule.campaign_goal ||
+            rule.campaign_phase ||
+            rule.campaign_post_index
+        ),
+        campaignPhase: rule.campaign_phase || "",
+        marketingAngle: rule.marketing_angle || "",
+        customerStage: rule.customer_stage || "",
+        ctaStrength: rule.cta_strength || "",
+        campaignPostIndex: rule.campaign_post_index || null,
+        campaignPostCount: rule.campaign_post_count || null,
+        campaignGoal: rule.campaign_goal || "",
+        targetCustomerNeed: rule.target_customer_need || "",
+        strategyNotes: rule.strategy_notes || "",
         contentSourceScope: rule.content_source_scope || "whole_website",
         contentSourceUrl: rule.content_source_url || "",
         contentSourceTitle: rule.content_source_title || "",
@@ -8000,7 +8226,13 @@ function toggleContentType(typeId) {
     setSavedPlanSummary(null);
     setMessage("");
     setCampaignOpportunity(null);
-    setPlanCreationMode(contentTypeId === "manual_prompt" ? "manual" : "select");
+    setPlanCreationMode(
+      rule.queue_source === "campaign" || rule.campaign_goal || rule.campaign_phase
+        ? "campaign"
+        : contentTypeId === "manual_prompt"
+        ? "manual"
+        : "select"
+    );
     setPlanName(rule.name || "");
     setPlatform(rule.platform || "");
     setTone(rule.tone || "Friendly");
@@ -8059,6 +8291,21 @@ function toggleContentType(typeId) {
         usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
         contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
         animationStyle: rule.animation_style || contentType?.animationStyle || null,
+        isCampaignSlot: Boolean(
+          rule.queue_source === "campaign" ||
+            rule.campaign_goal ||
+            rule.campaign_phase ||
+            rule.campaign_post_index
+        ),
+        campaignPhase: rule.campaign_phase || "",
+        marketingAngle: rule.marketing_angle || "",
+        customerStage: rule.customer_stage || "",
+        ctaStrength: rule.cta_strength || "",
+        campaignPostIndex: rule.campaign_post_index || null,
+        campaignPostCount: rule.campaign_post_count || null,
+        campaignGoal: rule.campaign_goal || "",
+        targetCustomerNeed: rule.target_customer_need || "",
+        strategyNotes: rule.strategy_notes || "",
         contentSourceScope: rule.content_source_scope || "whole_website",
         contentSourceUrl: rule.content_source_url || "",
         contentSourceTitle: rule.content_source_title || "",
@@ -8994,7 +9241,33 @@ function blockFormatCardClickAfterDrag(event) {
                         <small>{plannerSectionCopy.goalHelp}</small>
                       </div>
                     </div>
-                    <select value={autoPlanGoal} onChange={(event) => changeAutoPlanGoal(event.target.value)}>
+                    <select
+                      value={autoPlanGoal}
+                      aria-describedby={!connectedPlatformOptions.length ? "plan-v100-goal-channel-requirement" : undefined}
+                      onPointerDown={(event) => {
+                        if (!loadingConnectedPlatforms && connectedPlatformOptions.length === 0) {
+                          event.preventDefault();
+                          setShowSocialChannelRequiredModal(true);
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (
+                          !loadingConnectedPlatforms &&
+                          connectedPlatformOptions.length === 0 &&
+                          ["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key)
+                        ) {
+                          event.preventDefault();
+                          setShowSocialChannelRequiredModal(true);
+                        }
+                      }}
+                      onChange={(event) => {
+                        if (!connectedPlatformOptions.length) {
+                          setShowSocialChannelRequiredModal(true);
+                          return;
+                        }
+                        changeAutoPlanGoal(event.target.value);
+                      }}
+                    >
                       <option value="" disabled hidden>{t("automation.redesign.chooseGoal")}</option>
                       {autoPlanGoals.map((goal) => (
                         <option value={goal.id} key={goal.id}>
@@ -9002,6 +9275,13 @@ function blockFormatCardClickAfterDrag(event) {
                         </option>
                       ))}
                     </select>
+                    {!loadingConnectedPlatforms && connectedPlatformOptions.length === 0 ? (
+                      <span id="plan-v100-goal-channel-requirement" className="sr-only">
+                        {plannerLocaleIsSwedish
+                          ? "Anslut en social kanal innan du väljer mål."
+                          : "Connect a social channel before choosing a goal."}
+                      </span>
+                    ) : null}
                   </label>
 
                   <label className="plan-v70-field plan-v83-setting-tile plan-v90-setting-tile">
@@ -9240,8 +9520,12 @@ function blockFormatCardClickAfterDrag(event) {
                   <div className="plan-v70-offer-heading">
                     <span className="plan-v70-icon amber"><Tag size={19} /></span>
                     <div>
-                      <h2>{t("automation.offerPlan.title")}</h2>
-                      <p>{t("automation.offerPlan.description")}</p>
+                      <h2>{plannerLocaleIsSwedish ? "Lägg till en rabattkampanj" : "Add a discount campaign"}</h2>
+                      <p>
+                        {plannerLocaleIsSwedish
+                          ? "Välj om rabatten gäller hela webbplatsen, en produktkategori eller en enskild produkt. Ange sedan rabatt, kampanjkod och giltighetstid."
+                          : "Choose whether the discount applies to the whole website, a product category or one product. Then enter the discount, campaign code and validity period."}
+                      </p>
                     </div>
                     <button type="button" onClick={() => setOfferPlannerOpen(false)}>×</button>
                   </div>
@@ -9256,24 +9540,72 @@ function blockFormatCardClickAfterDrag(event) {
                     </button>
                     <button
                       type="button"
-                      className={offerSourceScope === "specific_url" ? "active" : ""}
-                      onClick={() => setOfferSourceScope("specific_url")}
+                      className={offerSourceScope === "category_url" ? "active" : ""}
+                      onClick={() => setOfferSourceScope("category_url")}
                     >
-                      <Link2 size={16} /> {t("automation.offerPlan.specificUrl")}
+                      <GalleryHorizontalEnd size={16} /> {plannerLocaleIsSwedish ? "Produktkategori" : "Product category"}
+                    </button>
+                    <button
+                      type="button"
+                      className={offerSourceScope === "product_url" ? "active" : ""}
+                      onClick={() => setOfferSourceScope("product_url")}
+                    >
+                      <ShoppingBag size={16} /> {plannerLocaleIsSwedish ? "Enskild produkt" : "Single product"}
                     </button>
                   </div>
 
                   <div className="plan-v70-offer-grid">
-                    {offerSourceScope === "specific_url" ? (
-                      <label className="span-2">
-                        <span>{t("automation.offerPlan.urlLabel")}</span>
-                        <input type="url" value={offerSourceUrl} onChange={(event) => setOfferSourceUrl(event.target.value)} placeholder="https://business.com/product-or-category" />
+                    {offerSourceScope !== "whole_website" ? (
+                      <label className="span-3 plan-v100-offer-url-field">
+                        <span>
+                          {offerSourceScope === "category_url"
+                            ? plannerLocaleIsSwedish ? "Länk till produktkategorin" : "Product category URL"
+                            : plannerLocaleIsSwedish ? "Länk till produkten" : "Product URL"}
+                        </span>
+                        <input type="url" value={offerSourceUrl} onChange={(event) => setOfferSourceUrl(event.target.value)} placeholder={offerSourceScope === "category_url" ? "https://foretag.se/kategori/" : "https://foretag.se/produkt/"} />
                       </label>
                     ) : null}
                     <label>
                       <span>{t("automation.offerPlan.codeLabel")}</span>
                       <input value={offerCode} onChange={(event) => setOfferCode(event.target.value)} placeholder="SUMMER25" />
                     </label>
+                    <label>
+                      <span>{plannerLocaleIsSwedish ? "Rabatt" : "Discount"}</span>
+                      <div className="plan-v100-discount-input">
+                        <input
+                          type="number"
+                          min="0"
+                          max={offerDiscountType === "percent" ? "100" : undefined}
+                          step={offerDiscountType === "percent" ? "1" : "0.01"}
+                          value={offerDiscountValue}
+                          onChange={(event) => setOfferDiscountValue(event.target.value)}
+                          placeholder={offerDiscountType === "percent" ? "20" : "100"}
+                        />
+                        <span>{offerDiscountType === "percent" ? "%" : offerCurrency}</span>
+                      </div>
+                    </label>
+                    <label>
+                      <span>{plannerLocaleIsSwedish ? "Typ av rabatt" : "Discount type"}</span>
+                      <select value={offerDiscountType} onChange={(event) => setOfferDiscountType(event.target.value)}>
+                        <option value="percent">{plannerLocaleIsSwedish ? "Procent" : "Percentage"}</option>
+                        <option value="amount">{plannerLocaleIsSwedish ? "Belopp" : "Amount"}</option>
+                      </select>
+                    </label>
+                    {offerDiscountType === "amount" ? (
+                      <label>
+                        <span>{plannerLocaleIsSwedish ? "Valuta" : "Currency"}</span>
+                        <select value={offerCurrency} onChange={(event) => setOfferCurrency(event.target.value)}>
+                          {OFFER_CURRENCY_OPTIONS.map((currencyOption) => (
+                            <option value={currencyOption} key={currencyOption}>{currencyOption}</option>
+                          ))}
+                        </select>
+                        <small className="plan-v100-currency-note">
+                          {plannerLocaleIsSwedish
+                            ? "Föreslagen från företagets marknad – du kan ändra den."
+                            : "Suggested from the business market – you can change it."}
+                        </small>
+                      </label>
+                    ) : null}
                     <label>
                       <span>{t("automation.offerPlan.startLabel")}</span>
                       <input type="date" value={offerStartDate} onChange={(event) => setOfferStartDate(event.target.value)} />
@@ -9287,10 +9619,16 @@ function blockFormatCardClickAfterDrag(event) {
                   {offerPlannerError ? <p className="plan-v70-offer-error">{offerPlannerError}</p> : null}
 
                   <div className="plan-v70-offer-actions">
-                    <p>{t("automation.offerPlan.aiDecisionText")}</p>
+                    <p>
+                      {plannerLocaleIsSwedish
+                        ? "Spreelo väljer en balanserad mix av inläggstyper, produkter, datum och tider. Kampanjkod och rabatt används i både text och bild där formatet tillåter det."
+                        : "Spreelo selects a balanced mix of post types, products, dates and times. The campaign code and discount are used in both text and images where the format supports it."}
+                    </p>
                     <button type="button" onClick={createOfferCampaignPlan} disabled={offerPlannerLoading}>
                       {offerPlannerLoading ? <span className="plan-v70-mini-spinner" /> : <WandSparkles size={17} />}
-                      {offerPlannerLoading ? t("automation.offerPlan.creating") : t("automation.offerPlan.createButton")}
+                      {offerPlannerLoading
+                        ? t("automation.offerPlan.creating")
+                        : plannerLocaleIsSwedish ? "Lägg till i planen" : "Add to plan"}
                     </button>
                   </div>
                 </section>
@@ -9329,15 +9667,19 @@ function blockFormatCardClickAfterDrag(event) {
                       const rowExpanded = expandedInstructionSlotIds.includes(slot.id);
                       const platformLabel = selectedPlatformOptions[0]?.label || platform || t("automation.choosePlatform");
                       const formatItem = getExploreFormatItem(slot.contentTypeId);
+                      const campaignCode = getCampaignCodeFromSlot(slot);
 
                       return (
                         <article className={`plan-v70-planned-row plan-v86-planned-row${rowExpanded ? " expanded" : ""}`} key={`v70-row-${slot.id}`}>
                           <div className={`plan-v86-planned-visual tone-${(index % 4) + 1}`} aria-hidden="true">
-                            <span>
+                            <span className={slot.isCampaignSlot ? "plan-v100-combined-format-icon" : ""}>
                               <ContentFormatIconVisual
                                 item={formatItem || { icon_name: "Sparkles" }}
-                                size={23}
+                                size={slot.isCampaignSlot ? 19 : 23}
                               />
+                              {slot.isCampaignSlot ? (
+                                <span className="plan-v100-campaign-icon"><Tag size={11} /></span>
+                              ) : null}
                             </span>
                           </div>
                           <div className="plan-v70-planned-date">
@@ -9346,7 +9688,16 @@ function blockFormatCardClickAfterDrag(event) {
                           </div>
                           <div className="plan-v70-planned-post">
                             <div>
-                              <strong>{getUnifiedContentTypeLabel(slot.contentTypeId, slot.contentTypeLabel)}</strong>
+                              <div className="plan-v100-planned-title-line">
+                                <strong>{getUnifiedContentTypeLabel(slot.contentTypeId, slot.contentTypeLabel)}</strong>
+                                {slot.isCampaignSlot ? (
+                                  <span className="plan-v100-campaign-badge">
+                                    {campaignCode
+                                      ? `${plannerLocaleIsSwedish ? "Kampanjkod" : "Campaign code"}: ${campaignCode}`
+                                      : plannerLocaleIsSwedish ? "Kampanj" : "Campaign"}
+                                  </span>
+                                ) : null}
+                              </div>
                               <span>{getCustomerSlotPurpose(slot)}</span>
                             </div>
                           </div>
@@ -10064,6 +10415,7 @@ function blockFormatCardClickAfterDrag(event) {
         const displayLabel = getCustomerSlotLabel(slot);
         const displayDescription = getCustomerSlotPurpose(slot);
         const formatLabel = getLocalizedSlotFormatLabel(slot);
+        const campaignCode = getCampaignCodeFromSlot(slot);
         const hasStrategyInfo =
           slot.isCampaignSlot &&
           (slot.marketingAngle ||
@@ -10105,17 +10457,24 @@ function blockFormatCardClickAfterDrag(event) {
                   )}
 
                   <span
-                    className={`planner-post-type-icon type-${slot.contentTypeId || "custom"}`}
+                    className={`planner-post-type-icon type-${slot.contentTypeId || "custom"}${slot.isCampaignSlot ? " plan-v100-combined-format-icon" : ""}`}
                     aria-hidden="true"
                   >
                     <SlotTypeGlyph slot={slot} />
+                    {slot.isCampaignSlot ? (
+                      <span className="plan-v100-campaign-icon"><Tag size={10} /></span>
+                    ) : null}
                   </span>
 
-                  <strong>
-                    {slot.isCampaignSlot && slot.marketingAngle
-                      ? getCampaignAngleLabel(slot.marketingAngle)
-                      : displayLabel}
-                  </strong>
+                  <strong>{displayLabel}</strong>
+
+                  {slot.isCampaignSlot ? (
+                    <span className="plan-v100-campaign-badge">
+                      {campaignCode
+                        ? `${plannerLocaleIsSwedish ? "Kampanjkod" : "Campaign code"}: ${campaignCode}`
+                        : plannerLocaleIsSwedish ? "Kampanj" : "Campaign"}
+                    </span>
+                  ) : null}
 
                   {hasStrategyInfo && slot.strategyNotes && (
                     <button
@@ -10993,10 +11352,18 @@ function blockFormatCardClickAfterDrag(event) {
                 </div>
 
                 <div className="plan-v72-format-plan-impact">
-                  <span>{t("automation.format.currentPlan")}</span>
+                  <span>
+                    {selectedFormatPreview.kind === "offer_campaign"
+                      ? plannerLocaleIsSwedish ? "Det här väljer du" : "What you choose"
+                      : t("automation.format.currentPlan")}
+                  </span>
                   <strong>
                     {selectedFormatPreview.kind === "content_type"
                       ? t("automation.format.planCountChange", { before: slots.length, after: slots.length + 1 })
+                      : selectedFormatPreview.kind === "offer_campaign"
+                      ? plannerLocaleIsSwedish
+                        ? "Omfattning, rabatt, kampanjkod och giltighetstid. Spreelo skapar sedan rätt antal inlägg och låter dem arbeta tillsammans."
+                        : "Scope, discount, campaign code and validity period. Spreelo then creates the right number of posts and makes them work together."
                       : t("automation.format.opensPlanner")}
                   </strong>
                 </div>
@@ -11009,6 +11376,8 @@ function blockFormatCardClickAfterDrag(event) {
                     {selectedFormatPreview.kind === "content_type" ? <Plus size={18} /> : <ChevronDown size={18} />}
                     {selectedFormatPreview.kind === "content_type"
                       ? t("automation.format.addToPlan")
+                      : selectedFormatPreview.kind === "offer_campaign"
+                      ? plannerLocaleIsSwedish ? "Lägg till och ställ in" : "Add and configure"
                       : t("automation.format.continue")}
                   </button>
                 </div>
@@ -11016,6 +11385,47 @@ function blockFormatCardClickAfterDrag(event) {
             </section>
           </div>
         )}
+
+        {showSocialChannelRequiredModal ? (
+          <div className="plan-v83-modal-backdrop" onClick={() => setShowSocialChannelRequiredModal(false)}>
+            <section
+              className="plan-v83-info-modal compact plan-v100-channel-required-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="plan-v100-channel-required-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="plan-v83-modal-close"
+                onClick={() => setShowSocialChannelRequiredModal(false)}
+                aria-label={t("automation.format.close")}
+              >
+                ×
+              </button>
+              <span className="plan-v83-modal-icon"><Send size={24} aria-hidden="true" /></span>
+              <p className="plan-v83-modal-eyebrow">
+                {plannerLocaleIsSwedish ? "Innan du väljer mål" : "Before choosing a goal"}
+              </p>
+              <h2 id="plan-v100-channel-required-title">
+                {plannerLocaleIsSwedish ? "Anslut en social kanal först" : "Connect a social channel first"}
+              </h2>
+              <p className="plan-v83-modal-lead">
+                {plannerLocaleIsSwedish
+                  ? "Spreelo behöver veta var planen ska publiceras för att kunna välja rätt mål, format och upplägg."
+                  : "Spreelo needs to know where the plan will be published before it can choose the right goal, formats and setup."}
+              </p>
+              <div className="plan-v100-channel-required-actions">
+                <button type="button" onClick={() => setShowSocialChannelRequiredModal(false)}>
+                  {plannerLocaleIsSwedish ? "Avbryt" : "Cancel"}
+                </button>
+                <a href="/social-channels">
+                  {plannerLocaleIsSwedish ? "Ställ in sociala kanaler" : "Set up social channels"}
+                </a>
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         {showGuideInfoModal ? (
           <div className="plan-v83-modal-backdrop" onClick={() => setShowGuideInfoModal(false)}>

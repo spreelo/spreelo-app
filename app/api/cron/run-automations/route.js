@@ -1669,7 +1669,7 @@ Important website item rules:
 - Never invent USD, EUR, SEK, kr or any other currency. A price must come from Verified price above.
 - Do not add generic price fallback text such as "see current price" or "se aktuellt pris".
 - A visible ordinary price is not automatically an offer, sale, discount, deal, bargain, campaign price or limited-time promotion.
-- Do not call the item an offer, deal, sale, discount, bargain, fynd, erbjudande, rabatt, rea or kampanjpris unless the selected item information explicitly says that the product is discounted or on sale.
+- Do not call the item an offer, deal, sale, discount, bargain, fynd, erbjudande, rabatt, rea or kampanjpris unless the selected item information says so or the automation instruction contains an exact authorized customer-supplied campaign offer. In that case, use only the authorized campaign values as written.
 - If information is missing, write around the value and benefit instead of inventing facts.
 `.trim();
 }
@@ -4668,6 +4668,8 @@ function buildAutomationPrompt(rule) {
         includePrice: !isAnimatedVideoRule(rule),
       });
   const campaignStrategyText = formatCampaignStrategyForPrompt(rule);
+  const authorizedCampaignOfferText = formatAuthorizedCampaignOfferForPrompt(rule);
+  const hasAuthorizedCampaignOffer = Boolean(getAuthorizedCampaignOffer(rule));
   const focusedPageContextText = formatFocusedPageContextForPrompt(rule);
   const destinationUrl = getPostDestinationUrl(rule);
 
@@ -4691,12 +4693,14 @@ ${websiteItemText}
 }
 
 ${isAnimatedVideoRule(rule)
-  ? `Animated Reel price rule:\n- Do not mention a product price anywhere in this caption.\n- Do not write a currency symbol, currency code, monetary amount, discount price or "from" price.`
+  ? `Animated Reel price rule:\n- Do not mention a product price anywhere in this caption.\n- ${hasAuthorizedCampaignOffer ? "The exact authorized campaign discount may be mentioned, but it must not be presented as a product price." : "Do not write a currency symbol, currency code, monetary amount, discount price or \"from\" price."}`
   : ""}
 
 ${focusedPageContextText}
 
 ${campaignStrategyText}
+
+${authorizedCampaignOfferText}
 
 Platform: ${rule.platform || "Instagram"}
 ${getLanguageInstruction(rule.language)}
@@ -4732,7 +4736,7 @@ Critical brand relevance rules:
 - If the strategy says marketing_angle "product_discovery", help the audience discover a suitable product, service, idea or option.
 - If the strategy says marketing_angle "product_push", make the product, service or offer concrete and relevant.
 - If the strategy says marketing_angle "trust", reduce doubt and build confidence without inventing proof, reviews or guarantees.
-- If the strategy says marketing_angle "offer", create a clear buying reason without inventing discounts.
+- If the strategy says marketing_angle "offer", create a clear buying reason. Use the exact authorized campaign offer when one is provided; otherwise do not invent discounts.
 - If the strategy says marketing_angle "urgency", make timing matter without exaggerating or using fake scarcity.
 - Match CTA strength to the strategy: soft means gentle, medium means clear, strong means action-focused.
 
@@ -4755,9 +4759,9 @@ Website factual grounding rules:
 - For product-based businesses, use safe CTAs such as "see our current selection", "explore available products", "contact us for guidance" or "get help choosing the right option" when that fits the brand.
 - If the selected website item has no verified price or direct purchase proof, do not write as if it is a normal webshop checkout product. Use contact/request-info/request-quote style wording instead of buy-now wording.
 - For service businesses, use safe CTAs such as "contact us to discuss your needs", "get in touch to learn what fits your situation" or "visit our website" unless a specific bookable service was provided.
-- Never invent services, guides, articles, guarantees, discounts, availability, booking pages or website pages that were not provided.
-- A product price is not automatically an offer, sale, discount, deal, bargain, fynd, erbjudande, rabatt, rea or kampanjpris. Do not use those words unless the selected item information explicitly confirms a discount or sale.
-- For Black Friday, Cyber Monday, Black Week or similar shopping days, you may create buying urgency, but you must still not claim a discount, offer or campaign price unless it is visible in the selected item information.
+- Never invent services, guides, articles, guarantees, discounts, availability, booking pages or website pages that were not provided. An exact authorized customer-supplied campaign offer counts as provided information.
+- A product price is not automatically an offer, sale, discount, deal, bargain, fynd, erbjudande, rabatt, rea or kampanjpris. Use discount language only when the selected item confirms it or an exact authorized customer-supplied campaign offer is provided.
+- For Black Friday, Cyber Monday, Black Week or similar shopping days, you may create buying urgency, but you must still not invent a discount, offer or campaign price. An exact authorized customer-supplied campaign offer may be used as written.
 - It is okay to use a relevant seasonal or educational angle, but do not present it as something the website specifically explains unless it actually does.
 
 Output rules:
@@ -4768,7 +4772,7 @@ Output rules:
 - For carousels, write one short intro and one clear CTA. Do not list every product in the caption if the slides already show them.
 - For carousel slide titles, use benefit/occasion/gift-angle wording instead of only copying product names when a campaign theme is provided.
 - If the selected platform includes both Facebook and Instagram, write a strong core post that works on both. Avoid platform-specific wording such as "click the link" unless a Destination URL is actually included.
-- Never mention a price unless it was provided as Verified price for the selected website item. If you mention it, write it naturally inside the text, never as a standalone line.
+- Never mention a product price unless it was provided as Verified price for the selected website item. An authorized fixed-amount campaign discount is not a product price and may be mentioned exactly as supplied. If you mention a verified product price, write it naturally inside the text, never as a standalone line.
 - Always include the website domain in the final post if Destination URL is provided; do not show the full long product/category URL in the visible caption.
 - If emojis are disabled, do not use emojis.
 - If hashtags are enabled, include relevant hashtags at the end.
@@ -4874,6 +4878,8 @@ Language context: ${rule.language || "Auto"}
 Website URL: ${rule.brand_profile?.website_url || "Not provided"}
 
 ${formatCampaignVisualContextForPrompt(rule)}
+
+${formatAuthorizedCampaignOfferForPrompt(rule)}
 
 Selected visual concept:
 ${visualConcept.name}
@@ -7831,6 +7837,21 @@ function isWebsiteTextAdRule(rule) {
   return String(rule?.content_type_id || "").trim() === "website_item_text_ad";
 }
 
+function getAuthorizedCampaignOffer(rule) {
+  const source = [rule?.prompt, rule?.image_prompt, rule?.strategy_notes]
+    .filter(Boolean)
+    .join("\n");
+  const match = source.match(/AUTHORIZED CAMPAIGN OFFER:\s*([^\n]+)/i);
+  return match?.[1]?.trim() || "";
+}
+
+function formatAuthorizedCampaignOfferForPrompt(rule) {
+  const offer = getAuthorizedCampaignOffer(rule);
+  if (!offer) return "";
+
+  return `Authorized customer-supplied campaign offer:\n${offer}\n\nMandatory offer rules:\n- This exact campaign offer was entered by the customer and is verified for this campaign.\n- Use only the exact discount, campaign code, currency and dates supplied in the campaign instruction.\n- Never change, convert, translate, round or invent any campaign value.\n- This authorized campaign offer is the only exception to general rules that prohibit unverified discount claims.`;
+}
+
 function formatCampaignVisualContextForPrompt(rule) {
   if (!isCampaignScopedWebsiteRule(rule)) {
     return "";
@@ -7848,9 +7869,11 @@ function formatCampaignVisualContextForPrompt(rule) {
   ]
     .filter(Boolean)
     .join(" | ");
+  const authorizedOffer = getAuthorizedCampaignOffer(rule);
 
   return `Campaign visual context:
 ${campaignTheme || "Campaign theme not explicitly named."}
+Authorized campaign offer: ${authorizedOffer || "Not provided"}
 Product/theme match terms: ${matchTerms.length ? matchTerms.join(", ") : "Not provided"}
 Avoid visual/product terms: ${avoidTerms.length ? avoidTerms.join(", ") : "Not provided"}`;
 }
@@ -13857,8 +13880,12 @@ function buildCarouselOutroImagePrompt(rule, outroSlide, products) {
   const headline = normalizeSlideText(outroSlide?.headline || brandName, 80);
   const supportingText = normalizeSlideText(outroSlide?.cta_text || outroSlide?.body || rule?.cta_type || "", 90);
   const campaignVisualContext = formatCampaignVisualContextForPrompt(rule) || "Campaign visual context: General brand CTA.";
+  const authorizedOffer = getAuthorizedCampaignOffer(rule);
+  const offerVisualRule = authorizedOffer
+    ? `Show the exact authorized discount and campaign code from this offer as clear readable overlay text: ${authorizedOffer} Never change or invent any value.`
+    : "Do not show prices or discount claims.";
 
-  return `Create a premium square closing slide for a social media carousel. This is the final CTA slide after product slides for ${brandName}. Use a clean, polished marketing design with a subtle modern background and clear readable text overlay. Write the overlaid text in ${language}. Main overlay text: "${headline}". Supporting overlay text: "${supportingText}". ${campaignVisualContext}. If this carousel is connected to a campaign, holiday, season, shopping event or theme, the closing image must clearly match that theme and must not look generic or unrelated. The slide should feel like a professional final call-to-action and may use abstract shapes, elegant composition, soft shadows, geometric shapes, or a tasteful category-inspired scene. If you include any product-like objects, they must be generic, unbranded, non-specific, and not directly identifiable as exact products from the store. Never invent or depict specific catalog items, exact product prints, poster motifs, readable slogan text on products, apparel graphics, packaging artwork, or branded product designs. Do not place the store name or brand logo onto any depicted product. Avoid close-up hero shots of a single product. For stores that sell printed or text-based products such as posters, apparel, mugs, or accessories, do not generate new readable product text or new product artwork. Keep all non-overlay product details subtle, generic, and secondary to the CTA message. Do not show prices, discount claims, or crowded text. Products featured earlier in the carousel: ${productNames || "selected website products"}.`;
+  return `Create a premium square closing slide for a social media carousel. This is the final CTA slide after product slides for ${brandName}. Use a clean, polished marketing design with a subtle modern background and clear readable text overlay. Write the overlaid text in ${language}. Main overlay text: "${headline}". Supporting overlay text: "${supportingText}". ${campaignVisualContext}. ${offerVisualRule} If this carousel is connected to a campaign, holiday, season, shopping event or theme, the closing image must clearly match that theme and must not look generic or unrelated. The slide should feel like a professional final call-to-action and may use abstract shapes, elegant composition, soft shadows, geometric shapes, or a tasteful category-inspired scene. If you include any product-like objects, they must be generic, unbranded, non-specific, and not directly identifiable as exact products from the store. Never invent or depict specific catalog items, exact product prints, poster motifs, readable slogan text on products, apparel graphics, packaging artwork, or branded product designs. Do not place the store name or brand logo onto any depicted product. Avoid close-up hero shots of a single product. For stores that sell printed or text-based products such as posters, apparel, mugs, or accessories, do not generate new readable product text or new product artwork. Keep all non-overlay product details subtle, generic, and secondary to the CTA message. Do not use crowded text. Products featured earlier in the carousel: ${productNames || "selected website products"}.`;
 }
 
 async function generateCarouselOutroSlideImage(openai, rule, outroSlide, products) {
@@ -13914,6 +13941,8 @@ CTA type: ${rule.cta_type || "Soft CTA"}
 Caption already created for the post:
 ${postContent || "Not provided"}
 
+${formatAuthorizedCampaignOfferForPrompt(rule)}
+
 Rules:
 - Create exactly ${selectedProducts.length} product slides in the same order as the selected products.
 - Then create 1 final outro slide that acts as a closing CTA for the whole carousel.
@@ -13927,6 +13956,7 @@ Rules:
 - The first product slide can feel like a hook, but it must still feature Product 1.
 - The final outro slide should invite the reader to explore more or visit the website.
 - The final outro slide should include short overlay_text suitable for a text overlay on an AI-generated closing image.
+- If an exact authorized campaign offer is provided, make the final outro slide clearly show its exact discount and campaign code. Do not alter the values.
 
 Return JSON exactly in this shape:
 {
@@ -14401,7 +14431,7 @@ Rules:
 - If callout boxes or badges are used, keep them short, bold, and easy to read, with one idea per element.
 - Keep all added marketing text brief and highly legible on mobile. Prioritize bigger text over more text.
 - Keep the total amount of added non-product text low.
-- Do not include price, discounts, ratings, review stars, or fake urgency.
+- Do not include product prices, ratings, review stars or fake urgency. If an exact authorized customer-supplied campaign offer is provided above, show its discount and campaign code exactly as written; otherwise do not include discounts.
 - Do not invent features, materials, delivery promises, guarantees, or claims that are not supported by the website item or post text.
 - Keep the text concise, polished, and easy to read on social media.
 - Do not add watermarks.
