@@ -1,0 +1,145 @@
+/* v98 - responsive and finishing corrections requested after the v97 review. */
+
+/* Render the supplied artwork on its own layer so only the artwork fades out. */
+html body .automation-page.plan-v70-active {
+  position: relative !important;
+  isolation: isolate !important;
+  background-color: #eef0f5 !important;
+  background-image: none !important;
+}
+
+html body .automation-page.plan-v70-active::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  z-index: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1672 / 941 !important;
+  pointer-events: none !important;
+  background: url("/backgrounds/spreelo-background-v97.png") center top / 100% 100% no-repeat !important;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 72%, rgba(0, 0, 0, .82) 79%, rgba(0, 0, 0, .34) 91%, transparent 100%) !important;
+  mask-image: linear-gradient(to bottom, #000 0%, #000 72%, rgba(0, 0, 0, .82) 79%, rgba(0, 0, 0, .34) 91%, transparent 100%) !important;
+}
+
+html body .automation-page.plan-v70-active > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* The third guide item must keep the same divider as the second item. */
+html body .automation-page.plan-v70-active .plan-v89-guide-grid article:last-child {
+  border-left: 1px solid rgba(207, 211, 222, .82) !important;
+}
+
+/* Native controls need real font leading or letters such as j and g are clipped. */
+html body .automation-page.plan-v70-active .plan-v90-settings-grid select,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-button,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-multiselect-button,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-platform-loading,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-connect-platform {
+  line-height: 1.25 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid select {
+  padding-top: 1px !important;
+  padding-bottom: 2px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .plan-v73-connect-platform {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  text-decoration: none !important;
+}
+
+/* Guide decisions are based on its actual available width, not the viewport. */
+html body .automation-page.plan-v70-active .plan-v89-settings-section {
+  container-name: plan-section;
+  container-type: inline-size;
+}
+
+@container plan-section (max-width: 740px) {
+  html body .automation-page.plan-v70-active .plan-v89-guide-banner.expanded {
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 10px 16px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    gap: 0 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article,
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article:first-child,
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article:last-child {
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    min-height: 0 !important;
+    gap: 12px !important;
+    padding: 11px 2px !important;
+    align-items: center !important;
+    border: 0 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article:nth-child(n + 2),
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article:last-child {
+    border-top: 1px solid rgba(207, 211, 222, .76) !important;
+    border-left: 0 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-icon {
+    width: 42px !important;
+    height: 42px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-icon svg {
+    width: 19px !important;
+    height: 19px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid h2 {
+    margin: 0 0 3px !important;
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid p,
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article:first-child p,
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article:nth-child(2) p {
+    width: 100% !important;
+    max-width: none !important;
+    font-size: 11px !important;
+    line-height: 1.48 !important;
+  }
+}
+
+/* The coloured mobile/tablet rail now reaches the card frame at both ends. */
+@media (max-width: 1180px) {
+  html body .automation-page.plan-v70-active .plan-v86-planned-row {
+    overflow: hidden !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v86-planned-visual {
+    align-self: stretch !important;
+    height: 100% !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html body .automation-page.plan-v70-active .plan-v86-planned-visual {
+    height: calc(100% + 20px) !important;
+    min-height: calc(100% + 20px) !important;
+    margin-top: -10px !important;
+    margin-bottom: -10px !important;
+  }
+}
+
+/* Let the weekly-variation thumb complete its travel to the right edge. */
+html body .automation-page.plan-v70-active .plan-v83-variation-row input:checked + .plan-v70-toggle-track > span {
+  transform: translateX(17px) !important;
+}
