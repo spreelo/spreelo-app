@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 720" fill="none" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="0" x2="1420" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5F7FB"/>
+      <stop offset="0.48" stop-color="#F7F9FC"/>
+      <stop offset="1" stop-color="#F4F6FA"/>
+    </linearGradient>
+    <radialGradient id="warmGlow" cx="0" cy="0" r="1" gradientTransform="translate(180 440) rotate(-12) scale(420 260)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE8D9" stop-opacity="0.72"/>
+      <stop offset="0.46" stop-color="#FFF0E7" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#FFF8F4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="coolGlow" cx="0" cy="0" r="1" gradientTransform="translate(1190 80) rotate(122) scale(540 360)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E8EDF8" stop-opacity="0.94"/>
+      <stop offset="0.5" stop-color="#F1F4FA" stop-opacity="0.48"/>
+      <stop offset="1" stop-color="#F6F8FC" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lineWarm" x1="20" y1="270" x2="1580" y2="55" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="0.2" stop-color="#FFE3D4" stop-opacity="0.62"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.82"/>
+      <stop offset="0.83" stop-color="#FFD8C3" stop-opacity="0.54"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.12"/>
+    </linearGradient>
+    <linearGradient id="lineCool" x1="120" y1="50" x2="1540" y2="270" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.12"/>
+      <stop offset="0.27" stop-color="#FFFFFF" stop-opacity="0.76"/>
+      <stop offset="0.62" stop-color="#EEF3FB" stop-opacity="0.9"/>
+      <stop offset="0.9" stop-color="#FFFFFF" stop-opacity="0.28"/>
+    </linearGradient>
+    <filter id="softGlow" x="-30%" y="-80%" width="160%" height="260%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="dotGlow" x="-400%" y="-400%" width="900%" height="900%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="720" fill="url(#bg)"/>
+  <rect width="1600" height="720" fill="url(#warmGlow)"/>
+  <rect width="1600" height="720" fill="url(#coolGlow)"/>
+
+  <g filter="url(#softGlow)" stroke-linecap="round">
+    <path d="M-90 245C164 252 312 224 483 153C663 78 806 25 987 30C1178 35 1304 88 1690 -6" stroke="url(#lineWarm)" stroke-width="2.2"/>
+    <path d="M-70 315C212 304 361 260 516 197C684 128 847 86 1027 98C1230 112 1390 190 1670 84" stroke="url(#lineCool)" stroke-width="1.7"/>
+    <path d="M125 -35C350 76 563 128 789 129C1034 130 1206 69 1406 65C1510 63 1582 78 1668 112" stroke="url(#lineCool)" stroke-width="1.55"/>
+    <path d="M270 710C393 525 510 433 686 391C863 348 1037 362 1178 299C1315 238 1420 129 1658 110" stroke="url(#lineWarm)" stroke-width="1.45" opacity="0.72"/>
+  </g>
+
+  <g fill="#FFFFFF" filter="url(#dotGlow)">
+    <circle cx="267" cy="233" r="3.5" fill-opacity="0.97"/>
+    <circle cx="551" cy="123" r="3.2" fill-opacity="0.98"/>
+    <circle cx="816" cy="44" r="3.4" fill-opacity="0.96"/>
+    <circle cx="1094" cy="58" r="3.1" fill-opacity="0.98"/>
+    <circle cx="1328" cy="101" r="3.7" fill-opacity="0.98"/>
+    <circle cx="1498" cy="76" r="2.8" fill-opacity="0.92"/>
+    <circle cx="404" cy="274" r="2.4" fill-opacity="0.88"/>
+    <circle cx="967" cy="106" r="2.7" fill-opacity="0.92"/>
+  </g>
+
+  <g fill="#FFD8C2" filter="url(#dotGlow)">
+    <circle cx="554" cy="123" r="1.8"/>
+    <circle cx="1328" cy="101" r="1.8"/>
+  </g>
+</svg>

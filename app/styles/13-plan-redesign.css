@@ -5819,3 +5819,213 @@ html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-sel
     font-size: 11.5px !important;
   }
 }
+
+/* v93 — stricter reference match after visual comparison with the approved mockup */
+html body .automation-page.plan-v70-active .plan-v70-shell::before {
+  inset: -44px -80px auto -80px !important;
+  height: 310px !important;
+  border-radius: 0 !important;
+  background:
+    radial-gradient(circle at 17% 82%, rgba(255, 219, 199, .26) 0%, rgba(255, 229, 214, .16) 18%, transparent 42%),
+    radial-gradient(circle at 78% 16%, rgba(229, 235, 247, .68) 0%, rgba(239, 243, 250, .38) 30%, transparent 58%),
+    linear-gradient(180deg, #f2f5fa 0%, #f7f9fc 63%, rgba(248,250,252,0) 100%) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v70-shell::after {
+  top: -32px !important;
+  left: 21% !important;
+  width: 82% !important;
+  height: 188px !important;
+  opacity: .92 !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 220'%3E%3Cg fill='none' stroke-linecap='round'%3E%3Cpath d='M20 80 C250 20 390 10 590 60 S850 130 990 64' stroke='%23ffffff' stroke-opacity='.78' stroke-width='2'/%3E%3Cpath d='M0 115 C210 55 430 44 615 92 S830 148 1000 95' stroke='%23fff0e8' stroke-opacity='.75' stroke-width='2'/%3E%3Cpath d='M180 10 C380 90 520 120 710 96 S900 24 1010 40' stroke='%23ffffff' stroke-opacity='.56' stroke-width='1.5'/%3E%3C/g%3E%3Cg fill='%23ffffff' fill-opacity='.92'%3E%3Ccircle cx='205' cy='54' r='3'/%3E%3Ccircle cx='465' cy='72' r='3'/%3E%3Ccircle cx='682' cy='100' r='3'/%3E%3Ccircle cx='876' cy='70' r='3'/%3E%3C/g%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-size: 100% 100% !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-banner {
+  border-color: rgba(230, 233, 240, .95) !important;
+  background: linear-gradient(112deg, rgba(255,255,255,.90) 0%, rgba(255,255,255,.82) 54%, rgba(255,248,245,.80) 100%) !important;
+  box-shadow: 0 15px 36px rgba(31, 43, 67, .10), inset 0 1px 0 rgba(255,255,255,.96) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-banner.expanded {
+  min-height: 160px !important;
+  padding: 20px 24px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid article {
+  min-height: 118px !important;
+  grid-template-columns: 78px minmax(0, 1fr) !important;
+  gap: 20px !important;
+  padding: 0 34px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid article:first-child {
+  padding-left: 6px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid article:last-child {
+  padding-right: 20px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-icon {
+  width: 72px !important;
+  height: 72px !important;
+  box-shadow: 0 11px 25px rgba(38, 49, 72, .11), inset 0 1px 0 rgba(255,255,255,.96) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid h2 {
+  font-size: 18px !important;
+  margin-bottom: 8px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v89-guide-grid p {
+  max-width: 318px !important;
+  font-size: 14px !important;
+  line-height: 1.52 !important;
+}
+
+/* The reference uses horizontal, full-width controls. Force a flex structure so
+   older grid rules can never collapse the controls to button-like widths. */
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 106px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+  padding: 12px 13px 13px !important;
+  box-sizing: border-box !important;
+  border-radius: 15px !important;
+  border: 1px solid #e2e6ee !important;
+  background: rgba(255,255,255,.94) !important;
+  box-shadow: 0 9px 22px rgba(27, 40, 66, .055), inset 0 1px 0 rgba(255,255,255,.96) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-setting-head {
+  width: 100% !important;
+  flex: 0 0 auto !important;
+  grid-template-columns: 34px minmax(0, 1fr) !important;
+  gap: 9px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-setting-icon {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-setting-title {
+  font-size: 13.5px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-setting-copy small {
+  font-size: 10.7px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > select,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > input,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .custom-picker-field,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .platform-multiselect,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .plan-v73-platform-loading,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .plan-v73-connect-platform {
+  flex: 0 0 auto !important;
+  display: block !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  align-self: stretch !important;
+  justify-self: stretch !important;
+  box-sizing: border-box !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-anchor,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-field,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-multiselect {
+  display: block !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid select,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid input,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-button,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-multiselect-button,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-platform-loading,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-connect-platform {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  min-height: 40px !important;
+  height: 40px !important;
+  margin: 0 !important;
+  padding: 0 13px !important;
+  box-sizing: border-box !important;
+  border: 1px solid #dfe4ec !important;
+  border-radius: 9px !important;
+  background: rgba(255,255,255,.98) !important;
+  color: #1d2537 !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid select {
+  display: block !important;
+  padding-right: 34px !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-button,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-multiselect-button {
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-selected-icons {
+  display: flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+}
+
+@media (max-width: 1120px) {
+  html body .automation-page.plan-v70-active .plan-v89-guide-grid article {
+    grid-template-columns: 58px minmax(0, 1fr) !important;
+    gap: 13px !important;
+    padding: 0 18px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v89-guide-icon {
+    width: 54px !important;
+    height: 54px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile {
+    min-height: 110px !important;
+    padding: 10px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > select,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > input,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .custom-picker-field,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .platform-multiselect,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .plan-v73-platform-loading,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .plan-v73-connect-platform,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-anchor,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-field,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-multiselect,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid select,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid input,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-button,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-multiselect-button,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-platform-loading,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-connect-platform {
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
+}
