@@ -2674,6 +2674,7 @@ function getSlotScheduleSummary(slot, scheduleType, timeZone) {
 
 function DatePickerField({
   label,
+  ariaLabel,
   value,
   onChange,
   pickerId,
@@ -2704,6 +2705,7 @@ function DatePickerField({
         <button
           type="button"
           className="custom-picker-button"
+          aria-label={ariaLabel || label || undefined}
           onClick={() => setOpenPickerId(isOpen ? null : pickerId)}
         >
           <span>{formatStartDateLabel(value, timeZone, locale)}</span>
@@ -9573,12 +9575,16 @@ function blockFormatCardClickAfterDrag(event) {
                       <span>{plannerLocaleIsSwedish ? "Rabatt" : "Discount"}</span>
                       <div className="plan-v100-discount-input">
                         <input
-                          type="number"
-                          min="0"
-                          max={offerDiscountType === "percent" ? "100" : undefined}
-                          step={offerDiscountType === "percent" ? "1" : "0.01"}
+                          type="text"
+                          inputMode="decimal"
+                          pattern="[0-9]+([,.][0-9]+)?"
                           value={offerDiscountValue}
-                          onChange={(event) => setOfferDiscountValue(event.target.value)}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            if (/^\d*([,.]\d*)?$/.test(nextValue)) {
+                              setOfferDiscountValue(nextValue);
+                            }
+                          }}
                           placeholder={offerDiscountType === "percent" ? "20" : "100"}
                         />
                         <span>{offerDiscountType === "percent" ? "%" : offerCurrency}</span>
@@ -9606,14 +9612,38 @@ function blockFormatCardClickAfterDrag(event) {
                         </small>
                       </label>
                     ) : null}
-                    <label>
-                      <span>{t("automation.offerPlan.startLabel")}</span>
-                      <input type="date" value={offerStartDate} onChange={(event) => setOfferStartDate(event.target.value)} />
-                    </label>
-                    <label>
-                      <span>{t("automation.offerPlan.endLabel")}</span>
-                      <input type="date" value={offerEndDate} onChange={(event) => setOfferEndDate(event.target.value)} />
-                    </label>
+                    <div className="plan-v101-offer-dates">
+                      <div className="plan-v101-offer-date-field">
+                        <span>{t("automation.offerPlan.startLabel")}</span>
+                        <DatePickerField
+                          value={offerStartDate}
+                          onChange={setOfferStartDate}
+                          pickerId="v101-offer-start-date"
+                          openPickerId={openPickerId}
+                          setOpenPickerId={setOpenPickerId}
+                          timeZone={timeZone}
+                          compact
+                          weekdayLabels={weekdayLabels}
+                          locale={locale}
+                          ariaLabel={t("automation.offerPlan.startLabel")}
+                        />
+                      </div>
+                      <div className="plan-v101-offer-date-field">
+                        <span>{t("automation.offerPlan.endLabel")}</span>
+                        <DatePickerField
+                          value={offerEndDate}
+                          onChange={setOfferEndDate}
+                          pickerId="v101-offer-end-date"
+                          openPickerId={openPickerId}
+                          setOpenPickerId={setOpenPickerId}
+                          timeZone={timeZone}
+                          compact
+                          weekdayLabels={weekdayLabels}
+                          locale={locale}
+                          ariaLabel={t("automation.offerPlan.endLabel")}
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {offerPlannerError ? <p className="plan-v70-offer-error">{offerPlannerError}</p> : null}
@@ -11353,18 +11383,22 @@ function blockFormatCardClickAfterDrag(event) {
 
                 <div className="plan-v72-format-plan-impact">
                   <span>
-                    {selectedFormatPreview.kind === "offer_campaign"
-                      ? plannerLocaleIsSwedish ? "Det här väljer du" : "What you choose"
-                      : t("automation.format.currentPlan")}
+                    {selectedFormatPreview.kind === "content_type"
+                      ? t("automation.format.currentPlan")
+                      : selectedFormatPreview.kind === "offer_campaign"
+                      ? plannerLocaleIsSwedish ? "Planen som skapas" : "Plan to be created"
+                      : plannerLocaleIsSwedish ? "Nästa steg" : "Next step"}
                   </span>
                   <strong>
                     {selectedFormatPreview.kind === "content_type"
                       ? t("automation.format.planCountChange", { before: slots.length, after: slots.length + 1 })
                       : selectedFormatPreview.kind === "offer_campaign"
                       ? plannerLocaleIsSwedish
-                        ? "Omfattning, rabatt, kampanjkod och giltighetstid. Spreelo skapar sedan rätt antal inlägg och låter dem arbeta tillsammans."
-                        : "Scope, discount, campaign code and validity period. Spreelo then creates the right number of posts and makes them work together."
-                      : t("automation.format.opensPlanner")}
+                        ? "En ny plan skapas bara för rabattkampanjen. Inläggen som visas i planen ersätts först när du väljer Lägg till i planen."
+                        : "A new plan is created only for the discount campaign. The posts shown in the plan are replaced only when you select Add to plan."
+                      : plannerLocaleIsSwedish
+                      ? "Välj en exakt sida, kategori eller produkt. Därefter väljer du inläggstyp och lägger till ett fokuserat inlägg i din nuvarande plan."
+                      : "Choose an exact page, category or product. Then choose the post type and add one focused post to your current plan."}
                   </strong>
                 </div>
 
@@ -11378,7 +11412,7 @@ function blockFormatCardClickAfterDrag(event) {
                       ? t("automation.format.addToPlan")
                       : selectedFormatPreview.kind === "offer_campaign"
                       ? plannerLocaleIsSwedish ? "Lägg till och ställ in" : "Add and configure"
-                      : t("automation.format.continue")}
+                      : plannerLocaleIsSwedish ? "Välj sida" : "Choose page"}
                   </button>
                 </div>
               </div>
