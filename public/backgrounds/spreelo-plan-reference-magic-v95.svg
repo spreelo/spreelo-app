@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 566" fill="none" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="page" x1="55" y1="0" x2="1045" y2="566" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6F7FB"/>
+      <stop offset="0.48" stop-color="#F4F6FB"/>
+      <stop offset="1" stop-color="#F6F8FC"/>
+    </linearGradient>
+    <radialGradient id="coolTop" cx="0" cy="0" r="1" gradientTransform="translate(780 30) rotate(166) scale(510 250)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E9ECF6" stop-opacity="0.88"/>
+      <stop offset="0.55" stop-color="#F1F3F9" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#F6F8FC" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="warmLeft" cx="0" cy="0" r="1" gradientTransform="translate(162 236) rotate(6) scale(255 112)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE3D2" stop-opacity="0.66"/>
+      <stop offset="0.5" stop-color="#FFF0E7" stop-opacity="0.31"/>
+      <stop offset="1" stop-color="#FFF7F2" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="warmRight" cx="0" cy="0" r="1" gradientTransform="translate(1032 154) rotate(93) scale(178 130)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE0CD" stop-opacity="0.54"/>
+      <stop offset="0.55" stop-color="#FFF0E7" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#FFF8F4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="warmBottom" cx="0" cy="0" r="1" gradientTransform="translate(250 283) rotate(-4) scale(190 80)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE5D4" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#FFF8F4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="warmStroke" x1="-30" y1="160" x2="1100" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFDFC" stop-opacity="0.18"/>
+      <stop offset="0.18" stop-color="#FFE3D2" stop-opacity="0.78"/>
+      <stop offset="0.46" stop-color="#FFFFFF" stop-opacity="0.98"/>
+      <stop offset="0.72" stop-color="#FFE1CF" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="coolStroke" x1="455" y1="122" x2="1120" y2="78" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="0.28" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="0.62" stop-color="#F7F9FD" stop-opacity="0.98"/>
+      <stop offset="0.86" stop-color="#FFE9DC" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.16"/>
+    </linearGradient>
+    <filter id="lineGlow" x="-12%" y="-80%" width="124%" height="260%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="4.2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="dotGlow" x="-500%" y="-500%" width="1100%" height="1100%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1100" height="566" fill="url(#page)"/>
+  <rect width="1100" height="566" fill="url(#coolTop)"/>
+  <rect width="1100" height="566" fill="url(#warmLeft)"/>
+  <rect width="1100" height="566" fill="url(#warmRight)"/>
+  <rect width="1100" height="566" fill="url(#warmBottom)"/>
+
+  <g filter="url(#lineGlow)" stroke-linecap="round">
+    <path d="M-42 109C106 134 239 132 356 106C470 81 558 39 693 -27" stroke="url(#warmStroke)" stroke-width="2.15"/>
+    <path d="M411 110C545 103 669 74 788 72C913 70 1009 82 1151 128" stroke="url(#coolStroke)" stroke-width="1.7"/>
+    <path d="M-10 92C37 111 46 145 24 184C2 222 13 250 82 269C149 287 230 280 316 244" stroke="url(#warmStroke)" stroke-width="1.75" opacity="0.76"/>
+    <path d="M925 -36C936 14 941 60 963 99C990 146 1058 174 1120 191" stroke="url(#warmStroke)" stroke-width="1.8" opacity="0.82"/>
+    <path d="M1118 187C1096 205 1084 217 1058 229" stroke="url(#warmStroke)" stroke-width="1.8" opacity="0.76"/>
+    <path d="M-80 293C73 286 175 296 283 270C395 243 492 201 592 183" stroke="url(#coolStroke)" stroke-width="1.2" opacity="0.38"/>
+  </g>
+
+  <g fill="#FFFFFF" filter="url(#dotGlow)">
+    <circle cx="607" cy="31" r="2.8"/>
+    <circle cx="477" cy="84" r="2.6"/>
+    <circle cx="788" cy="74" r="2.5"/>
+    <circle cx="951" cy="77" r="2.7"/>
+    <circle cx="1077" cy="213" r="2.8"/>
+    <circle cx="313" cy="113" r="1.9" fill-opacity="0.9"/>
+  </g>
+  <g fill="#FFD7C0" filter="url(#dotGlow)">
+    <circle cx="607" cy="31" r="1.25"/>
+    <circle cx="477" cy="84" r="1.15"/>
+    <circle cx="951" cy="77" r="1.2"/>
+    <circle cx="1077" cy="213" r="1.2"/>
+  </g>
+</svg>

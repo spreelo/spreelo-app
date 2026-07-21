@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  Bookmark,
   BookOpen,
   CalendarClock,
   CalendarDays,
@@ -13,6 +14,7 @@ import {
   Clock3,
   ClipboardList,
   CreditCard,
+  FileSearch,
   HelpCircle,
   Info,
   Layers,
@@ -5059,7 +5061,7 @@ export default function AutomationPage() {
         {
           title: "Granska",
           text: "Se över din färdiga plan. Vill du göra ändringar kan du enkelt lägga till, ta bort eller byta innehållstyper.",
-          Icon: ClipboardList,
+          Icon: FileSearch,
         },
         {
           title: "Aktivera",
@@ -5076,7 +5078,7 @@ export default function AutomationPage() {
         {
           title: t("automation.guide.step2TitleV2"),
           text: t("automation.guide.step2TextV2"),
-          Icon: ClipboardList,
+          Icon: FileSearch,
         },
         {
           title: t("automation.guide.step3TitleV2"),
@@ -8915,6 +8917,25 @@ function blockFormatCardClickAfterDrag(event) {
                   <h1>{t("automation.redesign.title")}</h1>
                   <p>{t("automation.redesign.subtitle")}</p>
                 </div>
+                <div className="plan-v95-header-actions">
+                  <button
+                    type="button"
+                    className="plan-v95-template-button"
+                    disabled
+                    title={plannerLocaleIsSwedish ? "Mallfunktionen kommer snart" : "Template saving is coming soon"}
+                  >
+                    <Bookmark size={17} aria-hidden="true" />
+                    <span>{plannerLocaleIsSwedish ? "Spara som mall" : "Save as template"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="plan-v95-header-help"
+                    onClick={() => setShowGuideInfoModal(true)}
+                    aria-label={t("automation.guide.needHelp")}
+                  >
+                    <CircleHelp size={19} aria-hidden="true" />
+                  </button>
+                </div>
               </header>
 
               <section className="plan-v70-settings-card plan-v84-settings-card plan-v89-settings-section">
@@ -8985,7 +9006,7 @@ function blockFormatCardClickAfterDrag(event) {
 
                   <label className="plan-v70-field plan-v83-setting-tile plan-v90-setting-tile">
                     <div className="plan-v90-setting-head">
-                      <span className="plan-v90-setting-icon"><ListChecks size={20} aria-hidden="true" /></span>
+                      <span className="plan-v90-setting-icon"><CalendarDays size={20} aria-hidden="true" /></span>
                       <div className="plan-v90-setting-copy">
                         <span className="plan-v90-setting-title">{t("automation.postsPerWeek")}</span>
                         <small>{plannerSectionCopy.frequencyHelp}</small>
@@ -9027,7 +9048,7 @@ function blockFormatCardClickAfterDrag(event) {
 
                   <label className="plan-v70-field plan-v83-setting-tile plan-v90-setting-tile">
                     <div className="plan-v90-setting-head">
-                      <span className="plan-v90-setting-icon"><Languages size={20} aria-hidden="true" /></span>
+                      <span className="plan-v90-setting-icon"><Globe2 size={20} aria-hidden="true" /></span>
                       <div className="plan-v90-setting-copy">
                         <span className="plan-v90-setting-title">{t("automation.redesign.postLanguage")}</span>
                         <small>{plannerSectionCopy.languageHelp}</small>
