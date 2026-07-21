@@ -5350,3 +5350,55 @@ html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picke
     font-size: 11px !important;
   }
 }
+
+/* v91 — match the reference proportions for the six plan-setting controls */
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > select,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > input,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .custom-picker-field,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .platform-multiselect,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .plan-v73-platform-loading,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile > .plan-v73-connect-platform {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  justify-self: stretch !important;
+  box-sizing: border-box !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid select,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid input,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-button,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-multiselect-button,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-platform-loading,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-connect-platform {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 40px !important;
+  height: 40px !important;
+  padding-left: 13px !important;
+  padding-right: 34px !important;
+  border-radius: 9px !important;
+  box-sizing: border-box !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-anchor,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-field,
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-multiselect {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+}
+
+@media (max-width: 760px) {
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid select,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid input,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .custom-picker-button,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-multiselect-button,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-platform-loading,
+  html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v73-connect-platform {
+    min-height: 38px !important;
+    height: 38px !important;
+    padding-left: 9px !important;
+    padding-right: 26px !important;
+  }
+}

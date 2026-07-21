@@ -3769,3 +3769,37 @@ html body .dashboard-plan-hub-section .saved-header {
   color: rgba(255,255,255,.68) !important;
   font-size: 10px !important;
 }
+
+/* v91 — cleaner account avatar: full person glyph, no cropped decorative shapes */
+.spreelo-user-avatar-fallback {
+  overflow: visible !important;
+  color: #e96342 !important;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(233,99,66,.12) 0 2px, transparent 2.7px),
+    radial-gradient(circle at 82% 76%, rgba(233,99,66,.10) 0 2px, transparent 2.7px),
+    #ffffff !important;
+  border: 1px solid rgba(235, 224, 217, .95) !important;
+  box-shadow: 0 5px 14px rgba(0,0,0,.12) !important;
+}
+
+.spreelo-user-avatar-fallback::before,
+.spreelo-user-avatar-fallback::after {
+  display: none !important;
+  content: none !important;
+}
+
+.spreelo-user-avatar-fallback > svg {
+  width: 25px !important;
+  height: 25px !important;
+  color: #e96342 !important;
+  stroke-width: 2.15 !important;
+  overflow: visible !important;
+}
+
+.spreelo-user-avatar-camera {
+  right: -3px !important;
+  bottom: -3px !important;
+  width: 18px !important;
+  height: 18px !important;
+  border-width: 2px !important;
+}

@@ -792,3 +792,20 @@ html body .automation-page.plan-v70-active .plan-v70-row-editor button { min-hei
     grid-template-columns: 1fr;
   }
 }
+
+/* v91 — breathing room around Social Channels cards on tablet/mobile */
+@media (max-width: 900px) {
+  html body .social-v74-page {
+    width: auto !important;
+    max-width: none !important;
+    margin-left: 14px !important;
+    margin-right: 14px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  html body .social-v74-page {
+    margin-left: 12px !important;
+    margin-right: 12px !important;
+  }
+}
