@@ -541,3 +541,121 @@ html body .automation-page.plan-v70-active .plan-v70-activate-message {
     min-height: 150px !important;
   }
 }
+
+/* v108 — mobile spacing polish + wider hero background coverage. */
+
+/* Let the decorative top background stretch beyond the content column so the
+   canvas reaches the desktop edges instead of revealing the warm page color. */
+html body .automation-page.plan-v70-active .plan-v70-shell::before {
+  left: -72px !important;
+  right: -72px !important;
+  height: 610px !important;
+  background-position: center top !important;
+  background-size: cover !important;
+}
+
+.post-review-page::before {
+  left: -96px !important;
+  width: calc(100% + 192px) !important;
+  height: 690px !important;
+  background-position: center top !important;
+  background-size: cover !important;
+}
+
+/* Give the mobile layouts some breathing room so cards do not run edge to edge. */
+@media (max-width: 760px) {
+  html body .automation-page.plan-v70-active .plan-v70-shell {
+    padding-inline: 10px !important;
+    margin-bottom: 20px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-shell::before {
+    left: -18px !important;
+    right: -18px !important;
+    height: 340px !important;
+    background-size: cover !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v107-bottom-grid {
+    margin-top: 12px !important;
+    gap: 12px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v107-bottom-grid > .plan-v83-continuation-card,
+  html body .automation-page.plan-v70-active .plan-v107-bottom-grid > .plan-v70-activate-card {
+    padding: 16px !important;
+    border-radius: 16px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v83-continuation-head {
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    align-items: start !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v83-continuation-head .plan-v70-inline-toggle {
+    grid-column: 1 / -1 !important;
+    padding-left: 0 !important;
+    justify-self: start !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v83-variation-row,
+  html body .automation-page.plan-v70-active .plan-v83-next-cycle {
+    padding: 10px 11px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-activate-card {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto auto auto auto !important;
+    row-gap: 12px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-activate-visual {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    margin-bottom: 2px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-activate-copy {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-activate-copy h2 {
+    font-size: 15px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-activate-actions,
+  html body .automation-page.plan-v70-active .plan-v70-success-actions {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v74-approval-publishing-note {
+    grid-column: 1 !important;
+    grid-row: 4 !important;
+    padding-top: 10px !important;
+  }
+
+  .post-review-page {
+    padding-inline: 12px !important;
+    padding-bottom: 28px !important;
+  }
+
+  .post-review-page::before {
+    left: -24px !important;
+    width: calc(100% + 48px) !important;
+    top: -18px !important;
+    height: 540px !important;
+    background-size: cover !important;
+  }
+
+  .post-review-summary-card,
+  .post-review-meta-card,
+  .post-review-preview-card,
+  .post-review-editor-card,
+  .post-review-idea-card,
+  .post-review-footer-actions,
+  .post-review-slides-card {
+    border-radius: 16px !important;
+  }
+}
