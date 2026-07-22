@@ -575,6 +575,30 @@ export async function POST(request) {
 
     await deleteRowsByColumn(
       supabaseAdmin,
+      "website_product_catalog_runs",
+      "user_id",
+      userId,
+      { optional: true }
+    );
+
+    await deleteRowsInColumn(
+      supabaseAdmin,
+      "website_product_catalog_runs",
+      "brand_profile_id",
+      brandIds,
+      { optional: true }
+    );
+
+    await deleteRowsInColumn(
+      supabaseAdmin,
+      "website_product_catalog_runs",
+      "automation_rule_id",
+      ruleIds,
+      { optional: true }
+    );
+
+    await deleteRowsByColumn(
+      supabaseAdmin,
       "website_product_catalog",
       "user_id",
       userId,

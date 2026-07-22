@@ -1121,6 +1121,22 @@ export default function BrandProfile() {
     }
   }
 
+  async function deleteOptionalRowsByColumn(tableName, columnName, value) {
+    const { error } = await supabase
+      .from(tableName)
+      .delete()
+      .eq(columnName, value);
+
+    if (
+      error &&
+      error.code !== "42P01" &&
+      error.code !== "PGRST205" &&
+      !String(error.message || "").toLowerCase().includes("schema cache")
+    ) {
+      throw new Error(`${tableName}: ${error.message}`);
+    }
+  }
+
   async function deleteUserRowsByColumn(tableName, columnName, value) {
     const { error } = await supabase
       .from(tableName)
@@ -1291,6 +1307,12 @@ export default function BrandProfile() {
           throw new Error(`${BRAND_ASSETS_BUCKET} storage: ${logoDeleteError.message}`);
         }
       }
+
+      await deleteOptionalRowsByColumn(
+        "website_product_catalog_runs",
+        "brand_profile_id",
+        brandProfileId
+      );
 
       await deleteRowsByColumn(
         "website_product_catalog",
