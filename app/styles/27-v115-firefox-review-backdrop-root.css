@@ -1,0 +1,88 @@
+/* v115 — Firefox review-page backdrop root fix.
+
+   The AI Innehållsstudio glass works because its decorative PNG canvas and
+   glass cards live inside the same isolated stacking context:
+
+     .automation-page.plan-v70-active
+       ::before  (z-index: -1 background artwork)
+       cards      (backdrop-filter descendants)
+
+   V114 put the review artwork on the outer .content element. Firefox could
+   therefore composite the artwork and the backdrop-filter cards in different
+   layers during normal rendering, even though its screenshot repaint flattened
+   them correctly. This layer gives .post-review-page the same structure as the
+   working AI Innehållsstudio implementation.
+*/
+
+/* The shell only provides the neutral fallback beyond the centred review area.
+   It no longer owns or composites the decorative artwork. */
+html body .content.spreelo-content:has(.post-review-page) {
+  position: relative !important;
+  isolation: auto !important;
+  background-color: #eef0f5 !important;
+  background-image: none !important;
+}
+
+html body .content.spreelo-content:has(.post-review-page)::before,
+html body .content.spreelo-content:has(.post-review-page)::after {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+
+/* Undo V114's extra content-layer stacking rule. The review page itself is now
+   the isolated backdrop root, exactly like .automation-page. */
+html body .content.spreelo-content:has(.post-review-page) > .post-review-page {
+  z-index: auto !important;
+}
+
+html body .post-review-page {
+  position: relative !important;
+  isolation: isolate !important;
+  overflow: visible !important;
+  background-color: #eef0f5 !important;
+  background-image: none !important;
+  transform: none !important;
+  filter: none !important;
+  contain: none !important;
+}
+
+/* Exact canvas recipe used by AI Innehållsstudio in
+   18-v98-responsive-polish.css. It is intentionally not stretched to the full
+   document height and its appearance/line placement is not altered. */
+html body .post-review-page::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  z-index: -1 !important;
+  top: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1672 / 941 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  opacity: 1 !important;
+  transform: none !important;
+  pointer-events: none !important;
+  background: url("/backgrounds/spreelo-background-v97.png") center top / 100% 100% no-repeat !important;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 72%, rgba(0, 0, 0, .82) 79%, rgba(0, 0, 0, .34) 91%, transparent 100%) !important;
+  mask-image: linear-gradient(to bottom, #000 0%, #000 72%, rgba(0, 0, 0, .82) 79%, rgba(0, 0, 0, .34) 91%, transparent 100%) !important;
+}
+
+html body .post-review-page::after {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+}
+
+/* Do not introduce individual z-index/compositing layers around the cards.
+   Their existing layout positioning remains untouched, while backdrop-filter
+   now samples the sibling ::before artwork in the same isolated root. */
+html body .post-review-page > * {
+  z-index: auto !important;
+}
