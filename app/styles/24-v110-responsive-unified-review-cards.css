@@ -1,0 +1,125 @@
+/* v110 — responsive page gutters, true full-width decorative canvas and
+   post-review cards using the exact AI Content Studio surface recipe. */
+
+/* -------------------------------------------------------------------------- */
+/* Shared page canvas                                                         */
+/* -------------------------------------------------------------------------- */
+
+/* The warm shell colour must never be exposed around these two visual pages.
+   :has() is supported by the browsers targeted by the current responsive UI. */
+html body .content.spreelo-content:has(.automation-page.plan-v70-active),
+html body .content.spreelo-content:has(.post-review-page) {
+  background-color: #f5f7fb !important;
+}
+
+/* One fluid gutter for phone, tablet and desktop. Padding is included in the
+   declared width so it cannot create horizontal overflow. */
+html body .automation-page.plan-v70-active .plan-v70-shell,
+html body .post-review-page {
+  box-sizing: border-box !important;
+  padding-right: clamp(12px, 1.75vw, 28px) !important;
+  padding-left: clamp(12px, 1.75vw, 28px) !important;
+}
+
+/* Make the decorative layer viewport-wide rather than tying it to the inner
+   content width. The content container clips the harmless excess under the
+   sidebar, while the matching base colour prevents any beige/yellow seams. */
+html body .automation-page.plan-v70-active .plan-v70-shell::before {
+  right: auto !important;
+  left: 50% !important;
+  width: 100vw !important;
+  min-width: 100vw !important;
+  height: 620px !important;
+  transform: translateX(-50%) !important;
+  background-color: #f5f7fb !important;
+  background-position: center top !important;
+  background-size: cover !important;
+}
+
+html body .post-review-page::before {
+  right: auto !important;
+  left: 50% !important;
+  width: 100vw !important;
+  min-width: 100vw !important;
+  height: 700px !important;
+  transform: translateX(-50%) !important;
+  background-color: #f5f7fb !important;
+  background-position: center top !important;
+  background-size: cover !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Review cards = exact AI Content Studio card surfaces                       */
+/* -------------------------------------------------------------------------- */
+
+/* Exact recipe used by the large AI Content Studio cards in
+   20-v101-unified-cards-calendar-form.css. Only dimensions/layout differ. */
+html body .post-review-summary-card,
+html body .post-review-meta-card,
+html body .post-review-preview-card,
+html body .post-review-editor-card,
+html body .post-review-idea-card,
+html body .post-review-footer-actions,
+html body .post-review-slides-card {
+  border: 1px solid rgba(255, 255, 255, .91) !important;
+  background:
+    linear-gradient(116deg, rgba(255, 255, 255, .79) 0%, rgba(251, 251, 254, .64) 56%, rgba(248, 248, 252, .72) 100%) !important;
+  box-shadow:
+    0 16px 30px rgba(34, 42, 68, .12),
+    0 3px 8px rgba(34, 42, 68, .045),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+  backdrop-filter: blur(15px) saturate(114%) !important;
+  -webkit-backdrop-filter: blur(15px) saturate(114%) !important;
+}
+
+/* The three metadata boxes correspond to the smaller translucent setting
+   tiles in AI Content Studio and therefore use that exact surface recipe. */
+html body .post-review-meta-item {
+  border: 1px solid rgba(255, 255, 255, .91) !important;
+  background:
+    linear-gradient(116deg, rgba(255, 255, 255, .69) 0%, rgba(251, 251, 254, .50) 56%, rgba(248, 248, 252, .58) 100%) !important;
+  box-shadow:
+    0 12px 23px rgba(34, 42, 68, .13),
+    0 2px 6px rgba(34, 42, 68, .045),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+  backdrop-filter: blur(15px) saturate(114%) !important;
+  -webkit-backdrop-filter: blur(15px) saturate(114%) !important;
+}
+
+/* Remove the old review-only grey outline impression from the outer cards.
+   Inner functional controls retain their own subtle boundaries for usability. */
+html body .post-review-summary-card,
+html body .post-review-meta-card,
+html body .post-review-preview-card,
+html body .post-review-editor-card,
+html body .post-review-footer-actions {
+  outline: 0 !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsive refinements                                                     */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 1240px) {
+  html body .automation-page.plan-v70-active .plan-v70-shell,
+  html body .post-review-page {
+    padding-right: clamp(16px, 2.25vw, 22px) !important;
+    padding-left: clamp(16px, 2.25vw, 22px) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html body .automation-page.plan-v70-active .plan-v70-shell,
+  html body .post-review-page {
+    padding-right: 12px !important;
+    padding-left: 12px !important;
+  }
+
+  html body .automation-page.plan-v70-active .plan-v70-shell::before {
+    height: 360px !important;
+  }
+
+  html body .post-review-page::before {
+    height: 560px !important;
+  }
+}
