@@ -4322,6 +4322,207 @@ async function discoverProductsFromStoreMapAgent({
   };
 }
 
+
+function buildStoreMapCandidateDecisionDiagnostics({
+  products = [],
+  rule,
+  sourceUrl,
+  recentUsedItems = [],
+  usedWebsiteImageUrlsThisRun = new Set(),
+  safeProducts = [],
+  freshProducts = [],
+  rankedProducts = [],
+}) {
+  const getKey = (item) => getCarouselProductSelectionKey(item, sourceUrl);
+  const safeKeys = new Set(safeProducts.map(getKey).filter(Boolean));
+  const freshKeys = new Set(freshProducts.map(getKey).filter(Boolean));
+  const rankedKeys = rankedProducts.map(getKey).filter(Boolean);
+  const rankedIndexByKey = new Map(
+    rankedKeys.map((key, index) => [key, index])
+  );
+  const campaignRule = isCampaignScopedWebsiteRule(rule);
+
+  return dedupeWebsiteItemsByUrlTitleAndImage(products)
+    .slice(0, 80)
+    .map((item) => {
+      const key = getKey(item);
+      const technicallyValid = isValidCarouselProduct(item);
+      const signalState = campaignRule
+        ? getCampaignProductSignalState(
+            item,
+            rule,
+            CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+          )
+        : null;
+      const heuristicCampaignScore = campaignRule
+        ? scoreCampaignFitForRule(item, rule)
+        : 0;
+      const safeCampaignCandidate = campaignRule
+        ? safeKeys.has(key)
+        : technicallyValid;
+      const usedInCatalog = hasWebsiteItemCatalogUsage(item);
+      const usedRecently = hasWebsiteItemAlreadyBeenUsed(
+        item,
+        recentUsedItems,
+        sourceUrl
+      );
+      const imageUsedThisRun = usedWebsiteImageUrlsThisRun.has(
+        normalizeComparableValue(item?.image_url)
+      );
+      const freshEligible = freshKeys.has(key);
+      const provisionalRank = rankedIndexByKey.has(key)
+        ? rankedIndexByKey.get(key) + 1
+        : null;
+      const rejectionReasons = [];
+
+      if (!technicallyValid) {
+        rejectionReasons.push("invalid_carousel_product");
+      }
+
+      if (campaignRule) {
+        if (signalState?.explicitlyRejected) {
+          rejectionReasons.push("ai_verdict_reject");
+        }
+        if (
+          signalState?.aiCampaignFitScore !== null &&
+          Number(signalState?.aiCampaignFitScore || 0) <
+            CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+        ) {
+          rejectionReasons.push("ai_score_below_75");
+        }
+        if (!safeCampaignCandidate && !signalState?.explicitlyRejected) {
+          rejectionReasons.push("no_accepted_campaign_signal");
+        }
+      }
+
+      if (usedInCatalog) {
+        rejectionReasons.push("previously_used_in_catalog");
+      }
+      if (usedRecently) {
+        rejectionReasons.push("previously_used_in_recent_history");
+      }
+      if (imageUsedThisRun) {
+        rejectionReasons.push("image_already_used_in_current_worker");
+      }
+
+      let finalDecision = "rejected";
+      if (freshEligible) {
+        finalDecision = provisionalRank
+          ? provisionalRank <= CAROUSEL_PRODUCT_SLIDE_TARGET
+            ? "provisionally_selected"
+            : "provisional_reserve"
+          : "fresh_eligible";
+      } else if (safeCampaignCandidate && technicallyValid) {
+        finalDecision = "campaign_safe_but_not_fresh";
+      } else if (technicallyValid) {
+        finalDecision = "technically_verified_but_campaign_rejected";
+      }
+
+      const evaluationHistory = Array.isArray(item?.campaign_fit_evaluations)
+        ? item.campaign_fit_evaluations.map((entry) => ({
+            model: entry?.model || null,
+            score:
+              entry?.score === undefined || entry?.score === null
+                ? null
+                : Number(entry.score),
+            verdict: entry?.verdict || null,
+            reason: entry?.reason || null,
+          }))
+        : [];
+
+      return {
+        title: item?.title || null,
+        url: item?.url || item?.product_url || item?.item_url || null,
+        image_url: item?.image_url || null,
+        source_page_url: item?.source_page_url || item?.store_map_node_url || null,
+        source_shelf_title: item?.store_map_node_title || null,
+        discovery_source:
+          item?.automation_search_method ||
+          item?.discovery_source ||
+          item?.catalog_source ||
+          null,
+        technical_verified: technicallyValid,
+        verification_level: item?.verification_level || null,
+        ai_final_model: item?.ai_campaign_fit_model || null,
+        ai_final_score:
+          item?.ai_campaign_fit_score === undefined ||
+          item?.ai_campaign_fit_score === null
+            ? null
+            : Number(item.ai_campaign_fit_score),
+        ai_final_verdict: item?.campaign_fit_verdict || null,
+        ai_final_reason: item?.campaign_fit_reason || null,
+        ai_fast_score:
+          item?.ai_campaign_fit_fast_score === undefined ||
+          item?.ai_campaign_fit_fast_score === null
+            ? null
+            : Number(item.ai_campaign_fit_fast_score),
+        ai_fast_verdict: item?.ai_campaign_fit_fast_verdict || null,
+        ai_fast_reason: item?.ai_campaign_fit_fast_reason || null,
+        ai_senior_score:
+          item?.ai_campaign_fit_senior_score === undefined ||
+          item?.ai_campaign_fit_senior_score === null
+            ? null
+            : Number(item.ai_campaign_fit_senior_score),
+        ai_senior_verdict: item?.ai_campaign_fit_senior_verdict || null,
+        ai_senior_reason: item?.ai_campaign_fit_senior_reason || null,
+        ai_evaluation_history: evaluationHistory,
+        heuristic_campaign_score: heuristicCampaignScore,
+        campaign_signal: signalState
+          ? {
+              theme_matches: signalState.themeMatches,
+              source_theme_matches: signalState.sourceThemeMatches,
+              anchor_matches: signalState.anchorMatches,
+              primary_matches: signalState.primaryMatches,
+              has_direct_signal: signalState.hasDirectCampaignSignal,
+              has_ai_evaluation: signalState.hasAiCampaignEvaluation,
+              has_ai_approval: signalState.hasAiCampaignApproval,
+              has_meaningful_signal: signalState.hasMeaningfulCampaignSignal,
+              explicitly_rejected: signalState.explicitlyRejected,
+            }
+          : null,
+        safe_campaign_candidate: safeCampaignCandidate,
+        used_in_catalog: usedInCatalog,
+        used_recently: usedRecently,
+        image_used_this_run: imageUsedThisRun,
+        fresh_eligible: freshEligible,
+        provisional_rank: provisionalRank,
+        final_decision: finalDecision,
+        rejection_reasons: [...new Set(rejectionReasons)],
+      };
+    });
+}
+
+function summarizeStoreMapCandidateDecisions(candidateDecisions = []) {
+  const countBy = (predicate) => candidateDecisions.filter(predicate).length;
+  const reasonCounts = {};
+
+  for (const decision of candidateDecisions) {
+    for (const reason of decision?.rejection_reasons || []) {
+      reasonCounts[reason] = Number(reasonCounts[reason] || 0) + 1;
+    }
+  }
+
+  return {
+    candidate_count: candidateDecisions.length,
+    technically_verified_count: countBy(
+      (entry) => entry?.technical_verified === true
+    ),
+    campaign_safe_count: countBy(
+      (entry) => entry?.safe_campaign_candidate === true
+    ),
+    fresh_eligible_count: countBy(
+      (entry) => entry?.fresh_eligible === true
+    ),
+    provisional_selected_count: countBy(
+      (entry) => entry?.final_decision === "provisionally_selected"
+    ),
+    provisional_reserve_count: countBy(
+      (entry) => entry?.final_decision === "provisional_reserve"
+    ),
+    rejection_reason_counts: reasonCounts,
+  };
+}
+
 async function finalizeCarouselFromStoreMapEarlyExit({
   supabase,
   rule,
@@ -4352,6 +4553,45 @@ async function finalizeCarouselFromStoreMapEarlyExit({
     usedWebsiteImageUrlsThisRun,
     allowReuseWhenExhausted: false,
     limit: CAROUSEL_PRODUCT_SLIDE_TARGET + CAROUSEL_PRODUCT_RESERVE_TARGET,
+  });
+  const candidateDecisions = buildStoreMapCandidateDecisionDiagnostics({
+    products: storeMapAgentResult?.products || [],
+    rule,
+    sourceUrl: websiteUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+    safeProducts: storeMapProducts,
+    freshProducts: freshStoreMapProducts,
+    rankedProducts: rankedStoreMapProducts,
+  });
+  const candidateDecisionSummary = summarizeStoreMapCandidateDecisions(
+    candidateDecisions
+  );
+
+  storeMapAgentResult.diagnostics = {
+    ...(storeMapAgentResult?.diagnostics || {}),
+    campaign_candidate_decisions: candidateDecisions,
+    campaign_candidate_decision_summary: candidateDecisionSummary,
+    campaign_acceptance_threshold: CAMPAIGN_NEAR_PRODUCT_FIT_SCORE,
+  };
+
+  console.log("Store Map campaign candidate decisions saved", {
+    ruleId: rule?.id,
+    brandProfileId: rule?.brand_profile_id,
+    websiteUrl,
+    ...candidateDecisionSummary,
+    candidates: candidateDecisions.map((entry) => ({
+      title: entry.title,
+      aiFastScore: entry.ai_fast_score,
+      aiSeniorScore: entry.ai_senior_score,
+      aiFinalScore: entry.ai_final_score,
+      aiVerdict: entry.ai_final_verdict,
+      safeCampaignCandidate: entry.safe_campaign_candidate,
+      freshEligible: entry.fresh_eligible,
+      provisionalRank: entry.provisional_rank,
+      finalDecision: entry.final_decision,
+      rejectionReasons: entry.rejection_reasons,
+    })),
   });
 
   if (rankedStoreMapProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
@@ -4450,6 +4690,10 @@ async function finalizeCarouselFromStoreMapEarlyExit({
     websiteCycleNumber: cycleNumber,
     useWebsiteImage: true,
     websiteRule: rule,
+    productEngineDiagnostics: {
+      storeMap: storeMapAgentResult?.diagnostics || null,
+      earlyExit: true,
+    },
   };
 }
 
@@ -5895,6 +6139,10 @@ async function prepareCarouselProductsForRule({
     websiteCycleNumber: cycleNumber,
     useWebsiteImage: true,
     websiteRule: rule,
+    productEngineDiagnostics: {
+      storeMap: storeMapAgentResult?.diagnostics || null,
+      earlyExit: false,
+    },
   };
 }
 
@@ -11822,11 +12070,16 @@ Return strict JSON only:
         continue;
       }
 
-      evaluationByIndex.set(index, {
+      const evaluation = {
         score: normalizeCampaignFitScore(entry?.score),
         verdict: String(entry?.verdict || "").trim(),
         reason: String(entry?.reason || "").trim(),
         model,
+      };
+
+      evaluationByIndex.set(index, {
+        ...evaluation,
+        evaluations: [evaluation],
       });
     }
   }
@@ -11855,6 +12108,34 @@ function applyCampaignFitEvaluations(items, evaluationByIndex) {
         ? "ai_campaign_fit"
         : "ai_campaign_fit_fast";
 
+    const priorEvaluations = Array.isArray(item?.campaign_fit_evaluations)
+      ? item.campaign_fit_evaluations
+      : [];
+    const currentEvaluations = Array.isArray(evaluation?.evaluations)
+      ? evaluation.evaluations
+      : [
+          {
+            model: evaluation.model,
+            score: evaluation.score,
+            verdict: evaluation.verdict,
+            reason: evaluation.reason,
+          },
+        ];
+    const campaignFitEvaluations = [...priorEvaluations, ...currentEvaluations]
+      .filter((entry) => entry && entry.model)
+      .map((entry) => ({
+        model: String(entry.model || ""),
+        score: normalizeCampaignFitScore(entry.score),
+        verdict: String(entry.verdict || "").trim(),
+        reason: String(entry.reason || "").trim(),
+      }));
+    const fastEvaluation = campaignFitEvaluations.find(
+      (entry) => entry.model === PRODUCT_RESEARCH_FAST_MODEL
+    );
+    const seniorEvaluation = [...campaignFitEvaluations]
+      .reverse()
+      .find((entry) => entry.model === PRODUCT_RESEARCH_MODEL);
+
     return {
       ...item,
       ai_campaign_fit_score: evaluation.score,
@@ -11867,6 +12148,19 @@ function applyCampaignFitEvaluations(items, evaluationByIndex) {
       ai_campaign_fit_model: evaluation.model,
       campaign_fit_verdict: evaluation.verdict,
       campaign_fit_reason: evaluation.reason,
+      campaign_fit_evaluations: campaignFitEvaluations,
+      ai_campaign_fit_fast_score:
+        fastEvaluation?.score ?? item?.ai_campaign_fit_fast_score ?? null,
+      ai_campaign_fit_fast_verdict:
+        fastEvaluation?.verdict || item?.ai_campaign_fit_fast_verdict || null,
+      ai_campaign_fit_fast_reason:
+        fastEvaluation?.reason || item?.ai_campaign_fit_fast_reason || null,
+      ai_campaign_fit_senior_score:
+        seniorEvaluation?.score ?? item?.ai_campaign_fit_senior_score ?? null,
+      ai_campaign_fit_senior_verdict:
+        seniorEvaluation?.verdict || item?.ai_campaign_fit_senior_verdict || null,
+      ai_campaign_fit_senior_reason:
+        seniorEvaluation?.reason || item?.ai_campaign_fit_senior_reason || null,
     };
   });
 }
@@ -11962,7 +12256,20 @@ async function applyAiCampaignFitScores({
     });
 
     for (const [index, evaluation] of escalatedEvaluationByIndex.entries()) {
-      evaluationByIndex.set(index, evaluation);
+      const previousEvaluation = evaluationByIndex.get(index);
+      const previousHistory = Array.isArray(previousEvaluation?.evaluations)
+        ? previousEvaluation.evaluations
+        : previousEvaluation
+          ? [previousEvaluation]
+          : [];
+      const escalatedHistory = Array.isArray(evaluation?.evaluations)
+        ? evaluation.evaluations
+        : [evaluation];
+
+      evaluationByIndex.set(index, {
+        ...evaluation,
+        evaluations: [...previousHistory, ...escalatedHistory],
+      });
     }
   }
 
@@ -21658,6 +21965,7 @@ async function runAutomationCron(request, options = {}) {
       let automationRunPostId = null;
       let automationRunWebsiteItem = null;
       let automationRunWebsiteItems = [];
+      let automationRunProductEngineDiagnostics = null;
 
       const finishRunLog = async (status, errorMessage = null, extraSummary = {}) => {
         if (automationRunFinished || !automationRunLogId) {
@@ -21673,7 +21981,12 @@ async function runAutomationCron(request, options = {}) {
           postId: automationRunPostId,
           websiteItem: automationRunWebsiteItem,
           websiteItems: automationRunWebsiteItems,
-          extraSummary,
+          extraSummary: {
+            ...extraSummary,
+            ...(automationRunProductEngineDiagnostics
+              ? { product_engine_diagnostics: automationRunProductEngineDiagnostics }
+              : {}),
+          },
         });
 
         automationRunFinished = true;
@@ -21994,6 +22307,8 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
             websitePreparedRule = preparedCarouselProducts.websiteRule || rule;
             automationRunWebsiteItem = websiteItem;
             automationRunWebsiteItems = websiteItems;
+            automationRunProductEngineDiagnostics =
+              preparedCarouselProducts.productEngineDiagnostics || null;
           } catch (carouselError) {
             const message = carouselError.message ||
               `Website carousel needs at least ${CAROUSEL_MIN_PRODUCT_SLIDES} products with product images.`;
@@ -22004,6 +22319,9 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
               automationRunWebsiteItems = partialProducts;
               automationRunWebsiteItem = partialProducts[0] || null;
             }
+
+            automationRunProductEngineDiagnostics =
+              carouselError?.productEngineDiagnostics || null;
 
             const productFailure = await handleProductEngineCarouselFailure({
               supabase,

@@ -9,7 +9,8 @@
     "test:product-engine-v2": "node scripts/test-product-engine-v2.mjs",
     "test:store-map-agent": "node scripts/test-store-map-product-agent.mjs",
     "test:polite-retrieval": "node scripts/test-polite-product-retrieval.mjs",
-    "test:store-map-early-exit": "node scripts/test-store-map-early-exit.mjs"
+    "test:store-map-early-exit": "node scripts/test-store-map-early-exit.mjs",
+    "test:candidate-diagnostics": "node scripts/test-candidate-decision-diagnostics.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.110.7",
