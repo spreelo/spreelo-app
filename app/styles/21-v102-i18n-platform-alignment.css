@@ -1,0 +1,22 @@
+/* v102 — keep social-channel controls optically aligned in the plan selector. */
+html body .automation-page.plan-v70-active .plan-v73-platform-multiselect .platform-multiselect-option,
+html body .automation-page.plan-v70-active .platform-multiselect .platform-multiselect-option {
+  align-items: center !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v73-platform-multiselect .platform-multiselect-option input[type="checkbox"],
+html body .automation-page.plan-v70-active .platform-multiselect .platform-multiselect-option input[type="checkbox"] {
+  display: block !important;
+  align-self: center !important;
+  justify-self: center !important;
+  margin: 0 !important;
+  transform: translateY(-1px) !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v73-platform-multiselect .platform-multiselect-option .platform-icon-img,
+html body .automation-page.plan-v70-active .platform-multiselect .platform-multiselect-option .platform-icon-img {
+  display: block !important;
+  align-self: center !important;
+  justify-self: center !important;
+  margin: 0 !important;
+}
