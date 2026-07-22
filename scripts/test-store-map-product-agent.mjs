@@ -17,6 +17,13 @@ assert.equal(
   "https://example.com/collections/halloween"
 );
 assert.equal(
+  canonicalizeStoreMapUrl(
+    "/occasion/girlfriends-day?ord=d&p=3&utm_source=test",
+    "https://example.com/"
+  ),
+  "https://example.com/occasion/girlfriends-day"
+);
+assert.equal(
   classifyStoreMapLinkHint({
     url: "https://example.com/collections/halloween",
     text: "Halloween",

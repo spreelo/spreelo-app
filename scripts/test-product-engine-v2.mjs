@@ -67,10 +67,10 @@ assert.equal(
 assert.deepEqual(getAdaptiveProductPoolTargets(5), {
   requiredCount: 5,
   minimumCandidatePool: 30,
-  minimumVerifiedPool: 12,
+  minimumVerifiedPool: 8,
   reserveCount: 5,
-  aiRankLimit: 25,
-  finalVerificationLimit: 30,
+  aiRankLimit: 20,
+  finalVerificationLimit: 15,
 });
 
 console.log("Product Engine V2 helper tests passed.");
