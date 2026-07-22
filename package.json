@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "node scripts/verify-sharp-runtime.mjs && next build",
     "start": "next start",
-    "test:product-engine-v2": "node scripts/test-product-engine-v2.mjs"
+    "test:product-engine-v2": "node scripts/test-product-engine-v2.mjs",
+    "test:store-map-agent": "node scripts/test-store-map-product-agent.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.110.7",
