@@ -1,7 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import {
+  ArrowLeft,
+  CalendarClock,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  FileText,
+  ImageIcon,
+  Info,
+  Save,
+  Sparkles,
+  Trash2,
+  Video,
+} from "lucide-react";
 import AppLayout from "../../../components/AppLayout";
 import { supabase } from "../../../lib/supabaseClient";
 import { useUiText } from "../../../lib/i18n/useUiText";
@@ -108,6 +122,15 @@ export default function EditPostPage() {
   const [saving, setSaving] = useState(false);
   const [approving, setApproving] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  const contentTextareaRef = useRef(null);
+
+  useEffect(() => {
+    const textarea = contentTextareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.max(260, textarea.scrollHeight + 2)}px`;
+  }, [content]);
 
   useEffect(() => {
     async function loadPost() {
@@ -195,6 +218,15 @@ export default function EditPostPage() {
     }
 
     setSaving(false);
+  }
+
+  async function copyPostText() {
+    try {
+      await navigator.clipboard.writeText(content);
+      setMessage(t("posts.messageCopied"));
+    } catch {
+      setMessage(t("posts.messageCopyFailed"));
+    }
   }
 
   async function approvePost() {
@@ -320,165 +352,249 @@ export default function EditPostPage() {
     ? formatVideoStatus(post.video_status, t)
     : null;
   const hasSlides = slides.length > 0;
+  const primaryPreviewImageUrl =
+    isSlideBasedPost(post) && hasSlides ? slides[0]?.image_url : post.image_url;
+  const pageTitle = isCarouselPost
+    ? t("posts.reviewCarouselTitle")
+    : isPendingApproval
+    ? t("posts.reviewApproveTitle")
+    : t("posts.editSavedTitle");
 
   return (
     <AppLayout active="dashboard">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">
-            {isPendingApproval ? t("posts.reviewPost") : t("posts.editPost")}
-          </p>
-          <h2>
-            {isCarouselPost
-              ? t("posts.reviewCarouselTitle")
-              : isPendingApproval
-              ? t("posts.reviewApproveTitle")
-              : t("posts.editSavedTitle")}
-          </h2>
-        </div>
-
-        <div className="button-row">
-          <a className="secondary-button" href="/">
-            {t("posts.back")}
-          </a>
-
-          {!isCarouselPost && (
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => navigator.clipboard.writeText(content)}
-            >
-              {t("posts.copyText")}
-            </button>
-          )}
-
-          <button
-            type="button"
-            className="primary-button"
-            onClick={savePost}
-            disabled={saving || approving || discarding}
-          >
-            {saving ? t("posts.saving") : t("posts.saveChanges")}
-          </button>
-
-          {isPendingApproval && (
-            <>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={discardPost}
-                disabled={saving || approving || discarding}
-              >
-                {discarding ? t("posts.discarding") : t("posts.discard")}
-              </button>
-
-              <button
-                type="button"
-                className={isCarouselPost ? "primary-button approve-success-button" : "primary-button"}
-                onClick={approvePost}
-                disabled={saving || approving || discarding}
-              >
-                {approving ? t("posts.approving") : t("posts.approve")}
-              </button>
-            </>
-          )}
-        </div>
-      </header>
-
-      <section className="result-card">
-        <div className="result-header">
-          <div>
+      <div className="post-review-page">
+        <header className="post-review-topbar">
+          <div className="post-review-heading">
             <p className="eyebrow">
-              {post.platform || t("posts.platformNotSet")} ·{" "}
-              {post.post_type || t("posts.post")}
+              {isPendingApproval ? t("posts.reviewPost") : t("posts.editPost")}
             </p>
-            <h3>
-              {post.tone || t("posts.toneNotSet")} ·{" "}
-              {post.language || t("posts.languageNotSet")}
-            </h3>
+            <h1>{pageTitle}</h1>
+            <p>{t("posts.reviewPageIntro")}</p>
           </div>
 
-          <div className="post-meta-row">
-            <span className={getStatusClass(post.status)}>
-              {formatStatus(post.status, t)}
-            </span>
+          <div className="post-review-actions">
+            <a className="post-review-button neutral" href="/">
+              <ArrowLeft size={17} aria-hidden="true" />
+              {t("posts.back")}
+            </a>
 
-            {isAutomationPost && (
-              <span className="status-pill">{t("posts.generatedByAutomation")}</span>
+            {!isCarouselPost && (
+              <button type="button" className="post-review-button neutral" onClick={copyPostText}>
+                <Copy size={17} aria-hidden="true" />
+                {t("posts.copyText")}
+              </button>
             )}
 
+            <button
+              type="button"
+              className="post-review-button save"
+              onClick={savePost}
+              disabled={saving || approving || discarding}
+            >
+              <Save size={17} aria-hidden="true" />
+              {saving ? t("posts.saving") : t("posts.saveChanges")}
+            </button>
+
+            {isPendingApproval && (
+              <>
+                <button
+                  type="button"
+                  className="post-review-button discard"
+                  onClick={discardPost}
+                  disabled={saving || approving || discarding}
+                >
+                  <Trash2 size={17} aria-hidden="true" />
+                  {discarding ? t("posts.discarding") : t("posts.discard")}
+                </button>
+
+                <button
+                  type="button"
+                  className="post-review-button approve"
+                  onClick={approvePost}
+                  disabled={saving || approving || discarding}
+                >
+                  <CheckCircle2 size={18} aria-hidden="true" />
+                  {approving ? t("posts.approving") : t("posts.approve")}
+                </button>
+              </>
+            )}
+          </div>
+        </header>
+
+        {message && (
+          <p className="post-review-message" role="status" aria-live="polite">
+            <Info size={18} aria-hidden="true" />
+            {message}
+          </p>
+        )}
+
+        <section className="post-review-summary-card">
+          <div className="post-review-summary-copy">
+            <span className="post-review-summary-icon"><Sparkles size={23} aria-hidden="true" /></span>
+            <div>
+              <p className="eyebrow">
+                {post.platform || t("posts.platformNotSet")} · {post.post_type || t("posts.post")}
+              </p>
+              <h2>
+                {post.tone || t("posts.toneNotSet")} · {post.language || t("posts.languageNotSet")}
+              </h2>
+              <p>{t("posts.reviewSummaryText")}</p>
+            </div>
+          </div>
+
+          <div className="post-review-statuses">
+            <span className={getStatusClass(post.status)}>{formatStatus(post.status, t)}</span>
+            {isAutomationPost && <span className="status-pill">{t("posts.generatedByAutomation")}</span>}
             {(isSlideBasedPost(post) || isAnimatedVideoPost) && (
               <span className="status-pill">{formatContentFormat(post, t)}</span>
             )}
-
             {imageStatusLabel && (
-              <span className={getImageStatusClass(post.image_status)}>
-                {imageStatusLabel}
-              </span>
+              <span className={getImageStatusClass(post.image_status)}>{imageStatusLabel}</span>
             )}
-
             {videoStatusLabel && (
-              <span className={getImageStatusClass(post.video_status)}>
-                {videoStatusLabel}
-              </span>
+              <span className={getImageStatusClass(post.video_status)}>{videoStatusLabel}</span>
             )}
           </div>
-        </div>
+        </section>
 
-        <div className="idea-box">
-          <p>
-            <strong>{t("posts.source")}:</strong> {sourceLabel}
-          </p>
-
-          <p>
-            <strong>{t("posts.created")}:</strong>{" "}
-            {formatDate(post.created_at, t)}
-          </p>
-
+        <section className="post-review-meta-card">
+          <div className="post-review-meta-item">
+            <span><Info size={18} aria-hidden="true" /></span>
+            <div><small>{t("posts.source")}</small><strong>{sourceLabel}</strong></div>
+          </div>
+          <div className="post-review-meta-item">
+            <span><Sparkles size={18} aria-hidden="true" /></span>
+            <div><small>{t("posts.created")}</small><strong>{formatDate(post.created_at, t)}</strong></div>
+          </div>
           {post.scheduled_for && !isCarouselPost && (
-            <p>
-              <strong>{t("posts.scheduledFor")}:</strong>{" "}
-              {formatDate(post.scheduled_for, t)}
-            </p>
+            <div className="post-review-meta-item">
+              <span><CalendarClock size={18} aria-hidden="true" /></span>
+              <div><small>{t("posts.scheduledFor")}</small><strong>{formatDate(post.scheduled_for, t)}</strong></div>
+            </div>
           )}
-
           {post.approved_at && (
-            <p>
-              <strong>{t("posts.approvedAt")}:</strong>{" "}
-              {formatDate(post.approved_at, t)}
-            </p>
+            <div className="post-review-meta-item">
+              <span><CheckCircle2 size={18} aria-hidden="true" /></span>
+              <div><small>{t("posts.approvedAt")}</small><strong>{formatDate(post.approved_at, t)}</strong></div>
+            </div>
           )}
-
           {post.published_at && (
-            <p>
-              <strong>{t("posts.publishedAt")}:</strong>{" "}
-              {formatDate(post.published_at, t)}
-            </p>
+            <div className="post-review-meta-item">
+              <span><CheckCircle2 size={18} aria-hidden="true" /></span>
+              <div><small>{t("posts.publishedAt")}</small><strong>{formatDate(post.published_at, t)}</strong></div>
+            </div>
           )}
-
           {isPendingApproval && !isCarouselPost && (
-            <p>
-              <strong>{t("posts.note")}:</strong>{" "}
-              {t("posts.approvalNote")}
-            </p>
+            <div className="post-review-meta-note">
+              <Info size={18} aria-hidden="true" />
+              <p>{t("posts.approvalNote")}</p>
+            </div>
           )}
-
           {post.status === "rejected" && (
-            <p>
-              <strong>{t("posts.note")}:</strong> {t("posts.discardedNote")}
-            </p>
+            <div className="post-review-meta-note danger">
+              <Info size={18} aria-hidden="true" />
+              <p>{t("posts.discardedNote")}</p>
+            </div>
           )}
-        </div>
+        </section>
 
         {isCarouselPost && (
-          <div className="carousel-review-banner">
+          <div className="carousel-review-banner post-review-carousel-banner">
             <strong>{t("posts.carouselReviewBannerTitle")}</strong>
             <span>{t("posts.carouselReviewBannerText")}</span>
           </div>
         )}
 
+        <section className="post-review-workspace">
+          <article className="post-review-preview-card">
+            <header className="post-review-card-heading">
+              <span className="post-review-card-icon media">
+                {isAnimatedVideoPost ? <Video size={21} aria-hidden="true" /> : <ImageIcon size={21} aria-hidden="true" />}
+              </span>
+              <div>
+                <h2>{t("posts.fullPostPreview")}</h2>
+                <p>{t("posts.fullPostPreviewText")}</p>
+              </div>
+              {(post.video_url || primaryPreviewImageUrl) && (
+                <a
+                  className="post-review-open-media"
+                  href={isAnimatedVideoPost ? post.video_url : primaryPreviewImageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLink size={16} aria-hidden="true" />
+                  {isAnimatedVideoPost ? t("posts.openVideo") : t("posts.openImage")}
+                </a>
+              )}
+            </header>
+
+            <div className="post-review-social-preview">
+              <div className="post-review-social-heading">
+                <span className="post-review-platform-mark">{String(post.platform || "S").slice(0, 1).toUpperCase()}</span>
+                <div>
+                  <strong>{post.platform || t("posts.platformNotSet")}</strong>
+                  <small>{t("posts.previewLabel")}</small>
+                </div>
+              </div>
+
+              {isAnimatedVideoPost && post.video_url ? (
+                <video controls muted loop playsInline poster={post.image_url || undefined}>
+                  <source src={post.video_url} type="video/mp4" />
+                </video>
+              ) : primaryPreviewImageUrl ? (
+                <img src={primaryPreviewImageUrl} alt={t("posts.generatedPostImageAlt")} />
+              ) : (
+                <div className="post-review-media-placeholder">
+                  <ImageIcon size={32} aria-hidden="true" />
+                  <strong>{imageStatusLabel || videoStatusLabel || t("posts.noMediaPreview")}</strong>
+                </div>
+              )}
+
+              <div className="post-review-published-copy">
+                {content || t("posts.noPostContent")}
+              </div>
+            </div>
+          </article>
+
+          <div className="post-review-editor-column">
+            <article className="post-review-editor-card">
+              <header className="post-review-card-heading">
+                <span className="post-review-card-icon text"><FileText size={21} aria-hidden="true" /></span>
+                <div>
+                  <h2>{t("posts.editContentTitle")}</h2>
+                  <p>{t("posts.editContentText")}</p>
+                </div>
+              </header>
+
+              <textarea
+                ref={contentTextareaRef}
+                className="post-review-content-textarea"
+                value={content}
+                rows={10}
+                onChange={(event) => setContent(event.target.value)}
+                aria-label={t("posts.postContent")}
+              />
+
+              <div className="post-review-editor-help">
+                <Info size={16} aria-hidden="true" />
+                <span>{t("posts.completeContentHelp")}</span>
+              </div>
+            </article>
+
+            {post.idea && (
+              <article className="post-review-idea-card">
+                <header>
+                  <span><Sparkles size={18} aria-hidden="true" /></span>
+                  <h2>{t("posts.originalIdea")}</h2>
+                </header>
+                <p>{post.idea}</p>
+              </article>
+            )}
+          </div>
+        </section>
+
         {isSlideBasedPost(post) && (
-          <div className="edit-post-slides-block">
+          <section className="edit-post-slides-block post-review-slides-card">
             <div className="edit-post-image-header">
               <div>
                 <label className="field-label">{t("posts.slidesTitle")}</label>
@@ -487,9 +603,7 @@ export default function EditPostPage() {
             </div>
 
             {slides.length === 0 ? (
-              <div className="idea-box">
-                <p>{t("posts.noSlidesYet")}</p>
-              </div>
+              <div className="idea-box"><p>{t("posts.noSlidesYet")}</p></div>
             ) : (
               <div className="edit-post-slides-grid">
                 {slides.map((slide) => (
@@ -497,15 +611,11 @@ export default function EditPostPage() {
                     <div className="edit-post-slide-number">
                       {t("posts.slideNumber", { number: slide.slide_order ?? 1 })}
                     </div>
-
                     {slide.image_url ? (
                       <img src={slide.image_url} alt={t("posts.slideImageAlt")} />
                     ) : (
-                      <div className="edit-post-slide-placeholder">
-                        {t("posts.slideImagePending")}
-                      </div>
+                      <div className="edit-post-slide-placeholder">{t("posts.slideImagePending")}</div>
                     )}
-
                     <div className="edit-post-slide-content">
                       {slide.headline && <h4>{slide.headline}</h4>}
                       {slide.body && <p>{slide.body}</p>}
@@ -515,101 +625,38 @@ export default function EditPostPage() {
                 ))}
               </div>
             )}
-          </div>
+          </section>
         )}
 
-        {isAnimatedVideoPost && post.video_url && (
-          <div className="edit-post-image-block edit-post-video-block">
-            <div className="edit-post-image-header">
-              <div>
-                <label className="field-label">{t("posts.generatedVideo")}</label>
-                <p>{t("posts.generatedVideoText")}</p>
-              </div>
-
-              <a
-                className="secondary-button small-button"
-                href={post.video_url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {t("posts.openVideo")}
-              </a>
-            </div>
-
-            <video
-              controls
-              autoPlay
-              muted
-              loop
-              playsInline
-              poster={post.image_url || undefined}
-            >
-              <source src={post.video_url} type="video/mp4" />
-            </video>
-          </div>
-        )}
-
-        {post.image_url && !isAnimatedVideoPost && !(isCarouselPost && hasSlides) && (
-          <div className="edit-post-image-block">
-            <div className="edit-post-image-header">
-              <div>
-                <label className="field-label">{t("posts.generatedImage")}</label>
-                <p>{t("posts.generatedImageText")}</p>
-              </div>
-
-              {post.image_url && (
-                <a
-                  className="secondary-button small-button"
-                  href={post.image_url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t("posts.openImage")}
-                </a>
-              )}
-            </div>
-
-            <img src={post.image_url} alt={t("posts.generatedPostImageAlt")} />
-          </div>
-        )}
-
-        {!post.image_url && imageStatusLabel && (
-          <div className="idea-box">
-            <p>
-              <strong>{t("posts.imageStatus")}:</strong> {imageStatusLabel}
-            </p>
-          </div>
-        )}
-
-        {isAnimatedVideoPost && !post.video_url && videoStatusLabel && (
-          <div className="idea-box">
-            <p>
-              <strong>{t("posts.videoStatus")}:</strong> {videoStatusLabel}
-            </p>
-            {post.video_error && <p>{post.video_error}</p>}
-          </div>
-        )}
-
-        <div className="edit-post-grid">
-          {post.idea && (
-            <div>
-              <label className="field-label">{t("posts.originalIdea")}</label>
-              <div className="idea-box">{post.idea}</div>
-            </div>
-          )}
-
+        <footer className="post-review-footer-actions">
           <div>
-            <label className="field-label">{t("posts.postContent")}</label>
-            <textarea
-              className="large-textarea"
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-            />
+            <CheckCircle2 size={22} aria-hidden="true" />
+            <p><strong>{t("posts.readyForDecision")}</strong><span>{t("posts.readyForDecisionText")}</span></p>
           </div>
-        </div>
-
-        {message && <p className="login-message">{message}</p>}
-      </section>
+          <div className="post-review-actions compact">
+            <button
+              type="button"
+              className="post-review-button save"
+              onClick={savePost}
+              disabled={saving || approving || discarding}
+            >
+              <Save size={17} aria-hidden="true" />
+              {saving ? t("posts.saving") : t("posts.saveChanges")}
+            </button>
+            {isPendingApproval && (
+              <button
+                type="button"
+                className="post-review-button approve"
+                onClick={approvePost}
+                disabled={saving || approving || discarding}
+              >
+                <CheckCircle2 size={18} aria-hidden="true" />
+                {approving ? t("posts.approving") : t("posts.approve")}
+              </button>
+            )}
+          </div>
+        </footer>
+      </div>
     </AppLayout>
   );
 }
