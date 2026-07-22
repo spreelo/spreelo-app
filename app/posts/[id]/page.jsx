@@ -19,6 +19,7 @@ import {
 import AppLayout from "../../../components/AppLayout";
 import { supabase } from "../../../lib/supabaseClient";
 import { useUiText } from "../../../lib/i18n/useUiText";
+import { normalizeSingleContentLanguage } from "../../../lib/contentLanguage";
 
 function formatDate(value, t) {
   if (!value) return t("posts.notSet");
@@ -109,12 +110,88 @@ function formatContentFormat(post, t) {
   return t("posts.format.singleImage");
 }
 
+function getLocalizedOptionLabel(t, prefix, value, fallbackKey) {
+  const normalizedValue = String(value || "").trim();
+
+  if (!normalizedValue) {
+    return t(fallbackKey);
+  }
+
+  const translationKey = `${prefix}.${normalizedValue}`;
+  const translatedValue = t(translationKey);
+
+  return translatedValue === translationKey ? normalizedValue : translatedValue;
+}
+
+function normalizeLanguageForDisplay(value) {
+  const rawLanguage = String(value || "").trim();
+
+  if (!rawLanguage) return "";
+
+  const normalizedLanguage = normalizeSingleContentLanguage(rawLanguage, "English");
+  const rawLooksEnglish = /^(english|engelska|en(?:[-_][a-z]{2})?)$/i.test(rawLanguage);
+
+  // Preserve languages that are not in the current normalization list instead
+  // of incorrectly turning them into English in the review header.
+  if (normalizedLanguage === "English" && !rawLooksEnglish) {
+    return rawLanguage;
+  }
+
+  return normalizedLanguage;
+}
+
+function getLocalizedPostType(t, value) {
+  const normalizedValue = String(value || "").trim();
+
+  if (!normalizedValue) {
+    return t("posts.post");
+  }
+
+  const optionKey = normalizedValue
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+    .replace(/\s+/g, "");
+  const translationKey = `create.postType.${optionKey}`;
+  const translatedValue = t(translationKey);
+
+  return translatedValue === translationKey ? normalizedValue : translatedValue;
+}
+
+function getLocalizedSourceLabel(sourceLabel, isAutomationPost, t) {
+  const normalizedLabel = String(sourceLabel || "").trim().toLowerCase();
+
+  if (["generated from website", "website", "website generated"].includes(normalizedLabel)) {
+    return t("posts.generatedFromWebsite");
+  }
+
+  if (sourceLabel) {
+    return sourceLabel;
+  }
+
+  return isAutomationPost ? t("posts.generatedByAutomation") : t("posts.manualDraft");
+}
+
+function getPlatformIconPath(platform) {
+  const normalizedPlatform = String(platform || "").trim().toLowerCase();
+
+  if (normalizedPlatform.includes("facebook")) return "/social-icons/facebook.png";
+  if (normalizedPlatform.includes("instagram")) return "/social-icons/instagram.png";
+  if (normalizedPlatform.includes("linkedin")) return "/social-icons/linkedin.png";
+  if (normalizedPlatform.includes("tiktok")) return "/social-icons/tiktok.png";
+  if (normalizedPlatform.includes("youtube")) return "/social-icons/youtube.png";
+  if (normalizedPlatform === "x" || normalizedPlatform.includes("twitter")) return "/social-icons/x.png";
+  if (normalizedPlatform.includes("pinterest")) return "/social-icons/pinterest.png";
+
+  return null;
+}
+
 export default function EditPostPage() {
-  const { t } = useUiText(["posts"]);
+  const { t } = useUiText(["posts", "create", "brand"]);
   const params = useParams();
   const postId = params.id;
 
   const [post, setPost] = useState(null);
+  const [brandContentLanguage, setBrandContentLanguage] = useState("");
   const [slides, setSlides] = useState([]);
   const [content, setContent] = useState("");
   const [message, setMessage] = useState("");
@@ -146,7 +223,7 @@ export default function EditPostPage() {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, video_url, video_status, video_storage_path, video_error, content_format"
+          "id, user_id, brand_profile_id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, video_url, video_status, video_storage_path, video_error, content_format"
         )
         .eq("id", postId)
         .eq("user_id", user.id)
@@ -159,6 +236,34 @@ export default function EditPostPage() {
       if (data) {
         setPost(data);
         setContent(data.content || "");
+
+        let relatedBrandProfileId = data.brand_profile_id || null;
+        let ruleLanguage = "";
+
+        if (!relatedBrandProfileId && data.automation_rule_id) {
+          const { data: relatedRule } = await supabase
+            .from("automation_rules")
+            .select("brand_profile_id, language")
+            .eq("id", data.automation_rule_id)
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          relatedBrandProfileId = relatedRule?.brand_profile_id || null;
+          ruleLanguage = relatedRule?.language || "";
+        }
+
+        if (relatedBrandProfileId) {
+          const { data: relatedBrand } = await supabase
+            .from("brand_profiles")
+            .select("content_language")
+            .eq("id", relatedBrandProfileId)
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          setBrandContentLanguage(relatedBrand?.content_language || ruleLanguage || "");
+        } else {
+          setBrandContentLanguage(ruleLanguage);
+        }
 
         if (isSlideBasedPost(data)) {
           const { data: slidesData } = await supabase
@@ -205,7 +310,7 @@ export default function EditPostPage() {
       .eq("id", postId)
       .eq("user_id", user.id)
       .select(
-        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, video_url, video_status, video_storage_path, video_error, content_format"
+        "id, user_id, brand_profile_id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, video_url, video_status, video_storage_path, video_error, content_format"
       )
       .single();
 
@@ -262,7 +367,7 @@ export default function EditPostPage() {
       .eq("id", postId)
       .eq("user_id", user.id)
       .select(
-        "id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, video_url, video_status, video_storage_path, video_error, content_format"
+        "id, user_id, brand_profile_id, platform, tone, language, post_type, idea, content, status, created_at, updated_at, source, source_label, automation_rule_id, approval_required, approved_at, published_at, scheduled_for, image_url, image_status, image_storage_path, image_prompt, video_url, video_status, video_storage_path, video_error, content_format"
       )
       .single();
 
@@ -315,7 +420,7 @@ export default function EditPostPage() {
 
   if (loading) {
     return (
-      <AppLayout active="dashboard">
+      <AppLayout active="automation">
         <section className="empty-card">
           <h3>{t("posts.loadingTitle")}</h3>
           <p>{t("posts.loadingText")}</p>
@@ -326,7 +431,7 @@ export default function EditPostPage() {
 
   if (!post) {
     return (
-      <AppLayout active="dashboard">
+      <AppLayout active="automation">
         <section className="empty-card">
           <h3>{t("posts.notFoundTitle")}</h3>
           <p>{t("posts.notFoundText")}</p>
@@ -341,9 +446,24 @@ export default function EditPostPage() {
 
   const isPendingApproval = post.status === "pending_approval";
   const isAutomationPost = post.source === "automation";
-  const sourceLabel =
-    post.source_label ||
-    (isAutomationPost ? t("posts.generatedByAutomation") : t("posts.manualDraft"));
+  const sourceLabel = getLocalizedSourceLabel(post.source_label, isAutomationPost, t);
+  const preferredLanguage =
+    (isAutomationPost ? brandContentLanguage : "") || post.language || "";
+  const normalizedDisplayLanguage = normalizeLanguageForDisplay(preferredLanguage);
+  const displayLanguage = getLocalizedOptionLabel(
+    t,
+    "brand.language",
+    normalizedDisplayLanguage,
+    "posts.languageNotSet"
+  );
+  const displayTone = getLocalizedOptionLabel(
+    t,
+    "create.tone",
+    post.tone,
+    "posts.toneNotSet"
+  );
+  const displayPostType = getLocalizedPostType(t, post.post_type);
+  const platformIconPath = getPlatformIconPath(post.platform);
 
   const isCarouselPost = post.content_format === "carousel";
   const isAnimatedVideoPost = post.content_format === "animated_video";
@@ -361,7 +481,7 @@ export default function EditPostPage() {
     : t("posts.editSavedTitle");
 
   return (
-    <AppLayout active="dashboard">
+    <AppLayout active="automation">
       <div className="post-review-page">
         <header className="post-review-topbar">
           <div className="post-review-heading">
@@ -433,10 +553,10 @@ export default function EditPostPage() {
             <span className="post-review-summary-icon"><Sparkles size={23} aria-hidden="true" /></span>
             <div>
               <p className="eyebrow">
-                {post.platform || t("posts.platformNotSet")} · {post.post_type || t("posts.post")}
+                {post.platform || t("posts.platformNotSet")} · {displayPostType}
               </p>
               <h2>
-                {post.tone || t("posts.toneNotSet")} · {post.language || t("posts.languageNotSet")}
+                {displayTone} · {displayLanguage}
               </h2>
               <p>{t("posts.reviewSummaryText")}</p>
             </div>
@@ -530,7 +650,13 @@ export default function EditPostPage() {
 
             <div className="post-review-social-preview">
               <div className="post-review-social-heading">
-                <span className="post-review-platform-mark">{String(post.platform || "S").slice(0, 1).toUpperCase()}</span>
+                <span className={`post-review-platform-mark${platformIconPath ? " image" : ""}`}>
+                  {platformIconPath ? (
+                    <img src={platformIconPath} alt="" aria-hidden="true" />
+                  ) : (
+                    String(post.platform || "S").slice(0, 1).toUpperCase()
+                  )}
+                </span>
                 <div>
                   <strong>{post.platform || t("posts.platformNotSet")}</strong>
                   <small>{t("posts.previewLabel")}</small>

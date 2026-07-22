@@ -9630,6 +9630,15 @@ function blockFormatCardClickAfterDrag(event) {
                 </section>
               ) : null}
 
+              <div
+                className={`plan-v107-bottom-grid${
+                  shouldShowPlannerDetails &&
+                  scheduleType === "weekly" &&
+                  planCreationMode !== "campaign"
+                    ? ""
+                    : " single"
+                }`}
+              >
               {shouldShowPlannerDetails && scheduleType === "weekly" && planCreationMode !== "campaign" ? (
                 <section className="plan-v83-continuation-card">
                   <div className="plan-v83-continuation-head">
@@ -9728,6 +9737,7 @@ function blockFormatCardClickAfterDrag(event) {
                 ) : null}
                 {message ? <p className="plan-v70-activate-message">{message}</p> : null}
               </section>
+              </div>
             </section>
 
      <header className="planner-hero planner-hero-final">
