@@ -1,3 +1,8 @@
+nodeLinker: hoisted
+
+onlyBuiltDependencies:
+  - sharp
+
 supportedArchitectures:
   os:
     - win32

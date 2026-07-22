@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI, { toFile } from "openai";
 import crypto from "crypto";
-import sharp from "sharp";
+import { createRequire } from "node:module";
 import {
   detectLikelyUiLocaleFromText,
   getServerTranslations,
@@ -26,7 +26,34 @@ import {
 import { createPlanPreviewToken } from "../../../../lib/planPreviewToken.js";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 export const maxDuration = 300;
+
+const require = createRequire(import.meta.url);
+let loadedSharpRuntime = null;
+
+function getSharpRuntime() {
+  if (loadedSharpRuntime) return loadedSharpRuntime;
+
+  try {
+    const importedSharp = require("sharp");
+    loadedSharpRuntime = importedSharp?.default || importedSharp;
+    return loadedSharpRuntime;
+  } catch (error) {
+    const runtimeError = new Error(
+      "The Sharp image runtime is unavailable. Non-image automation can continue, but this image job cannot be rendered.",
+      { cause: error },
+    );
+    runtimeError.code = "SHARP_RUNTIME_UNAVAILABLE";
+    throw runtimeError;
+  }
+}
+
+const sharp = new Proxy((...args) => getSharpRuntime()(...args), {
+  get(_target, property) {
+    return getSharpRuntime()[property];
+  },
+});
 
 const DEFAULT_TIME_ZONE = "UTC";
 const SMART_QUEUE_WORKER_COUNT = Math.max(

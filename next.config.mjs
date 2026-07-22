@@ -7,8 +7,6 @@ const nextConfig = {
       "node_modules/sharp/**/*",
       "node_modules/@img/sharp-linux-x64/**/*",
       "node_modules/@img/sharp-libvips-linux-x64/**/*",
-      "node_modules/.pnpm/@img+sharp-linux-x64@0.34.5/**/*",
-      "node_modules/.pnpm/@img+sharp-libvips-linux-x64@1.2.4/**/*",
     ],
   },
 };
