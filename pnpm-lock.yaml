@@ -9,26 +9,33 @@ importers:
   .:
     dependencies:
       '@supabase/supabase-js':
-        specifier: latest
+        specifier: 2.110.7
         version: 2.110.7
       lucide-react:
-        specifier: latest
+        specifier: 1.25.0
         version: 1.25.0(react@19.2.7)
       next:
-        specifier: latest
+        specifier: 16.2.10
         version: 16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       openai:
-        specifier: latest
+        specifier: 6.48.0
         version: 6.48.0
       react:
-        specifier: latest
+        specifier: 19.2.7
         version: 19.2.7
       react-dom:
-        specifier: latest
+        specifier: 19.2.7
         version: 19.2.7(react@19.2.7)
       sharp:
-        specifier: latest
-        version: 0.35.3
+        specifier: 0.34.5
+        version: 0.34.5
+    optionalDependencies:
+      '@img/sharp-libvips-linux-x64':
+        specifier: 1.2.4
+        version: 1.2.4
+      '@img/sharp-linux-x64':
+        specifier: 0.34.5
+        version: 0.34.5
 
 packages:
 
