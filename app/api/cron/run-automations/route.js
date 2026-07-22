@@ -154,6 +154,10 @@ const WEBSITE_FETCH_ACQUIRE_ATTEMPTS = Math.max(
   Math.min(12, Number(process.env.WEBSITE_FETCH_ACQUIRE_ATTEMPTS || 8) || 8)
 );
 const WEBSITE_VERIFICATION_SOFT_DEADLINE_MS = 225_000;
+const CAROUSEL_PREPARATION_SOFT_DEADLINE_MS = Math.max(
+  150_000,
+  Math.min(240_000, Number(process.env.CAROUSEL_PREPARATION_SOFT_DEADLINE_MS || 215_000) || 215_000)
+);
 const STRICT_PRODUCT_NO_REUSE =
   String(process.env.STRICT_PRODUCT_NO_REUSE || "true").toLowerCase() !== "false";
 const CAROUSEL_AI_SCORE_MAX_ITEMS = PRODUCT_ENGINE_V2_ENABLED
@@ -4318,6 +4322,137 @@ async function discoverProductsFromStoreMapAgent({
   };
 }
 
+async function finalizeCarouselFromStoreMapEarlyExit({
+  supabase,
+  rule,
+  summary,
+  websiteUrl,
+  contentType,
+  recentUsedItems,
+  usedWebsiteImageUrlsThisRun,
+  storeMapAgentResult,
+}) {
+  const storeMapProducts = isCampaignScopedWebsiteRule(rule)
+    ? getSafeCampaignProductCandidates(storeMapAgentResult?.products || [], rule)
+    : dedupeWebsiteItemsByUrlTitleAndImage(storeMapAgentResult?.products || []).filter(
+        isValidCarouselProduct
+      );
+  const freshStoreMapProducts = getFreshCarouselProductCandidates({
+    items: storeMapProducts,
+    rule,
+    sourceUrl: websiteUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+  });
+  const rankedStoreMapProducts = selectCarouselProductsFromPool({
+    items: freshStoreMapProducts,
+    rule,
+    sourceUrl: websiteUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+    allowReuseWhenExhausted: false,
+    limit: CAROUSEL_PRODUCT_SLIDE_TARGET + CAROUSEL_PRODUCT_RESERVE_TARGET,
+  });
+
+  if (rankedStoreMapProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    return null;
+  }
+
+  const selectedProducts = rankedStoreMapProducts.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  const reserveProducts = rankedStoreMapProducts
+    .slice(CAROUSEL_PRODUCT_SLIDE_TARGET)
+    .slice(0, CAROUSEL_PRODUCT_RESERVE_TARGET);
+  const cycleNumber = await getCurrentWebsiteCycle({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    contentType,
+  });
+
+  for (const product of selectedProducts) {
+    usedWebsiteImageUrlsThisRun.add(normalizeComparableValue(product.image_url));
+  }
+
+  await upsertWebsiteProductCatalogItems({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    items: [...selectedProducts, ...reserveProducts],
+    discoverySource: "store_map_early_exit",
+  });
+
+  await Promise.all(
+    selectedProducts.map((product) =>
+      markWebsiteProductCatalogItemUsed({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        productUrl: product.url,
+        sourceUrl: websiteUrl,
+        websiteItem: product,
+        usedSource: getWebsiteCatalogUsedSource(rule),
+      })
+    )
+  );
+
+  await recordProductEngineV2Run({
+    supabase,
+    rule,
+    sourceUrl: websiteUrl,
+    platform: selectedProducts[0]?.commerce_platform || "generic",
+    candidateCount: storeMapAgentResult?.products?.length || 0,
+    verifiedCount: storeMapProducts.length,
+    selectedProducts,
+    reserveProducts,
+    discoveryMethods: ["store_map_product_agent", "store_map_early_exit"],
+    metadata: {
+      campaign_rule: isCampaignScopedWebsiteRule(rule),
+      required_count: CAROUSEL_PRODUCT_SLIDE_TARGET,
+      reserve_target: CAROUSEL_PRODUCT_RESERVE_TARGET,
+      early_exit: true,
+      legacy_fallbacks_skipped: true,
+      store_map: storeMapAgentResult?.diagnostics || null,
+      selected_shelves: (storeMapAgentResult?.selectedShelves || [])
+        .slice(0, 10)
+        .map((shelf) => ({
+          title: shelf.title || null,
+          url: shelf.url,
+          node_type: shelf.node_type,
+          deterministic_score: shelf.store_map_intent_score || null,
+          ai_score: shelf.store_map_ai_score || null,
+          ai_reason: shelf.store_map_ai_reason || null,
+        })),
+    },
+  });
+
+  summary.website_items_found += selectedProducts.length;
+  summary.website_content_success += 1;
+  summary.website_image_used += selectedProducts.length;
+
+  console.log("Store Map early exit locked carousel products", {
+    ruleId: rule.id,
+    brandProfileId: rule.brand_profile_id,
+    websiteUrl,
+    selectedCount: selectedProducts.length,
+    reserveCount: reserveProducts.length,
+    freshStoreMapProductCount: freshStoreMapProducts.length,
+    legacyFallbacksSkipped: true,
+  });
+
+  return {
+    websiteItems: selectedProducts,
+    websiteReserveItems: reserveProducts,
+    productContentContract: buildProductContentContract(selectedProducts, reserveProducts),
+    websiteItem: selectedProducts[0],
+    websiteSourceUrl: websiteUrl,
+    websiteCycleNumber: cycleNumber,
+    useWebsiteImage: true,
+    websiteRule: rule,
+  };
+}
+
 async function prepareCarouselProductsForRule({
   supabase,
   openai,
@@ -4326,6 +4461,24 @@ async function prepareCarouselProductsForRule({
   summary,
   usedWebsiteImageUrlsThisRun = new Set(),
 }) {
+  const productPreparationStartedAt = Date.now();
+  const productPreparationDeadline =
+    productPreparationStartedAt + CAROUSEL_PREPARATION_SOFT_DEADLINE_MS;
+  let deadlineSkipLogged = false;
+  const hasProductPreparationBudget = (minimumRemainingMs = 30_000) =>
+    Date.now() < productPreparationDeadline - Math.max(0, minimumRemainingMs);
+  const logDeadlineSkip = (stage) => {
+    if (deadlineSkipLogged) return;
+    deadlineSkipLogged = true;
+    console.log("Carousel product preparation skipped expensive fallback near soft deadline", {
+      ruleId: rule?.id,
+      brandProfileId: rule?.brand_profile_id,
+      stage,
+      elapsedMs: Date.now() - productPreparationStartedAt,
+      softDeadlineMs: CAROUSEL_PREPARATION_SOFT_DEADLINE_MS,
+    });
+  };
+
   rule = await ensureProductSearchQueriesForRule({ supabase, rule });
 
   const websiteUrl = getWebsiteProductSourceUrl(brandProfile, rule);
@@ -4359,6 +4512,7 @@ async function prepareCarouselProductsForRule({
       limit: PRODUCT_ENGINE_V2_ENABLED
         ? PRODUCT_ENGINE_V2_POOL_TARGETS.finalVerificationLimit
         : Math.max(CAROUSEL_PRODUCT_SLIDE_TARGET * 2, 12),
+      deadlineMs: productPreparationDeadline,
     });
     const validFocusedItems = focusedCategoryItems.filter(isValidCarouselProduct);
     let selectedFocusedItems = selectCarouselProductsFromPool({
@@ -4383,7 +4537,11 @@ async function prepareCarouselProductsForRule({
 
     let focusedReserveItems = [];
 
-    if (selectedFocusedItems.length < CAROUSEL_MIN_PRODUCT_SLIDES && PRODUCT_ENGINE_V2_ENABLED) {
+    if (
+      selectedFocusedItems.length < CAROUSEL_MIN_PRODUCT_SLIDES &&
+      PRODUCT_ENGINE_V2_ENABLED &&
+      hasProductPreparationBudget(60_000)
+    ) {
       const expanded = await runProductEngineV2FinalCarouselExpansion({
         supabase,
         openai,
@@ -4525,6 +4683,20 @@ async function prepareCarouselProductsForRule({
     }
   }
 
+  const storeMapEarlyExitResult = await finalizeCarouselFromStoreMapEarlyExit({
+    supabase,
+    rule,
+    summary,
+    websiteUrl,
+    contentType,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+    storeMapAgentResult,
+  });
+  if (storeMapEarlyExitResult) {
+    return storeMapEarlyExitResult;
+  }
+
   const brandWideCatalogItems = filterWebsiteCatalogItemsForRule(
     await getWebsiteProductCatalogItems({
       supabase,
@@ -4586,6 +4758,11 @@ async function prepareCarouselProductsForRule({
     selectionPriority = 75,
     scoreBonus = 0,
   } = {}) {
+    if (!hasProductPreparationBudget(55_000)) {
+      logDeadlineSkip("locked_campaign_store_search");
+      return false;
+    }
+
     triedStoreSearchForCampaign = true;
     if (isCampaignRule) {
       campaignFreshDiscoveryAttempts += 1;
@@ -4790,7 +4967,12 @@ async function prepareCarouselProductsForRule({
     }
   }
 
-  if (!hasLockedCampaignSearchPool && !hasEnoughCarouselProductsForRule(selectedProducts, rule) && !triedStoreSearchForCampaign) {
+  if (
+    hasProductPreparationBudget(55_000) &&
+    !hasLockedCampaignSearchPool &&
+    !hasEnoughCarouselProductsForRule(selectedProducts, rule) &&
+    !triedStoreSearchForCampaign
+  ) {
     try {
       if (isCampaignRule) {
         campaignFreshDiscoveryAttempts += 1;
@@ -4891,8 +5073,11 @@ async function prepareCarouselProductsForRule({
   }
 
   if (
-    (!hasLockedCampaignSearchPool && !hasEnoughCarouselProductsForRule(selectedProducts, rule)) ||
-    (isCampaignRule && hasLockedCampaignSearchPool && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET)
+    hasProductPreparationBudget(60_000) &&
+    (
+      (!hasLockedCampaignSearchPool && !hasEnoughCarouselProductsForRule(selectedProducts, rule)) ||
+      (isCampaignRule && hasLockedCampaignSearchPool && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET)
+    )
   ) {
     try {
       if (isCampaignRule) {
@@ -5004,6 +5189,7 @@ async function prepareCarouselProductsForRule({
   }
 
   if (
+    hasProductPreparationBudget(45_000) &&
     !hasEnoughCarouselProductsForRule(selectedProducts, rule) &&
     !hasLockedCampaignSearchPool &&
     isCampaignRule &&
@@ -5051,7 +5237,11 @@ async function prepareCarouselProductsForRule({
     }
   }
 
-  if (!hasLockedCampaignSearchPool && !hasEnoughCarouselProductsForRule(selectedProducts, rule)) {
+  if (
+    hasProductPreparationBudget(60_000) &&
+    !hasLockedCampaignSearchPool &&
+    !hasEnoughCarouselProductsForRule(selectedProducts, rule)
+  ) {
     try {
       if (isCampaignRule) {
         campaignFreshDiscoveryAttempts += 1;
@@ -5365,7 +5555,11 @@ async function prepareCarouselProductsForRule({
   // Delivery guarantee backup for campaign carousels.
   // Everything above remains the unchanged relevance-first flow. This block
   // runs only when that complete flow still has fewer than five products.
-  if (isCampaignRule && selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+  if (
+    isCampaignRule &&
+    selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET &&
+    hasProductPreparationBudget(70_000)
+  ) {
     const selectedBeforeBackup = selectedProducts.length;
     const backupRule = buildGuaranteedCampaignDeliveryBackupRule(
       rule,
@@ -5524,7 +5718,11 @@ async function prepareCarouselProductsForRule({
     .filter(isValidCarouselProduct)
     .slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
 
-  if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET && PRODUCT_ENGINE_V2_ENABLED) {
+  if (
+    selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET &&
+    PRODUCT_ENGINE_V2_ENABLED &&
+    hasProductPreparationBudget(60_000)
+  ) {
     const expanded = await runProductEngineV2FinalCarouselExpansion({
       supabase,
       openai,
@@ -5543,6 +5741,9 @@ async function prepareCarouselProductsForRule({
   }
 
   if (selectedProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    if (!hasProductPreparationBudget(20_000)) {
+      logDeadlineSkip("controlled_incomplete_exit");
+    }
     const failureMessage = `Product Engine V2 exhausted the Store Map, catalog, category pages, sitemaps, store search and controlled product rotation. The carousel requires ${CAROUSEL_PRODUCT_SLIDE_TARGET} verified products with usable images, but only ${selectedProducts.length} real products could be verified.`;
 
     await recordProductEngineV2Run({
@@ -7511,6 +7712,17 @@ function canonicalizeWebsiteProductUrl(value, baseUrl = "") {
 
     url.pathname = url.pathname.replace(/\/{2,}/g, "/").replace(/\/$/, "") || "/";
     url.hostname = url.hostname.toLowerCase();
+
+    try {
+      const baseHostname = new URL(baseUrl || resolved).hostname.toLowerCase();
+      const normalizedBaseHostname = baseHostname.replace(/^www\./i, "");
+      const normalizedProductHostname = url.hostname.replace(/^www\./i, "");
+      if (normalizedProductHostname === normalizedBaseHostname) {
+        url.hostname = normalizedBaseHostname;
+      }
+    } catch {
+      // Keep the already-normalized hostname when the source URL is malformed.
+    }
 
     return url.toString();
   } catch {
@@ -13430,6 +13642,62 @@ function isStrongProductCardUrl(value, baseUrl) {
   }
 }
 
+function getFocusedCategoryCandidatePriority(candidate, categoryUrl) {
+  try {
+    const url = new URL(candidate?.url || "", categoryUrl);
+    const path = url.pathname.toLowerCase();
+
+    if (/\/(?:products?|produkt(?:er)?|product-detail|item)\//i.test(path)) {
+      return 4;
+    }
+
+    if (/\/(?:p|pd)\//i.test(path)) {
+      return 3;
+    }
+
+    if (
+      isStrongProductCardUrl(url.toString(), categoryUrl) &&
+      candidate?.title &&
+      candidate?.image_url &&
+      !isLikelyBadDiscoveryPageUrl(url.toString(), categoryUrl)
+    ) {
+      return 2;
+    }
+
+    if (
+      candidate?.title &&
+      candidate?.image_url &&
+      !isLikelyBadDiscoveryPageUrl(url.toString(), categoryUrl)
+    ) {
+      return 1;
+    }
+  } catch {
+    // Weak or malformed links stay at the end of the verification queue.
+  }
+
+  return 0;
+}
+
+function rankFocusedCategoryCandidatesForVerification(candidates, categoryUrl) {
+  return dedupeUrlItems(candidates || [])
+    .map((candidate, originalIndex) => ({
+      candidate,
+      originalIndex,
+      productUrlPriority: getFocusedCategoryCandidatePriority(candidate, categoryUrl),
+      discoveryScore: Number(candidate?.score || 0),
+    }))
+    .sort((a, b) => {
+      if (a.productUrlPriority !== b.productUrlPriority) {
+        return b.productUrlPriority - a.productUrlPriority;
+      }
+      if (a.discoveryScore !== b.discoveryScore) {
+        return b.discoveryScore - a.discoveryScore;
+      }
+      return a.originalIndex - b.originalIndex;
+    })
+    .map((entry) => entry.candidate);
+}
+
 function buildTrustedCategoryCardProducts(candidates, categoryUrl, limit = 12) {
   return dedupeUrlItems(candidates || [])
     .filter((candidate) =>
@@ -13553,9 +13821,10 @@ async function discoverProductsFromFocusedCategory({
     limit: Math.max(80, targets.minimumCandidatePool * 3),
   });
 
-  let dedupedCandidates = dedupeUrlItems([...candidates, ...queuedCandidates])
-    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
-    .slice(0, Math.max(limit * 5, targets.minimumCandidatePool * 2));
+  let dedupedCandidates = rankFocusedCategoryCandidatesForVerification(
+    [...candidates, ...queuedCandidates],
+    categoryUrl
+  ).slice(0, Math.max(limit * 5, targets.minimumCandidatePool * 2));
 
   if (!rateLimited && dedupedCandidates.length < targets.minimumCandidatePool && Date.now() < deadlineMs - 60_000) {
     try {
@@ -13566,7 +13835,10 @@ async function discoverProductsFromFocusedCategory({
         fastCampaignContinuation: false,
         excludeUsed: false,
       });
-      dedupedCandidates = dedupeUrlItems([...dedupedCandidates, ...broaderCandidates]);
+      dedupedCandidates = rankFocusedCategoryCandidatesForVerification(
+        [...dedupedCandidates, ...broaderCandidates],
+        categoryUrl
+      );
     } catch (error) {
       if (isWebsiteRateLimitError(error)) {
         rateLimited = true;
@@ -14826,7 +15098,10 @@ async function verifyDiscoveredWebsiteProductCandidates({
   const verifiedItems = [];
   const seenUrls = new Set();
   const seenImages = new Set();
-  const inputCandidates = dedupeUrlItems(candidates || []).slice(
+  const inputCandidates = rankFocusedCategoryCandidatesForVerification(
+    candidates || [],
+    websiteUrl
+  ).slice(
     0,
     Math.max(limit * 3, PRODUCT_ENGINE_V2_POOL_TARGETS.minimumCandidatePool)
   );
