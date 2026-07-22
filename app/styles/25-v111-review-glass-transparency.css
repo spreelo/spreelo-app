@@ -1,0 +1,70 @@
+/* v111 — make the review surfaces visually match the active translucent
+   Planinställningar tiles in AI Innehållsstudio.
+
+   Source of truth:
+   .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile
+   in 17-v96-reference-visual-correction.css.
+*/
+
+/* Use the exact active Planinställningar glass recipe for every primary review
+   card. Grouping the original and review selectors in the same declaration
+   prevents the two pages from drifting apart visually. */
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile,
+html body .post-review-summary-card,
+html body .post-review-preview-card,
+html body .post-review-editor-card,
+html body .post-review-idea-card,
+html body .post-review-footer-actions,
+html body .post-review-slides-card {
+  border-color: rgba(255, 255, 255, .91) !important;
+  background:
+    linear-gradient(116deg, rgba(255, 255, 255, .69) 0%, rgba(251, 251, 254, .50) 56%, rgba(248, 248, 252, .58) 100%) !important;
+  box-shadow:
+    0 12px 23px rgba(34, 42, 68, .13),
+    0 2px 6px rgba(34, 42, 68, .045),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+  backdrop-filter: blur(15px) saturate(114%) !important;
+  -webkit-backdrop-filter: blur(15px) saturate(114%) !important;
+  background-clip: padding-box !important;
+}
+
+/* Metadata contains an outer grouping card plus three inner tiles. Giving both
+   layers the normal glass fill makes the result look almost opaque. Keep the
+   wrapper as a very light glass frame, then let the individual metadata tiles
+   carry the exact Planinställningar surface. */
+html body .post-review-meta-card {
+  border-color: rgba(255, 255, 255, .76) !important;
+  background:
+    linear-gradient(116deg, rgba(255, 255, 255, .22) 0%, rgba(251, 251, 254, .13) 56%, rgba(248, 248, 252, .18) 100%) !important;
+  box-shadow:
+    0 12px 23px rgba(34, 42, 68, .085),
+    0 2px 6px rgba(34, 42, 68, .03),
+    inset 0 1px 0 rgba(255, 255, 255, .84) !important;
+  backdrop-filter: blur(10px) saturate(108%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(108%) !important;
+  background-clip: padding-box !important;
+}
+
+html body .automation-page.plan-v70-active .plan-v90-settings-grid .plan-v90-setting-tile,
+html body .post-review-meta-item {
+  border-color: rgba(255, 255, 255, .91) !important;
+  background:
+    linear-gradient(116deg, rgba(255, 255, 255, .69) 0%, rgba(251, 251, 254, .50) 56%, rgba(248, 248, 252, .58) 100%) !important;
+  box-shadow:
+    0 12px 23px rgba(34, 42, 68, .13),
+    0 2px 6px rgba(34, 42, 68, .045),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+  backdrop-filter: blur(15px) saturate(114%) !important;
+  -webkit-backdrop-filter: blur(15px) saturate(114%) !important;
+  background-clip: padding-box !important;
+}
+
+/* Keep only functional controls opaque. The card headers and surrounding
+   padding remain true glass so the decorative background is visible through
+   them in the same way as AI Innehållsstudio. */
+html body .post-review-preview-card,
+html body .post-review-editor-card,
+html body .post-review-summary-card,
+html body .post-review-footer-actions {
+  background-color: transparent !important;
+}
