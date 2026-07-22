@@ -1,0 +1,74 @@
+/* v114 — Review page uses the actual AI Innehållsstudio background system.
+
+   Source of truth:
+   .automation-page.plan-v70-active and
+   .automation-page.plan-v70-active::before
+   in 17-v96-reference-visual-correction.css and
+   18-v98-responsive-polish.css.
+
+   Important: AI Innehållsstudio does NOT use the magic SVG pseudo-element
+   on .plan-v70-shell. That element is disabled. The visible canvas is the
+   1672 × 941 PNG applied through .automation-page::before, with its original
+   aspect ratio and fade mask. The review page now uses that same canvas.
+*/
+
+/* The content area is the review page's full-width canvas, corresponding to
+   the full-width .automation-page used by AI Innehållsstudio. */
+html body .content.spreelo-content:has(.post-review-page) {
+  position: relative !important;
+  isolation: isolate !important;
+  background-color: #eef0f5 !important;
+  background-image: none !important;
+}
+
+/* Exact AI Innehållsstudio artwork, sizing and fade behaviour. */
+html body .content.spreelo-content:has(.post-review-page)::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  z-index: 0 !important;
+  top: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1672 / 941 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+  background: url("/backgrounds/spreelo-background-v97.png") center top / 100% 100% no-repeat !important;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 72%, rgba(0, 0, 0, .82) 79%, rgba(0, 0, 0, .34) 91%, transparent 100%) !important;
+  mask-image: linear-gradient(to bottom, #000 0%, #000 72%, rgba(0, 0, 0, .82) 79%, rgba(0, 0, 0, .34) 91%, transparent 100%) !important;
+}
+
+/* Keep all real content above the canvas. */
+html body .content.spreelo-content:has(.post-review-page) > * {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Disable every older review-only canvas. Those layers used a different image,
+   viewport scaling or full-page stretching and therefore changed the original
+   line placement compared with AI Innehållsstudio. */
+html body .post-review-page::before,
+html body .post-review-page::after {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+
+/* The review cards keep the exact setting-tile glass recipe from V111. This
+   declaration only ensures no solid fallback colour can cover that gradient. */
+html body .post-review-summary-card,
+html body .post-review-preview-card,
+html body .post-review-editor-card,
+html body .post-review-idea-card,
+html body .post-review-footer-actions,
+html body .post-review-slides-card,
+html body .post-review-meta-item {
+  background-color: transparent !important;
+}
