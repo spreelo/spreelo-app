@@ -2365,6 +2365,17 @@ function getCarouselProducts(rule) {
   return Array.isArray(rule?.website_items) ? rule.website_items : [];
 }
 
+function normalizeShopifyImageWidthUrl(value, targetWidth = 1600) {
+  const rawUrl = String(value || "").trim();
+  if (!rawUrl) return "";
+
+  return rawUrl
+    .replace(/\{\{\s*width\s*\}\}/gi, String(targetWidth))
+    .replace(/\{\s*width\s*\}/gi, String(targetWidth))
+    .replace(/%7b%7b\s*width\s*%7d%7d/gi, String(targetWidth))
+    .replace(/%7b\s*width\s*%7d/gi, String(targetWidth));
+}
+
 function isBadProductUrl(value) {
   const lowerUrl = String(value || "").toLowerCase().trim();
 
@@ -2387,13 +2398,26 @@ function isBadProductUrl(value) {
     const parsedUrl = new URL(lowerUrl);
     const path = parsedUrl.pathname.replace(/\/{2,}/g, "/");
 
-    // Reject media files and unresolved template URLs before any network call.
-    // They can appear in themes, srcsets and search-form templates, but they are
-    // never concrete product pages.
+    // Reject assets, tracking/API endpoints, account/payment flows and unresolved
+    // theme templates before verification. Store search pages may still be used
+    // by discovery code, but they must never be approved as a product page.
     if (
-      /\.(?:png|jpe?g|webp|gif|svg|avif|ico|pdf|mp4|webm)(?:$|\?)/i.test(`${path}${parsedUrl.search}`) ||
+      /\.(?:png|jpe?g|webp|gif|svg|avif|ico|pdf|mp4|webm|woff2?|ttf|otf|eot|css|m?js|map|json|xml)(?:$|\?)/i.test(`${path}${parsedUrl.search}`) ||
       /\/cdn\/(?:shop\/)?(?:products|files)\//i.test(path) ||
-      /(?:%7b|%7d|\{\{|\}\}|%7b%7burl%7d%7d)/i.test(parsedUrl.href)
+      /(?:%7b|%7d|\{\{|\}\}|%7b%7burl%7d%7d)/i.test(parsedUrl.href) ||
+      /\/(?:api|graphql|ajax|admin|services\/login_with_shop|customer_authentication)(?:\/|$)/i.test(path) ||
+      /\/(?:collect|track|tracking|analytics|pixel|events|beacon)(?:\/|$)/i.test(path) ||
+      /\/(?:checkout|checkouts|cart|basket|kundvagn|kassa|account|login|sign-in|payments?|payment-dialog|wallets?|shopify_pay)(?:\/|$)/i.test(path) ||
+      /\/(?:cdn\/wpm|shopifycloud|shopify_pay)\//i.test(path)
+    ) {
+      return true;
+    }
+
+    const host = parsedUrl.hostname.replace(/^www\./, "");
+    if (
+      /(?:^|\.)(?:shopifycdn|shopifycloud|shopifysvc)\.com$/i.test(host) ||
+      /(?:google-analytics|googletagmanager|doubleclick|facebook|clarity|hotjar|segment|sentry)\./i.test(host) ||
+      (/(?:^|\.)shopify\.com$/i.test(host) && !/^\/products?\//i.test(path))
     ) {
       return true;
     }
@@ -2408,6 +2432,29 @@ function isBadProductUrl(value) {
   } catch {
     return true;
   }
+}
+
+function isLikelyVisuallyEmptyProductTemplate(item) {
+  const title = normalizeSearchText(item?.title || item?.item_title || "");
+  const description = normalizeSearchText(item?.description || "");
+  const url = normalizeSearchText(item?.url || item?.product_url || "");
+  const imageUrl = normalizeSearchText(item?.image_url || item?.item_image_url || "");
+  const directText = `${title} ${description} ${url}`.trim();
+
+  const customSignal = /\b(?:designa\s+sjalv|designa\s+själv|ditt\s+tryck|eget\s+tryck|egen\s+design|tryck\s+har|tryck\s+här|design\s+your\s+own|add\s+your\s+(?:text|logo|design)|your\s+(?:text|logo|design)|custom\s+(?:text|logo|design|print))\b/u.test(directText);
+  const emptySignal = /\b(?:tom\s+mall|tom\s+poster|blank\s+(?:template|poster|canvas|product)|empty\s+template|white\s+(?:template|poster|canvas)|plain\s+(?:template|poster|canvas)|mockup\s+template)\b/u.test(directText);
+  const imageSignal = /(?:blank|empty|placeholder|template|mockup|white[-_ ]?(?:poster|canvas|product)|design[-_ ]?your[-_ ]?own|ditt[-_ ]?tryck|eget[-_ ]?tryck)/u.test(imageUrl);
+  const meaningfulRemainder = title
+    .replace(/\b(?:designa\s+sjalv|designa\s+själv|ditt\s+tryck|eget\s+tryck|egen\s+design|design\s+your\s+own|custom\s+(?:text|logo|design|print))\b/gu, " ")
+    .replace(/\b(?:t-?shirt|troja|tröja|hoodie|poster|tavla|canvas|mugg|mug|produkt|product|mall|template)\b/gu, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  const genericTitleOnly = customSignal && meaningfulRemainder.length < 4;
+
+  return Boolean(
+    (customSignal && (emptySignal || imageSignal || genericTitleOnly)) ||
+    (emptySignal && imageSignal)
+  );
 }
 
 function hasMeaningfulProductIdentityText(value) {
@@ -2503,6 +2550,7 @@ function isValidCarouselProduct(item) {
     item?.image_url &&
     !isBadProductUrl(item.url) &&
     !isBadProductImageUrl(item.image_url) &&
+    !isLikelyVisuallyEmptyProductTemplate(item) &&
     getCarouselProductConfidence(item) >= CAROUSEL_PRODUCT_CONFIDENCE_SOFT_MIN
   );
 }
@@ -2601,13 +2649,54 @@ function mergeWebsiteItemDuplicateMetadata(existingItem, incomingItem) {
   return existingItem;
 }
 
+function normalizeProductFamilyTitle(value) {
+  let title = normalizeSearchText(sanitizeProductTitleForCard(value) || value);
+  if (!title) return "";
+
+  const sizeValue = "(?:xxxs|xxs|xs|s|m|l|xl|xxl|xxxl|3xl|4xl|5xl|small|medium|large|one size|onesize|\\d{1,4}(?:[.,]\\d+)?\\s*(?:mm|cm|m|in|inch|tum|ml|cl|dl|l|g|kg)?)";
+  const dimensionValue = "\\d{1,4}(?:[.,]\\d+)?\\s*[x×]\\s*\\d{1,4}(?:[.,]\\d+)?(?:\\s*[x×]\\s*\\d{1,4}(?:[.,]\\d+)?)?(?:\\s*(?:mm|cm|m|in|inch|tum))?";
+  const trailingColor = "(?:black|white|red|blue|green|yellow|orange|pink|purple|beige|brown|grey|gray|silver|gold|navy|svart|vit|rod|röd|bla|blå|gron|grön|gul|rosa|lila|brun|gra|grå|silver|guld|marin)";
+
+  title = title
+    .replace(new RegExp(`\\((?:\\s*(?:${sizeValue}|${dimensionValue}|${trailingColor})\\s*)\\)$`, "iu"), " ")
+    .replace(new RegExp(`\\b(?:size|storlek|format|dimension|variant)\\s*[:\\-]?\\s*(?:${sizeValue}|${dimensionValue})\\b`, "giu"), " ")
+    .replace(new RegExp(`\\b${dimensionValue}\\b`, "giu"), " ")
+    .replace(new RegExp(`(?:\\s*[-–—|/]\\s*|\\s+)(?:${sizeValue}|${trailingColor})$`, "iu"), " ")
+    .replace(/\b(?:pack|set)\s+of\s+\d+\b/giu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return title;
+}
+
+function getProductFamilyKey(item, sourceUrl = "") {
+  const title = normalizeProductFamilyTitle(item?.title || item?.item_title || "");
+  const rawUrl = item?.url || item?.product_url || item?.item_url || sourceUrl;
+  const canonicalUrl = canonicalizeWebsiteProductUrl(rawUrl, sourceUrl) || rawUrl;
+  let host = "";
+
+  try {
+    host = new URL(canonicalUrl).hostname.toLowerCase().replace(/^www\./, "");
+  } catch (_) {
+    host = getHostnameWithoutWww(sourceUrl);
+  }
+
+  if (title) {
+    return `${host || "store"}|${normalizeComparableValue(title)}`;
+  }
+
+  return canonicalUrl ? `${host || "store"}|url:${normalizeComparableValue(canonicalUrl)}` : "";
+}
+
 function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
   const seen = new Set();
   const seenUrls = new Set();
   const seenImageUrls = new Set();
+  const seenFamilies = new Set();
   const existingByKey = new Map();
   const existingByUrl = new Map();
   const existingByImage = new Map();
+  const existingByFamily = new Map();
   const unique = [];
 
   for (const item of items || []) {
@@ -2626,16 +2715,19 @@ function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
       canonicalizeWebsiteProductUrl(normalized.url, item?.url || item?.source_url || "") || normalized.url
     );
     const imageKey = normalizeComparableValue(normalized.image_url);
+    const familyKey = getProductFamilyKey(normalized, item?.url || item?.source_url || "");
 
     if (
       seen.has(key) ||
       (urlKey && seenUrls.has(urlKey)) ||
-      (imageKey && seenImageUrls.has(imageKey))
+      (imageKey && seenImageUrls.has(imageKey)) ||
+      (familyKey && seenFamilies.has(familyKey))
     ) {
       const existingItem =
         existingByKey.get(key) ||
         (urlKey ? existingByUrl.get(urlKey) : null) ||
-        (imageKey ? existingByImage.get(imageKey) : null);
+        (imageKey ? existingByImage.get(imageKey) : null) ||
+        (familyKey ? existingByFamily.get(familyKey) : null);
 
       if (existingItem) {
         mergeWebsiteItemDuplicateMetadata(existingItem, item);
@@ -2650,6 +2742,9 @@ function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
     }
     if (imageKey) {
       seenImageUrls.add(imageKey);
+    }
+    if (familyKey) {
+      seenFamilies.add(familyKey);
     }
     unique.push({
       ...item,
@@ -2666,6 +2761,7 @@ function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
           : Number(item.ai_campaign_fit_score),
       campaign_fit_verdict: item.campaign_fit_verdict || null,
       campaign_fit_reason: item.campaign_fit_reason || null,
+      product_family_key: familyKey || null,
     });
     existingByKey.set(key, unique[unique.length - 1]);
     if (urlKey) {
@@ -2673,6 +2769,9 @@ function dedupeWebsiteItemsByUrlTitleAndImage(items = []) {
     }
     if (imageKey) {
       existingByImage.set(imageKey, unique[unique.length - 1]);
+    }
+    if (familyKey) {
+      existingByFamily.set(familyKey, unique[unique.length - 1]);
     }
   }
 
@@ -2773,6 +2872,11 @@ function getCarouselProductSelectionKey(item, sourceUrl = "") {
     return "";
   }
 
+  const familyKey = getProductFamilyKey(normalized, sourceUrl);
+  if (familyKey) {
+    return `family:${familyKey}`;
+  }
+
   return [
     normalizeComparableValue(canonicalizeWebsiteProductUrl(normalized.url, sourceUrl) || normalized.url),
     normalizeComparableValue(normalized.title),
@@ -2782,6 +2886,13 @@ function getCarouselProductSelectionKey(item, sourceUrl = "") {
 
 
 function areSameWebsiteItem(a, b, sourceUrl = "") {
+  const aFamilyKey = getProductFamilyKey(a, sourceUrl);
+  const bFamilyKey = getProductFamilyKey(b, sourceUrl);
+
+  if (aFamilyKey && bFamilyKey && aFamilyKey === bFamilyKey) {
+    return true;
+  }
+
   const aKey = getCarouselProductSelectionKey(a, sourceUrl);
   const bKey = getCarouselProductSelectionKey(b, sourceUrl);
 
@@ -3294,7 +3405,7 @@ function selectCampaignCarouselProductsByDeliveryLadder({
   limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
   allowUsedAfterExhausted = false,
 }) {
-  allowUsedAfterExhausted = STRICT_PRODUCT_NO_REUSE ? false : allowUsedAfterExhausted;
+  allowUsedAfterExhausted = Boolean(allowUsedAfterExhausted);
   const selected = [];
   const requiresCampaignSignal = Boolean(
     extractCampaignCoreThemeTerms(rule).length ||
@@ -3532,23 +3643,21 @@ function selectFinalBroadVerifiedCarouselProducts({
   limit = CAROUSEL_PRODUCT_SLIDE_TARGET,
   allowUsedAfterExhausted = false,
 }) {
-  allowUsedAfterExhausted = STRICT_PRODUCT_NO_REUSE ? false : allowUsedAfterExhausted;
   const isCampaignRule = isCampaignScopedWebsiteRule(rule);
+  allowUsedAfterExhausted = isCampaignRule
+    ? Boolean(allowUsedAfterExhausted)
+    : STRICT_PRODUCT_NO_REUSE
+    ? false
+    : Boolean(allowUsedAfterExhausted);
   const existing = dedupeWebsiteItemsByUrlTitleAndImage(existingProducts).filter(isValidCarouselProduct);
   const existingKeys = new Set(existing.map(createItemKey));
-  const recentUsedKeys = new Set((recentUsedItems || []).map((item) => createItemKey({
-    title: item.item_title || item.title,
-    url: item.item_url || item.url || item.product_url,
-    image_url: item.image_url || item.item_image_url,
-  })));
 
   const candidates = dedupeWebsiteItemsByUrlTitleAndImage(items)
     .filter(isValidCarouselProduct)
     .filter((item) => !existingKeys.has(createItemKey(item)))
     .map((item) => {
-      const itemKey = createItemKey(item);
       const imageUsedThisRun = usedWebsiteImageUrlsThisRun.has(normalizeComparableValue(item.image_url));
-      const usedRecently = recentUsedKeys.has(itemKey) || hasWebsiteItemCatalogUsage(item);
+      const usedRecently = hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, sourceUrl);
       const confidence = getCarouselProductConfidence(item);
       const campaignFit = scoreCampaignFitForRule(item, rule);
 
@@ -3986,33 +4095,81 @@ async function getProductEngineV2SingleProductReserves({
   });
 
   const selectedKey = getCarouselProductSelectionKey(selectedItem, websiteUrl);
-  const selectReserves = (items) =>
-    dedupeWebsiteItemsByUrlTitleAndImage(items)
+  const isCampaignRule = isCampaignScopedWebsiteRule(rule);
+  const compareReserveEntries = (a, b) => {
+    if (isCampaignRule && a.campaignFit !== b.campaignFit) {
+      return b.campaignFit - a.campaignFit;
+    }
+    if (a.score !== b.score) return b.score - a.score;
+    if (a.confidence !== b.confidence) return b.confidence - a.confidence;
+    if (a.timesUsed !== b.timesUsed) return a.timesUsed - b.timesUsed;
+    return a.lastUsedAt - b.lastUsedAt;
+  };
+  const selectReserves = (items) => {
+    const ranked = dedupeWebsiteItemsByUrlTitleAndImage(items)
       .filter(isValidCarouselProduct)
       .filter((item) => getCarouselProductSelectionKey(item, websiteUrl) !== selectedKey)
-      .map((item) => ({
-        item,
-        wasUsedRecently: hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, websiteUrl),
-        imageUsedThisRun: usedWebsiteImageUrlsThisRun.has(normalizeComparableValue(item.image_url)),
-        score: scoreWebsiteItemForRule(item, rule),
-        confidence: getCarouselProductConfidence(item),
-        timesUsed: Number(item?.times_used || 0),
-        lastUsedAt: item?.last_used_at ? Date.parse(item.last_used_at) : 0,
-      }))
-      .sort((a, b) => {
-        if (a.wasUsedRecently !== b.wasUsedRecently) return a.wasUsedRecently ? 1 : -1;
-        if (a.imageUsedThisRun !== b.imageUsedThisRun) return a.imageUsedThisRun ? 1 : -1;
-        if (a.score !== b.score) return b.score - a.score;
-        if (a.confidence !== b.confidence) return b.confidence - a.confidence;
-        if (a.timesUsed !== b.timesUsed) return a.timesUsed - b.timesUsed;
-        return a.lastUsedAt - b.lastUsedAt;
+      .filter((item) => !isExplicitCampaignFitRejected(item))
+      .map((item) => {
+        const campaignFit = isCampaignRule
+          ? Math.max(
+              Number(item?.campaign_fit_score || 0),
+              Number(scoreCampaignFitForRule(item, rule) || 0)
+            )
+          : 0;
+        const campaignSignal = isCampaignRule
+          ? getCampaignProductSignalState(
+              item,
+              rule,
+              CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE
+            )
+          : null;
+
+        return {
+          item: {
+            ...item,
+            campaign_fit_score: campaignFit,
+          },
+          campaignFit,
+          campaignSignal,
+          wasUsedRecently: hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, websiteUrl),
+          imageUsedThisRun: usedWebsiteImageUrlsThisRun.has(normalizeComparableValue(item.image_url)),
+          score: scoreWebsiteItemForRule(item, rule),
+          confidence: getCarouselProductConfidence(item),
+          timesUsed: Number(item?.times_used || 0),
+          lastUsedAt: item?.last_used_at ? Date.parse(item.last_used_at) : 0,
+        };
       })
+      .filter((entry) => (
+        !isCampaignRule ||
+        (
+          entry.campaignFit >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE &&
+          entry.campaignSignal?.hasMeaningfulCampaignSignal
+        )
+      ));
+
+    const fresh = ranked
+      .filter((entry) => !entry.wasUsedRecently && !entry.imageUsedThisRun)
+      .sort(compareReserveEntries);
+    const reusable = ranked
+      .filter((entry) => entry.wasUsedRecently || entry.imageUsedThisRun)
+      .sort(compareReserveEntries);
+
+    // Only consider previously used winners after all fresh, campaign-relevant
+    // reserve products have been exhausted.
+    return [...fresh, ...reusable]
       .map((entry) => entry.item)
       .slice(0, reserveTarget);
+  };
 
   let reserves = selectReserves(pool);
+  const strongReserveCount = isCampaignRule
+    ? reserves.filter(
+        (item) => Number(item?.campaign_fit_score || 0) >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE
+      ).length
+    : reserves.length;
 
-  if (reserves.length < reserveTarget) {
+  if (reserves.length < reserveTarget || strongReserveCount < reserveTarget) {
     try {
       const discoveredCandidates = await discoverProductCandidatesFromWebsite({
         websiteUrl,
@@ -6545,6 +6702,7 @@ async function prepareCarouselProductsForRule({
         usedWebsiteImageUrlsThisRun,
         existingProducts: selectedProducts,
         limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+        allowUsedAfterExhausted: allowCampaignReuseAfterExhausted,
       });
 
       if (deliveryLadderProducts.length > selectedProducts.length) {
@@ -6573,6 +6731,7 @@ async function prepareCarouselProductsForRule({
         usedWebsiteImageUrlsThisRun,
         existingProducts: selectedProducts,
         limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
+        allowUsedAfterExhausted: allowCampaignReuseAfterExhausted,
       });
 
       if (broadVerifiedProducts.length > selectedProducts.length) {
@@ -6601,7 +6760,7 @@ async function prepareCarouselProductsForRule({
         usedWebsiteImageUrlsThisRun,
         existingProducts: selectedProducts,
         limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
-        allowUsedAfterExhausted: false,
+        allowUsedAfterExhausted: allowCampaignReuseAfterExhausted,
       });
 
       if (finalDeliveryProducts.length > selectedProducts.length) {
@@ -9869,7 +10028,8 @@ function normalizeWebsiteItem(item, websiteUrl) {
   const type = String(item?.type || "website_item").trim();
   const resolvedUrl = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
   const url = resolvedUrl ? canonicalizeWebsiteProductUrl(resolvedUrl, websiteUrl) : websiteUrl;
-  const imageUrl = item?.image_url ? resolveUrl(item.image_url, websiteUrl) : null;
+  const normalizedRawImageUrl = normalizeShopifyImageWidthUrl(item?.image_url, 1600);
+  const imageUrl = normalizedRawImageUrl ? resolveUrl(normalizedRawImageUrl, websiteUrl) : null;
   const trustedPricing = getTrustedWebsiteItemPricing({
     ...item,
     url: url || websiteUrl,
@@ -9899,6 +10059,7 @@ function normalizeWebsiteItem(item, websiteUrl) {
     type,
     url: url || websiteUrl,
     image_url: imageUrl && isHttpUrl(imageUrl) ? imageUrl : null,
+    product_family_key: getProductFamilyKey({ ...item, title, url: url || websiteUrl }, websiteUrl) || null,
   };
 }
 
@@ -10331,12 +10492,18 @@ function hasWebsiteItemAlreadyBeenUsed(item, usedItems, sourceUrl) {
   const itemUrl = normalizeComparableValue(canonicalizeWebsiteProductUrl(item?.url || item?.product_url || "", sourceUrl) || item?.url || item?.product_url);
   const itemTitle = normalizeComparableValue(item?.title || item?.item_title);
   const itemImageUrl = normalizeComparableValue(item?.image_url || item?.item_image_url);
+  const itemFamilyKey = getProductFamilyKey(item, sourceUrl);
 
   return usedItems.some((usedItem) => {
     const usedKey = normalizeComparableValue(usedItem.item_key);
     const usedUrl = normalizeComparableValue(canonicalizeWebsiteProductUrl(usedItem.item_url || usedItem.product_url || usedItem.url || "", sourceUrl) || usedItem.item_url || usedItem.product_url || usedItem.url);
     const usedTitle = normalizeComparableValue(usedItem.item_title || usedItem.title);
     const usedImageUrl = normalizeComparableValue(usedItem.item_image_url || usedItem.image_url);
+    const usedFamilyKey = getProductFamilyKey(usedItem, sourceUrl);
+
+    if (itemFamilyKey && usedFamilyKey && itemFamilyKey === usedFamilyKey) {
+      return true;
+    }
 
     if (itemKey && usedKey && itemKey === usedKey) {
       return true;
@@ -12615,7 +12782,9 @@ function isLikelyGenericCustomTemplateProduct(item) {
 
 function preferConcreteCampaignProducts(items) {
   const dedupedItems = dedupeWebsiteItemsByUrlTitleAndImage(items);
-  const concreteItems = dedupedItems.filter((item) => !isLikelyGenericCustomTemplateProduct(item));
+  const concreteItems = dedupedItems.filter(
+    (item) => !isLikelyVisuallyEmptyProductTemplate(item)
+  );
 
   return concreteItems.length ? concreteItems : [];
 }
@@ -13760,7 +13929,7 @@ function isLikelyNonProductUrl(value, websiteUrl) {
       /^\/products?\/[^/]+/i.test(path) ||
       /\/collections\/[^/]+\/products\/[^/]+/i.test(path);
 
-    if (!path || path === "/" || isWeakItemUrl(value, websiteUrl)) {
+    if (!path || path === "/" || isWeakItemUrl(value, websiteUrl) || isBadProductUrl(value)) {
       return true;
     }
 
@@ -13772,11 +13941,22 @@ function isLikelyNonProductUrl(value, websiteUrl) {
       "/artiklar",
       "/cart",
       "/checkout",
+      "/checkouts",
       "/kundvagn",
       "/kassa",
       "/account",
       "/login",
       "/sign-in",
+      "/payment",
+      "/payments",
+      "/wallet",
+      "/api",
+      "/graphql",
+      "/ajax",
+      "/collect",
+      "/tracking",
+      "/analytics",
+      "/pixel",
       "/privacy",
       "/integritet",
       "/cookie",
@@ -19629,7 +19809,8 @@ async function collectAnimatedProductImageCandidates(websiteItem) {
   const candidates = [];
   const seen = new Set();
   const add = (url, metadata = {}) => {
-    const resolved = resolveUrl(url, websiteItem?.url || url);
+    const normalizedImageUrl = normalizeShopifyImageWidthUrl(url, 1600);
+    const resolved = resolveUrl(normalizedImageUrl, websiteItem?.url || normalizedImageUrl);
     if (!resolved || !isHttpUrl(resolved) || isBadProductImageUrl(resolved)) return;
     const key = normalizeComparableValue(resolved);
     if (!key || seen.has(key)) return;
@@ -19733,6 +19914,56 @@ async function selectAnimatedProductImage(websiteItem) {
   });
 
   return selected;
+}
+
+async function prepareAnimatedReelProductCandidates({
+  primaryItem,
+  reserveItems = [],
+  sourceUrl = "",
+  maximumCandidates = 4,
+}) {
+  const candidates = [];
+  const rejected = [];
+  const seenFamilies = new Set();
+
+  for (const rawItem of [primaryItem, ...(reserveItems || [])]) {
+    if (!rawItem || candidates.length + rejected.length >= maximumCandidates) break;
+
+    const item = normalizeWebsiteItem(rawItem, rawItem?.url || sourceUrl);
+    if (
+      !item?.image_url ||
+      isBadProductUrl(item.url) ||
+      isBadProductImageUrl(item.image_url) ||
+      isLikelyVisuallyEmptyProductTemplate(item)
+    ) {
+      rejected.push({
+        item: rawItem,
+        stage: "product_filter",
+        message: "Product or product image was not usable for an animated Reel",
+      });
+      continue;
+    }
+
+    const familyKey = getProductFamilyKey(item, sourceUrl);
+    if (familyKey && seenFamilies.has(familyKey)) continue;
+    if (familyKey) seenFamilies.add(familyKey);
+
+    try {
+      const imageSelection = await selectAnimatedProductImage(item);
+      candidates.push({
+        item: { ...rawItem, ...item, product_family_key: familyKey || null },
+        imageSelection,
+      });
+    } catch (error) {
+      rejected.push({
+        item: { ...rawItem, ...item, product_family_key: familyKey || null },
+        stage: "image_validation",
+        message: error?.message || "Product image validation failed",
+      });
+    }
+  }
+
+  return { candidates, rejected };
 }
 
 function getAnimatedOverlayChromaCandidates(dominantColor) {
@@ -21295,7 +21526,9 @@ async function createAnimatedProductVideoAssets({
     throw new Error("Animated product Reel requires a verified website product image");
   }
 
-  const selectedProductImage = await selectAnimatedProductImage(websiteItem);
+  const selectedProductImage =
+    rule?.animated_product_image_selection ||
+    (await selectAnimatedProductImage(websiteItem));
   const sourceImageBuffer = selectedProductImage.sourceImageBuffer;
   const dominantColor = await getProductAccentColor(selectedProductImage.cutoutBuffer);
   const selection = await selectAnimatedVideoBackground({
@@ -21527,11 +21760,12 @@ function shouldUseLogoForRule(rule, brandProfile) {
 }
 
 async function fetchImageBufferForOverlay(imageUrl) {
-  if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
+  const normalizedImageUrl = normalizeShopifyImageWidthUrl(imageUrl, 1600);
+  if (!normalizedImageUrl || !/^https?:\/\//i.test(normalizedImageUrl)) {
     throw new Error("Logo overlay skipped because image URL is missing or not public");
   }
 
-  const safeImageUrl = await assertPublicHttpUrl(imageUrl);
+  const safeImageUrl = await assertPublicHttpUrl(normalizedImageUrl);
 
   const response = await fetch(safeImageUrl, {
     headers: {
@@ -23620,6 +23854,8 @@ let websiteSourceUrl = null;
 let websiteCycleNumber = null;
 let useWebsiteImage = false;
 let websitePreparedRule = rule;
+let animatedReelCandidates = [];
+let animatedReelRejectedCandidates = [];
 const focusedPageContext = await prepareFocusedPageContextForRule(rule);
 
         if (isCarouselRule(rule)) {
@@ -23731,7 +23967,40 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
           }
         }
 
-        const ruleWithBrandProfile = {
+        if (isAnimatedVideoRule(websitePreparedRule || rule)) {
+          const preparedAnimatedCandidates = await prepareAnimatedReelProductCandidates({
+            primaryItem: websiteItem,
+            reserveItems: websiteReserveItems,
+            sourceUrl: websiteSourceUrl || brandProfile?.website_url || rule.website_url || "",
+            maximumCandidates: 4,
+          });
+
+          animatedReelCandidates = preparedAnimatedCandidates.candidates;
+          animatedReelRejectedCandidates = preparedAnimatedCandidates.rejected;
+
+          if (!animatedReelCandidates.length) {
+            const attemptedTitles = animatedReelRejectedCandidates
+              .map((entry) => entry?.item?.title || entry?.item?.item_title)
+              .filter(Boolean)
+              .slice(0, 4);
+            throw new Error(
+              `Animated product Reel could not find a usable product image after checking the main product and up to three reserves${attemptedTitles.length ? `: ${attemptedTitles.join(", ")}` : ""}.`
+            );
+          }
+
+          websiteItem = animatedReelCandidates[0].item;
+          websiteReserveItems = animatedReelCandidates
+            .slice(1)
+            .map((entry) => entry.item);
+          productContentContract = buildProductContentContract(
+            [websiteItem],
+            websiteReserveItems
+          );
+          automationRunWebsiteItem = websiteItem;
+          automationRunWebsiteItems = [websiteItem];
+        }
+
+        let ruleWithBrandProfile = {
           ...websitePreparedRule,
           brand_profile: brandProfile,
           website_item: websiteItem,
@@ -23739,6 +24008,8 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
           website_reserve_items: websiteReserveItems,
           product_content_contract: productContentContract,
           focused_page_context: focusedPageContext,
+          animated_product_image_selection:
+            animatedReelCandidates[0]?.imageSelection || null,
         };
 
         if (isWebsiteTextAdRule(ruleWithBrandProfile) && !websiteItem?.image_url) {
@@ -23762,7 +24033,7 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
           rawGeneratedContent,
           websiteItem
         );
-        const generatedContent = cleanPostContentUrls(
+        let generatedContent = cleanPostContentUrls(
           removePricesFromAnimatedCaption(
             sanitizedGeneratedContent,
             ruleWithBrandProfile
@@ -23945,86 +24216,167 @@ product_research_model_used: rule.uses_website_content
           summary.uploaded_image_used =
             Number(summary.uploaded_image_used || 0) + 1;
         } else if (wantsImage && isAnimatedVideoRule(ruleWithBrandProfile)) {
-          try {
-            finalImagePrompt =
-              "9:16 animated product Reel using an automatically selected uploaded MP4 background, the unchanged original website product, a separate OpenAI text overlay and Shotstack HTML5 zoom motion.";
+          finalImagePrompt =
+            "9:16 animated product Reel using an automatically selected uploaded MP4 background, the unchanged original website product, a separate OpenAI text overlay and Shotstack HTML5 zoom motion.";
 
-            const animatedVideo = await generateAnimatedProductVideo({
-              openai,
-              supabase,
-              rule: ruleWithBrandProfile,
-              postContent: generatedContent,
-              userId: rule.user_id,
-              postId: post.id,
-            });
+          let finalVideoError = null;
+          const renderCandidates = animatedReelCandidates.slice(0, 4);
 
-            imageUrl = animatedVideo.posterUrl;
-            imageStoragePath = animatedVideo.posterStoragePath;
-            videoUrl = animatedVideo.videoUrl;
-            videoStoragePath = animatedVideo.videoStoragePath;
-            videoRenderId = animatedVideo.renderId;
-
-            const { error: animatedVideoUpdateError } = await supabase
-              .from("posts")
-              .update({
-                image_url: imageUrl,
-                image_storage_path: imageStoragePath,
-                image_status: "ready",
-                image_prompt: finalImagePrompt,
-                video_url: videoUrl,
-                video_storage_path: videoStoragePath,
-                video_status: "ready",
-                video_render_id: videoRenderId,
-                video_provider: "shotstack",
-                video_duration_seconds: ANIMATED_VIDEO_DURATION_SECONDS,
-                video_error: null,
-                include_logo: shouldUseLogoForRule(rule, brandProfile),
-                logo_url: shouldUseLogoForRule(rule, brandProfile)
-                  ? brandProfile?.logo_url || null
-                  : null,
-                video_background_asset_id: animatedVideo.backgroundAsset?.id || null,
-                video_background_family: animatedVideo.backgroundAsset?.family || null,
-                video_background_selection: animatedVideo.backgroundSelection || null,
-                updated_at: nowIso,
-              })
-              .eq("id", post.id);
-
-            if (animatedVideoUpdateError) {
-              throw new Error(
-                animatedVideoUpdateError.message ||
-                  "Could not attach animated product video to post"
-              );
-            }
-
-            usedWebsiteImageUrlsThisRun.add(
-              normalizeComparableValue(websiteItem?.image_url)
+          for (let attemptIndex = 0; attemptIndex < renderCandidates.length; attemptIndex += 1) {
+            const candidate = renderCandidates[attemptIndex];
+            const remainingCandidateItems = renderCandidates
+              .filter((_, index) => index !== attemptIndex)
+              .map((entry) => entry.item);
+            const attemptContract = buildProductContentContract(
+              [candidate.item],
+              remainingCandidateItems
             );
-            summary.video_generated = Number(summary.video_generated || 0) + 1;
-            summary.website_image_used += 1;
-          } catch (videoError) {
-            console.error("Animated product video generation failed", {
-              ruleId: rule.id,
-              postId: post.id,
-              message: videoError.message,
-            });
+            const attemptRule = {
+              ...ruleWithBrandProfile,
+              website_item: candidate.item,
+              website_reserve_items: remainingCandidateItems,
+              product_content_contract: attemptContract,
+              animated_product_image_selection: candidate.imageSelection,
+            };
+            let attemptContent = generatedContent;
 
-            await Promise.allSettled([
-              supabase.storage.from("post-images").remove([
-                `${rule.user_id}/${post.id}-animation-product-layer.png`,
-                `${rule.user_id}/${post.id}-animation-text-overlay.png`,
-                `${rule.user_id}/${post.id}-animation-logo-overlay.png`,
-                `${rule.user_id}/${post.id}-animation-poster.png`,
-              ]),
-              supabase.storage
-                .from(POST_VIDEOS_BUCKET)
-                .remove([`${rule.user_id}/${post.id}.mp4`]),
-            ]);
+            try {
+              if (attemptIndex > 0) {
+                const reserveRawContent =
+                  await generateAutomationPostWithProductContractValidation(
+                    openai,
+                    attemptRule
+                  );
+                const reserveSanitizedContent = sanitizeUnsupportedOfferLanguage(
+                  reserveRawContent,
+                  candidate.item
+                );
+                attemptContent = cleanPostContentUrls(
+                  removePricesFromAnimatedCaption(
+                    reserveSanitizedContent,
+                    attemptRule
+                  ),
+                  getPostDestinationUrl(attemptRule)
+                );
 
-            imageUrl = null;
-            imageStoragePath = null;
-            videoUrl = null;
-            videoStoragePath = null;
-            videoRenderId = null;
+                if (!attemptContent) {
+                  throw new Error("OpenAI returned empty content for Reel reserve product");
+                }
+              }
+
+              const animatedVideo = await generateAnimatedProductVideo({
+                openai,
+                supabase,
+                rule: attemptRule,
+                postContent: attemptContent,
+                userId: rule.user_id,
+                postId: post.id,
+              });
+
+              imageUrl = animatedVideo.posterUrl;
+              imageStoragePath = animatedVideo.posterStoragePath;
+              videoUrl = animatedVideo.videoUrl;
+              videoStoragePath = animatedVideo.videoStoragePath;
+              videoRenderId = animatedVideo.renderId;
+
+              const { error: animatedVideoUpdateError } = await supabase
+                .from("posts")
+                .update({
+                  content: attemptContent,
+                  website_url: candidate.item?.url || websiteSourceUrl || null,
+                  image_url: imageUrl,
+                  image_storage_path: imageStoragePath,
+                  image_status: "ready",
+                  image_prompt: finalImagePrompt,
+                  video_url: videoUrl,
+                  video_storage_path: videoStoragePath,
+                  video_status: "ready",
+                  video_render_id: videoRenderId,
+                  video_provider: "shotstack",
+                  video_duration_seconds: ANIMATED_VIDEO_DURATION_SECONDS,
+                  video_error: null,
+                  include_logo: shouldUseLogoForRule(rule, brandProfile),
+                  logo_url: shouldUseLogoForRule(rule, brandProfile)
+                    ? brandProfile?.logo_url || null
+                    : null,
+                  video_background_asset_id: animatedVideo.backgroundAsset?.id || null,
+                  video_background_family: animatedVideo.backgroundAsset?.family || null,
+                  video_background_selection: animatedVideo.backgroundSelection || null,
+                  updated_at: nowIso,
+                })
+                .eq("id", post.id);
+
+              if (animatedVideoUpdateError) {
+                throw new Error(
+                  animatedVideoUpdateError.message ||
+                    "Could not attach animated product video to post"
+                );
+              }
+
+              websiteItem = candidate.item;
+              websiteReserveItems = remainingCandidateItems;
+              productContentContract = attemptContract;
+              ruleWithBrandProfile = attemptRule;
+              generatedContent = attemptContent;
+              automationRunWebsiteItem = websiteItem;
+              automationRunWebsiteItems = [websiteItem];
+
+              usedWebsiteImageUrlsThisRun.add(
+                normalizeComparableValue(websiteItem?.image_url)
+              );
+              summary.video_generated = Number(summary.video_generated || 0) + 1;
+              summary.website_image_used += 1;
+              break;
+            } catch (videoError) {
+              finalVideoError = videoError;
+              console.warn("Animated Reel product attempt failed", {
+                ruleId: rule.id,
+                postId: post.id,
+                attempt: attemptIndex + 1,
+                maximumAttempts: renderCandidates.length,
+                productTitle: candidate.item?.title || null,
+                productUrl: candidate.item?.url || null,
+                message: videoError.message,
+              });
+
+              await Promise.allSettled([
+                supabase.storage.from("post-images").remove([
+                  `${rule.user_id}/${post.id}-animation-product-layer.png`,
+                  `${rule.user_id}/${post.id}-animation-product-motion.png`,
+                  `${rule.user_id}/${post.id}-animation-text-overlay.png`,
+                  `${rule.user_id}/${post.id}-animation-logo-overlay.png`,
+                  `${rule.user_id}/${post.id}-animation-poster.png`,
+                ]),
+                supabase.storage
+                  .from(POST_VIDEOS_BUCKET)
+                  .remove([`${rule.user_id}/${post.id}.mp4`]),
+              ]);
+
+              imageUrl = null;
+              imageStoragePath = null;
+              videoUrl = null;
+              videoStoragePath = null;
+              videoRenderId = null;
+            }
+          }
+
+          if (!videoUrl) {
+            const candidateDiagnostics = [
+              ...animatedReelRejectedCandidates.map((entry) => ({
+                title: entry?.item?.title || entry?.item?.item_title || null,
+                stage: entry?.stage || "image_validation",
+                message: entry?.message || null,
+              })),
+              ...renderCandidates.map((entry) => ({
+                title: entry?.item?.title || null,
+                stage: "render_attempt",
+              })),
+            ].slice(0, 8);
+            const failureMessage = truncateText(
+              finalVideoError?.message ||
+                "Animated product video failed after the main product and available reserve products were tried.",
+              1000
+            );
 
             await supabase
               .from("posts")
@@ -24036,7 +24388,15 @@ product_research_model_used: rule.uses_website_content
                 video_url: null,
                 video_storage_path: null,
                 video_status: "failed",
-                video_error: truncateText(videoError.message || "Video generation failed", 1000),
+                video_render_id: null,
+                video_background_asset_id: null,
+                video_background_family: null,
+                video_error: failureMessage,
+                video_background_selection: {
+                  candidate_attempts: candidateDiagnostics,
+                  total_products_checked:
+                    renderCandidates.length + animatedReelRejectedCandidates.length,
+                },
                 updated_at: nowIso,
               })
               .eq("id", post.id);

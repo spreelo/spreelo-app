@@ -612,6 +612,7 @@ UPCOMING CALENDAR OPPORTUNITIES
 ${JSON.stringify(context.upcomingCampaigns)}
 
 RULES
+- The only supported goals are Sell more, Get more followers and Build trust. Treat them as three genuinely different strategies, not labels on the same format mix.
 - Select exactly ${postCount} posts from the available format ids.
 - Do not select Custom post/manual_prompt, discount campaigns, focused-page input, customer cases, local-angle posts, comparisons or behind-the-scenes posts.
 - Do not select product formats unless verified product mode is available.
@@ -620,9 +621,10 @@ RULES
 - Do not repeat a format in the same week unless there are too few valid formats. Prefer meaningful variety over a fixed sequence.
 - Avoid formats used in the most recent posts when equally strong alternatives exist. Look across roughly the last 8-12 weeks.
 - Also avoid repeating the same product or subject visible in recent history; the later generation system will select exact products, but the plan should create room for variety.
-- For Sell more, create a commercial journey rather than only advertisements: combine demand, clarity/trust and conversion. Product businesses can use several product formats, but they must not dominate every week without supporting value posts.
-- For Get more followers, prioritize useful, saveable, shareable and recognisable formats. Direct product ads should be occasional and strategically justified.
-- For Build trust, prioritize expertise, clear answers, guides and grounded service/product explanations. Never invent proof or customer results.
+- Judge the balance across a rolling multi-week schedule. Do not force an exact percentage or identical mix into every individual week.
+- For Sell more, make product businesses clearly more product-driven while still combining demand, clarity, trust and conversion with supporting value posts. Do not turn every post into an advertisement.
+- For Get more followers, make the plan primarily engaging, saveable and shareable. Use a smaller share of pure product advertisements and give the audience a reason to follow, save, comment or share.
+- For Build trust, make the plan primarily helpful, educational, explanatory and uncertainty-reducing. Product formats should support proof and clarity rather than dominate. Never invent proof or customer results.
 - Every post must have a distinct role and reason.
 - Write role, strategic_reason and strategy_summary in the brand's content language. If that language is unknown, use clear neutral English.
 - Create rotation_pool with 6-10 distinct safe formats that can be used in future weeks. The pool should support the same goal while allowing week-to-week variation.
