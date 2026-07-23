@@ -59,11 +59,13 @@ function MediaPreview({ post, t }) {
         {post.slides.map((slide) => (
           <article key={`${post.id}-${slide.slide_order}`}>
             {slide.image_url ? <img src={slide.image_url} alt="" /> : <span><ImageIcon size={22} /></span>}
-            <div>
-              <strong>{slide.headline || `Slide ${slide.slide_order}`}</strong>
-              {slide.body ? <p>{slide.body}</p> : null}
-              {slide.cta_text ? <small>{slide.cta_text}</small> : null}
-            </div>
+            {post.content_format !== "carousel" ? (
+              <div>
+                <strong>{slide.headline || `Slide ${slide.slide_order}`}</strong>
+                {slide.body ? <p>{slide.body}</p> : null}
+                {slide.cta_text ? <small>{slide.cta_text}</small> : null}
+              </div>
+            ) : null}
           </article>
         ))}
       </div>

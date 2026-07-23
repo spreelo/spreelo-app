@@ -375,14 +375,14 @@ const commonTimeZones = [
 const contentTypes = [
   {
     id: "website_item",
-    label: "Sell something from my website",
-    shortLabel: "Website item",
+    label: "Product post",
+    shortLabel: "Product post",
     description:
-      "Pick a product, service, listing or offer from your website and turn it into a post.",
+      "Pick one verified website product and present it in a clean, text-free product image with a matching background when possible.",
     prompt:
-      "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website. Create a social media post that promotes that specific item in a helpful, trustworthy and sales-focused way. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
+      "Use the website URL from the brand profile. Identify one concrete, verified product with a usable product image from the website. Create a social media post that promotes that specific product in a helpful, trustworthy and sales-focused way. Use only information that clearly appears on the website. Do not substitute a service, listing or generic category, and do not invent prices, discounts, guarantees, features or availability.",
     imagePrompt:
-      "Use a relevant image connected to the selected website item if one can be found. Avoid logos, banners, hero images, decorative icons and unrelated images. If no clearly relevant product, service, listing or offer image can be found, create a professional AI image based on the selected item instead.",
+      "Use the verified website product image without adding product names, prices, labels or other text. If the product image has reliable transparency, place the unchanged product on the best matching uploaded background. Otherwise preserve the original website image and its existing background.",
     usesWebsiteContent: true,
   },
   {
@@ -580,6 +580,20 @@ const contentTypes = [
 ];
 
 
+const RETIRED_CONTENT_TYPE_IDS = new Set([
+  "behind_scenes",
+  "case_example",
+  "local",
+  "comparison",
+]);
+
+const RETIRED_CONTENT_TYPE_FALLBACKS = {
+  behind_scenes: "tips",
+  case_example: "checklist",
+  local: "seasonal",
+  comparison: "mini_guide",
+};
+
 const slotTypeIcons = {
   website_item: "🛍️",
   animated_website_item: "▶",
@@ -768,10 +782,10 @@ function PlannerSummaryIcon({ type, success = false }) {
 
 const recommendedContentTypeIds = [
   "website_item",
+  "website_item_text_ad",
   "carousel_website_item",
   "tips",
   "mistakes",
-  "behind_scenes",
   "faq",
 ];
 
@@ -779,23 +793,23 @@ const autoPlanGoals = [
   {
     id: "sell_more",
     icon: "💰",
-    label: "Drive sales",
+    label: "Sell more",
     description:
       "A commercial mix that creates interest, helps customers choose and leads to a clear next step.",
   },
   {
     id: "get_followers",
     icon: "📈",
-    label: "Grow reach & engagement",
+    label: "Get more followers",
     description:
-      "Useful, shareable and timely content that helps more people discover and interact with the brand.",
+      "Useful, shareable content that gives new people a reason to discover and follow the account.",
   },
   {
     id: "build_trust",
     icon: "🤝",
-    label: "Build trust & customer value",
+    label: "Build trust",
     description:
-      "Expertise, guidance, examples and answers that make the business easier to understand and choose.",
+      "Expertise, guidance and clear answers that make the business easier to understand and trust.",
   },
 ];
 
@@ -805,24 +819,24 @@ const autoPlanStrategies = {
     contentTypeIds: [
       "problem_solution",
       "carousel_website_item",
+      "website_item_text_ad",
+      "faq",
       "website_item",
-      "comparison",
-      "website_item",
-      "carousel_website_item",
-      "website_item",
+      "animated_website_item",
+      "checklist",
     ],
     imageCount: 5,
   },
   get_followers: {
-    label: "Reach more customers",
+    label: "Get more followers",
     contentTypeIds: [
       "seasonal",
       "tips",
-      "carousel_website_item",
-      "local",
+      "mini_guide",
+      "myth_fact",
       "problem_solution",
-      "behind_scenes",
-      "website_item",
+      "mistakes",
+      "carousel_website_item",
     ],
     imageCount: 4,
   },
@@ -831,11 +845,11 @@ const autoPlanStrategies = {
     contentTypeIds: [
       "tips",
       "problem_solution",
-      "carousel_website_item",
       "faq",
-      "case_example",
+      "checklist",
+      "mini_guide",
       "service_focus",
-      "website_item",
+      "myth_fact",
     ],
     imageCount: 4,
   },
@@ -845,7 +859,7 @@ const autoPlanStrategies = {
       "tips",
       "mistakes",
       "carousel_website_item",
-      "comparison",
+      "mini_guide",
       "website_item",
       "checklist",
       "myth_fact",
@@ -860,8 +874,8 @@ const autoPlanStrategies = {
       "website_item",
       "carousel_website_item",
       "faq",
-      "case_example",
-      "local",
+      "mistakes",
+      "myth_fact",
     ],
     imageCount: 4,
   },
@@ -871,47 +885,47 @@ const goalMarketingSequences = {
   sell_more: [
     { contentTypeId: "problem_solution", label: "Need hook", description: "Create buying interest by showing a clear need, problem or desirable outcome before selling.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
     { contentTypeId: "carousel_website_item", label: "Product guide", description: "Show a curated set of relevant products with one shared buying theme.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "website_item", label: "Strong product push", description: "Recommend one concrete product and explain why it is a good choice now.", marketingAngle: "product_push", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "comparison", label: "Help them choose", description: "Reduce doubt with a buying guide, comparison or decision-help angle.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "website_item", label: "Clear sales CTA", description: "End the sequence with a concrete product-led reason to visit the website or buy.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "strong" },
-    { contentTypeId: "carousel_website_item", label: "More top picks", description: "Give ready-to-buy customers more relevant options from the same commercial theme.", marketingAngle: "product_discovery", customerStage: "ready_to_buy", ctaStrength: "strong" },
-    { contentTypeId: "website_item", label: "Final recommendation", description: "Highlight one final product or offer with a direct next step.", marketingAngle: "urgency", customerStage: "ready_to_buy", ctaStrength: "strong" },
+    { contentTypeId: "website_item_text_ad", label: "Strong product ad", description: "Use one concrete product in a visually strong AI-designed advertisement.", marketingAngle: "product_push", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "faq", label: "Remove buying doubt", description: "Answer a useful question that can reduce hesitation before purchase or contact.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "website_item", label: "Clear product recommendation", description: "Recommend one concrete product and explain why it is a good choice now.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "strong" },
+    { contentTypeId: "animated_website_item", label: "Product Reel", description: "Use movement to give a strong product one more attention-grabbing sales moment.", marketingAngle: "product_push", customerStage: "ready_to_buy", ctaStrength: "strong" },
+    { contentTypeId: "checklist", label: "Buying checklist", description: "Help ready customers check what matters before taking the next step.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "strong" },
   ],
   get_followers: [
-    { contentTypeId: "seasonal", label: "Broad hook", description: "Start with a relatable visual idea that can reach people beyond existing customers.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
+    { contentTypeId: "seasonal", label: "Broad timely hook", description: "Start with a relatable, timely idea that can reach people beyond existing customers.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
     { contentTypeId: "tips", label: "Useful quick tip", description: "Give easy value that people can like, save or share.", marketingAngle: "engagement", customerStage: "cold", ctaStrength: "soft" },
-    { contentTypeId: "carousel_website_item", label: "Inspiration carousel", description: "Use several products or ideas as broad inspiration, not hard selling.", marketingAngle: "inspiration", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "local", label: "Brand relevance", description: "Connect the business to the audience, season, place or everyday situation.", marketingAngle: "brand", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "problem_solution", label: "Problem people recognize", description: "Use a recognizable need to make new audiences understand why the brand matters.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
-    { contentTypeId: "behind_scenes", label: "Human brand post", description: "Build familiarity and personality so new people remember the business.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "website_item", label: "Soft product link", description: "Connect attention to one relevant product or service without making the whole plan too sales-heavy.", marketingAngle: "conversion", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "mini_guide", label: "Save-worthy guide", description: "Give new visitors a compact guide that makes the account worth following.", marketingAngle: "guide", customerStage: "cold", ctaStrength: "soft" },
+    { contentTypeId: "myth_fact", label: "Attention hook", description: "Correct a useful misconception in a simple format that encourages engagement.", marketingAngle: "engagement", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "problem_solution", label: "Recognisable problem", description: "Use a need people recognise so new audiences understand why the brand matters.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
+    { contentTypeId: "mistakes", label: "Common mistake", description: "Create useful content people may save, share and return to.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "carousel_website_item", label: "Visual inspiration", description: "Use a strong product collection when the assortment genuinely gives people a reason to swipe and follow.", marketingAngle: "inspiration", customerStage: "warm", ctaStrength: "soft" },
   ],
   build_trust: [
     { contentTypeId: "tips", label: "Expert tip", description: "Open with useful expertise that makes the brand feel competent.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
     { contentTypeId: "problem_solution", label: "Problem and solution", description: "Explain a customer problem and how the business helps solve it.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "carousel_website_item", label: "Choose-right guide", description: "Use a carousel as a helpful guide or curated set of options, not a random product list.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "faq", label: "Answer doubts", description: "Remove common hesitation with a clear answer or reassurance.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "case_example", label: "Customer value example", description: "Show concrete value, use-case or result without inventing reviews or claims.", marketingAngle: "proof", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "service_focus", label: "How it works", description: "Explain one service or offer clearly so the next step feels safe.", marketingAngle: "education", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "website_item", label: "Trusted recommendation", description: "Recommend one relevant product or service as an example of the promise.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "medium" },
+    { contentTypeId: "faq", label: "Answer doubts", description: "Remove common hesitation with a clear, grounded answer.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "checklist", label: "Practical checklist", description: "Turn expertise into a useful checklist customers can rely on.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "mini_guide", label: "Helpful guide", description: "Explain a relevant topic in clear steps that demonstrate knowledge.", marketingAngle: "guide", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "service_focus", label: "Service clarity", description: "Explain one verified service so the customer understands what it includes and why it matters.", marketingAngle: "education", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "myth_fact", label: "Responsible clarification", description: "Correct a misunderstanding with a simple, trustworthy explanation.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
   ],
   educate_customers: [
     { contentTypeId: "tips", label: "Quick practical tip", description: "Start with one helpful tip that is easy to understand and save.", marketingAngle: "education", customerStage: "cold", ctaStrength: "soft" },
     { contentTypeId: "mistakes", label: "Common mistake", description: "Help customers avoid a mistake or misunderstanding connected to the business.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "carousel_website_item", label: "Step-by-step guide", description: "Use carousel when several options, steps or examples make the advice easier to act on.", marketingAngle: "guide", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "comparison", label: "Compare options", description: "Help customers understand differences and choose more confidently.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "website_item", label: "Recommended solution", description: "Connect the advice to one relevant product or service from the website.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "medium" },
-    { contentTypeId: "checklist", label: "Checklist", description: "Turn the advice into a simple checklist or action list.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "carousel_website_item", label: "Visual guide", description: "Use carousel when several verified products or examples make the advice easier to act on.", marketingAngle: "guide", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "mini_guide", label: "Step-by-step guide", description: "Teach a useful process in a compact, structured format.", marketingAngle: "guide", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "website_item", label: "Recommended solution", description: "Connect the advice to one relevant verified product from the website.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "medium" },
+    { contentTypeId: "checklist", label: "Checklist", description: "Turn the advice into a simple action list.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
     { contentTypeId: "myth_fact", label: "Myth vs fact", description: "Correct a misconception and build authority.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
   ],
   stay_visible: [
     { contentTypeId: "seasonal", label: "Timely inspiration", description: "Keep the brand present with a relevant seasonal or everyday angle.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
     { contentTypeId: "tips", label: "Useful value post", description: "Give value so the account does not only sell.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "website_item", label: "Product reminder", description: "Keep a concrete product or service visible in the weekly mix.", marketingAngle: "product_push", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "carousel_website_item", label: "Mini collection", description: "Use carousel occasionally to show a small collection, guide or range.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "website_item", label: "Product reminder", description: "Keep one concrete verified product visible in the weekly mix.", marketingAngle: "product_push", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "carousel_website_item", label: "Mini collection", description: "Use carousel occasionally to show a relevant verified collection.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "medium" },
     { contentTypeId: "faq", label: "Helpful answer", description: "Answer a common question and reduce friction.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "case_example", label: "Example or use case", description: "Show how the business helps in a real-life situation without inventing claims.", marketingAngle: "proof", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "local", label: "Local or audience relevance", description: "Make the account feel active, present and connected to its audience.", marketingAngle: "engagement", customerStage: "cold", ctaStrength: "soft" },
+    { contentTypeId: "mistakes", label: "Useful correction", description: "Help the audience avoid a common mistake.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "myth_fact", label: "Simple clarification", description: "Correct a misconception and keep the content varied.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
   ],
 };
 
@@ -957,6 +971,10 @@ function getContentTypeById(typeId) {
   return contentTypes.find((type) => type.id === typeId) || null;
 }
 function getBrandSafeContentTypeId(typeId, websiteProductModeAvailable) {
+  if (RETIRED_CONTENT_TYPE_IDS.has(typeId)) {
+    return RETIRED_CONTENT_TYPE_FALLBACKS[typeId] || "tips";
+  }
+
   if (!websiteProductModeAvailable) {
     if (["website_item", "website_item_text_ad", "animated_website_item"].includes(typeId)) {
       return "problem_solution";
@@ -1044,6 +1062,10 @@ function getGoalContentTypeIds({
 }
 function getVisibleContentTypes(websiteProductModeAvailable) {
   return contentTypes.filter((type) => {
+    if (RETIRED_CONTENT_TYPE_IDS.has(type.id)) {
+      return false;
+    }
+
     if (
       [
         "website_item",
@@ -4123,8 +4145,11 @@ function getCampaignSlotContentTypeId(sourceMode) {
     tips: "tips",
     faq: "faq",
     checklist: "checklist",
-    comparison: "comparison",
-    case_example: "case_example",
+    mistakes: "mistakes",
+    myth_fact: "myth_fact",
+    mini_guide: "mini_guide",
+    comparison: "mini_guide",
+    case_example: "checklist",
     seasonal: "seasonal",
   };
 
@@ -5091,16 +5116,19 @@ export default function AutomationPage() {
 
   function translateContentTypeLabel(type) {
     if (type?.id === "manual_prompt") return t("automation.customPostLabel");
+    if (type?.id === "website_item") return t("automation.contentType.website_item.labelV127");
     return t(`automation.contentType.${type.id}.label`);
   }
 
   function translateContentTypeShortLabel(type) {
     if (type?.id === "manual_prompt") return t("automation.customPostShortLabel");
+    if (type?.id === "website_item") return t("automation.contentType.website_item.shortLabelV127");
     return t(`automation.contentType.${type.id}.shortLabel`);
   }
 
   function translateContentTypeDescription(type) {
     if (type?.id === "manual_prompt") return t("automation.customPostDescription");
+    if (type?.id === "website_item") return t("automation.contentType.website_item.descriptionV127");
     return t(`automation.contentType.${type.id}.description`);
   }
 
@@ -5206,16 +5234,16 @@ export default function AutomationPage() {
 
   const plannerGoalCopy = {
     sell_more: {
-      label: t("automation.planGoal.sell_more.label"),
-      description: t("automation.planGoal.sell_more.description"),
+      label: t("automation.planGoal.sell_more.labelV127"),
+      description: t("automation.planGoal.sell_more.descriptionV127"),
     },
     get_followers: {
-      label: t("automation.planGoal.get_followers.label"),
-      description: t("automation.planGoal.get_followers.description"),
+      label: t("automation.planGoal.get_followers.labelV127"),
+      description: t("automation.planGoal.get_followers.descriptionV127"),
     },
     build_trust: {
-      label: t("automation.planGoal.build_trust.label"),
-      description: t("automation.planGoal.build_trust.description"),
+      label: t("automation.planGoal.build_trust.labelV127"),
+      description: t("automation.planGoal.build_trust.descriptionV127"),
     },
     educate_customers: {
       label: t("automation.planGoal.educate_customers.label"),
@@ -5648,6 +5676,9 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
         const type = visibleTypeMap[formatId];
         if (!type) return null;
 
+        const isCleanProductPost = formatId === "website_item";
+        const isCleanProductCarousel = formatId === "carousel_website_item";
+
         return {
           ...config,
           id: formatId,
@@ -5655,11 +5686,23 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
           type,
           label: translateContentTypeShortLabel(type),
           description: getSafeText(
-            `automation.formatCard.${formatId}.description`,
+            isCleanProductPost
+              ? "automation.formatCard.website_item.descriptionV127"
+              : `automation.formatCard.${formatId}.description`,
             getFormatCardDescription(type, config.description || "")
           ),
-          howItWorks: t(`automation.formatCard.${formatId}.howItWorks`),
-          benefit: t(`automation.formatCard.${formatId}.benefit`),
+          howItWorks: t(
+            isCleanProductPost
+              ? "automation.formatCard.website_item.howItWorksV127"
+              : isCleanProductCarousel
+              ? "automation.formatCard.carousel_website_item.howItWorksV127"
+              : `automation.formatCard.${formatId}.howItWorks`
+          ),
+          benefit: t(
+            isCleanProductPost
+              ? "automation.formatCard.website_item.benefitV127"
+              : `automation.formatCard.${formatId}.benefit`
+          ),
         };
       })
       .filter(Boolean)
@@ -6045,7 +6088,7 @@ const shouldShowPlannerDetails =
             "problem_solution",
             "website_item_text_ad",
             sourceAllowsCarousel ? "carousel_website_item" : "website_item",
-            "comparison",
+            "checklist",
             "website_item",
             "faq",
             "animated_website_item",
@@ -6055,8 +6098,8 @@ const shouldShowPlannerDetails =
             "service_focus",
             "tips",
             "faq",
-            "case_example",
-            "comparison",
+            "mini_guide",
+            "myth_fact",
             "checklist",
           ];
       const selectedTypeIds = typeIds.slice(0, postCount);

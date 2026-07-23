@@ -742,11 +742,13 @@ export default function EditPostPage() {
                     ) : (
                       <div className="edit-post-slide-placeholder">{t("posts.slideImagePending")}</div>
                     )}
-                    <div className="edit-post-slide-content">
-                      {slide.headline && <h4>{slide.headline}</h4>}
-                      {slide.body && <p>{slide.body}</p>}
-                      {slide.cta_text && <strong>{slide.cta_text}</strong>}
-                    </div>
+                    {post?.content_format !== "carousel" && (
+                      <div className="edit-post-slide-content">
+                        {slide.headline && <h4>{slide.headline}</h4>}
+                        {slide.body && <p>{slide.body}</p>}
+                        {slide.cta_text && <strong>{slide.cta_text}</strong>}
+                      </div>
+                    )}
                   </article>
                 ))}
               </div>

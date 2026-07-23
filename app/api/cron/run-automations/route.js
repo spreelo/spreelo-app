@@ -1,9 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI, { toFile } from "openai";
 import crypto from "crypto";
-import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import path from "node:path";
 import {
   detectLikelyUiLocaleFromText,
   getServerTranslations,
@@ -59,89 +57,6 @@ export const maxDuration = 600;
 
 const require = createRequire(import.meta.url);
 let loadedSharpRuntime = null;
-let resolvedCarouselLabelFontFile = null;
-
-function getCarouselLabelFontFile() {
-  if (resolvedCarouselLabelFontFile) return resolvedCarouselLabelFontFile;
-
-  const explicitFontFile = String(process.env.CAROUSEL_LABEL_FONT_FILE || "").trim();
-  if (explicitFontFile && existsSync(explicitFontFile)) {
-    resolvedCarouselLabelFontFile = explicitFontFile;
-    return resolvedCarouselLabelFontFile;
-  }
-
-  // Do not use require.resolve() directly on .woff files here. Turbopack
-  // interprets those static specifiers as JavaScript modules during build.
-  // outputFileTracingIncludes copies the packaged files into the deployed
-  // function, so resolve them as ordinary filesystem paths at runtime.
-  const packageFontCandidates = [
-    path.join(
-      process.cwd(),
-      "node_modules",
-      "@fontsource",
-      "inter",
-      "files",
-      "inter-latin-ext-700-normal.woff",
-    ),
-    path.join(
-      process.cwd(),
-      "node_modules",
-      "@fontsource",
-      "inter",
-      "files",
-      "inter-latin-700-normal.woff",
-    ),
-  ];
-
-  for (const fontFile of packageFontCandidates) {
-    if (existsSync(fontFile)) {
-      resolvedCarouselLabelFontFile = fontFile;
-      return resolvedCarouselLabelFontFile;
-    }
-  }
-
-  const error = new Error(
-    "The packaged Inter font required for carousel labels could not be resolved.",
-  );
-  error.code = "CAROUSEL_LABEL_FONT_UNAVAILABLE";
-  throw error;
-}
-
-function escapePangoMarkup(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
-
-async function renderCarouselLabelTextLayer({
-  text,
-  fontSize,
-  color,
-  width = 0,
-  align = "left",
-  letterSpacing = 0,
-}) {
-  const safeText = escapePangoMarkup(text);
-  const spacingMarkup = letterSpacing > 0 ? ` letter_spacing="${letterSpacing}"` : "";
-  const markup = `<span foreground="${color}"${spacingMarkup}>${safeText}</span>`;
-
-  return sharp({
-    text: {
-      text: markup,
-      font: `Inter ${fontSize}`,
-      fontfile: getCarouselLabelFontFile(),
-      width: Math.max(0, Number(width || 0)),
-      align,
-      wrap: "word-char",
-      rgba: true,
-      dpi: 96,
-    },
-  })
-    .png()
-    .toBuffer();
-}
-
 function getSharpRuntime() {
   if (loadedSharpRuntime) return loadedSharpRuntime;
 
@@ -982,150 +897,12 @@ async function extractStrictTransparentProductCutout(sourceImageBuffer) {
 
 async function renderCarouselProductSlideImage({
   sourceImageUrl,
-  product = null,
-  title = "",
-  price = "",
   supabase = null,
   rule = null,
   backgroundSelectionContext = null,
 }) {
   const width = 1080;
   const height = 1080;
-
-  const pricingSource = product && typeof product === "object" ? { ...product } : {};
-  if (price && !pricingSource.price) {
-    pricingSource.price = price;
-  }
-
-  const trustedTitle = getTrustedProductCardTitle({
-    ...pricingSource,
-    title: title || pricingSource?.title || pricingSource?.name || pricingSource?.product_title || "",
-  });
-  const pricing = getTrustedWebsiteItemPricing(pricingSource);
-  const titleLines = trustedTitle ? splitTextIntoLines(trustedTitle, 22, 2) : [];
-  const hasOverlay = Boolean(titleLines.length || pricing.displayPrice);
-  const hasDisplayedPrice = Boolean(pricing.displayPrice);
-  const cardWidth = 430;
-  const cardHeight = hasDisplayedPrice ? 190 : 166;
-  const cardX = width - cardWidth - 48;
-  const cardY = height - cardHeight - 48;
-  const titleFontSize = titleLines.length > 1 ? 24 : 27;
-  const titleText = titleLines.join("\n");
-  const labelTextComposites = [];
-  let priceDecorationSvg = "";
-
-  if (hasOverlay) {
-    try {
-      const premiumTextBuffer = await renderCarouselLabelTextLayer({
-        text: "PREMIUM",
-        fontSize: 14,
-        color: "#a96f16",
-        width: 190,
-        letterSpacing: 950,
-      });
-      labelTextComposites.push({
-        input: premiumTextBuffer,
-        top: cardY + 17,
-        left: cardX + 42,
-      });
-
-      if (titleText) {
-        const titleTextBuffer = await renderCarouselLabelTextLayer({
-          text: titleText,
-          fontSize: titleFontSize,
-          color: "#172033",
-          width: 330,
-        });
-        labelTextComposites.push({
-          input: titleTextBuffer,
-          top: cardY + 58,
-          left: cardX + 28,
-        });
-      }
-
-      if (pricing.isOnSale && pricing.salePrice && pricing.originalPrice) {
-        const salePriceBuffer = await renderCarouselLabelTextLayer({
-          text: pricing.salePrice,
-          fontSize: 24,
-          color: "#111827",
-          width: 125,
-        });
-        const originalPriceBuffer = await renderCarouselLabelTextLayer({
-          text: pricing.originalPrice,
-          fontSize: 15,
-          color: "#667085",
-          width: 150,
-        });
-        const originalPriceLeft = cardX + 156;
-        const originalPriceTop = cardY + 137;
-        const originalFontSize = 20;
-        const estimatedWidth = Math.max(pricing.originalPrice.length * originalFontSize * 0.56, 44);
-
-        labelTextComposites.push(
-          { input: salePriceBuffer, top: cardY + 126, left: cardX + 28 },
-          { input: originalPriceBuffer, top: originalPriceTop, left: originalPriceLeft },
-        );
-        priceDecorationSvg = `<line x1="${originalPriceLeft}" y1="${originalPriceTop + 13}" x2="${originalPriceLeft + estimatedWidth}" y2="${originalPriceTop + 13}" stroke="#98a2b3" stroke-width="2.5" stroke-linecap="round"/>`;
-      } else if (pricing.displayPrice) {
-        const priceBuffer = await renderCarouselLabelTextLayer({
-          text: pricing.displayPrice,
-          fontSize: 24,
-          color: "#111827",
-          width: 250,
-        });
-        labelTextComposites.push({
-          input: priceBuffer,
-          top: cardY + 126,
-          left: cardX + 28,
-        });
-      }
-
-      console.info("Carousel label text rendered with packaged font", {
-        ruleId: rule?.id || null,
-        sourceImageUrl,
-        fontFile: getCarouselLabelFontFile().split(/[\\/]/).pop() || null,
-        titleLineCount: titleLines.length,
-        hasDisplayedPrice,
-      });
-    } catch (error) {
-      console.error("Carousel label text rendering failed", {
-        ruleId: rule?.id || null,
-        sourceImageUrl,
-        code: error?.code || null,
-        message: error?.message || "Unknown label text rendering error",
-      });
-      throw error;
-    }
-  }
-
-  const arrowCenterX = cardX + cardWidth - 40;
-  const arrowCenterY = cardY + cardHeight - 38;
-  const overlaySvg = hasOverlay
-    ? `
-      <defs>
-        <linearGradient id="glassFill" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.78"/>
-          <stop offset="100%" stop-color="#ffffff" stop-opacity="0.58"/>
-        </linearGradient>
-        <filter id="cardShadow" x="-25%" y="-30%" width="150%" height="180%">
-          <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#0f172a" flood-opacity="0.18"/>
-        </filter>
-      </defs>
-      <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${cardHeight}" rx="30" fill="url(#glassFill)" stroke="#ffffff" stroke-opacity="0.88" stroke-width="2" filter="url(#cardShadow)"/>
-      <rect x="${cardX + 1.5}" y="${cardY + 1.5}" width="${cardWidth - 3}" height="${cardHeight - 3}" rx="28.5" fill="none" stroke="#ffffff" stroke-opacity="0.34" stroke-width="1"/>
-      <path d="M ${cardX + 28} ${cardY + 25} L ${cardX + 33} ${cardY + 30} L ${cardX + 28} ${cardY + 35} L ${cardX + 23} ${cardY + 30} Z" fill="#bd8325"/>
-      ${priceDecorationSvg}
-      <circle cx="${arrowCenterX}" cy="${arrowCenterY}" r="24" fill="#fffaf0" fill-opacity="0.92" stroke="#ffffff" stroke-opacity="0.8" stroke-width="1.5"/>
-      <path d="M ${arrowCenterX - 7} ${arrowCenterY} H ${arrowCenterX + 7} M ${arrowCenterX + 2} ${arrowCenterY - 6} L ${arrowCenterX + 8} ${arrowCenterY} L ${arrowCenterX + 2} ${arrowCenterY + 6}" fill="none" stroke="#bd8325" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-    `
-    : "";
-
-  const overlayLayer = `
-    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      ${overlaySvg}
-    </svg>
-  `;
-
   const composites = [];
   let baseCanvas = sharp({
     create: {
@@ -1143,16 +920,16 @@ async function renderCarouselProductSlideImage({
 
       try {
         cutoutBuffer = await extractStrictTransparentProductCutout(sourceBuffer);
-        console.info('Carousel transparent product image accepted', {
+        console.info("Clean product image transparency accepted", {
           ruleId: rule?.id || null,
           sourceImageUrl,
         });
       } catch (cutoutError) {
         cutoutBuffer = null;
-        console.info('Carousel product image kept without library background', {
+        console.info("Clean product image kept on its original background", {
           ruleId: rule?.id || null,
           sourceImageUrl,
-          reason: cutoutError?.message || 'Transparency check failed',
+          reason: cutoutError?.message || "Transparency check failed",
         });
       }
 
@@ -1176,8 +953,8 @@ async function renderCarouselProductSlideImage({
               }
             }
             const backgroundBuffer = await backgroundBufferPromise;
-            baseCanvas = sharp(backgroundBuffer).rotate().resize({ width, height, fit: 'cover' });
-            console.info('Carousel image background selected', {
+            baseCanvas = sharp(backgroundBuffer).rotate().resize({ width, height, fit: "cover" });
+            console.info("Clean product image background selected", {
               ruleId: rule?.id || null,
               sourceImageUrl,
               backgroundAssetId: selectedBackground.asset.id || null,
@@ -1189,17 +966,20 @@ async function renderCarouselProductSlideImage({
               usedFallback: Boolean(selectedBackground.usedFallback),
             });
           } else {
-            console.info('Carousel image background library had no selectable asset', {
+            console.info("Clean product image background library had no selectable asset", {
               ruleId: rule?.id || null,
               sourceImageUrl,
             });
           }
         } catch (backgroundError) {
-          console.warn('Static background selection failed', { sourceImageUrl, message: backgroundError.message });
+          console.warn("Static background selection failed", {
+            sourceImageUrl,
+            message: backgroundError.message,
+          });
         }
 
         const resizedProduct = await sharp(cutoutBuffer)
-          .resize({ width: 700, height: 740, fit: 'inside', withoutEnlargement: false })
+          .resize({ width: 700, height: 740, fit: "inside", withoutEnlargement: false })
           .png()
           .toBuffer();
         const meta = await sharp(resizedProduct).metadata();
@@ -1218,27 +998,23 @@ async function renderCarouselProductSlideImage({
         composites.push({ input: Buffer.from(shadowSvg), top: 0, left: 0 });
         composites.push({ input: resizedProduct, top: productTop, left: productLeft });
       } else {
-        const productImageBuffer = await sharp(sourceBuffer)
-          .rotate()
-          .resize({
-            width,
-            height,
-            fit: 'contain',
-            background: { r: 255, g: 255, b: 255, alpha: 0 },
-            withoutEnlargement: false,
-          })
-          .png()
-          .toBuffer();
-        composites.push({ input: productImageBuffer, top: 0, left: 0 });
+        // No reliable transparency: preserve the website image and its existing
+        // background. Do not add a library background, product label or text.
+        baseCanvas = sharp(sourceBuffer).rotate().resize({
+          width,
+          height,
+          fit: "contain",
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+          withoutEnlargement: false,
+        });
       }
     } catch (error) {
-      console.error('Product image fetch/render failed', { sourceImageUrl, message: error.message });
+      console.error("Product image fetch/render failed", {
+        sourceImageUrl,
+        message: error.message,
+      });
+      throw error;
     }
-  }
-
-  if (hasOverlay) {
-    composites.push({ input: Buffer.from(overlayLayer), top: 0, left: 0 });
-    composites.push(...labelTextComposites);
   }
 
   const outputBuffer = await baseCanvas
@@ -1247,7 +1023,7 @@ async function renderCarouselProductSlideImage({
     .png()
     .toBuffer();
 
-  return { imageBase64: outputBuffer.toString('base64') };
+  return { imageBase64: outputBuffer.toString("base64") };
 }
 
 function getDateYYYYMMDDInTimeZone(
@@ -7876,33 +7652,16 @@ function buildCarouselEmailPreviewHtml(carouselSlides = []) {
 
   const cards = slides
     .map((slide) => {
-      const metadata = getCarouselEmailSlideMetadata(slide);
       const productTitle = getCarouselEmailProductTitle(slide);
-      const pricing = getCarouselEmailProductPricing(slide);
-      const slideAlreadyContainsProductInfo = metadata.rendered_slide === true;
-      const showFallbackProductInfo = !slideAlreadyContainsProductInfo && Boolean(productTitle || pricing.displayPrice);
-      const imageMaxHeight = showFallbackProductInfo ? "128px" : "180px";
 
       return `
       <div class="carousel-email-card" style="display:inline-block;width:31%;max-width:180px;min-width:150px;vertical-align:top;margin:6px;">
         <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#ffffff;">
           <tr>
             <td style="padding:0;background:#f8fafc;">
-              <img src="${escapeHtml(slide.image_url || '')}" alt="${escapeHtml(productTitle || slide.headline || 'Carousel slide')}" style="display:block;width:100%;height:auto;max-height:${imageMaxHeight};object-fit:contain;background:#f8fafc;" />
+              <img src="${escapeHtml(slide.image_url || '')}" alt="${escapeHtml(productTitle || 'Carousel slide')}" style="display:block;width:100%;height:auto;max-height:180px;object-fit:contain;background:#f8fafc;" />
             </td>
           </tr>
-          ${showFallbackProductInfo ? `
-          <tr>
-            <td style="padding:8px 8px 10px;text-align:center;background:#ffffff;border-top:1px solid #f1f5f9;">
-              ${productTitle ? `<div style="font-size:11px;line-height:1.25;color:#111827;font-weight:700;min-height:28px;">${escapeHtml(productTitle)}</div>` : ""}
-              ${pricing.isOnSale && pricing.salePrice && pricing.originalPrice
-                ? `<div style="margin-top:5px;white-space:nowrap;"><span style="font-size:14px;line-height:1.2;color:#dc2626;font-weight:800;">${escapeHtml(pricing.salePrice)}</span><span style="font-size:11px;line-height:1.2;color:#94a3b8;font-weight:600;text-decoration:line-through;margin-left:6px;">${escapeHtml(pricing.originalPrice)}</span></div>`
-                : pricing.displayPrice
-                  ? `<div style="font-size:14px;line-height:1.2;color:#111827;font-weight:800;margin-top:5px;">${escapeHtml(pricing.displayPrice)}</div>`
-                  : ""}
-            </td>
-          </tr>
-          ` : ""}
         </table>
       </div>
     `;
@@ -18580,9 +18339,6 @@ async function saveCarouselSlidesForPost({
       try {
         const { imageBase64 } = await renderCarouselProductSlideImage({
           sourceImageUrl: sourceSlideImageUrl,
-          product: slideProduct || slide,
-          title: slideProduct?.title || slide.product_title || slide.headline || "",
-          price: getTrustedProductCardPrice(slideProduct) || slide.product_price || "",
           supabase,
           rule,
           backgroundSelectionContext,
@@ -18680,9 +18436,9 @@ async function saveCarouselSlidesForPost({
       post_id: postId,
       slide_order: index + 1,
       slide_type: 'content',
-      headline: slide.headline || null,
-      body: slide.body || null,
-      cta_text: slide.cta_text || null,
+      headline: null,
+      body: null,
+      cta_text: null,
       image_url: slideImageUrl,
       product_url: slideProductUrl,
       logo_enabled: includeLogo,
@@ -24060,14 +23816,11 @@ product_research_model_used: rule.uses_website_content
         } else if (wantsImage && websiteItem?.image_url && useWebsiteImage) {
           imageUrl = websiteItem.image_url;
           finalImagePrompt =
-            "Website product card rendered from verified website image, product name and price when available.";
+            "Clean website product image rendered without text. A matching library background is used only when the source contains reliable transparency; otherwise the original website image background is preserved.";
 
           try {
             const { imageBase64 } = await renderCarouselProductSlideImage({
               sourceImageUrl: websiteItem.image_url,
-              product: websiteItem,
-              title: websiteItem.title || "",
-              price: getTrustedProductCardPrice(websiteItem) || "",
               supabase,
               rule,
             });

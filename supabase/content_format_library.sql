@@ -39,17 +39,23 @@ values
   ('focus_source', 'Link2', 'sales', false, true, 80),
   ('mistakes', 'AlertTriangle', 'educational', false, true, 90),
   ('faq', 'CircleHelp', 'educational', false, true, 100),
-  ('behind_scenes', 'Clapperboard', 'popular', false, true, 110),
+  ('behind_scenes', 'Clapperboard', 'popular', false, false, 110),
   ('checklist', 'ListChecks', 'educational', false, true, 120),
   ('service_focus', 'Wrench', 'sales', false, true, 130),
-  ('case_example', 'Trophy', 'popular', false, true, 140),
+  ('case_example', 'Trophy', 'popular', false, false, 140),
   ('myth_fact', 'Sparkles', 'educational', false, true, 150),
-  ('local', 'MapPin', 'popular', false, true, 160),
+  ('local', 'MapPin', 'popular', false, false, 160),
   ('seasonal', 'CalendarDays', 'popular', false, true, 170),
-  ('comparison', 'Scale', 'educational', false, true, 180),
+  ('comparison', 'Scale', 'educational', false, false, 180),
   ('mini_guide', 'BookOpen', 'educational', false, true, 190),
   ('manual_prompt', 'PenLine', 'text', false, true, 200)
 on conflict (content_type_id) do nothing;
+
+-- v127: these formats are retired from new plans until Spreelo has reliable
+-- source data for them. Existing historical rules remain readable.
+update public.content_format_library
+set active = false, updated_at = now()
+where content_type_id in ('behind_scenes', 'case_example', 'local', 'comparison');
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

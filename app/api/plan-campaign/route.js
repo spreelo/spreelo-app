@@ -34,8 +34,9 @@ const allowedContentModes = new Set([
   "tips",
   "faq",
   "checklist",
-  "comparison",
-  "case_example",
+  "mistakes",
+  "myth_fact",
+  "mini_guide",
   "seasonal",
 ]);
 
@@ -586,7 +587,7 @@ Return JSON in this exact shape:
       "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency",
       "customer_stage": "cold | warm | ready_to_buy",
       "cta_strength": "soft | medium | strong",
-      "content_source_mode": "generic_campaign | mixed_campaign_and_website | website_product | website_service | website_carousel | ai_image_overlay | ai_image_text | problem_solution | tips | faq | checklist | comparison | case_example | seasonal",
+      "content_source_mode": "generic_campaign | mixed_campaign_and_website | website_product | website_service | website_carousel | ai_image_overlay | ai_image_text | problem_solution | tips | faq | checklist | mistakes | myth_fact | mini_guide | seasonal",
       "timing_anchor": "inspiration | engagement | trust | conversion | deadline | event | evergreen",
       "publish_date": "YYYY-MM-DD or empty string",
       "publish_time": "HH:MM or empty string",
@@ -610,7 +611,7 @@ Strategic rules:
 - For evergreen campaigns, create a focused sequence over a short useful window unless the campaign is clearly meant to be recurring.
 - Choose publish_date and publish_time when there is enough date information. Use empty string only if the client scheduler should decide.
 - Times must fit the post's job: inspiration can be morning/midday, product/offer often lunch/afternoon, urgency often late afternoon/evening, relationship/event-day content can be morning or evening depending on context.
-- Choose content_source_mode with care. Do not use website_product unless the business likely has concrete products/items. Use website_carousel when multiple ideas/options/products should be compared. Use problem_solution, tips, faq, checklist, comparison, case_example and seasonal whenever those newer content formats are a better strategic fit than a generic campaign post. Use ai_image_overlay or ai_image_text for emotional, deadline or strongly visual awareness posts.
+- Choose content_source_mode with care. Do not use website_product unless the business likely has concrete products/items. Use website_carousel when several verified products fit one clear campaign theme. Use problem_solution, tips, faq, checklist, mistakes, myth_fact, mini_guide and seasonal whenever those formats are a better strategic fit than a generic campaign post. Do not create customer cases, local-angle posts, comparisons or behind-the-scenes posts. Use ai_image_overlay or ai_image_text for emotional, deadline or strongly visual awareness posts.
 - For every post that uses website_product, website_service, mixed_campaign_and_website or website_carousel, create product_match_terms, product_search_queries, product_avoid_terms and product_search_intent.
 - Product terms must be created dynamically for this exact campaign, country, market, language and brand. Do not rely on a fixed Swedish or English keyword list.
 - First use the campaign's saved product search strategy and assortment evidence to infer how this specific business names and groups products: motif/design-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led, brand/model-led or another pattern.
