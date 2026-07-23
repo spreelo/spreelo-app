@@ -1,0 +1,661 @@
+/* v130 — shared Spreelo design foundation + first core customer pages.
+
+   AI Innehållsstudio remains the visual source of truth. This layer extracts
+   its active canvas, glass surfaces, borders, shadows, radii and responsive
+   gutters into shared tokens, then applies them to Home, AI Calendar and the
+   post review page without touching planner behaviour or campaign logic.
+*/
+
+:root {
+  --spreelo-studio-canvas: #eef0f5;
+  --spreelo-studio-ink: #11192d;
+  --spreelo-studio-muted: #66738a;
+  --spreelo-studio-accent: #f06445;
+  --spreelo-studio-accent-deep: #cf4f33;
+  --spreelo-studio-navy: #071d32;
+  --spreelo-studio-navy-top: #102a43;
+  --spreelo-studio-gutter: clamp(16px, 2.2vw, 34px);
+  --spreelo-studio-radius-lg: 17px;
+  --spreelo-studio-radius-md: 14px;
+  --spreelo-studio-radius-sm: 10px;
+  --spreelo-studio-glass-border: 1px solid rgba(255, 255, 255, .91);
+  --spreelo-studio-glass:
+    linear-gradient(116deg, rgba(255, 255, 255, .79) 0%, rgba(251, 251, 254, .64) 56%, rgba(248, 248, 252, .72) 100%);
+  --spreelo-studio-glass-tile:
+    linear-gradient(116deg, rgba(255, 255, 255, .69) 0%, rgba(251, 251, 254, .50) 56%, rgba(248, 248, 252, .58) 100%);
+  --spreelo-studio-glass-light:
+    linear-gradient(116deg, rgba(255, 255, 255, .36) 0%, rgba(251, 251, 254, .22) 56%, rgba(248, 248, 252, .29) 100%);
+  --spreelo-studio-shadow:
+    0 16px 30px rgba(34, 42, 68, .12),
+    0 3px 8px rgba(34, 42, 68, .045),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  --spreelo-studio-shadow-tile:
+    0 12px 23px rgba(34, 42, 68, .13),
+    0 2px 6px rgba(34, 42, 68, .045),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  --spreelo-studio-blur: blur(15px) saturate(114%);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shared canvas for Home and AI Calendar                                     */
+/* -------------------------------------------------------------------------- */
+
+html body .content.spreelo-content:has(.dashboard-page),
+html body .content.spreelo-content:has(.campaign-calendar-page) {
+  padding: 0 !important;
+  overflow-x: clip !important;
+  background: var(--spreelo-studio-canvas) !important;
+}
+
+html body .dashboard-page,
+html body .campaign-calendar-page {
+  position: relative !important;
+  isolation: isolate !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 28px var(--spreelo-studio-gutter) 44px !important;
+  color: var(--spreelo-studio-ink) !important;
+  background: transparent !important;
+}
+
+html body .dashboard-page::before,
+html body .campaign-calendar-page::before {
+  content: "" !important;
+  position: absolute !important;
+  z-index: -1 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1672 / 941 !important;
+  pointer-events: none !important;
+  background: url("/backgrounds/spreelo-background-v97.png") center top / 100% 100% no-repeat !important;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 72%, rgba(0, 0, 0, .82) 79%, rgba(0, 0, 0, .34) 91%, transparent 100%) !important;
+  mask-image: linear-gradient(to bottom, #000 0%, #000 72%, rgba(0, 0, 0, .82) 79%, rgba(0, 0, 0, .34) 91%, transparent 100%) !important;
+}
+
+html body .dashboard-page > *,
+html body .campaign-calendar-page > * {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shared typography and controls                                             */
+/* -------------------------------------------------------------------------- */
+
+html body .dashboard-hero,
+html body .campaign-calendar-hero {
+  margin: 0 0 20px !important;
+  padding: 0 4px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .dashboard-hero h2,
+html body .campaign-calendar-hero h2 {
+  margin: 0 !important;
+  color: var(--spreelo-studio-ink) !important;
+  font-size: clamp(30px, 3vw, 42px) !important;
+  line-height: 1.04 !important;
+  font-weight: 900 !important;
+  letter-spacing: -.04em !important;
+}
+
+html body .dashboard-hero span,
+html body .campaign-calendar-hero span {
+  display: block !important;
+  max-width: 760px !important;
+  margin-top: 8px !important;
+  color: var(--spreelo-studio-muted) !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  font-weight: 500 !important;
+}
+
+html body .dashboard-eyebrow,
+html body .campaign-calendar-page .dashboard-eyebrow {
+  margin: 0 0 7px !important;
+  color: #a74431 !important;
+  font-size: 10.5px !important;
+  line-height: 1.2 !important;
+  font-weight: 900 !important;
+  letter-spacing: .1em !important;
+  text-transform: uppercase !important;
+}
+
+html body .dashboard-primary-action,
+html body .post-review-button.approve {
+  border: 1px solid #0a2239 !important;
+  border-radius: var(--spreelo-studio-radius-sm) !important;
+  background: linear-gradient(180deg, var(--spreelo-studio-navy-top), var(--spreelo-studio-navy)) !important;
+  color: #fff !important;
+  box-shadow: 0 10px 22px rgba(5, 28, 49, .20) !important;
+}
+
+html body .dashboard-primary-action:hover,
+html body .post-review-button.approve:hover:not(:disabled) {
+  filter: brightness(1.06) !important;
+  box-shadow:
+    0 13px 26px rgba(5, 28, 49, .23),
+    0 0 0 3px rgba(239, 102, 70, .08) !important;
+}
+
+html body .dashboard-secondary-action,
+html body .dashboard-card-header a,
+html body .dashboard-side-link,
+html body .dashboard-inline-action,
+html body .dashboard-pending-review-button,
+html body .campaign-calendar-filter-row button,
+html body .campaign-calendar-sort-select {
+  border: 1px solid rgba(255, 255, 255, .94) !important;
+  border-radius: var(--spreelo-studio-radius-sm) !important;
+  background: rgba(255, 255, 255, .68) !important;
+  color: #172035 !important;
+  box-shadow:
+    0 8px 18px rgba(30, 42, 68, .09),
+    inset 0 1px 0 rgba(255, 255, 255, .98) !important;
+  backdrop-filter: blur(12px) saturate(112%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(112%) !important;
+}
+
+html body .dashboard-secondary-action:hover,
+html body .dashboard-card-header a:hover,
+html body .dashboard-side-link:hover,
+html body .dashboard-inline-action:hover,
+html body .dashboard-pending-review-button:hover,
+html body .campaign-calendar-filter-row button:hover,
+html body .campaign-calendar-filter-row button.active {
+  border-color: rgba(239, 103, 72, .44) !important;
+  background: rgba(255, 245, 240, .86) !important;
+  color: #c94d32 !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Home dashboard                                                             */
+/* -------------------------------------------------------------------------- */
+
+html body .dashboard-hero {
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: space-between !important;
+  gap: 20px !important;
+}
+
+html body .dashboard-hero-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+}
+
+html body .dashboard-primary-action,
+html body .dashboard-secondary-action {
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+
+html body .dashboard-stat-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 13px !important;
+  margin: 0 0 16px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+html body .dashboard-stat-card {
+  min-width: 0 !important;
+  min-height: 118px !important;
+  padding: 17px 18px !important;
+  border: var(--spreelo-studio-glass-border) !important;
+  border-radius: var(--spreelo-studio-radius-md) !important;
+  background: var(--spreelo-studio-glass-tile) !important;
+  box-shadow: var(--spreelo-studio-shadow-tile) !important;
+  backdrop-filter: var(--spreelo-studio-blur) !important;
+  -webkit-backdrop-filter: var(--spreelo-studio-blur) !important;
+}
+
+html body .dashboard-stat-card span {
+  margin-bottom: 9px !important;
+  color: var(--spreelo-studio-muted) !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+}
+
+html body .dashboard-stat-card strong {
+  color: var(--spreelo-studio-ink) !important;
+  font-size: 33px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: -.045em !important;
+}
+
+html body .dashboard-stat-card p {
+  margin: 8px 0 0 !important;
+  color: #758096 !important;
+  font-size: 10.5px !important;
+  line-height: 1.4 !important;
+}
+
+html body .dashboard-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 350px !important;
+  gap: 15px !important;
+  align-items: start !important;
+}
+
+html body .dashboard-main,
+html body .dashboard-sidebar {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 15px !important;
+}
+
+html body .dashboard-card,
+html body .dashboard-side-card {
+  border: var(--spreelo-studio-glass-border) !important;
+  border-radius: var(--spreelo-studio-radius-lg) !important;
+  background: var(--spreelo-studio-glass) !important;
+  box-shadow: var(--spreelo-studio-shadow) !important;
+  backdrop-filter: var(--spreelo-studio-blur) !important;
+  -webkit-backdrop-filter: var(--spreelo-studio-blur) !important;
+}
+
+html body .dashboard-card {
+  padding: 19px !important;
+}
+
+html body .dashboard-side-card {
+  padding: 17px !important;
+}
+
+html body .dashboard-plan-hub-card {
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+html body .dashboard-plan-hub-card > .dashboard-card-header,
+html body .dashboard-plan-hub-card > .dashboard-plan-hub-section {
+  padding-right: 19px !important;
+  padding-left: 19px !important;
+}
+
+html body .dashboard-plan-hub-card > .dashboard-card-header {
+  padding-top: 18px !important;
+}
+
+html body .dashboard-card-header h3,
+html body .dashboard-side-title h3,
+html body .dashboard-plan-group-heading h4 {
+  color: var(--spreelo-studio-ink) !important;
+  font-weight: 900 !important;
+  letter-spacing: -.015em !important;
+}
+
+html body .dashboard-upcoming-item,
+html body .dashboard-plan-row,
+html body .pending-post-card,
+html body .dashboard-plan-group {
+  border: 1px solid rgba(220, 225, 235, .86) !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, .70) !important;
+  box-shadow:
+    0 9px 20px rgba(34, 42, 68, .065),
+    inset 0 1px 0 rgba(255, 255, 255, .98) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+html body .dashboard-plan-group .dashboard-plan-row {
+  border-radius: 0 !important;
+  background: rgba(255, 255, 255, .42) !important;
+  box-shadow: none !important;
+}
+
+html body .dashboard-side-title > span,
+html body .dashboard-plan-group-icon {
+  border: 1px solid rgba(255, 255, 255, .96) !important;
+  background: rgba(255, 240, 233, .82) !important;
+  color: var(--spreelo-studio-accent) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .98) !important;
+}
+
+html body .dashboard-credit-bar,
+html body .dashboard-brand-progress-bar {
+  overflow: hidden !important;
+  border-radius: 999px !important;
+  background: rgba(28, 40, 60, .11) !important;
+}
+
+html body .dashboard-credit-bar > div,
+html body .dashboard-brand-progress-bar > div {
+  border-radius: inherit !important;
+  background: linear-gradient(90deg, #ff7a59, #e35334) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* AI Calendar                                                                */
+/* -------------------------------------------------------------------------- */
+
+html body .campaign-calendar-page {
+  display: block !important;
+  min-height: calc(100vh - 1px) !important;
+}
+
+html body .campaign-calendar-hero {
+  display: block !important;
+}
+
+html body .campaign-calendar-stat-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin: 0 0 16px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+html body .campaign-calendar-stat-grid > div,
+html body .campaign-calendar-stat-item {
+  min-width: 0 !important;
+  min-height: 92px !important;
+  padding: 14px 16px !important;
+  border: var(--spreelo-studio-glass-border) !important;
+  border-radius: var(--spreelo-studio-radius-md) !important;
+  background: var(--spreelo-studio-glass-tile) !important;
+  box-shadow: var(--spreelo-studio-shadow-tile) !important;
+  backdrop-filter: var(--spreelo-studio-blur) !important;
+  -webkit-backdrop-filter: var(--spreelo-studio-blur) !important;
+}
+
+html body .campaign-calendar-stat-icon {
+  border: 1px solid rgba(255, 255, 255, .96) !important;
+  border-radius: 11px !important;
+  background: rgba(255, 239, 231, .84) !important;
+  color: var(--spreelo-studio-accent) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .98) !important;
+}
+
+html body .campaign-calendar-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 390px !important;
+  gap: 15px !important;
+  align-items: start !important;
+}
+
+html body .campaign-calendar-main,
+html body .campaign-detail-card,
+html body .campaign-calendar-empty {
+  border: var(--spreelo-studio-glass-border) !important;
+  border-radius: var(--spreelo-studio-radius-lg) !important;
+  background: var(--spreelo-studio-glass) !important;
+  box-shadow: var(--spreelo-studio-shadow) !important;
+  backdrop-filter: var(--spreelo-studio-blur) !important;
+  -webkit-backdrop-filter: var(--spreelo-studio-blur) !important;
+}
+
+html body .campaign-calendar-main {
+  min-width: 0 !important;
+  padding: 18px !important;
+}
+
+html body .campaign-calendar-sidebar {
+  min-width: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+html body .campaign-detail-card {
+  padding: 18px !important;
+}
+
+html body .campaign-calendar-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin: 14px 0 12px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+html body .campaign-calendar-filter-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 7px !important;
+}
+
+html body .campaign-calendar-filter-row button,
+html body .campaign-calendar-sort-select {
+  min-height: 34px !important;
+  padding: 0 11px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+html body .campaign-card-grid {
+  display: grid !important;
+  gap: 9px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+html body .campaign-card {
+  min-width: 0 !important;
+  min-height: 84px !important;
+  padding: 13px 14px !important;
+  border: 1px solid rgba(220, 225, 235, .88) !important;
+  border-radius: 13px !important;
+  background: rgba(255, 255, 255, .70) !important;
+  box-shadow:
+    0 9px 20px rgba(34, 42, 68, .065),
+    inset 0 1px 0 rgba(255, 255, 255, .98) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+html body .campaign-card:hover,
+html body .campaign-card.active {
+  border-color: rgba(239, 103, 72, .48) !important;
+  background: rgba(255, 250, 247, .80) !important;
+  box-shadow:
+    0 12px 24px rgba(34, 42, 68, .09),
+    0 0 0 3px rgba(239, 103, 72, .06),
+    inset 0 1px 0 rgba(255, 255, 255, .98) !important;
+}
+
+html body .campaign-card-create-button,
+html body .campaign-create-button {
+  border-radius: var(--spreelo-studio-radius-sm) !important;
+  font-weight: 850 !important;
+}
+
+html body .campaign-card.active .campaign-card-create-button,
+html body .campaign-create-button {
+  border: 1px solid rgba(207, 62, 37, .20) !important;
+  background: linear-gradient(180deg, #ff7556, #dc4d30) !important;
+  color: #fff !important;
+  box-shadow: 0 9px 18px rgba(207, 62, 37, .18) !important;
+}
+
+html body .campaign-detail-section,
+html body .campaign-post-plan > div,
+html body .campaign-calendar-disclaimer {
+  border-color: rgba(220, 225, 235, .84) !important;
+  border-radius: 11px !important;
+  background: rgba(255, 255, 255, .55) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Review page: keep V114 canvas, share the exact same surface tokens         */
+/* -------------------------------------------------------------------------- */
+
+html body .post-review-summary-card,
+html body .post-review-preview-card,
+html body .post-review-editor-card,
+html body .post-review-idea-card,
+html body .post-review-footer-actions,
+html body .post-review-slides-card {
+  border: var(--spreelo-studio-glass-border) !important;
+  background: var(--spreelo-studio-glass) !important;
+  box-shadow: var(--spreelo-studio-shadow) !important;
+  backdrop-filter: var(--spreelo-studio-blur) !important;
+  -webkit-backdrop-filter: var(--spreelo-studio-blur) !important;
+  background-clip: padding-box !important;
+}
+
+html body .post-review-meta-card {
+  border: 1px solid rgba(255, 255, 255, .76) !important;
+  background: var(--spreelo-studio-glass-light) !important;
+  box-shadow:
+    0 12px 23px rgba(34, 42, 68, .085),
+    0 2px 6px rgba(34, 42, 68, .03),
+    inset 0 1px 0 rgba(255, 255, 255, .84) !important;
+  backdrop-filter: blur(10px) saturate(108%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(108%) !important;
+}
+
+html body .post-review-meta-item {
+  border: var(--spreelo-studio-glass-border) !important;
+  background: var(--spreelo-studio-glass-tile) !important;
+  box-shadow: var(--spreelo-studio-shadow-tile) !important;
+  backdrop-filter: var(--spreelo-studio-blur) !important;
+  -webkit-backdrop-filter: var(--spreelo-studio-blur) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsive                                                                */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 1240px) {
+  :root {
+    --spreelo-studio-gutter: clamp(18px, 2.6vw, 26px);
+  }
+
+  html body .dashboard-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .dashboard-sidebar {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  html body .campaign-calendar-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .campaign-calendar-sidebar {
+    display: block !important;
+  }
+
+  html body .campaign-detail-card {
+    position: static !important;
+  }
+}
+
+@media (max-width: 920px) {
+  html body .dashboard-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html body .dashboard-sidebar {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .campaign-calendar-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html body .campaign-calendar-stat-grid > div:last-child {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+@media (max-width: 700px) {
+  :root {
+    --spreelo-studio-gutter: 12px;
+  }
+
+  html body .dashboard-page,
+  html body .campaign-calendar-page {
+    padding-top: 18px !important;
+    padding-bottom: 30px !important;
+  }
+
+  html body .dashboard-hero {
+    display: grid !important;
+    align-items: start !important;
+    gap: 14px !important;
+  }
+
+  html body .dashboard-hero h2,
+  html body .campaign-calendar-hero h2 {
+    font-size: 29px !important;
+  }
+
+  html body .dashboard-hero-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: 100% !important;
+  }
+
+  html body .dashboard-primary-action,
+  html body .dashboard-secondary-action {
+    width: 100% !important;
+  }
+
+  html body .dashboard-stat-grid,
+  html body .campaign-calendar-stat-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  html body .campaign-calendar-stat-grid > div:last-child {
+    grid-column: auto !important;
+  }
+
+  html body .dashboard-card,
+  html body .dashboard-side-card,
+  html body .campaign-calendar-main,
+  html body .campaign-detail-card,
+  html body .campaign-calendar-empty {
+    border-radius: 15px !important;
+  }
+
+  html body .campaign-calendar-toolbar {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  html body .campaign-calendar-sort-select {
+    width: 100% !important;
+  }
+
+  html body .campaign-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .campaign-card-side {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .campaign-card-create-button {
+    width: 100% !important;
+  }
+}
