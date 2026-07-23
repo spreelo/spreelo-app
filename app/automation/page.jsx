@@ -57,6 +57,7 @@ import {
   DEFAULT_CONTENT_FORMAT_MAP,
   normalizeContentFormatRows,
 } from "../../lib/contentFormatLibrary";
+import { enforceDirectCalendarCampaignPolicy } from "../../lib/calendarCampaignPolicy";
 
 const DEFAULT_TIME_ZONE = "UTC";
 const SPREELO_INTERNAL_TESTER_EMAIL = "johan@foldern.com";
@@ -6792,7 +6793,7 @@ function buildDirectCalendarCampaignSlots({
         defaultPublishTime,
       });
 
-  return schedule.map((scheduleItem, index) => {
+  const plannedItems = schedule.map((scheduleItem, index) => {
     const postPlanItem = scheduleItem.postPlanItem || fallbackPostPlan[index] || {};
     const startDate = scheduleItem.startDate || campaign?.event_date || schedule[0]?.startDate;
     const weekday = scheduleItem.weekday || getWeekdayFromDateString(startDate, timeZone);
@@ -6818,10 +6819,34 @@ function buildDirectCalendarCampaignSlots({
     enhancedPostPlanItem.scheduled_date = startDate;
     enhancedPostPlanItem.campaign_main_date = campaign?.event_date || null;
 
-    return createSlot({
+    return {
+      scheduleItem,
       startDate,
       weekday,
-      publishTime: scheduleItem.publishTime || getCampaignPublishTime(defaultPublishTime, index),
+      postPlanItem: enhancedPostPlanItem,
+    };
+  });
+
+  // Calendar opportunities created by the faster brand analysis often have no
+  // saved post_plan. In that case this direct browser-side path is the real
+  // campaign planner, so it must apply the same V129 product policy before the
+  // slots are shown: normally 65-80% product formats, at least one AI product
+  // ad, at most one carousel, and Reels only when the campaign supports them.
+  const policyPostPlan = enforceDirectCalendarCampaignPolicy(
+    plannedItems.map((item) => item.postPlanItem),
+    campaign
+  );
+
+  return plannedItems.map((plannedItem, index) => {
+    const enhancedPostPlanItem = policyPostPlan[index] || plannedItem.postPlanItem;
+    const contentSourceMode = enhancedPostPlanItem.content_source_mode;
+
+    return createSlot({
+      startDate: plannedItem.startDate,
+      weekday: plannedItem.weekday,
+      publishTime:
+        plannedItem.scheduleItem.publishTime ||
+        getCampaignPublishTime(defaultPublishTime, index),
       prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
       imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem, index),
       generateImage: true,
@@ -6832,7 +6857,7 @@ function buildDirectCalendarCampaignSlots({
         campaign
       ),
       contentFormat: getCampaignSlotContentFormat(contentSourceMode),
-        animationStyle: getCampaignSlotAnimationStyle(contentSourceMode),
+      animationStyle: getCampaignSlotAnimationStyle(contentSourceMode),
       isCampaignSlot: true,
       campaignRole: enhancedPostPlanItem.role || `Campaign post ${index + 1}`,
       campaignSummary: buildCampaignSummary(campaign, enhancedPostPlanItem, index),
@@ -6841,7 +6866,7 @@ function buildDirectCalendarCampaignSlots({
       customerStage: enhancedPostPlanItem.customer_stage || "",
       ctaStrength: enhancedPostPlanItem.cta_strength || "",
       campaignPostIndex: index + 1,
-      campaignPostCount: schedule.length,
+      campaignPostCount: plannedItems.length,
       campaignGoal: enhancedPostPlanItem.campaign_goal || campaign?.title || "",
       targetCustomerNeed: enhancedPostPlanItem.target_customer_need || "",
       strategyNotes: enhancedPostPlanItem.strategy_notes || "",
