@@ -14,7 +14,7 @@
     "test:store-map-progressive-pool": "node scripts/test-store-map-progressive-campaign-pool.mjs",
     "test:campaign-search-optimization": "node scripts/test-campaign-search-timeout-optimization.mjs",
     "test:campaign-quality-label-v124": "node scripts/test-campaign-quality-label-v124.mjs",
-    "test:carousel-label-font-v125": "node scripts/test-carousel-label-font-v125.mjs"
+    "test:carousel-label-font-v126": "node scripts/test-carousel-label-font-v126.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "5.2.8",

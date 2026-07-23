@@ -3,6 +3,7 @@ import OpenAI, { toFile } from "openai";
 import crypto from "crypto";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
 import {
   detectLikelyUiLocaleFromText,
   getServerTranslations,
@@ -69,20 +70,33 @@ function getCarouselLabelFontFile() {
     return resolvedCarouselLabelFontFile;
   }
 
+  // Do not use require.resolve() directly on .woff files here. Turbopack
+  // interprets those static specifiers as JavaScript modules during build.
+  // outputFileTracingIncludes copies the packaged files into the deployed
+  // function, so resolve them as ordinary filesystem paths at runtime.
   const packageFontCandidates = [
-    "@fontsource/inter/files/inter-latin-ext-700-normal.woff",
-    "@fontsource/inter/files/inter-latin-700-normal.woff",
+    path.join(
+      process.cwd(),
+      "node_modules",
+      "@fontsource",
+      "inter",
+      "files",
+      "inter-latin-ext-700-normal.woff",
+    ),
+    path.join(
+      process.cwd(),
+      "node_modules",
+      "@fontsource",
+      "inter",
+      "files",
+      "inter-latin-700-normal.woff",
+    ),
   ];
 
-  for (const candidate of packageFontCandidates) {
-    try {
-      const fontFile = require.resolve(candidate);
-      if (fontFile && existsSync(fontFile)) {
-        resolvedCarouselLabelFontFile = fontFile;
-        return resolvedCarouselLabelFontFile;
-      }
-    } catch {
-      // Try the next packaged font candidate.
+  for (const fontFile of packageFontCandidates) {
+    if (existsSync(fontFile)) {
+      resolvedCarouselLabelFontFile = fontFile;
+      return resolvedCarouselLabelFontFile;
     }
   }
 
