@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI, { toFile } from "openai";
 import crypto from "crypto";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import {
   detectLikelyUiLocaleFromText,
@@ -57,6 +58,75 @@ export const maxDuration = 600;
 
 const require = createRequire(import.meta.url);
 let loadedSharpRuntime = null;
+let resolvedCarouselLabelFontFile = null;
+
+function getCarouselLabelFontFile() {
+  if (resolvedCarouselLabelFontFile) return resolvedCarouselLabelFontFile;
+
+  const explicitFontFile = String(process.env.CAROUSEL_LABEL_FONT_FILE || "").trim();
+  if (explicitFontFile && existsSync(explicitFontFile)) {
+    resolvedCarouselLabelFontFile = explicitFontFile;
+    return resolvedCarouselLabelFontFile;
+  }
+
+  const packageFontCandidates = [
+    "@fontsource/inter/files/inter-latin-ext-700-normal.woff",
+    "@fontsource/inter/files/inter-latin-700-normal.woff",
+  ];
+
+  for (const candidate of packageFontCandidates) {
+    try {
+      const fontFile = require.resolve(candidate);
+      if (fontFile && existsSync(fontFile)) {
+        resolvedCarouselLabelFontFile = fontFile;
+        return resolvedCarouselLabelFontFile;
+      }
+    } catch {
+      // Try the next packaged font candidate.
+    }
+  }
+
+  const error = new Error(
+    "The packaged Inter font required for carousel labels could not be resolved.",
+  );
+  error.code = "CAROUSEL_LABEL_FONT_UNAVAILABLE";
+  throw error;
+}
+
+function escapePangoMarkup(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+async function renderCarouselLabelTextLayer({
+  text,
+  fontSize,
+  color,
+  width = 0,
+  align = "left",
+  letterSpacing = 0,
+}) {
+  const safeText = escapePangoMarkup(text);
+  const spacingMarkup = letterSpacing > 0 ? ` letter_spacing="${letterSpacing}"` : "";
+  const markup = `<span foreground="${color}"${spacingMarkup}>${safeText}</span>`;
+
+  return sharp({
+    text: {
+      text: markup,
+      font: `Inter ${fontSize}`,
+      fontfile: getCarouselLabelFontFile(),
+      width: Math.max(0, Number(width || 0)),
+      align,
+      wrap: "word-char",
+      rgba: true,
+      dpi: 96,
+    },
+  })
+    .png()
+    .toBuffer();
+}
 
 function getSharpRuntime() {
   if (loadedSharpRuntime) return loadedSharpRuntime;
@@ -925,36 +995,93 @@ async function renderCarouselProductSlideImage({
   const cardHeight = hasDisplayedPrice ? 190 : 166;
   const cardX = width - cardWidth - 48;
   const cardY = height - cardHeight - 48;
-  const titleFontSize = titleLines.length > 1 ? 30 : 34;
-  const titleLineHeight = titleLines.length > 1 ? 36 : 40;
-  const titleY = cardY + 82;
+  const titleFontSize = titleLines.length > 1 ? 24 : 27;
+  const titleText = titleLines.join("\n");
+  const labelTextComposites = [];
+  let priceDecorationSvg = "";
 
-  const titleSvg = titleLines.length
-    ? buildLeftAlignedSvgTextBlock(titleLines, {
-        x: cardX + 28,
-        y: titleY,
-        fontSize: titleFontSize,
-        lineHeight: titleLineHeight,
-        fontWeight: 700,
-        fill: "#172033",
-      })
-    : "";
+  if (hasOverlay) {
+    try {
+      const premiumTextBuffer = await renderCarouselLabelTextLayer({
+        text: "PREMIUM",
+        fontSize: 14,
+        color: "#a96f16",
+        width: 190,
+        letterSpacing: 950,
+      });
+      labelTextComposites.push({
+        input: premiumTextBuffer,
+        top: cardY + 17,
+        left: cardX + 42,
+      });
 
-  let priceSvg = "";
-  if (pricing.isOnSale && pricing.salePrice && pricing.originalPrice) {
-    const saleX = cardX + 28;
-    const originalX = cardX + 156;
-    const priceY = cardY + 156;
-    const originalFontSize = 20;
-    const estimatedWidth = Math.max(pricing.originalPrice.length * originalFontSize * 0.56, 44);
+      if (titleText) {
+        const titleTextBuffer = await renderCarouselLabelTextLayer({
+          text: titleText,
+          fontSize: titleFontSize,
+          color: "#172033",
+          width: 330,
+        });
+        labelTextComposites.push({
+          input: titleTextBuffer,
+          top: cardY + 58,
+          left: cardX + 28,
+        });
+      }
 
-    priceSvg = `
-      <text x="${saleX}" y="${priceY}" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="800" fill="#111827" text-anchor="start">${escapeSvg(pricing.salePrice)}</text>
-      <text x="${originalX}" y="${priceY}" font-family="Arial, Helvetica, sans-serif" font-size="${originalFontSize}" font-weight="600" fill="#667085" text-anchor="start">${escapeSvg(pricing.originalPrice)}</text>
-      <line x1="${originalX}" y1="${priceY - 8}" x2="${originalX + estimatedWidth}" y2="${priceY - 8}" stroke="#98a2b3" stroke-width="2.5" stroke-linecap="round"/>
-    `;
-  } else if (pricing.displayPrice) {
-    priceSvg = `<text x="${cardX + 28}" y="${cardY + 156}" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="800" fill="#111827" text-anchor="start">${escapeSvg(pricing.displayPrice)}</text>`;
+      if (pricing.isOnSale && pricing.salePrice && pricing.originalPrice) {
+        const salePriceBuffer = await renderCarouselLabelTextLayer({
+          text: pricing.salePrice,
+          fontSize: 24,
+          color: "#111827",
+          width: 125,
+        });
+        const originalPriceBuffer = await renderCarouselLabelTextLayer({
+          text: pricing.originalPrice,
+          fontSize: 15,
+          color: "#667085",
+          width: 150,
+        });
+        const originalPriceLeft = cardX + 156;
+        const originalPriceTop = cardY + 137;
+        const originalFontSize = 20;
+        const estimatedWidth = Math.max(pricing.originalPrice.length * originalFontSize * 0.56, 44);
+
+        labelTextComposites.push(
+          { input: salePriceBuffer, top: cardY + 126, left: cardX + 28 },
+          { input: originalPriceBuffer, top: originalPriceTop, left: originalPriceLeft },
+        );
+        priceDecorationSvg = `<line x1="${originalPriceLeft}" y1="${originalPriceTop + 13}" x2="${originalPriceLeft + estimatedWidth}" y2="${originalPriceTop + 13}" stroke="#98a2b3" stroke-width="2.5" stroke-linecap="round"/>`;
+      } else if (pricing.displayPrice) {
+        const priceBuffer = await renderCarouselLabelTextLayer({
+          text: pricing.displayPrice,
+          fontSize: 24,
+          color: "#111827",
+          width: 250,
+        });
+        labelTextComposites.push({
+          input: priceBuffer,
+          top: cardY + 126,
+          left: cardX + 28,
+        });
+      }
+
+      console.info("Carousel label text rendered with packaged font", {
+        ruleId: rule?.id || null,
+        sourceImageUrl,
+        fontFile: getCarouselLabelFontFile().split(/[\\/]/).pop() || null,
+        titleLineCount: titleLines.length,
+        hasDisplayedPrice,
+      });
+    } catch (error) {
+      console.error("Carousel label text rendering failed", {
+        ruleId: rule?.id || null,
+        sourceImageUrl,
+        code: error?.code || null,
+        message: error?.message || "Unknown label text rendering error",
+      });
+      throw error;
+    }
   }
 
   const arrowCenterX = cardX + cardWidth - 40;
@@ -973,9 +1100,7 @@ async function renderCarouselProductSlideImage({
       <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${cardHeight}" rx="30" fill="url(#glassFill)" stroke="#ffffff" stroke-opacity="0.88" stroke-width="2" filter="url(#cardShadow)"/>
       <rect x="${cardX + 1.5}" y="${cardY + 1.5}" width="${cardWidth - 3}" height="${cardHeight - 3}" rx="28.5" fill="none" stroke="#ffffff" stroke-opacity="0.34" stroke-width="1"/>
       <path d="M ${cardX + 28} ${cardY + 25} L ${cardX + 33} ${cardY + 30} L ${cardX + 28} ${cardY + 35} L ${cardX + 23} ${cardY + 30} Z" fill="#bd8325"/>
-      <text x="${cardX + 42}" y="${cardY + 36}" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="800" letter-spacing="1.2" fill="#a96f16" text-anchor="start">PREMIUM</text>
-      ${titleSvg}
-      ${priceSvg}
+      ${priceDecorationSvg}
       <circle cx="${arrowCenterX}" cy="${arrowCenterY}" r="24" fill="#fffaf0" fill-opacity="0.92" stroke="#ffffff" stroke-opacity="0.8" stroke-width="1.5"/>
       <path d="M ${arrowCenterX - 7} ${arrowCenterY} H ${arrowCenterX + 7} M ${arrowCenterX + 2} ${arrowCenterY - 6} L ${arrowCenterX + 8} ${arrowCenterY} L ${arrowCenterX + 2} ${arrowCenterY + 6}" fill="none" stroke="#bd8325" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     `
@@ -1099,6 +1224,7 @@ async function renderCarouselProductSlideImage({
 
   if (hasOverlay) {
     composites.push({ input: Buffer.from(overlayLayer), top: 0, left: 0 });
+    composites.push(...labelTextComposites);
   }
 
   const outputBuffer = await baseCanvas

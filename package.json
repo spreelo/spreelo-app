@@ -13,16 +13,18 @@
     "test:candidate-diagnostics": "node scripts/test-candidate-decision-diagnostics.mjs",
     "test:store-map-progressive-pool": "node scripts/test-store-map-progressive-campaign-pool.mjs",
     "test:campaign-search-optimization": "node scripts/test-campaign-search-timeout-optimization.mjs",
-    "test:campaign-quality-label-v124": "node scripts/test-campaign-quality-label-v124.mjs"
+    "test:campaign-quality-label-v124": "node scripts/test-campaign-quality-label-v124.mjs",
+    "test:carousel-label-font-v125": "node scripts/test-carousel-label-font-v125.mjs"
   },
   "dependencies": {
+    "@fontsource/inter": "5.2.8",
     "@supabase/supabase-js": "2.110.7",
     "lucide-react": "1.25.0",
     "next": "16.2.10",
     "openai": "6.48.0",
-    "sharp": "0.34.5",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "sharp": "0.34.5"
   },
   "optionalDependencies": {
     "@img/sharp-libvips-linux-x64": "1.2.4",
