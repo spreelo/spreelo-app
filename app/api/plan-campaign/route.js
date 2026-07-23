@@ -623,6 +623,9 @@ Strategic rules:
 - For motif/design-led stores plus a named theme, roughly 65-80% of queries should remain standalone motifs, symbols, characters, synonyms, expressions or title-like phrases. Only roughly 20-35% should combine a theme with a product type.
 - For recipient/gift occasions, prioritize recipient names, relationships and title-like phrases. For seasonal campaigns, prioritize seasonal needs, styles, materials, activities and use cases.
 - For commercial promotions such as broad sale events, do not search for products depicting the promotion name. Search the store's real hero categories, popular product families, strong motifs or commercially useful assortment areas supported by the campaign evidence.
+- For a named occasion, season, event or cultural theme, make direct theme words, local synonyms, motif/title-like expressions and likely website-language variants the majority of the strongest queries. Generic gift, present or broad product-type searches are secondary and must never dominate a themed query list.
+- Include common cross-language variants only when they are plausibly present in the store's product titles or search index; do not translate mechanically.
+- Expand avoid terms with likely semantic and website-language equivalents when that prevents nearby but wrong products from entering the candidate pool.
 - Use the campaign name once when useful, then diversify into distinct semantic roots. Do not prefix the campaign name to every query and do not repeat the same broad product type in most queries.
 - Never return campaign goals, marketing sentences or explanatory text as a search query. Preserve useful multiword phrases; do not split them into unrelated single words.
 - For motif/design-led stores, search primarily with motif and title-like words. For costume stores, search with costume, character, mask, makeup and accessory terms. Adapt equally for every other business type from the actual assortment evidence.

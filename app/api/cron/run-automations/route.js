@@ -537,7 +537,7 @@ function buildSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400
     })
     .join("");
 
-  return `<text x="${x}" y="${y}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}">${spans}</text>`;
+  return `<text x="${x}" y="${y}" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}">${spans}</text>`;
 }
 
 
@@ -767,7 +767,7 @@ function buildCenteredSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeig
     })
     .join("");
 
-  return `<text x="${x}" y="${y}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}" text-anchor="middle">${spans}</text>`;
+  return `<text x="${x}" y="${y}" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}" text-anchor="middle">${spans}</text>`;
 }
 
 function buildLeftAlignedSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400, fill = "#0f172a" }) {
@@ -782,7 +782,7 @@ function buildLeftAlignedSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontW
     })
     .join("");
 
-  return `<text x="${x}" y="${y}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}" text-anchor="start">${spans}</text>`;
+  return `<text x="${x}" y="${y}" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}" text-anchor="start">${spans}</text>`;
 }
 
 async function selectStaticImageBackground({
@@ -907,10 +907,6 @@ async function renderCarouselProductSlideImage({
 }) {
   const width = 1080;
   const height = 1080;
-  const cardX = 676;
-  const cardY = 840;
-  const cardWidth = 326;
-  const cardHeight = 132;
 
   const pricingSource = product && typeof product === "object" ? { ...product } : {};
   if (price && !pricingSource.price) {
@@ -922,50 +918,66 @@ async function renderCarouselProductSlideImage({
     title: title || pricingSource?.title || pricingSource?.name || pricingSource?.product_title || "",
   });
   const pricing = getTrustedWebsiteItemPricing(pricingSource);
-  const titleLines = trustedTitle ? splitTextIntoLines(trustedTitle, 24, 2) : [];
+  const titleLines = trustedTitle ? splitTextIntoLines(trustedTitle, 22, 2) : [];
   const hasOverlay = Boolean(titleLines.length || pricing.displayPrice);
+  const hasDisplayedPrice = Boolean(pricing.displayPrice);
+  const cardWidth = 430;
+  const cardHeight = hasDisplayedPrice ? 190 : 166;
+  const cardX = width - cardWidth - 48;
+  const cardY = height - cardHeight - 48;
+  const titleFontSize = titleLines.length > 1 ? 30 : 34;
+  const titleLineHeight = titleLines.length > 1 ? 36 : 40;
+  const titleY = cardY + 82;
 
   const titleSvg = titleLines.length
     ? buildLeftAlignedSvgTextBlock(titleLines, {
-        x: cardX + 24,
-        y: cardY + 69,
-        fontSize: 24,
-        lineHeight: 28,
-        fontWeight: 500,
-        fill: "#1f2937",
+        x: cardX + 28,
+        y: titleY,
+        fontSize: titleFontSize,
+        lineHeight: titleLineHeight,
+        fontWeight: 700,
+        fill: "#172033",
       })
     : "";
 
   let priceSvg = "";
   if (pricing.isOnSale && pricing.salePrice && pricing.originalPrice) {
-    const saleX = cardX + 24;
-    const originalX = cardX + 122;
-    const priceY = cardY + 112;
-    const originalFontSize = 17;
-    const estimatedWidth = Math.max(pricing.originalPrice.length * originalFontSize * 0.56, 40);
+    const saleX = cardX + 28;
+    const originalX = cardX + 156;
+    const priceY = cardY + 156;
+    const originalFontSize = 20;
+    const estimatedWidth = Math.max(pricing.originalPrice.length * originalFontSize * 0.56, 44);
 
     priceSvg = `
-      <text x="${saleX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="26" font-weight="800" fill="#111827" text-anchor="start">${escapeSvg(pricing.salePrice)}</text>
-      <text x="${originalX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${originalFontSize}" font-weight="600" fill="#6b7280" text-anchor="start">${escapeSvg(pricing.originalPrice)}</text>
-      <line x1="${originalX}" y1="${priceY - 7}" x2="${originalX + estimatedWidth}" y2="${priceY - 7}" stroke="#9ca3af" stroke-width="2" stroke-linecap="round"/>
+      <text x="${saleX}" y="${priceY}" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="800" fill="#111827" text-anchor="start">${escapeSvg(pricing.salePrice)}</text>
+      <text x="${originalX}" y="${priceY}" font-family="Arial, Helvetica, sans-serif" font-size="${originalFontSize}" font-weight="600" fill="#667085" text-anchor="start">${escapeSvg(pricing.originalPrice)}</text>
+      <line x1="${originalX}" y1="${priceY - 8}" x2="${originalX + estimatedWidth}" y2="${priceY - 8}" stroke="#98a2b3" stroke-width="2.5" stroke-linecap="round"/>
     `;
   } else if (pricing.displayPrice) {
-    priceSvg = `<text x="${cardX + 24}" y="${cardY + 112}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="26" font-weight="800" fill="#111827" text-anchor="start">${escapeSvg(pricing.displayPrice)}</text>`;
+    priceSvg = `<text x="${cardX + 28}" y="${cardY + 156}" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="800" fill="#111827" text-anchor="start">${escapeSvg(pricing.displayPrice)}</text>`;
   }
 
+  const arrowCenterX = cardX + cardWidth - 40;
+  const arrowCenterY = cardY + cardHeight - 38;
   const overlaySvg = hasOverlay
     ? `
       <defs>
-        <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="160%">
-          <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#0f172a" flood-opacity="0.14"/>
+        <linearGradient id="glassFill" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.78"/>
+          <stop offset="100%" stop-color="#ffffff" stop-opacity="0.58"/>
+        </linearGradient>
+        <filter id="cardShadow" x="-25%" y="-30%" width="150%" height="180%">
+          <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#0f172a" flood-opacity="0.18"/>
         </filter>
       </defs>
-      <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${cardHeight}" rx="26" fill="#ffffff" fill-opacity="0.82" stroke="#ffffff" stroke-opacity="0.75" stroke-width="1.4" filter="url(#cardShadow)"/>
-      <text x="${cardX + 24}" y="${cardY + 32}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="14" font-weight="700" fill="#c28a2e" text-anchor="start">✦ PREMIUM</text>
+      <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${cardHeight}" rx="30" fill="url(#glassFill)" stroke="#ffffff" stroke-opacity="0.88" stroke-width="2" filter="url(#cardShadow)"/>
+      <rect x="${cardX + 1.5}" y="${cardY + 1.5}" width="${cardWidth - 3}" height="${cardHeight - 3}" rx="28.5" fill="none" stroke="#ffffff" stroke-opacity="0.34" stroke-width="1"/>
+      <path d="M ${cardX + 28} ${cardY + 25} L ${cardX + 33} ${cardY + 30} L ${cardX + 28} ${cardY + 35} L ${cardX + 23} ${cardY + 30} Z" fill="#bd8325"/>
+      <text x="${cardX + 42}" y="${cardY + 36}" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="800" letter-spacing="1.2" fill="#a96f16" text-anchor="start">PREMIUM</text>
       ${titleSvg}
       ${priceSvg}
-      <circle cx="${cardX + cardWidth - 34}" cy="${cardY + cardHeight - 33}" r="18" fill="#f7f2e9"/>
-      <text x="${cardX + cardWidth - 34}" y="${cardY + cardHeight - 27}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="19" font-weight="700" fill="#c28a2e" text-anchor="middle">→</text>
+      <circle cx="${arrowCenterX}" cy="${arrowCenterY}" r="24" fill="#fffaf0" fill-opacity="0.92" stroke="#ffffff" stroke-opacity="0.8" stroke-width="1.5"/>
+      <path d="M ${arrowCenterX - 7} ${arrowCenterY} H ${arrowCenterX + 7} M ${arrowCenterX + 2} ${arrowCenterY - 6} L ${arrowCenterX + 8} ${arrowCenterY} L ${arrowCenterX + 2} ${arrowCenterY + 6}" fill="none" stroke="#bd8325" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     `
     : "";
 
@@ -2758,7 +2770,9 @@ function getFreshRelevantCampaignProductCandidates({
 
       return {
         ...item,
-        campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), campaignFitScore),
+        // Never preserve a stale derived catalog score. The current campaign
+        // calculation and current AI verdict are the only accepted score.
+        campaign_fit_score: campaignFitScore,
         campaign_fit_source: item.campaign_fit_source || "fresh_relevant_delivery",
         campaign_rotation_state: "fresh",
         _freshRelevantSort: {
@@ -3094,12 +3108,47 @@ function selectCampaignCarouselProductsByDeliveryLadder({
 
   for (const product of existingProducts || []) {
     if (selected.length >= limit) break;
+
+    const campaignFitScore = scoreCampaignFitForRule(product, rule);
+    const signalState = getCampaignProductSignalState(
+      product,
+      rule,
+      CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE
+    );
+    const hasMeaningfulCampaignSignal =
+      signalState.hasDirectCampaignSignal || signalState.hasAiCampaignApproval;
+    const isFresh = isFreshCampaignCandidate(
+      product,
+      recentUsedItems,
+      sourceUrl,
+      usedWebsiteImageUrlsThisRun
+    );
+
+    // Existing selections are not trusted blindly. Recalculate relevance from
+    // current product data and current campaign vocabulary so stale catalog
+    // scores cannot preserve an unrelated product in the final five.
     if (
-      allowUsedAfterExhausted ||
-      isFreshCampaignCandidate(product, recentUsedItems, sourceUrl, usedWebsiteImageUrlsThisRun)
+      campaignFitScore < CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE ||
+      (requiresCampaignSignal && !hasMeaningfulCampaignSignal) ||
+      (!allowUsedAfterExhausted && !isFresh)
     ) {
-      addProduct(annotateCampaignReuseState(product, recentUsedItems, sourceUrl, usedWebsiteImageUrlsThisRun));
+      continue;
     }
+
+    addProduct(
+      annotateCampaignReuseState(
+        {
+          ...product,
+          campaign_fit_score: campaignFitScore,
+          campaign_fit_verdict:
+            product?.campaign_fit_verdict ||
+            (signalState.hasAiCampaignApproval ? "strong" : product?.campaign_fit_verdict),
+        },
+        recentUsedItems,
+        sourceUrl,
+        usedWebsiteImageUrlsThisRun
+      )
+    );
   }
 
   if (selected.length >= limit) {
@@ -3135,7 +3184,7 @@ function selectCampaignCarouselProductsByDeliveryLadder({
 
       return {
         ...item,
-        campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), campaignFitScore),
+        campaign_fit_score: campaignFitScore,
         campaign_product_tier: getCampaignProductTier(campaignFitScore),
         campaign_was_used_recently: wasUsedRecently,
         campaign_image_used_this_run: imageUsedThisRun,
@@ -3296,7 +3345,7 @@ function selectFinalBroadVerifiedCarouselProducts({
 
       return {
         ...item,
-        campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), campaignFit),
+        campaign_fit_score: campaignFit,
         campaign_fit_source: item.campaign_fit_source || "final_broad_verified_fallback",
         product_confidence: Math.max(Number(item.product_confidence || 0), confidence),
         _finalBroadSort: {
@@ -5141,7 +5190,7 @@ async function prepareCarouselProductsForRule({
     });
   };
 
-  rule = await ensureProductSearchQueriesForRule({ supabase, rule });
+  rule = await ensureProductSearchQueriesForRule({ supabase, openai, rule, brandProfile });
 
   const websiteUrl = getWebsiteProductSourceUrl(brandProfile, rule);
   const contentType = rule.content_type_id || "carousel_website_item";
@@ -5719,27 +5768,89 @@ async function prepareCarouselProductsForRule({
     }
   }
 
+  if (
+    isCampaignRule &&
+    catalogItems.length &&
+    (!hasLockedCampaignSearchPool || lockedCampaignSearchPoolItems.length < CAROUSEL_PRODUCT_SLIDE_TARGET) &&
+    hasProductPreparationBudget(45_000)
+  ) {
+    try {
+      catalogItems = await applyAiCampaignFitScores({
+        openai,
+        rule,
+        brandProfile,
+        items: catalogItems,
+        maxItems: Math.min(15, catalogItems.length),
+        model: PRODUCT_RESEARCH_FAST_MODEL,
+        escalateWhenUncertain: true,
+        escalationModel: PRODUCT_RESEARCH_MODEL,
+        escalationMaxItems: 8,
+        minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
+      });
+
+      console.log("Campaign catalog fallback candidates evaluated before selection", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        catalogCandidateCount: catalogItems.length,
+        evaluatedCount: catalogItems.filter((item) => getAiCampaignFitScore(item) !== null).length,
+        approvedCount: catalogItems.filter((item) => {
+          const score = getAiCampaignFitScore(item);
+          return score !== null && score >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE && !isExplicitCampaignFitRejected(item);
+        }).length,
+      });
+    } catch (error) {
+      console.warn("Campaign catalog fallback AI evaluation failed; unscored catalog products will stay excluded", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        message: error?.message,
+      });
+    }
+  }
+
   const getCampaignSelectionItems = () => {
     if (!isCampaignRule) {
       return catalogItems;
     }
 
-    if (hasLockedCampaignSearchPool) {
-      const freshSafeCatalogItems = getFreshCarouselProductCandidates({
-        items: getSafeCampaignProductCandidates(catalogItems, rule),
-        rule,
-        sourceUrl: websiteUrl,
-        recentUsedItems,
-        usedWebsiteImageUrlsThisRun,
-      });
+    const freshLockedItems = getFreshCarouselProductCandidates({
+      items: getSafeCampaignProductCandidates(lockedCampaignSearchPoolItems, rule),
+      rule,
+      sourceUrl: websiteUrl,
+      recentUsedItems,
+      usedWebsiteImageUrlsThisRun,
+    });
 
+    // A locked store-search pool with five verified campaign products is enough
+    // on its own. Do not contaminate it with stale or unreviewed catalog rows.
+    if (hasLockedCampaignSearchPool && freshLockedItems.length >= CAROUSEL_PRODUCT_SLIDE_TARGET) {
+      return freshLockedItems;
+    }
+
+    const aiApprovedCatalogItems = catalogItems.filter((item) => {
+      const aiScore = getAiCampaignFitScore(item);
+      return (
+        aiScore !== null &&
+        aiScore >= CAMPAIGN_NEAR_PRODUCT_FIT_SCORE &&
+        !isExplicitCampaignFitRejected(item)
+      );
+    });
+    const freshSafeCatalogItems = getFreshCarouselProductCandidates({
+      items: getSafeCampaignProductCandidates(aiApprovedCatalogItems, rule),
+      rule,
+      sourceUrl: websiteUrl,
+      recentUsedItems,
+      usedWebsiteImageUrlsThisRun,
+    });
+
+    if (hasLockedCampaignSearchPool) {
       return dedupeWebsiteItemsByUrlTitleAndImage([
-        ...lockedCampaignSearchPoolItems,
+        ...freshLockedItems,
         ...freshSafeCatalogItems,
       ]);
     }
 
-    return getSafeCampaignProductCandidates(catalogItems, rule);
+    return freshSafeCatalogItems;
   };
 
   let productEngineV2ReserveProducts = [];
@@ -5823,7 +5934,7 @@ async function prepareCarouselProductsForRule({
                 ...item,
                 selection_priority: primaryMatchCount > 0 ? 120 : 65,
                 campaign_fit_source: item.campaign_fit_source || "store_search",
-                campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), campaignFitScore),
+                campaign_fit_score: campaignFitScore,
               };
             }),
           ];
@@ -5939,7 +6050,7 @@ async function prepareCarouselProductsForRule({
               ...item,
               selection_priority: Math.max(Number(item.selection_priority || 0), 230),
               campaign_fit_source: item.campaign_fit_source || "campaign_continued_discovery",
-              campaign_fit_score: Math.max(Number(item.campaign_fit_score || 0), scoreCampaignFitForRule(item, rule) + 20),
+              campaign_fit_score: scoreCampaignFitForRule(item, rule) + 20,
             }));
 
           if (safeDiscoveredCampaignItems.length) {
@@ -6142,11 +6253,19 @@ async function prepareCarouselProductsForRule({
       rule,
       websiteUrl
     );
+    const campaignEligibleCatalogItems = catalogItems.filter((item) => {
+      const aiScore = getAiCampaignFitScore(item);
+      return (
+        aiScore !== null &&
+        aiScore >= CAMPAIGN_MINIMUM_PRODUCT_FIT_SCORE &&
+        !isExplicitCampaignFitRejected(item)
+      );
+    });
     const campaignCandidateUniverse = dedupeWebsiteItemsByUrlTitleAndImage([
       ...selectedProducts,
       ...lockedCampaignSearchPoolItems,
       ...getCampaignSelectionItems(),
-      ...getStrictCampaignFallbackProducts(catalogItems, rule),
+      ...getStrictCampaignFallbackProducts(campaignEligibleCatalogItems, rule),
       ...recentUsedCampaignDeliveryItems,
     ]);
 
@@ -6209,7 +6328,7 @@ async function prepareCarouselProductsForRule({
       const deliveryLadderProducts = selectCampaignCarouselProductsByDeliveryLadder({
         items: dedupeWebsiteItemsByUrlTitleAndImage([
           ...campaignCandidateUniverse,
-          ...catalogItems,
+          ...campaignEligibleCatalogItems,
         ]),
         rule,
         sourceUrl: websiteUrl,
@@ -6237,7 +6356,7 @@ async function prepareCarouselProductsForRule({
       const broadVerifiedProducts = selectFinalBroadVerifiedCarouselProducts({
         items: dedupeWebsiteItemsByUrlTitleAndImage([
           ...campaignCandidateUniverse,
-          ...catalogItems,
+          ...campaignEligibleCatalogItems,
         ]),
         rule,
         sourceUrl: websiteUrl,
@@ -6265,7 +6384,7 @@ async function prepareCarouselProductsForRule({
       const finalDeliveryProducts = selectCampaignCarouselProductsByDeliveryLadder({
         items: dedupeWebsiteItemsByUrlTitleAndImage([
           ...campaignCandidateUniverse,
-          ...catalogItems,
+          ...campaignEligibleCatalogItems,
         ]),
         rule,
         sourceUrl: websiteUrl,
@@ -10974,41 +11093,225 @@ function buildFallbackProductSearchQueriesForRule(rule, limit = CAMPAIGN_STORE_S
   );
 }
 
-async function ensureProductSearchQueriesForRule({ supabase, rule }) {
-  const normalizedQueries = buildFallbackProductSearchQueriesForRule(rule);
-
-  if (!normalizedQueries.length) {
-    return rule;
+async function generateCampaignSearchVocabularyWithAi({
+  openai,
+  rule,
+  brandProfile,
+}) {
+  if (!openai || !isCampaignScopedWebsiteRule(rule) || !isCarouselRule(rule)) {
+    return null;
   }
 
   const existingQueries = normalizeStoreSearchQueries(
     splitCampaignTermLine(rule?.product_search_queries),
     CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
   );
-  const changed = normalizedQueries.join("|") !== existingQueries.join("|");
+  const existingMatchTerms = collectUniqueTerms(
+    splitCampaignTermLine(rule?.product_match_terms),
+    18
+  );
+  const existingAvoidTerms = collectUniqueTerms(
+    extractCampaignAvoidTerms(rule),
+    18
+  );
 
-  if (changed) {
+  const response = await openai.responses.create({
+    model: PRODUCT_RESEARCH_FAST_MODEL,
+    ...getReasoningOptionsForModel(PRODUCT_RESEARCH_FAST_MODEL),
+    input: `
+You improve product-search vocabulary for one campaign carousel.
+
+Goal:
+Create a compact search vocabulary that finds several concrete products that genuinely fit the campaign on the customer's own website.
+
+Rules:
+- Do not use a fixed holiday list or hardcoded Swedish/English campaign words.
+- Infer the campaign meaning, occasion, motifs, synonyms, recipient/use case and likely store vocabulary from the supplied context.
+- For a named occasion, season, event or theme, prioritize direct theme words, motif words, title-like expressions and common local-language synonyms before broad gift or product-category phrases.
+- Include commonly used cross-language variants only when they are plausibly used in the website's product titles or search index.
+- Preserve useful existing terms, but replace weak generic searches with stronger direct theme searches.
+- Product search queries must be realistic store-search-box queries, normally 1-3 words and never more than 4 words.
+- Create 10-12 varied queries ordered strongest first. Avoid repeating the same product type in most queries.
+- Product match terms must identify genuine product-level relevance, not merely giftability.
+- Expand avoid terms semantically and across likely website-language variants when that prevents nearby but wrong products from being selected.
+- Never invent exact product names unless the supplied website/brand context supports them.
+- Return strict JSON only.
+
+Brand profile:
+${formatBrandProfileForPrompt(brandProfile)}
+
+Campaign name:
+${rule?.name || ""}
+
+Campaign prompt:
+${truncateText(rule?.prompt || "", 7000)}
+
+Image/campaign guidance:
+${truncateText(rule?.image_prompt || "", 3500)}
+
+Existing product search queries:
+${existingQueries.join(", ") || "None"}
+
+Existing product match terms:
+${existingMatchTerms.join(", ") || "None"}
+
+Existing avoid terms:
+${existingAvoidTerms.join(", ") || "None"}
+
+Return:
+{
+  "product_search_queries": ["10-12 short varied queries"],
+  "product_match_terms": ["8-16 direct relevance terms"],
+  "product_avoid_terms": ["0-16 nearby but wrong terms"]
+}
+    `.trim(),
+  });
+
+  const parsed = safeJsonParse(response.output_text || "");
+  if (!parsed || typeof parsed !== "object") {
+    return null;
+  }
+
+  const productSearchQueries = normalizeStoreSearchQueries(
+    splitCampaignTermLine(parsed.product_search_queries),
+    CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
+  );
+  const productMatchTerms = collectUniqueTerms(
+    splitCampaignTermLine(parsed.product_match_terms),
+    18
+  );
+  const productAvoidTerms = collectUniqueTerms(
+    splitCampaignTermLine(parsed.product_avoid_terms),
+    18
+  );
+
+  if (!productSearchQueries.length && !productMatchTerms.length && !productAvoidTerms.length) {
+    return null;
+  }
+
+  return {
+    productSearchQueries,
+    productMatchTerms,
+    productAvoidTerms,
+  };
+}
+
+async function ensureProductSearchQueriesForRule({
+  supabase,
+  openai,
+  rule,
+  brandProfile,
+}) {
+  const existingQueries = normalizeStoreSearchQueries(
+    splitCampaignTermLine(rule?.product_search_queries),
+    CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
+  );
+  const existingMatchTerms = collectUniqueTerms(
+    splitCampaignTermLine(rule?.product_match_terms),
+    18
+  );
+  const existingAvoidTerms = collectUniqueTerms(
+    extractCampaignAvoidTerms(rule),
+    18
+  );
+
+  let aiVocabulary = null;
+  if (isCampaignScopedWebsiteRule(rule) && isCarouselRule(rule)) {
     try {
+      aiVocabulary = await generateCampaignSearchVocabularyWithAi({
+        openai,
+        rule,
+        brandProfile,
+      });
+    } catch (error) {
+      console.warn("Campaign product search vocabulary AI expansion failed; using deterministic terms", {
+        ruleId: rule?.id,
+        brandProfileId: rule?.brand_profile_id,
+        message: error?.message,
+      });
+    }
+  }
+
+  const deterministicQueries = buildFallbackProductSearchQueriesForRule(rule);
+  const normalizedQueries = normalizeStoreSearchQueries(
+    [
+      ...(aiVocabulary?.productSearchQueries || []),
+      ...deterministicQueries,
+      ...existingQueries,
+    ],
+    CAMPAIGN_STORE_SEARCH_QUERY_LIMIT
+  );
+  const normalizedMatchTerms = collectUniqueTerms(
+    [
+      ...(aiVocabulary?.productMatchTerms || []),
+      ...existingMatchTerms,
+    ],
+    18
+  );
+  const normalizedAvoidTerms = collectUniqueTerms(
+    [
+      ...(aiVocabulary?.productAvoidTerms || []),
+      ...existingAvoidTerms,
+    ],
+    18
+  );
+
+  if (!normalizedQueries.length) {
+    return rule;
+  }
+
+  const queriesChanged = normalizedQueries.join("|") !== existingQueries.join("|");
+  const matchTermsChanged = normalizedMatchTerms.join("|") !== existingMatchTerms.join("|");
+  const avoidTermsChanged = normalizedAvoidTerms.join("|") !== existingAvoidTerms.join("|");
+
+  if (queriesChanged || matchTermsChanged || avoidTermsChanged) {
+    try {
+      const updatePayload = {
+        product_search_queries: normalizedQueries,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (normalizedMatchTerms.length) {
+        updatePayload.product_match_terms = normalizedMatchTerms;
+      }
+      if (normalizedAvoidTerms.length) {
+        updatePayload.product_avoid_terms = normalizedAvoidTerms;
+        updatePayload.avoid_terms = normalizedAvoidTerms;
+      }
+
       await supabase
         .from("automation_rules")
-        .update({
-          product_search_queries: normalizedQueries,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq("id", rule.id)
         .eq("user_id", rule.user_id);
     } catch (error) {
-      console.warn("Could not persist normalized product_search_queries; using them for this run only", {
+      console.warn("Could not persist expanded campaign product vocabulary; using it for this run only", {
         ruleId: rule?.id,
         message: error?.message,
       });
     }
   }
 
-  // Mutate the current rule object as well as persisting it. The cron logger and
-  // all later steps then see the same derived queries that were actually used.
   rule.product_search_queries = normalizedQueries;
+  if (normalizedMatchTerms.length) {
+    rule.product_match_terms = normalizedMatchTerms;
+  }
+  if (normalizedAvoidTerms.length) {
+    rule.product_avoid_terms = normalizedAvoidTerms;
+    rule.avoid_terms = normalizedAvoidTerms;
+  }
   rule.product_search_queries_derived = !existingQueries.length;
+
+  if (aiVocabulary) {
+    console.log("Campaign product search vocabulary expanded with AI", {
+      ruleId: rule?.id,
+      brandProfileId: rule?.brand_profile_id,
+      previousQueries: existingQueries,
+      productSearchQueries: normalizedQueries,
+      productMatchTerms: normalizedMatchTerms,
+      productAvoidTerms: normalizedAvoidTerms,
+    });
+  }
 
   return rule;
 }

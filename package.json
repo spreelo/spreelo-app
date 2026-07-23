@@ -12,7 +12,8 @@
     "test:store-map-early-exit": "node scripts/test-store-map-early-exit.mjs",
     "test:candidate-diagnostics": "node scripts/test-candidate-decision-diagnostics.mjs",
     "test:store-map-progressive-pool": "node scripts/test-store-map-progressive-campaign-pool.mjs",
-    "test:campaign-search-optimization": "node scripts/test-campaign-search-timeout-optimization.mjs"
+    "test:campaign-search-optimization": "node scripts/test-campaign-search-timeout-optimization.mjs",
+    "test:campaign-quality-label-v124": "node scripts/test-campaign-quality-label-v124.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.110.7",

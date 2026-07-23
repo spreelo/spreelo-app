@@ -874,6 +874,9 @@ Query-mix rules:
 - For commercial promotions such as broad sale events, do not search for merchandise depicting the promotion name. Search the store's real hero categories, popular product families, strong motifs or commercially useful assortment areas supported by the website evidence.
 - For category/product-launch campaigns, search the actual category, feature, material, model, benefit or use case rather than generic campaign words.
 - For motif/title-led stores, do not let generic store words dominate. Words equivalent to “funny”, “design”, “print”, “clothing”, “gift”, “custom” or a broad product type are not useful standalone theme queries unless the campaign itself is specifically about that concept.
+- For a named occasion, season, event or cultural theme, make direct theme words, local synonyms, motif/title-like expressions and likely website-language variants the majority of the strongest queries. Generic gift, present or broad product-type searches are secondary and must never dominate a themed query list.
+- Include common cross-language variants only when they are plausibly present in the store's product titles or search index; do not translate mechanically.
+- Expand avoid terms with likely semantic and website-language equivalents when that prevents nearby but wrong products from entering the candidate pool.
 - Use the campaign name once when useful, then diversify into distinct semantic roots. Do not prefix the campaign name to every query.
 - Do not repeat the same generic product type in most queries. For motif/title-led campaigns, no more than about three queries should be built around the same broad product type.
 - Never use campaign goals, marketing sentences or filler such as “increase sales of…”. Preserve useful multiword expressions instead of splitting them into unrelated words.
