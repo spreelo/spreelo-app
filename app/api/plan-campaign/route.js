@@ -23,6 +23,8 @@ const allowedAngles = new Set([
 const allowedStages = new Set(["cold", "warm", "ready_to_buy"]);
 const allowedCtaStrengths = new Set(["soft", "medium", "strong"]);
 const allowedContentModes = new Set([
+  "website_product_ad",
+  "website_reel",
   "generic_campaign",
   "mixed_campaign_and_website",
   "website_product",
@@ -30,6 +32,22 @@ const allowedContentModes = new Set([
   "website_carousel",
   "ai_image_overlay",
   "ai_image_text",
+  "problem_solution",
+  "tips",
+  "faq",
+  "checklist",
+  "mistakes",
+  "myth_fact",
+  "mini_guide",
+  "seasonal",
+]);
+
+const actionableContentModes = new Set([
+  "website_product",
+  "website_product_ad",
+  "website_reel",
+  "website_service",
+  "website_carousel",
   "problem_solution",
   "tips",
   "faq",
@@ -334,6 +352,183 @@ function planHasProductSearchMetadata(postPlan) {
   });
 }
 
+function planHasOnlyActionableContentModes(postPlan) {
+  const items = Array.isArray(postPlan) ? postPlan : [];
+  return (
+    items.length > 0 &&
+    items.every((item) =>
+      actionableContentModes.has(
+        String(item?.content_source_mode || "").trim().toLowerCase()
+      )
+    )
+  );
+}
+
+function planHasRequiredProductSearchMetadata(postPlan) {
+  const websiteModes = new Set([
+    "website_product",
+    "website_product_ad",
+    "website_reel",
+    "website_service",
+    "website_carousel",
+  ]);
+  const items = Array.isArray(postPlan) ? postPlan : [];
+  const requiresProductMetadata = items.some((item) =>
+    websiteModes.has(
+      String(item?.content_source_mode || "").trim().toLowerCase()
+    )
+  );
+
+  return !requiresProductMetadata || planHasProductSearchMetadata(items);
+}
+
+function campaignHasProductCapability(campaign, brandProfile) {
+  const websiteContentFit = String(campaign?.website_content_fit || "").toLowerCase();
+  const websiteContentStrategy = String(
+    campaign?.website_content_strategy || ""
+  ).toLowerCase();
+
+  return (
+    Boolean(brandProfile?.website_product_mode_available) &&
+    websiteContentFit !== "weak" &&
+    websiteContentStrategy !== "none"
+  );
+}
+
+function campaignHasServiceCapability(campaign, brandProfile) {
+  const text = [
+    campaign?.website_content_strategy,
+    campaign?.website_content_fit,
+    campaign?.industry,
+    campaign?.description,
+    campaign?.campaign_goal,
+    brandProfile?.industry,
+    brandProfile?.brand_description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return /service|services|booking|appointment|consult|treatment|repair|installation|cleaning|agency|studio|salon|clinic|software|saas|platform|support|tjänst|bokning|behandling|reparation|installation|städ|salong|klinik/.test(
+    text
+  );
+}
+
+function getSafeNonProductCampaignMode(campaign, item, marketingAngle, index, total) {
+  const campaignText = [
+    campaign?.title,
+    campaign?.description,
+    campaign?.event_type,
+    campaign?.campaign_category,
+    campaign?.campaign_goal,
+    item?.role,
+    item?.purpose,
+    item?.strategic_reason,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const hasTimelyContext = Boolean(
+    campaign?.event_date || campaign?.start_date || campaign?.end_date
+  );
+
+  if (marketingAngle === "trust") return "faq";
+  if (marketingAngle === "engagement") return "tips";
+  if (marketingAngle === "product_discovery") return "mini_guide";
+  if (marketingAngle === "product_push" || marketingAngle === "offer") {
+    return "problem_solution";
+  }
+  if (marketingAngle === "urgency") {
+    return index >= Math.max(total - 2, 0) ? "faq" : "problem_solution";
+  }
+  if (
+    hasTimelyContext ||
+    /season|holiday|christmas|halloween|easter|summer|winter|spring|autumn|fall|jul|påsk|sommar|vinter|vår|höst/.test(
+      campaignText
+    )
+  ) {
+    return "seasonal";
+  }
+  return index === 0 ? "problem_solution" : "tips";
+}
+
+function normalizeCampaignContentMode({
+  requestedMode,
+  campaign,
+  brandProfile,
+  item,
+  marketingAngle,
+  index,
+  total,
+}) {
+  const normalizedMode = normalizeEnum(
+    requestedMode,
+    allowedContentModes,
+    ""
+  );
+  const hasProducts = campaignHasProductCapability(campaign, brandProfile);
+  const hasServices = campaignHasServiceCapability(campaign, brandProfile);
+  const laterPost = index >= Math.max(1, Math.floor(total / 2));
+
+  if (actionableContentModes.has(normalizedMode)) {
+    if (
+      [
+        "website_product",
+        "website_product_ad",
+        "website_reel",
+        "website_carousel",
+      ].includes(normalizedMode) &&
+      !hasProducts
+    ) {
+      return hasServices && laterPost
+        ? "website_service"
+        : getSafeNonProductCampaignMode(
+            campaign,
+            item,
+            marketingAngle,
+            index,
+            total
+          );
+    }
+
+    if (normalizedMode === "website_service" && !hasServices) {
+      return hasProducts && laterPost
+        ? "website_product"
+        : getSafeNonProductCampaignMode(
+            campaign,
+            item,
+            marketingAngle,
+            index,
+            total
+          );
+    }
+
+    return normalizedMode;
+  }
+
+  if (hasProducts) {
+    if (marketingAngle === "product_discovery") return "website_carousel";
+    if (marketingAngle === "product_push" || marketingAngle === "offer") {
+      return laterPost ? "website_product_ad" : "website_product";
+    }
+    if (marketingAngle === "urgency") {
+      return laterPost ? "website_reel" : "website_product_ad";
+    }
+  }
+
+  if (hasServices && laterPost && ["product_push", "offer", "urgency"].includes(marketingAngle)) {
+    return "website_service";
+  }
+
+  return getSafeNonProductCampaignMode(
+    campaign,
+    item,
+    marketingAngle,
+    index,
+    total
+  );
+}
+
 function getDefaultCampaignCount(campaign) {
   const eventType = String(campaign?.event_type || "").toLowerCase();
   const category = String(campaign?.campaign_category || "").toLowerCase();
@@ -347,7 +542,7 @@ function getDefaultCampaignCount(campaign) {
   return 3;
 }
 
-function normalizePlan(rawPlan, campaign) {
+function normalizePlan(rawPlan, campaign, brandProfile) {
   const recommendedCount = clampNumber(
     rawPlan?.recommended_post_count ?? campaign?.recommended_post_count,
     1,
@@ -373,11 +568,15 @@ function normalizePlan(rawPlan, campaign) {
         allowedCtaStrengths,
         marketingAngle === "urgency" || marketingAngle === "offer" ? "strong" : marketingAngle === "awareness" || marketingAngle === "engagement" ? "soft" : "medium"
       );
-      const contentSourceMode = normalizeEnum(
-        item?.content_source_mode,
-        allowedContentModes,
-        marketingAngle === "product_push" || marketingAngle === "offer" ? "website_product" : "generic_campaign"
-      );
+      const contentSourceMode = normalizeCampaignContentMode({
+        requestedMode: item?.content_source_mode,
+        campaign,
+        brandProfile,
+        item,
+        marketingAngle,
+        index,
+        total: Math.max(recommendedCount, rawItems.length, 1),
+      });
       const productMatchTerms = normalizeCampaignProductTerms(
         campaign,
         item,
@@ -436,34 +635,45 @@ function normalizePlan(rawPlan, campaign) {
   };
 }
 
-function buildFallbackPlan(campaign) {
+function buildFallbackPlan(campaign, brandProfile) {
   const count = clampNumber(campaign?.recommended_post_count, 1, 5, getDefaultCampaignCount(campaign));
   const sequence = count <= 1
-    ? [["Main campaign post", "Combine timing, relevance and a clear next step.", "product_push", "warm", "medium", "generic_campaign"]]
+    ? [["Main campaign post", "Combine timing, relevance and a clear next step.", "product_push", "warm", "medium", "problem_solution"]]
     : count === 2
     ? [
-        ["Inspiration", "Introduce why this campaign matters to the audience.", "awareness", "cold", "soft", "generic_campaign"],
+        ["Inspiration", "Introduce why this campaign matters to the audience.", "awareness", "cold", "soft", "seasonal"],
         ["Action reminder", "Make the next step concrete before the opportunity passes.", "urgency", "ready_to_buy", "strong", "website_product"],
       ]
     : [
-        ["Inspiration", "Create early interest and make the campaign feel relevant.", "awareness", "cold", "soft", "ai_image_overlay"],
+        ["Inspiration", "Create early interest and make the campaign feel relevant.", "awareness", "cold", "soft", "seasonal"],
         ["Useful guide", "Help the audience compare options or understand what fits them.", "product_discovery", "warm", "medium", "website_carousel"],
-        ["Product push", "Make the product, service or offer concrete and easy to act on.", "product_push", "warm", "medium", "website_product"],
-        ["Trust builder", "Reduce hesitation with reassurance, explanation or useful context.", "trust", "warm", "medium", "mixed_campaign_and_website"],
-        ["Last chance", "Create a clear timely reason to act now.", "urgency", "ready_to_buy", "strong", "ai_image_text"],
+        ["Product push", "Make the product, service or offer concrete and easy to act on.", "product_push", "warm", "medium", "website_product_ad"],
+        ["Trust builder", "Reduce hesitation with reassurance, explanation or useful context.", "trust", "warm", "medium", "faq"],
+        ["Last chance", "Create a clear timely reason to act now.", "urgency", "ready_to_buy", "strong", "website_reel"],
       ].slice(0, count);
 
   return {
     recommended_post_count: sequence.length,
     strategy_summary: "Fallback strategic campaign plan.",
-    post_plan: sequence.map((item) => ({
+    post_plan: sequence.map((item, index) => ({
       role: item[0],
       purpose: item[1],
       strategic_reason: item[1],
       marketing_angle: item[2],
       customer_stage: item[3],
       cta_strength: item[4],
-      content_source_mode: item[5],
+      content_source_mode: normalizeCampaignContentMode({
+        requestedMode: item[5],
+        campaign,
+        brandProfile,
+        item: {
+          role: item[0],
+          purpose: item[1],
+        },
+        marketingAngle: item[2],
+        index,
+        total: sequence.length,
+      }),
       campaign_phase: item[2],
       timing_anchor: "",
       publish_date: "",
@@ -534,7 +744,8 @@ export async function POST(request) {
     if (
       Array.isArray(campaign.post_plan) &&
       campaign.post_plan.length > 0 &&
-      planHasProductSearchMetadata(campaign.post_plan)
+      planHasOnlyActionableContentModes(campaign.post_plan) &&
+      planHasRequiredProductSearchMetadata(campaign.post_plan)
     ) {
       return Response.json({ campaign, post_plan: campaign.post_plan, source: "database" });
     }
@@ -587,7 +798,7 @@ Return JSON in this exact shape:
       "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency",
       "customer_stage": "cold | warm | ready_to_buy",
       "cta_strength": "soft | medium | strong",
-      "content_source_mode": "generic_campaign | mixed_campaign_and_website | website_product | website_service | website_carousel | ai_image_overlay | ai_image_text | problem_solution | tips | faq | checklist | mistakes | myth_fact | mini_guide | seasonal",
+      "content_source_mode": "website_product | website_product_ad | website_reel | website_service | website_carousel | problem_solution | tips | faq | checklist | mistakes | myth_fact | mini_guide | seasonal",
       "timing_anchor": "inspiration | engagement | trust | conversion | deadline | event | evergreen",
       "publish_date": "YYYY-MM-DD or empty string",
       "publish_time": "HH:MM or empty string",
@@ -611,8 +822,9 @@ Strategic rules:
 - For evergreen campaigns, create a focused sequence over a short useful window unless the campaign is clearly meant to be recurring.
 - Choose publish_date and publish_time when there is enough date information. Use empty string only if the client scheduler should decide.
 - Times must fit the post's job: inspiration can be morning/midday, product/offer often lunch/afternoon, urgency often late afternoon/evening, relationship/event-day content can be morning or evening depending on context.
-- Choose content_source_mode with care. Do not use website_product unless the business likely has concrete products/items. Use website_carousel when several verified products fit one clear campaign theme. Use problem_solution, tips, faq, checklist, mistakes, myth_fact, mini_guide and seasonal whenever those formats are a better strategic fit than a generic campaign post. Do not create customer cases, local-angle posts, comparisons or behind-the-scenes posts. Use ai_image_overlay or ai_image_text for emotional, deadline or strongly visual awareness posts.
-- For every post that uses website_product, website_service, mixed_campaign_and_website or website_carousel, create product_match_terms, product_search_queries, product_avoid_terms and product_search_intent.
+- Every post must use one real Spreelo format from the allowed content_source_mode list. Never return generic_campaign, mixed_campaign_and_website, ai_image_overlay, ai_image_text or manual/custom post.
+- Choose content_source_mode with care. Do not use website_product, website_product_ad, website_reel or website_carousel unless the business has verified product mode. Use website_carousel when several verified products fit one clear campaign theme. Use website_product_ad for a visually strong AI-designed product advertisement and website_reel when motion is strategically useful. Use problem_solution, tips, faq, checklist, mistakes, myth_fact, mini_guide and seasonal whenever those formats are a better strategic fit. Do not create customer cases, local-angle posts, comparisons or behind-the-scenes posts.
+- For every post that uses website_product, website_product_ad, website_reel, website_service or website_carousel, create product_match_terms, product_search_queries, product_avoid_terms and product_search_intent.
 - Product terms must be created dynamically for this exact campaign, country, market, language and brand. Do not rely on a fixed Swedish or English keyword list.
 - First use the campaign's saved product search strategy and assortment evidence to infer how this specific business names and groups products: motif/design-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led, brand/model-led or another pattern.
 - product_search_intent must describe that business-specific search approach in one short sentence.
@@ -642,8 +854,11 @@ Strategic rules:
     });
 
     const parsed = safeJsonParse(response.output_text);
-    const normalizedPlan = normalizePlan(parsed, campaign);
-    const finalPlan = normalizedPlan.post_plan.length > 0 ? normalizedPlan : buildFallbackPlan(campaign);
+    const normalizedPlan = normalizePlan(parsed, campaign, brandProfile);
+    const finalPlan =
+      normalizedPlan.post_plan.length > 0
+        ? normalizedPlan
+        : buildFallbackPlan(campaign, brandProfile);
 
     const updatedCampaign = {
       ...campaign,

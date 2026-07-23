@@ -231,6 +231,9 @@ const WEEKDAYS = [
 ];
 
 const ADAPTIVE_PLAN_PREFIX = "SPREELO_ADAPTIVE_V1:";
+const ADAPTIVE_HISTORY_LOOKBACK_WEEKS = 12;
+const ADAPTIVE_HISTORY_QUERY_LIMIT = 1000;
+const ADAPTIVE_RECENT_HISTORY_LIMIT = 80;
 
 
 let websiteFetchControlClient = null;
@@ -415,17 +418,203 @@ function getAdaptiveWeeklyCycle(rule, scheduledPublishAtIso, config = null) {
   );
 }
 
-function resolveAdaptiveWeeklyRule(rule, scheduledPublishAtIso) {
+function getAdaptiveHistoryKey(value) {
+  const brandProfileId = String(value?.brand_profile_id || "").trim();
+  if (brandProfileId) return `brand:${brandProfileId}`;
+
+  const userId = String(value?.user_id || "").trim();
+  return userId ? `user:${userId}` : "";
+}
+
+function getAdaptiveVariantContentType(variant, rule = null) {
+  return String(variant?.contentTypeId || rule?.content_type_id || "").trim();
+}
+
+function isAdaptiveProductContentType(contentTypeId) {
+  return [
+    "website_item",
+    "website_item_text_ad",
+    "animated_website_item",
+    "carousel_website_item",
+  ].includes(String(contentTypeId || "").trim());
+}
+
+function getCircularVariantDistance(index, targetIndex, length) {
+  if (!length) return 0;
+  const directDistance = Math.abs(index - targetIndex);
+  return Math.min(directDistance, length - directDistance);
+}
+
+function getLockedAdaptiveVariantSelection(config, cycle) {
+  const lockedVariantIndex = Number(config?.lockedVariantIndex);
+  const lockedVariantCycle = Number(config?.lockedVariantCycle);
+  const variants = Array.isArray(config?.variants) ? config.variants : [];
+
+  if (
+    !Number.isInteger(lockedVariantIndex) ||
+    !Number.isInteger(lockedVariantCycle) ||
+    lockedVariantCycle !== cycle ||
+    lockedVariantIndex < 0 ||
+    lockedVariantIndex >= variants.length
+  ) {
+    return null;
+  }
+
+  return {
+    variant: variants[lockedVariantIndex],
+    variantIndex: lockedVariantIndex,
+  };
+}
+
+function writeAdaptiveVariantLockToStrategyNotes({
+  rule,
+  scheduledPublishAtIso,
+  selectedRule,
+}) {
+  const config = parseAdaptivePlanConfig(rule);
+  const strategyNotes = String(rule?.strategy_notes || "");
+  if (!config || config.selectionMode !== "history_balanced") {
+    return strategyNotes;
+  }
+
+  const variantIndex = Number(selectedRule?.adaptive_variant_index);
+  if (
+    !Number.isInteger(variantIndex) ||
+    variantIndex < 0 ||
+    variantIndex >= config.variants.length
+  ) {
+    return strategyNotes;
+  }
+
+  const markerIndex = strategyNotes.indexOf(ADAPTIVE_PLAN_PREFIX);
+  if (markerIndex === -1) return strategyNotes;
+
+  const jsonStart = markerIndex + ADAPTIVE_PLAN_PREFIX.length;
+  const lineEndIndex = strategyNotes.indexOf("\n", jsonStart);
+  const jsonEnd = lineEndIndex === -1 ? strategyNotes.length : lineEndIndex;
+  const lockedConfig = {
+    ...config,
+    lockedVariantIndex: variantIndex,
+    lockedVariantCycle: getAdaptiveWeeklyCycle(
+      rule,
+      scheduledPublishAtIso,
+      config
+    ),
+  };
+
+  return `${strategyNotes.slice(0, jsonStart)}${JSON.stringify(lockedConfig)}${strategyNotes.slice(jsonEnd)}`;
+}
+
+function selectHistoryBalancedAdaptiveVariant({
+  rule,
+  config,
+  scheduledPublishAtIso,
+  historyByOwner = new Map(),
+  usedTypesByOwner = new Map(),
+}) {
+  const variants = Array.isArray(config?.variants) ? config.variants : [];
+  if (!variants.length) return { variant: null, variantIndex: -1 };
+
+  const cycle = getAdaptiveWeeklyCycle(rule, scheduledPublishAtIso, config);
+  const slotIndex = Math.max(0, Number(config.slotIndex || 0));
+  const slotCount = Math.max(1, Number(config.slotCount || 1));
+  const ownerKey = getAdaptiveHistoryKey(rule);
+  const history = ownerKey ? historyByOwner.get(ownerKey) || [] : [];
+  const usedThisRun = ownerKey ? usedTypesByOwner.get(ownerKey) || new Set() : new Set();
+  const recentTypes = history
+    .map((item) => String(item?.content_type_id || "").trim())
+    .filter(Boolean)
+    .slice(0, ADAPTIVE_RECENT_HISTORY_LIMIT);
+  const recentSix = recentTypes.slice(0, 6);
+  const recentProductCount = recentSix.filter(isAdaptiveProductContentType).length;
+  const goalId = String(config?.goalId || "").trim();
+  const rotationTarget = (cycle * slotCount + slotIndex) % variants.length;
+
+  let bestCandidate = null;
+
+  for (let index = 0; index < variants.length; index += 1) {
+    const variant = variants[index];
+    if (!variant || typeof variant !== "object") continue;
+
+    const contentTypeId = getAdaptiveVariantContentType(variant, rule);
+    if (!contentTypeId) continue;
+
+    const firstRecentIndex = recentTypes.indexOf(contentTypeId);
+    const usesInLastTwenty = recentTypes
+      .slice(0, 20)
+      .filter((typeId) => typeId === contentTypeId).length;
+    const circularDistance = getCircularVariantDistance(
+      index,
+      rotationTarget,
+      variants.length
+    );
+
+    let score = 100;
+
+    // Keep the AI-curated order meaningful while still letting history drive variation.
+    score += Math.max(0, 12 - index * 1.25);
+    score += Math.max(0, 16 - circularDistance * 5);
+
+    if (usedThisRun.has(contentTypeId)) score -= 125;
+    if (firstRecentIndex === 0) score -= 115;
+    else if (firstRecentIndex === 1) score -= 82;
+    else if (firstRecentIndex >= 2 && firstRecentIndex <= 3) score -= 55;
+    else if (firstRecentIndex >= 4 && firstRecentIndex <= 7) score -= 28;
+    else if (firstRecentIndex >= 8 && firstRecentIndex <= 11) score -= 12;
+
+    score -= usesInLastTwenty * 9;
+
+    if (
+      goalId !== "sell_more" &&
+      recentSix.length >= 4 &&
+      recentProductCount >= Math.ceil(recentSix.length / 2) &&
+      isAdaptiveProductContentType(contentTypeId)
+    ) {
+      score -= 42;
+    }
+
+    const candidate = { variant, variantIndex: index, score };
+    if (
+      !bestCandidate ||
+      candidate.score > bestCandidate.score ||
+      (candidate.score === bestCandidate.score && index < bestCandidate.variantIndex)
+    ) {
+      bestCandidate = candidate;
+    }
+  }
+
+  return bestCandidate || { variant: variants[rotationTarget], variantIndex: rotationTarget };
+}
+
+function resolveAdaptiveWeeklyRule(rule, scheduledPublishAtIso, options = {}) {
   const config = parseAdaptivePlanConfig(rule);
   if (!config) return rule;
 
   const cycle = getAdaptiveWeeklyCycle(rule, scheduledPublishAtIso, config);
   const slotIndex = Math.max(0, Number(config.slotIndex || 0));
-  const variantIndex =
+
+  let variantIndex =
     config.selectionMode === "cycle"
       ? cycle % config.variants.length
       : (cycle + slotIndex) % config.variants.length;
-  const variant = config.variants[variantIndex];
+  let variant = config.variants[variantIndex];
+
+  if (config.selectionMode === "history_balanced") {
+    const lockedSelection = getLockedAdaptiveVariantSelection(config, cycle);
+    const selected =
+      lockedSelection ||
+      selectHistoryBalancedAdaptiveVariant({
+        rule,
+        config,
+        scheduledPublishAtIso,
+        historyByOwner: options.historyByOwner,
+        usedTypesByOwner: options.usedTypesByOwner,
+      });
+    variant = selected?.variant;
+    variantIndex = Number.isInteger(selected?.variantIndex)
+      ? selected.variantIndex
+      : variantIndex;
+  }
 
   if (!variant || typeof variant !== "object") return rule;
 
@@ -452,7 +641,111 @@ function resolveAdaptiveWeeklyRule(rule, scheduledPublishAtIso) {
     cta_strength: variant.ctaStrength || rule.cta_strength,
     adaptive_cycle: cycle,
     adaptive_goal: config.goalId || null,
+    adaptive_variant_index: variantIndex,
+    adaptive_selection_mode: config.selectionMode || "rotation",
   };
+}
+
+async function loadAdaptiveWeeklyHistory({ supabase, rules, now }) {
+  const historyByOwner = new Map();
+  const adaptiveRules = (rules || []).filter((rule) => parseAdaptivePlanConfig(rule));
+  if (!adaptiveRules.length) return historyByOwner;
+
+  const brandProfileIds = Array.from(
+    new Set(
+      adaptiveRules
+        .map((rule) => String(rule?.brand_profile_id || "").trim())
+        .filter(Boolean)
+    )
+  );
+  const fallbackUserIds = Array.from(
+    new Set(
+      adaptiveRules
+        .filter((rule) => !String(rule?.brand_profile_id || "").trim())
+        .map((rule) => String(rule?.user_id || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  const lookbackStart = new Date(
+    new Date(now || Date.now()).getTime() -
+      ADAPTIVE_HISTORY_LOOKBACK_WEEKS * 7 * 24 * 60 * 60 * 1000
+  ).toISOString();
+  const rows = [];
+
+  const runQuery = async (column, values) => {
+    if (!values.length) return;
+
+    const { data, error } = await supabase
+      .from("automation_run_logs")
+      .select("brand_profile_id, user_id, content_type_id, started_at, status")
+      .eq("status", "success")
+      .in(column, values)
+      .gte("started_at", lookbackStart)
+      .order("started_at", { ascending: false })
+      .limit(ADAPTIVE_HISTORY_QUERY_LIMIT);
+
+    if (error) throw error;
+    rows.push(...(Array.isArray(data) ? data : []));
+  };
+
+  try {
+    await runQuery("brand_profile_id", brandProfileIds);
+    await runQuery("user_id", fallbackUserIds);
+  } catch (error) {
+    if (!isMissingAutomationRunLogsTableError(error)) {
+      console.warn("Could not load adaptive weekly content history", {
+        message: error?.message,
+      });
+    }
+    return historyByOwner;
+  }
+
+  rows
+    .sort(
+      (a, b) =>
+        new Date(b?.started_at || 0).getTime() -
+        new Date(a?.started_at || 0).getTime()
+    )
+    .forEach((row) => {
+      const ownerKey = getAdaptiveHistoryKey(row);
+      const contentTypeId = String(row?.content_type_id || "").trim();
+      if (!ownerKey || !contentTypeId) return;
+
+      const current = historyByOwner.get(ownerKey) || [];
+      if (current.length >= ADAPTIVE_RECENT_HISTORY_LIMIT) return;
+      current.push({
+        content_type_id: contentTypeId,
+        started_at: row?.started_at || null,
+      });
+      historyByOwner.set(ownerKey, current);
+    });
+
+  return historyByOwner;
+}
+
+function rememberAdaptiveWeeklySelection({
+  rule,
+  historyByOwner,
+  usedTypesByOwner,
+  selectedAtIso,
+}) {
+  if (rule?.adaptive_selection_mode !== "history_balanced") return;
+
+  const ownerKey = getAdaptiveHistoryKey(rule);
+  const contentTypeId = String(rule?.content_type_id || "").trim();
+  if (!ownerKey || !contentTypeId) return;
+
+  const usedTypes = usedTypesByOwner.get(ownerKey) || new Set();
+  usedTypes.add(contentTypeId);
+  usedTypesByOwner.set(ownerKey, usedTypes);
+
+  const history = historyByOwner.get(ownerKey) || [];
+  history.unshift({
+    content_type_id: contentTypeId,
+    started_at: selectedAtIso || new Date().toISOString(),
+  });
+  historyByOwner.set(ownerKey, history.slice(0, ADAPTIVE_RECENT_HISTORY_LIMIT));
 }
 
 function getRuleTimeZone(rule) {
@@ -22955,6 +23248,12 @@ async function runAutomationCron(request, options = {}) {
       batchSize: SMART_QUEUE_BATCH_SIZE,
       workerCount,
     });
+    const adaptiveHistoryByOwner = await loadAdaptiveWeeklyHistory({
+      supabase,
+      rules,
+      now,
+    });
+    const adaptiveTypesUsedThisRun = new Map();
     summary.queue_candidates = rules?.length || 0;
 
     console.info("Shared automation queue candidates selected", {
@@ -22973,7 +23272,11 @@ async function runAutomationCron(request, options = {}) {
       const scheduledPublishAtIso = getScheduledPublishAtIso(queuedRule, now);
       const rule = resolveAdaptiveWeeklyRule(
         queuedRule,
-        scheduledPublishAtIso
+        scheduledPublishAtIso,
+        {
+          historyByOwner: adaptiveHistoryByOwner,
+          usedTypesByOwner: adaptiveTypesUsedThisRun,
+        }
       );
 
       if (
@@ -23037,6 +23340,13 @@ async function runAutomationCron(request, options = {}) {
           summary.skipped_locked += 1;
           continue;
         }
+
+        rememberAdaptiveWeeklySelection({
+          rule,
+          historyByOwner: adaptiveHistoryByOwner,
+          usedTypesByOwner: adaptiveTypesUsedThisRun,
+          selectedAtIso: automationRunStartedAtIso || nowIso,
+        });
 
         claimedRulesThisRun += 1;
         summary.queue_claimed += 1;
@@ -24202,11 +24512,20 @@ product_research_model_used: rule.uses_website_content
         if (rule.schedule_type === "weekly" && ruleUpdatePayload.next_run_at) {
           const nextAdaptiveRule = resolveAdaptiveWeeklyRule(
             queuedRule,
-            ruleUpdatePayload.next_run_at
+            ruleUpdatePayload.next_run_at,
+            {
+              historyByOwner: adaptiveHistoryByOwner,
+              usedTypesByOwner: adaptiveTypesUsedThisRun,
+            }
           );
           ruleUpdatePayload.credit_cost = Number(
             nextAdaptiveRule?.credit_cost || queuedRule.credit_cost || rule.credit_cost || 1
           );
+          ruleUpdatePayload.strategy_notes = writeAdaptiveVariantLockToStrategyNotes({
+            rule: queuedRule,
+            scheduledPublishAtIso: ruleUpdatePayload.next_run_at,
+            selectedRule: nextAdaptiveRule,
+          });
         }
 
         const { error: ruleUpdateError } = await supabase

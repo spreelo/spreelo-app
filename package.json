@@ -13,7 +13,8 @@
     "test:candidate-diagnostics": "node scripts/test-candidate-decision-diagnostics.mjs",
     "test:store-map-progressive-pool": "node scripts/test-store-map-progressive-campaign-pool.mjs",
     "test:campaign-search-optimization": "node scripts/test-campaign-search-timeout-optimization.mjs",
-    "test:v127": "node scripts/test-v127-clean-product-images-content-goals.mjs"
+    "test:v127": "node scripts/test-v127-clean-product-images-content-goals.mjs",
+    "test:v128": "node scripts/test-v128-dynamic-strategy-planner.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.110.7",

@@ -1089,6 +1089,51 @@ function buildAdaptiveWeeklyVariants({
 }) {
   if (!slot || !goalId) return [];
 
+  if (Array.isArray(slot.adaptiveVariants) && slot.adaptiveVariants.length > 1) {
+    const safeVariants = [];
+    const seenTypeIds = new Set();
+
+    for (const rawVariant of slot.adaptiveVariants) {
+      const safeTypeId = getBrandSafeContentTypeId(
+        rawVariant?.contentTypeId,
+        websiteProductModeAvailable
+      );
+      const type = getContentTypeById(safeTypeId);
+      if (!type || type.id === "manual_prompt" || seenTypeIds.has(type.id)) continue;
+
+      const draftSlot = {
+        ...slot,
+        contentTypeId: type.id,
+        contentTypeLabel: type.label,
+        usesWebsiteContent: Boolean(type.usesWebsiteContent),
+        contentFormat: type.contentFormat || "single_image",
+        animationStyle: type.animationStyle || null,
+        generateImage: true,
+      };
+
+      safeVariants.push({
+        ...rawVariant,
+        contentTypeId: type.id,
+        contentTypeLabel: type.label,
+        prompt: rawVariant?.prompt || type.prompt,
+        imagePrompt: rawVariant?.imagePrompt || type.imagePrompt || slot.imagePrompt || "",
+        generateImage: true,
+        imageSource: getRuleImageSource(draftSlot),
+        usesWebsiteContent: Boolean(type.usesWebsiteContent),
+        contentFormat: type.contentFormat || "single_image",
+        animationStyle: type.animationStyle || null,
+        creditCost: getCreditCostForContent(draftSlot),
+      });
+      seenTypeIds.add(type.id);
+
+      if (safeVariants.length >= 8) break;
+    }
+
+    if (safeVariants.length > 1) {
+      return safeVariants;
+    }
+  }
+
   const sequence = getGoalMarketingSequence(goalId);
   const candidateSteps = [
     ...sequence,
@@ -2091,6 +2136,9 @@ productMatchTerms: normalizeCampaignTermList(overrides.productMatchTerms, 30),
 productSearchQueries: normalizeCampaignTermList(overrides.productSearchQueries, 30),
 productAvoidTerms: normalizeCampaignTermList(overrides.productAvoidTerms, 30),
 productSearchIntent: overrides.productSearchIntent || "",
+adaptiveVariants: Array.isArray(overrides.adaptiveVariants)
+  ? overrides.adaptiveVariants
+  : [],
 contentSourceScope: overrides.contentSourceScope || "whole_website",
 contentSourceUrl: overrides.contentSourceUrl || "",
 contentSourceTitle: overrides.contentSourceTitle || "",
@@ -2208,6 +2256,207 @@ function createRecommendedSlots(options = {}) {
       strategyNotes: planningStep.description || "",
       timeZone,
     });
+  });
+}
+
+function normalizeDynamicPlanningStep(
+  rawStep,
+  goalId,
+  websiteProductModeAvailable
+) {
+  const rawContentTypeId = String(
+    rawStep?.content_type_id || rawStep?.contentTypeId || ""
+  ).trim();
+  const contentTypeId = getBrandSafeContentTypeId(
+    rawContentTypeId,
+    websiteProductModeAvailable
+  );
+  const type = getContentTypeById(contentTypeId);
+
+  if (!type || type.id === "manual_prompt" || RETIRED_CONTENT_TYPE_IDS.has(type.id)) {
+    return null;
+  }
+
+  return {
+    contentTypeId: type.id,
+    label: String(rawStep?.role || rawStep?.label || type.label).trim(),
+    description: String(
+      rawStep?.strategic_reason ||
+        rawStep?.purpose ||
+        rawStep?.reason ||
+        type.description ||
+        "Create a useful post that supports the selected goal."
+    ).trim(),
+    marketingAngle: String(rawStep?.marketing_angle || rawStep?.marketingAngle || "").trim(),
+    customerStage: String(rawStep?.customer_stage || rawStep?.customerStage || "").trim(),
+    ctaStrength: String(rawStep?.cta_strength || rawStep?.ctaStrength || "").trim(),
+    goalId,
+  };
+}
+
+function getNormalizedDynamicPlanningSteps({
+  rawSteps,
+  goalId,
+  postCount,
+  websiteProductModeAvailable,
+}) {
+  const count = Math.max(1, Number(postCount) || DEFAULT_AUTO_PLAN_POST_COUNT);
+  const steps = [];
+  const seenTypeIds = new Set();
+
+  for (const rawStep of Array.isArray(rawSteps) ? rawSteps : []) {
+    const step = normalizeDynamicPlanningStep(
+      rawStep,
+      goalId,
+      websiteProductModeAvailable
+    );
+    if (!step || seenTypeIds.has(step.contentTypeId)) continue;
+    seenTypeIds.add(step.contentTypeId);
+    steps.push(step);
+    if (steps.length >= count) break;
+  }
+
+  for (let index = 0; steps.length < count && index < count * 4; index += 1) {
+    const fallbackStep = getGoalPlanningStep({
+      goalId,
+      index,
+      websiteProductModeAvailable,
+    });
+    const normalizedFallback = normalizeDynamicPlanningStep(
+      {
+        content_type_id: fallbackStep.contentTypeId,
+        role: fallbackStep.label,
+        strategic_reason: fallbackStep.description,
+        marketing_angle: fallbackStep.marketingAngle,
+        customer_stage: fallbackStep.customerStage,
+        cta_strength: fallbackStep.ctaStrength,
+      },
+      goalId,
+      websiteProductModeAvailable
+    );
+    if (!normalizedFallback || seenTypeIds.has(normalizedFallback.contentTypeId)) {
+      continue;
+    }
+    seenTypeIds.add(normalizedFallback.contentTypeId);
+    steps.push(normalizedFallback);
+  }
+
+  return steps.slice(0, count);
+}
+
+function buildAdaptiveVariantFromPlanningStep(slot, planningStep, goalId) {
+  const type = getContentTypeById(planningStep?.contentTypeId);
+  if (!type || type.id === "manual_prompt") return null;
+
+  const draftSlot = {
+    ...slot,
+    contentTypeId: type.id,
+    contentTypeLabel: type.label,
+    usesWebsiteContent: Boolean(type.usesWebsiteContent),
+    contentFormat: type.contentFormat || "single_image",
+    animationStyle: type.animationStyle || null,
+    generateImage: true,
+    imageSource: type.usesWebsiteContent ? "website" : "ai",
+  };
+
+  return {
+    contentTypeId: type.id,
+    contentTypeLabel: type.label,
+    prompt: buildGoalSlotPrompt(type, planningStep, goalId),
+    imagePrompt: type.imagePrompt || slot?.imagePrompt || "",
+    generateImage: true,
+    imageSource: getRuleImageSource(draftSlot),
+    usesWebsiteContent: Boolean(type.usesWebsiteContent),
+    contentFormat: type.contentFormat || "single_image",
+    animationStyle: type.animationStyle || null,
+    marketingAngle: planningStep?.marketingAngle || "",
+    customerStage: planningStep?.customerStage || "",
+    ctaStrength: planningStep?.ctaStrength || "",
+    creditCost: getCreditCostForContent(draftSlot),
+  };
+}
+
+function createDynamicRecommendedSlots(options = {}) {
+  const timeZone = options.timeZone || DEFAULT_TIME_ZONE;
+  const startDate =
+    options.startDate || getDateInputValueInTimeZone(new Date(), timeZone);
+  const goalId = options.autoPlanGoal || "";
+  const postCount = options.postCount || DEFAULT_AUTO_PLAN_POST_COUNT;
+  const websiteProductModeAvailable = options.websiteProductModeAvailable !== false;
+  const planningSteps = getNormalizedDynamicPlanningSteps({
+    rawSteps: options.plan?.posts,
+    goalId,
+    postCount,
+    websiteProductModeAvailable,
+  });
+  const rotationSteps = getNormalizedDynamicPlanningSteps({
+    rawSteps: options.plan?.rotation_pool,
+    goalId,
+    postCount: Math.max(6, Math.min(10, contentTypes.length)),
+    websiteProductModeAvailable,
+  });
+  const contentTypeIds = planningSteps.map((step) => step.contentTypeId);
+  const smartSchedule = buildSmartSlotSchedule({
+    startDate,
+    count: planningSteps.length,
+    timeZone,
+    contentTypeIds,
+    goalId,
+  });
+
+  return planningSteps.map((planningStep, index) => {
+    const type = getContentTypeById(planningStep.contentTypeId);
+    const schedule = smartSchedule[index] || {
+      startDate,
+      weekday: getWeekdayFromDateString(startDate, timeZone),
+      publishTime: getRecommendedTimeForDate(startDate, timeZone),
+    };
+    const slotDraft = createSlot({
+      weekday: schedule.weekday,
+      startDate: schedule.startDate,
+      publishTime: schedule.publishTime,
+      prompt: buildGoalSlotPrompt(type, planningStep, goalId),
+      imagePrompt: type?.imagePrompt || "",
+      generateImage: true,
+      contentTypeId: type?.id,
+      contentTypeLabel: type?.label || planningStep.label,
+      usesWebsiteContent: Boolean(type?.usesWebsiteContent),
+      contentFormat: type?.contentFormat || "single_image",
+      animationStyle: type?.animationStyle || null,
+      marketingAngle: planningStep.marketingAngle || "",
+      customerStage: planningStep.customerStage || "",
+      ctaStrength: planningStep.ctaStrength || "",
+      strategyNotes: planningStep.description || options.plan?.strategy_summary || "",
+      timeZone,
+    });
+
+    const candidateSteps = [
+      planningStep,
+      ...rotationSteps.slice(index),
+      ...rotationSteps.slice(0, index),
+    ];
+    const variants = [];
+    const seenVariantIds = new Set();
+
+    for (const candidateStep of candidateSteps) {
+      if (!candidateStep?.contentTypeId || seenVariantIds.has(candidateStep.contentTypeId)) {
+        continue;
+      }
+      const variant = buildAdaptiveVariantFromPlanningStep(
+        slotDraft,
+        candidateStep,
+        goalId
+      );
+      if (!variant) continue;
+      variants.push(variant);
+      seenVariantIds.add(candidateStep.contentTypeId);
+      if (variants.length >= 8) break;
+    }
+
+    return {
+      ...slotDraft,
+      adaptiveVariants: variants,
+    };
   });
 }
 
@@ -2657,9 +2906,14 @@ function getPlanIncludedContentTypes({
   autoPlanPostCount,
   selectedContentTypeIds,
   websiteProductModeAvailable,
+  slots = [],
 }) {
   if (planCreationMode === "campaign") {
-    return [getContentTypeById("manual_prompt")].filter(Boolean);
+    return Array.from(
+      new Set((slots || []).map((slot) => slot?.contentTypeId).filter(Boolean))
+    )
+      .map(getContentTypeById)
+      .filter(Boolean);
   }
 
   if (planCreationMode === "manual") {
@@ -4140,6 +4394,8 @@ function getCampaignSlotContentTypeId(sourceMode) {
   const mappedContentTypes = {
     website_carousel: "carousel_website_item",
     website_product: "website_item",
+    website_product_ad: "website_item_text_ad",
+    website_reel: "animated_website_item",
     website_service: "service_focus",
     problem_solution: "problem_solution",
     tips: "tips",
@@ -4148,17 +4404,20 @@ function getCampaignSlotContentTypeId(sourceMode) {
     mistakes: "mistakes",
     myth_fact: "myth_fact",
     mini_guide: "mini_guide",
-    comparison: "mini_guide",
-    case_example: "checklist",
     seasonal: "seasonal",
   };
 
-  return mappedContentTypes[sourceMode] || "manual_prompt";
+  return mappedContentTypes[sourceMode] || "seasonal";
 }
 
 function getCampaignSlotContentFormat(sourceMode) {
   if (sourceMode === "website_carousel") return "carousel";
+  if (sourceMode === "website_reel") return "animated_video";
   return "single_image";
+}
+
+function getCampaignSlotAnimationStyle(sourceMode) {
+  return sourceMode === "website_reel" ? "product_push" : null;
 }
 
 function getCampaignSlotContentTypeLabel(campaign, sourceMode) {
@@ -4235,96 +4494,118 @@ function getCampaignScheduleFactText(campaign, postPlanItem = {}) {
     .join("\n");
 }
 
+const CAMPAIGN_ACTIONABLE_SOURCE_MODES = new Set([
+  "website_product",
+  "website_product_ad",
+  "website_reel",
+  "website_service",
+  "website_carousel",
+  "problem_solution",
+  "tips",
+  "faq",
+  "checklist",
+  "mistakes",
+  "myth_fact",
+  "mini_guide",
+  "seasonal",
+]);
+
+function campaignHasServiceWebsiteFit(campaign) {
+  const fit = String(campaign?.website_content_fit || "").toLowerCase();
+  const strategy = String(campaign?.website_content_strategy || "").toLowerCase();
+  const text = getCampaignFormatDecisionText(campaign, {}).toLowerCase();
+
+  return (
+    fit !== "weak" &&
+    strategy !== "none" &&
+    (strategy === "service" ||
+      /service|services|booking|appointment|consult|treatment|repair|installation|cleaning|agency|studio|salon|clinic|software|saas|platform|support|tjänst|bokning|behandling|reparation|installation|städ|salong|klinik/.test(
+        text
+      ))
+  );
+}
+
+function getCampaignSafeNonProductMode(campaign, postPlanItem, index, total) {
+  const marketingAngle = normalizeStrategyValue(postPlanItem?.marketing_angle);
+  const phase = normalizeStrategyValue(postPlanItem?.campaign_phase);
+  const text = getCampaignFormatDecisionText(campaign, postPlanItem).toLowerCase();
+  const hasTimelyContext = Boolean(
+    campaign?.event_date || campaign?.start_date || campaign?.end_date
+  );
+
+  if (marketingAngle === "trust" || phase === "trust") return "faq";
+  if (marketingAngle === "engagement") return "tips";
+  if (marketingAngle === "product_discovery") return "mini_guide";
+  if (marketingAngle === "product_push" || marketingAngle === "offer") {
+    return "problem_solution";
+  }
+  if (marketingAngle === "urgency" || phase === "last_chance") {
+    return index >= Math.max(total - 2, 0) ? "faq" : "problem_solution";
+  }
+  if (
+    hasTimelyContext ||
+    /season|holiday|christmas|halloween|easter|summer|winter|spring|autumn|fall|jul|påsk|sommar|vinter|vår|höst/.test(
+      text
+    )
+  ) {
+    return "seasonal";
+  }
+  return index === 0 ? "problem_solution" : "tips";
+}
+
 function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
-  const websiteContentFit = String(
-    campaign?.website_content_fit || ""
-  ).toLowerCase();
+  const explicitMode = String(postPlanItem?.content_source_mode || "")
+    .trim()
+    .toLowerCase();
+  const hasProducts = campaignHasProductWebsiteFit(campaign);
+  const hasServices = campaignHasServiceWebsiteFit(campaign);
+  const marketingAngle = normalizeStrategyValue(postPlanItem?.marketing_angle);
+  const laterPost = index >= Math.max(1, Math.floor(total / 2));
+  const productModes = new Set([
+    "website_product",
+    "website_product_ad",
+    "website_reel",
+    "website_carousel",
+  ]);
 
-  const websiteContentStrategy = String(
-    campaign?.website_content_strategy || ""
-  ).toLowerCase();
-
-  const roleText = `${postPlanItem?.role || ""} ${
-    postPlanItem?.purpose || ""
-  }`.toLowerCase();
-
-  const isLaterCampaignPost =
-    index >= Math.max(1, Math.floor(total / 2)) ||
-    /reminder|final|push|spotlight|highlight|cta|offer|gift|book|buy|order|shop/.test(
-      roleText
-    );
-
-  if (websiteContentFit === "weak" || websiteContentStrategy === "none") {
-    return "generic_campaign";
-  }
-
-  if (shouldUseCarouselForCampaignPost(campaign, postPlanItem, index, total)) {
-    return "website_carousel";
-  }
-
-  if (websiteContentFit === "strong") {
-    if (websiteContentStrategy === "product") {
-      return isLaterCampaignPost
-        ? "website_product"
-        : "mixed_campaign_and_website";
+  if (CAMPAIGN_ACTIONABLE_SOURCE_MODES.has(explicitMode)) {
+    if (productModes.has(explicitMode) && !hasProducts) {
+      if (hasServices && laterPost) return "website_service";
+      return getCampaignSafeNonProductMode(campaign, postPlanItem, index, total);
     }
 
-    if (websiteContentStrategy === "service") {
-      return isLaterCampaignPost
-        ? "website_service"
-        : "mixed_campaign_and_website";
+    if (explicitMode === "website_service" && !hasServices) {
+      if (hasProducts && laterPost) return "website_product";
+      return getCampaignSafeNonProductMode(campaign, postPlanItem, index, total);
     }
 
-    if (websiteContentStrategy === "support") {
-      return "mixed_campaign_and_website";
+    return explicitMode;
+  }
+
+  if (hasProducts) {
+    if (
+      marketingAngle === "product_discovery" ||
+      shouldUseCarouselForCampaignPost(campaign, postPlanItem, index, total)
+    ) {
+      return "website_carousel";
+    }
+    if (marketingAngle === "product_push" || marketingAngle === "offer") {
+      return laterPost ? "website_product_ad" : "website_product";
+    }
+    if (marketingAngle === "urgency") {
+      return laterPost ? "website_reel" : "website_product_ad";
     }
   }
 
-  if (websiteContentFit === "medium") {
-    if (websiteContentStrategy === "product" && isLaterCampaignPost) {
-      return "mixed_campaign_and_website";
-    }
-
-    if (websiteContentStrategy === "service" && isLaterCampaignPost) {
-      return "mixed_campaign_and_website";
-    }
-
-    if (websiteContentStrategy === "support") {
-      return "mixed_campaign_and_website";
-    }
-
-    return "generic_campaign";
-  }
-
-  const campaignText = getCampaignSearchText(campaign);
-
-  const hasProductIntent =
-    /shop|store|ecommerce|e-commerce|product|products|gift|gifts|present|sale|discount|offer|commercial|shopping|seasonal|collection|launch|buy|order/.test(
-      campaignText
-    );
-
-  const hasServiceIntent =
-    /service|services|book|booking|appointment|treatment|consultation|cleaning|clearing|repair|quote|visit|call|contact/.test(
-      campaignText
-    );
-
-  if (hasProductIntent && isLaterCampaignPost) {
-    return "website_product";
-  }
-
-  if (hasProductIntent) {
-    return "mixed_campaign_and_website";
-  }
-
-  if (hasServiceIntent && isLaterCampaignPost) {
+  if (
+    hasServices &&
+    laterPost &&
+    ["product_push", "offer", "urgency"].includes(marketingAngle)
+  ) {
     return "website_service";
   }
 
-  if (hasServiceIntent) {
-    return "mixed_campaign_and_website";
-  }
-
-  return "generic_campaign";
+  return getCampaignSafeNonProductMode(campaign, postPlanItem, index, total);
 }
 
 function shouldUseWebsiteContentForCampaign(sourceMode, campaign = null) {
@@ -4340,7 +4621,13 @@ function shouldUseWebsiteContentForCampaign(sourceMode, campaign = null) {
     return false;
   }
 
-  return ["website_product", "website_service", "website_carousel"].includes(sourceMode);
+  return [
+    "website_product",
+    "website_product_ad",
+    "website_reel",
+    "website_service",
+    "website_carousel",
+  ].includes(sourceMode);
 }
 
 function getCampaignSourceInstruction(sourceMode, campaign = null) {
@@ -4370,12 +4657,16 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
     return `Use a relevant product from the brand website. Connect the product naturally to the campaign. If the campaign is built around a named holiday, season, event, theme day or cultural occasion, prefer products that directly reference that occasion in the website's own language over generic giftable, personalized, custom or bestseller products. Use only product details that clearly exist on the website. Do not invent product details, prices, stock, delivery promises or discounts. If no verified matching product can be found, the automation should stop with an error instead of silently creating a generic AI fallback.${productSelectionInstruction}`;
   }
 
-  if (sourceMode === "website_service") {
-    return `Use a relevant service or offer from the brand website. Connect the service naturally to the campaign. Use only details that clearly exist on the website. If no verified matching website item can be found, the automation should stop with an error instead of silently creating a generic AI fallback.${productSelectionInstruction}`;
+  if (sourceMode === "website_product_ad") {
+    return `Use one relevant verified product from the brand website and create the existing full AI product-ad format around it. Connect the product naturally to the campaign, keep all product facts grounded in the website and do not invent prices, discounts, stock, delivery promises or features. If no verified matching product can be found, the automation should stop with an error instead of silently creating a generic fallback.${productSelectionInstruction}`;
   }
 
-  if (sourceMode === "mixed_campaign_and_website") {
-    return `If relevant website content is available, use it as supporting context, but keep the main focus on the campaign theme. Do not force a product or service if the match is not natural.${productSelectionInstruction}`;
+  if (sourceMode === "website_reel") {
+    return `Use one relevant verified product from the brand website and create the existing animated product-Reel format. Select a product that works visually in motion and genuinely fits the campaign. Keep all product facts grounded in the website and do not invent prices, discounts, stock, delivery promises or features. If no verified matching product can be found, the automation should stop with an error instead of silently creating a generic fallback.${productSelectionInstruction}`;
+  }
+
+  if (sourceMode === "website_service") {
+    return `Use a relevant service or offer from the brand website. Connect the service naturally to the campaign. Use only details that clearly exist on the website. If no verified matching website item can be found, the automation should stop with an error instead of silently creating a generic AI fallback.${productSelectionInstruction}`;
   }
 
   return "Do not force a product or service into this post. Keep the focus on the campaign theme and the audience value.";
@@ -4805,6 +5096,7 @@ function createCampaignSlotsFromOpportunity({
           campaign
         ),
         contentFormat: getCampaignSlotContentFormat(contentSourceMode),
+        animationStyle: getCampaignSlotAnimationStyle(contentSourceMode),
         isCampaignSlot: true,
         campaignRole: enhancedPostPlanItem.role || "Campaign post",
         campaignSummary: buildCampaignSummary(
@@ -4883,6 +5175,7 @@ function createCampaignSlotsFromOpportunity({
           campaign
         ),
         contentFormat: getCampaignSlotContentFormat(contentSourceMode),
+        animationStyle: getCampaignSlotAnimationStyle(contentSourceMode),
         isCampaignSlot: true,
         campaignRole: enhancedPostPlanItem.role || "Campaign post",
         campaignSummary: buildCampaignSummary(
@@ -4953,6 +5246,7 @@ function createCampaignSlotsFromOpportunity({
         campaign
       ),
       contentFormat: getCampaignSlotContentFormat(contentSourceMode),
+        animationStyle: getCampaignSlotAnimationStyle(contentSourceMode),
       isCampaignSlot: true,
       campaignRole: enhancedPostPlanItem.role || "Campaign post",
       campaignSummary: buildCampaignSummary(
@@ -5408,6 +5702,7 @@ const [autoPlanGoal, setAutoPlanGoal] = useState("");
 const [autoPlanPostCount, setAutoPlanPostCount] = useState(
   DEFAULT_AUTO_PLAN_POST_COUNT
 );
+const [autoPlanLoading, setAutoPlanLoading] = useState(false);
 const [showAddPostModal, setShowAddPostModal] = useState(false);
 const [addPostModalView, setAddPostModalView] = useState("types");
 const [slots, setSlots] = useState([]);
@@ -5496,6 +5791,7 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   const [showRecommendationInfoModal, setShowRecommendationInfoModal] = useState(false);
   const [showSocialChannelRequiredModal, setShowSocialChannelRequiredModal] = useState(false);
   const formatStripRef = useRef(null);
+  const autoPlanRequestIdRef = useRef(0);
   const formatDragRef = useRef({
     active: false,
     dragging: false,
@@ -5803,6 +6099,7 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
     autoPlanPostCount,
     selectedContentTypeIds,
     websiteProductModeAvailable,
+    slots,
   });
 }, [
   planCreationMode,
@@ -5810,6 +6107,7 @@ const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   autoPlanPostCount,
   selectedContentTypeIds,
   websiteProductModeAvailable,
+  slots,
 ]);
 const planWasSaved = Boolean(savedPlanSummary);
 
@@ -6534,6 +6832,7 @@ function buildDirectCalendarCampaignSlots({
         campaign
       ),
       contentFormat: getCampaignSlotContentFormat(contentSourceMode),
+        animationStyle: getCampaignSlotAnimationStyle(contentSourceMode),
       isCampaignSlot: true,
       campaignRole: enhancedPostPlanItem.role || `Campaign post ${index + 1}`,
       campaignSummary: buildCampaignSummary(campaign, enhancedPostPlanItem, index),
@@ -6794,6 +7093,7 @@ async function loadCampaignOpportunityIntoPlanner({
           campaign
         ),
         contentFormat: getCampaignSlotContentFormat(contentSourceMode),
+        animationStyle: getCampaignSlotAnimationStyle(contentSourceMode),
         isCampaignSlot: true,
         campaignRole: enhancedPostPlanItem.role || "Campaign post",
         campaignSummary: buildCampaignSummary(
@@ -7415,6 +7715,7 @@ usesWebsiteContent: shouldUseWebsiteContentForCampaign(
   campaignOpportunity
 ),
 contentFormat: getCampaignSlotContentFormat(contentSourceMode),
+        animationStyle: getCampaignSlotAnimationStyle(contentSourceMode),
 isCampaignSlot: true,
 campaignRole: postPlanItem.role || "Campaign post",
 campaignSummary: buildCampaignSummary(
@@ -7632,8 +7933,98 @@ function addSlot() {
   }
 }
 
-function changeAutoPlanGoal(goalId) {
+async function applyDynamicAutoPlan({ goalId, postCount }) {
+  const safePostCount = Math.max(1, Number(postCount) || DEFAULT_AUTO_PLAN_POST_COUNT);
+  const fallbackTypeIds = getGoalContentTypeIds({
+    goalId,
+    postCount: safePostCount,
+    websiteProductModeAvailable,
+  });
+  const fallbackSlots = createRecommendedSlots({
+    startDate: planStartDate,
+    timeZone,
+    autoPlanGoal: goalId,
+    firstPublishTime: defaultPublishTime,
+    postCount: safePostCount,
+    websiteProductModeAvailable,
+  });
+
+  setSelectedContentTypeIds(fallbackTypeIds);
+  setSlots(fallbackSlots);
+
+  if (!goalId || !currentBrandId) {
+    return;
+  }
+
+  const requestId = autoPlanRequestIdRef.current + 1;
+  autoPlanRequestIdRef.current = requestId;
+  setAutoPlanLoading(true);
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) return;
+
+    const response = await fetch("/api/plan-content", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        brandProfileId: currentBrandId,
+        goalId,
+        postCount: safePostCount,
+        startDate: planStartDate,
+        timeZone,
+        platform,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (requestId !== autoPlanRequestIdRef.current) return;
+    if (!response.ok || !Array.isArray(payload?.posts) || !payload.posts.length) {
+      console.warn(
+        "Dynamic content strategy could not replace the safe fallback plan",
+        payload?.error || response.statusText
+      );
+      return;
+    }
+
+    const dynamicSlots = createDynamicRecommendedSlots({
+      plan: payload,
+      startDate: planStartDate,
+      timeZone,
+      autoPlanGoal: goalId,
+      firstPublishTime: defaultPublishTime,
+      postCount: safePostCount,
+      websiteProductModeAvailable,
+    });
+
+    if (!dynamicSlots.length) return;
+
+    setSlots(dynamicSlots);
+    setSelectedContentTypeIds(
+      dynamicSlots.map((slot) => slot.contentTypeId).filter(Boolean)
+    );
+  } catch (error) {
+    if (requestId === autoPlanRequestIdRef.current) {
+      console.warn(
+        "Dynamic content strategy could not replace the safe fallback plan",
+        error
+      );
+    }
+  } finally {
+    if (requestId === autoPlanRequestIdRef.current) {
+      setAutoPlanLoading(false);
+    }
+  }
+}
+
+async function changeAutoPlanGoal(goalId) {
   if (!goalId) {
+    autoPlanRequestIdRef.current += 1;
+    setAutoPlanLoading(false);
     setAutoPlanGoal("");
     setSelectedContentTypeIds([]);
     setSlots([]);
@@ -7657,19 +8048,12 @@ function changeAutoPlanGoal(goalId) {
 }
 
   setSelectedContentTypeIds(goalContentTypeIds);
-
-  setSlots(
-    createRecommendedSlots({
-      startDate: planStartDate,
-      timeZone,
-      autoPlanGoal: goalId,
-      firstPublishTime: defaultPublishTime,
-      postCount: autoPlanPostCount,
-      websiteProductModeAvailable,
-    })
-  );
+  await applyDynamicAutoPlan({
+    goalId,
+    postCount: autoPlanPostCount,
+  });
 }
- function changeAutoPlanPostCount(nextCount) {
+ async function changeAutoPlanPostCount(nextCount) {
   setMessage("");
   setAutoPlanPostCount(nextCount);
 
@@ -7692,19 +8076,12 @@ function changeAutoPlanGoal(goalId) {
   });
 
   setSelectedContentTypeIds(goalContentTypeIds);
-
-  setSlots(
-    createRecommendedSlots({
-      startDate: planStartDate,
-      timeZone,
-      autoPlanGoal,
-      firstPublishTime: defaultPublishTime,
-      postCount: nextCount,
-      websiteProductModeAvailable,
-    })
-  );
+  await applyDynamicAutoPlan({
+    goalId: autoPlanGoal,
+    postCount: nextCount,
+  });
 }
-  function changePlanCreationMode(mode) {
+  async function changePlanCreationMode(mode) {
     setMessage("");
     setPlanCreationMode(mode);
 
@@ -7722,38 +8099,29 @@ function changeAutoPlanGoal(goalId) {
   });
 
   setSelectedContentTypeIds(goalContentTypeIds);
-
-  setSlots(
-    createRecommendedSlots({
-      startDate: planStartDate,
-      timeZone,
-      autoPlanGoal,
-      firstPublishTime: defaultPublishTime,
-      postCount: autoPlanPostCount,
-      websiteProductModeAvailable,
-    })
-  );
+  await applyDynamicAutoPlan({
+    goalId: autoPlanGoal,
+    postCount: autoPlanPostCount,
+  });
 
   return;
 }
 
   if (mode === "select") {
+  autoPlanRequestIdRef.current += 1;
+  setAutoPlanLoading(false);
   setSelectedContentTypeIds([]);
   setSlots([]);
   return;
 }
 
   if (mode === "manual") {
-  setSelectedContentTypeIds([]);
-  setSlots([]);
-  return;
-}
-
-if (mode === "manual") {
-  setSelectedContentTypeIds([]);
-  setSlots([]);
-  return;
-}
+    autoPlanRequestIdRef.current += 1;
+    setAutoPlanLoading(false);
+    setSelectedContentTypeIds([]);
+    setSlots([]);
+    return;
+  }
 
 setSelectedContentTypeIds([]);
 setSlots([
@@ -8537,10 +8905,13 @@ ${slot.campaignSummary}`
           scheduleType === "weekly" && varyWeeklyContentTypes
             ? {
                 enabled: true,
-                selectionMode: "cycle",
+                selectionMode: "history_balanced",
                 goalId: autoPlanGoal || "stay_visible",
                 slotIndex,
+                slotCount: slots.length,
                 baseStartDate: slot.startDate || planStartDate,
+                lockedVariantIndex: 0,
+                lockedVariantCycle: 0,
                 variants: buildAdaptiveWeeklyVariants({
                   slot,
                   goalId: autoPlanGoal || "stay_visible",
@@ -9140,6 +9511,7 @@ function blockFormatCardClickAfterDrag(event) {
                     </div>
                     <select
                       value={autoPlanGoal}
+                      aria-busy={autoPlanLoading}
                       onPointerDown={(event) => {
                         if (!loadingConnectedPlatforms && connectedPlatformOptions.length === 0) {
                           event.preventDefault();
@@ -9183,6 +9555,7 @@ function blockFormatCardClickAfterDrag(event) {
                     </div>
                     <select
                       value={autoPlanPostCount}
+                      aria-busy={autoPlanLoading}
                       onChange={(event) => changeAutoPlanPostCount(Number(event.target.value))}
                       disabled={planCreationMode === "campaign"}
                     >
