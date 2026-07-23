@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { adminContextError, getAdminContext } from '../../../../lib/adminAuth';
+import { adminContextError, getAdminContext } from '../../../lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
