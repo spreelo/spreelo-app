@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  CalendarCheck2,
+  CalendarDays,
+  CalendarRange,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock3,
-  Coins,
-  Plus,
+  SlidersHorizontal,
+  Sparkles,
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import { CampaignGlyph } from "../../components/SpreeloIcons";
@@ -877,16 +877,38 @@ function getMonthGrid(monthDate) {
   });
 }
 
-function getCampaignStatusLabel(campaign, locale = "en") {
+function getCampaignStatusLabel(campaign, t) {
+  const tone = getCampaignStatusTone(campaign);
+
+  if (tone === "current") return t("calendar.statusCurrent");
+  if (tone === "past") return t("calendar.statusPast");
+  return t("calendar.statusPlanned");
+}
+
+function getCampaignStatusTone(campaign) {
   const today = getTodayDateString();
   const start = campaign?.event_date || campaign?.start_date || "";
   const end = campaign?.event_date || campaign?.end_date || campaign?.start_date || "";
 
-  if (start && end && today >= start && today <= end) {
-    return locale === "sv" ? "Pågår" : "In progress";
-  }
+  if (start && end && today >= start && today <= end) return "current";
+  if (end && end < today) return "past";
+  return "planned";
+}
 
-  return locale === "sv" ? "Planerad" : "Planned";
+function getCampaignStatusTitle(campaign, t) {
+  const tone = getCampaignStatusTone(campaign);
+
+  if (tone === "current") return t("calendar.statusCurrentHelp");
+  if (tone === "past") return t("calendar.statusPastHelp");
+  return t("calendar.statusPlannedHelp");
+}
+
+function getCampaignCountForDate(campaigns, dateString) {
+  if (!dateString) return 0;
+  return campaigns.reduce(
+    (count, campaign) => count + (campaignIncludesDate(campaign, dateString) ? 1 : 0),
+    0
+  );
 }
 
 function getCalendarFilterLabel(filterId, t, locale = "en") {
@@ -921,6 +943,7 @@ export default function Calendar() {
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [selectedDateFilter, setSelectedDateFilter] = useState("");
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -955,17 +978,6 @@ export default function Calendar() {
     );
   }, [visibleCampaigns, selectedCampaignId]);
 
-  const selectedCampaignPostPlan = useMemo(() => {
-    if (!selectedCampaign) {
-      return [];
-    }
-
-    return buildCampaignPostPlan(
-      selectedCampaign,
-      getCampaignRecommendedPostCount(selectedCampaign),
-      t
-    );
-  }, [selectedCampaign, t]);
 
   const campaignStats = useMemo(() => {
     const total = campaigns.length;
@@ -1100,7 +1112,11 @@ export default function Calendar() {
         );
 
       setCampaigns(upcomingCampaigns);
-      setSelectedCampaignId(upcomingCampaigns[0]?.id || "");
+      const shouldOpenFirstCampaign =
+        typeof window !== "undefined" && window.innerWidth > 1020;
+      setSelectedCampaignId(
+        shouldOpenFirstCampaign ? upcomingCampaigns[0]?.id || "" : ""
+      );
 
       const firstCampaignDate = getCampaignPrimaryDate(upcomingCampaigns[0]);
       if (firstCampaignDate) {
@@ -1163,24 +1179,19 @@ export default function Calendar() {
 
   return (
     <AppLayout active="calendar">
-      <div className="campaign-calendar-page campaign-calendar-v132">
-        <header className="campaign-calendar-v132-header">
+      <div className="campaign-calendar-page campaign-calendar-v132 campaign-calendar-v133">
+        <header className="campaign-calendar-v133-header">
           <div>
-            <p className="dashboard-eyebrow">{t("calendar.eyebrow")}</p>
-            <h2>{t("calendar.heroTitle")}</h2>
-            <span>{t("calendar.heroText")}</span>
+            <p className="dashboard-eyebrow">
+              {t("calendar.personalEyebrow")}
+            </p>
+            <h2>
+              {t("calendar.personalTitle", { brandName })}
+            </h2>
+            <span>
+              {t("calendar.personalIntro", { brandName })}
+            </span>
           </div>
-
-          {selectedCampaign && (
-            <button
-              type="button"
-              className="campaign-calendar-v132-primary"
-              onClick={() => handleCreateCampaign(selectedCampaign)}
-            >
-              <Plus size={16} strokeWidth={2.2} aria-hidden="true" />
-              {t("common.createPosts")}
-            </button>
-          )}
         </header>
 
         {message && <p className="campaign-calendar-message">{message}</p>}
@@ -1196,367 +1207,355 @@ export default function Calendar() {
             <a href="/brand">{t("calendar.generateCalendar")}</a>
           </section>
         ) : (
-          <section className="campaign-calendar-v132-workspace">
-            <aside className="campaign-calendar-v132-rail">
-              <div className="campaign-calendar-v132-mini">
-                <div className="campaign-calendar-v132-mini-head">
-                  <strong>{calendarMonthLabel}</strong>
-                  <div>
-                    <button
-                      type="button"
-                      aria-label="Previous month"
-                      onClick={() =>
-                        setCalendarMonth(
-                          (current) =>
-                            new Date(current.getFullYear(), current.getMonth() - 1, 1)
-                        )
-                      }
-                    >
-                      <ChevronLeft size={16} aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Next month"
-                      onClick={() =>
-                        setCalendarMonth(
-                          (current) =>
-                            new Date(current.getFullYear(), current.getMonth() + 1, 1)
-                        )
-                      }
-                    >
-                      <ChevronRight size={16} aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
+          <>
+            <section className="campaign-calendar-v133-personal-card">
+              <span className="campaign-calendar-v133-personal-icon" aria-hidden="true">
+                <Sparkles size={21} strokeWidth={2} />
+              </span>
+              <div>
+                <strong>
+                  {t("calendar.personalCardTitle", { brandName })}
+                </strong>
+                <p>
+                  {t("calendar.personalCardText")}
+                </p>
+              </div>
+              <div className="campaign-calendar-v133-personal-count">
+                <strong>{campaignStats.total}</strong>
+                <span>{t("calendar.statUpcomingText")}</span>
+              </div>
+            </section>
 
-                <div className="campaign-calendar-v132-weekdays" aria-hidden="true">
-                  {weekdayLabels.map((label, index) => (
-                    <span key={`${label}-${index}`}>{label}</span>
-                  ))}
-                </div>
+            <section className="campaign-calendar-v132-workspace campaign-calendar-v133-workspace">
+              <aside className="campaign-calendar-v132-rail campaign-calendar-v133-rail">
+                <button
+                  type="button"
+                  className={`campaign-calendar-v133-tools-toggle ${mobileToolsOpen ? "open" : ""}`}
+                  onClick={() => setMobileToolsOpen((current) => !current)}
+                  aria-expanded={mobileToolsOpen}
+                >
+                  <span>
+                    <SlidersHorizontal size={17} aria-hidden="true" />
+                    {t("calendar.filterAndDate")}
+                  </span>
+                  <ChevronDown size={18} aria-hidden="true" />
+                </button>
 
-                <div className="campaign-calendar-v132-days">
-                  {calendarDays.map(({ date, dateString, isCurrentMonth }) => {
-                    const hasCampaign = campaignDateSet.has(dateString);
-                    const isSelected = selectedDateFilter === dateString;
-                    const isToday = dateString === getTodayDateString();
+                <div className={`campaign-calendar-v133-rail-controls ${mobileToolsOpen ? "open" : ""}`}>
+                  <div className="campaign-calendar-v132-mini campaign-calendar-v133-mini">
+                    <div className="campaign-calendar-v132-mini-head">
+                      <strong>{calendarMonthLabel}</strong>
+                      <div>
+                        <button
+                          type="button"
+                          aria-label="Previous month"
+                          onClick={() =>
+                            setCalendarMonth(
+                              (current) =>
+                                new Date(current.getFullYear(), current.getMonth() - 1, 1)
+                            )
+                          }
+                        >
+                          <ChevronLeft size={16} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Next month"
+                          onClick={() =>
+                            setCalendarMonth(
+                              (current) =>
+                                new Date(current.getFullYear(), current.getMonth() + 1, 1)
+                            )
+                          }
+                        >
+                          <ChevronRight size={16} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
 
-                    return (
+                    <p className="campaign-calendar-v133-mini-help">
+                      {t("calendar.dateFilterHelp")}
+                    </p>
+
+                    <div className="campaign-calendar-v132-weekdays" aria-hidden="true">
+                      {weekdayLabels.map((label, index) => (
+                        <span key={`${label}-${index}`}>{label}</span>
+                      ))}
+                    </div>
+
+                    <div className="campaign-calendar-v132-days">
+                      {calendarDays.map(({ date, dateString, isCurrentMonth }) => {
+                        const campaignCountOnDate = getCampaignCountForDate(
+                          campaigns,
+                          dateString
+                        );
+                        const hasCampaign = campaignCountOnDate > 0;
+                        const isSelected = selectedDateFilter === dateString;
+                        const isToday = dateString === getTodayDateString();
+
+                        return (
+                          <button
+                            type="button"
+                            key={dateString}
+                            className={[
+                              isCurrentMonth ? "" : "outside",
+                              hasCampaign ? "has-campaign" : "",
+                              isSelected ? "selected" : "",
+                              isToday ? "today" : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                            onClick={() => {
+                              if (!hasCampaign) return;
+                              setSelectedDateFilter((current) =>
+                                current === dateString ? "" : dateString
+                              );
+                            }}
+                            disabled={!hasCampaign}
+                            aria-pressed={isSelected}
+                            title={
+                              hasCampaign
+                                ? `${formatDate(dateString, locale)} · ${campaignCountOnDate} ${t(
+                                    "calendar.statUpcomingText"
+                                  )}`
+                                : formatDate(dateString, locale)
+                            }
+                          >
+                            <span>{date.getDate()}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedDateFilter && (
                       <button
                         type="button"
-                        key={dateString}
-                        className={[
-                          isCurrentMonth ? "" : "outside",
-                          hasCampaign ? "has-campaign" : "",
-                          isSelected ? "selected" : "",
-                          isToday ? "today" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
-                        onClick={() =>
-                          setSelectedDateFilter((current) =>
-                            current === dateString ? "" : dateString
-                          )
-                        }
-                        aria-pressed={isSelected}
-                        title={formatDate(dateString, locale)}
+                        className="campaign-calendar-v132-clear-date"
+                        onClick={() => setSelectedDateFilter("")}
                       >
-                        <span>{date.getDate()}</span>
+                        {t("calendar.clearDateFilter")}
                       </button>
-                    );
-                  })}
+                    )}
+                  </div>
+
+                  <div className="campaign-calendar-v132-rail-section campaign-calendar-v133-filter-section">
+                    <span className="campaign-calendar-v132-rail-label">
+                      {t("calendar.filters")}
+                    </span>
+
+                    <div className="campaign-calendar-v132-filter-list campaign-calendar-v133-filter-list">
+                      {calendarFilterOptions.map((option) => (
+                        <button
+                          type="button"
+                          key={option.id}
+                          className={campaignFilter === option.id ? "active" : ""}
+                          onClick={() => setCampaignFilter(option.id)}
+                        >
+                          <span>{getCalendarFilterLabel(option.id, t, locale)}</span>
+                          <span className="campaign-calendar-v132-filter-dot" aria-hidden="true" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <label className="campaign-calendar-v132-sort campaign-calendar-v133-sort">
+                    <span>{t("calendar.sortCampaigns")}</span>
+                    <select
+                      value={campaignSort}
+                      onChange={(event) => setCampaignSort(event.target.value)}
+                    >
+                      <option value="relevance">{t("calendar.sortByRelevance")}</option>
+                      <option value="date">{t("calendar.sortByDate")}</option>
+                    </select>
+                  </label>
+                </div>
+              </aside>
+
+              <div className="campaign-calendar-v132-main campaign-calendar-v133-main">
+                <div className="campaign-calendar-v132-list-head campaign-calendar-v133-list-head">
+                  <div>
+                    <p className="dashboard-eyebrow">
+                      {t("calendar.personalSelection")}
+                    </p>
+                    <h3>
+                      {t("calendar.campaignsForBrand", { brandName })}
+                    </h3>
+                  </div>
+
+                  <span>
+                    {visibleCampaigns.length} {t("calendar.statUpcomingText")}
+                  </span>
                 </div>
 
                 {selectedDateFilter && (
-                  <button
-                    type="button"
-                    className="campaign-calendar-v132-clear-date"
-                    onClick={() => setSelectedDateFilter("")}
-                  >
-                    {getSafeUiLabel(
-                      t,
-                      "calendar.clearDateFilter",
-                      locale === "sv" ? "Visa alla datum" : "Show all dates"
-                    )}
-                  </button>
-                )}
-              </div>
-
-              <div className="campaign-calendar-v132-rail-section">
-                <span className="campaign-calendar-v132-rail-label">
-                  {getSafeUiLabel(
-                    t,
-                    "calendar.overview",
-                    locale === "sv" ? "Översikt" : "Overview"
-                  )}
-                </span>
-
-                <div className="campaign-calendar-v132-overview">
-                  <button
-                    type="button"
-                    className={campaignFilter === "all" ? "active" : ""}
-                    onClick={() => setCampaignFilter("all")}
-                  >
-                    <span>{getCalendarFilterLabel("all", t, locale)}</span>
-                    <strong>{campaignStats.total}</strong>
-                  </button>
-                  <button
-                    type="button"
-                    className={campaignFilter === "fixed" ? "active" : ""}
-                    onClick={() => setCampaignFilter("fixed")}
-                  >
-                    <span>{getCalendarFilterLabel("fixed", t, locale)}</span>
-                    <strong>{campaignStats.fixedDate}</strong>
-                  </button>
-                </div>
-              </div>
-
-              <div className="campaign-calendar-v132-rail-section">
-                <span className="campaign-calendar-v132-rail-label">
-                  {getSafeUiLabel(
-                    t,
-                    "calendar.filters",
-                    locale === "sv" ? "Filter" : "Filters"
-                  )}
-                </span>
-
-                <div className="campaign-calendar-v132-filter-list">
-                  {calendarFilterOptions.map((option) => (
-                    <button
-                      type="button"
-                      key={option.id}
-                      className={campaignFilter === option.id ? "active" : ""}
-                      onClick={() => setCampaignFilter(option.id)}
-                    >
-                      <span>{getCalendarFilterLabel(option.id, t, locale)}</span>
-                      <span className="campaign-calendar-v132-filter-dot" aria-hidden="true" />
+                  <div className="campaign-calendar-v133-active-filter">
+                    <CalendarDays size={16} aria-hidden="true" />
+                    <span>{formatDate(selectedDateFilter, locale)}</span>
+                    <button type="button" onClick={() => setSelectedDateFilter("")}>
+                      {t("calendar.showAll")}
                     </button>
-                  ))}
-                </div>
-              </div>
-
-              <label className="campaign-calendar-v132-sort">
-                <span>{t("calendar.sortCampaigns")}</span>
-                <select
-                  value={campaignSort}
-                  onChange={(event) => setCampaignSort(event.target.value)}
-                >
-                  <option value="relevance">{t("calendar.sortByRelevance")}</option>
-                  <option value="date">{t("calendar.sortByDate")}</option>
-                </select>
-              </label>
-            </aside>
-
-            <div className="campaign-calendar-v132-main">
-              <div className="campaign-calendar-v132-list-head">
-                <div>
-                  <p className="dashboard-eyebrow">{t("calendar.opportunitiesEyebrow")}</p>
-                  <h3>{brandName}</h3>
-                </div>
-
-                <span>
-                  {visibleCampaigns.length} {t("calendar.statUpcomingText")}
-                </span>
-              </div>
-
-              <div className="campaign-calendar-v132-list">
-                {visibleCampaigns.length === 0 && (
-                  <div className="campaign-calendar-filter-empty">
-                    <strong>
-                      {getSafeUiLabel(
-                        t,
-                        "calendar.noCampaignsInFilter",
-                        locale === "sv"
-                          ? "Inga kampanjer matchar filtret"
-                          : "No campaigns match this filter"
-                      )}
-                    </strong>
-                    <p>
-                      {getSafeUiLabel(
-                        t,
-                        "calendar.tryAnotherFilter",
-                        locale === "sv"
-                          ? "Välj ett annat filter eller visa alla datum."
-                          : "Choose another filter or show all dates."
-                      )}
-                    </p>
                   </div>
                 )}
 
-                {visibleCampaigns.map((campaign) => {
-                  const isSelected = selectedCampaign?.id === campaign.id;
-                  const postPlan = isSelected ? selectedCampaignPostPlan : [];
+                <div className="campaign-calendar-v132-list campaign-calendar-v133-list">
+                  {visibleCampaigns.length === 0 && (
+                    <div className="campaign-calendar-filter-empty">
+                      <strong>
+                        {t("calendar.noCampaignsInFilter")}
+                      </strong>
+                      <p>
+                        {t("calendar.tryAnotherFilter")}
+                      </p>
+                    </div>
+                  )}
 
-                  return (
-                    <article
-                      key={campaign.id}
-                      className={`campaign-calendar-v132-item ${isSelected ? "expanded" : ""}`}
-                    >
-                      <button
-                        type="button"
-                        className="campaign-calendar-v132-row"
-                        onClick={() =>
-                          setSelectedCampaignId((current) =>
-                            current === campaign.id ? "" : campaign.id
-                          )
-                        }
-                        aria-expanded={isSelected}
+                  {visibleCampaigns.map((campaign) => {
+                    const isSelected = selectedCampaign?.id === campaign.id;
+                    const statusTone = getCampaignStatusTone(campaign);
+
+                    return (
+                      <article
+                        key={campaign.id}
+                        className={`campaign-calendar-v132-item campaign-calendar-v133-item ${
+                          isSelected ? "expanded" : ""
+                        }`}
                       >
-                        <CampaignGlyph campaign={campaign} />
+                        <button
+                          type="button"
+                          className="campaign-calendar-v132-row campaign-calendar-v133-row"
+                          onClick={() =>
+                            setSelectedCampaignId((current) =>
+                              current === campaign.id ? "" : campaign.id
+                            )
+                          }
+                          aria-expanded={isSelected}
+                        >
+                          <CampaignGlyph campaign={campaign} />
 
-                        <div className="campaign-calendar-v132-row-copy">
-                          <div>
-                            <span>{getEventTypeLabel(campaign.event_type, t)}</span>
-                            <span className="campaign-calendar-v132-status">
-                              {getCampaignStatusLabel(campaign, locale)}
+                          <div className="campaign-calendar-v132-row-copy campaign-calendar-v133-row-copy">
+                            <div>
+                              <span>{getEventTypeLabel(campaign.event_type, t)}</span>
+                              <span
+                                className={`campaign-calendar-v132-status campaign-calendar-v133-status ${statusTone}`}
+                                title={getCampaignStatusTitle(campaign, t)}
+                              >
+                                {getCampaignStatusLabel(campaign, t)}
+                              </span>
+                            </div>
+                            <h4>{campaign.title}</h4>
+                            <p>{campaign.description}</p>
+                          </div>
+
+                          <div className="campaign-calendar-v132-row-meta campaign-calendar-v133-row-meta">
+                            <strong>{getCampaignDateLabel(campaign, t, locale)}</strong>
+                            <span>
+                              {t("calendar.periodLabel")}
                             </span>
                           </div>
-                          <h4>{campaign.title}</h4>
-                          <p>{campaign.description}</p>
-                        </div>
 
-                        <div className="campaign-calendar-v132-row-meta">
-                          <strong>{getCampaignDateLabel(campaign, t, locale)}</strong>
-                          <span>
-                            {getCampaignRecommendedPostCount(campaign)} {t("common.posts")}
-                          </span>
-                          <span>
-                            {getCampaignEstimatedCredits(campaign)} {t("automation.credits")}
-                          </span>
-                        </div>
+                          <ChevronDown
+                            className="campaign-calendar-v132-chevron"
+                            size={18}
+                            aria-hidden="true"
+                          />
+                        </button>
 
-                        <ChevronDown
-                          className="campaign-calendar-v132-chevron"
-                          size={18}
-                          aria-hidden="true"
-                        />
-                      </button>
+                        {isSelected && (
+                          <div className="campaign-calendar-v132-expanded campaign-calendar-v133-expanded">
+                            <div className="campaign-calendar-v133-detail-grid">
+                              <section className="campaign-calendar-v133-detail-section about">
+                                <h5>
+                                  {t("calendar.aboutCampaign")}
+                                </h5>
+                                <p>{campaign.description}</p>
 
-                      {isSelected && (
-                        <div className="campaign-calendar-v132-expanded">
-                          <div className="campaign-calendar-v132-detail-grid">
-                            <div className="campaign-calendar-v132-detail-copy">
-                              <section>
-                                <h5>{t("calendar.whyItFits")}</h5>
+                                <strong>{t("calendar.whyItFits")}</strong>
                                 <p>
-                                  {campaign.relevance_reason ||
-                                    t("calendar.whyItFitsFallback")}
+                                  {campaign.relevance_reason || t("calendar.whyItFitsFallback")}
                                 </p>
                               </section>
 
-                              <section>
-                                <h5>{t("calendar.campaignInstruction")}</h5>
+                              <section className="campaign-calendar-v133-detail-section ideas">
+                                <h5>
+                                  {t("calendar.campaignIdeas")}
+                                </h5>
                                 <p>
                                   {campaign.prompt_context ||
                                     t("calendar.campaignInstructionFallback")}
                                 </p>
-                              </section>
 
-                              {Array.isArray(campaign.campaign_angles) &&
-                                campaign.campaign_angles.length > 0 && (
-                                  <section>
-                                    <h5>{t("calendar.suggestedAngles")}</h5>
-                                    <div className="campaign-calendar-v132-angles">
+                                {Array.isArray(campaign.campaign_angles) &&
+                                  campaign.campaign_angles.length > 0 && (
+                                    <div className="campaign-calendar-v132-angles campaign-calendar-v133-angles">
                                       {campaign.campaign_angles.slice(0, 5).map((angle, index) => (
                                         <span key={`${angle}-${index}`}>{angle}</span>
                                       ))}
                                     </div>
-                                  </section>
-                                )}
-                            </div>
+                                  )}
+                              </section>
 
-                            <section className="campaign-calendar-v132-plan">
-                              <div className="campaign-calendar-v132-plan-head">
+                              <section className="campaign-calendar-v133-detail-section details">
+                                <h5>
+                                  {t("calendar.detailsLabel")}
+                                </h5>
+                                <dl>
+                                  <div>
+                                    <dt>
+                                      {t("calendar.periodLabel")}
+                                    </dt>
+                                    <dd>{getCampaignDateLabel(campaign, t, locale)}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>
+                                      {t("calendar.statusLabel")}
+                                    </dt>
+                                    <dd>
+                                      <span
+                                        className={`campaign-calendar-v133-status ${statusTone}`}
+                                        title={getCampaignStatusTitle(campaign, t)}
+                                      >
+                                        {getCampaignStatusLabel(campaign, t)}
+                                      </span>
+                                    </dd>
+                                  </div>
+                                </dl>
+                              </section>
+
+                              <aside className="campaign-calendar-v133-action-panel">
                                 <div>
-                                  <span>
-                                    {getSafeUiLabel(
-                                      t,
-                                      "calendar.campaignContents",
-                                      locale === "sv"
-                                        ? "Kampanjens innehåll"
-                                        : "Campaign contents"
-                                    )}
-                                  </span>
-                                  <h5>{t("calendar.recommendedPostPlan")}</h5>
+                                  <CalendarRange size={19} aria-hidden="true" />
+                                  <strong>
+                                    {t("calendar.actualPlanTitle")}
+                                  </strong>
+                                  <p>
+                                    {t("calendar.actualPlanText")}
+                                  </p>
                                 </div>
-                                <strong>{postPlan.length}</strong>
-                              </div>
-
-                              <div className="campaign-calendar-v132-plan-list">
-                                {postPlan.map((post, index) => {
-                                  const timingLabel = getCampaignPostTimingLabel(
-                                    campaign,
-                                    post,
-                                    index,
-                                    postPlan.length,
-                                    t,
-                                    locale
-                                  );
-
-                                  return (
-                                    <div key={`${post.role || "campaign-post"}-${index}`}>
-                                      <span>{index + 1}</span>
-                                      <div>
-                                        <strong>
-                                          {post.role || t("common.post", { number: index + 1 })}
-                                        </strong>
-                                        <p>
-                                          {post.purpose || t("calendar.postPurposeFallback")}
-                                        </p>
-                                        {timingLabel && <small>{timingLabel}</small>}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </section>
-                          </div>
-
-                          <div className="campaign-calendar-v132-detail-footer">
-                            <div className="campaign-calendar-v132-detail-facts">
-                              <span>
-                                <Clock3 size={15} aria-hidden="true" />
-                                {getCampaignDateLabel(campaign, t, locale)}
-                              </span>
-                              <span>
-                                <Coins size={15} aria-hidden="true" />
-                                {getCampaignEstimatedCredits(campaign)} {t("automation.credits")}
-                              </span>
-                              <span>
-                                <CalendarCheck2 size={15} aria-hidden="true" />
-                                {getCampaignStatusLabel(campaign, locale)}
-                              </span>
-                            </div>
-
-                            <div className="campaign-calendar-v132-actions">
-                              <button
-                                type="button"
-                                className="secondary"
-                                onClick={() => setSelectedCampaignId("")}
-                              >
-                                {getSafeUiLabel(
-                                  t,
-                                  "calendar.closeDetails",
-                                  locale === "sv" ? "Stäng" : "Close"
-                                )}
-                              </button>
-                              <button
-                                type="button"
-                                className="primary"
-                                onClick={() => handleCreateCampaign(campaign)}
-                              >
-                                {t("common.createPosts")}
-                              </button>
+                                <button
+                                  type="button"
+                                  className="primary"
+                                  onClick={() => handleCreateCampaign(campaign)}
+                                >
+                                  {t("calendar.createCampaignPlan")}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="secondary"
+                                  onClick={() => setSelectedCampaignId("")}
+                                >
+                                  {t("calendar.closeDetails")}
+                                </button>
+                              </aside>
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          </>
         )}
       </div>
     </AppLayout>
