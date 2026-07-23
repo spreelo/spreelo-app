@@ -884,7 +884,7 @@ async function renderCarouselProductSlideImage({
     title: title || pricingSource?.title || pricingSource?.name || pricingSource?.product_title || "",
   });
   const pricing = getTrustedWebsiteItemPricing(pricingSource);
-  const titleLines = trustedTitle ? wrapSvgText(trustedTitle, 24, 2) : [];
+  const titleLines = trustedTitle ? splitTextIntoLines(trustedTitle, 24, 2) : [];
   const hasOverlay = Boolean(titleLines.length || pricing.displayPrice);
 
   const titleSvg = titleLines.length
@@ -954,8 +954,17 @@ async function renderCarouselProductSlideImage({
 
       try {
         cutoutBuffer = await extractStrictTransparentProductCutout(sourceBuffer);
+        console.info('Carousel transparent product image accepted', {
+          ruleId: rule?.id || null,
+          sourceImageUrl,
+        });
       } catch (cutoutError) {
         cutoutBuffer = null;
+        console.info('Carousel product image kept without library background', {
+          ruleId: rule?.id || null,
+          sourceImageUrl,
+          reason: cutoutError?.message || 'Transparency check failed',
+        });
       }
 
       if (cutoutBuffer) {
@@ -966,6 +975,19 @@ async function renderCarouselProductSlideImage({
           if (selectedBackground?.asset?.public_url) {
             const backgroundBuffer = await fetchImageBufferForOverlay(selectedBackground.asset.public_url);
             baseCanvas = sharp(backgroundBuffer).rotate().resize({ width, height, fit: 'cover' });
+            console.info('Carousel image background selected', {
+              ruleId: rule?.id || null,
+              sourceImageUrl,
+              backgroundAssetId: selectedBackground.asset.id || null,
+              backgroundName: selectedBackground.asset.name || null,
+              score: selectedBackground.score ?? null,
+              usedFallback: Boolean(selectedBackground.usedFallback),
+            });
+          } else {
+            console.info('Carousel image background library had no selectable asset', {
+              ruleId: rule?.id || null,
+              sourceImageUrl,
+            });
           }
         } catch (backgroundError) {
           console.warn('Static background selection failed', { sourceImageUrl, message: backgroundError.message });
