@@ -2,7 +2,7 @@ import { GET as runSharedAutomationQueue } from "../run-automations/route";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 600;
 
 export async function GET(request) {
   const workerName = "worker-5";
