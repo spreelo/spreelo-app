@@ -23,6 +23,10 @@ import {
   buildVideoBackgroundProfile,
   chooseVideoBackground,
 } from "../../../../lib/videoBackgroundSelection.js";
+import {
+  buildImageBackgroundProfile,
+  chooseImageBackground,
+} from "../../../../lib/imageBackgroundSelection.js";
 import { createPlanPreviewToken } from "../../../../lib/planPreviewToken.js";
 import {
   buildProductContentContract,
@@ -762,19 +766,113 @@ function buildCenteredSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeig
   return `<text x="${x}" y="${y}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}" text-anchor="middle">${spans}</text>`;
 }
 
+function buildLeftAlignedSvgTextBlock(lines, { x, y, fontSize, lineHeight, fontWeight = 400, fill = "#0f172a" }) {
+  if (!Array.isArray(lines) || !lines.length) {
+    return "";
+  }
+
+  const spans = lines
+    .map((line, index) => {
+      const dy = index === 0 ? 0 : lineHeight;
+      return `<tspan x="${x}" dy="${dy}">${escapeSvg(line)}</tspan>`;
+    })
+    .join("");
+
+  return `<text x="${x}" y="${y}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}" text-anchor="start">${spans}</text>`;
+}
+
+async function selectStaticImageBackground({ supabase, rule, dominantColor }) {
+  if (!supabase || !rule) return null;
+
+  const { data: assets, error } = await supabase
+    .from('image_background_assets')
+    .select('id, name, storage_path, public_url, family, moods, industries, campaigns, colors, brightness, season, text_safe, label_safe, crop_safe_1x1, active, is_fallback, priority')
+    .eq('active', true)
+    .eq('crop_safe_1x1', true);
+
+  if (error) {
+    console.warn('Could not load image background library', { message: error.message });
+    return null;
+  }
+
+  if (!assets?.length) return null;
+
+  const profile = buildImageBackgroundProfile({
+    rule,
+    dominantColor,
+    productBrightness: getAnimatedProductBrightness(dominantColor),
+  });
+  const selected = chooseImageBackground({ assets, profile });
+  if (!selected?.asset) return null;
+
+  return {
+    asset: selected.asset,
+    profile,
+    score: selected.score,
+    usedFallback: selected.usedFallback,
+  };
+}
+
+
+async function extractStrictTransparentProductCutout(sourceImageBuffer) {
+  const normalized = await sharp(sourceImageBuffer)
+    .rotate()
+    .resize({
+      width: 1400,
+      height: 1400,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .ensureAlpha()
+    .png()
+    .toBuffer();
+
+  const { data, info } = await sharp(normalized)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const pixelCount = info.width * info.height;
+  const alphaChannel = Buffer.alloc(pixelCount);
+  let transparentPixelCount = 0;
+
+  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+    const alpha = data[pixel * 4 + 3];
+    alphaChannel[pixel] = alpha;
+    if (alpha < 245) transparentPixelCount += 1;
+  }
+
+  const transparencyRatio = pixelCount ? transparentPixelCount / pixelCount : 0;
+  if (transparencyRatio < 0.005) {
+    throw new Error("Product image does not contain real transparency");
+  }
+
+  const bounds = findAlphaBounds(alphaChannel, info.width, info.height, 18);
+  if (!bounds) {
+    throw new Error("Transparent product image contained no visible product");
+  }
+
+  const boundsAreaRatio = (bounds.width * bounds.height) / Math.max(1, pixelCount);
+  const edgeVisibleRatio = getAlphaEdgeRatio(alphaChannel, info.width, info.height, 48);
+  if (boundsAreaRatio > 0.97 && edgeVisibleRatio > 0.22) {
+    throw new Error("Product image still contains a full rectangular background");
+  }
+
+  return sharp(normalized).extract(bounds).png().toBuffer();
+}
+
 async function renderCarouselProductSlideImage({
   sourceImageUrl,
   product = null,
   title = "",
   price = "",
+  supabase = null,
+  rule = null,
 }) {
   const width = 1080;
   const height = 1080;
-  const centerX = width / 2;
-  const overlayX = 58;
-  const overlayY = 788;
-  const overlayWidth = 964;
-  const overlayHeight = 234;
+  const cardX = 676;
+  const cardY = 840;
+  const cardWidth = 326;
+  const cardHeight = 132;
 
   const pricingSource = product && typeof product === "object" ? { ...product } : {};
   if (price && !pricingSource.price) {
@@ -786,43 +884,50 @@ async function renderCarouselProductSlideImage({
     title: title || pricingSource?.title || pricingSource?.name || pricingSource?.product_title || "",
   });
   const pricing = getTrustedWebsiteItemPricing(pricingSource);
-  const titleLines = trustedTitle ? wrapSvgText(trustedTitle, 30, 2) : [];
+  const titleLines = trustedTitle ? wrapSvgText(trustedTitle, 24, 2) : [];
   const hasOverlay = Boolean(titleLines.length || pricing.displayPrice);
-  const titleY = titleLines.length > 1 ? 850 : 872;
-  const priceY = titleLines.length > 1 ? 970 : 958;
 
   const titleSvg = titleLines.length
-    ? buildCenteredSvgTextBlock(titleLines, {
-        x: centerX,
-        y: titleY,
-        fontSize: 38,
-        lineHeight: 46,
-        fontWeight: 750,
-        fill: "#111827",
+    ? buildLeftAlignedSvgTextBlock(titleLines, {
+        x: cardX + 24,
+        y: cardY + 69,
+        fontSize: 24,
+        lineHeight: 28,
+        fontWeight: 500,
+        fill: "#1f2937",
       })
     : "";
 
   let priceSvg = "";
   if (pricing.isOnSale && pricing.salePrice && pricing.originalPrice) {
-    const saleX = centerX - 18;
-    const originalX = centerX + 18;
-    const originalFontSize = 26;
-    const estimatedWidth = Math.max(pricing.originalPrice.length * originalFontSize * 0.58, 48);
+    const saleX = cardX + 24;
+    const originalX = cardX + 122;
+    const priceY = cardY + 112;
+    const originalFontSize = 17;
+    const estimatedWidth = Math.max(pricing.originalPrice.length * originalFontSize * 0.56, 40);
 
     priceSvg = `
-      <text x="${saleX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="43" font-weight="800" fill="#dc2626" text-anchor="end">${escapeSvg(pricing.salePrice)}</text>
-      <text x="${originalX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${originalFontSize}" font-weight="600" fill="#64748b" text-anchor="start">${escapeSvg(pricing.originalPrice)}</text>
-      <line x1="${originalX}" y1="${priceY - 10}" x2="${originalX + estimatedWidth}" y2="${priceY - 10}" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="${saleX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="26" font-weight="800" fill="#111827" text-anchor="start">${escapeSvg(pricing.salePrice)}</text>
+      <text x="${originalX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${originalFontSize}" font-weight="600" fill="#6b7280" text-anchor="start">${escapeSvg(pricing.originalPrice)}</text>
+      <line x1="${originalX}" y1="${priceY - 7}" x2="${originalX + estimatedWidth}" y2="${priceY - 7}" stroke="#9ca3af" stroke-width="2" stroke-linecap="round"/>
     `;
   } else if (pricing.displayPrice) {
-    priceSvg = `<text x="${centerX}" y="${priceY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="43" font-weight="800" fill="#0f172a" text-anchor="middle">${escapeSvg(pricing.displayPrice)}</text>`;
+    priceSvg = `<text x="${cardX + 24}" y="${cardY + 112}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="26" font-weight="800" fill="#111827" text-anchor="start">${escapeSvg(pricing.displayPrice)}</text>`;
   }
 
   const overlaySvg = hasOverlay
     ? `
-      <rect x="${overlayX}" y="${overlayY}" width="${overlayWidth}" height="${overlayHeight}" rx="34" fill="#ffffff" fill-opacity="0.95" stroke="#e2e8f0" stroke-width="2"/>
+      <defs>
+        <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="160%">
+          <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#0f172a" flood-opacity="0.14"/>
+        </filter>
+      </defs>
+      <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${cardHeight}" rx="26" fill="#ffffff" fill-opacity="0.82" stroke="#ffffff" stroke-opacity="0.75" stroke-width="1.4" filter="url(#cardShadow)"/>
+      <text x="${cardX + 24}" y="${cardY + 32}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="14" font-weight="700" fill="#c28a2e" text-anchor="start">✦ PREMIUM</text>
       ${titleSvg}
       ${priceSvg}
+      <circle cx="${cardX + cardWidth - 34}" cy="${cardY + cardHeight - 33}" r="18" fill="#f7f2e9"/>
+      <text x="${cardX + cardWidth - 34}" y="${cardY + cardHeight - 27}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="19" font-weight="700" fill="#c28a2e" text-anchor="middle">→</text>
     `
     : "";
 
@@ -833,58 +938,88 @@ async function renderCarouselProductSlideImage({
   `;
 
   const composites = [];
-
-  if (sourceImageUrl) {
-    try {
-      const sourceBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
-      const productImageBuffer = await sharp(sourceBuffer)
-        .rotate()
-        .resize({
-          width,
-          height,
-          fit: "contain",
-          background: { r: 255, g: 255, b: 255, alpha: 1 },
-          withoutEnlargement: false,
-        })
-        .png()
-        .toBuffer();
-
-      composites.push({
-        input: productImageBuffer,
-        top: 0,
-        left: 0,
-      });
-    } catch (error) {
-      console.error("Product image fetch/render failed", {
-        sourceImageUrl,
-        message: error.message,
-      });
-    }
-  }
-
-  if (hasOverlay) {
-    composites.push({
-      input: Buffer.from(overlayLayer),
-      top: 0,
-      left: 0,
-    });
-  }
-
-  const outputBuffer = await sharp({
+  let baseCanvas = sharp({
     create: {
       width,
       height,
       channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
+      background: { r: 248, g: 246, b: 241, alpha: 1 },
     },
-  })
+  });
+
+  if (sourceImageUrl) {
+    try {
+      const sourceBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
+      let cutoutBuffer = null;
+
+      try {
+        cutoutBuffer = await extractStrictTransparentProductCutout(sourceBuffer);
+      } catch (cutoutError) {
+        cutoutBuffer = null;
+      }
+
+      if (cutoutBuffer) {
+        try {
+          const accent = await getProductAccentColor(cutoutBuffer);
+          const selectedBackground = await selectStaticImageBackground({ supabase, rule, dominantColor: accent });
+
+          if (selectedBackground?.asset?.public_url) {
+            const backgroundBuffer = await fetchImageBufferForOverlay(selectedBackground.asset.public_url);
+            baseCanvas = sharp(backgroundBuffer).rotate().resize({ width, height, fit: 'cover' });
+          }
+        } catch (backgroundError) {
+          console.warn('Static background selection failed', { sourceImageUrl, message: backgroundError.message });
+        }
+
+        const resizedProduct = await sharp(cutoutBuffer)
+          .resize({ width: 700, height: 740, fit: 'inside', withoutEnlargement: false })
+          .png()
+          .toBuffer();
+        const meta = await sharp(resizedProduct).metadata();
+        const productLeft = Math.round((width - Number(meta.width || 0)) / 2);
+        const productTop = Math.max(58, Math.round((height - Number(meta.height || 0)) / 2) - 42);
+        const shadowWidth = Math.max(220, Math.round((Number(meta.width || 520)) * 0.62));
+        const shadowSvg = `
+          <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="shadowBlur" x="-30%" y="-200%" width="160%" height="400%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="18"/>
+              </filter>
+            </defs>
+            <ellipse cx="${productLeft + Number(meta.width || 0) / 2}" cy="${productTop + Number(meta.height || 0) - 8}" rx="${shadowWidth / 2}" ry="28" fill="#000000" fill-opacity="0.12" filter="url(#shadowBlur)"/>
+          </svg>`;
+        composites.push({ input: Buffer.from(shadowSvg), top: 0, left: 0 });
+        composites.push({ input: resizedProduct, top: productTop, left: productLeft });
+      } else {
+        const productImageBuffer = await sharp(sourceBuffer)
+          .rotate()
+          .resize({
+            width,
+            height,
+            fit: 'contain',
+            background: { r: 255, g: 255, b: 255, alpha: 0 },
+            withoutEnlargement: false,
+          })
+          .png()
+          .toBuffer();
+        composites.push({ input: productImageBuffer, top: 0, left: 0 });
+      }
+    } catch (error) {
+      console.error('Product image fetch/render failed', { sourceImageUrl, message: error.message });
+    }
+  }
+
+  if (hasOverlay) {
+    composites.push({ input: Buffer.from(overlayLayer), top: 0, left: 0 });
+  }
+
+  const outputBuffer = await baseCanvas
+    .ensureAlpha()
     .composite(composites)
     .png()
     .toBuffer();
 
-  return {
-    imageBase64: outputBuffer.toString("base64"),
-  };
+  return { imageBase64: outputBuffer.toString('base64') };
 }
 
 function getDateYYYYMMDDInTimeZone(
@@ -17517,6 +17652,8 @@ async function saveCarouselSlidesForPost({
           product: slideProduct || slide,
           title: slideProduct?.title || slide.product_title || slide.headline || "",
           price: getTrustedProductCardPrice(slideProduct) || slide.product_price || "",
+          supabase,
+          rule,
         });
 
         const uploadedImage = await uploadGeneratedImageToStorage({
@@ -22976,6 +23113,8 @@ product_research_model_used: rule.uses_website_content
               product: websiteItem,
               title: websiteItem.title || "",
               price: getTrustedProductCardPrice(websiteItem) || "",
+              supabase,
+              rule,
             });
 
             const uploadedProductCard = await uploadGeneratedImageToStorage({

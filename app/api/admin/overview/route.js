@@ -51,6 +51,11 @@ export async function GET(request) {
         query.eq("active", true)
       )
     ),
+    safeAdminQuery("imageBackgrounds", 0, () =>
+      countRows(context.admin, "image_background_assets", (query) =>
+        query.eq("active", true)
+      )
+    ),
     safeAdminQuery("failedMedia", 0, () =>
       // Only surface posts whose overall generation actually failed.
       // A post may still be usable as text even when an optional image failed.
@@ -81,6 +86,7 @@ export async function GET(request) {
     posts,
     activeAutomations,
     backgrounds,
+    imageBackgrounds,
     failedMedia,
     pendingApproval,
     recentAdjustments,
@@ -97,6 +103,7 @@ export async function GET(request) {
       posts: posts.value,
       activeAutomations: activeAutomations.value,
       backgrounds: backgrounds.value,
+      imageBackgrounds: imageBackgrounds.value,
       failedMedia: failedMedia.value,
       pendingApproval: pendingApproval.value,
     },

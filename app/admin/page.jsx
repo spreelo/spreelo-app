@@ -10,6 +10,7 @@ import {
   FileVideo2,
   FileCheck2,
   ImagePlay,
+  ImagePlus,
   LayoutGrid,
   Languages,
   LoaderCircle,
@@ -29,6 +30,7 @@ const initialStats = {
   posts: 0,
   activeAutomations: 0,
   backgrounds: 0,
+  imageBackgrounds: 0,
   failedMedia: 0,
   pendingApproval: 0,
 };
@@ -192,6 +194,7 @@ export default function AdminDashboardPage() {
     { label: "Posts", value: stats.posts, Icon: Sparkles },
     { label: "Active automations", value: stats.activeAutomations, Icon: Bot },
     { label: "Video backgrounds", value: stats.backgrounds, Icon: ImagePlay },
+    { label: "Image backgrounds", value: stats.imageBackgrounds, Icon: ImagePlus },
     { label: "Pending approval", value: stats.pendingApproval, Icon: FileVideo2 },
   ];
 
@@ -271,6 +274,16 @@ export default function AdminDashboardPage() {
                   <span className="admin-card-kicker">Creative library</span>
                   <h2>Video backgrounds</h2>
                   <p>Upload, tag, preview, edit and manage the reusable 9:16 motion background library.</p>
+                </div>
+                <strong>Open library →</strong>
+              </a>
+
+              <a className="admin-tool-card" href="/admin/image-backgrounds">
+                <span className="admin-tool-icon"><ImagePlus size={24} aria-hidden="true" /></span>
+                <div>
+                  <span className="admin-card-kicker">Creative library</span>
+                  <h2>Image backgrounds</h2>
+                  <p>Upload, tag, preview, edit and manage the reusable 1:1 background library for carousel product cards.</p>
                 </div>
                 <strong>Open library →</strong>
               </a>
