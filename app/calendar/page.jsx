@@ -937,7 +937,7 @@ export default function Calendar() {
   const [brandName, setBrandName] = useState("");
   const [campaigns, setCampaigns] = useState([]);
   const [campaignFilter, setCampaignFilter] = useState("all");
-  const [campaignSort, setCampaignSort] = useState("relevance");
+  const [campaignSort, setCampaignSort] = useState("date-asc");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [today, setToday] = useState(() => new Date());
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
@@ -950,15 +950,14 @@ export default function Calendar() {
     );
 
     return [...filteredCampaigns].sort((firstCampaign, secondCampaign) => {
-      if (campaignSort === "date") {
-        return getSortDate(firstCampaign) - getSortDate(secondCampaign);
+      const chronologicalDifference =
+        getSortDate(firstCampaign) - getSortDate(secondCampaign);
+
+      if (campaignSort === "date-desc") {
+        return -chronologicalDifference;
       }
 
-      return (
-        getCampaignRelevanceTotal(secondCampaign) -
-          getCampaignRelevanceTotal(firstCampaign) ||
-        getSortDate(firstCampaign) - getSortDate(secondCampaign)
-      );
+      return chronologicalDifference;
     });
   }, [campaigns, campaignFilter, campaignSort]);
 
@@ -1102,15 +1101,8 @@ export default function Calendar() {
 
       setCampaigns(upcomingCampaigns);
 
-      const initiallyVisibleCampaigns = [...upcomingCampaigns].sort(
-        (firstCampaign, secondCampaign) =>
-          getCampaignRelevanceTotal(secondCampaign) -
-            getCampaignRelevanceTotal(firstCampaign) ||
-          getSortDate(firstCampaign) - getSortDate(secondCampaign)
-      );
-
-      // The first visible campaign should always be the one expanded on entry.
-      setSelectedCampaignId(initiallyVisibleCampaigns[0]?.id || "");
+      // The closest campaign in time is first and expanded on entry.
+      setSelectedCampaignId(upcomingCampaigns[0]?.id || "");
 
       setLoading(false);
     }
@@ -1295,8 +1287,20 @@ export default function Calendar() {
                       value={campaignSort}
                       onChange={(event) => setCampaignSort(event.target.value)}
                     >
-                      <option value="relevance">{t("calendar.sortByRelevance")}</option>
-                      <option value="date">{t("calendar.sortByDate")}</option>
+                      <option value="date-asc">
+                        {getSafeUiLabel(
+                          t,
+                          "calendar.sortNearestFirst",
+                          locale === "sv" ? "Närmast i tiden" : "Closest first"
+                        )}
+                      </option>
+                      <option value="date-desc">
+                        {getSafeUiLabel(
+                          t,
+                          "calendar.sortLatestFirst",
+                          locale === "sv" ? "Senast i tiden" : "Latest first"
+                        )}
+                      </option>
                     </select>
                   </label>
                 </div>

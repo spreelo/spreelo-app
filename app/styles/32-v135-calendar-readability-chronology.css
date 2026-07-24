@@ -1,0 +1,293 @@
+/* v135 — Calendar readability, chronological ordering and distinct statuses.
+   Presentation and local sorting only. No AI, credits, campaign planning,
+   database writes or campaign handoff logic changed. */
+
+/* Match the comfortable text scale used in AI Innehållsstudio. */
+html body .campaign-calendar-v134 .campaign-calendar-v133-personal-card > div:nth-child(2) > strong {
+  font-size: 16px !important;
+  line-height: 1.3 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-personal-card > div:nth-child(2) > p {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-personal-count span {
+  font-size: 11.5px !important;
+  line-height: 1.3 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v132-rail-label,
+html body .campaign-calendar-v134 .campaign-calendar-v132-sort > span {
+  font-size: 11px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v132-filter-list button,
+html body .campaign-calendar-v134 .campaign-calendar-v132-sort select {
+  min-height: 42px !important;
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-list-head h3 {
+  font-size: 26px !important;
+  line-height: 1.15 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-list-head > span {
+  min-height: 32px !important;
+  padding: 0 12px !important;
+  font-size: 11.5px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+  grid-template-columns: 72px minmax(0, 1fr) minmax(175px, .5fr) 24px !important;
+  gap: 16px !important;
+  min-height: 92px !important;
+  padding-right: 18px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+  width: 72px !important;
+  height: 92px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy {
+  padding: 15px 0 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy > div {
+  gap: 7px !important;
+  margin-bottom: 6px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy > div > span:first-child,
+html body .campaign-calendar-v134 .campaign-calendar-v133-status {
+  min-height: 24px !important;
+  padding: 0 9px !important;
+  font-size: 10.5px !important;
+  line-height: 1 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy h4 {
+  font-size: 16px !important;
+  line-height: 1.3 !important;
+  letter-spacing: -.012em !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy p {
+  margin-top: 4px !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta {
+  gap: 4px !important;
+  padding: 15px 0 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta strong {
+  font-size: 12.5px !important;
+  line-height: 1.35 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta span {
+  font-size: 10.5px !important;
+  line-height: 1.3 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-grid {
+  gap: 12px !important;
+  padding: 14px 16px 17px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section,
+html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel,
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section:first-child,
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section.details {
+  padding: 17px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section h5 {
+  margin-bottom: 9px !important;
+  font-size: 14px !important;
+  line-height: 1.3 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section > strong {
+  margin-top: 15px !important;
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section p {
+  font-size: 12.5px !important;
+  line-height: 1.55 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section dt {
+  font-size: 10.5px !important;
+  line-height: 1.3 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section dd {
+  font-size: 12.5px !important;
+  line-height: 1.4 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v132-angles {
+  gap: 7px !important;
+  margin-top: 12px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v132-angles span {
+  min-height: 29px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel strong {
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel p {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel button {
+  min-height: 42px !important;
+  font-size: 12.5px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-tools-toggle {
+  font-size: 13px !important;
+}
+
+/* Planned remains green. Current is warm orange so the meanings are unmistakable. */
+html body .campaign-calendar-v134 .campaign-calendar-v133-status.planned {
+  border: 1px solid rgba(38, 143, 91, .10) !important;
+  background: rgba(44, 169, 103, .13) !important;
+  color: #197849 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-status.current {
+  border: 1px solid rgba(225, 91, 55, .12) !important;
+  background: rgba(241, 111, 77, .14) !important;
+  color: #b7472d !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-status.past {
+  border: 1px solid rgba(112, 122, 138, .10) !important;
+  background: rgba(112, 122, 138, .10) !important;
+  color: #697487 !important;
+}
+
+@media (max-width: 1180px) {
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+    grid-template-columns: 66px minmax(0, 1fr) minmax(155px, .45fr) 22px !important;
+    min-height: 86px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+    width: 66px !important;
+    height: 86px !important;
+  }
+}
+
+@media (max-width: 1020px) {
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+    grid-template-columns: 64px minmax(0, 1fr) minmax(145px, .42fr) 22px !important;
+    min-height: 84px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+    width: 64px !important;
+    height: 84px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html body .campaign-calendar-v134 .campaign-calendar-v133-personal-card > div:nth-child(2) > strong {
+    font-size: 15px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-personal-card > div:nth-child(2) > p {
+    font-size: 13px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-list-head h3 {
+    font-size: 23px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+    grid-template-columns: 64px minmax(0, 1fr) 22px !important;
+    gap: 12px !important;
+    min-height: 0 !important;
+    padding-right: 14px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+    width: 64px !important;
+    height: 100% !important;
+    min-height: 108px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy {
+    padding: 14px 0 7px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy > div > span:first-child,
+  html body .campaign-calendar-v134 .campaign-calendar-v133-status {
+    min-height: 23px !important;
+    padding: 0 8px !important;
+    font-size: 10px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy h4 {
+    font-size: 16px !important;
+    line-height: 1.32 !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy p {
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta {
+    padding-bottom: 14px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta strong {
+    font-size: 11.5px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta span {
+    font-size: 10.5px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section h5 {
+    font-size: 15px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section > strong {
+    font-size: 13.5px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section p,
+  html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section dd,
+  html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel p {
+    font-size: 13px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel strong {
+    font-size: 14px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel button {
+    min-height: 46px !important;
+    font-size: 13px !important;
+  }
+}
