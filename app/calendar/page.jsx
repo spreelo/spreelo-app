@@ -5,8 +5,6 @@ import {
   CalendarDays,
   CalendarRange,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   SlidersHorizontal,
   Sparkles,
 } from "lucide-react";
@@ -941,16 +939,14 @@ export default function Calendar() {
   const [campaignFilter, setCampaignFilter] = useState("all");
   const [campaignSort, setCampaignSort] = useState("relevance");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
-  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
-  const [selectedDateFilter, setSelectedDateFilter] = useState("");
+  const [today, setToday] = useState(() => new Date());
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   const visibleCampaigns = useMemo(() => {
     const filteredCampaigns = campaigns.filter((campaign) =>
-      campaignMatchesCalendarFilter(campaign, campaignFilter) &&
-      campaignIncludesDate(campaign, selectedDateFilter)
+      campaignMatchesCalendarFilter(campaign, campaignFilter)
     );
 
     return [...filteredCampaigns].sort((firstCampaign, secondCampaign) => {
@@ -964,7 +960,7 @@ export default function Calendar() {
         getSortDate(firstCampaign) - getSortDate(secondCampaign)
       );
     });
-  }, [campaigns, campaignFilter, campaignSort, selectedDateFilter]);
+  }, [campaigns, campaignFilter, campaignSort]);
 
   const selectedCampaign = useMemo(() => {
     if (!selectedCampaignId) {
@@ -991,33 +987,26 @@ export default function Calendar() {
     };
   }, [campaigns]);
 
-  const calendarDays = useMemo(() => getMonthGrid(calendarMonth), [calendarMonth]);
+  const todayDisplay = useMemo(() => {
+    const activeLocale = locale || "en";
+    const formatPart = (options) =>
+      new Intl.DateTimeFormat(activeLocale, options).format(today);
+    const capitalize = (value) =>
+      value ? `${value.charAt(0).toLocaleUpperCase(activeLocale)}${value.slice(1)}` : value;
 
-  const campaignDateSet = useMemo(() => {
-    return new Set(
-      campaigns
-        .map((campaign) => getCampaignPrimaryDate(campaign))
-        .filter(Boolean)
-    );
-  }, [campaigns]);
-
-  const weekdayLabels = useMemo(() => {
-    const formatter = new Intl.DateTimeFormat(locale || "en", { weekday: "narrow" });
-    const monday = new Date(2026, 0, 5);
-
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + index);
-      return formatter.format(date);
+    const relativeFormatter = new Intl.RelativeTimeFormat(activeLocale, {
+      numeric: "auto",
     });
-  }, [locale]);
 
-  const calendarMonthLabel = useMemo(() => {
-    return new Intl.DateTimeFormat(locale || "en", {
-      month: "long",
-      year: "numeric",
-    }).format(calendarMonth);
-  }, [calendarMonth, locale]);
+    return {
+      todayLabel: capitalize(relativeFormatter.format(0, "day")),
+      weekday: capitalize(formatPart({ weekday: "long" })),
+      day: formatPart({ day: "numeric" }),
+      month: capitalize(formatPart({ month: "long" })),
+      year: formatPart({ year: "numeric" }),
+      accessible: formatPart({ dateStyle: "full" }),
+    };
+  }, [locale, today]);
 
   useEffect(() => {
     async function loadCampaignPlanner() {
@@ -1112,24 +1101,28 @@ export default function Calendar() {
         );
 
       setCampaigns(upcomingCampaigns);
-      const shouldOpenFirstCampaign =
-        typeof window !== "undefined" && window.innerWidth > 1020;
-      setSelectedCampaignId(
-        shouldOpenFirstCampaign ? upcomingCampaigns[0]?.id || "" : ""
+
+      const initiallyVisibleCampaigns = [...upcomingCampaigns].sort(
+        (firstCampaign, secondCampaign) =>
+          getCampaignRelevanceTotal(secondCampaign) -
+            getCampaignRelevanceTotal(firstCampaign) ||
+          getSortDate(firstCampaign) - getSortDate(secondCampaign)
       );
 
-      const firstCampaignDate = getCampaignPrimaryDate(upcomingCampaigns[0]);
-      if (firstCampaignDate) {
-        const parsedDate = new Date(`${firstCampaignDate}T12:00:00`);
-        if (!Number.isNaN(parsedDate.getTime())) {
-          setCalendarMonth(parsedDate);
-        }
-      }
+      // The first visible campaign should always be the one expanded on entry.
+      setSelectedCampaignId(initiallyVisibleCampaigns[0]?.id || "");
 
       setLoading(false);
     }
 
     loadCampaignPlanner();
+  }, []);
+
+  useEffect(() => {
+    const updateToday = () => setToday(new Date());
+    const intervalId = window.setInterval(updateToday, 60 * 1000);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   function handleCreateCampaign(campaign) {
@@ -1179,18 +1172,29 @@ export default function Calendar() {
 
   return (
     <AppLayout active="calendar">
-      <div className="campaign-calendar-page campaign-calendar-v132 campaign-calendar-v133">
-        <header className="campaign-calendar-v133-header">
-          <div>
+      <div className="campaign-calendar-page campaign-calendar-v132 campaign-calendar-v133 campaign-calendar-v134">
+        <header className="campaign-calendar-v134-hero">
+          <div className="campaign-calendar-v134-hero-copy">
             <p className="dashboard-eyebrow">
               {t("calendar.personalEyebrow")}
             </p>
             <h2>
               {t("calendar.personalTitle", { brandName })}
             </h2>
-            <span>
+            <span className="campaign-calendar-v134-hero-subtitle">
               {t("calendar.personalIntro", { brandName })}
             </span>
+
+            <div className="campaign-calendar-v134-stats">
+              <div>
+                <span><CalendarDays size={22} aria-hidden="true" /></span>
+                <p><strong>{campaignStats.total}</strong>{t("calendar.statUpcoming")}</p>
+              </div>
+              <div>
+                <span><Sparkles size={22} aria-hidden="true" /></span>
+                <p><strong>{campaignStats.fixedDate}</strong>{t("calendar.statFixedDates")}</p>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -1242,100 +1246,27 @@ export default function Calendar() {
                 </button>
 
                 <div className={`campaign-calendar-v133-rail-controls ${mobileToolsOpen ? "open" : ""}`}>
-                  <div className="campaign-calendar-v132-mini campaign-calendar-v133-mini">
-                    <div className="campaign-calendar-v132-mini-head">
-                      <strong>{calendarMonthLabel}</strong>
-                      <div>
-                        <button
-                          type="button"
-                          aria-label="Previous month"
-                          onClick={() =>
-                            setCalendarMonth(
-                              (current) =>
-                                new Date(current.getFullYear(), current.getMonth() - 1, 1)
-                            )
-                          }
-                        >
-                          <ChevronLeft size={16} aria-hidden="true" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Next month"
-                          onClick={() =>
-                            setCalendarMonth(
-                              (current) =>
-                                new Date(current.getFullYear(), current.getMonth() + 1, 1)
-                            )
-                          }
-                        >
-                          <ChevronRight size={16} aria-hidden="true" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <p className="campaign-calendar-v133-mini-help">
-                      {t("calendar.dateFilterHelp")}
-                    </p>
-
-                    <div className="campaign-calendar-v132-weekdays" aria-hidden="true">
-                      {weekdayLabels.map((label, index) => (
-                        <span key={`${label}-${index}`}>{label}</span>
-                      ))}
-                    </div>
-
-                    <div className="campaign-calendar-v132-days">
-                      {calendarDays.map(({ date, dateString, isCurrentMonth }) => {
-                        const campaignCountOnDate = getCampaignCountForDate(
-                          campaigns,
-                          dateString
-                        );
-                        const hasCampaign = campaignCountOnDate > 0;
-                        const isSelected = selectedDateFilter === dateString;
-                        const isToday = dateString === getTodayDateString();
-
-                        return (
-                          <button
-                            type="button"
-                            key={dateString}
-                            className={[
-                              isCurrentMonth ? "" : "outside",
-                              hasCampaign ? "has-campaign" : "",
-                              isSelected ? "selected" : "",
-                              isToday ? "today" : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" ")}
-                            onClick={() => {
-                              if (!hasCampaign) return;
-                              setSelectedDateFilter((current) =>
-                                current === dateString ? "" : dateString
-                              );
-                            }}
-                            disabled={!hasCampaign}
-                            aria-pressed={isSelected}
-                            title={
-                              hasCampaign
-                                ? `${formatDate(dateString, locale)} · ${campaignCountOnDate} ${t(
-                                    "calendar.statUpcomingText"
-                                  )}`
-                                : formatDate(dateString, locale)
-                            }
-                          >
-                            <span>{date.getDate()}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {selectedDateFilter && (
-                      <button
-                        type="button"
-                        className="campaign-calendar-v132-clear-date"
-                        onClick={() => setSelectedDateFilter("")}
-                      >
-                        {t("calendar.clearDateFilter")}
-                      </button>
-                    )}
+                  <div
+                    className="campaign-calendar-v134-today-card"
+                    aria-label={todayDisplay.accessible}
+                  >
+                    <span className="campaign-calendar-v134-today-label">
+                      {todayDisplay.todayLabel}
+                    </span>
+                    <span className="campaign-calendar-v134-today-line" aria-hidden="true" />
+                    <strong className="campaign-calendar-v134-today-weekday">
+                      {todayDisplay.weekday}
+                    </strong>
+                    <b className="campaign-calendar-v134-today-day">
+                      {todayDisplay.day}
+                    </b>
+                    <span className="campaign-calendar-v134-today-month">
+                      {todayDisplay.month}
+                    </span>
+                    <span className="campaign-calendar-v134-today-year">
+                      {todayDisplay.year}
+                    </span>
+                    <span className="campaign-calendar-v134-today-waves" aria-hidden="true" />
                   </div>
 
                   <div className="campaign-calendar-v132-rail-section campaign-calendar-v133-filter-section">
@@ -1387,15 +1318,7 @@ export default function Calendar() {
                   </span>
                 </div>
 
-                {selectedDateFilter && (
-                  <div className="campaign-calendar-v133-active-filter">
-                    <CalendarDays size={16} aria-hidden="true" />
-                    <span>{formatDate(selectedDateFilter, locale)}</span>
-                    <button type="button" onClick={() => setSelectedDateFilter("")}>
-                      {t("calendar.showAll")}
-                    </button>
-                  </div>
-                )}
+
 
                 <div className="campaign-calendar-v132-list campaign-calendar-v133-list">
                   {visibleCampaigns.length === 0 && (
