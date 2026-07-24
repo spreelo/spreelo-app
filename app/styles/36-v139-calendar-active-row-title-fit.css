@@ -1,0 +1,147 @@
+/* v139 — Active row emphasis, fixed left visual column and better title fit.
+   Presentation only. No AI or planning behaviour changes.
+*/
+
+/* Make the currently opened campaign card slightly darker and more clearly active,
+   while keeping the same soft SaaS/glass language. */
+html body .campaign-calendar-v134 .campaign-calendar-v133-item.expanded {
+  border-color: rgba(214, 221, 232, .96) !important;
+  background:
+    linear-gradient(180deg, rgba(247, 248, 252, .92), rgba(242, 245, 250, .86)) !important;
+  box-shadow:
+    0 18px 38px rgba(38, 47, 75, .105),
+    0 0 0 1px rgba(216, 223, 233, .55),
+    inset 0 1px 0 rgba(255,255,255,.98) !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-item.expanded .campaign-calendar-v132-row,
+html body .campaign-calendar-v134 .campaign-calendar-v133-item.expanded .campaign-calendar-v133-row {
+  background: transparent !important;
+}
+
+/* Give the left visual strip a stable, reusable footprint.
+   The upper area keeps the desktop-sized image zone, while a subtle tint
+   continues downward behind it on smaller cards. */
+html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+  grid-template-columns: 72px minmax(0, 1.22fr) minmax(146px, .34fr) 22px !important;
+  min-height: 96px !important;
+  height: auto !important;
+  align-items: stretch !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+  position: relative !important;
+  width: 72px !important;
+  height: 100% !important;
+  min-height: 96px !important;
+  flex-basis: 72px !important;
+  align-self: stretch !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  background:
+    linear-gradient(180deg,
+      rgba(249, 236, 228, .94) 0,
+      rgba(249, 236, 228, .94) 92px,
+      rgba(248, 242, 238, .92) 92px,
+      rgba(247, 243, 240, .88) 100%) !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph::after {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0) 40%) !important;
+}
+
+/* Keep the glyph/icon itself calm and centered inside the fixed image area. */
+html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph svg {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Allow the title to use more of the available row width and wrap cleanly. */
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy {
+  min-width: 0 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy h4 {
+  display: -webkit-box !important;
+  overflow: hidden !important;
+  white-space: normal !important;
+  text-wrap: pretty !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta {
+  align-content: center !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta strong {
+  font-size: 12px !important;
+  line-height: 1.33 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta span {
+  font-size: 10px !important;
+}
+
+/* Give medium desktop and landscape tablet widths a little more room for the title. */
+@media (max-width: 1180px) {
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+    grid-template-columns: 72px minmax(0, 1.18fr) minmax(138px, .31fr) 22px !important;
+    min-height: 98px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+    min-height: 98px !important;
+  }
+}
+
+@media (max-width: 1020px) {
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+    grid-template-columns: 72px minmax(0, 1.1fr) minmax(128px, .26fr) 22px !important;
+    min-height: 100px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+    min-height: 100px !important;
+  }
+}
+
+/* On smaller widths, keep the desktop-sized image zone in the upper-left,
+   but let the rest of the strip continue underneath with a matching tint. */
+@media (max-width: 760px) {
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+    grid-template-columns: 72px minmax(0, 1fr) 22px !important;
+    gap: 12px !important;
+    min-height: 0 !important;
+    padding-right: 14px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+    width: 72px !important;
+    height: auto !important;
+    min-height: 118px !important;
+    flex-basis: 72px !important;
+    background:
+      linear-gradient(180deg,
+        rgba(249, 236, 228, .96) 0,
+        rgba(249, 236, 228, .96) 92px,
+        rgba(247, 242, 238, .95) 92px,
+        rgba(245, 241, 238, .92) 100%) !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy {
+    padding-top: 14px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy h4 {
+    font-size: 16px !important;
+    line-height: 1.3 !important;
+    -webkit-line-clamp: 2 !important;
+  }
+}
