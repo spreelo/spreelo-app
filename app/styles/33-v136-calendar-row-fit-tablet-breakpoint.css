@@ -1,0 +1,149 @@
+/* v136 — Calendar row edge fit and earlier tablet layout switch.
+   Presentation only. No campaign, AI, credit, sorting or handoff logic changed. */
+
+/* Keep each campaign header at the same height as its existing peach icon panel.
+   The icon panel is not enlarged; the row is tightened around the readable type. */
+html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+  align-items: stretch !important;
+  height: 92px !important;
+  min-height: 92px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+  align-self: stretch !important;
+  width: 72px !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  flex: 0 0 72px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy {
+  align-self: center !important;
+  padding: 7px 0 !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy > div {
+  gap: 5px !important;
+  margin-bottom: 3px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy p {
+  margin-top: 2px !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta {
+  align-self: stretch !important;
+  align-content: center !important;
+  padding: 7px 0 !important;
+}
+
+/* Switch to the compact filter/date layout before the two-column workspace
+   becomes cramped on landscape tablets and narrow laptop windows. */
+@media (max-width: 1200px) {
+  html body .campaign-calendar-v134 .campaign-calendar-v133-workspace {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    overflow: visible !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-rail {
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-tools-toggle {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-height: 52px !important;
+    padding: 0 16px !important;
+    border: 1px solid rgba(255,255,255,.92) !important;
+    border-radius: 14px !important;
+    background: rgba(255,255,255,.67) !important;
+    color: #26344b !important;
+    box-shadow:
+      0 11px 24px rgba(34,42,68,.075),
+      inset 0 1px 0 rgba(255,255,255,.98) !important;
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    cursor: pointer !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-tools-toggle > span {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-tools-toggle > svg {
+    transition: transform .18s ease !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-tools-toggle.open > svg {
+    transform: rotate(180deg) !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-rail-controls {
+    display: none !important;
+    grid-template-columns: minmax(210px, 250px) minmax(0, 1fr) minmax(190px, .72fr) !important;
+    gap: 13px !important;
+    align-items: start !important;
+    padding-top: 12px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-rail-controls.open {
+    display: grid !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-filter-section,
+  html body .campaign-calendar-v134 .campaign-calendar-v133-sort {
+    margin-top: 0 !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-main {
+    padding: 0 !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+    grid-template-columns: 68px minmax(0, 1fr) minmax(155px, .44fr) 22px !important;
+    height: 88px !important;
+    min-height: 88px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+    width: 68px !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    flex-basis: 68px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-copy,
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row-meta {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+}
+
+/* Mobile cards retain their natural content height and existing responsive flow. */
+@media (max-width: 760px) {
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row {
+    height: auto !important;
+    min-height: 0 !important;
+    align-items: stretch !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-row .campaign-glyph {
+    width: 64px !important;
+    height: auto !important;
+    min-height: 108px !important;
+    flex-basis: 64px !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-rail-controls.open {
+    grid-template-columns: 1fr !important;
+  }
+}
