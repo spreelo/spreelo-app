@@ -1,0 +1,97 @@
+/* v138 — Clearer campaign detail sections.
+   Presentation only. Gives each expanded campaign section its own subtle tint
+   while keeping the shared Spreelo glass-card language. */
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section,
+html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel,
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section:first-child,
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section.details {
+  position: relative !important;
+  overflow: hidden !important;
+  border-width: 1px !important;
+  border-style: solid !important;
+  box-shadow:
+    0 10px 24px rgba(39, 48, 76, .045),
+    inset 0 1px 0 rgba(255, 255, 255, .96) !important;
+}
+
+/* About / why it fits — soft lavender-neutral */
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section.about {
+  background:
+    linear-gradient(145deg, rgba(250, 249, 255, .86), rgba(245, 247, 253, .72)) !important;
+  border-color: rgba(208, 203, 236, .58) !important;
+}
+
+/* Campaign ideas — warm peach */
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section.ideas {
+  background:
+    linear-gradient(145deg, rgba(255, 250, 246, .92), rgba(255, 244, 238, .70)) !important;
+  border-color: rgba(244, 194, 174, .58) !important;
+}
+
+/* Details — cool blue-lilac */
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section.details {
+  background:
+    linear-gradient(145deg, rgba(247, 251, 255, .91), rgba(240, 245, 255, .72)) !important;
+  border-color: rgba(183, 202, 231, .62) !important;
+}
+
+/* Next-step panel — soft cream with orange warmth */
+html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel {
+  background:
+    linear-gradient(145deg, rgba(255, 251, 245, .94), rgba(255, 246, 237, .76)) !important;
+  border-color: rgba(241, 186, 155, .62) !important;
+}
+
+/* A restrained top accent makes the four areas easier to scan without
+   turning them into loud coloured blocks. */
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section::before,
+html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 0 auto 0 !important;
+  height: 3px !important;
+  border-radius: 12px 12px 0 0 !important;
+  pointer-events: none !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section.about::before {
+  background: linear-gradient(90deg, rgba(145, 125, 210, .52), rgba(145, 125, 210, .08)) !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section.ideas::before {
+  background: linear-gradient(90deg, rgba(241, 120, 77, .55), rgba(241, 120, 77, .08)) !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section.details::before {
+  background: linear-gradient(90deg, rgba(104, 144, 201, .52), rgba(104, 144, 201, .08)) !important;
+}
+
+html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel::before {
+  background: linear-gradient(90deg, rgba(239, 101, 68, .62), rgba(239, 101, 68, .08)) !important;
+}
+
+/* Keep headings strong against the slightly different surfaces. */
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section h5,
+html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section > strong,
+html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel strong {
+  color: #17243a !important;
+}
+
+/* Preserve the compact mobile layout while keeping the section distinction. */
+@media (max-width: 760px) {
+  html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section,
+  html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel,
+  html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section:first-child,
+  html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section.details {
+    border-radius: 14px !important;
+    box-shadow:
+      0 8px 20px rgba(39, 48, 76, .04),
+      inset 0 1px 0 rgba(255, 255, 255, .96) !important;
+  }
+
+  html body .campaign-calendar-v134 .campaign-calendar-v133-detail-section::before,
+  html body .campaign-calendar-v134 .campaign-calendar-v133-action-panel::before {
+    border-radius: 14px 14px 0 0 !important;
+  }
+}
