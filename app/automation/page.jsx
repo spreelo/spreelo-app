@@ -6104,7 +6104,6 @@ export default function AutomationPage() {
   const plannerUiCopy = {
     planSummary: t("automation.planSummary"),
     readyToCreate: t("automation.readyToCreate"),
-    spreeloChoosesLanguage: getLanguageDisplayLabel(language),
     platformHelp: t("automation.platformHelp"),
     languageForPosts: t("automation.languageForPosts"),
     repeatFull: t("automation.repeatFull"),
