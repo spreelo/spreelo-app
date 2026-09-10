@@ -235,12 +235,12 @@ function getSocialUrlMessage({ t }) {
   });
 }
 
-function formatTokenExpiry(value, t, platformKey, locale = "en") {
+function formatTokenExpiry(value, t, platformKey) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
 
-  const formattedDate = date.toLocaleDateString(locale || "en", {
+  const formattedDate = date.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -274,7 +274,7 @@ function ChannelCard({
 }) {
   const isConnected = connection?.status === "connected";
   const isConnecting = connectingPlatform === platform.key;
-  const expiresText = formatTokenExpiry(connection?.token_expires_at, t, platform.key, locale);
+  const expiresText = formatTokenExpiry(connection?.token_expires_at, t, platform.key);
   const statusClass = getStatusClass(connection?.status);
 
   return (
@@ -361,7 +361,7 @@ function ChannelCard({
 }
 
 export default function SocialChannelsPage() {
-  const { t, locale } = useUiText(["social"]);
+  const { t } = useUiText(["social"]);
   const [connectionsByPlatform, setConnectionsByPlatform] = useState({});
   const [currentUser, setCurrentUser] = useState(null);
   const [currentBrand, setCurrentBrand] = useState(null);
