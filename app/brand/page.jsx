@@ -296,14 +296,14 @@ function shortenDetail(value, fallback = "—") {
   return clean || fallback;
 }
 
-function getCompactIndustryLabel(value, locale = "en") {
+function getCompactIndustryLabel(value, t) {
   const clean = shortenDetail(value, "");
-  if (!clean) return locale === "sv" ? "Bransch" : "Industry";
+  if (!clean) return t("brand.compactIndustry.industry");
 
-  if (/e-?handel/i.test(clean)) return locale === "sv" ? "E-handel" : "E-commerce";
-  if (/(beauty|hudvård|smink|makeup|skincare|fragrance|hårvård)/i.test(clean)) return locale === "sv" ? "Skönhet" : "Beauty";
-  if (/(mode|fashion|clothing|kläder|apparel|hoodie|shirt|t-shirt)/i.test(clean)) return locale === "sv" ? "Mode" : "Fashion";
-  if (/(interior|möbler|home decor|heminredning)/i.test(clean)) return locale === "sv" ? "Inredning" : "Interior";
+  if (/e-?handel/i.test(clean)) return t("brand.compactIndustry.ecommerce");
+  if (/(beauty|hudvård|smink|makeup|skincare|fragrance|hårvård)/i.test(clean)) return t("brand.compactIndustry.beauty");
+  if (/(mode|fashion|clothing|kläder|apparel|hoodie|shirt|t-shirt)/i.test(clean)) return t("brand.compactIndustry.fashion");
+  if (/(interior|möbler|home decor|heminredning)/i.test(clean)) return t("brand.compactIndustry.interior");
 
   const firstPart = clean.split(/[,.·•:;–—-]/).map((part) => part.trim()).filter(Boolean)[0] || clean;
   if (firstPart.length <= 22) return firstPart;
@@ -311,39 +311,38 @@ function getCompactIndustryLabel(value, locale = "en") {
   return firstPart.split(/\s+/).slice(0, 3).join(" ");
 }
 
-function getAudienceHeadline(value, marketLabel, locale = "en") {
+function getAudienceHeadline(value, marketLabel, t) {
   const clean = shortenDetail(value, "");
-  if (!clean) return marketLabel || (locale === "sv" ? "Målgrupp" : "Audience");
+  if (!clean) return marketLabel || t("brand.audienceFallback");
   if (clean.length <= 34) return clean;
-  return marketLabel || (locale === "sv" ? "Målgrupp" : "Audience");
+  return marketLabel || t("brand.audienceFallback");
 }
 
-function getPreviewCopy(industry, locale = "en") {
-  const isSwedish = locale === "sv";
+function getPreviewCopy(industry, t) {
   const clean = String(industry || "");
 
   if (/(beauty|hudvård|smink|makeup|skincare|fragrance|hårvård)/i.test(clean)) {
     return {
-      headline: isSwedish ? "Din skönhetsrutin,\nvarje dag." : "Your beauty routine,\nevery day.",
-      text: isSwedish ? "Upptäck favoriter inom hudvård, smink, doft och hårvård." : "Discover favourites in skincare, makeup, fragrance and haircare.",
-      cta: isSwedish ? "Handla nu" : "Shop now",
+      headline: t("brand.preview.beautyHeadline"),
+      text: t("brand.preview.beautyText"),
+      cta: t("brand.preview.shopNow"),
       theme: "beauty",
     };
   }
 
   if (/(mode|fashion|clothing|kläder|apparel|hoodie|shirt|t-shirt|poster|tryck)/i.test(clean)) {
     return {
-      headline: isSwedish ? "Din stil.\nDina regler." : "Your style.\nYour rules.",
-      text: isSwedish ? "Personliga produkter som berättar din historia." : "Personal products that tell your story.",
-      cta: isSwedish ? "Handla nu" : "Shop now",
+      headline: t("brand.preview.fashionHeadline"),
+      text: t("brand.preview.fashionText"),
+      cta: t("brand.preview.shopNow"),
       theme: "fashion",
     };
   }
 
   return {
-    headline: isSwedish ? "Ditt varumärke.\nNästa steg." : "Your brand.\nNext step.",
-    text: isSwedish ? "Ett exempel på hur AI-genererat innehåll kan bära din logotyp." : "An example of how AI-generated content can carry your logo.",
-    cta: isSwedish ? "Läs mer" : "Learn more",
+    headline: t("brand.preview.genericHeadline"),
+    text: t("brand.preview.genericText"),
+    cta: t("brand.preview.learnMore"),
     theme: "generic",
   };
 }
@@ -1508,8 +1507,8 @@ export default function BrandProfile() {
     visibleMarketOptions.find((market) => market.label === contentMarket) || { label: contentMarket, countryCode }
   );
   const resolvedLanguageLabel = getLanguageOptionLabel(t, normalizedContentLanguage);
-  const compactIndustryLabel = getCompactIndustryLabel(industry, locale);
-  const audienceHeadline = getAudienceHeadline(targetAudience, resolvedMarketLabel, locale);
+  const compactIndustryLabel = getCompactIndustryLabel(industry, t);
+  const audienceHeadline = getAudienceHeadline(targetAudience, resolvedMarketLabel, t);
   const summaryDescription = shortenDetail(brandDescription || industry || targetAudience || t("brand.profileOverviewText"));
   const infoDescription = shortenDetail(brandDescription || t("brand.profileOverviewText"));
   const createdYear = (() => {
@@ -1517,7 +1516,7 @@ export default function BrandProfile() {
     const parsedDate = new Date(brandCreatedAt);
     return Number.isNaN(parsedDate.getTime()) ? null : parsedDate.getFullYear();
   })();
-  const previewCopy = getPreviewCopy(industry, locale);
+  const previewCopy = getPreviewCopy(industry, t);
 
   if (loading) {
     return (
@@ -1539,7 +1538,7 @@ export default function BrandProfile() {
             <h2>{isReadOnlyBrandView ? (businessName || t("brand.brandSetup")) : t("brand.heroTitle")}</h2>
             {isReadOnlyBrandView ? (
               <strong className="brand-v144118-hero-subtitle">
-                {locale === "sv" ? "Din varumärkesidentitet samlad på ett ställe." : "Your brand identity, gathered in one place."}
+                {t("brand.identitySubtitle")}
               </strong>
             ) : null}
             <span>{isReadOnlyBrandView ? t("brand.heroText") : t("brand.heroText")}</span>
@@ -1564,7 +1563,7 @@ export default function BrandProfile() {
           <section className="brand-v144118-board" aria-label={t("brand.profileOverview")}>
             <section className="brand-v144118-card brand-v144118-info">
               <div className="brand-v144118-section-head">
-                <p className="dashboard-eyebrow">{locale === "sv" ? "Företagsinformation" : "Business information"}</p>
+                <p className="dashboard-eyebrow">{t("brand.businessInformation")}</p>
               </div>
               <div className="brand-v144118-info-grid">
                 <article className="brand-v144118-info-card">
@@ -1604,7 +1603,7 @@ export default function BrandProfile() {
                   <div>
                     <small>{t("brand.campaignMarket")}</small>
                     <strong>{resolvedMarketLabel}</strong>
-                    <p>{locale === "sv" ? "Primär marknad för marknadsföring och kampanjer." : "Primary market for marketing and campaigns."}</p>
+                    <p>{t("brand.primaryMarketHelp")}</p>
                   </div>
                 </article>
                 <article className="brand-v144118-info-card">
@@ -1623,7 +1622,7 @@ export default function BrandProfile() {
                 <span className="brand-v144118-logo-icon" aria-hidden="true"><Sparkles size={18} /></span>
                 <div>
                   <p className="dashboard-eyebrow">{t("brand.logoSectionEyebrow")}</p>
-                  <h3>{locale === "sv" ? "Din logotyp i allt AI-genererat innehåll" : "Your logo in all AI-generated content"}</h3>
+                  <h3>{t("brand.logoAiContentTitle")}</h3>
                 </div>
               </div>
               <p className="brand-v144118-logo-text">{t("brand.logoSectionDescription")}</p>
@@ -1637,7 +1636,7 @@ export default function BrandProfile() {
                 <p>{t("brand.logoRecommendation")}</p>
               </div>
               <div className="brand-v144118-logo-checker">
-                <p>{locale === "sv" ? "Din logotyp" : "Your logo"}</p>
+                <p>{t("brand.yourLogo")}</p>
                 <div className={`brand-v144118-logo-mark ${logoUrl ? "has-logo" : "is-example"}`}>
                   {logoUrl ? (
                     <img src={logoUrl} alt={t("brand.logoPreviewAlt")} />
@@ -1658,7 +1657,7 @@ export default function BrandProfile() {
                   }}
                   disabled={analyzing || saving || deletingBrand}
                 >
-                  {logoUrl ? (locale === "sv" ? "Byt logotyp" : "Change logo") : t("brand.logoAddButton")}
+                  {logoUrl ? t("brand.changeLogo") : t("brand.logoAddButton")}
                 </button>
                 {logoUrl ? (
                   <button
@@ -1667,7 +1666,7 @@ export default function BrandProfile() {
                     onClick={handleRemoveLogo}
                     disabled={logoUploading || analyzing || saving || deletingBrand}
                   >
-                    {locale === "sv" ? "Ta bort" : t("brand.logoRemove")}
+                    {t("brand.logoRemove")}
                   </button>
                 ) : null}
               </div>
@@ -1682,7 +1681,7 @@ export default function BrandProfile() {
                   </span>
                   <span className="brand-v144118-preview-account">
                     <strong>{businessName || t("brand.brandSetup")}</strong>
-                    <small>{locale === "sv" ? "Sponsrat" : "Sponsored"}</small>
+                    <small>{t("brand.sponsored")}</small>
                   </span>
                   <span className="brand-v144118-preview-more" aria-hidden="true">•••</span>
                 </div>
@@ -1690,7 +1689,7 @@ export default function BrandProfile() {
                   <div className="brand-v144124-preview-media">
                     <img
                       src="/brand-profile/brand-profile-preview-training-shorts-v144126.png"
-                      alt={locale === "sv" ? "Exempel på inlägg med träningsshorts" : "Example training shorts post"}
+                      alt={t("brand.previewTrainingShortsAlt")}
                       className="brand-v144124-preview-image"
                     />
                     {logoUrl && logoEnabledByDefault ? (
@@ -1708,9 +1707,9 @@ export default function BrandProfile() {
                 </div>
                 <div className="brand-v144124-preview-caption-wrap">
                   <p className="brand-v144124-preview-caption-text">
-                    <strong>{businessName || t("brand.brandSetup")}</strong> Move in comfort with lightweight unisex training shorts designed for active days, relaxed weekends and everyday wear.
+                    <strong>{businessName || t("brand.brandSetup")}</strong> {t("brand.preview.trainingShortsCaption")}
                   </p>
-                  <p className="brand-v144124-preview-hashtags">#activewear #trainingstyle #unisexshorts #comfortfirst</p>
+                  <p className="brand-v144124-preview-hashtags">{t("brand.preview.trainingShortsHashtags")}</p>
                 </div>
               </div>
             </aside>

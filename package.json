@@ -194,7 +194,8 @@
     "test:v144.137": "node scripts/test-v144-137-editorial-product-posts.mjs",
     "test:v144.140": "node scripts/test-v144-140-editorial-product-typography-polish.mjs",
     "test:v144.155": "node scripts/test-v144-155-complete-generation-cost-metering.mjs",
-    "test:v144.156": "node scripts/test-v144-156-admin-command-center.mjs"
+    "test:v144.156": "node scripts/test-v144-156-admin-command-center.mjs",
+    "test:v144.157": "node scripts/test-v144-157-persistent-i18n-integrity.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

@@ -37,16 +37,16 @@ function getMonthRange(value) {
   };
 }
 
-function formatDate(value) {
+function formatDate(value, locale = "en") {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat(locale || "en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-function formatDuration(value) {
+function formatDuration(value, locale = "en") {
   const ms = Math.max(0, Number(value || 0));
   if (ms < 1000) return `${ms} ms`;
-  if (ms < 60000) return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
-  return `${(ms / 60000).toLocaleString(undefined, { maximumFractionDigits: 1 })} min`;
+  if (ms < 60000) return `${(ms / 1000).toLocaleString(locale || "en", { maximumFractionDigits: 1 })} s`;
+  return `${(ms / 60000).toLocaleString(locale || "en", { maximumFractionDigits: 1 })} min`;
 }
 
 function safeText(value, fallback = "—") {
@@ -77,7 +77,7 @@ function Empty({ children }) {
 }
 
 export default function AdminCustomerCardPage({ params }) {
-  const { t } = useUiText(["admin"]);
+  const { t, locale } = useUiText(["admin"]);
   const resolvedParams = use(params);
   const customerId = resolvedParams?.id;
   const [month, setMonth] = useState(currentMonthValue());
@@ -126,13 +126,13 @@ export default function AdminCustomerCardPage({ params }) {
         body: JSON.stringify({ action: "set_brand_review_policy", brand_profile_id: brandId, admin_review_required: required }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result?.error || "Kunde inte ändra granskningspolicyn.");
+      if (!response.ok) throw new Error(t("admin.customer.reviewPolicyError"));
       setPayload((current) => current ? {
         ...current,
         brands: (current.brands || []).map((brand) => brand.id === brandId ? { ...brand, admin_review_required: result.brand?.admin_review_required } : brand),
       } : current);
     } catch (policyError) {
-      setError(policyError.message || "Kunde inte ändra granskningspolicyn.");
+      setError(policyError.message || t("admin.customer.reviewPolicyError"));
     } finally {
       setSavingReviewPolicyId("");
     }
@@ -168,7 +168,7 @@ export default function AdminCustomerCardPage({ params }) {
               <div>
                 <span className="admin-eyebrow">{t("admin.customer.kicker")}</span>
                 <h1>{customer.name || customer.email || t("admin.customer.unnamed")}</h1>
-                <p>{customer.email || "—"} · {t("admin.customer.customerSince", { date: formatDate(customer.createdAt) })}</p>
+                <p>{customer.email || "—"} · {t("admin.customer.customerSince", { date: formatDate(customer.createdAt, locale) })}</p>
                 <div className="admin-v140-pill-row">
                   <Status value={balance.subscription_status || t("admin.customer.unknownSubscription")} />
                   {summary.blockedBrandCount ? <span className="admin-v140-pill blocked">{t("admin.customer.blockedWebsites", { count: summary.blockedBrandCount })}</span> : <span className="admin-v140-pill ok">{t("admin.customer.webAccessOk")}</span>}
@@ -177,8 +177,8 @@ export default function AdminCustomerCardPage({ params }) {
               </div>
               <div className="admin-v140-customer-balance">
                 <span>{t("admin.customer.availableCredits")}</span>
-                <strong>{Number(balance.credits_remaining || 0).toLocaleString()}</strong>
-                <small>{safeText(balance.subscription_plan || balance.plan_name)} · {t("admin.customer.monthlyLimit", { count: Number(balance.monthly_credit_limit || 0).toLocaleString() })}</small>
+                <strong>{Number(balance.credits_remaining || 0).toLocaleString(locale || "en")}</strong>
+                <small>{safeText(balance.subscription_plan || balance.plan_name)} · {t("admin.customer.monthlyLimit", { count: Number(balance.monthly_credit_limit || 0).toLocaleString(locale || "en") })}</small>
               </div>
             </header>
 
@@ -191,7 +191,7 @@ export default function AdminCustomerCardPage({ params }) {
             </section>
 
             <section className="admin-stat-grid admin-v140-stat-grid">
-              {stats.map(([label, value, Icon]) => <article className="admin-stat-card" key={label}><span className="admin-stat-icon"><Icon size={19} /></span><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></article>)}
+              {stats.map(([label, value, Icon]) => <article className="admin-stat-card" key={label}><span className="admin-stat-icon"><Icon size={19} /></span><strong>{Number(value).toLocaleString(locale || "en")}</strong><span>{label}</span></article>)}
             </section>
 
             <nav className="admin-v140-tabs" aria-label={t("admin.customer.tabsLabel")}>
@@ -216,14 +216,14 @@ export default function AdminCustomerCardPage({ params }) {
                   <dl className="admin-v140-detail-list">
                     <div><dt>{t("admin.customer.email")}</dt><dd>{customer.email || "—"}</dd></div>
                     <div><dt>{t("admin.customer.phone")}</dt><dd>{customer.phone || "—"}</dd></div>
-                    <div><dt>{t("admin.customer.lastSignIn")}</dt><dd>{formatDate(customer.lastSignInAt)}</dd></div>
+                    <div><dt>{t("admin.customer.lastSignIn")}</dt><dd>{formatDate(customer.lastSignInAt, locale)}</dd></div>
                     <div><dt>{t("admin.customer.provider")}</dt><dd>{customer.appMetadata?.provider || "—"}</dd></div>
                     <div><dt>{t("admin.customer.customerId")}</dt><dd className="admin-mono">{customer.id}</dd></div>
                   </dl>
                 </section>
                 <section className="admin-panel admin-v140-wide-panel">
                   <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.latestEvents")}</span><h2>{t("admin.customer.automaticRuns")}</h2></div></div>
-                  {(payload.occurrences || []).length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{t("admin.customer.time")}</th><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.plan")}</th><th>{t("admin.customer.status")}</th><th>{t("admin.customer.credits")}</th><th>{t("admin.customer.message")}</th></tr></thead><tbody>{payload.occurrences.slice(0, 12).map((row) => <tr key={row.id}><td>{formatDate(row.started_at)}</td><td>{brandById.get(row.brand_profile_id)?.business_name || "—"}</td><td>{ruleById.get(row.automation_rule_id)?.name || row.rule_name || "—"}</td><td><Status value={row.status} /></td><td>{row.refunded_credits ? t("admin.customer.refundedValue", { count: row.refunded_credits }) : "—"}</td><td>{row.failure_customer_message || "—"}</td></tr>)}</tbody></table></div> : <Empty>{t("admin.customer.noRunHistory")}</Empty>}
+                  {(payload.occurrences || []).length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{t("admin.customer.time")}</th><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.plan")}</th><th>{t("admin.customer.status")}</th><th>{t("admin.customer.credits")}</th><th>{t("admin.customer.message")}</th></tr></thead><tbody>{payload.occurrences.slice(0, 12).map((row) => <tr key={row.id}><td>{formatDate(row.started_at, locale)}</td><td>{brandById.get(row.brand_profile_id)?.business_name || "—"}</td><td>{ruleById.get(row.automation_rule_id)?.name || row.rule_name || "—"}</td><td><Status value={row.status} /></td><td>{row.refunded_credits ? t("admin.customer.refundedValue", { count: row.refunded_credits }) : "—"}</td><td>{row.failure_customer_message || "—"}</td></tr>)}</tbody></table></div> : <Empty>{t("admin.customer.noRunHistory")}</Empty>}
                 </section>
               </div>
             ) : null}
@@ -235,10 +235,10 @@ export default function AdminCustomerCardPage({ params }) {
                   <article key={brand.id} className="admin-v14401-customer-brand-card">
                     <header><span className="admin-v140-brand-icon"><Building2 size={19} /></span><div><h3>{brand.business_name || t("admin.customer.unnamedBrand")}</h3><p>{brand.website_url || t("admin.customer.noWebsite")}</p></div><Status value={brand.website_access_status || t("admin.customer.unknown")} /></header>
                     <div className={`admin-v14401-customer-policy ${brand.admin_review_required === false ? "direct" : "review"}`}>
-                      <div><ShieldCheck size={16} /><span><strong>Granskning av nya inlägg</strong><small>{brand.admin_review_required === false ? "Lyckade inlägg går direkt till kunden. Fel stannar alltid i admin." : "Lyckade inlägg går via Spreelo-admin innan kunden får dem."}</small></span></div>
+                      <div><ShieldCheck size={16} /><span><strong>{t("admin.customer.reviewPolicyTitle")}</strong><small>{brand.admin_review_required === false ? t("admin.customer.reviewPolicyDirect") : t("admin.customer.reviewPolicyAdmin")}</small></span></div>
                       <button type="button" disabled={savingReviewPolicyId === brand.id} className={brand.admin_review_required !== false ? "on" : ""} onClick={() => setBrandReviewPolicy(brand.id, brand.admin_review_required === false)} aria-pressed={brand.admin_review_required !== false}><span /></button>
                     </div>
-                    <dl><div><dt>{t("admin.customer.industry")}</dt><dd>{brand.industry || "—"}</dd></div><div><dt>{t("admin.customer.market")}</dt><dd>{brand.content_market || brand.country_code || "—"}</dd></div><div><dt>{t("admin.customer.language")}</dt><dd>{brand.content_language || "—"}</dd></div><div><dt>{t("admin.customer.productSource")}</dt><dd>{brand.website_product_source_url || "—"}</dd></div><div><dt>{t("admin.customer.securitySystem")}</dt><dd>{brand.website_security_provider || "—"}</dd></div><div><dt>{t("admin.customer.lastChecked")}</dt><dd>{formatDate(brand.website_access_checked_at)}</dd></div></dl>
+                    <dl><div><dt>{t("admin.customer.industry")}</dt><dd>{brand.industry || "—"}</dd></div><div><dt>{t("admin.customer.market")}</dt><dd>{brand.content_market || brand.country_code || "—"}</dd></div><div><dt>{t("admin.customer.language")}</dt><dd>{brand.content_language || "—"}</dd></div><div><dt>{t("admin.customer.productSource")}</dt><dd>{brand.website_product_source_url || "—"}</dd></div><div><dt>{t("admin.customer.securitySystem")}</dt><dd>{brand.website_security_provider || "—"}</dd></div><div><dt>{t("admin.customer.lastChecked")}</dt><dd>{formatDate(brand.website_access_checked_at, locale)}</dd></div></dl>
                     {brand.website_access_message ? <p className="admin-v140-brand-message">{brand.website_access_message}</p> : null}
                   </article>
                 ))}</div> : <Empty>{t("admin.customer.noBrands")}</Empty>}
@@ -248,14 +248,14 @@ export default function AdminCustomerCardPage({ params }) {
             {tab === "posts" ? (
               <section className="admin-panel">
                 <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.selectedMonth")}</span><h2>{t("admin.customer.postHistory")}</h2></div></div>
-                {payload.posts.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{t("admin.customer.date")}</th><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.format")}</th><th>{t("admin.customer.platform")}</th><th>{t("admin.customer.generationStatus")}</th><th>{t("admin.customer.publishing")}</th><th>{t("admin.customer.models")}</th></tr></thead><tbody>{payload.posts.map((post) => <tr key={post.id}><td>{formatDate(post.scheduled_for || post.created_at)}</td><td>{brandById.get(post.brand_profile_id)?.business_name || "—"}</td><td>{post.content_format || post.post_type || "—"}</td><td>{post.platform || "—"}</td><td><Status value={post.status} /></td><td>{post.published_at ? formatDate(post.published_at) : post.last_publish_error ? t("admin.customer.errorPrefix", { message: post.last_publish_error }) : "—"}</td><td>{[post.text_model_used, post.image_model_used, post.product_research_model_used].filter(Boolean).join(", ") || "—"}</td></tr>)}</tbody></table></div> : <Empty>{t("admin.customer.noPosts")}</Empty>}
+                {payload.posts.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{t("admin.customer.date")}</th><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.format")}</th><th>{t("admin.customer.platform")}</th><th>{t("admin.customer.generationStatus")}</th><th>{t("admin.customer.publishing")}</th><th>{t("admin.customer.models")}</th></tr></thead><tbody>{payload.posts.map((post) => <tr key={post.id}><td>{formatDate(post.scheduled_for || post.created_at, locale)}</td><td>{brandById.get(post.brand_profile_id)?.business_name || "—"}</td><td>{post.content_format || post.post_type || "—"}</td><td>{post.platform || "—"}</td><td><Status value={post.status} /></td><td>{post.published_at ? formatDate(post.published_at, locale) : post.last_publish_error ? t("admin.customer.errorPrefix", { message: post.last_publish_error }) : "—"}</td><td>{[post.text_model_used, post.image_model_used, post.product_research_model_used].filter(Boolean).join(", ") || "—"}</td></tr>)}</tbody></table></div> : <Empty>{t("admin.customer.noPosts")}</Empty>}
               </section>
             ) : null}
 
             {tab === "credits" ? (
               <section className="admin-panel">
                 <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.immutableHistory")}</span><h2>{t("admin.customer.creditLedger")}</h2></div><a href={`/admin/credits?email=${encodeURIComponent(customer.email || "")}`}>{t("admin.customer.manualAdjustment")}</a></div>
-                {payload.creditLedger.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{t("admin.customer.date")}</th><th>{t("admin.customer.event")}</th><th>{t("admin.customer.source")}</th><th>{t("admin.customer.change")}</th><th>{t("admin.customer.reason")}</th><th>{t("admin.customer.plan")}</th></tr></thead><tbody>{payload.creditLedger.map((row) => <tr key={`${row.source}-${row.id}`}><td>{formatDate(row.created_at)}</td><td>{row.event_type || "—"}</td><td>{row.source}</td><td className={Number(row.amount) >= 0 ? "positive" : "negative"}>{Number(row.amount) > 0 ? "+" : ""}{Number(row.amount || 0)}</td><td>{row.reason || "—"}</td><td>{ruleById.get(row.automation_rule_id)?.name || "—"}</td></tr>)}</tbody></table></div> : <Empty>{t("admin.customer.noCreditHistory")}</Empty>}
+                {payload.creditLedger.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{t("admin.customer.date")}</th><th>{t("admin.customer.event")}</th><th>{t("admin.customer.source")}</th><th>{t("admin.customer.change")}</th><th>{t("admin.customer.reason")}</th><th>{t("admin.customer.plan")}</th></tr></thead><tbody>{payload.creditLedger.map((row) => <tr key={`${row.source}-${row.id}`}><td>{formatDate(row.created_at, locale)}</td><td>{row.event_type || "—"}</td><td>{row.source}</td><td className={Number(row.amount) >= 0 ? "positive" : "negative"}>{Number(row.amount) > 0 ? "+" : ""}{Number(row.amount || 0)}</td><td>{row.reason || "—"}</td><td>{ruleById.get(row.automation_rule_id)?.name || "—"}</td></tr>)}</tbody></table></div> : <Empty>{t("admin.customer.noCreditHistory")}</Empty>}
               </section>
             ) : null}
 
@@ -263,7 +263,7 @@ export default function AdminCustomerCardPage({ params }) {
               <div className="admin-v140-two-column">
                 <section className="admin-panel admin-v140-wide-panel">
                   <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.failuresCount", { count: failures.length })}</span><h2>{t("admin.customer.failuresRefunds")}</h2></div></div>
-                  {failures.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{t("admin.customer.time")}</th><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.format")}</th><th>{t("admin.customer.errorType")}</th><th>{t("admin.customer.customerMessage")}</th><th>{t("admin.customer.refunded")}</th><th>{t("admin.customer.mail")}</th></tr></thead><tbody>{failures.map((row) => <tr key={row.id}><td>{formatDate(row.started_at)}</td><td>{brandById.get(row.brand_profile_id)?.business_name || "—"}</td><td>{row.content_format || ruleById.get(row.automation_rule_id)?.content_type_label || "—"}</td><td><Status value={row.failure_code || "unknown"} /></td><td>{row.failure_customer_message || "—"}</td><td>{Number(row.refunded_credits || 0)}</td><td><Status value={row.notification_status || "not_sent"} /></td></tr>)}</tbody></table></div> : <Empty>{t("admin.customer.noFailures")}</Empty>}
+                  {failures.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{t("admin.customer.time")}</th><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.format")}</th><th>{t("admin.customer.errorType")}</th><th>{t("admin.customer.customerMessage")}</th><th>{t("admin.customer.refunded")}</th><th>{t("admin.customer.mail")}</th></tr></thead><tbody>{failures.map((row) => <tr key={row.id}><td>{formatDate(row.started_at, locale)}</td><td>{brandById.get(row.brand_profile_id)?.business_name || "—"}</td><td>{row.content_format || ruleById.get(row.automation_rule_id)?.content_type_label || "—"}</td><td><Status value={row.failure_code || "unknown"} /></td><td>{row.failure_customer_message || "—"}</td><td>{Number(row.refunded_credits || 0)}</td><td><Status value={row.notification_status || "not_sent"} /></td></tr>)}</tbody></table></div> : <Empty>{t("admin.customer.noFailures")}</Empty>}
                 </section>
                 <section className="admin-panel">
                   <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.distribution")}</span><h2>{t("admin.customer.commonFailures")}</h2></div></div>
@@ -271,7 +271,7 @@ export default function AdminCustomerCardPage({ params }) {
                 </section>
                 <section className="admin-panel">
                   <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.communication")}</span><h2>{t("admin.customer.sentMessages")}</h2></div></div>
-                  {(payload.notifications || []).length ? <div className="admin-v140-notification-list">{payload.notifications.slice(0,20).map((row) => <article key={row.id}><Mail size={17}/><div><strong>{row.subject || row.notification_type || t("admin.customer.notification")}</strong><span>{formatDate(row.sent_at || row.created_at)}</span><p>{row.error_message || row.recipient || "—"}</p></div><Status value={row.status} /></article>)}</div> : <Empty>{t("admin.customer.noNotifications")}</Empty>}
+                  {(payload.notifications || []).length ? <div className="admin-v140-notification-list">{payload.notifications.slice(0,20).map((row) => <article key={row.id}><Mail size={17}/><div><strong>{row.subject || row.notification_type || t("admin.customer.notification")}</strong><span>{formatDate(row.sent_at || row.created_at, locale)}</span><p>{row.error_message || row.recipient || "—"}</p></div><Status value={row.status} /></article>)}</div> : <Empty>{t("admin.customer.noNotifications")}</Empty>}
                 </section>
               </div>
             ) : null}
@@ -280,7 +280,7 @@ export default function AdminCustomerCardPage({ params }) {
               <div className="admin-v140-two-column">
                 <section className="admin-panel">
                   <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.costUsage")}</span><h2>{t("admin.customer.technicalSummary")}</h2></div></div>
-                  <dl className="admin-v140-metric-list"><div><dt>{t("admin.customer.totalRunTime")}</dt><dd>{formatDuration(payload.technical.totalRunDurationMs)}</dd></div><div><dt>{t("admin.customer.selectedProducts")}</dt><dd>{payload.technical.totalProductsSelected || 0}</dd></div><div><dt>{t("admin.customer.aiCost")}</dt><dd>{payload.technical.exactAiCostAvailable ? t("admin.customer.available") : t("admin.customer.notExact")}</dd></div><div><dt>{t("admin.customer.automaticReruns")}</dt><dd>{summary.unexpectedAutomaticReruns || 0}</dd></div></dl>
+                  <dl className="admin-v140-metric-list"><div><dt>{t("admin.customer.totalRunTime")}</dt><dd>{formatDuration(payload.technical.totalRunDurationMs, locale)}</dd></div><div><dt>{t("admin.customer.selectedProducts")}</dt><dd>{payload.technical.totalProductsSelected || 0}</dd></div><div><dt>{t("admin.customer.aiCost")}</dt><dd>{payload.technical.exactAiCostAvailable ? t("admin.customer.available") : t("admin.customer.notExact")}</dd></div><div><dt>{t("admin.customer.automaticReruns")}</dt><dd>{summary.unexpectedAutomaticReruns || 0}</dd></div></dl>
                 </section>
                 <section className="admin-panel">
                   <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.modelKicker")}</span><h2>{t("admin.customer.modelsUsed")}</h2></div></div>
@@ -288,7 +288,7 @@ export default function AdminCustomerCardPage({ params }) {
                 </section>
                 <section className="admin-panel admin-v140-wide-panel">
                   <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.operationsLog")}</span><h2>{t("admin.customer.automationRuns")}</h2></div></div>
-                  {payload.runLogs.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{t("admin.customer.start")}</th><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.plan")}</th><th>{t("admin.customer.status")}</th><th>{t("admin.customer.duration")}</th><th>{t("admin.customer.products")}</th><th>{t("admin.customer.searchMethods")}</th><th>{t("admin.customer.error")}</th></tr></thead><tbody>{payload.runLogs.map((row) => <tr key={row.id}><td>{formatDate(row.started_at)}</td><td>{row.brand_name || brandById.get(row.brand_profile_id)?.business_name || "—"}</td><td>{row.rule_name || row.campaign_title || "—"}</td><td><Status value={row.status} /></td><td>{formatDuration(row.duration_ms)}</td><td>{row.products_selected || 0}</td><td>{Array.isArray(row.search_methods) ? row.search_methods.join(", ") : row.search_methods || "—"}</td><td>{row.error_message || row.failure_customer_message || "—"}</td></tr>)}</tbody></table></div> : <Empty>{t("admin.customer.noTechnicalLogs")}</Empty>}
+                  {payload.runLogs.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{t("admin.customer.start")}</th><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.plan")}</th><th>{t("admin.customer.status")}</th><th>{t("admin.customer.duration")}</th><th>{t("admin.customer.products")}</th><th>{t("admin.customer.searchMethods")}</th><th>{t("admin.customer.error")}</th></tr></thead><tbody>{payload.runLogs.map((row) => <tr key={row.id}><td>{formatDate(row.started_at, locale)}</td><td>{row.brand_name || brandById.get(row.brand_profile_id)?.business_name || "—"}</td><td>{row.rule_name || row.campaign_title || "—"}</td><td><Status value={row.status} /></td><td>{formatDuration(row.duration_ms, locale)}</td><td>{row.products_selected || 0}</td><td>{Array.isArray(row.search_methods) ? row.search_methods.join(", ") : row.search_methods || "—"}</td><td>{row.error_message || row.failure_customer_message || "—"}</td></tr>)}</tbody></table></div> : <Empty>{t("admin.customer.noTechnicalLogs")}</Empty>}
                 </section>
               </div>
             ) : null}

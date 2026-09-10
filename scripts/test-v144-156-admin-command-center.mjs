@@ -16,15 +16,16 @@ const assert = (condition, message) => {
 const page = read("app/admin/page.jsx");
 const css = read("app/styles/121-v144-156-admin-command-center.css");
 const overview = read("app/api/admin/overview/route.js");
+const labels = read("lib/i18n/defaultLabels.js");
 const healthLib = read("lib/systemHealth.js");
 const healthAdmin = read("app/api/admin/system-health/route.js");
 const healthCron = read("app/api/cron/system-health/route.js");
 const vercel = JSON.parse(read("vercel.json"));
 const sql = read("spreelo-v144.156-SQL.sql");
 
-assert(page.includes("admin156-hero") && page.includes("Vad vill du göra?"), "new admin command-center layout is installed");
-assert(page.includes("Faktiska kostnader per innehållstyp") && page.includes("Median") && page.includes("Snitt"), "dashboard exposes median and average real generation costs");
-assert(page.includes("Systemstatus") && page.includes("Senaste driftshistorik"), "dashboard exposes live system status and incident history");
+assert(page.includes("admin156-hero") && page.includes("adminCommand.quick.title") && labels.includes("What do you want to do?"), "new admin command-center layout is installed through i18n");
+assert(page.includes("adminCommand.costs.title") && page.includes("adminCommand.costs.median") && page.includes("adminCommand.costs.average"), "dashboard exposes translated median and average real generation costs");
+assert(page.includes("adminCommand.system.title") && page.includes("adminCommand.system.recentHistory"), "dashboard exposes translated live system status and incident history");
 assert(page.includes("/admin/customers") && page.includes("/admin/post-approvals") && page.includes("/admin/rescue-center"), "existing core admin tools remain linked");
 assert(page.includes("requestTranslationRefresh") && page.includes("stopOpenAIBackgroundJobs"), "legacy translation and emergency background-job controls remain available");
 assert(css.includes("@media (max-width:1280px)") && css.includes("@media (max-width:900px)") && css.includes("@media (max-width:640px)"), "desktop/tablet/mobile admin layouts have explicit responsive breakpoints");

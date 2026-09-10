@@ -34,7 +34,7 @@ assert.match(adminRoute, /INCIDENT_RESPONSE_IDS/);
 assert.match(adminRoute, /confirm !== true/);
 assert.match(adminRoute, /emergencyCancelTrackedOpenAIBackgroundJobs/);
 assert.match(adminRoute, /admin_emergency_stop:explicit_incident_cleanup/);
-assert.match(adminPage, /Stoppa pågående jobb/);
+assert.match(adminPage, /t\("adminCommand\.tools\.stopJobs"\)/);
 assert.match(adminPage, /stopOpenAIBackgroundJobs/);
 
 // The previous v144.22 delivery and translation protections remain in place.

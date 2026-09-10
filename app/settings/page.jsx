@@ -222,7 +222,7 @@ export default function Settings() {
     try {
       return new Intl.DateTimeFormat(locale || "en", { day: "numeric", month: "short", year: "numeric" }).format(date);
     } catch {
-      return date.toLocaleDateString();
+      return date.toLocaleDateString(locale || "en");
     }
   }, [creditBalance, locale, t]);
 

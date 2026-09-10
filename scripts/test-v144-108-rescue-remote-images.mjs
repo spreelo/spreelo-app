@@ -10,12 +10,12 @@ const page = read("app/admin/post-approvals/page.jsx");
 const rescue = read("app/api/admin/post-approvals/rescue-import/route.js");
 
 // Rescue prompt supports a manifest-only ZIP when ChatGPT can verify a direct original image URL.
-assert.match(page, /Minsta giltiga struktur:[\s\S]{0,120}manifest\.json/u);
-assert.match(page, /image_url: en direkt HTTPS-adress/u);
-assert.match(page, /Om både image_file och image_url finns använder Spreelo image_file först/u);
+assert.match(page, /Minimum valid structure:[\s\S]{0,120}manifest\.json/u);
+assert.match(page, /image_url: a direct HTTPS URL/u);
+assert.match(page, /If both image_file and image_url exist, Spreelo uses image_file first/u);
 assert.match(page, /"version": 2/u);
-assert.match(page, /"image_url": "https:\/\/kundens-cdn\.example/u);
-assert.doesNotMatch(page, /VIKTIGT: Lägg själva riktiga produktbildfilerna i ZIP-filen\. Svara inte bara med bildlänkar/u);
+assert.match(page, /"image_url": "https:\/\/customer-cdn\.example/u);
+assert.doesNotMatch(page, /IMPORTANT: Put the actual real product image files in the ZIP file\. Do not reply only with image links/u);
 
 // Import accepts either an image packaged in the ZIP or a verified remote image URL.
 assert.match(rescue, /remote_image_url: cleanUrl\(raw\?\.image_url/u);

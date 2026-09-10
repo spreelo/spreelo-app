@@ -12,8 +12,8 @@ expect(page.includes('className="sp100-campaign-image-overlay"'), "campaign imag
 expect(page.includes('<strong>{campaignOpportunity.title}</strong>'), "image overlay must use the active campaign name dynamically");
 expect(!page.includes('<dt><Repeat2 size={15} aria-hidden="true" />{String(locale || "").startsWith("sv") ? "Frekvens"'), "redundant frequency fact card must be removed");
 expect(!page.includes('<dt><PenLine size={15} aria-hidden="true" />{String(locale || "").startsWith("sv") ? "Du kan ändra"'), "redundant editable fact card must be removed");
-expect(page.includes('Totalt planerade inlägg'), "planned-post count fact must remain");
-expect(page.includes('Kampanjperiod'), "campaign period fact must remain");
+expect(page.includes('t("automation.campaignOverview.totalPlannedPosts")'), "planned-post count fact must remain through i18n");
+expect(page.includes('t("automation.campaignOverview.period")'), "campaign period fact must remain through i18n");
 expect(css.includes('aspect-ratio: 16 / 10'), "campaign image must have a controlled desktop/tablet aspect ratio");
 expect(css.includes('content: none !important'), "old image pseudo-frame must be disabled");
 expect(css.includes('@media (max-width: 900px)'), "image layout must adapt before mobile widths");

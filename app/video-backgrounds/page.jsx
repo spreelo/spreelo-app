@@ -35,13 +35,13 @@ const EMPTY_FORM = {
   notes: "",
 };
 
-async function getAuthHeaders() {
+async function getAuthHeaders(t) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
   if (!session?.access_token) {
-    throw new Error("Your login session has expired.");
+    throw new Error(t("videoBackgrounds.sessionExpired"));
   }
 
   return {
@@ -50,7 +50,7 @@ async function getAuthHeaders() {
   };
 }
 
-function getVideoMetadata(file) {
+function getVideoMetadata(file, t) {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
     const objectUrl = URL.createObjectURL(file);
@@ -70,14 +70,14 @@ function getVideoMetadata(file) {
 
     video.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error("The selected MP4 could not be read."));
+      reject(new Error(t("videoBackgrounds.readError")));
     };
 
     video.src = objectUrl;
   });
 }
 
-function createPosterBlob(video, objectUrl) {
+function createPosterBlob(video, objectUrl, t) {
   return new Promise((resolve, reject) => {
     const capture = () => {
       try {
@@ -92,7 +92,7 @@ function createPosterBlob(video, objectUrl) {
           (blob) => {
             URL.revokeObjectURL(objectUrl);
             if (blob) resolve(blob);
-            else reject(new Error("Could not create a poster image."));
+            else reject(new Error(t("videoBackgrounds.posterError")));
           },
           "image/jpeg",
           0.88
@@ -140,18 +140,18 @@ export default function VideoBackgroundsPage() {
     setError("");
 
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getAuthHeaders(t);
       const response = await fetch("/api/video-backgrounds", { headers });
       const payload = await response.json();
 
       if (!response.ok) {
         setConfigurationMissing(Boolean(payload?.configurationMissing));
-        throw new Error(payload?.error || "Could not load the background library.");
+        throw new Error(t("videoBackgrounds.loadError"));
       }
 
       setAssets(payload.assets || []);
     } catch (loadError) {
-      setError(loadError.message || "Could not load the background library.");
+      setError(loadError.message || t("videoBackgrounds.loadError"));
     } finally {
       setLoading(false);
     }
@@ -167,32 +167,32 @@ export default function VideoBackgroundsPage() {
     setMessage("");
 
     if (!file) {
-      setError("Choose an MP4 background first.");
+      setError(t("videoBackgrounds.chooseFile"));
       return;
     }
 
     if (!form.name.trim()) {
-      setError("Give the background a clear internal name.");
+      setError(t("videoBackgrounds.editNameRequired"));
       return;
     }
 
     setUploading(true);
 
     try {
-      const metadata = await getVideoMetadata(file);
+      const metadata = await getVideoMetadata(file, t);
 
       if (metadata.width !== 1080 || metadata.height !== 1920) {
         URL.revokeObjectURL(metadata.objectUrl);
-        throw new Error("Background videos must be exactly 1080 × 1920 (9:16).");
+        throw new Error(t("videoBackgrounds.sizeError"));
       }
 
       if (metadata.duration < 4.5 || metadata.duration > 15.5) {
         URL.revokeObjectURL(metadata.objectUrl);
-        throw new Error("Background videos must be between 4.5 and 15 seconds long.");
+        throw new Error(t("videoBackgrounds.durationError"));
       }
 
-      const posterBlob = await createPosterBlob(metadata.video, metadata.objectUrl);
-      const headers = await getAuthHeaders();
+      const posterBlob = await createPosterBlob(metadata.video, metadata.objectUrl, t);
+      const headers = await getAuthHeaders(t);
       const createResponse = await fetch("/api/video-backgrounds", {
         method: "POST",
         headers,
@@ -206,7 +206,7 @@ export default function VideoBackgroundsPage() {
       const uploadData = await createResponse.json();
 
       if (!createResponse.ok) {
-        throw new Error(uploadData?.error || "Could not prepare the upload.");
+        throw new Error(t("videoBackgrounds.prepareError"));
       }
 
       const videoUpload = await supabase.storage
@@ -242,7 +242,7 @@ export default function VideoBackgroundsPage() {
       const completeData = await completeResponse.json();
 
       if (!completeResponse.ok) {
-        throw new Error(completeData?.error || "Could not save the background metadata.");
+        throw new Error(t("videoBackgrounds.saveMetadataError"));
       }
 
       setAssets((current) => [completeData.asset, ...current]);
@@ -250,9 +250,9 @@ export default function VideoBackgroundsPage() {
       setFile(null);
       const input = document.getElementById("video-background-file");
       if (input) input.value = "";
-      setMessage("Background uploaded and added to the automatic selection library.");
+      setMessage(t("videoBackgrounds.uploadSuccess"));
     } catch (uploadError) {
-      setError(uploadError.message || "Could not upload the background.");
+      setError(uploadError.message || t("videoBackgrounds.uploadError"));
     } finally {
       setUploading(false);
     }
@@ -263,7 +263,7 @@ export default function VideoBackgroundsPage() {
     setMessage("");
 
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getAuthHeaders(t);
       const response = await fetch("/api/video-backgrounds", {
         method: "PATCH",
         headers,
@@ -278,7 +278,7 @@ export default function VideoBackgroundsPage() {
       });
       const payload = await response.json();
 
-      if (!response.ok) throw new Error(payload?.error || "Could not update the background.");
+      if (!response.ok) throw new Error(t("videoBackgrounds.updateError"));
 
       setAssets((current) =>
         current.map((item) => {
@@ -289,7 +289,7 @@ export default function VideoBackgroundsPage() {
         })
       );
     } catch (updateError) {
-      setError(updateError.message || "Could not update the background.");
+      setError(updateError.message || t("videoBackgrounds.updateError"));
     }
   }
 
@@ -335,7 +335,7 @@ export default function VideoBackgroundsPage() {
     setMessage("");
 
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getAuthHeaders(t);
       const response = await fetch("/api/video-backgrounds", {
         method: "PATCH",
         headers,
@@ -370,25 +370,25 @@ export default function VideoBackgroundsPage() {
 
   async function deleteAsset(asset) {
     const confirmed = window.confirm(
-      `Delete “${asset.name}” permanently from the shared video library?`
+      t("videoBackgrounds.deleteConfirm", { name: asset.name })
     );
     if (!confirmed) return;
 
     setError("");
 
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getAuthHeaders(t);
       const response = await fetch(`/api/video-backgrounds?id=${encodeURIComponent(asset.id)}`, {
         method: "DELETE",
         headers,
       });
       const payload = await response.json();
 
-      if (!response.ok) throw new Error(payload?.error || "Could not delete the background.");
+      if (!response.ok) throw new Error(t("videoBackgrounds.deleteError"));
 
       setAssets((current) => current.filter((item) => item.id !== asset.id));
     } catch (deleteError) {
-      setError(deleteError.message || "Could not delete the background.");
+      setError(deleteError.message || t("videoBackgrounds.deleteError"));
     }
   }
 
@@ -397,16 +397,13 @@ export default function VideoBackgroundsPage() {
       <div className="video-background-page">
         <section className="video-background-hero">
           <div>
-            <span className="video-background-eyebrow">Shared creative library</span>
-            <h1>Video backgrounds</h1>
-            <p>
-              Upload reusable 9:16 motion backgrounds. Spreelo scores them against the product,
-              campaign, brand and recent usage before rendering an animated product Reel.
-            </p>
+            <span className="video-background-eyebrow">{t("videoBackgrounds.eyebrow")}</span>
+            <h1>{t("videoBackgrounds.title")}</h1>
+            <p>{t("videoBackgrounds.description")}</p>
           </div>
           <div className="video-background-summary">
             <strong>{assets.length}</strong>
-            <span>{activeCount} active</span>
+            <span>{t("videoBackgrounds.activeCount", { count: activeCount })}</span>
           </div>
         </section>
 
@@ -414,11 +411,8 @@ export default function VideoBackgroundsPage() {
           <div className="video-background-alert warning">
             <ShieldAlert size={20} />
             <div>
-              <strong>Administrator access is not configured</strong>
-              <p>
-                Use <code>SPREELO_PRIMARY_ADMIN_EMAIL</code> for the primary admin and <code>SPREELO_ADMIN_EMAILS</code> for additional admin login emails in Vercel,
-                then redeploy.
-              </p>
+              <strong>{t("videoBackgrounds.adminMissingTitle")}</strong>
+              <p>{t("videoBackgrounds.adminMissingText")} <code>SPREELO_PRIMARY_ADMIN_EMAIL</code> / <code>SPREELO_ADMIN_EMAILS</code>.</p>
             </div>
           </div>
         )}
@@ -433,8 +427,8 @@ export default function VideoBackgroundsPage() {
         <section className="video-background-panel">
           <div className="video-background-panel-heading">
             <div>
-              <span>New asset</span>
-              <h2>Upload a moving background</h2>
+              <span>{t("videoBackgrounds.newAsset")}</span>
+              <h2>{t("videoBackgrounds.uploadTitle")}</h2>
             </div>
             <div className="video-background-format-pill">1080 × 1920 · MP4 · 4.5–15 sec</div>
           </div>
@@ -442,8 +436,8 @@ export default function VideoBackgroundsPage() {
           <form className="video-background-form" onSubmit={handleUpload}>
             <label className="video-background-file-drop" htmlFor="video-background-file">
               <UploadCloud size={28} />
-              <strong>{file ? file.name : "Choose a 9:16 MP4"}</strong>
-              <span>Keep the center clear for the product, top-left clear for the logo and bottom clear for text.</span>
+              <strong>{file ? file.name : t("videoBackgrounds.chooseMp4")}</strong>
+              <span>{t("videoBackgrounds.safeAreaHelp")}</span>
               <input
                 id="video-background-file"
                 type="file"
@@ -454,62 +448,62 @@ export default function VideoBackgroundsPage() {
 
             <div className="video-background-fields">
               <label>
-                <span>Internal name</span>
-                <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} placeholder="Cream flowing surfaces 01" />
+                <span>{t("videoBackgrounds.internalName")}</span>
+                <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} placeholder={t("videoBackgrounds.namePlaceholder")} />
               </label>
               <label>
-                <span>Family</span>
-                <input value={form.family} onChange={(event) => updateForm("family", event.target.value)} placeholder="abstract" />
+                <span>{t("videoBackgrounds.family")}</span>
+                <input value={form.family} onChange={(event) => updateForm("family", event.target.value)} placeholder={t("videoBackgrounds.familyPlaceholder")} />
               </label>
               <label>
-                <span>Moods</span>
+                <span>{t("videoBackgrounds.moods")}</span>
                 <input value={form.moods} onChange={(event) => updateForm("moods", event.target.value)} />
               </label>
               <label>
-                <span>Industries</span>
+                <span>{t("videoBackgrounds.industries")}</span>
                 <input value={form.industries} onChange={(event) => updateForm("industries", event.target.value)} />
               </label>
               <label>
-                <span>Campaigns</span>
+                <span>{t("videoBackgrounds.campaigns")}</span>
                 <input value={form.campaigns} onChange={(event) => updateForm("campaigns", event.target.value)} />
               </label>
               <label>
-                <span>Colors</span>
+                <span>{t("videoBackgrounds.colors")}</span>
                 <input value={form.colors} onChange={(event) => updateForm("colors", event.target.value)} />
               </label>
               <label>
-                <span>Brightness</span>
+                <span>{t("videoBackgrounds.brightness")}</span>
                 <select value={form.brightness} onChange={(event) => updateForm("brightness", event.target.value)}>
-                  <option value="light">Light</option>
-                  <option value="medium">Medium</option>
-                  <option value="dark">Dark</option>
+                  <option value="light">{t("videoBackgrounds.light")}</option>
+                  <option value="medium">{t("videoBackgrounds.medium")}</option>
+                  <option value="dark">{t("videoBackgrounds.dark")}</option>
                 </select>
               </label>
               <label>
-                <span>Energy</span>
+                <span>{t("videoBackgrounds.energy")}</span>
                 <select value={form.energy} onChange={(event) => updateForm("energy", event.target.value)}>
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
+                  <option value="low">{t("videoBackgrounds.low")}</option>
+                  <option value="medium">{t("videoBackgrounds.medium")}</option>
+                  <option value="high">{t("videoBackgrounds.high")}</option>
                 </select>
               </label>
               <label>
-                <span>Season / campaign lock</span>
-                <input value={form.season} onChange={(event) => updateForm("season", event.target.value)} placeholder="all or halloween" />
+                <span>{t("videoBackgrounds.seasonLock")}</span>
+                <input value={form.season} onChange={(event) => updateForm("season", event.target.value)} placeholder={t("videoBackgrounds.seasonPlaceholder")} />
               </label>
               <label>
-                <span>Priority</span>
+                <span>{t("videoBackgrounds.priority")}</span>
                 <input type="number" min="-100" max="100" value={form.priority} onChange={(event) => updateForm("priority", Number(event.target.value))} />
               </label>
             </div>
 
             <div className="video-background-checks">
               {[
-                ["text_safe", "Clear text area"],
-                ["logo_safe", "Clear logo area"],
-                ["crop_safe_916", "9:16 safe"],
-                ["active", "Active immediately"],
-                ["is_fallback", "Use as neutral fallback"],
+                ["text_safe", t("videoBackgrounds.clearTextArea")],
+                ["logo_safe", t("videoBackgrounds.clearLogoArea")],
+                ["crop_safe_916", t("videoBackgrounds.cropSafe")],
+                ["active", t("videoBackgrounds.activeImmediately")],
+                ["is_fallback", t("videoBackgrounds.useFallback")],
               ].map(([key, label]) => (
                 <label key={key}>
                   <input type="checkbox" checked={Boolean(form[key])} onChange={(event) => updateForm(key, event.target.checked)} />
@@ -519,13 +513,13 @@ export default function VideoBackgroundsPage() {
             </div>
 
             <label className="video-background-notes">
-              <span>Notes</span>
-              <textarea value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} placeholder="Best for premium fashion, beauty and accessories." />
+              <span>{t("videoBackgrounds.notes")}</span>
+              <textarea value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} placeholder={t("videoBackgrounds.notesPlaceholder")} />
             </label>
 
             <button className="video-background-upload-button" type="submit" disabled={uploading || configurationMissing}>
               {uploading ? <Loader2 className="spin" size={18} /> : <UploadCloud size={18} />}
-              {uploading ? "Uploading background..." : "Upload to library"}
+              {uploading ? t("videoBackgrounds.uploading") : t("videoBackgrounds.uploadLibrary")}
             </button>
           </form>
         </section>
@@ -533,18 +527,18 @@ export default function VideoBackgroundsPage() {
         <section className="video-background-library">
           <div className="video-background-panel-heading">
             <div>
-              <span>Available assets</span>
-              <h2>Automatic selection library</h2>
+              <span>{t("videoBackgrounds.availableAssets")}</span>
+              <h2>{t("videoBackgrounds.libraryTitle")}</h2>
             </div>
           </div>
 
           {loading ? (
-            <div className="video-background-empty"><Loader2 className="spin" /> Loading backgrounds...</div>
+            <div className="video-background-empty"><Loader2 className="spin" /> {t("videoBackgrounds.loading")}</div>
           ) : assets.length === 0 ? (
             <div className="video-background-empty">
               <Film size={34} />
-              <strong>No backgrounds uploaded yet</strong>
-              <span>Upload one neutral fallback before creating an animated product Reel.</span>
+              <strong>{t("videoBackgrounds.noneTitle")}</strong>
+              <span>{t("videoBackgrounds.noneText")}</span>
             </div>
           ) : (
             <div className="video-background-grid">
@@ -552,35 +546,35 @@ export default function VideoBackgroundsPage() {
                 <article className={`video-background-card ${asset.active ? "" : "inactive"}`} key={asset.id}>
                   <div className="video-background-preview">
                     <video src={asset.public_url} poster={asset.poster_url || undefined} muted loop playsInline controls preload="metadata" />
-                    {asset.is_fallback && <span className="video-background-fallback"><Star size={13} /> Fallback</span>}
+                    {asset.is_fallback && <span className="video-background-fallback"><Star size={13} /> {t("videoBackgrounds.fallback")}</span>}
                   </div>
                   <div className="video-background-card-body">
                     <div className="video-background-card-title">
                       <div>
                         <strong>{asset.name}</strong>
-                        <span>{asset.family} · {asset.brightness} · {asset.energy} energy</span>
+                        <span>{t("videoBackgrounds.cardSummary", { family: asset.family, brightness: asset.brightness, energy: asset.energy })}</span>
                       </div>
                       <label className="video-background-toggle">
                         <input type="checkbox" checked={asset.active !== false} onChange={(event) => patchAsset(asset, { active: event.target.checked })} />
-                        <span>Active</span>
+                        <span>{t("videoBackgrounds.active")}</span>
                       </label>
                     </div>
                     <dl>
-                      <div><dt>Mood</dt><dd>{formatTags(asset.moods) || "—"}</dd></div>
-                      <div><dt>Industries</dt><dd>{formatTags(asset.industries) || "—"}</dd></div>
-                      <div><dt>Campaigns</dt><dd>{formatTags(asset.campaigns) || "—"}</dd></div>
-                      <div><dt>Colors</dt><dd>{formatTags(asset.colors) || "—"}</dd></div>
+                      <div><dt>{t("videoBackgrounds.mood")}</dt><dd>{formatTags(asset.moods) || "—"}</dd></div>
+                      <div><dt>{t("videoBackgrounds.industries")}</dt><dd>{formatTags(asset.industries) || "—"}</dd></div>
+                      <div><dt>{t("videoBackgrounds.campaigns")}</dt><dd>{formatTags(asset.campaigns) || "—"}</dd></div>
+                      <div><dt>{t("videoBackgrounds.colors")}</dt><dd>{formatTags(asset.colors) || "—"}</dd></div>
                     </dl>
                     <div className="video-background-card-footer">
-                      <span>{Number(asset.duration_seconds || 0).toFixed(1)} sec · used {asset.times_used || 0} times</span>
+                      <span>{t("videoBackgrounds.usageSummary", { seconds: Number(asset.duration_seconds || 0).toFixed(1), count: asset.times_used || 0 })}</span>
                       <div>
                         <button type="button" onClick={() => openEditAsset(asset)}>
                           <Pencil size={15} /> {t("videoBackgrounds.edit")}
                         </button>
                         {!asset.is_fallback && (
-                          <button type="button" onClick={() => patchAsset(asset, { is_fallback: true })}><Star size={15} /> Set fallback</button>
+                          <button type="button" onClick={() => patchAsset(asset, { is_fallback: true })}><Star size={15} /> {t("videoBackgrounds.setFallback")}</button>
                         )}
-                        <button className="danger" type="button" onClick={() => deleteAsset(asset)}><Trash2 size={15} /> Delete</button>
+                        <button className="danger" type="button" onClick={() => deleteAsset(asset)}><Trash2 size={15} /> {t("videoBackgrounds.delete")}</button>
                       </div>
                     </div>
                   </div>
@@ -615,35 +609,35 @@ export default function VideoBackgroundsPage() {
               </div>
 
               <div className="video-background-fields video-background-edit-fields">
-                <label><span>Internal name</span><input value={editForm.name} onChange={(event) => updateEditForm("name", event.target.value)} /></label>
-                <label><span>Family</span><input value={editForm.family} onChange={(event) => updateEditForm("family", event.target.value)} /></label>
-                <label><span>Moods</span><input value={editForm.moods} onChange={(event) => updateEditForm("moods", event.target.value)} /></label>
-                <label><span>Industries</span><input value={editForm.industries} onChange={(event) => updateEditForm("industries", event.target.value)} /></label>
-                <label><span>Campaigns</span><input value={editForm.campaigns} onChange={(event) => updateEditForm("campaigns", event.target.value)} /></label>
-                <label><span>Colors</span><input value={editForm.colors} onChange={(event) => updateEditForm("colors", event.target.value)} /></label>
+                <label><span>{t("videoBackgrounds.internalName")}</span><input value={editForm.name} onChange={(event) => updateEditForm("name", event.target.value)} /></label>
+                <label><span>{t("videoBackgrounds.family")}</span><input value={editForm.family} onChange={(event) => updateEditForm("family", event.target.value)} /></label>
+                <label><span>{t("videoBackgrounds.moods")}</span><input value={editForm.moods} onChange={(event) => updateEditForm("moods", event.target.value)} /></label>
+                <label><span>{t("videoBackgrounds.industries")}</span><input value={editForm.industries} onChange={(event) => updateEditForm("industries", event.target.value)} /></label>
+                <label><span>{t("videoBackgrounds.campaigns")}</span><input value={editForm.campaigns} onChange={(event) => updateEditForm("campaigns", event.target.value)} /></label>
+                <label><span>{t("videoBackgrounds.colors")}</span><input value={editForm.colors} onChange={(event) => updateEditForm("colors", event.target.value)} /></label>
                 <label>
-                  <span>Brightness</span>
+                  <span>{t("videoBackgrounds.brightness")}</span>
                   <select value={editForm.brightness} onChange={(event) => updateEditForm("brightness", event.target.value)}>
-                    <option value="light">Light</option><option value="medium">Medium</option><option value="dark">Dark</option>
+                    <option value="light">{t("videoBackgrounds.light")}</option><option value="medium">{t("videoBackgrounds.medium")}</option><option value="dark">{t("videoBackgrounds.dark")}</option>
                   </select>
                 </label>
                 <label>
-                  <span>Energy</span>
+                  <span>{t("videoBackgrounds.energy")}</span>
                   <select value={editForm.energy} onChange={(event) => updateEditForm("energy", event.target.value)}>
-                    <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+                    <option value="low">{t("videoBackgrounds.low")}</option><option value="medium">{t("videoBackgrounds.medium")}</option><option value="high">{t("videoBackgrounds.high")}</option>
                   </select>
                 </label>
-                <label><span>Season / campaign lock</span><input value={editForm.season} onChange={(event) => updateEditForm("season", event.target.value)} /></label>
-                <label><span>Priority</span><input type="number" min="-100" max="100" value={editForm.priority} onChange={(event) => updateEditForm("priority", Number(event.target.value))} /></label>
+                <label><span>{t("videoBackgrounds.seasonLock")}</span><input value={editForm.season} onChange={(event) => updateEditForm("season", event.target.value)} /></label>
+                <label><span>{t("videoBackgrounds.priority")}</span><input type="number" min="-100" max="100" value={editForm.priority} onChange={(event) => updateEditForm("priority", Number(event.target.value))} /></label>
               </div>
 
               <div className="video-background-checks">
                 {[
-                  ["text_safe", "Clear text area"],
-                  ["logo_safe", "Clear logo area"],
-                  ["crop_safe_916", "9:16 safe"],
-                  ["active", "Active"],
-                  ["is_fallback", "Neutral fallback"],
+                  ["text_safe", t("videoBackgrounds.clearTextArea")],
+                  ["logo_safe", t("videoBackgrounds.clearLogoArea")],
+                  ["crop_safe_916", t("videoBackgrounds.cropSafe")],
+                  ["active", t("videoBackgrounds.active")],
+                  ["is_fallback", t("videoBackgrounds.neutralFallback")],
                 ].map(([key, label]) => (
                   <label key={key}>
                     <input type="checkbox" checked={Boolean(editForm[key])} onChange={(event) => updateEditForm(key, event.target.checked)} />
@@ -653,7 +647,7 @@ export default function VideoBackgroundsPage() {
               </div>
 
               <label className="video-background-notes">
-                <span>Notes</span>
+                <span>{t("videoBackgrounds.notes")}</span>
                 <textarea value={editForm.notes} onChange={(event) => updateEditForm("notes", event.target.value)} />
               </label>
 

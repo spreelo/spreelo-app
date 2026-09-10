@@ -81,9 +81,9 @@ function getFallbackKlingCta(post) {
   if (swedish) {
     if (raw.includes("contact")) return "Kontakta oss";
     if (raw.includes("book")) return "Boka nu";
-    if (raw.includes("visit")) return "Besök webbplatsen";
+    if (raw.includes("visit")) return "Visit website";
     if (raw.includes("shop")) return "Se produkten";
-    return "Läs mer";
+    return "Learn more";
   }
   if (raw.includes("contact")) return "Contact us";
   if (raw.includes("book")) return "Book now";

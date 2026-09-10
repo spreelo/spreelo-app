@@ -38,13 +38,13 @@ assert(worker.includes("admin_test_credit_bypass: isAdminTestRun"), "Occurrence 
 assert(worker.includes("admin_test_batch_id: rule?.is_admin_test === true ? rule.admin_test_batch_id"), "Run log test-batch marker missing");
 assert(worker.includes("error_stack: safeStack || null"), "Durable diagnostic stack metadata missing");
 
-assert(page.includes("AI Innehållsstudio"), "Studio selector missing");
-assert(page.includes("Kalenderkampanjer"), "Campaign selector missing");
-assert(page.includes("Kör varje format"), "Repeat testing missing");
-assert(page.includes("Kundkrediter: 0"), "Zero-credit test promise missing");
-assert(page.includes("Visa i Godkänn"), "Normal Godkänn link missing");
-assert(page.includes("Kopiera fellogg"), "Per-job diagnostic copy action missing");
-assert(page.includes("Kör om fel"), "Rerun failed action missing");
+assert(page.includes('t("adminMassTests.aiStudio")'), "Studio selector missing");
+assert(page.includes('t("adminMassTests.calendarCampaigns")'), "Campaign selector missing");
+assert(page.includes('t("adminMassTests.runEachFormat")'), "Repeat testing missing");
+assert(page.includes('t("adminMassTests.customerCreditsZero")'), "Zero-credit test promise missing");
+assert(page.includes('t("adminMassTests.viewInApprovals")'), "Normal Approvals link missing");
+assert(page.includes('t("adminMassTests.copyErrorLog")'), "Per-job diagnostic copy action missing");
+assert(page.includes('t("adminMassTests.rerunFailed")'), "Rerun failed action missing");
 assert(detailApi.includes("rerun_failed"), "Rerun failed API missing");
 assert(detailApi.includes("post_generation_cost_summaries"), "Actual generation cost aggregation missing");
 assert(diagnostics.includes("Secrets/tokens are redacted automatically"), "Diagnostic secret redaction promise missing");
@@ -52,8 +52,8 @@ assert(diagnostics.includes("VERCEL_DEPLOYMENT_ID"), "Vercel deployment diagnost
 assert(diagnostics.includes("failedRuleIds"), "Bulk diagnostics are not failure-focused");
 
 assert(approvalsApi.includes("admin_test_batch_id"), "Godkänn API does not expose test context");
-assert(approvalsPage.includes("TEST · MASSTEST"), "Godkänn test badge missing");
-assert(approvalsPage.includes("Kopiera komplett testlogg"), "Godkänn diagnostic copy button missing");
+assert(approvalsPage.includes('t("admin.approvals.testMassTest")'), "Approvals test badge missing");
+assert(approvalsPage.includes('t("admin.approvals.copyFullTestLog")'), "Approvals diagnostic copy button missing");
 assert(approvalsPage.includes("testBatch"), "Godkänn batch filter missing");
 assert(dashboard.includes('href="/admin/mass-tests"'), "Admin dashboard mass test entry missing");
 assert(globals.includes("97-v144-102-admin-mass-tests.css"), "Mass test CSS import missing");

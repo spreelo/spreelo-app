@@ -49,7 +49,7 @@ for (const needle of [
 
 const cleanup = read("app/api/admin/test-data-cleanup/route.js");
 for (const needle of [
-  'const CONFIRMATION = "RADERA MIN TESTDATA"',
+  'const CONFIRMATION = "DELETE MY TEST DATA"',
   "const userId = context.user.id",
   '.eq("user_id", userId)',
   "release_reserved_automation_credit_system",
@@ -65,7 +65,7 @@ const page = read("app/admin/post-approvals/page.jsx");
 for (const needle of [
   "admin-v144110-icon-tabs",
   "admin-v144110-tab-icon",
-  "Rensa mina testinlägg",
+  't("admin.approvals.cleanMyTestPosts")',
   "/api/admin/post-approvals/counts",
   "/api/admin/test-data-cleanup",
 ]) has(page, needle, `Admin polish missing ${needle}`);

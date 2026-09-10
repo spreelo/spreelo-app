@@ -21,10 +21,10 @@ import { supabase } from "../../../lib/supabaseClient";
 import { useUiText } from "../../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../../lib/contentLanguage";
 
-function formatDate(value, t) {
+function formatDate(value, t, locale = "en") {
   if (!value) return t("posts.notSet");
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale || "en", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
@@ -192,7 +192,7 @@ function getPlatformIconPath(platform) {
 }
 
 export default function EditPostPage() {
-  const { t } = useUiText(["posts", "create", "brand"]);
+  const { t, locale } = useUiText(["posts", "create", "brand"]);
   const params = useParams();
   const postId = params.id;
 
@@ -610,24 +610,24 @@ export default function EditPostPage() {
           </div>
           <div className="post-review-meta-item">
             <span><Sparkles size={18} aria-hidden="true" /></span>
-            <div><small>{t("posts.created")}</small><strong>{formatDate(post.created_at, t)}</strong></div>
+            <div><small>{t("posts.created")}</small><strong>{formatDate(post.created_at, t, locale)}</strong></div>
           </div>
           {post.scheduled_for && !isCarouselPost && (
             <div className="post-review-meta-item">
               <span><CalendarClock size={18} aria-hidden="true" /></span>
-              <div><small>{t("posts.scheduledFor")}</small><strong>{formatDate(post.scheduled_for, t)}</strong></div>
+              <div><small>{t("posts.scheduledFor")}</small><strong>{formatDate(post.scheduled_for, t, locale)}</strong></div>
             </div>
           )}
           {post.approved_at && (
             <div className="post-review-meta-item">
               <span><CheckCircle2 size={18} aria-hidden="true" /></span>
-              <div><small>{t("posts.approvedAt")}</small><strong>{formatDate(post.approved_at, t)}</strong></div>
+              <div><small>{t("posts.approvedAt")}</small><strong>{formatDate(post.approved_at, t, locale)}</strong></div>
             </div>
           )}
           {post.published_at && (
             <div className="post-review-meta-item">
               <span><CheckCircle2 size={18} aria-hidden="true" /></span>
-              <div><small>{t("posts.publishedAt")}</small><strong>{formatDate(post.published_at, t)}</strong></div>
+              <div><small>{t("posts.publishedAt")}</small><strong>{formatDate(post.published_at, t, locale)}</strong></div>
             </div>
           )}
           {isPendingApproval && !isCarouselPost && (

@@ -81,7 +81,7 @@ async function loadGenerationCostInsights(context) {
     all.push(amount);
     const post = postMap.get(row.post_id) || {};
     const key = String(post.content_type_id || post.post_type || post.content_format || "unknown");
-    const label = String(post.post_type || post.content_type_id || post.content_format || "Okänd typ");
+    const label = String(post.post_type || post.content_type_id || post.content_format || "Unknown type");
     const current = groups.get(key) || { key, label, values: [] };
     current.values.push(amount);
     groups.set(key, current);

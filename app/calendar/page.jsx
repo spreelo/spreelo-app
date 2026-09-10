@@ -665,33 +665,20 @@ function getDateRangePostPublishDate(campaign, post, index, total) {
   );
 }
 
-function getTimingAnchorHumanLabel(timingAnchor, locale = "en") {
-  const labelsSv = {
-    relationship_event: "relationspost",
-    deadline_before_event: "sista realistiska påminnelse",
-    conversion_before_deadline: "köpfönster",
-    trust: "förtroende/process",
-    engagement: "engagemang",
-    middle: "mitt i kampanjen",
-    start: "kampanjstart",
-    before_start: "förberedande start",
-    end: "avslutning",
+function getTimingAnchorHumanLabel(timingAnchor, t) {
+  const keyByAnchor = {
+    relationship_event: "calendar.timing.relationshipEvent",
+    deadline_before_event: "calendar.timing.deadlineReminder",
+    conversion_before_deadline: "calendar.timing.buyingWindow",
+    trust: "calendar.timing.trust",
+    engagement: "calendar.timing.engagement",
+    middle: "calendar.timing.middle",
+    start: "calendar.timing.start",
+    before_start: "calendar.timing.beforeStart",
+    end: "calendar.timing.end",
   };
 
-  const labelsEn = {
-    relationship_event: "relationship post",
-    deadline_before_event: "final realistic reminder",
-    conversion_before_deadline: "buying window",
-    trust: "trust/process",
-    engagement: "engagement",
-    middle: "mid-campaign",
-    start: "campaign launch",
-    before_start: "pre-launch",
-    end: "closing post",
-  };
-
-  const labels = locale === "sv" ? labelsSv : labelsEn;
-  return labels[timingAnchor] || labels.start;
+  return t(keyByAnchor[timingAnchor] || keyByAnchor.start);
 }
 
 function getPostPlanTimeLabel(post) {
@@ -725,34 +712,25 @@ function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "e
     const timeLabel = getPostPlanTimeLabel(post);
 
     if (daysBeforeEvent === 0) {
-      const greetingLabel = getSafeUiLabel(
-        t,
-        "calendar.publishEventGreeting",
-        locale === "sv" ? "högtidsdagen som hälsning" : "main date as a greeting"
-      );
+      const greetingLabel = t("calendar.publishEventGreeting");
 
       return [
         publishDateLabel,
-        timeLabel ? `${locale === "sv" ? "kl" : "at"} ${timeLabel}` : "",
+        timeLabel ? t("calendar.timeAt", { time: timeLabel }) : "",
         greetingLabel,
       ]
         .filter(Boolean)
         .join(" · ");
     }
 
-    const daysLabel = getSafeUiLabel(
-      t,
-      "common.daysBefore",
-      locale === "sv" ? `${daysBeforeEvent} dagar innan` : `${daysBeforeEvent} days before`,
-      { days: daysBeforeEvent }
-    );
+    const daysLabel = t("common.daysBefore", { days: daysBeforeEvent });
 
     if (timingAnchor === "deadline_before_event") {
       return [
         publishDateLabel,
-        timeLabel ? `${locale === "sv" ? "kl" : "at"} ${timeLabel}` : "",
+        timeLabel ? t("calendar.timeAt", { time: timeLabel }) : "",
         daysLabel,
-        locale === "sv" ? "sista beställningspåminnelse" : "final order reminder",
+        t("calendar.finalOrderReminder"),
       ]
         .filter(Boolean)
         .join(" · ");
@@ -760,7 +738,7 @@ function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "e
 
     return [
       publishDateLabel,
-      timeLabel ? `${locale === "sv" ? "kl" : "at"} ${timeLabel}` : "",
+      timeLabel ? t("calendar.timeAt", { time: timeLabel }) : "",
       daysLabel,
     ]
       .filter(Boolean)
@@ -772,20 +750,18 @@ function getCampaignPostTimingLabel(campaign, post, index, total, t, locale = "e
     const publishDate = getDateRangePostPublishDate(campaign, post, index, total);
     const publishDateLabel = formatDate(publishDate, locale);
     const timeLabel = getPostPlanTimeLabel(post);
-    const timingLabel = getTimingAnchorHumanLabel(timingAnchor, locale);
+    const timingLabel = getTimingAnchorHumanLabel(timingAnchor, t);
     const actualDaysBefore = Math.max(
       getDaysBetweenDateStrings(publishDate, campaign.end_date) || 0,
       0
     );
     const daysLabel = actualDaysBefore > 0
-      ? locale === "sv"
-        ? `${actualDaysBefore} dagar innan slutdatumet`
-        : `${actualDaysBefore} days before final date`
+      ? t("calendar.daysBeforeFinalDate", { days: actualDaysBefore })
       : "";
 
     return [
       publishDateLabel,
-      timeLabel ? `${locale === "sv" ? "kl" : "at"} ${timeLabel}` : "",
+      timeLabel ? t("calendar.timeAt", { time: timeLabel }) : "",
       daysLabel,
       timingLabel,
     ]
@@ -908,15 +884,7 @@ function getCampaignCountForDate(campaigns, dateString) {
   );
 }
 
-function getCalendarFilterLabel(filterId, t, locale = "en") {
-  const fallback = {
-    all: locale === "sv" ? "Alla kampanjer" : "All campaigns",
-    fixed: locale === "sv" ? "Fasta datum" : "Fixed dates",
-    seasonal: locale === "sv" ? "Säsong" : "Seasonal",
-    theme: locale === "sv" ? "Temadagar" : "Theme days",
-    shopping: locale === "sv" ? "Shopping" : "Shopping",
-  };
-
+function getCalendarFilterLabel(filterId, t) {
   const keyById = {
     all: "calendar.filterAll",
     fixed: "calendar.filterFixed",
@@ -925,7 +893,7 @@ function getCalendarFilterLabel(filterId, t, locale = "en") {
     shopping: "calendar.filterShopping",
   };
 
-  return getSafeUiLabel(t, keyById[filterId], fallback[filterId] || filterId);
+  return t(keyById[filterId] || "calendar.filterAll");
 }
 
 
@@ -1269,7 +1237,7 @@ export default function Calendar() {
                           className={campaignFilter === option.id ? "active" : ""}
                           onClick={() => setCampaignFilter(option.id)}
                         >
-                          <span>{getCalendarFilterLabel(option.id, t, locale)}</span>
+                          <span>{getCalendarFilterLabel(option.id, t)}</span>
                           <span className="campaign-calendar-v132-filter-dot" aria-hidden="true" />
                         </button>
                       ))}
@@ -1283,18 +1251,10 @@ export default function Calendar() {
                       onChange={(event) => setCampaignSort(event.target.value)}
                     >
                       <option value="date-asc">
-                        {getSafeUiLabel(
-                          t,
-                          "calendar.sortNearestFirst",
-                          locale === "sv" ? "Närmast i tiden" : "Closest first"
-                        )}
+                        {t("calendar.sortNearestFirst")}
                       </option>
                       <option value="date-desc">
-                        {getSafeUiLabel(
-                          t,
-                          "calendar.sortLatestFirst",
-                          locale === "sv" ? "Senast i tiden" : "Latest first"
-                        )}
+                        {t("calendar.sortLatestFirst")}
                       </option>
                     </select>
                   </label>

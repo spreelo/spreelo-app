@@ -14,7 +14,7 @@ html body .home-reference-plans > article.home-plan-overview-card {
   overflow:visible !important;
 }
 
-/* No secondary empty-state strip. The status chip already says Inga aktiva / Inget planerat. */
+/* No secondary empty-state strip. The status chip already communicates the inactive / nothing-planned state. */
 html body .home-plan-overview-empty {
   display:none !important;
 }

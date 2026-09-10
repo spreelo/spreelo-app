@@ -97,7 +97,7 @@ export async function POST(request) {
       refund_applied: true,
       refunded_credits: refundedCredits,
       email_sent: false,
-      error: "Krediten är återbetald, men kundmejlet kunde inte skickas. Försök igen från det misslyckade ärendet.",
+      error: "The credit was refunded, but the customer email could not be sent. Try again from the failed case.",
     }, { status: 502 });
   }
 

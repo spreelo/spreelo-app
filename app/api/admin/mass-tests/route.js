@@ -36,7 +36,7 @@ async function loadSetup(context) {
   if (connectionsResult.error) throw connectionsResult.error;
   if (campaignsResult.error) throw campaignsResult.error;
   if (formatsResult.error && !/content_format_library|schema cache|does not exist/i.test(String(formatsResult.error.message||""))) throw formatsResult.error;
-  if (batchesResult.error) throw new Error(`${batchesResult.error.message}. Kör supabase/v144_102_admin_mass_tests.sql först.`);
+  if (batchesResult.error) throw new Error(`${batchesResult.error.message}. Run supabase/v144_102_admin_mass_tests.sql first.`);
   const connectionsByBrand = {};
   for (const item of connectionsResult.data || []) {
     if (!connectionsByBrand[item.brand_profile_id]) connectionsByBrand[item.brand_profile_id] = [];
@@ -70,7 +70,7 @@ export async function POST(request) {
   if (context.error) return adminContextError(context);
   const body = await request.json().catch(()=>({}));
   const requestedBrands = Array.isArray(body?.brands) ? body.brands : [];
-  if (!requestedBrands.length) return Response.json({ok:false,error:"Välj minst ett varumärke."},{status:400});
+  if (!requestedBrands.length) return Response.json({ok:false,error:"Choose at least one brand."},{status:400});
   const setup = await loadSetup(context).catch((error)=>({error}));
   if (setup.error) return Response.json({ok:false,error:setup.error.message},{status:500});
   const brandMap = Object.fromEntries(setup.brands.map((b)=>[b.id,b]));
@@ -80,7 +80,7 @@ export async function POST(request) {
   const rules=[]; const recipe=[]; let estimatedCostSek=0;
   for (const requested of requestedBrands) {
     const brand = brandMap[String(requested?.brandProfileId||"")];
-    if (!brand) return Response.json({ok:false,error:"Ett valt varumärke tillhör inte ditt adminkonto."},{status:400});
+    if (!brand) return Response.json({ok:false,error:"A selected brand does not belong to your administrator account."},{status:400});
     const requestedPlatforms = Array.isArray(requested.platforms) ? requested.platforms.map((p)=>String(p).toLowerCase()) : [];
     const supportedRequestedPlatforms = requestedPlatforms.filter((p)=>ADMIN_TEST_PLATFORMS.includes(p));
     const connectedDefaults = (brand.connected_platforms || []).filter((p)=>ADMIN_TEST_PLATFORMS.includes(p)).slice(0,2);
@@ -96,7 +96,7 @@ export async function POST(request) {
     const specialConfig=requested?.studio?.special || {};
     const selectedTypes=[...new Set((requested?.studio?.contentTypeIds||[]).map(String))].filter((id)=>formatMap[id]);
     for (const typeId of selectedTypes) {
-      if (!specialConfigIsValid(typeId,specialConfig)) return Response.json({ok:false,error:`${formatMap[typeId]?.label || typeId} kräver att testuppgifterna fylls i för ${brand.business_name}.`},{status:400});
+      if (!specialConfigIsValid(typeId,specialConfig)) return Response.json({ok:false,error:`${formatMap[typeId]?.label || typeId} requires the test details to be completed for ${brand.business_name}.`},{status:400});
       for (let repeat=1;repeat<=repeats;repeat+=1) {
         const jobKey=`studio:${brand.id}:${typeId}:${repeat}:${crypto.randomUUID().slice(0,8)}`;
         rules.push(buildMassTestRule({userId:context.user.id,brand,platform,contentTypeId:typeId,batchId,jobKey,repeatIndex:repeat,specialConfig,nowIso}));
@@ -107,7 +107,7 @@ export async function POST(request) {
     const campaignSelections=Array.isArray(requested?.campaigns)?requested.campaigns:[];
     for (const selection of campaignSelections) {
       const campaign=(brand.campaigns||[]).find((c)=>c.id===selection.campaignId);
-      if (!campaign) return Response.json({ok:false,error:`En vald kampanj kunde inte hittas för ${brand.business_name}.`},{status:400});
+      if (!campaign) return Response.json({ok:false,error:`A selected campaign could not be found for ${brand.business_name}.`},{status:400});
       const plan=normalizeCampaignPlan(campaign,brand);
       const requestedIndexes=Array.isArray(selection.postIndexes)&&selection.postIndexes.length ? selection.postIndexes.map(Number) : plan.map((_,i)=>i);
       const indexes=[...new Set(requestedIndexes)].filter((i)=>Number.isInteger(i)&&i>=0&&i<plan.length);
@@ -120,11 +120,11 @@ export async function POST(request) {
       }
     }
   }
-  if (!rules.length) return Response.json({ok:false,error:"Välj minst en innehållstyp eller ett kampanjinlägg."},{status:400});
-  if (rules.length>500) return Response.json({ok:false,error:"Ett masstest kan innehålla högst 500 jobb åt gången."},{status:400});
-  const title=String(body?.title||"").trim() || `Masstest ${new Intl.DateTimeFormat("sv-SE",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Stockholm"}).format(new Date())}`;
+  if (!rules.length) return Response.json({ok:false,error:"Choose at least one content type or campaign post."},{status:400});
+  if (rules.length>500) return Response.json({ok:false,error:"A mass test can contain at most 500 jobs at a time."},{status:400});
+  const title=String(body?.title||"").trim() || `Mass test · ${new Intl.DateTimeFormat("en-GB",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Stockholm"}).format(new Date())}`;
   const { error:batchError }=await context.admin.from("admin_test_batches").insert({id:batchId,created_by:context.user.id,title,status:"queued",total_jobs:rules.length,started_at:nowIso,settings:{estimated_cost_sek:estimatedCostSek,credit_bypass:true,run_mode:"asap",brands:requestedBrands,recipe},updated_at:nowIso});
-  if (batchError) return Response.json({ok:false,error:`${batchError.message}. Kör supabase/v144_102_admin_mass_tests.sql först.`},{status:500});
+  if (batchError) return Response.json({ok:false,error:`${batchError.message}. Run supabase/v144_102_admin_mass_tests.sql first.`},{status:500});
   const { error:ruleError }=await context.admin.from("automation_rules").insert(rules);
   if (ruleError) { await context.admin.from("admin_test_batches").delete().eq("id",batchId); return Response.json({ok:false,error:ruleError.message},{status:500}); }
   return Response.json({ok:true,batch:{id:batchId,title,totalJobs:rules.length,estimatedCostSek,runMode:"asap",creditsDeducted:0}});

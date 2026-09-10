@@ -2008,58 +2008,28 @@ const campaignPublishWindows = {
   morning: {
     fallback: "08:45",
     times: ["08:20", "09:10", "10:00"],
-    labels: {
-      sv: "Morgon",
-      da: "Morgen",
-      no: "Morgen",
-      es: "Mañana",
-      en: "Morning",
-    },
+    labelKey: "automation.publishWindow.morning",
   },
   lateMorning: {
     fallback: "11:00",
     times: ["10:40", "11:20", "11:50"],
-    labels: {
-      sv: "Förmiddag",
-      da: "Formiddag",
-      no: "Formiddag",
-      es: "Media mañana",
-      en: "Late morning",
-    },
+    labelKey: "automation.publishWindow.lateMorning",
   },
   afternoon: {
     fallback: "15:00",
     times: ["13:20", "14:30", "15:40", "16:30"],
-    labels: {
-      sv: "Eftermiddag",
-      da: "Eftermiddag",
-      no: "Ettermiddag",
-      es: "Tarde",
-      en: "Afternoon",
-    },
+    labelKey: "automation.publishWindow.afternoon",
   },
   evening: {
     fallback: "18:45",
     times: ["18:05", "19:10", "20:00"],
-    labels: {
-      sv: "Kväll",
-      da: "Aften",
-      no: "Kveld",
-      es: "Noche",
-      en: "Evening",
-    },
+    labelKey: "automation.publishWindow.evening",
   },
 };
 
-function getUiLanguageCode(locale = "en") {
-  return String(locale || "en").toLowerCase().split("-")[0];
-}
-
-function getCampaignPublishWindowLabel(windowId = "lateMorning", locale = "en") {
+function getCampaignPublishWindowLabel(windowId = "lateMorning", t) {
   const windowConfig = campaignPublishWindows[windowId] || campaignPublishWindows.lateMorning;
-  const languageCode = getUiLanguageCode(locale);
-
-  return windowConfig.labels[languageCode] || windowConfig.labels.en;
+  return t(windowConfig.labelKey);
 }
 
 function getCampaignPublishWindowIdFromTime(publishTime = "") {
@@ -2140,10 +2110,10 @@ function assignQueuedCampaignPublishTimes(scheduleItems = []) {
   });
 }
 
-function getCampaignTimeWindowDisplay(publishTime = "", locale = "en") {
+function getCampaignTimeWindowDisplay(publishTime = "", t) {
   return getCampaignPublishWindowLabel(
     getCampaignPublishWindowIdFromTime(publishTime),
-    locale
+    t
   );
 }
 
@@ -4028,7 +3998,7 @@ function getCampaignRecommendedPostCount(campaign, fallbackCount = 3) {
 }
 
 
-function formatCampaignOverviewDate(dateValue, locale = "sv-SE", includeYear = true) {
+function formatCampaignOverviewDate(dateValue, locale = "en", includeYear = true) {
   const [year, month, day] = String(dateValue || "").slice(0, 10).split("-").map(Number);
   if (![year, month, day].every(Number.isFinite)) return String(dateValue || "");
   return new Intl.DateTimeFormat(locale || undefined, {
@@ -4038,7 +4008,7 @@ function formatCampaignOverviewDate(dateValue, locale = "sv-SE", includeYear = t
   }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
-function getCampaignOverviewPeriod(campaign, locale = "sv-SE") {
+function getCampaignOverviewPeriod(campaign, locale = "en") {
   const startDate = String(campaign?.start_date || campaign?.event_date || "").slice(0, 10);
   const endDate = String(campaign?.end_date || campaign?.event_date || startDate || "").slice(0, 10);
 
@@ -4049,38 +4019,27 @@ function getCampaignOverviewPeriod(campaign, locale = "sv-SE") {
   return formatCampaignOverviewDate(startDate || endDate, locale);
 }
 
-function getCampaignOverviewFrequencyLabel(campaign, slots = [], locale = "sv-SE") {
-  const safeLocale = String(locale || "sv-SE");
+function getCampaignOverviewFrequencyLabel(campaign, slots = [], t) {
   const count = Array.isArray(slots) ? slots.length : 0;
   const startDate = String(campaign?.start_date || campaign?.event_date || "").slice(0, 10);
   const endDate = String(campaign?.end_date || campaign?.event_date || startDate || "").slice(0, 10);
   const spanDays = startDate && endDate ? Math.abs(getDaysBetweenDateStrings(startDate, endDate) || 0) : 0;
 
-  if (count <= 1) {
-    return safeLocale.startsWith("sv") ? "Ett inlägg" : "One post";
-  }
-
-  if (spanDays >= 14) {
-    return safeLocale.startsWith("sv")
-      ? "Sprids ut över perioden"
-      : "Distributed across the campaign period";
-  }
-
-  return safeLocale.startsWith("sv")
-    ? "Löpande under perioden"
-    : "Published across the selected dates";
+  if (count <= 1) return t("automation.campaignOverview.onePost");
+  if (spanDays >= 14) return t("automation.campaignOverview.distributedPeriod");
+  return t("automation.campaignOverview.publishedAcrossDates");
 }
 
-function getCampaignOverviewSummary(campaign, locale = "sv-SE") {
-  const safeLocale = String(locale || "sv-SE");
+function getCampaignOverviewSummary(campaign, locale = "en", t) {
   const title = String(campaign?.title || "").trim();
-  const period = getCampaignOverviewPeriod(campaign, safeLocale);
+  const period = getCampaignOverviewPeriod(campaign, locale);
 
-  if (safeLocale.startsWith("sv")) {
-    return `Denna kampanjen fokuserar på att marknadsföra produkter från er webbutik och skapa inlägg som kan kopplas till temat ${title ? `“${title}”` : "kampanjen"}. ${period ? `Vald kampanjperiod: ${period}. ` : ""}Du kan justera datum för varje inlägg om du vill ha dem på andra dagar.`;
+  if (title && period) {
+    return t("automation.campaignOverview.summaryTitlePeriod", { title, period });
   }
-
-  return `This campaign focuses on promoting products from your website and creating posts that fit the theme ${title ? `“${title}”` : "of the campaign"}. ${period ? `Selected campaign period: ${period}. ` : ""}You can adjust the date for each post if you want them to run on different days.`;
+  if (title) return t("automation.campaignOverview.summaryTitle", { title });
+  if (period) return t("automation.campaignOverview.summaryPeriod", { period });
+  return t("automation.campaignOverview.summary");
 }
 
 function getCampaignOverviewImageSrc(campaign) {
@@ -10547,9 +10506,7 @@ setRules((currentRules) =>
   if (!item) return;
 
   if (planCreationMode === "campaign" && item.kind !== "content_type") {
-    const copy = locale.startsWith("sv")
-      ? "Det formatet använder ett separat flöde och kan inte läggas till direkt i en kalenderkampanj ännu."
-      : "That format uses a separate flow and cannot be added directly to a calendar campaign yet.";
+    const copy = t("automation.campaignOverview.formatUnavailable");
     setFormatGuardMessage(copy);
     setMessage(copy);
     return;
@@ -10841,33 +10798,33 @@ function blockFormatCardClickAfterDrag(event) {
                 </section>
 
                 {planCreationMode === "campaign" && campaignOpportunity ? (
-                  <section className="sp98-campaign-overview" aria-label={String(locale || "").startsWith("sv") ? "Kampanjöversikt" : "Campaign overview"}>
+                  <section className="sp98-campaign-overview" aria-label={t("automation.campaignOverview.title")}>
                     <div className="sp98-campaign-overview-head">
                       <div className="sp98-campaign-overview-title-block">
-                        <h2>{String(locale || "").startsWith("sv") ? "Kampanjöversikt" : "Campaign overview"}</h2>
-                        <span className="sp98-campaign-overview-badge"><Sparkles size={14} aria-hidden="true" />{String(locale || "").startsWith("sv") ? "Automatiskt planerad av Spreelo" : "Automatically planned by Spreelo"}</span>
+                        <h2>{t("automation.campaignOverview.title")}</h2>
+                        <span className="sp98-campaign-overview-badge"><Sparkles size={14} aria-hidden="true" />{t("automation.campaignOverview.autoPlanned")}</span>
                       </div>
                     </div>
 
                     <div className="sp98-campaign-overview-body">
                       <div className="sp98-campaign-overview-copy">
-                        <p>{getCampaignOverviewSummary(campaignOpportunity, locale)}</p>
+                        <p>{getCampaignOverviewSummary(campaignOpportunity, locale, t)}</p>
 
-                        <div className="sp98-campaign-overview-chips" aria-label={String(locale || "").startsWith("sv") ? "Kampanjfakta" : "Campaign facts"}>
+                        <div className="sp98-campaign-overview-chips" aria-label={t("automation.campaignOverview.facts")}>
                           <span>{campaignOpportunity.title}</span>
                           <span>{getCampaignOverviewPeriod(campaignOpportunity, locale)}</span>
-                          <span>{String(locale || "").startsWith("sv") ? `${slots.length} inlägg` : `${slots.length} posts`}</span>
+                          <span>{t("automation.postCount", { count: slots.length })}</span>
                           <span>{selectedPlatformOptions.map((item) => item.label).join(", ") || t("automation.choosePlatform")}</span>
                         </div>
 
                         <dl className="sp98-campaign-overview-meta">
                           <div>
-                            <dt><CalendarDays size={15} aria-hidden="true" />{String(locale || "").startsWith("sv") ? "Kampanjperiod" : "Campaign period"}</dt>
+                            <dt><CalendarDays size={15} aria-hidden="true" />{t("automation.campaignOverview.period")}</dt>
                             <dd>{getCampaignOverviewPeriod(campaignOpportunity, locale)}</dd>
                           </div>
                           <div>
-                            <dt><ClipboardList size={15} aria-hidden="true" />{String(locale || "").startsWith("sv") ? "Totalt planerade inlägg" : "Total planned posts"}</dt>
-                            <dd>{String(locale || "").startsWith("sv") ? `${slots.length} inlägg` : `${slots.length} posts`}</dd>
+                            <dt><ClipboardList size={15} aria-hidden="true" />{t("automation.campaignOverview.totalPlannedPosts")}</dt>
+                            <dd>{t("automation.postCount", { count: slots.length })}</dd>
                           </div>
                         </dl>
                       </div>
@@ -10885,7 +10842,7 @@ function blockFormatCardClickAfterDrag(event) {
                         />
                         <div className="sp100-campaign-image-scrim" aria-hidden="true" />
                         <div className="sp100-campaign-image-overlay">
-                          <small>{String(locale || "").startsWith("sv") ? "Kampanj" : "Campaign"}</small>
+                          <small>{t("automation.campaignOverview.campaign")}</small>
                           <strong>{campaignOpportunity.title}</strong>
                         </div>
                       </div>
@@ -10893,10 +10850,10 @@ function blockFormatCardClickAfterDrag(event) {
 
                     <div className="sp98-campaign-overview-timeline-block">
                       <div className="sp98-campaign-overview-timeline-head">
-                        <strong>{String(locale || "").startsWith("sv") ? "Period" : "Period"}</strong>
+                        <strong>{t("automation.campaignOverview.periodShort")}</strong>
                         <span>
                           {getCampaignOverviewPeriod(campaignOpportunity, locale)}
-                          {String(locale || "").startsWith("sv") ? ` (${slots.length} inlägg)` : ` (${slots.length} posts)`}
+                           {t("automation.campaignOverview.postCountParenthetical", { count: slots.length })}
                         </span>
                       </div>
 
@@ -10925,16 +10882,16 @@ function blockFormatCardClickAfterDrag(event) {
                       <article className="sp98-campaign-overview-note sp98-campaign-overview-note-ai">
                         <div className="sp98-campaign-overview-note-icon"><Sparkles size={18} aria-hidden="true" /></div>
                         <div>
-                          <strong>{String(locale || "").startsWith("sv") ? "Automatiskt valt av AI" : "Automatically selected by AI"}</strong>
-                          <p>{String(locale || "").startsWith("sv") ? "Produkter som passar kampanjen, relevanta innehållstyper och rekommenderade datum över perioden." : "Products that fit the campaign, relevant content types, and recommended dates across the selected period."}</p>
+                          <strong>{t("automation.campaignOverview.aiSelected")}</strong>
+                          <p>{t("automation.campaignOverview.aiSelectedText")}</p>
                         </div>
                       </article>
 
                       <article className="sp98-campaign-overview-note sp98-campaign-overview-note-editable">
                         <div className="sp98-campaign-overview-note-icon"><PenLine size={18} aria-hidden="true" /></div>
                         <div>
-                          <strong>{String(locale || "").startsWith("sv") ? "Kan ändras av dig" : "Can be changed by you"}</strong>
-                          <p>{String(locale || "").startsWith("sv") ? "Flytta datum för enskilda inlägg, lägg till fler eller ta bort inlägg innan du aktiverar planen." : "Move dates for individual posts, add more posts, or remove posts before you activate the plan."}</p>
+                          <strong>{t("automation.campaignOverview.editable")}</strong>
+                          <p>{t("automation.campaignOverview.editableText")}</p>
                         </div>
                       </article>
                     </div>
@@ -10950,7 +10907,7 @@ function blockFormatCardClickAfterDrag(event) {
                   <section className="sp85-settings-card sp85-settings-card-strategy">
                     <header className="sp85-settings-card-title">
                       <span><Target size={18} aria-hidden="true" /></span>
-                      <strong>{locale.startsWith("sv") ? "STRATEGI" : "STRATEGY"}</strong>
+                      <strong>{t("automation.strategyHeading")}</strong>
                     </header>
                     <div className="sp85-settings-card-rows">
                       <label className="sp85-settings-row sp85-row-goal">
@@ -11025,11 +10982,11 @@ function blockFormatCardClickAfterDrag(event) {
                           </select>
                           <span className="sp85-value-display">
                             <strong className="sp85-frequency-desktop-value">{planCreationMode === "campaign"
-                              ? (locale.startsWith("sv") ? `${slots.length} inlägg` : `${slots.length} posts`)
+                              ? t("automation.postCount", { count: slots.length })
                               : scheduleType === "weekly"
-                              ? (locale.startsWith("sv") ? `${autoPlanPostCount} inlägg per vecka` : `${autoPlanPostCount} posts per week`)
-                              : (locale.startsWith("sv") ? `${autoPlanPostCount} inlägg` : `${autoPlanPostCount} posts`)}</strong>
-                            <strong className="sp85-frequency-mobile-value">{locale.startsWith("sv") ? `${planCreationMode === "campaign" ? slots.length : autoPlanPostCount} inlägg` : `${planCreationMode === "campaign" ? slots.length : autoPlanPostCount} posts`}</strong>
+                              ? t("automation.redesign.postsPerWeekValue", { count: autoPlanPostCount })
+                              : t("automation.postCount", { count: autoPlanPostCount })}</strong>
+                            <strong className="sp85-frequency-mobile-value">{t("automation.postCount", { count: planCreationMode === "campaign" ? slots.length : autoPlanPostCount })}</strong>
                             <ChevronDown size={16} aria-hidden="true" />
                           </span>
                         </span>
@@ -11040,7 +10997,7 @@ function blockFormatCardClickAfterDrag(event) {
                   <section className="sp85-settings-card sp85-settings-card-schedule">
                     <header className="sp85-settings-card-title">
                       <span><CalendarDays size={18} aria-hidden="true" /></span>
-                      <strong>{locale.startsWith("sv") ? "SCHEMA" : "SCHEDULE"}</strong>
+                      <strong>{t("automation.scheduleHeading")}</strong>
                     </header>
                     <div className="sp85-settings-card-rows">
                       <div className="sp85-settings-row sp85-row-date">
@@ -11097,7 +11054,7 @@ function blockFormatCardClickAfterDrag(event) {
                   <section className="sp85-settings-card sp85-settings-card-channels">
                     <header className="sp85-settings-card-title">
                       <span><Globe2 size={18} aria-hidden="true" /></span>
-                      <strong>{locale.startsWith("sv") ? "KANALER & SPRÅK" : "CHANNELS & LANGUAGE"}</strong>
+                      <strong>{t("automation.channelsLanguage")}</strong>
                     </header>
                     <div className="sp85-settings-card-rows">
                       <label className="sp85-settings-row sp85-row-language">
@@ -11152,9 +11109,7 @@ function blockFormatCardClickAfterDrag(event) {
                                     : `+${selectedPlatformOptions.length - Math.min(3, selectedPlatformOptions.length)}`)
                                   : t("automation.choosePlatform")}</strong>
                                 <strong className="sp85-platform-mobile-label">{selectedPlatformOptions.length > 0
-                                  ? (locale.startsWith("sv")
-                                    ? `${selectedPlatformOptions.length} ${selectedPlatformOptions.length === 1 ? "plattform" : "plattformar"}`
-                                    : `${selectedPlatformOptions.length} ${selectedPlatformOptions.length === 1 ? "platform" : "platforms"}`)
+                                  ? t("automation.platformCount", { count: selectedPlatformOptions.length })
                                   : t("automation.choosePlatform")}</strong>
                                 <ChevronRight size={17} aria-hidden="true" />
                               </button>
@@ -11200,9 +11155,7 @@ function blockFormatCardClickAfterDrag(event) {
                       <span className="sp85-week-icon" aria-hidden="true"><CalendarDays size={29} /></span>
                       <div>
                         <strong>{t("automation.weekRhythm.title")}</strong>
-                        <span>{locale.startsWith("sv")
-                          ? "Spreelo har valt de starkaste veckodagarna för denna plan."
-                          : "Spreelo has selected the strongest weekdays for this plan."}</span>
+                        <span>{t("automation.weekRhythm.selectedStrongestDays")}</span>
                       </div>
                     </div>
                     <div className="sp85-week-days">
@@ -11245,12 +11198,8 @@ function blockFormatCardClickAfterDrag(event) {
                   <div>
                     <h2>{t("automation.redesign.contentTypesTitleV2")}</h2>
                     <p>{planCreationMode === "campaign"
-                      ? (locale.startsWith("sv")
-                        ? "Kampanjen är redan optimerad med en innehållsmix som passar temat. Vill du komplettera planen kan du välja ett format nedan."
-                        : "The campaign is already optimized with a content mix that fits the theme. If you want to expand the plan, choose a format below.")
-                      : (locale.startsWith("sv")
-                        ? "Planen är redan optimerad med den innehållsmix som passar ditt mål bäst. Här kan du vid behov lägga till eller byta ut format i den befintliga planen."
-                        : "Your plan is already optimized with the content mix best suited to your goal. Use this section only if you want to add or replace formats in the existing plan.")}</p>
+                      ? t("automation.redesign.campaignContentTypesText")
+                      : t("automation.redesign.optimizedContentTypesText")}</p>
                   </div>
                 </div>
 
@@ -11294,16 +11243,10 @@ function blockFormatCardClickAfterDrag(event) {
                 <button type="button" className="plan-v14470-format-browser" onClick={openAllFormats}>
                   <span><LayoutGrid size={18} aria-hidden="true" /></span>
                   <span>
-                    <strong>{locale.startsWith("sv")
-                      ? `${planCreationMode === "campaign" ? exploreFormatItems.filter((item) => item.kind === "content_type").length : exploreFormatItems.length} tillgängliga format`
-                      : `${planCreationMode === "campaign" ? exploreFormatItems.filter((item) => item.kind === "content_type").length : exploreFormatItems.length} available formats`}</strong>
+                    <strong>{t("automation.redesign.availableFormats", { count: planCreationMode === "campaign" ? exploreFormatItems.filter((item) => item.kind === "content_type").length : exploreFormatItems.length })}</strong>
                     <small>{planCreationMode === "campaign"
-                      ? (locale.startsWith("sv")
-                        ? "Välj ett format för att lägga till ett nytt inlägg som fortfarande följer kampanjens tema och produktlogik"
-                        : "Choose a format to add a new post that still follows the campaign theme and product logic")
-                      : (locale.startsWith("sv")
-                        ? "Valfritt: lägg till eller byt format i den optimerade planen"
-                        : "Optional: add or replace formats in the optimized plan")}</small>
+                      ? t("automation.redesign.campaignFormatHelp")
+                      : t("automation.redesign.optionalFormatHelp")}</small>
                   </span>
                   <ChevronRight size={18} aria-hidden="true" />
                 </button>
@@ -11352,7 +11295,7 @@ function blockFormatCardClickAfterDrag(event) {
                             ? t("automation.offerPlan.categoryUrlLabel")
                             : t("automation.offerPlan.productUrlLabel")}
                         </span>
-                        <input type="url" value={offerSourceUrl} onChange={(event) => setOfferSourceUrl(event.target.value)} placeholder={offerSourceScope === "category_url" ? "https://foretag.se/kategori/" : "https://foretag.se/produkt/"} />
+                        <input type="url" value={offerSourceUrl} onChange={(event) => setOfferSourceUrl(event.target.value)} placeholder={offerSourceScope === "category_url" ? t("automation.offerPlan.categoryUrlPlaceholder") : t("automation.offerPlan.productUrlPlaceholder")} />
                       </label>
                     ) : null}
                     <label>
@@ -11658,7 +11601,7 @@ function blockFormatCardClickAfterDrag(event) {
                           </div>
                           <div className="plan-v70-planned-date">
                             <strong><CalendarDays size={17} aria-hidden="true" />{formatStartDateLabel(slot.startDate, timeZone, locale)}</strong>
-                            <span className="plan-v14457-daypart"><Clock3 size={13} />{getCampaignTimeWindowDisplay(slot.publishTime, locale)} · {t("automation.weekRhythm.exactTimeAutomatic")}</span>
+                            <span className="plan-v14457-daypart"><Clock3 size={13} />{getCampaignTimeWindowDisplay(slot.publishTime, t)} · {t("automation.weekRhythm.exactTimeAutomatic")}</span>
                             {isPastCampaignSlot ? <em className="plan-v14457-skipped-label">{t("automation.campaignExperience.skippedPast")}</em> : null}
                           </div>
                           <div className="plan-v70-planned-post">
@@ -11682,7 +11625,7 @@ function blockFormatCardClickAfterDrag(event) {
                             </div>
                           </div>
                           <div className="plan-v70-planned-channel plan-v74-planned-channels">
-                            <strong className="plan-v14467-destinations-label">{locale.startsWith("sv") ? "Publiceras till" : "Published to"}</strong>
+                            <strong className="plan-v14467-destinations-label">{t("automation.publishedTo")}</strong>
                             {slotPlatformOptions.length > 0 ? (
                               <span className="plan-v74-channel-stack" aria-label={slotPlatformOptions.map((item) => item.label).join(", ")}>
                                 {slotPlatformOptions.map((item) => (
@@ -11784,8 +11727,8 @@ function blockFormatCardClickAfterDrag(event) {
                     <div>
                       <h2>{t("automation.redesign.ongoingTitle")}</h2>
                       <p>{scheduleType === "weekly"
-                        ? (locale.startsWith("sv") ? "Planen fortsätter automatiskt varje vecka och kan pausas när du vill." : "The plan continues automatically each week and can be paused at any time.")
-                        : (locale.startsWith("sv") ? "Aktivera för att låta planen fortsätta automatiskt varje vecka." : "Activate to continue the plan automatically each week.")}</p>
+                        ? t("automation.redesign.ongoingWeeklyText")
+                        : t("automation.redesign.activateWeeklyText")}</p>
                     </div>
                     <label className="plan-v70-inline-toggle">
                       <input
@@ -12025,7 +11968,7 @@ function blockFormatCardClickAfterDrag(event) {
                           </div>
                           <div className="campaign-v14350-time-line">
                             <div className="fixed-campaign-time">
-                              <strong>{getCampaignTimeWindowDisplay(slot.publishTime, locale)}</strong>
+                              <strong>{getCampaignTimeWindowDisplay(slot.publishTime, t)}</strong>
                               <span>{t("automation.weekRhythm.exactTimeAutomatic")}</span>
                             </div>
                           </div>
@@ -12388,7 +12331,7 @@ function blockFormatCardClickAfterDrag(event) {
                     />
                   ) : (
                     <div className="fixed-campaign-time">
-                      <strong>{getCampaignTimeWindowDisplay(defaultPublishTime, locale)}</strong>
+                      <strong>{getCampaignTimeWindowDisplay(defaultPublishTime, t)}</strong>
                       <span>{t("automation.weekRhythm.exactTimeAutomatic")}</span>
                     </div>
                   )}
@@ -12768,7 +12711,7 @@ function blockFormatCardClickAfterDrag(event) {
                   </span>
                 )}
               </div>
-              <div className="planner-post-date">
+              <div className="planner-post-date" data-label={t("automation.dateColumn")}>
                 {isPastCampaignSlot ? (
                   <div className="locked-campaign-date">
                     <strong>{formatStartDateLabel(slot.startDate, timeZone, locale)}</strong>
@@ -12821,10 +12764,10 @@ function blockFormatCardClickAfterDrag(event) {
                 )}
               </div>
 
-              <div className="planner-post-time">
+              <div className="planner-post-time" data-label={t("automation.timeColumn")}>
                 {planCreationMode !== "manual" || scheduleType === "weekly" ? (
                   <div className="fixed-campaign-time">
-                    <strong>{getCampaignTimeWindowDisplay(slot.publishTime, locale)}</strong>
+                    <strong>{getCampaignTimeWindowDisplay(slot.publishTime, t)}</strong>
                     <span>{t("automation.weekRhythm.exactTimeAutomatic")}</span>
                   </div>
                 ) : (
@@ -13592,9 +13535,7 @@ function blockFormatCardClickAfterDrag(event) {
                   <div>
                     <p>
                       {planCreationMode === "campaign" && selectedFormatPreview.kind === "content_type"
-                        ? (locale.startsWith("sv")
-                          ? `Kampanj: ${campaignOpportunity?.title || ""}`
-                          : `Campaign: ${campaignOpportunity?.title || ""}`)
+                        ? t("automation.campaignOverview.campaignLabel", { title: campaignOpportunity?.title || "" })
                         : selectedFormatPreview.kind === "giveaway"
                         ? t("automation.giveaway.modalEyebrow")
                         : t("automation.format.recommendedForGoal", { goal: translateAutoPlanGoalLabel(autoPlanGoal) })}
@@ -13651,7 +13592,7 @@ function blockFormatCardClickAfterDrag(event) {
                     {selectedFormatPreview.kind === "content_type" ? <Plus size={18} /> : <ChevronDown size={18} />}
                     {selectedFormatPreview.kind === "content_type"
                       ? (planCreationMode === "campaign"
-                        ? (locale.startsWith("sv") ? "Lägg till i kampanjen" : "Add to campaign")
+                        ? t("automation.format.addToCampaign")
                         : t("automation.format.addToPlan"))
                       : selectedFormatPreview.kind === "offer_campaign"
                       ? t("automation.format.addAndConfigure")

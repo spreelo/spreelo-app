@@ -2351,11 +2351,11 @@
   }
 
   .automation-page .planner-post-date::before {
-    content: "Datum" !important;
+    content: attr(data-label) !important;
   }
 
   .automation-page .planner-post-time::before {
-    content: "Tid" !important;
+    content: attr(data-label) !important;
   }
 
   .automation-page .planner-post-format::before {

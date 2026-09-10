@@ -39,26 +39,6 @@ function isRateLimited(request, email) {
   return now - previous < 55 * 1000;
 }
 
-function swedishSignInTranslator(baseTranslator) {
-  if (baseTranslator.locale !== "sv") return baseTranslator;
-  const labels = {
-    "emails.signIn.subject": "Din inloggningskod till Spreelo",
-    "emails.signIn.eyebrow": "Säker inloggning",
-    "emails.signIn.title": "Logga in på Spreelo",
-    "emails.signIn.intro": "Använd verifieringskoden nedan för att slutföra inloggningen. Koden kan bara användas en gång.",
-    "emails.signIn.codeLabel": "Din inloggningskod",
-    "emails.signIn.expires": "Koden upphör snart att gälla.",
-    "emails.signIn.ignore": "Om du inte begärde detta mejl kan du ignorera det.",
-    "emails.signIn.security": "Spreelo kommer aldrig att be dig dela koden via telefon, chatt eller e-post.",
-  };
-  return {
-    ...baseTranslator,
-    t(key, values) {
-      return labels[key] || baseTranslator.t(key, values);
-    },
-  };
-}
-
 function buildEmail({ t, code, locale }) {
   const safeCode = escapeHtml(code);
   const subject = t("emails.signIn.subject");
@@ -123,8 +103,7 @@ export async function POST(request) {
     const code = String(linkResult.data?.properties?.email_otp || "").trim();
     if (!/^\d{6}$/.test(code)) throw new Error("Could not create a verification code.");
 
-    let translator = await getServerTranslations({ supabaseAdmin: admin, locale, namespaces: ["emails"] });
-    translator = swedishSignInTranslator(translator);
+    const translator = await getServerTranslations({ supabaseAdmin: admin, locale, namespaces: ["emails"] });
     const emailContent = buildEmail({ ...translator, code, locale });
     const resendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",

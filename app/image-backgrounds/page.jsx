@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import AppLayout from '../../components/AppLayout';
 import { supabase } from '../../lib/supabaseClient';
+import { useUiText } from '../../lib/i18n/useUiText';
 
 const EMPTY_FORM = {
   name: '',
@@ -33,13 +34,13 @@ const EMPTY_FORM = {
   notes: '',
 };
 
-async function getAuthHeaders() {
+async function getAuthHeaders(t) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
   if (!session?.access_token) {
-    throw new Error('Your login session has expired.');
+    throw new Error(t('admin.imageBackgrounds.sessionExpired'));
   }
 
   return {
@@ -52,14 +53,15 @@ function formatTags(values) {
   return (Array.isArray(values) ? values : []).join(', ');
 }
 
-function FilePreview({ asset }) {
+function FilePreview({ asset, t }) {
   if (!asset?.public_url) {
-    return <div className="video-background-card__preview-fallback">No preview</div>;
+    return <div className="video-background-card__preview-fallback">{t("admin.imageBackgrounds.noPreview")}</div>;
   }
-  return <img src={asset.public_url} alt={asset.name || 'Background'} className="video-background-card__poster" />;
+  return <img src={asset.public_url} alt={asset.name || t("admin.imageBackgrounds.backgroundAlt")} className="video-background-card__poster" />;
 }
 
 export default function ImageBackgroundsPage() {
+  const { t } = useUiText(["admin"]);
   const [assets, setAssets] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [file, setFile] = useState(null);
@@ -86,18 +88,18 @@ export default function ImageBackgroundsPage() {
     setError('');
 
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getAuthHeaders(t);
       const response = await fetch('/api/image-backgrounds', { headers });
       const payload = await response.json();
 
       if (!response.ok) {
         setConfigurationMissing(Boolean(payload?.configurationMissing));
-        throw new Error(payload?.error || 'Could not load the background library.');
+        throw new Error(t('admin.imageBackgrounds.loadError'));
       }
 
       setAssets(payload.assets || []);
     } catch (loadError) {
-      setError(loadError.message || 'Could not load the background library.');
+      setError(loadError.message || t('admin.imageBackgrounds.loadError'));
     } finally {
       setLoading(false);
     }
@@ -116,7 +118,7 @@ export default function ImageBackgroundsPage() {
       };
       image.onerror = () => {
         URL.revokeObjectURL(objectUrl);
-        reject(new Error('The selected image could not be read.'));
+        reject(new Error(t('admin.imageBackgrounds.readError')));
       };
       image.src = objectUrl;
     });
@@ -127,8 +129,8 @@ export default function ImageBackgroundsPage() {
     setError('');
     setMessage('');
 
-    if (!file) return setError('Choose a square background image first.');
-    if (!form.name.trim()) return setError('Give the background a clear internal name.');
+    if (!file) return setError(t('admin.imageBackgrounds.chooseFile'));
+    if (!form.name.trim()) return setError(t('admin.imageBackgrounds.nameRequired'));
 
     setUploading(true);
 
@@ -136,11 +138,11 @@ export default function ImageBackgroundsPage() {
       const metadata = await getImageMetadata(file);
       if (metadata.width !== 1080 || metadata.height !== 1080) {
         URL.revokeObjectURL(metadata.objectUrl);
-        throw new Error('Image backgrounds must be exactly 1080 × 1080 (1:1).');
+        throw new Error(t('admin.imageBackgrounds.sizeError'));
       }
       URL.revokeObjectURL(metadata.objectUrl);
 
-      const headers = await getAuthHeaders();
+      const headers = await getAuthHeaders(t);
       const createResponse = await fetch('/api/image-backgrounds', {
         method: 'POST',
         headers,
@@ -152,7 +154,7 @@ export default function ImageBackgroundsPage() {
         }),
       });
       const uploadData = await createResponse.json();
-      if (!createResponse.ok) throw new Error(uploadData?.error || 'Could not prepare the upload.');
+      if (!createResponse.ok) throw new Error(t('admin.imageBackgrounds.prepareError'));
 
       const imageUpload = await supabase.storage
         .from('image-backgrounds')
@@ -174,16 +176,16 @@ export default function ImageBackgroundsPage() {
         }),
       });
       const completeData = await completeResponse.json();
-      if (!completeResponse.ok) throw new Error(completeData?.error || 'Could not save the background metadata.');
+      if (!completeResponse.ok) throw new Error(t('admin.imageBackgrounds.saveError'));
 
       setAssets((current) => [completeData.asset, ...current]);
       setForm(EMPTY_FORM);
       setFile(null);
       const input = document.getElementById('image-background-file');
       if (input) input.value = '';
-      setMessage('Background uploaded and added to the automatic selection library.');
+      setMessage(t('admin.imageBackgrounds.uploaded'));
     } catch (uploadError) {
-      setError(uploadError.message || 'Could not upload the background.');
+      setError(uploadError.message || t('admin.imageBackgrounds.uploadError'));
     } finally {
       setUploading(false);
     }
@@ -216,14 +218,14 @@ export default function ImageBackgroundsPage() {
     setMessage('');
 
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getAuthHeaders(t);
       const response = await fetch('/api/image-backgrounds', {
         method: 'PATCH',
         headers,
         body: JSON.stringify({ ...editForm, id: editingAsset.id }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error || 'Could not save the background.');
+      if (!response.ok) throw new Error(t('admin.imageBackgrounds.saveError'));
 
       setAssets((current) => current.map((asset) => (asset.id === payload.asset.id ? payload.asset : asset)));
       setEditingAsset(payload.asset);
@@ -235,33 +237,33 @@ export default function ImageBackgroundsPage() {
         colors: formatTags(payload.asset.colors),
         notes: payload.asset.notes || '',
       });
-      setMessage(`${payload.asset.name} saved.`);
+      setMessage(t("admin.imageBackgrounds.saved", { name: payload.asset.name }));
     } catch (saveError) {
-      setError(saveError.message || 'Could not save the background.');
+      setError(saveError.message || t('admin.imageBackgrounds.saveError'));
     } finally {
       setSavingEdit(false);
     }
   }
 
   async function deleteAsset(id) {
-    if (!id || !window.confirm('Delete this background from the shared library?')) return;
+    if (!id || !window.confirm(t('admin.imageBackgrounds.deleteConfirm'))) return;
     setError('');
     setMessage('');
 
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getAuthHeaders(t);
       const response = await fetch(`/api/image-backgrounds?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers,
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error || 'Could not delete the background.');
+      if (!response.ok) throw new Error(t('admin.imageBackgrounds.deleteError'));
 
       setAssets((current) => current.filter((asset) => asset.id !== id));
       if (editingAsset?.id === id) closeEdit();
-      setMessage('Background removed from the library.');
+      setMessage(t('admin.imageBackgrounds.deleted'));
     } catch (deleteError) {
-      setError(deleteError.message || 'Could not delete the background.');
+      setError(deleteError.message || t('admin.imageBackgrounds.deleteError'));
     }
   }
 
@@ -270,25 +272,25 @@ export default function ImageBackgroundsPage() {
       <div className="video-backgrounds-page admin-page">
         <header className="admin-hero compact">
           <div>
-            <span className="admin-eyebrow">Creative library</span>
-            <h1>Image backgrounds</h1>
-            <p>Upload and manage reusable square backgrounds for product carousel cards.</p>
+            <span className="admin-eyebrow">{t("admin.imageBackgrounds.kicker")}</span>
+            <h1>{t("admin.imageBackgrounds.title")}</h1>
+            <p>{t("admin.imageBackgrounds.description")}</p>
           </div>
           <div className="video-backgrounds-summary">
             <div>
               <strong>{assets.length}</strong>
-              <span>Total assets</span>
+              <span>{t("admin.imageBackgrounds.total")}</span>
             </div>
             <div>
               <strong>{activeCount}</strong>
-              <span>Active</span>
+              <span>{t("admin.imageBackgrounds.active")}</span>
             </div>
           </div>
         </header>
 
         {configurationMissing ? (
           <div className="video-backgrounds-alert warning">
-            <ShieldAlert size={18} /> Configure admin login emails with SPREELO_PRIMARY_ADMIN_EMAIL and SPREELO_ADMIN_EMAILS in Vercel.
+            <ShieldAlert size={18} /> {t("admin.imageBackgrounds.configWarning")}
           </div>
         ) : null}
         {error ? <div className="video-backgrounds-alert error">{error}</div> : null}
@@ -298,63 +300,63 @@ export default function ImageBackgroundsPage() {
           <form className="video-background-card video-background-upload" onSubmit={handleUpload}>
             <div className="video-background-card__header">
               <div>
-                <h2>Upload new background</h2>
-                <p>Use 1080 × 1080 PNG, JPG or WEBP. These assets are used behind transparent product images.</p>
+                <h2>{t("admin.imageBackgrounds.uploadTitle")}</h2>
+                <p>{t("admin.imageBackgrounds.uploadText")}</p>
               </div>
               <span className="video-background-card__icon"><ImagePlus size={22} /></span>
             </div>
 
             <label className="video-background-field">
-              <span>Name</span>
-              <input value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Soft beige studio" />
+              <span>{t("admin.imageBackgrounds.name")}</span>
+              <input value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder={t("admin.imageBackgrounds.namePlaceholder")} />
             </label>
             <label className="video-background-field">
-              <span>File</span>
+              <span>{t("admin.imageBackgrounds.file")}</span>
               <input id="image-background-file" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] || null)} />
             </label>
             <div className="video-background-field-row two">
-              <label className="video-background-field"><span>Family</span><input value={form.family} onChange={(event) => updateForm('family', event.target.value)} /></label>
-              <label className="video-background-field"><span>Season</span><input value={form.season} onChange={(event) => updateForm('season', event.target.value)} /></label>
+              <label className="video-background-field"><span>{t("admin.imageBackgrounds.family")}</span><input value={form.family} onChange={(event) => updateForm('family', event.target.value)} /></label>
+              <label className="video-background-field"><span>{t("admin.imageBackgrounds.season")}</span><input value={form.season} onChange={(event) => updateForm('season', event.target.value)} /></label>
             </div>
-            <label className="video-background-field"><span>Moods</span><input value={form.moods} onChange={(event) => updateForm('moods', event.target.value)} /></label>
-            <label className="video-background-field"><span>Industries</span><input value={form.industries} onChange={(event) => updateForm('industries', event.target.value)} /></label>
-            <label className="video-background-field"><span>Campaigns</span><input value={form.campaigns} onChange={(event) => updateForm('campaigns', event.target.value)} /></label>
-            <label className="video-background-field"><span>Colors</span><input value={form.colors} onChange={(event) => updateForm('colors', event.target.value)} /></label>
+            <label className="video-background-field"><span>{t("admin.imageBackgrounds.moods")}</span><input value={form.moods} onChange={(event) => updateForm('moods', event.target.value)} /></label>
+            <label className="video-background-field"><span>{t("admin.imageBackgrounds.industries")}</span><input value={form.industries} onChange={(event) => updateForm('industries', event.target.value)} /></label>
+            <label className="video-background-field"><span>{t("admin.imageBackgrounds.campaigns")}</span><input value={form.campaigns} onChange={(event) => updateForm('campaigns', event.target.value)} /></label>
+            <label className="video-background-field"><span>{t("admin.imageBackgrounds.colors")}</span><input value={form.colors} onChange={(event) => updateForm('colors', event.target.value)} /></label>
             <div className="video-background-field-row three">
               <label className="video-background-field">
-                <span>Brightness</span>
+                <span>{t("admin.imageBackgrounds.brightness")}</span>
                 <select value={form.brightness} onChange={(event) => updateForm('brightness', event.target.value)}>
-                  <option value="light">Light</option>
-                  <option value="medium">Medium</option>
-                  <option value="dark">Dark</option>
+                  <option value="light">{t("admin.imageBackgrounds.light")}</option>
+                  <option value="medium">{t("admin.imageBackgrounds.medium")}</option>
+                  <option value="dark">{t("admin.imageBackgrounds.dark")}</option>
                 </select>
               </label>
               <label className="video-background-field">
-                <span>Priority</span>
+                <span>{t("admin.imageBackgrounds.priority")}</span>
                 <input type="number" value={form.priority} onChange={(event) => updateForm('priority', event.target.value)} />
               </label>
             </div>
-            <label className="video-background-field"><span>Notes</span><textarea rows={3} value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} /></label>
+            <label className="video-background-field"><span>{t("admin.imageBackgrounds.notes")}</span><textarea rows={3} value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} /></label>
             <div className="video-background-checkboxes">
-              <label><input type="checkbox" checked={form.text_safe} onChange={(event) => updateForm('text_safe', event.target.checked)} /> Text safe</label>
-              <label><input type="checkbox" checked={form.label_safe} onChange={(event) => updateForm('label_safe', event.target.checked)} /> Label safe</label>
-              <label><input type="checkbox" checked={form.crop_safe_1x1} onChange={(event) => updateForm('crop_safe_1x1', event.target.checked)} /> Crop safe 1:1</label>
-              <label><input type="checkbox" checked={form.active} onChange={(event) => updateForm('active', event.target.checked)} /> Active</label>
-              <label><input type="checkbox" checked={form.is_fallback} onChange={(event) => updateForm('is_fallback', event.target.checked)} /> Fallback</label>
+              <label><input type="checkbox" checked={form.text_safe} onChange={(event) => updateForm('text_safe', event.target.checked)} /> {t("admin.imageBackgrounds.textSafe")}</label>
+              <label><input type="checkbox" checked={form.label_safe} onChange={(event) => updateForm('label_safe', event.target.checked)} /> {t("admin.imageBackgrounds.labelSafe")}</label>
+              <label><input type="checkbox" checked={form.crop_safe_1x1} onChange={(event) => updateForm('crop_safe_1x1', event.target.checked)} /> {t("admin.imageBackgrounds.cropSafe")}</label>
+              <label><input type="checkbox" checked={form.active} onChange={(event) => updateForm('active', event.target.checked)} /> {t("admin.imageBackgrounds.active")}</label>
+              <label><input type="checkbox" checked={form.is_fallback} onChange={(event) => updateForm('is_fallback', event.target.checked)} /> {t("admin.imageBackgrounds.fallback")}</label>
             </div>
             <button type="submit" className="admin-primary-button" disabled={uploading}>
-              {uploading ? <Loader2 className="admin-spin" size={16} /> : <UploadCloud size={16} />} Upload background
+              {uploading ? <Loader2 className="admin-spin" size={16} /> : <UploadCloud size={16} />} {t("admin.imageBackgrounds.upload")}
             </button>
           </form>
 
           <div className="video-background-library">
             {loading ? (
-              <div className="admin-loading-card"><Loader2 className="admin-spin" size={18} /> Loading library…</div>
+              <div className="admin-loading-card"><Loader2 className="admin-spin" size={18} /> {t("admin.imageBackgrounds.loading")}</div>
             ) : assets.length ? (
               <div className="video-background-library__list">
                 {assets.map((asset) => (
                   <article className="video-background-card" key={asset.id}>
-                    <div className="video-background-card__preview"><FilePreview asset={asset} /></div>
+                    <div className="video-background-card__preview"><FilePreview asset={asset} t={t} /></div>
                     <div className="video-background-card__body">
                       <div className="video-background-card__title-row">
                         <div>
@@ -362,66 +364,66 @@ export default function ImageBackgroundsPage() {
                           <p>{asset.family || 'abstract'} · {asset.width || 0} × {asset.height || 0}</p>
                         </div>
                         <div className="video-background-card__status-row">
-                          {asset.active !== false ? <span className="video-background-pill active"><CheckCircle2 size={12} /> Active</span> : null}
-                          {asset.is_fallback ? <span className="video-background-pill fallback"><Star size={12} /> Fallback</span> : null}
+                          {asset.active !== false ? <span className="video-background-pill active"><CheckCircle2 size={12} /> {t("admin.imageBackgrounds.active")}</span> : null}
+                          {asset.is_fallback ? <span className="video-background-pill fallback"><Star size={12} /> {t("admin.imageBackgrounds.fallback")}</span> : null}
                         </div>
                       </div>
-                      <div className="video-background-meta"><strong>Moods:</strong> {formatTags(asset.moods) || '—'}</div>
-                      <div className="video-background-meta"><strong>Industries:</strong> {formatTags(asset.industries) || '—'}</div>
-                      <div className="video-background-meta"><strong>Campaigns:</strong> {formatTags(asset.campaigns) || '—'}</div>
+                      <div className="video-background-meta"><strong>{t("admin.imageBackgrounds.moods")}:</strong> {formatTags(asset.moods) || '—'}</div>
+                      <div className="video-background-meta"><strong>{t("admin.imageBackgrounds.industries")}:</strong> {formatTags(asset.industries) || '—'}</div>
+                      <div className="video-background-meta"><strong>{t("admin.imageBackgrounds.campaigns")}:</strong> {formatTags(asset.campaigns) || '—'}</div>
                       <div className="video-background-card__actions">
-                        <button type="button" onClick={() => startEdit(asset)}><Pencil size={14} /> Edit</button>
-                        <button type="button" onClick={() => deleteAsset(asset.id)} className="danger"><Trash2 size={14} /> Delete</button>
+                        <button type="button" onClick={() => startEdit(asset)}><Pencil size={14} /> {t("admin.imageBackgrounds.edit")}</button>
+                        <button type="button" onClick={() => deleteAsset(asset.id)} className="danger"><Trash2 size={14} /> {t("admin.imageBackgrounds.delete")}</button>
                       </div>
                     </div>
                   </article>
                 ))}
               </div>
             ) : (
-              <div className="admin-empty-state">No backgrounds uploaded yet.</div>
+              <div className="admin-empty-state">{t("admin.imageBackgrounds.none")}</div>
             )}
           </div>
         </section>
 
         {editingAsset && editForm ? (
           <div className="video-background-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeEdit(); }}>
-            <section className="video-background-modal" role="dialog" aria-modal="true" aria-label="Edit background">
+            <section className="video-background-modal" role="dialog" aria-modal="true" aria-label={t("admin.imageBackgrounds.editTitle")}>
               <div className="video-background-modal__header">
                 <div>
-                  <h2>Edit background</h2>
-                  <p>Update matching tags and quality settings for automatic selection.</p>
+                  <h2>{t("admin.imageBackgrounds.editTitle")}</h2>
+                  <p>{t("admin.imageBackgrounds.editText")}</p>
                 </div>
                 <button type="button" onClick={closeEdit} className="video-background-icon-button"><X size={18} /></button>
               </div>
               <div className="video-background-modal__layout">
-                <div className="video-background-modal__preview"><FilePreview asset={editingAsset} /></div>
+                <div className="video-background-modal__preview"><FilePreview asset={editingAsset} t={t} /></div>
                 <div className="video-background-modal__fields">
-                  <label className="video-background-field"><span>Name</span><input value={editForm.name || ''} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} /></label>
+                  <label className="video-background-field"><span>{t("admin.imageBackgrounds.name")}</span><input value={editForm.name || ''} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} /></label>
                   <div className="video-background-field-row two">
-                    <label className="video-background-field"><span>Family</span><input value={editForm.family || ''} onChange={(event) => setEditForm((current) => ({ ...current, family: event.target.value }))} /></label>
-                    <label className="video-background-field"><span>Season</span><input value={editForm.season || ''} onChange={(event) => setEditForm((current) => ({ ...current, season: event.target.value }))} /></label>
+                    <label className="video-background-field"><span>{t("admin.imageBackgrounds.family")}</span><input value={editForm.family || ''} onChange={(event) => setEditForm((current) => ({ ...current, family: event.target.value }))} /></label>
+                    <label className="video-background-field"><span>{t("admin.imageBackgrounds.season")}</span><input value={editForm.season || ''} onChange={(event) => setEditForm((current) => ({ ...current, season: event.target.value }))} /></label>
                   </div>
-                  <label className="video-background-field"><span>Moods</span><input value={editForm.moods || ''} onChange={(event) => setEditForm((current) => ({ ...current, moods: event.target.value }))} /></label>
-                  <label className="video-background-field"><span>Industries</span><input value={editForm.industries || ''} onChange={(event) => setEditForm((current) => ({ ...current, industries: event.target.value }))} /></label>
-                  <label className="video-background-field"><span>Campaigns</span><input value={editForm.campaigns || ''} onChange={(event) => setEditForm((current) => ({ ...current, campaigns: event.target.value }))} /></label>
-                  <label className="video-background-field"><span>Colors</span><input value={editForm.colors || ''} onChange={(event) => setEditForm((current) => ({ ...current, colors: event.target.value }))} /></label>
+                  <label className="video-background-field"><span>{t("admin.imageBackgrounds.moods")}</span><input value={editForm.moods || ''} onChange={(event) => setEditForm((current) => ({ ...current, moods: event.target.value }))} /></label>
+                  <label className="video-background-field"><span>{t("admin.imageBackgrounds.industries")}</span><input value={editForm.industries || ''} onChange={(event) => setEditForm((current) => ({ ...current, industries: event.target.value }))} /></label>
+                  <label className="video-background-field"><span>{t("admin.imageBackgrounds.campaigns")}</span><input value={editForm.campaigns || ''} onChange={(event) => setEditForm((current) => ({ ...current, campaigns: event.target.value }))} /></label>
+                  <label className="video-background-field"><span>{t("admin.imageBackgrounds.colors")}</span><input value={editForm.colors || ''} onChange={(event) => setEditForm((current) => ({ ...current, colors: event.target.value }))} /></label>
                   <div className="video-background-field-row three">
-                    <label className="video-background-field"><span>Brightness</span><select value={editForm.brightness || 'light'} onChange={(event) => setEditForm((current) => ({ ...current, brightness: event.target.value }))}><option value="light">Light</option><option value="medium">Medium</option><option value="dark">Dark</option></select></label>
-                    <label className="video-background-field"><span>Priority</span><input type="number" value={editForm.priority ?? 0} onChange={(event) => setEditForm((current) => ({ ...current, priority: event.target.value }))} /></label>
+                    <label className="video-background-field"><span>{t("admin.imageBackgrounds.brightness")}</span><select value={editForm.brightness || 'light'} onChange={(event) => setEditForm((current) => ({ ...current, brightness: event.target.value }))}><option value="light">{t("admin.imageBackgrounds.light")}</option><option value="medium">{t("admin.imageBackgrounds.medium")}</option><option value="dark">{t("admin.imageBackgrounds.dark")}</option></select></label>
+                    <label className="video-background-field"><span>{t("admin.imageBackgrounds.priority")}</span><input type="number" value={editForm.priority ?? 0} onChange={(event) => setEditForm((current) => ({ ...current, priority: event.target.value }))} /></label>
                   </div>
-                  <label className="video-background-field"><span>Notes</span><textarea rows={3} value={editForm.notes || ''} onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))} /></label>
+                  <label className="video-background-field"><span>{t("admin.imageBackgrounds.notes")}</span><textarea rows={3} value={editForm.notes || ''} onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))} /></label>
                   <div className="video-background-checkboxes">
-                    <label><input type="checkbox" checked={editForm.text_safe !== false} onChange={(event) => setEditForm((current) => ({ ...current, text_safe: event.target.checked }))} /> Text safe</label>
-                    <label><input type="checkbox" checked={editForm.label_safe !== false} onChange={(event) => setEditForm((current) => ({ ...current, label_safe: event.target.checked }))} /> Label safe</label>
-                    <label><input type="checkbox" checked={editForm.crop_safe_1x1 !== false} onChange={(event) => setEditForm((current) => ({ ...current, crop_safe_1x1: event.target.checked }))} /> Crop safe 1:1</label>
-                    <label><input type="checkbox" checked={editForm.active !== false} onChange={(event) => setEditForm((current) => ({ ...current, active: event.target.checked }))} /> Active</label>
-                    <label><input type="checkbox" checked={Boolean(editForm.is_fallback)} onChange={(event) => setEditForm((current) => ({ ...current, is_fallback: event.target.checked }))} /> Fallback</label>
+                    <label><input type="checkbox" checked={editForm.text_safe !== false} onChange={(event) => setEditForm((current) => ({ ...current, text_safe: event.target.checked }))} /> {t("admin.imageBackgrounds.textSafe")}</label>
+                    <label><input type="checkbox" checked={editForm.label_safe !== false} onChange={(event) => setEditForm((current) => ({ ...current, label_safe: event.target.checked }))} /> {t("admin.imageBackgrounds.labelSafe")}</label>
+                    <label><input type="checkbox" checked={editForm.crop_safe_1x1 !== false} onChange={(event) => setEditForm((current) => ({ ...current, crop_safe_1x1: event.target.checked }))} /> {t("admin.imageBackgrounds.cropSafe")}</label>
+                    <label><input type="checkbox" checked={editForm.active !== false} onChange={(event) => setEditForm((current) => ({ ...current, active: event.target.checked }))} /> {t("admin.imageBackgrounds.active")}</label>
+                    <label><input type="checkbox" checked={Boolean(editForm.is_fallback)} onChange={(event) => setEditForm((current) => ({ ...current, is_fallback: event.target.checked }))} /> {t("admin.imageBackgrounds.fallback")}</label>
                   </div>
                 </div>
               </div>
               <div className="video-background-modal__actions">
-                <button type="button" className="admin-secondary-button" onClick={closeEdit}>Cancel</button>
-                <button type="button" className="admin-primary-button" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? <Loader2 className="admin-spin" size={16} /> : null} Save</button>
+                <button type="button" className="admin-secondary-button" onClick={closeEdit}>{t("admin.imageBackgrounds.cancel")}</button>
+                <button type="button" className="admin-primary-button" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? <Loader2 className="admin-spin" size={16} /> : null} {t("admin.imageBackgrounds.save")}</button>
               </div>
             </section>
           </div>

@@ -45,9 +45,9 @@ assert.match(refundRoute, /sendFailedOccurrenceRefundedEmail/);
 assert.match(refundRoute, /refund_applied_but_customer_email_failed/);
 assert.match(refundRoute, /customer_failure_notified_at/);
 
-assert.match(adminPage, /Avbryt och återbetala kredit/);
-assert.match(adminPage, /Skicka kundmejl igen/);
-assert.match(adminPage, /Krediten återbetalas inte automatiskt/);
+assert.match(adminPage, /admin\.approvals\.cancelRefundCredit/);
+assert.match(adminPage, /admin\.approvals\.sendCustomerEmailAgain/);
+assert.match(adminPage, /admin\.approvals\.noAutoRefundText/);
 assert.match(adminPage, /\/api\/admin\/post-approvals\/cancel-refund/);
 
 assert.ok(localeHelper.indexOf('metadata?.app_locale') < localeHelper.indexOf('metadata?.app_language'));
@@ -58,10 +58,9 @@ assert.match(rejection, /resolveLocaleFromUserMetadata/);
 assert.match(planMail, /resolveLocaleFromUserMetadata/);
 assert.match(stripe, /resolveLocaleFromUserMetadata/);
 
-assert.match(serverText, /namespace === "emails"/);
 assert.match(serverText, /ui_translation_packs/);
 assert.match(serverText, /translateMissingLabels/);
-assert.match(serverText, /Subsequent sends are/);
-assert.match(serverText, /cache\/file backed/);
+assert.match(serverText, /source_fingerprints/);
+assert.match(serverText, /claimServerTranslationPack/);
 
 console.log('v144.111 rescue credit lifecycle + localized customer email checks passed');

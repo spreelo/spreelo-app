@@ -2871,7 +2871,7 @@ function getDateYYYYMMDDInTimeZone(
   date = new Date(),
   timeZone = DEFAULT_TIME_ZONE
 ) {
-  return new Intl.DateTimeFormat("sv-SE", {
+  return new Intl.DateTimeFormat("en-CA", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -2887,7 +2887,7 @@ function getWeekdayInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
 }
 
 function getTimeHHMMInTimeZone(date = new Date(), timeZone = DEFAULT_TIME_ZONE) {
-  return new Intl.DateTimeFormat("sv-SE", {
+  return new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -12302,58 +12302,6 @@ function escapeAutomationEmailHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function buildAutomationFailureEmail({ rule, brandProfile, customerMessage, refundedCredits, locale }) {
-  const isSwedish = String(locale || "").toLowerCase().startsWith("sv");
-  const brandName = String(
-    brandProfile?.business_name || brandProfile?.name || rule?.brand_name || rule?.name || "your business"
-  ).trim();
-  const postLabel = String(rule?.content_type_label || rule?.post_type || rule?.name || "planned post").trim();
-  const refunded = Math.max(0, Number(refundedCredits || 0));
-  const appUrl = `${APP_URL}/calendar`;
-
-  if (isSwedish) {
-    const subject = "Ett planerat inlägg kunde inte skapas";
-    const refundText = refunded > 0
-      ? `${refunded} kredit${refunded === 1 ? "" : "er"} har återförts för det misslyckade inlägget. Om en återkommande plan fortsätter kan kredit samtidigt vara reserverad för nästa framtida inlägg.`
-      : "Ingen kredit har förbrukats för det misslyckade skapandet.";
-    const text = `Hej,\n\nSpreelo kunde inte skapa det planerade inlägget för ${brandName}.\n\nInlägg: ${postLabel}\nAnledning: ${customerMessage}\n\n${refundText}\nSamma planerade inlägg kommer inte att köras automatiskt igen. En återkommande plan fortsätter med nästa framtida inlägg så länge planen inte har pausats på grund av ett problem som behöver åtgärdas.\n\n${appUrl}`;
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#172033;line-height:1.55">
-        <h1 style="font-size:24px;margin-bottom:16px">Ett planerat inlägg kunde inte skapas</h1>
-        <p>Hej,</p>
-        <p>Spreelo kunde inte skapa det planerade inlägget för <strong>${escapeAutomationEmailHtml(brandName)}</strong>.</p>
-        <div style="background:#f6f7fb;border:1px solid #e3e6ef;border-radius:12px;padding:16px;margin:20px 0">
-          <p style="margin:0 0 8px"><strong>Inlägg:</strong> ${escapeAutomationEmailHtml(postLabel)}</p>
-          <p style="margin:0"><strong>Anledning:</strong> ${escapeAutomationEmailHtml(customerMessage)}</p>
-        </div>
-        <p><strong>${escapeAutomationEmailHtml(refundText)}</strong></p>
-        <p>Samma planerade inlägg kommer inte att köras automatiskt igen. En återkommande plan fortsätter med nästa framtida inlägg så länge planen inte har pausats på grund av ett problem som behöver åtgärdas.</p>
-        <p><a href="${appUrl}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:12px 18px;border-radius:9px;font-weight:700">Öppna Spreelo</a></p>
-      </div>`;
-    return { subject, text, html };
-  }
-
-  const subject = "A planned post could not be created";
-  const refundText = refunded > 0
-    ? `${refunded} credit${refunded === 1 ? "" : "s"} have been returned for the failed post. If a recurring plan continues, credit may be reserved at the same time for its next future post.`
-    : "No credit was charged for the failed creation.";
-  const text = `Hello,\n\nSpreelo could not create the planned post for ${brandName}.\n\nPost: ${postLabel}\nReason: ${customerMessage}\n\n${refundText}\nThe same scheduled post will not be attempted automatically again. A recurring plan continues with its next future post unless the plan has been paused because an issue requires action.\n\n${appUrl}`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#172033;line-height:1.55">
-      <h1 style="font-size:24px;margin-bottom:16px">A planned post could not be created</h1>
-      <p>Hello,</p>
-      <p>Spreelo could not create the planned post for <strong>${escapeAutomationEmailHtml(brandName)}</strong>.</p>
-      <div style="background:#f6f7fb;border:1px solid #e3e6ef;border-radius:12px;padding:16px;margin:20px 0">
-        <p style="margin:0 0 8px"><strong>Post:</strong> ${escapeAutomationEmailHtml(postLabel)}</p>
-        <p style="margin:0"><strong>Reason:</strong> ${escapeAutomationEmailHtml(customerMessage)}</p>
-      </div>
-      <p><strong>${escapeAutomationEmailHtml(refundText)}</strong></p>
-      <p>The same scheduled post will not be attempted automatically again. A recurring plan continues with its next future post unless the plan has been paused because an issue requires action.</p>
-      <p><a href="${appUrl}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:12px 18px;border-radius:9px;font-weight:700">Open Spreelo</a></p>
-    </div>`;
-  return { subject, text, html };
 }
 
 async function claimAutomationOccurrenceOnce({
@@ -28645,7 +28593,7 @@ async function findPrimaryCampaignProductsWithWebSearch({
     .join("\n");
   const exactTask = useVerifiedEditorialPool
     ? `Select and rank the ${CAMPAIGN_PRIMARY_WEB_RESEARCH_TARGET} strongest products for ${campaignTheme} only from this live-verified product pool. Preserve every supplied URL and image URL exactly:\n${verifiedPoolText}`
-    : `Hitta ${CAMPAIGN_PRIMARY_WEB_RESEARCH_TARGET} passande produkter från ${allowedDomain} för ${campaignTheme}.`;
+    : `Find ${CAMPAIGN_PRIMARY_WEB_RESEARCH_TARGET} suitable products from ${allowedDomain} for ${campaignTheme}.`;
   const webAgentInstructions = `
  Act as a careful senior marketer:
 - ${useVerifiedEditorialPool ? "The product pool in the task has already been live-verified by Spreelo. Select ONLY from that pool; do not search for or invent another URL." : `Search only ${allowedDomain}. Use the site's public search, category and collection pages to find real products, then return the direct product pages.`}

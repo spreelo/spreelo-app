@@ -616,7 +616,7 @@ export default function OnboardingPage() {
           <div className="onboarding-refresh-saas-preview" aria-hidden="true">
             <header>
               <span><Sparkles size={17} /></span>
-              <div><strong>BRAND INTELLIGENCE</strong><i /></div>
+              <div><strong>{t("onboarding.brandIntelligence")}</strong><i /></div>
               <b>AI</b>
             </header>
             <div className="onboarding-refresh-saas-chart">

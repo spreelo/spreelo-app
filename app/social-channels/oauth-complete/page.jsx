@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useUiText } from "../../../lib/i18n/useUiText";
 
 const MESSAGE_TYPE = "spreelo-social-oauth-result";
 
 export default function SocialOAuthCompletePage() {
-  const [status, setStatus] = useState("Finishing secure connection…");
+  const { t } = useUiText(["social"]);
+  const [statusKey, setStatusKey] = useState("social.oauthCompleting");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -25,7 +27,7 @@ export default function SocialOAuthCompletePage() {
     };
 
     if (window.opener && !window.opener.closed) {
-      setStatus(success ? "Connected. Returning to Spreelo…" : "Returning to Spreelo…");
+      setStatusKey(success ? "social.oauthConnectedReturning" : "social.oauthReturning");
       try {
         window.opener.postMessage(payload, window.location.origin);
       } catch {}
@@ -46,7 +48,7 @@ export default function SocialOAuthCompletePage() {
     <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, fontFamily: "Arial, sans-serif", background: "#f7f7f8", color: "#17181b" }}>
       <section style={{ width: "min(420px, 100%)", padding: 28, borderRadius: 18, background: "white", boxShadow: "0 16px 44px rgba(0,0,0,.08)", textAlign: "center" }}>
         <strong style={{ display: "block", fontSize: 20, marginBottom: 10 }}>Spreelo</strong>
-        <p style={{ margin: 0, color: "#676b73", lineHeight: 1.5 }}>{status}</p>
+        <p style={{ margin: 0, color: "#676b73", lineHeight: 1.5 }}>{t(statusKey)}</p>
       </section>
     </main>
   );

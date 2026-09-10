@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { useUiText } from "../../lib/i18n/useUiText";
 
 const EMPTY_STATS = {
   users: 0,
@@ -50,10 +51,10 @@ const EMPTY_INSIGHTS = {
   totals: {},
 };
 
-function formatDateTime(value, withTime = true) {
+function formatDateTime(value, withTime = true, locale = "en") {
   if (!value) return "—";
   try {
-    return new Intl.DateTimeFormat("sv-SE", withTime
+    return new Intl.DateTimeFormat(locale || "en", withTime
       ? { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }
       : { day: "numeric", month: "short", year: "numeric" }
     ).format(new Date(value));
@@ -75,28 +76,28 @@ function countryFlag(code) {
   return known[normalized] || "🌍";
 }
 
-function countryName(code) {
+function countryName(code, t) {
   const normalized = String(code || "").toUpperCase();
-  const known = { SE: "Sverige", DK: "Danmark", NO: "Norge", DE: "Tyskland", NL: "Nederländerna", FI: "Finland", GB: "Storbritannien", US: "USA", OTHER: "Övriga" };
-  return known[normalized] || normalized || "Övriga";
+  const keys = { SE: "sweden", DK: "denmark", NO: "norway", DE: "germany", NL: "netherlands", FI: "finland", GB: "unitedKingdom", US: "unitedStates", OTHER: "other" };
+  return keys[normalized] ? t(`adminCommand.country.${keys[normalized]}`) : normalized || t("adminCommand.country.other");
 }
 
-function friendlyFormatName(value) {
-  const raw = String(value || "Okänd typ");
-  const map = {
-    website_item: "Produktinlägg",
-    website_carousel: "Produktkarusell",
-    website_item_text_ad: "AI-produktannons",
-    animated_website_item: "Produkt-Reel",
-    ai_image: "AI-bild",
-    text: "Textinlägg",
-    faq: "FAQ",
-    tips: "Tips",
-    mini_guide: "Miniguide",
-    checklist: "Checklista",
-    problem_solution: "Problem → Lösning",
+function friendlyFormatName(value, t) {
+  const raw = String(value || "unknown");
+  const keys = {
+    website_item: "websiteItem",
+    website_carousel: "websiteCarousel",
+    website_item_text_ad: "websiteItemTextAd",
+    animated_website_item: "animatedWebsiteItem",
+    ai_image: "aiImage",
+    text: "text",
+    faq: "faq",
+    tips: "tips",
+    mini_guide: "miniGuide",
+    checklist: "checklist",
+    problem_solution: "problemSolution",
   };
-  return map[raw] || raw.replace(/_/g, " ");
+  return keys[raw] ? t(`adminCommand.format.${keys[raw]}`) : raw.replace(/_/g, " ");
 }
 
 async function getAdminHeaders() {
@@ -130,6 +131,43 @@ function QuickGroup({ tone, title, icon: Icon, children }) {
   );
 }
 
+const SYSTEM_HEALTH_LABEL_KEYS = {
+  vercel_cron: "adminCommand.system.name.vercel_cron",
+  supabase_database: "adminCommand.system.name.supabase_database",
+  supabase_storage: "adminCommand.system.name.supabase_storage",
+  smart_queue_workers: "adminCommand.system.name.smart_queue_workers",
+  openai: "adminCommand.system.name.openai",
+  resend: "adminCommand.system.name.resend",
+  stripe: "adminCommand.system.name.stripe",
+  meta: "adminCommand.system.name.meta",
+  kling: "adminCommand.system.name.kling",
+  shotstack: "adminCommand.system.name.shotstack",
+};
+
+function systemHealthLabel(system, t) {
+  const key = SYSTEM_HEALTH_LABEL_KEYS[String(system?.key || system?.system_key || "")];
+  return key ? t(key) : String(system?.label || "");
+}
+
+function systemHealthMessage(system, t) {
+  const key = String(system?.key || system?.system_key || "");
+  const status = String(system?.status || system?.latest_status || "");
+  if (status === "unconfigured") return t("adminCommand.system.message.notConfigured");
+  if (key === "vercel_cron" && status === "up") return t("adminCommand.system.message.vercelRunning");
+  if (key === "supabase_database" && status === "up") return t("adminCommand.system.message.databaseHealthy");
+  if (key === "supabase_storage" && status === "up") return t("adminCommand.system.message.storageHealthy");
+  if (key === "smart_queue_workers") {
+    if (status === "up") return t("adminCommand.system.message.workersHealthy", { count: Number(system?.details?.laneCount || 0) });
+    if (!system?.details?.latestHeartbeat) return t("adminCommand.system.message.workersMissing");
+    const ageMs = Date.now() - new Date(system.details.latestHeartbeat).getTime();
+    if (Number.isFinite(ageMs)) return t("adminCommand.system.message.workerHeartbeatOld", { minutes: Math.max(0, Math.round(ageMs / 60000)) });
+  }
+  if (["openai", "resend", "stripe"].includes(key) && status === "up") return t("adminCommand.system.message.apiAuthHealthy");
+  if (key === "meta" && status === "up") return t("adminCommand.system.message.graphAuthHealthy");
+  if (["kling", "shotstack"].includes(key) && status === "up") return t("adminCommand.system.message.apiReachable");
+  return String(system?.message || "—");
+}
+
 function QuickLink({ href, icon: Icon, title, text, badge }) {
   return (
     <a className="admin156-quick-link" href={href}>
@@ -142,6 +180,7 @@ function QuickLink({ href, icon: Icon, title, text, badge }) {
 }
 
 export default function AdminDashboardPage() {
+  const { t, locale } = useUiText(["adminCommand"]);
   const [stats, setStats] = useState(EMPTY_STATS);
   const [insights, setInsights] = useState(EMPTY_INSIGHTS);
   const [generationCosts, setGenerationCosts] = useState({ periodDays: 30, samples: 0, averageUsd: 0, medianUsd: 0, formats: [] });
@@ -183,7 +222,7 @@ export default function AdminDashboardPage() {
         backgroundJobsResponse.json().catch(() => ({})),
         healthResponse.json().catch(() => ({})),
       ]);
-      if (!overviewResponse.ok) throw new Error(overviewPayload?.error || "Kunde inte läsa adminöversikten.");
+      if (!overviewResponse.ok) throw new Error(overviewPayload?.error || t("adminCommand.error.loadOverview"));
       setStats({ ...EMPTY_STATS, ...(overviewPayload.stats || {}) });
       setInsights({ ...EMPTY_INSIGHTS, ...(overviewPayload.insights || {}) });
       setGenerationCosts(overviewPayload.generationCosts || { periodDays: 30, samples: 0, averageUsd: 0, medianUsd: 0, formats: [] });
@@ -195,9 +234,9 @@ export default function AdminDashboardPage() {
       }
       setBackgroundJobCount(backgroundJobsResponse.ok ? Number(backgroundPayload?.counts?.total || 0) : 0);
       if (healthResponse.ok) setHealth(healthPayload);
-      else setWarnings((current) => [...current, { key: "health", message: healthPayload?.error || "Systemstatus kunde inte läsas." }]);
+      else setWarnings((current) => [...current, { key: "health", message: healthPayload?.error || t("adminCommand.error.health") }]);
     } catch (loadError) {
-      setError(loadError?.message || "Kunde inte läsa adminöversikten.");
+      setError(loadError?.message || t("adminCommand.error.loadOverview"));
     } finally {
       setLoading(false);
     }
@@ -215,30 +254,30 @@ export default function AdminDashboardPage() {
       const headers = await getAdminHeaders();
       const response = await fetch("/api/admin/translations", { method: "POST", headers, body: JSON.stringify({ locales: selectedLocales }) });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || "Kunde inte begära översättningsuppdatering.");
-      setTranslationMessage(`${selectedLocales.length} språk har lagts i kö för uppdatering.`);
+      if (!response.ok) throw new Error(payload?.error || t("adminCommand.error.translationRefresh"));
+      setTranslationMessage(t("adminCommand.translationQueued", { count: selectedLocales.length }));
       setSelectedLocales([]);
     } catch (saveError) {
-      setTranslationMessage(saveError?.message || "Kunde inte begära översättningsuppdatering.");
+      setTranslationMessage(saveError?.message || t("adminCommand.error.translationRefresh"));
     } finally {
       setTranslationSaving(false);
     }
   }
 
   async function stopOpenAIBackgroundJobs() {
-    if (!window.confirm("Stoppa alla pågående OpenAI-bakgrundsjobb som Spreelo spårar?")) return;
+    if (!window.confirm(t("adminCommand.confirmStopJobs"))) return;
     setBackgroundStopping(true);
     setBackgroundStopMessage("");
     try {
       const headers = await getAdminHeaders();
       const response = await fetch("/api/admin/openai-background-jobs", { method: "POST", headers, body: JSON.stringify({ confirm: true }) });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || "Kunde inte stoppa bakgrundsjobben.");
+      if (!response.ok) throw new Error(payload?.error || t("adminCommand.error.stopJobs"));
       const stopped = Number(payload?.campaignCancelled || 0) + Number(payload?.brandCancelled || 0);
       setBackgroundJobCount(0);
-      setBackgroundStopMessage(`${stopped} OpenAI-jobb avbröts.`);
+      setBackgroundStopMessage(t("adminCommand.jobsStopped", { count: stopped }));
     } catch (stopError) {
-      setBackgroundStopMessage(stopError?.message || "Kunde inte stoppa bakgrundsjobben.");
+      setBackgroundStopMessage(stopError?.message || t("adminCommand.error.stopJobs"));
     } finally {
       setBackgroundStopping(false);
     }
@@ -274,128 +313,128 @@ export default function AdminDashboardPage() {
     <AppLayout active="admin">
       <div className="admin156-shell admin-page">
         <header className="admin156-topbar">
-          <div><h1>Adminpanel</h1><p>Översikt, kunder, innehåll, krediter och systemstatus – allt på ett ställe.</p></div>
+          <div><h1>{t("adminCommand.title")}</h1><p>{t("adminCommand.subtitle")}</p></div>
           <div className="admin156-top-actions">
-            <button type="button" onClick={loadAdminData}><RefreshCw size={16} /> Uppdatera</button>
-            <span className={`admin156-overall-status ${allSystemsHealthy ? "up" : "problem"}`}><StatusDot status={allSystemsHealthy ? "up" : healthAvailable ? "degraded" : "unknown"} /> {allSystemsHealthy ? "Alla system online" : healthAvailable ? `${systemProblems} system kräver koll` : "Systemstatus otillgänglig"}</span>
+            <button type="button" onClick={loadAdminData}><RefreshCw size={16} /> {t("adminCommand.refresh")}</button>
+            <span className={`admin156-overall-status ${allSystemsHealthy ? "up" : "problem"}`}><StatusDot status={allSystemsHealthy ? "up" : healthAvailable ? "degraded" : "unknown"} /> {allSystemsHealthy ? t("adminCommand.systemsOnline") : healthAvailable ? t("adminCommand.systemsNeedReview", { count: systemProblems }) : t("adminCommand.systemUnavailable")}</span>
           </div>
         </header>
 
-        {error ? <div className="admin156-alert danger"><AlertTriangle size={18} /><span>{error}</span><button onClick={loadAdminData}>Försök igen</button></div> : null}
-        {warnings.length ? <div className="admin156-alert warning"><AlertTriangle size={18} /><span>Översikten är delvis laddad. {warnings.length} datakälla kunde inte läsas.</span></div> : null}
+        {error ? <div className="admin156-alert danger"><AlertTriangle size={18} /><span>{error}</span><button onClick={loadAdminData}>{t("adminCommand.tryAgain")}</button></div> : null}
+        {warnings.length ? <div className="admin156-alert warning"><AlertTriangle size={18} /><span>{t("adminCommand.partialLoad", { count: warnings.length })}</span></div> : null}
 
         {loading ? (
-          <div className="admin156-loading"><LoaderCircle className="admin-spin" size={26} /> Laddar adminpanelen…</div>
+          <div className="admin156-loading"><LoaderCircle className="admin-spin" size={26} /> {t("adminCommand.loading")}</div>
         ) : (
           <>
             <section className="admin156-hero">
-              <div className="admin156-hero-title"><span>ADMIN</span><h2>Välkommen, {adminName}</h2><p>Här är det viktigaste just nu.</p></div>
-              <div className="admin156-hero-note">Mer synlighet<br/>för dina kunder ↘</div>
+              <div className="admin156-hero-title"><span>{t("adminCommand.kicker")}</span><h2>{t("adminCommand.welcome", { name: adminName })}</h2><p>{t("adminCommand.heroText")}</p></div>
+              <div className="admin156-hero-note">{t("adminCommand.heroNoteLine1")}<br/>{t("adminCommand.heroNoteLine2")}</div>
               <div className="admin156-kpis">
-                <MiniMetric icon={Users} label="Kunder" value={Number(stats.brands || 0).toLocaleString("sv-SE")} sub="Aktiva varumärken" tone="violet" href="/admin/customers" />
-                <MiniMetric icon={FileCheck2} label="Inlägg" value={Number(stats.postsThisMonth || 0).toLocaleString("sv-SE")} sub="Genererade denna månad" tone="violet" href="/admin/post-approvals" />
-                <MiniMetric icon={CheckCircle2} label="Genereringsframgång" value={`${successRate}%`} sub="Senaste 30 dagarna" tone="green" />
-                <MiniMetric icon={AlertTriangle} label="Kräver åtgärd" value={Number(stats.actionRequired || 0).toLocaleString("sv-SE")} sub="Väntar just nu" tone="red" href="/admin/post-approvals" />
+                <MiniMetric icon={Users} label={t("adminCommand.metrics.customers")} value={Number(stats.brands || 0).toLocaleString(locale || "en")} sub={t("adminCommand.metrics.activeBrands")} tone="violet" href="/admin/customers" />
+                <MiniMetric icon={FileCheck2} label={t("adminCommand.metrics.posts")} value={Number(stats.postsThisMonth || 0).toLocaleString(locale || "en")} sub={t("adminCommand.metrics.generatedThisMonth")} tone="violet" href="/admin/post-approvals" />
+                <MiniMetric icon={CheckCircle2} label={t("adminCommand.metrics.generationSuccess")} value={`${successRate}%`} sub={t("adminCommand.last30Days")} tone="green" />
+                <MiniMetric icon={AlertTriangle} label={t("adminCommand.metrics.actionRequired")} value={Number(stats.actionRequired || 0).toLocaleString(locale || "en")} sub={t("adminCommand.metrics.waitingNow")} tone="red" href="/admin/post-approvals" />
               </div>
               <div className="admin156-priority-strip">
-                <a href="/admin/rescue-center"><AlertTriangle size={18}/><strong>{Number(stats.failedMedia || 0) + Number(stats.openRescueCases || 0)}</strong><span>Misslyckade / rescue</span><ArrowRight size={16}/></a>
-                <a href="/admin/post-approvals"><Clock3 size={18}/><strong>{Number(stats.pendingApproval || 0)}</strong><span>Väntar på godkännande</span><ArrowRight size={16}/></a>
-                <a href="#systemstatus"><ShieldCheck size={18}/><strong>{systemProblems}</strong><span>Systemproblem</span><ArrowRight size={16}/></a>
-                <a className="admin156-priority-all" href="/admin/post-approvals">Visa alla ärenden <ArrowRight size={16}/></a>
+                <a href="/admin/rescue-center"><AlertTriangle size={18}/><strong>{Number(stats.failedMedia || 0) + Number(stats.openRescueCases || 0)}</strong><span>{t("adminCommand.priority.failedRescue")}</span><ArrowRight size={16}/></a>
+                <a href="/admin/post-approvals"><Clock3 size={18}/><strong>{Number(stats.pendingApproval || 0)}</strong><span>{t("adminCommand.priority.pendingApproval")}</span><ArrowRight size={16}/></a>
+                <a href="#systemstatus"><ShieldCheck size={18}/><strong>{systemProblems}</strong><span>{t("adminCommand.priority.systemProblems")}</span><ArrowRight size={16}/></a>
+                <a className="admin156-priority-all" href="/admin/post-approvals">{t("adminCommand.priority.viewAll")} <ArrowRight size={16}/></a>
               </div>
             </section>
 
             <section className="admin156-section">
-              <div className="admin156-section-head"><div><h2>Vad vill du göra?</h2><p>Snabbåtkomst till de vanligaste funktionerna.</p></div></div>
+              <div className="admin156-section-head"><div><h2>{t("adminCommand.quick.title")}</h2><p>{t("adminCommand.quick.subtitle")}</p></div></div>
               <div className="admin156-quick-grid">
-                <QuickGroup tone="violet" title="Kunder & innehåll" icon={Users}>
-                  <QuickLink href="/admin/customers" icon={Users} title="Kundlista & konton" text="Hantera kunder, varumärken och status" />
-                  <QuickLink href="/admin/post-approvals" icon={FileCheck2} title="Godkännanden" text="Granska och publicera inlägg" badge={stats.pendingApproval || null} />
-                  <QuickLink href="/admin/mass-tests" icon={FlaskConical} title="Masstest" text="Kör analys och innehåll för flera kunder" />
+                <QuickGroup tone="violet" title={t("adminCommand.quick.customersContent")} icon={Users}>
+                  <QuickLink href="/admin/customers" icon={Users} title={t("adminCommand.quick.customerList")} text={t("adminCommand.quick.customerListText")} />
+                  <QuickLink href="/admin/post-approvals" icon={FileCheck2} title={t("adminCommand.quick.approvals")} text={t("adminCommand.quick.approvalsText")} badge={stats.pendingApproval || null} />
+                  <QuickLink href="/admin/mass-tests" icon={FlaskConical} title={t("adminCommand.quick.massTest")} text={t("adminCommand.quick.massTestText")} />
                 </QuickGroup>
-                <QuickGroup tone="orange" title="Kreativa bibliotek" icon={ImagePlus}>
-                  <QuickLink href="/admin/image-backgrounds" icon={ImagePlus} title="Bildbakgrunder" text="Ladda upp och hantera bakgrunder" />
-                  <QuickLink href="/video-backgrounds" icon={Video} title="Videobakgrunder" text="Ladda upp och hantera videobibliotek" />
-                  <QuickLink href="/admin/music-library" icon={Music2} title="Videomusik" text="Hantera musikbiblioteket" />
+                <QuickGroup tone="orange" title={t("adminCommand.quick.creativeLibraries")} icon={ImagePlus}>
+                  <QuickLink href="/admin/image-backgrounds" icon={ImagePlus} title={t("adminCommand.quick.imageBackgrounds")} text={t("adminCommand.quick.imageBackgroundsText")} />
+                  <QuickLink href="/video-backgrounds" icon={Video} title={t("adminCommand.quick.videoBackgrounds")} text={t("adminCommand.quick.videoBackgroundsText")} />
+                  <QuickLink href="/admin/music-library" icon={Music2} title={t("adminCommand.quick.videoMusic")} text={t("adminCommand.quick.videoMusicText")} />
                 </QuickGroup>
-                <QuickGroup tone="green" title="Ekonomi & krediter" icon={Coins}>
-                  <QuickLink href="/admin/credits" icon={CircleDollarSign} title="Kreditjusteringar" text="Lägg till eller ta bort krediter" />
-                  <QuickLink href="/admin/content-credits" icon={Coins} title="Innehåll & krediter" text="Se saldo, krediter och innehållsekonomi" />
-                  <QuickLink href="#kostnader" icon={BarChart3} title="Faktiska AI-kostnader" text="Median och snitt per innehållstyp" />
+                <QuickGroup tone="green" title={t("adminCommand.quick.economyCredits")} icon={Coins}>
+                  <QuickLink href="/admin/credits" icon={CircleDollarSign} title={t("adminCommand.quick.creditAdjustments")} text={t("adminCommand.quick.creditAdjustmentsText")} />
+                  <QuickLink href="/admin/content-credits" icon={Coins} title={t("adminCommand.quick.contentCredits")} text={t("adminCommand.quick.contentCreditsText")} />
+                  <QuickLink href="#costs" icon={BarChart3} title={t("adminCommand.quick.aiCosts")} text={t("adminCommand.quick.aiCostsText")} />
                 </QuickGroup>
-                <QuickGroup tone="blue" title="System & kvalitet" icon={Settings2}>
-                  <QuickLink href="/admin/rescue-center" icon={AlertTriangle} title="Rescue Center" text="Hantera misslyckade analyser och jobb" badge={stats.openRescueCases || null} />
-                  <QuickLink href="#translations" icon={Languages} title="Översättningar" text={`${requestedLocaleCount} språk väntar på uppdatering`} />
-                  <QuickLink href="/admin/content-formats" icon={LayoutGrid} title="Innehållsformat" text="Format, tillgänglighet och standarder" />
-                  <QuickLink href="/admin/icons" icon={Shapes} title="Ikoner" text="Hantera det visuella ikonbiblioteket" />
+                <QuickGroup tone="blue" title={t("adminCommand.quick.systemQuality")} icon={Settings2}>
+                  <QuickLink href="/admin/rescue-center" icon={AlertTriangle} title={t("adminCommand.quick.rescueCenter")} text={t("adminCommand.quick.rescueCenterText")} badge={stats.openRescueCases || null} />
+                  <QuickLink href="#translations" icon={Languages} title={t("adminCommand.quick.translations")} text={t("adminCommand.quick.translationsText", { count: requestedLocaleCount })} />
+                  <QuickLink href="/admin/content-formats" icon={LayoutGrid} title={t("adminCommand.quick.contentFormats")} text={t("adminCommand.quick.contentFormatsText")} />
+                  <QuickLink href="/admin/icons" icon={Shapes} title={t("adminCommand.quick.icons")} text={t("adminCommand.quick.iconsText")} />
                 </QuickGroup>
               </div>
             </section>
 
             <section className="admin156-section admin156-performance">
-              <div className="admin156-section-head"><div><h2>Hur går Spreelo?</h2><p>Utveckling och nyckeltal för de senaste 30 dagarna.</p></div><span className="admin156-period">Senaste 30 dagarna</span></div>
+              <div className="admin156-section-head"><div><h2>{t("adminCommand.performance.title")}</h2><p>{t("adminCommand.performance.subtitle")}</p></div><span className="admin156-period">{t("adminCommand.last30Days")}</span></div>
               <div className="admin156-performance-grid">
                 <article className="admin156-chart-card admin156-bars-card">
-                  <div className="admin156-card-title"><h3>Genererade vs publicerade inlägg</h3><span><i className="generated"/> Genererade <i className="published"/> Publicerade</span></div>
+                  <div className="admin156-card-title"><h3>{t("adminCommand.performance.generatedVsPublished")}</h3><span><i className="generated"/> {t("adminCommand.generated")} <i className="published"/> {t("adminCommand.published")}</span></div>
                   <div className="admin156-bars">
                     {dailyBars.length ? dailyBars.map((row) => (
-                      <div className="admin156-bar-group" key={row.date} title={`${row.date}: ${row.generated} genererade, ${row.published} publicerade`}>
+                      <div className="admin156-bar-group" key={row.date} title={t("adminCommand.performance.chartTooltip", { date: row.date, generated: row.generated, published: row.published })}>
                         <div className="admin156-bar generated" style={{ height: `${Math.max(4, Number(row.generated || 0) / row.max * 100)}%` }} />
                         <div className="admin156-bar published" style={{ height: `${Math.max(3, Number(row.published || 0) / row.max * 100)}%` }} />
                       </div>
-                    )) : <div className="admin156-no-data">Ingen statistik ännu.</div>}
+                    )) : <div className="admin156-no-data">{t("adminCommand.noStatistics")}</div>}
                   </div>
                 </article>
                 <article className="admin156-chart-card admin156-donut-card">
-                  <h3>Innehållsformat</h3>
-                  <div className="admin156-donut-wrap"><div className="admin156-donut" style={{ background: formatDonut.background }}><span><strong>{generated30d}</strong>inlägg</span></div>
-                    <div className="admin156-donut-legend">{formatDonut.rows.map((row, index) => <div key={row.key}><i style={{ background: ["#7c3aed", "#9b75f5", "#b8a3ff", "#ff7455", "#f5b547", "#46c7a4"][index] }}/><span>{friendlyFormatName(row.name || row.key)}</span><b>{Math.round(Number(row.value || 0) / formatDonut.total * 100)}%</b></div>)}</div>
+                  <h3>{t("adminCommand.contentFormats")}</h3>
+                  <div className="admin156-donut-wrap"><div className="admin156-donut" style={{ background: formatDonut.background }}><span><strong>{generated30d}</strong>{t("adminCommand.postsLower")}</span></div>
+                    <div className="admin156-donut-legend">{formatDonut.rows.map((row, index) => <div key={row.key}><i style={{ background: ["#7c3aed", "#9b75f5", "#b8a3ff", "#ff7455", "#f5b547", "#46c7a4"][index] }}/><span>{friendlyFormatName(row.name || row.key, t)}</span><b>{Math.round(Number(row.value || 0) / formatDonut.total * 100)}%</b></div>)}</div>
                   </div>
                 </article>
                 <article className="admin156-chart-card admin156-country-card">
-                  <h3>Toppländer (kunder)</h3>
-                  <div className="admin156-country-list">{(insights.topCountries || []).length ? insights.topCountries.slice(0, 6).map((row) => <div key={row.key}><span>{countryFlag(row.key)} {countryName(row.key)}</span><strong>{Number(row.value || 0)}</strong></div>) : <p>Ingen landstatistik ännu.</p>}</div>
+                  <h3>{t("adminCommand.topCountries")}</h3>
+                  <div className="admin156-country-list">{(insights.topCountries || []).length ? insights.topCountries.slice(0, 6).map((row) => <div key={row.key}><span>{countryFlag(row.key)} {countryName(row.key, t)}</span><strong>{Number(row.value || 0)}</strong></div>) : <p>{t("adminCommand.noCountryStats")}</p>}</div>
                 </article>
               </div>
             </section>
 
-            <section className="admin156-section" id="kostnader">
-              <div className="admin156-section-head"><div><h2>Faktiska kostnader per innehållstyp</h2><p>Kompletta USD-kostnader från de senaste 30 dagarna. Median är huvudmåttet eftersom enstaka dyra körningar annars kan dra upp snittet.</p></div><div className="admin156-cost-summary"><span>Median <strong>{formatUsd(generationCosts.medianUsd)}</strong></span><span>Snitt <strong>{formatUsd(generationCosts.averageUsd)}</strong></span><span>Underlag <strong>{generationCosts.samples || 0}</strong></span></div></div>
+            <section className="admin156-section" id="costs">
+              <div className="admin156-section-head"><div><h2>{t("adminCommand.costs.title")}</h2><p>{t("adminCommand.costs.subtitle")}</p></div><div className="admin156-cost-summary"><span>{t("adminCommand.costs.median")} <strong>{formatUsd(generationCosts.medianUsd)}</strong></span><span>{t("adminCommand.costs.average")} <strong>{formatUsd(generationCosts.averageUsd)}</strong></span><span>{t("adminCommand.costs.samples")} <strong>{generationCosts.samples || 0}</strong></span></div></div>
               <div className="admin156-cost-grid">
                 {(generationCosts.formats || []).length ? generationCosts.formats.slice(0, 8).map((item) => (
                   <article className="admin156-cost-card" key={item.key}>
-                    <div><h3>{friendlyFormatName(item.label || item.key)}</h3><span>{item.samples} kompletta körningar</span></div>
-                    <dl><div><dt>Median</dt><dd>{formatUsd(item.medianUsd)}</dd></div><div><dt>Snitt</dt><dd>{formatUsd(item.averageUsd)}</dd></div><div><dt>P90</dt><dd>{formatUsd(item.p90Usd)}</dd></div></dl>
+                    <div><h3>{friendlyFormatName(item.label || item.key, t)}</h3><span>{t("adminCommand.costs.completeRuns", { count: item.samples })}</span></div>
+                    <dl><div><dt>{t("adminCommand.costs.median")}</dt><dd>{formatUsd(item.medianUsd)}</dd></div><div><dt>{t("adminCommand.costs.average")}</dt><dd>{formatUsd(item.averageUsd)}</dd></div><div><dt>P90</dt><dd>{formatUsd(item.p90Usd)}</dd></div></dl>
                   </article>
-                )) : <div className="admin156-empty-wide">Ingen komplett kostnadsdata ännu. Nya körningar från v144.155 fyller på statistiken.</div>}
+                )) : <div className="admin156-empty-wide">{t("adminCommand.costs.noData")}</div>}
               </div>
             </section>
 
             <section className="admin156-bottom-grid">
               <article className="admin156-section admin156-adjustments">
-                <div className="admin156-section-head compact"><div><h2>Senaste kreditjusteringar</h2></div><a href="/admin/credits">Visa alla</a></div>
-                <div className="admin156-table-scroll"><table><thead><tr><th>Kund</th><th>Ändring</th><th>Nytt saldo</th><th>Orsak</th><th>Datum</th></tr></thead><tbody>{recentAdjustments.length ? recentAdjustments.slice(0, 5).map((item) => <tr key={item.id}><td>{item.target_email || "Okänt konto"}</td><td className={Number(item.amount) >= 0 ? "positive" : "negative"}>{Number(item.amount) > 0 ? "+" : ""}{Number(item.amount || 0)}</td><td>{Number(item.new_balance || 0).toLocaleString("sv-SE")}</td><td>{item.reason || "—"}</td><td>{formatDateTime(item.created_at, false)}</td></tr>) : <tr><td colSpan="5">Inga kreditjusteringar ännu.</td></tr>}</tbody></table></div>
+                <div className="admin156-section-head compact"><div><h2>{t("adminCommand.credits.recent")}</h2></div><a href="/admin/credits">{t("adminCommand.viewAll")}</a></div>
+                <div className="admin156-table-scroll"><table><thead><tr><th>{t("adminCommand.credits.customer")}</th><th>{t("adminCommand.credits.change")}</th><th>{t("adminCommand.credits.newBalance")}</th><th>{t("adminCommand.credits.reason")}</th><th>{t("adminCommand.credits.date")}</th></tr></thead><tbody>{recentAdjustments.length ? recentAdjustments.slice(0, 5).map((item) => <tr key={item.id}><td>{item.target_email || t("adminCommand.unknownAccount")}</td><td className={Number(item.amount) >= 0 ? "positive" : "negative"}>{Number(item.amount) > 0 ? "+" : ""}{Number(item.amount || 0)}</td><td>{Number(item.new_balance || 0).toLocaleString(locale || "en")}</td><td>{item.reason || "—"}</td><td>{formatDateTime(item.created_at, false, locale)}</td></tr>) : <tr><td colSpan="5">{t("adminCommand.credits.none")}</td></tr>}</tbody></table></div>
               </article>
 
               <article className="admin156-section admin156-system-panel" id="systemstatus">
-                <div className="admin156-section-head compact"><div><h2>Systemstatus</h2><p>{health.migrationRequired ? "Kör v144.156 SQL för historik. Live-status fungerar redan." : "Live-status och 30 dagars historik."}</p></div><button type="button" onClick={loadAdminData}>Uppdatera</button></div>
-                <div className="admin156-system-list">{(health.systems || []).map((system) => <div key={system.key}><StatusDot status={system.status}/><span><strong>{system.label}</strong><small>{system.message || "—"}</small></span><em>{system.status === "up" ? "Online" : system.status === "unconfigured" ? "Ej konfig." : system.status === "degraded" ? "Störning" : "Nere"}</em><b>{Number(system.uptime30d ?? 100).toFixed(system.uptime30d < 99.95 ? 2 : 1)}%</b></div>)}</div>
-                <div className="admin156-incidents"><h3>Senaste driftshistorik</h3>{(health.incidents || []).length ? health.incidents.slice(0, 5).map((incident) => <div key={incident.id}><span className={`admin156-incident-icon ${incident.resolved_at ? "resolved" : "open"}`}>{incident.resolved_at ? <CheckCircle2 size={15}/> : <XCircle size={15}/>}</span><span><strong>{incident.label}</strong><small>{formatDateTime(incident.started_at)}{incident.resolved_at ? ` → ${formatDateTime(incident.resolved_at)}` : " · pågår"}</small></span></div>) : <p>Inga registrerade driftstörningar de senaste 30 dagarna.</p>}</div>
+                <div className="admin156-section-head compact"><div><h2>{t("adminCommand.system.title")}</h2><p>{health.migrationRequired ? t("adminCommand.system.migrationRequired") : t("adminCommand.system.history")}</p></div><button type="button" onClick={loadAdminData}>{t("adminCommand.refresh")}</button></div>
+                <div className="admin156-system-list">{(health.systems || []).map((system) => <div key={system.key}><StatusDot status={system.status}/><span><strong>{systemHealthLabel(system, t)}</strong><small>{systemHealthMessage(system, t)}</small></span><em>{system.status === "up" ? t("adminCommand.system.online") : system.status === "unconfigured" ? t("adminCommand.system.unconfigured") : system.status === "degraded" ? t("adminCommand.system.degraded") : t("adminCommand.system.down")}</em><b>{Number(system.uptime30d ?? 100).toFixed(system.uptime30d < 99.95 ? 2 : 1)}%</b></div>)}</div>
+                <div className="admin156-incidents"><h3>{t("adminCommand.system.recentHistory")}</h3>{(health.incidents || []).length ? health.incidents.slice(0, 5).map((incident) => <div key={incident.id}><span className={`admin156-incident-icon ${incident.resolved_at ? "resolved" : "open"}`}>{incident.resolved_at ? <CheckCircle2 size={15}/> : <XCircle size={15}/>}</span><span><strong>{systemHealthLabel(incident, t)}</strong><small>{formatDateTime(incident.started_at, true, locale)}{incident.resolved_at ? ` → ${formatDateTime(incident.resolved_at, true, locale)}` : ` · ${t("adminCommand.system.ongoing")}`}</small></span></div>) : <p>{t("adminCommand.system.noIncidents")}</p>}</div>
               </article>
             </section>
 
             <section className="admin156-section admin156-maintenance" id="translations">
-              <div className="admin156-section-head"><div><h2>Systemverktyg</h2><p>Funktioner som fanns i tidigare adminpanel är kvar här så inget arbetsflöde försvinner.</p></div></div>
+              <div className="admin156-section-head"><div><h2>{t("adminCommand.tools.title")}</h2><p>{t("adminCommand.tools.subtitle")}</p></div></div>
               <div className="admin156-maintenance-grid">
                 <article>
-                  <div className="admin156-maintenance-title"><Languages size={20}/><div><h3>Översättningar</h3><p>Välj språk som ska uppdateras vid nästa översättningskörning.</p></div></div>
+                  <div className="admin156-maintenance-title"><Languages size={20}/><div><h3>{t("adminCommand.tools.translations")}</h3><p>{t("adminCommand.tools.translationsText")}</p></div></div>
                   <div className="admin156-language-grid">{translationLocales.map((item) => <button type="button" className={selectedLocales.includes(item.locale) ? "selected" : ""} key={item.locale} onClick={() => toggleLocale(item.locale)}><span>{selectedLocales.includes(item.locale) ? "✓" : ""}</span><strong>{item.nativeName}</strong></button>)}</div>
-                  <button className="admin156-action-button" type="button" disabled={!selectedLocales.length || translationSaving} onClick={requestTranslationRefresh}>{translationSaving ? <LoaderCircle className="admin-spin" size={16}/> : <RefreshCw size={16}/>} Begär uppdatering</button>
+                  <button className="admin156-action-button" type="button" disabled={!selectedLocales.length || translationSaving} onClick={requestTranslationRefresh}>{translationSaving ? <LoaderCircle className="admin-spin" size={16}/> : <RefreshCw size={16}/>} {t("adminCommand.tools.requestUpdate")}</button>
                   {translationMessage ? <p className="admin156-message">{translationMessage}</p> : null}
                 </article>
                 <article>
-                  <div className="admin156-maintenance-title"><AlertTriangle size={20}/><div><h3>OpenAI background-jobb</h3><p>{backgroundJobCount} spårade jobb är aktiva eller väntar.</p></div></div>
-                  <button className="admin156-danger-button" type="button" onClick={stopOpenAIBackgroundJobs} disabled={backgroundStopping || backgroundJobCount === 0}>{backgroundStopping ? <LoaderCircle className="admin-spin" size={16}/> : <AlertTriangle size={16}/>} Stoppa pågående jobb</button>
+                  <div className="admin156-maintenance-title"><AlertTriangle size={20}/><div><h3>{t("adminCommand.tools.openAiJobs")}</h3><p>{t("adminCommand.tools.openAiJobsText", { count: backgroundJobCount })}</p></div></div>
+                  <button className="admin156-danger-button" type="button" onClick={stopOpenAIBackgroundJobs} disabled={backgroundStopping || backgroundJobCount === 0}>{backgroundStopping ? <LoaderCircle className="admin-spin" size={16}/> : <AlertTriangle size={16}/>} {t("adminCommand.tools.stopJobs")}</button>
                   {backgroundStopMessage ? <p className="admin156-message">{backgroundStopMessage}</p> : null}
                 </article>
               </div>

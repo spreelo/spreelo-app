@@ -43,17 +43,17 @@ function formatPercent(value) {
   return `${Math.round(Math.max(0, Number(value || 0)) * 100)}%`;
 }
 
-function formatDuration(ms) {
+function formatDuration(ms, locale = "en") {
   const value = Number(ms || 0);
   if (!value) return "—";
   if (value < 1000) return `${Math.round(value)} ms`;
-  if (value < 60000) return `${Math.round(value / 100) / 10} s`;
-  return `${Math.floor(value / 60000)}m ${Math.round((value % 60000) / 1000)}s`;
+  if (value < 60000) return `${(Math.round(value / 100) / 10).toLocaleString(locale || "en")} s`;
+  return `${Math.floor(value / 60000).toLocaleString(locale || "en")}m ${Math.round((value % 60000) / 1000).toLocaleString(locale || "en")}s`;
 }
 
-function formatDateTime(value) {
+function formatDateTime(value, locale = "en") {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat(locale || "en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function toLocalDateTimeInput(value) {
@@ -76,7 +76,7 @@ function cloneFormats(rows = []) {
 }
 
 export default function AdminContentCreditsPage() {
-  const { t } = useUiText(["admin"]);
+  const { t, locale } = useUiText(["admin"]);
   const [formats, setFormats] = useState([]);
   const [summary, setSummary] = useState(null);
   const [audit, setAudit] = useState([]);
@@ -348,9 +348,9 @@ export default function AdminContentCreditsPage() {
             <section className="admin-econ-summary-grid">
               <article><span><Sparkles size={18} /></span><div><strong>{summary?.activeTypes || 0}</strong><small>{t("admin.contentCredits.activeTypes")}</small></div></article>
               <article><span><Coins size={18} /></span><div><strong>{summary?.averageCredits || 0}</strong><small>{t("admin.contentCredits.avgCredits")}</small></div></article>
-              <article><span><BarChart3 size={18} /></span><div><strong>{Number(summary?.generated30d || 0).toLocaleString()}</strong><small>{t("admin.contentCredits.generated30d")}</small></div></article>
+              <article><span><BarChart3 size={18} /></span><div><strong>{Number(summary?.generated30d || 0).toLocaleString(locale || "en")}</strong><small>{t("admin.contentCredits.generated30d")}</small></div></article>
               <article><span><Activity size={18} /></span><div><strong>{formatPercent(summary?.successRate30d)}</strong><small>{t("admin.contentCredits.success30d")}</small></div></article>
-              <article><span><BadgeDollarSign size={18} /></span><div><strong>{Number(summary?.netCredits30d || 0).toLocaleString()}</strong><small>{t("admin.contentCredits.netCredits30d")}</small></div></article>
+              <article><span><BadgeDollarSign size={18} /></span><div><strong>{Number(summary?.netCredits30d || 0).toLocaleString(locale || "en")}</strong><small>{t("admin.contentCredits.netCredits30d")}</small></div></article>
             </section>
 
             <section className="admin-panel admin-econ-reference-panel">
@@ -360,7 +360,7 @@ export default function AdminContentCreditsPage() {
                 <p>{t("admin.contentCredits.referenceText")}</p>
               </div>
               <div className="admin-econ-reference-control">
-                <label><span>SEK / credit</span><input type="number" min="0.01" step="0.01" value={referenceCreditValueSek} onChange={(event) => setReferenceCreditValueSek(event.target.value)} /></label>
+                <label><span>{t("admin.contentCredits.sekPerCredit")}</span><input type="number" min="0.01" step="0.01" value={referenceCreditValueSek} onChange={(event) => setReferenceCreditValueSek(event.target.value)} /></label>
                 <button type="button" className="spreelo-action-v14371 secondary compact" onClick={saveReferenceValue} disabled={savingReference}>
                   {savingReference ? <LoaderCircle className="admin-spin" size={15} /> : <Save size={15} />} {t("admin.contentCredits.saveReference")}
                 </button>
@@ -432,7 +432,7 @@ export default function AdminContentCreditsPage() {
                       <div className="admin-econ-credit-cell">
                         <input type="number" min="1" value={row.customer_credit_cost} onChange={(event) => updateRow(row.content_type_id, { customer_credit_cost: event.target.value })} />
                         <small>{t("admin.contentCredits.credits")}</small>
-                        {scheduled ? <em>{t("admin.contentCredits.scheduled", { credits: row.pending_credit_cost, date: formatDateTime(row.pending_effective_at) })}</em> : null}
+                        {scheduled ? <em>{t("admin.contentCredits.scheduled", { credits: row.pending_credit_cost, date: formatDateTime(row.pending_effective_at, locale) })}</em> : null}
                       </div>
 
                       <div className="admin-econ-cost-cell">
@@ -446,16 +446,16 @@ export default function AdminContentCreditsPage() {
                       </div>
 
                       <div className="admin-econ-usage-cell">
-                        <strong>{Number(usage.generated || 0).toLocaleString()}</strong>
+                        <strong>{Number(usage.generated || 0).toLocaleString(locale || "en")}</strong>
                         <small>{t("admin.contentCredits.generated")}</small>
-                        <em>{Number(usage.netCreditsCharged || 0).toLocaleString()} {t("admin.contentCredits.credits")}</em>
+                        <em>{Number(usage.netCreditsCharged || 0).toLocaleString(locale || "en")} {t("admin.contentCredits.credits")}</em>
                       </div>
 
                       <div className="admin-econ-reliability-cell">
                         <strong>{usage.generated || usage.failed ? formatPercent(1 - Number(usage.failureRate || 0)) : "—"}</strong>
                         <small>{usage.failed ? t("admin.contentCredits.failedCount", { count: usage.failed }) : t("admin.contentCredits.noFailures")}</small>
-                        <em><Clock3 size={11} /> {formatDuration(usage.avgDurationMs)}</em>
-                        {row.stats_reset_at ? <em className="reset-note">{t("admin.contentCredits.resetAt", { date: formatDateTime(row.stats_reset_at) })}</em> : null}
+                        <em><Clock3 size={11} /> {formatDuration(usage.avgDurationMs, locale)}</em>
+                        {row.stats_reset_at ? <em className="reset-note">{t("admin.contentCredits.resetAt", { date: formatDateTime(row.stats_reset_at, locale) })}</em> : null}
                       </div>
 
                       <div className="admin-econ-plan-cell">
@@ -490,7 +490,7 @@ export default function AdminContentCreditsPage() {
                   <article key={item.id}>
                     <span><History size={14} /></span>
                     <div><strong>{item.content_type_id === "__global__" ? t("admin.contentCredits.globalSettings") : item.content_type_id}</strong><p>{Object.keys(item.changed_fields || {}).join(" · ") || item.change_type}</p></div>
-                    <small>{item.changed_by_email || "Admin"}<br />{formatDateTime(item.created_at)}</small>
+                    <small>{item.changed_by_email || "Admin"}<br />{formatDateTime(item.created_at, locale)}</small>
                   </article>
                 )) : <p className="admin-econ-audit-empty">{t("admin.contentCredits.noAudit")}</p>}
               </div>

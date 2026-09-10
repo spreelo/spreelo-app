@@ -42,14 +42,14 @@ function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
 
-function formatDate(value, t) {
+function formatDate(value, t, locale = "en") {
   if (!value) return t("dashboard.notSet");
 
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return t("dashboard.notSet");
 
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale || "en", {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(date);
@@ -58,14 +58,14 @@ function formatDate(value, t) {
   }
 }
 
-function formatShortDate(value, t) {
+function formatShortDate(value, t, locale = "en") {
   if (!value) return t("dashboard.notSet");
 
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return t("dashboard.notSet");
 
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale || "en", {
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -76,17 +76,17 @@ function formatShortDate(value, t) {
   }
 }
 
-function formatCampaignDate(campaign, t) {
+function formatCampaignDate(campaign, t, locale = "en") {
   if (!campaign) return t("dashboard.dateNotSet");
 
   if (campaign.start_date && campaign.end_date) {
-    return `${formatShortDate(campaign.start_date, t)} – ${formatShortDate(
+    return `${formatShortDate(campaign.start_date, t, locale)} – ${formatShortDate(
       campaign.end_date,
       t
     )}`;
   }
 
-  return formatShortDate(campaign.event_date || campaign.start_date, t);
+  return formatShortDate(campaign.event_date || campaign.start_date, t, locale);
 }
 
 function dashboardText(value, fallback = "") {
@@ -366,13 +366,13 @@ function formatPlanName(rule, t) {
   return t("dashboard.contentPlan");
 }
 
-function getContentPlanFailureInfo(rule) {
+function getContentPlanFailureInfo(rule, t) {
   const failedRule = getRulesFromContentPlan(rule).find(
     (item) => item?.generation_occurrence_status === "failed_terminal"
   );
 
   return {
-    message: failedRule?.generation_customer_message || "Det planerade inlägget kunde inte skapas.",
+    message: failedRule?.generation_customer_message || t("dashboard.failure.plannedPostCouldNotBeCreated"),
     refundedCredits: Math.max(0, Number(failedRule?.generation_refunded_credits || 0)),
     notificationStatus: failedRule?.generation_notification_status || null,
   };
@@ -576,7 +576,7 @@ export default function Home() {
   const [showHistory, setShowHistory] = useState(false);
   const [scheduleActionLoading, setScheduleActionLoading] = useState("");
   const [planLimitDetails, setPlanLimitDetails] = useState(null);
-  const { t, locale } = useUiText(["dashboard"]);
+  const { t, locale } = useUiText(["dashboard", "automation"]);
 
   useEffect(() => {
     loadDashboard();
@@ -1062,14 +1062,14 @@ export default function Home() {
               <small>
                 {kind === "recurring" && plan.postsPerWeek ? t("dashboard.postsPerWeek", { count: plan.postsPerWeek }) : null}
                 {kind === "recurring" && plan.postsPerWeek && nextRun ? " · " : null}
-                {nextRun ? t("dashboard.nextRun", { date: formatShortDate(nextRun, t) }) : null}
+                {nextRun ? t("dashboard.nextRun", { date: formatShortDate(nextRun, t, locale) }) : null}
               </small>
             </div>
           </div>
           <div className="home-v14369-operation-meta">
             <span><b>{t("dashboard.platforms")}</b>{plan.platforms.length ? plan.platforms.join(" · ") : t("dashboard.platformNotSet")}</span>
             <span><b>{t("dashboard.contentTypes")}</b>{labels.slice(0, 3).join(" · ") || t("dashboard.post")}{labels.length > 3 ? ` +${labels.length - 3}` : ""}</span>
-            <span><b>{t("dashboard.startDateLabel")}</b>{formatShortDate(plan.created_at, t)}</span>
+            <span><b>{t("dashboard.startDateLabel")}</b>{formatShortDate(plan.created_at, t, locale)}</span>
           </div>
         </div>
         <div className="home-v14369-operation-actions">
@@ -1310,7 +1310,7 @@ export default function Home() {
         suggestedCampaign={suggestedCampaign ? {
           id: suggestedCampaign.id,
           title: dashboardText(suggestedCampaign.title, t("dashboard.suggestedCampaign")),
-          date: formatCampaignDate(suggestedCampaign, t),
+          date: formatCampaignDate(suggestedCampaign, t, locale),
         } : null}
       />
       <PlanLimitModal details={planLimitDetails} onClose={() => setPlanLimitDetails(null)} />
@@ -1433,7 +1433,7 @@ export default function Home() {
                           <div className="home-v14369-operation-main">
                             <div className="home-v14369-operation-title">
                               <span className="home-v14369-operation-status active" />
-                              <div><strong>{dashboardText(post.idea || formatPostKind(post, t), t("dashboard.post"))}</strong><small>{t("dashboard.nextRun", { date: formatShortDate(post.scheduled_for, t) })}</small></div>
+                              <div><strong>{dashboardText(post.idea || formatPostKind(post, t), t("dashboard.post"))}</strong><small>{t("dashboard.nextRun", { date: formatShortDate(post.scheduled_for, t, locale) })}</small></div>
                             </div>
                             <div className="home-v14369-operation-meta">
                               <span><b>{t("dashboard.platforms")}</b>{dashboardText(post.platform, t("dashboard.platformNotSet"))}</span>
@@ -1493,7 +1493,7 @@ export default function Home() {
                         <article key={`history-${plan.id}`}>
                           <div><strong>{dashboardText(plan.name, t("dashboard.contentPlan"))}</strong><small>{plan.platforms.join(" · ") || t("dashboard.platformNotSet")}</small></div>
                           <span>{getOperationalContentLabels(plan).slice(0, 3).join(" · ") || t("dashboard.post")}</span>
-                          <time>{t("dashboard.completedOn", { date: formatShortDate(plan.plan_ended_at || plan.next_run_at || plan.created_at, t) })}</time>
+                          <time>{t("dashboard.completedOn", { date: formatShortDate(plan.plan_ended_at || plan.next_run_at || plan.created_at, t, locale) })}</time>
                         </article>
                       )) : <div className="home-v14369-empty">{t("dashboard.historyEmpty")}</div>}
                     </div>
@@ -1518,7 +1518,7 @@ export default function Home() {
               <section className="home-v14335-side-card home-v14335-campaign">
                 <div className="home-v14335-side-title"><Gift /><div><h3>{t("dashboard.suggestedCampaign")}</h3><small>{t("dashboard.recommended")}</small></div></div>
                 {suggestedCampaign ? (
-                  <><h2>{dashboardText(suggestedCampaign.title, t("dashboard.suggestedCampaign"))}</h2><strong>{formatCampaignDate(suggestedCampaign, t)}</strong><p>{dashboardText(suggestedCampaign.description, t("dashboard.openCalendarText"))}</p><a href={`/automation?campaign=${suggestedCampaign.id}`}>{t("dashboard.createCampaignPlan")} <ArrowRight /></a></>
+                  <><h2>{dashboardText(suggestedCampaign.title, t("dashboard.suggestedCampaign"))}</h2><strong>{formatCampaignDate(suggestedCampaign, t, locale)}</strong><p>{dashboardText(suggestedCampaign.description, t("dashboard.openCalendarText"))}</p><a href={`/automation?campaign=${suggestedCampaign.id}`}>{t("dashboard.createCampaignPlan")} <ArrowRight /></a></>
                 ) : (
                   <><h2>{t("dashboard.noSuggestedCampaign")}</h2><p>{t("dashboard.openCalendarText")}</p><a href="/calendar">{t("dashboard.openCalendar")} <ArrowRight /></a></>
                 )}
@@ -1651,7 +1651,7 @@ export default function Home() {
                           key={rule.id}
                         >
                           <div className="dashboard-upcoming-date">
-                            <strong>{formatShortDate(rule.next_run_at, t)}</strong>
+                            <strong>{formatShortDate(rule.next_run_at, t, locale)}</strong>
                             <span>{formatScheduleType(rule.schedule_type, t)}</span>
                           </div>
 
@@ -1780,11 +1780,11 @@ export default function Home() {
                                         </div>
                                         <p>{getContentPlanSummary(rule, t)}</p>
                                         {status.key === "failed" ? (() => {
-                                          const failureInfo = getContentPlanFailureInfo(rule);
+                                          const failureInfo = getContentPlanFailureInfo(rule, t);
                                           return (
                                             <div className="dashboard-v140-failure-note">
                                               <strong>{failureInfo.message}</strong>
-                                              <span>{failureInfo.refundedCredits > 0 ? `${failureInfo.refundedCredits} kredit${failureInfo.refundedCredits === 1 ? "" : "er"} återförd${failureInfo.refundedCredits === 1 ? "" : "a"}.` : "Samma planerade inlägg körs inte automatiskt igen."}</span>
+                                              <span>{failureInfo.refundedCredits > 0 ? t("dashboard.failure.creditsRefunded", { count: failureInfo.refundedCredits }) : t("dashboard.failure.notRetried")}</span>
                                             </div>
                                           );
                                         })() : null}
@@ -1795,7 +1795,7 @@ export default function Home() {
 
                                       <div className="dashboard-plan-meta">
                                         <span>{formatScheduleType(rule.schedule_type, t)}</span>
-                                        <strong>{formatDate(getPlanNextDate(rule), t)}</strong>
+                                        <strong>{formatDate(getPlanNextDate(rule), t, locale)}</strong>
                                       </div>
 
                                       <div className="dashboard-plan-actions">
@@ -1853,11 +1853,11 @@ export default function Home() {
                                         </div>
                                         <p>{getContentPlanSummary(rule, t)}</p>
                                         {status.key === "failed" ? (() => {
-                                          const failureInfo = getContentPlanFailureInfo(rule);
+                                          const failureInfo = getContentPlanFailureInfo(rule, t);
                                           return (
                                             <div className="dashboard-v140-failure-note">
                                               <strong>{failureInfo.message}</strong>
-                                              <span>{failureInfo.refundedCredits > 0 ? `${failureInfo.refundedCredits} kredit${failureInfo.refundedCredits === 1 ? "" : "er"} återförd${failureInfo.refundedCredits === 1 ? "" : "a"}.` : "Samma planerade inlägg körs inte automatiskt igen."}</span>
+                                              <span>{failureInfo.refundedCredits > 0 ? t("dashboard.failure.creditsRefunded", { count: failureInfo.refundedCredits }) : t("dashboard.failure.notRetried")}</span>
                                             </div>
                                           );
                                         })() : null}
@@ -1865,7 +1865,7 @@ export default function Home() {
 
                                       <div className="dashboard-plan-meta">
                                         <span>{formatScheduleType(rule.schedule_type, t)}</span>
-                                        <strong>{formatDate(getPlanNextDate(rule), t)}</strong>
+                                        <strong>{formatDate(getPlanNextDate(rule), t, locale)}</strong>
                                       </div>
 
                                       <div className="dashboard-plan-actions">
@@ -2054,7 +2054,7 @@ export default function Home() {
                               </p>
 
                               <small>
-                                {t("dashboard.created", { date: formatDate(post.created_at, t) })} ·{" "}
+                                {t("dashboard.created", { date: formatDate(post.created_at, t, locale) })} ·{" "}
                                 {post.source_label ||
                                   (post.source === "automation"
                                     ? t("dashboard.generatedByPlan")
@@ -2196,7 +2196,7 @@ export default function Home() {
                       </strong>
 
                       <p className="dashboard-side-note">
-                        {formatCampaignDate(suggestedCampaign, t)} · {t("dashboard.recommendedPosts", { count: suggestedCampaign.recommended_post_count || 3 })}
+                        {formatCampaignDate(suggestedCampaign, t, locale)} · {t("dashboard.recommendedPosts", { count: suggestedCampaign.recommended_post_count || 3 })}
                       </p>
 
                       {suggestedCampaign.description && (
@@ -2234,7 +2234,7 @@ export default function Home() {
                       <span><CalendarClock aria-hidden="true" /></span>
                       <div>
                         <h3>{t("dashboard.nextContentPlan")}</h3>
-                        <p>{formatDate(nextAutomation.next_run_at, t)}</p>
+                        <p>{formatDate(nextAutomation.next_run_at, t, locale)}</p>
                       </div>
                     </div>
 

@@ -12,9 +12,9 @@ import AppLayout from "../../../components/AppLayout";
 import { supabase } from "../../../lib/supabaseClient";
 import { useUiText } from "../../../lib/i18n/useUiText";
 
-function formatDateTime(value) {
+function formatDateTime(value, locale = "en") {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale || "en", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
@@ -34,7 +34,7 @@ async function getAdminHeaders(json = false) {
 }
 
 export default function AdminCreditsPage() {
-  const { t } = useUiText(["admin"]);
+  const { t, locale } = useUiText(["admin"]);
   const [email, setEmail] = useState("");
   const [account, setAccount] = useState(null);
   const [recentAdjustments, setRecentAdjustments] = useState([]);
@@ -217,8 +217,8 @@ export default function AdminCreditsPage() {
                 <div><dt>{t("admin.credits.plan")}</dt><dd>{account.balance?.plan_name || account.balance?.subscription_plan || "—"}</dd></div>
                 <div><dt>{t("admin.credits.status")}</dt><dd>{account.balance?.subscription_status || "—"}</dd></div>
                 <div><dt>{t("admin.credits.brands")}</dt><dd>{account.brandCount}</dd></div>
-                <div><dt>{t("admin.credits.created")}</dt><dd>{formatDateTime(account.createdAt)}</dd></div>
-                <div><dt>{t("admin.credits.lastSignIn")}</dt><dd>{formatDateTime(account.lastSignInAt)}</dd></div>
+                <div><dt>{t("admin.credits.created")}</dt><dd>{formatDateTime(account.createdAt, locale)}</dd></div>
+                <div><dt>{t("admin.credits.lastSignIn")}</dt><dd>{formatDateTime(account.lastSignInAt, locale)}</dd></div>
                 <div><dt>{t("admin.credits.userId")}</dt><dd className="admin-mono">{account.id}</dd></div>
               </dl>
             </article>
@@ -288,7 +288,7 @@ export default function AdminCreditsPage() {
                       <td>{Number(item.new_balance || 0)}</td>
                       <td>{item.reason}</td>
                       <td>{item.admin_email || "—"}</td>
-                      <td>{formatDateTime(item.created_at)}</td>
+                      <td>{formatDateTime(item.created_at, locale)}</td>
                     </tr>
                   ))}
                 </tbody>

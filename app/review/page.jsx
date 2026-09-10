@@ -24,12 +24,12 @@ function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
 
-function formatDate(value, t) {
+function formatDate(value, t, locale = "en") {
   if (!value) return t("dashboard.notSet");
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return t("dashboard.notSet");
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale || "en", {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(date);
@@ -53,7 +53,7 @@ function historyStatus(post, t) {
 }
 
 export default function CustomerReviewPage() {
-  const { t } = useUiText(["dashboard"]);
+  const { t, locale } = useUiText(["dashboard"]);
   const [posts, setPosts] = useState([]);
   const [brandName, setBrandName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -184,8 +184,8 @@ export default function CustomerReviewPage() {
                   <p>{String(post.content || "").replace(/\s+/g, " ").slice(0, 180)}</p>
                 </div>
                 <div className="customer-review-meta-v14371">
-                  <span><CalendarClock /><small>{t("dashboard.customerReview.created")}</small><strong>{formatDate(post.created_at, t)}</strong></span>
-                  {post.scheduled_for ? <span><Clock3 /><small>{t("dashboard.customerReview.scheduled")}</small><strong>{formatDate(post.scheduled_for, t)}</strong></span> : null}
+                  <span><CalendarClock /><small>{t("dashboard.customerReview.created")}</small><strong>{formatDate(post.created_at, t, locale)}</strong></span>
+                  {post.scheduled_for ? <span><Clock3 /><small>{t("dashboard.customerReview.scheduled")}</small><strong>{formatDate(post.scheduled_for, t, locale)}</strong></span> : null}
                 </div>
                 {view === "history" ? (
                   <span className={`customer-review-status-v14371 ${post.status}`}>{historyStatus(post, t)}</span>

@@ -308,7 +308,7 @@ export default function ImageBackgroundsPage() {
 
             <label className="video-background-field">
               <span>{t("admin.imageBackgrounds.name")}</span>
-              <input value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Soft beige studio" />
+              <input value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder={t("admin.imageBackgrounds.namePlaceholder")} />
             </label>
             <label className="video-background-field">
               <span>{t("admin.imageBackgrounds.file")}</span>

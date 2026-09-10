@@ -20,45 +20,36 @@ type HookPayload = {
   };
 };
 
-const copyByLocale: Record<string, Copy> = {
-  en: { subject: "Your Spreelo sign-in code", title: "Welcome to Spreelo", intro: "Use this code to sign in or create your Spreelo account.", code: "Your secure code", expires: "The code expires shortly.", ignore: "If you did not request this email, you can safely ignore it." },
-  sv: { subject: "Din inloggningskod till Spreelo", title: "Välkommen till Spreelo", intro: "Använd koden för att logga in eller skapa ditt Spreelo-konto.", code: "Din säkra kod", expires: "Koden upphör snart att gälla.", ignore: "Om du inte begärde detta mejl kan du ignorera det." },
-  es: { subject: "Tu código de acceso a Spreelo", title: "Te damos la bienvenida a Spreelo", intro: "Usa este código para iniciar sesión o crear tu cuenta de Spreelo.", code: "Tu código seguro", expires: "El código caducará pronto.", ignore: "Si no solicitaste este correo, puedes ignorarlo." },
-  pt: { subject: "O seu código de acesso ao Spreelo", title: "Bem-vindo ao Spreelo", intro: "Use este código para iniciar sessão ou criar a sua conta Spreelo.", code: "O seu código seguro", expires: "O código expira em breve.", ignore: "Se não pediu este e-mail, pode ignorá-lo." },
-  fr: { subject: "Votre code de connexion Spreelo", title: "Bienvenue sur Spreelo", intro: "Utilisez ce code pour vous connecter ou créer votre compte Spreelo.", code: "Votre code sécurisé", expires: "Ce code expirera bientôt.", ignore: "Si vous n’avez pas demandé cet e-mail, vous pouvez l’ignorer." },
-  de: { subject: "Ihr Spreelo-Anmeldecode", title: "Willkommen bei Spreelo", intro: "Mit diesem Code können Sie sich anmelden oder Ihr Spreelo-Konto erstellen.", code: "Ihr sicherer Code", expires: "Der Code läuft in Kürze ab.", ignore: "Falls Sie diese E-Mail nicht angefordert haben, können Sie sie ignorieren." },
-  it: { subject: "Il tuo codice di accesso a Spreelo", title: "Benvenuto su Spreelo", intro: "Usa questo codice per accedere o creare il tuo account Spreelo.", code: "Il tuo codice sicuro", expires: "Il codice scadrà a breve.", ignore: "Se non hai richiesto questa e-mail, puoi ignorarla." },
-  nl: { subject: "Je Spreelo-inlogcode", title: "Welkom bij Spreelo", intro: "Gebruik deze code om in te loggen of je Spreelo-account aan te maken.", code: "Je beveiligde code", expires: "De code verloopt binnenkort.", ignore: "Heb je deze e-mail niet aangevraagd, dan kun je hem negeren." },
-  da: { subject: "Din login-kode til Spreelo", title: "Velkommen til Spreelo", intro: "Brug koden til at logge ind eller oprette din Spreelo-konto.", code: "Din sikre kode", expires: "Koden udløber snart.", ignore: "Hvis du ikke har bedt om denne e-mail, kan du ignorere den." },
-  no: { subject: "Din innloggingskode til Spreelo", title: "Velkommen til Spreelo", intro: "Bruk koden for å logge inn eller opprette Spreelo-kontoen din.", code: "Din sikre kode", expires: "Koden utløper snart.", ignore: "Hvis du ikke ba om denne e-posten, kan du ignorere den." },
-  fi: { subject: "Spreelo-kirjautumiskoodisi", title: "Tervetuloa Spreeloon", intro: "Käytä tätä koodia kirjautumiseen tai Spreelo-tilin luomiseen.", code: "Turvallinen koodisi", expires: "Koodi vanhenee pian.", ignore: "Jos et pyytänyt tätä viestiä, voit jättää sen huomiotta." },
-  pl: { subject: "Twój kod logowania do Spreelo", title: "Witamy w Spreelo", intro: "Użyj tego kodu, aby się zalogować lub utworzyć konto Spreelo.", code: "Twój bezpieczny kod", expires: "Kod wkrótce wygaśnie.", ignore: "Jeśli nie zamawiałeś tej wiadomości, możesz ją zignorować." },
-  tr: { subject: "Spreelo giriş kodunuz", title: "Spreelo’ya hoş geldiniz", intro: "Giriş yapmak veya Spreelo hesabınızı oluşturmak için bu kodu kullanın.", code: "Güvenli kodunuz", expires: "Kodun süresi yakında dolacak.", ignore: "Bu e-postayı siz istemediyseniz güvenle yok sayabilirsiniz." },
-  ar: { subject: "رمز تسجيل الدخول إلى Spreelo", title: "مرحبًا بك في Spreelo", intro: "استخدم هذا الرمز لتسجيل الدخول أو إنشاء حساب Spreelo.", code: "رمزك الآمن", expires: "ستنتهي صلاحية الرمز قريبًا.", ignore: "إذا لم تطلب هذه الرسالة، يمكنك تجاهلها بأمان." },
-  hi: { subject: "आपका Spreelo साइन-इन कोड", title: "Spreelo में आपका स्वागत है", intro: "साइन इन करने या अपना Spreelo खाता बनाने के लिए इस कोड का उपयोग करें।", code: "आपका सुरक्षित कोड", expires: "कोड शीघ्र ही समाप्त हो जाएगा।", ignore: "यदि आपने यह ईमेल नहीं माँगा है, तो इसे अनदेखा कर सकते हैं।" },
-  id: { subject: "Kode masuk Spreelo Anda", title: "Selamat datang di Spreelo", intro: "Gunakan kode ini untuk masuk atau membuat akun Spreelo Anda.", code: "Kode aman Anda", expires: "Kode akan segera kedaluwarsa.", ignore: "Jika Anda tidak meminta email ini, Anda dapat mengabaikannya." },
-  ja: { subject: "Spreeloログインコード", title: "Spreeloへようこそ", intro: "このコードを使用してログインするか、Spreeloアカウントを作成してください。", code: "安全なコード", expires: "コードはまもなく期限切れになります。", ignore: "このメールに心当たりがない場合は、無視してください。" },
-  ko: { subject: "Spreelo 로그인 코드", title: "Spreelo에 오신 것을 환영합니다", intro: "이 코드로 로그인하거나 Spreelo 계정을 만드세요.", code: "보안 코드", expires: "코드는 곧 만료됩니다.", ignore: "요청하지 않은 이메일이라면 무시하셔도 됩니다." },
-  zh: { subject: "您的 Spreelo 登录验证码", title: "欢迎使用 Spreelo", intro: "使用此验证码登录或创建您的 Spreelo 帐户。", code: "您的安全验证码", expires: "验证码即将过期。", ignore: "如果您没有请求此邮件，可以放心忽略。" },
-  th: { subject: "รหัสเข้าสู่ระบบ Spreelo ของคุณ", title: "ยินดีต้อนรับสู่ Spreelo", intro: "ใช้รหัสนี้เพื่อเข้าสู่ระบบหรือสร้างบัญชี Spreelo ของคุณ", code: "รหัสที่ปลอดภัยของคุณ", expires: "รหัสจะหมดอายุเร็ว ๆ นี้", ignore: "หากคุณไม่ได้ขออีเมลนี้ คุณสามารถเพิกเฉยได้" },
-  uk: { subject: "Ваш код входу до Spreelo", title: "Ласкаво просимо до Spreelo", intro: "Використайте цей код, щоб увійти або створити обліковий запис Spreelo.", code: "Ваш безпечний код", expires: "Термін дії коду скоро завершиться.", ignore: "Якщо ви не запитували цей лист, його можна проігнорувати." },
-  ru: { subject: "Ваш код входа в Spreelo", title: "Добро пожаловать в Spreelo", intro: "Используйте этот код, чтобы войти или создать аккаунт Spreelo.", code: "Ваш безопасный код", expires: "Срок действия кода скоро истечёт.", ignore: "Если вы не запрашивали это письмо, его можно проигнорировать." },
-  bg: { subject: "Вашият код за вход в Spreelo", title: "Добре дошли в Spreelo", intro: "Използвайте този код, за да влезете или да създадете профил в Spreelo.", code: "Вашият защитен код", expires: "Кодът скоро ще изтече.", ignore: "Ако не сте поискали този имейл, можете да го игнорирате." },
-  vi: { subject: "Mã đăng nhập Spreelo của bạn", title: "Chào mừng đến với Spreelo", intro: "Dùng mã này để đăng nhập hoặc tạo tài khoản Spreelo.", code: "Mã bảo mật của bạn", expires: "Mã sẽ sớm hết hạn.", ignore: "Nếu bạn không yêu cầu email này, bạn có thể bỏ qua." },
-  cs: { subject: "Váš přihlašovací kód do Spreelo", title: "Vítejte ve Spreelo", intro: "Tento kód použijte k přihlášení nebo vytvoření účtu Spreelo.", code: "Váš bezpečný kód", expires: "Platnost kódu brzy vyprší.", ignore: "Pokud jste si tento e-mail nevyžádali, můžete jej ignorovat." },
-  ro: { subject: "Codul tău de conectare la Spreelo", title: "Bun venit la Spreelo", intro: "Folosește acest cod pentru a te conecta sau pentru a crea contul Spreelo.", code: "Codul tău securizat", expires: "Codul va expira în curând.", ignore: "Dacă nu ai solicitat acest e-mail, îl poți ignora." },
-  hu: { subject: "Spreelo bejelentkezési kódod", title: "Üdvözlünk a Spreelóban", intro: "Ezzel a kóddal jelentkezhetsz be vagy hozhatod létre Spreelo-fiókodat.", code: "Biztonságos kódod", expires: "A kód hamarosan lejár.", ignore: "Ha nem te kérted ezt az e-mailt, nyugodtan hagyd figyelmen kívül." },
-  el: { subject: "Ο κωδικός σύνδεσής σας στο Spreelo", title: "Καλώς ήρθατε στο Spreelo", intro: "Χρησιμοποιήστε αυτόν τον κωδικό για σύνδεση ή δημιουργία λογαριασμού Spreelo.", code: "Ο ασφαλής κωδικός σας", expires: "Ο κωδικός λήγει σύντομα.", ignore: "Αν δεν ζητήσατε αυτό το email, μπορείτε να το αγνοήσετε." },
-  ms: { subject: "Kod log masuk Spreelo anda", title: "Selamat datang ke Spreelo", intro: "Gunakan kod ini untuk log masuk atau mencipta akaun Spreelo anda.", code: "Kod selamat anda", expires: "Kod akan tamat tempoh tidak lama lagi.", ignore: "Jika anda tidak meminta e-mel ini, anda boleh mengabaikannya." },
-  fil: { subject: "Ang iyong Spreelo sign-in code", title: "Maligayang pagdating sa Spreelo", intro: "Gamitin ang code na ito para mag-sign in o gumawa ng Spreelo account.", code: "Ang iyong secure na code", expires: "Mag-e-expire ang code sa lalong madaling panahon.", ignore: "Kung hindi mo hiniling ang email na ito, maaari mo itong balewalain." },
+// English is the only authored source language. Non-English copy is loaded from
+// the same persistent ui_translation_packs cache used by the web application.
+const EN_COPY: Copy = {
+  subject: "Your Spreelo sign-in code",
+  title: "Sign in to Spreelo",
+  intro: "Use the verification code below to finish signing in. The code can only be used once.",
+  code: "Your sign-in code",
+  expires: "This code expires shortly.",
+  ignore: "If you did not request this email, you can safely ignore it.",
 };
 
-const supportedLocales = new Set(Object.keys(copyByLocale));
+const SUPPORTED_LOCALES = new Set([
+  "en", "sv", "es", "pt", "fr", "de", "it", "nl", "da", "no", "fi", "pl",
+  "tr", "ar", "hi", "id", "ja", "ko", "zh", "th", "uk", "ru", "bg", "vi",
+  "cs", "ro", "hu", "el", "ms", "fil",
+]);
+
+const EMAIL_KEYS = {
+  subject: "emails.signIn.subject",
+  title: "emails.signIn.title",
+  intro: "emails.signIn.intro",
+  code: "emails.signIn.codeLabel",
+  expires: "emails.signIn.expires",
+  ignore: "emails.signIn.ignore",
+} as const;
 
 function normalizeLocale(value: unknown) {
   const locale = String(value || "").trim().toLowerCase().replace("_", "-");
   const short = locale.split("-")[0];
-  return supportedLocales.has(locale) ? locale : supportedLocales.has(short) ? short : "en";
+  return SUPPORTED_LOCALES.has(locale) ? locale : SUPPORTED_LOCALES.has(short) ? short : "en";
 }
 
 function getLocale(payload: HookPayload) {
@@ -71,6 +62,77 @@ function getLocale(payload: HookPayload) {
   }
 
   return normalizeLocale(payload.user.user_metadata?.app_locale);
+}
+
+function copyFromLabels(labels: Record<string, unknown> | null | undefined): Copy | null {
+  if (!labels || typeof labels !== "object") return null;
+
+  const resolved = Object.fromEntries(
+    Object.entries(EMAIL_KEYS).map(([field, key]) => [field, String(labels[key] || "").trim()])
+  ) as Record<keyof Copy, string>;
+
+  if (Object.values(resolved).some((value) => !value)) return null;
+  return resolved as Copy;
+}
+
+async function loadFromAppTranslationCache(locale: string): Promise<Copy | null> {
+  const appUrl = String(Deno.env.get("SPREELO_APP_URL") || "https://app.spreelo.com").replace(/\/$/, "");
+
+  try {
+    const response = await fetch(
+      `${appUrl}/api/ui-translations?locale=${encodeURIComponent(locale)}&namespaces=emails`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (!response.ok) return null;
+    const payload = await response.json();
+    return copyFromLabels(payload?.labels);
+  } catch (error) {
+    console.warn("Could not load auth email copy from app translation cache", error);
+    return null;
+  }
+}
+
+async function loadFromDatabase(locale: string): Promise<Copy | null> {
+  const supabaseUrl = String(Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "");
+  const serviceRoleKey = String(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
+  if (!supabaseUrl || !serviceRoleKey) return null;
+
+  try {
+    const url = new URL(`${supabaseUrl}/rest/v1/ui_translation_packs`);
+    url.searchParams.set("locale", `eq.${locale}`);
+    url.searchParams.set("namespace", "eq.emails");
+    url.searchParams.set("select", "labels,status");
+    url.searchParams.set("limit", "1");
+
+    const response = await fetch(url, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        Accept: "application/json",
+      },
+    });
+    if (!response.ok) return null;
+
+    const rows = await response.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+    return copyFromLabels(row?.labels);
+  } catch (error) {
+    console.warn("Could not load auth email copy directly from database", error);
+    return null;
+  }
+}
+
+async function getCopy(locale: string): Promise<Copy> {
+  if (locale === "en") return EN_COPY;
+
+  // The application endpoint owns source-fingerprint checks, single-flight AI
+  // generation and persistence. This call therefore reuses existing DB copy and
+  // only invokes AI when this locale/key genuinely does not exist or changed.
+  return (
+    (await loadFromAppTranslationCache(locale)) ||
+    (await loadFromDatabase(locale)) ||
+    EN_COPY
+  );
 }
 
 function renderEmail(copy: Copy, token: string, locale: string) {
@@ -130,7 +192,7 @@ Deno.serve(async (request) => {
     if (!recipient || !token) throw new Error("Missing recipient or token");
 
     const locale = getLocale(payload);
-    const copy = copyByLocale[locale] || copyByLocale.en;
+    const copy = await getCopy(locale);
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {

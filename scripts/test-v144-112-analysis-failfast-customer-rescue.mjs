@@ -48,7 +48,8 @@ assert.match(brand, /analysis_rescue_required/);
 assert.match(labels, /brand\.rescuePending\.calendar/);
 assert.match(labels, /onboarding\.rescue\.email/);
 assert.match(labels, /Your brand analysis and campaign calendar are ready/);
-assert.match(staticEmail, /Din varumärkesanalys och kampanjkalender är klara/);
+assert.match(staticEmail, /getDefaultNamespaceLabels\("emails"\)/);
+assert.doesNotMatch(staticEmail, /Din varumärkesanalys och kampanjkalender är klara/);
 assert.match(lifecycle, /emails\.analysisCompleted\.intro", \{ brand: safeBrandName \}/);
 
 // New modal/pending-state styling is loaded last.

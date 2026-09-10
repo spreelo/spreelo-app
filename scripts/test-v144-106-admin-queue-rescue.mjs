@@ -20,7 +20,7 @@ assert.match(sql, /create table if not exists public\.admin_generation_work_item
 assert.match(sql, /admin_generation_work_item_from_rule/u);
 assert.match(sql, /admin_generation_work_item_from_occurrence/u);
 assert.match(sql, /admin_generation_work_item_from_post/u);
-assert.match(page, /\[\["upcoming", "Kommande"\], \["queue", "Godkännande"\], \["failed", "Misslyckat"\], \["history"/u);
+for (const key of ["admin.approvals.upcomingTab", "admin.approvals.approvalTab", "admin.approvals.failedTab", "admin.approvals.history"]) assert.match(page, new RegExp(`t\\("${key.replaceAll(".", "\\.")}"\\)`));
 assert.match(api, /status === "upcoming" \? \["planned", "running"\]/u);
 assert.match(api, /syntheticWorkItems/u);
 
@@ -30,7 +30,7 @@ assert.match(cron, /generation_failed_before_occurrence_claim/u);
 
 // Rescue is human-in-the-loop through ChatGPT + structured ZIP import.
 assert.match(page, /window\.open\("https:\/\/chatgpt\.com\/"/u);
-assert.match(page, /Ladda upp rescue-ZIP/u);
+assert.match(page, /t\("admin\.approvals\.uploadRescueZip"\)/u);
 assert.match(page, /manifest\.json/u);
 assert.match(rescue, /readZipEntries/u);
 assert.match(rescue, /MAX_UNCOMPRESSED_BYTES/u);

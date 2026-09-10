@@ -3,7 +3,7 @@ import { adminContextError, getAdminContext } from "../../../../lib/adminAuth";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const CONFIRMATION = "RADERA MIN TESTDATA";
+const CONFIRMATION = "DELETE MY TEST DATA";
 
 async function deleteForUser(admin, table, userId) {
   const result = await admin.from(table).delete().eq("user_id", userId);

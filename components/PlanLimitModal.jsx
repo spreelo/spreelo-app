@@ -11,7 +11,7 @@ function resourceLabelKey(resource, limit) {
 }
 
 export default function PlanLimitModal({ details, onClose }) {
-  const { t } = useUiText(["billing"]);
+  const { t } = useUiText(["settings"]);
   if (!details) return null;
 
   const resourceLabel = t(resourceLabelKey(details.resource, details.limit));

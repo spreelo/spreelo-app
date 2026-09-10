@@ -35,16 +35,16 @@ function currentMonthValue() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function formatDate(value) {
+function formatDate(value, locale = "en") {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale || "en", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
 }
 
-function formatPercent(value) {
-  return value === null || value === undefined ? "—" : `${Number(value).toLocaleString("sv-SE")} %`;
+function formatPercent(value, locale = "en") {
+  return value === null || value === undefined ? "—" : `${Number(value).toLocaleString(locale || "en")} %`;
 }
 
 async function getAdminHeaders() {
@@ -69,7 +69,7 @@ function WarningPills({ customer, t }) {
 }
 
 export default function AdminCustomersPage() {
-  const { t } = useUiText(["admin"]);
+  const { t, locale } = useUiText(["admin"]);
   const [month, setMonth] = useState(currentMonthValue());
   const [search, setSearch] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState("");
@@ -128,7 +128,7 @@ export default function AdminCustomersPage() {
           </div>
           <div className="admin-v140-rate-card">
             <span>{t("admin.customers.success")}</span>
-            <strong>{formatPercent(payload.summary?.creationSuccessRate)}</strong>
+            <strong>{formatPercent(payload.summary?.creationSuccessRate, locale)}</strong>
             <small>{t("admin.customers.selectedPeriod")}</small>
           </div>
         </header>
@@ -158,14 +158,14 @@ export default function AdminCustomersPage() {
 
         <section className="admin-stat-grid admin-v140-stat-grid">
           {stats.map(({ label, value, Icon }) => (
-            <article className="admin-stat-card" key={label}><span className="admin-stat-icon"><Icon size={19} /></span><strong>{Number(value).toLocaleString("sv-SE")}</strong><span>{label}</span></article>
+            <article className="admin-stat-card" key={label}><span className="admin-stat-icon"><Icon size={19} /></span><strong>{Number(value).toLocaleString(locale || "en")}</strong><span>{label}</span></article>
           ))}
         </section>
 
         <section className="admin-panel admin-v140-customer-panel">
           <div className="admin-panel-heading">
             <div><span className="admin-card-kicker">{t("admin.customers.periodKicker")}</span><h2>{t("admin.customers.count", { count: payload.customers?.length || 0 })}</h2></div>
-            <span className="admin-v140-muted">{t("admin.customers.createdPublished", { created: Number(payload.summary?.createdPosts || 0).toLocaleString(), published: Number(payload.summary?.publishedPosts || 0).toLocaleString() })}</span>
+            <span className="admin-v140-muted">{t("admin.customers.createdPublished", { created: Number(payload.summary?.createdPosts || 0).toLocaleString(locale || "en"), published: Number(payload.summary?.publishedPosts || 0).toLocaleString(locale || "en") })}</span>
           </div>
 
           {loading ? (
@@ -176,10 +176,10 @@ export default function AdminCustomersPage() {
               {payload.customers.map((customer) => (
                 <a className="admin-v140-customer-row" href={`/admin/customers/${customer.id}?month=${month}`} key={customer.id}>
                   <div className="admin-v140-customer-name"><strong>{customer.name || customer.email || t("admin.customers.unnamed")}</strong><span>{customer.email || "—"}</span><small>{t("admin.customers.brandsCount", { count: customer.brandCount })}</small></div>
-                  <div><strong>{customer.planName || "—"}</strong><span>{Number(customer.creditsRemaining || 0).toLocaleString()} {t("admin.customers.credits")}</span><small>{customer.subscriptionStatus || "—"}</small></div>
-                  <div className="admin-v140-result-cell"><strong>{formatPercent(customer.successRate)}</strong><span>{t("admin.customers.successResult", { completed: customer.completedCount, failed: customer.failedCount })}</span><small>{t("admin.customers.publishedCount", { count: customer.publishedCount })}</small></div>
+                  <div><strong>{customer.planName || "—"}</strong><span>{Number(customer.creditsRemaining || 0).toLocaleString(locale || "en")} {t("admin.customers.credits")}</span><small>{customer.subscriptionStatus || "—"}</small></div>
+                  <div className="admin-v140-result-cell"><strong>{formatPercent(customer.successRate, locale)}</strong><span>{t("admin.customers.successResult", { completed: customer.completedCount, failed: customer.failedCount })}</span><small>{t("admin.customers.publishedCount", { count: customer.publishedCount })}</small></div>
                   <WarningPills customer={customer} t={t} />
-                  <div><strong>{formatDate(customer.lastActivityAt)}</strong><span>{t("admin.customers.customerSince", { date: formatDate(customer.createdAt) })}</span></div>
+                  <div><strong>{formatDate(customer.lastActivityAt, locale)}</strong><span>{t("admin.customers.customerSince", { date: formatDate(customer.createdAt, locale) })}</span></div>
                   <ChevronRight size={20} aria-hidden="true" />
                 </a>
               ))}

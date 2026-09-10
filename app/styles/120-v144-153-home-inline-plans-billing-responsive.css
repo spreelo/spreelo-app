@@ -82,7 +82,7 @@ html body .home-reference-page .home-plan-section-head-v153 .home-plan-overview-
   flex:0 0 auto !important;
 }
 
-/* Direct rows replace the old Visa detaljer / duplicated manager panel. */
+/* Direct rows replace the old details toggle / duplicated manager panel. */
 html body .home-reference-page .home-plan-inline-list-v153 {
   display:block !important;
   min-width:0 !important;

@@ -711,7 +711,7 @@ export async function GET(request) {
       admin_test_batch_id: workItem.admin_test_batch_id || ruleMap[workItem.automation_rule_id]?.admin_test_batch_id || null,
       admin_test_job_key: workItem.admin_test_job_key || ruleMap[workItem.automation_rule_id]?.admin_test_job_key || null,
       admin_test_campaign: ruleMap[workItem.automation_rule_id]?.queue_source === "campaign" ? ruleMap[workItem.automation_rule_id]?.name || null : null,
-      post_type: workItem.content_type_label || "Planerat inlägg",
+      post_type: workItem.content_type_label || "Planned post",
       content_format: workItem.content_format || null,
       scheduled_for: workItem.scheduled_for,
       created_at: workItem.created_at,

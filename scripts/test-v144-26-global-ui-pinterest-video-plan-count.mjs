@@ -32,7 +32,7 @@ assert(page.includes('label: translateContentTypeShortLabel(type)'), "Built-in f
 assert(page.includes('String(locale || "en").toLowerCase() === "en" ? config.display_label : ""'), "Raw DB labels may only be used by the English workspace.");
 assert(page.includes('Never leak the English source/config text into a non-English workspace'), "Non-English UI must fail closed instead of leaking English.");
 assert(page.includes('SUPPORTED_UI_LOCALES.find('), "Auto-language labels must use the canonical locale catalog, not a partial hand-written map.");
-assert(uiHook.includes('TRANSLATION_CACHE_VERSION = "v22"'), "The UI translation cache must be bumped after the language-boundary fix.");
+assert(uiHook.includes('TRANSLATION_CACHE_VERSION = "v26"'), "The UI translation cache must be bumped after the language-boundary fix.");
 
 
 // Dynamic Content Studio keys are just as important as literal t("...") calls.
@@ -108,7 +108,7 @@ for (const key of [
 ]) {
   assert(labels.includes(`"${key}"`), `Missing English source label ${key}`);
 }
-assert(swedish.includes('"automation.creditCount": "{count} krediter"'), "Swedish credit count must be built in for the critical planner UI.");
+assert(!swedish.includes("krediter"), "Non-English planner labels must come from the persistent translation cache, not a built-in Swedish pack.");
 assert(!page.includes('aria-label="Previous month"'), "Calendar navigation must not expose hard-coded English aria labels.");
 assert(!page.includes('{slot.strategyNotes}</span>'), "Raw English strategy notes must not leak into the customer popover.");
 
@@ -139,7 +139,7 @@ for (const expected of [
   "gpt_image_2_natural_environment_fallback",
   "NO solid-color, monochrome, gradient, abstract",
   "naturalEnvironmentFromFirstFrame: true",
-  "no solid-color, monochrome, gradient, abstract or empty studio intro",
+  "empty studio backdrop",
 ]) {
   assert(worker.includes(expected), `Natural Kling first-frame flow missing: ${expected}`);
 }

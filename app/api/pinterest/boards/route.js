@@ -215,7 +215,7 @@ export async function POST(request) {
         selected = await createPinterestBoard(loaded.accessToken, {
           name: preferredName,
           description: brand?.business_name
-            ? `Testanslagstavla för ${brand.business_name}, skapad av Spreelo i Pinterest Sandbox.`
+            ? `Test board for ${brand.business_name}, created by Spreelo in Pinterest Sandbox.`
             : "Testanslagstavla skapad av Spreelo i Pinterest Sandbox.",
           privacy: "PUBLIC",
         });
@@ -229,7 +229,7 @@ export async function POST(request) {
       const testPin = await createPinterestPin(loaded.accessToken, {
         board_id: String(selected.id),
         title: "Spreelo Sandbox-test",
-        description: "Testpin skapad av Spreelo för att verifiera Pinterest-publicering i Sandbox.",
+        description: "Test Pin created by Spreelo to verify Pinterest publishing in Sandbox.",
         media_source: {
           source_type: "image_url",
           url: testImageUrl,

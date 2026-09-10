@@ -61,15 +61,15 @@ function cleanPlanName(value) {
   return String(value || "").trim().toLowerCase().replace(/^plan\s*:\s*/i, "").replace(/\s+trial$/i, "");
 }
 
-function formatDate(value) {
+function formatDate(value, locale = "en") {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat(locale || "en", { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
 
 export default function StripeBillingPanel({ initialBalance = null, onBalanceChange }) {
-  const { t } = useUiText(["settings"]);
+  const { t, locale } = useUiText(["settings"]);
   const [billing, setBilling] = useState(initialBalance);
   const [trialInfo, setTrialInfo] = useState(null);
   const [interval, setInterval] = useState("month");
@@ -291,7 +291,7 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
       {billing?.pending_subscription_plan ? (
         <div className="stripe-reference-notice">
           <CalendarClock size={16} />
-          <span>{t("billing.pendingPlanText", { plan: String(billing.pending_subscription_plan).replace(/^./, (c) => c.toUpperCase()), date: formatDate(billing?.pending_subscription_effective_at) || "—" })}</span>
+          <span>{t("billing.pendingPlanText", { plan: String(billing.pending_subscription_plan).replace(/^./, (c) => c.toUpperCase()), date: formatDate(billing?.pending_subscription_effective_at, locale) || "—" })}</span>
           <button
             type="button"
             className="stripe-reference-undo-plan-change"
@@ -319,7 +319,7 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
             const pendingTarget = pendingPlanKey === plan.key;
             const disabled = busyLookup === lookup || (selected && hasStripeSubscription) || (isTrialing && !selected) || (hasPendingPlanChange && !selected);
             let buttonLabel = selected && hasStripeSubscription ? t("billing.currentPlan") : t("billing.choosePlan", { plan: plan.name });
-            if (pendingTarget) buttonLabel = t("billing.planScheduledFor", { date: formatDate(billing?.pending_subscription_effective_at) || "—" });
+            if (pendingTarget) buttonLabel = t("billing.planScheduledFor", { date: formatDate(billing?.pending_subscription_effective_at, locale) || "—" });
             else if (!selected && activePlan) buttonLabel = interval === "year" ? t("billing.switchYearly") : t("billing.switchMonthly");
             else if (!selected && isUpgrade) buttonLabel = t("billing.upgradeTo", { plan: plan.name });
             else if (!selected && isDowngrade) buttonLabel = t("billing.downgradeTo", { plan: plan.name });
@@ -347,7 +347,7 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
                     </div>
                   </div>
                 </header>
-                <div className="price"><strong>{price.toLocaleString("sv-SE")} kr</strong><small>/{interval === "month" ? t("billing.monthShort") : t("billing.yearShort")}</small><em>{interval === "year" ? t("billing.priceBilledYearly") : t("billing.priceBilledMonthly")}</em></div>
+                <div className="price"><strong>{price.toLocaleString(locale || "en")} kr</strong><small>/{interval === "month" ? t("billing.monthShort") : t("billing.yearShort")}</small><em>{interval === "year" ? t("billing.priceBilledYearly") : t("billing.priceBilledMonthly")}</em></div>
                 <div className="stripe-reference-features">
                   <div className="plan-feature credits"><Check />{t("billing.creditsPerMonth", { count: plan.credits })}</div>
                   <div className="plan-feature brands"><Check />{plan.brands === 1 ? t("billing.businessOne") : t("billing.businesses", { count: plan.brands })}</div>
@@ -437,13 +437,13 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
         <div className="stripe-trial-banner muted"><ShieldCheck size={18} /><div><strong>{t("billing.trialWebsiteTitle")}</strong><span>{t("billing.trialWebsiteText")}</span></div></div>
       )}
       {isTrialing && (
-        <div className="stripe-trial-banner active"><CalendarClock size={18} /><div><strong>{t("billing.trialActiveTitle")}</strong><span>{t("billing.trialActiveText", { date: formatDate(billing?.trial_end) || "—" })}</span></div></div>
+        <div className="stripe-trial-banner active"><CalendarClock size={18} /><div><strong>{t("billing.trialActiveTitle")}</strong><span>{t("billing.trialActiveText", { date: formatDate(billing?.trial_end, locale) || "—" })}</span></div></div>
       )}
       {cancelScheduled && (
-        <div className="stripe-trial-banner muted"><CalendarClock size={18} /><div><strong>{t("billing.cancellationScheduledTitle")}</strong><span>{t("billing.cancellationScheduledText", { date: formatDate(billing?.current_period_end) || "—" })}</span></div></div>
+        <div className="stripe-trial-banner muted"><CalendarClock size={18} /><div><strong>{t("billing.cancellationScheduledTitle")}</strong><span>{t("billing.cancellationScheduledText", { date: formatDate(billing?.current_period_end, locale) || "—" })}</span></div></div>
       )}
       {billing?.pending_subscription_plan && (
-        <div className="stripe-trial-banner muted stripe-pending-plan-banner"><CalendarClock size={18} /><div><strong>{t("billing.pendingPlanTitle")}</strong><span>{t("billing.pendingPlanText", { plan: String(billing.pending_subscription_plan).replace(/^./, (c) => c.toUpperCase()), date: formatDate(billing?.pending_subscription_effective_at) || "—" })}</span></div><button type="button" disabled={Boolean(busyAction) || Boolean(busyLookup)} onClick={cancelScheduledPlanChange}>{busyAction === "cancel-plan-change" ? <LoaderCircle className="billing-spin" size={14} /> : <XCircle size={14} />}{t("billing.cancelScheduledPlanChange")}</button></div>
+        <div className="stripe-trial-banner muted stripe-pending-plan-banner"><CalendarClock size={18} /><div><strong>{t("billing.pendingPlanTitle")}</strong><span>{t("billing.pendingPlanText", { plan: String(billing.pending_subscription_plan).replace(/^./, (c) => c.toUpperCase()), date: formatDate(billing?.pending_subscription_effective_at, locale) || "—" })}</span></div><button type="button" disabled={Boolean(busyAction) || Boolean(busyLookup)} onClick={cancelScheduledPlanChange}>{busyAction === "cancel-plan-change" ? <LoaderCircle className="billing-spin" size={14} /> : <XCircle size={14} />}{t("billing.cancelScheduledPlanChange")}</button></div>
       )}
 
       <div className="stripe-billing-toggle" role="group" aria-label={t("billing.billingPeriod")}>
@@ -496,7 +496,7 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
               {plan.featured && <span className="stripe-plan-recommended"><Sparkles size={13} />{t("billing.recommended")}</span>}
               <div className="stripe-plan-name"><h3>{plan.name}</h3>{selected && <span><Check size={12} />{t("billing.current")}</span>}</div>
               <span className={`stripe-plan-audience ${plan.key}`}>{t(plan.audienceKey)}</span>
-              <div className="stripe-plan-price"><strong>{price.toLocaleString("sv-SE")} kr</strong><span>/{interval === "month" ? t("billing.monthShort") : t("billing.yearShort")}</span></div>
+              <div className="stripe-plan-price"><strong>{price.toLocaleString(locale || "en")} kr</strong><span>/{interval === "month" ? t("billing.monthShort") : t("billing.yearShort")}</span></div>
               <p className="stripe-plan-credit-line">{t("billing.creditsPerMonth", { count: plan.credits })}</p>
               <ul>
                 <li><Check size={15} />{t("billing.brandLimit", { count: plan.brands })}</li>

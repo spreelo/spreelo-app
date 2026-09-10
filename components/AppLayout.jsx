@@ -283,7 +283,7 @@ export default function AppLayout({ active, children }) {
         year: "numeric",
       }).format(date);
     } catch {
-      return date.toLocaleDateString();
+      return date.toLocaleDateString(locale || "en");
     }
   }
 

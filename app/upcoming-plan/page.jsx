@@ -26,7 +26,7 @@ function getDaypartLabel(time, t) {
 }
 
 export default function UpcomingPlanPage() {
-  const { t } = useUiText(["upcomingPlan", "planManager"]);
+  const { t } = useUiText(["upcomingPlan", "automation"]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");

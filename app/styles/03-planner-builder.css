@@ -98,7 +98,7 @@
 }
 
 .automation-page.planner-wizard-page .planner-save-card::after {
-  content: "Du kan ändra allt senare.";
+  content: none;
   display: block;
   flex-basis: 100%;
   color: #667085;
@@ -368,7 +368,7 @@
 .automation-page.planner-wizard-page .planner-save-card::after {
   text-align: center;
   margin-top: 10px;
-  content: "🔒 Du kan ändra allt senare.";
+  content: none;
 }
 
 .automation-page.planner-wizard-page .planner-includes-preview-card {
@@ -834,7 +834,7 @@
 }
 
 .automation-page.planner-wizard-page .planner-save-card::after {
-  content: "🔒 Du kan ändra allt senare." !important;
+  content: none !important;
   margin-top: 11px !important;
   color: #667085 !important;
   font-size: 0.88rem !important;
@@ -2049,7 +2049,7 @@
   }
 
   .planner-wizard-page .planner-post-date::before {
-    content: "DATUM";
+    content: attr(data-label);
     display: block;
     margin: 0 0 6px;
     color: #667085;
@@ -2059,7 +2059,7 @@
   }
 
   .planner-wizard-page .planner-post-time::before {
-    content: "TID";
+    content: attr(data-label);
     display: block;
     margin: 0 0 6px;
     color: #667085;

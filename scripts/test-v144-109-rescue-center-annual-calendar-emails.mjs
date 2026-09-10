@@ -19,23 +19,21 @@ for (const needle of [
 ]) has(sql, needle, `SQL migration missing ${needle}`);
 
 const serverUi = read("lib/i18n/serverUiText.js");
-has(serverUi, 'if (namespace === "emails")', "Email namespace must have a static translation branch");
-has(serverUi, "getStaticEmailLabels", "Email namespace must use static email labels");
-const namespaceFunctionStart = serverUi.indexOf("export async function getOrCreateServerNamespaceLabels");
-const namespaceFunctionEnd = serverUi.indexOf("export async function getServerTranslations", namespaceFunctionStart);
-const namespaceFunction = serverUi.slice(namespaceFunctionStart, namespaceFunctionEnd > namespaceFunctionStart ? namespaceFunctionEnd : undefined);
-assert.ok(
-  namespaceFunction.indexOf('if (namespace === "emails")') >= 0 &&
-    namespaceFunction.indexOf('if (namespace === "emails")') < namespaceFunction.indexOf("translateMissingLabels({"),
-  "Email namespace must return static labels before the missing-label AI translation path"
-);
-
+for (const needle of [
+  'ui_translation_packs',
+  'translateMissingLabels',
+  'source_fingerprints',
+  'claimServerTranslationPack',
+]) has(serverUi, needle, `Persistent server translation engine missing ${needle}`);
 const staticEmail = read("lib/i18n/staticEmailText.js");
 for (const needle of [
-  "emails.planActivated.subject",
-  "emails.calendarUpdated.subject",
-  "getStaticEmailLabels",
+  'getDefaultNamespaceLabels("emails")',
+  'getStaticEmailLabels',
+  'persistedLabels',
 ]) has(staticEmail, needle);
+assert.ok(!/["']sv["']\s*:/.test(staticEmail), "Email source must not contain a Swedish static translation pack");
+assert.ok(!/["']da["']\s*:/.test(staticEmail), "Email source must not contain a Danish static translation pack");
+assert.ok(!/["']no["']\s*:/.test(staticEmail), "Email source must not contain a Norwegian static translation pack");
 
 const lifecycle = read("lib/lifecycleEmails.js");
 for (const needle of [
@@ -112,13 +110,12 @@ for (const needle of [
 
 const page = read("app/admin/rescue-center/page.jsx");
 for (const needle of [
-  "Misslyckade analyser",
-  "Misslyckade inlägg",
-  "ÅRLIG FÖRNYELSE",
-  "Skapa rescue-underlag",
-  "Importera och förhandsgranska",
-  "Godkänn",
-  "Kund informerad",
+  't("adminRescue.failedAnalyses")',
+  't("adminRescue.failedPosts")',
+  't("adminRescue.annualRenewal")',
+  't("adminRescue.createBrief")',
+  't("adminRescue.importPreview")',
+  't("adminRescue.customerInformed")',
 ]) has(page, needle);
 
 const adminPage = read("app/admin/page.jsx");
@@ -137,4 +134,4 @@ has(legacyAnalysis, "analysis_rescue_required: true");
 const productRescue = read("app/api/admin/post-approvals/rescue-import/route.js");
 for (const needle of ["remote_image_url", "fetchRemoteProductImage", 'rescue_status: "ready"']) has(productRescue, needle, "Existing v144.108 product rescue must remain intact");
 
-console.log("v144.109 Rescue Center / annual calendar / static email tests passed");
+console.log("v144.109 Rescue Center / annual calendar / persistent email i18n tests passed");
