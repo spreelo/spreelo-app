@@ -53,6 +53,10 @@ const start = route.indexOf("function extractLockedProductObjectFromHtml");
 const end = route.indexOf("\n\nfunction imageUrlMatchesProductIdentity", start);
 assert.ok(start >= 0 && end > start, "lock function source not found");
 const source = route.slice(start, end);
+const titleHelperStart = route.indexOf("function isGenericProductTitlePlaceholder");
+const titleHelperEnd = route.indexOf("\n\nfunction getHostnameFromUrl", titleHelperStart);
+assert.ok(titleHelperStart >= 0 && titleHelperEnd > titleHelperStart, "product-title safety helper source not found");
+const titleHelperSource = route.slice(titleHelperStart, titleHelperEnd);
 
 const makeExtractor = new Function(
   "classifyCommercePage",
@@ -94,6 +98,8 @@ const makeExtractor = new Function(
   const isBadProductImageUrl = () => false;
   const isLikelyProductDetailUrl = () => false;
   const sanitizeProductTitleForCard = (value) => decodeHtmlEntities(value).split(" | ")[0].trim();
+  const stripHtmlToText = (value) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").trim();
+  ${titleHelperSource}
   const extractPageTitle = (html) => String(html).match(/<title[^>]*>([^<]+)/i)?.[1] || "";
   const getStructuredProductIdentifier = () => "";
   const getStructuredProductBrand = () => "";

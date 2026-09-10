@@ -1535,7 +1535,7 @@ function getTrustedProductCardTitle(item) {
     return "";
   }
 
-  const title = sanitizeProductTitleForCard(rawTitle);
+  const title = getVerifiedProductTitleCandidate(rawTitle);
   return title ? normalizeSlideText(title, 96) : "";
 }
 
@@ -2065,7 +2065,7 @@ function sanitizeProductOverlayDescriptor(value) {
 }
 
 function sanitizeProductOverlayTitle(value) {
-  const text = sanitizeProductTitleForCard(value);
+  const text = getVerifiedProductTitleCandidate(value);
   return looksLikeStorefrontNavigationText(text) ? "" : text;
 }
 
@@ -3915,8 +3915,21 @@ async function makeCompleteGeneratingDraftVisible({ supabase, post }) {
   return true;
 }
 
-function getLanguageInstruction(language) {
+function getLanguageInstruction(language, { followUserInstructionLanguage = false } = {}) {
   const normalizedLanguage = normalizeSingleContentLanguage(language, "English");
+
+  if (followUserInstructionLanguage && (!language || language === "Auto")) {
+    return `
+Language: Detect and use the language of the user's instruction.
+
+Important language rule:
+- Write the finished post in the same natural language as the User instruction below.
+- Do not switch to the Brand profile language merely because the brand normally publishes in another language.
+- Keep exact brand/model/product names unchanged when needed.
+- If the user's instruction genuinely mixes languages, use the dominant language of the instruction.
+- Do not mix multiple languages in the finished post unless the user's instruction explicitly asks for that.
+`.trim();
+  }
 
   if (!language || language === "Auto") {
     return `
@@ -3947,6 +3960,27 @@ Important language rule:
 - Write the final post in ${normalizedLanguage}.
 - Do not mix multiple languages in the same post.
 `.trim();
+}
+
+function getRuleLanguageInstruction(rule) {
+  return getLanguageInstruction(rule?.language, {
+    followUserInstructionLanguage:
+      String(rule?.content_type_id || "").trim() === "manual_prompt" &&
+      String(rule?.language || "").trim() === "Auto",
+  });
+}
+
+function getRuleVisualLanguageContext(rule) {
+  const manualPromptLanguage =
+    String(rule?.content_type_id || "").trim() === "manual_prompt" &&
+    String(rule?.language || "").trim() === "Auto";
+  if (manualPromptLanguage) {
+    return "Use the same language as the user's instruction and the finished post copy";
+  }
+  return normalizeSingleContentLanguage(
+    rule?.language || rule?.content_language || rule?.brand_profile?.content_language,
+    "English"
+  );
 }
 
 function formatBrandProfileForPrompt(brandProfile) {
@@ -4074,10 +4108,15 @@ function formatWebsiteItemForPrompt(websiteItem) {
     return "No specific website item was selected.";
   }
 
+  const verifiedTitle = resolveVerifiedProductTitle({
+    productName: websiteItem.title || websiteItem.item_title,
+    productUrl: websiteItem.url || websiteItem.item_url || websiteItem.product_url,
+  });
+
   return `
 Selected locked website product:
 Brand: ${websiteItem.product_brand || websiteItem.locked_product_brand || websiteItem.brand || "Not provided"}
-Title/model: ${websiteItem.title || "Not provided"}
+Title/model: ${verifiedTitle || "Not provided"}
 Customer-facing product type: ${websiteItem.product_display_type || websiteItem.display_product_type || websiteItem.locked_product_category || websiteItem.category || websiteItem.type || "Not provided"}
 Product identifier/SKU: ${websiteItem.product_identifier || websiteItem.locked_product_identifier || "Not provided"}
 Colour/variant: ${websiteItem.product_color || websiteItem.locked_product_color || websiteItem.color || "Not provided"}
@@ -4102,9 +4141,13 @@ function formatWebsiteItemsForPrompt(items = []) {
   const rows = (items || [])
     .slice(0, CAROUSEL_MAX_PRODUCT_SLIDES)
     .map((item, index) => {
+      const verifiedTitle = resolveVerifiedProductTitle({
+        productName: item.title || item.item_title,
+        productUrl: item.url || item.item_url || item.product_url,
+      });
       return `Product ${index + 1}:
 Brand: ${item.product_brand || item.locked_product_brand || item.brand || "Not provided"}
-Title/model: ${item.title || "Not provided"}
+Title/model: ${verifiedTitle || "Not provided"}
 Customer-facing product type: ${item.product_display_type || item.display_product_type || item.locked_product_category || item.category || item.type || "Not provided"}
 Product identifier/SKU: ${item.product_identifier || item.locked_product_identifier || "Not provided"}
 Colour/variant: ${item.product_color || item.locked_product_color || item.color || "Not provided"}
@@ -10712,6 +10755,109 @@ function sanitizeProductTitleForCard(value) {
   return title.replace(/[|·•\-–—,:;]+\s*$/g, "").trim();
 }
 
+function isGenericProductTitlePlaceholder(value) {
+  const normalized = decodeHtmlEntities(String(value || ""))
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[\s_\-–—:|/\\]+/g, " ")
+    .replace(/[.!?,;()[\]{}]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) return true;
+
+  const exactPlaceholders = new Set([
+    "image",
+    "photo",
+    "picture",
+    "product",
+    "product image",
+    "product photo",
+    "product picture",
+    "main image",
+    "main product image",
+    "product main image",
+    "featured image",
+    "default image",
+    "placeholder image",
+    "produkt",
+    "bild",
+    "produktbild",
+    "produkt bild",
+    "produktfoto",
+    "produkt foto",
+    "huvudbild",
+    "varubild",
+    "varebillede",
+    "produktbillede",
+    "produktbilde",
+    "tuotekuva",
+  ]);
+
+  if (exactPlaceholders.has(normalized)) return true;
+
+  return /^(?:(?:main|default|featured|primary)\s+)?(?:product\s+)?(?:image|photo|picture)(?:\s*#?\d+)?$/i.test(normalized) ||
+    /^(?:produkt\s*)?(?:bild|foto)(?:\s*#?\d+)?$/i.test(normalized);
+}
+
+function getVerifiedProductTitleCandidate(value) {
+  const cleaned = sanitizeProductTitleForCard(value);
+  return cleaned && !isGenericProductTitlePlaceholder(cleaned) ? cleaned : "";
+}
+
+function extractPrimaryProductHeading(html) {
+  const match = String(html || "").match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
+  if (!match?.[1]) return "";
+  return getVerifiedProductTitleCandidate(stripHtmlToText(match[1]));
+}
+
+function deriveProductTitleFromUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    let slug = decodeURIComponent(parsed.pathname.split("/").filter(Boolean).at(-1) || "")
+      .replace(/\.(?:html?|php|aspx?)$/i, "")
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const words = slug.split(/\s+/u).filter(Boolean);
+    if (words.length >= 4 && /^\d{1,2}$/.test(words.at(-1) || "")) {
+      words.pop();
+      slug = words.join(" ");
+    }
+
+    const cleaned = getVerifiedProductTitleCandidate(slug);
+    if (!cleaned) return "";
+    return cleaned.charAt(0).toLocaleUpperCase() + cleaned.slice(1);
+  } catch {
+    return "";
+  }
+}
+
+function resolveVerifiedProductTitle({
+  productName = "",
+  html = "",
+  metadataTitle = "",
+  researchTitle = "",
+  pageTitle = "",
+  productUrl = "",
+} = {}) {
+  const candidates = [
+    productName,
+    extractPrimaryProductHeading(html),
+    metadataTitle,
+    researchTitle,
+    pageTitle,
+  ];
+
+  for (const candidate of candidates) {
+    const cleaned = getVerifiedProductTitleCandidate(candidate);
+    if (cleaned) return cleaned;
+  }
+
+  return deriveProductTitleFromUrl(productUrl);
+}
+
 function getHostnameFromUrl(value) {
   try {
     return new URL(value).hostname.toLowerCase();
@@ -10877,7 +11023,7 @@ ${campaignIdentityLockText}
 ${authorizedCampaignOfferText}
 
 Platform: ${rule.platform || "Instagram"}
-${getLanguageInstruction(rule.language)}
+${getRuleLanguageInstruction(rule)}
 Tone: ${rule.tone || "Professional"}
 Post type: ${rule.post_type || "General post"}
 Length: ${rule.length || "Medium"}
@@ -11060,7 +11206,7 @@ Do not invent a different type of company than the one described in the Brand pr
 Platform: ${rule.platform || "Facebook"}
 Tone: ${rule.tone || "Professional"}
 Post type: ${rule.post_type || "General post"}
-Language context: ${rule.language || "Auto"}
+Language context: ${getRuleVisualLanguageContext(rule)}
 Website URL: ${rule.brand_profile?.website_url || "Not provided"}
 
 ${formatCampaignVisualContextForPrompt(rule)}
@@ -11231,7 +11377,7 @@ function getCarouselEmailSlideMetadata(slide) {
 
 function getCarouselEmailProductTitle(slide) {
   const metadata = getCarouselEmailSlideMetadata(slide);
-  const title = sanitizeProductTitleForCard(
+  const title = getVerifiedProductTitleCandidate(
     metadata.product_title || slide?.product_title || slide?.headline || ""
   );
   if (!title || String(metadata.carousel_slide_role || "").toLowerCase().includes("outro")) {
@@ -13399,6 +13545,17 @@ async function refreshEditorialBrandLogoConfig(supabase, rule, fallbackBrandProf
 function resolveAutomationPostLanguage(rule, brandProfile) {
   const requestedLanguage = String(rule?.language || "").trim();
   const analyzedLanguage = String(brandProfile?.content_language || "").trim();
+  const promptLanguageMode =
+    String(rule?.content_type_id || "").trim() === "manual_prompt" &&
+    /^(?:auto|automatic)$/i.test(requestedLanguage);
+
+  // Custom/manual posts keep the original prompt-language behavior without
+  // exposing an "Automatic" option in the normal AI-plan language picker.
+  // The planner stores Auto only as an internal marker when the user has not
+  // explicitly overridden the language for that custom post.
+  if (promptLanguageMode) {
+    return { language: "Auto", source: "manual_prompt_language" };
+  }
   const websiteUrl =
     brandProfile?.website_url ||
     brandProfile?.website_product_source_url ||
@@ -15672,11 +15829,15 @@ function createItemKey(item) {
 
 function normalizeWebsiteItem(item, websiteUrl) {
   const rawTitle = String(item?.title || "").trim();
-  const title = sanitizeProductTitleForCard(rawTitle) || rawTitle;
-  const description = String(item?.description || "").trim();
   const type = String(item?.type || "website_item").trim();
+  const description = String(item?.description || "").trim();
   const resolvedUrl = item?.url ? resolveUrl(item.url, websiteUrl) : websiteUrl;
   const url = resolvedUrl ? canonicalizeWebsiteProductUrl(resolvedUrl, websiteUrl) : websiteUrl;
+  const sanitizedTitle = sanitizeProductTitleForCard(rawTitle) || rawTitle;
+  const title =
+    type.toLowerCase() === "product"
+      ? resolveVerifiedProductTitle({ productName: sanitizedTitle, productUrl: url || resolvedUrl })
+      : sanitizedTitle;
   const normalizedRawImageUrl = normalizeShopifyImageWidthUrl(item?.image_url, 1600);
   const imageUrl = normalizedRawImageUrl ? resolveUrl(normalizedRawImageUrl, websiteUrl) : null;
 
@@ -23159,11 +23320,13 @@ function extractLockedProductObjectFromHtml({ html, pageUrl, websiteUrl }) {
     imageUrls.push(ogImage);
   }
 
-  const rawTitle =
-    String(product?.name || "").trim() ||
-    String(getMetaContent(html, ["og:title", "twitter:title"]) || "").trim() ||
-    String(extractPageTitle(html) || "").trim();
-  const title = sanitizeProductTitleForCard(rawTitle) || rawTitle;
+  const title = resolveVerifiedProductTitle({
+    productName: product?.name,
+    html,
+    metadataTitle: getMetaContent(html, ["og:title", "twitter:title"]),
+    pageTitle: extractPageTitle(html),
+    productUrl: canonicalUrl,
+  });
 
   // v144.38: Product Engine V2 may already have proven an exact Quickbutik
   // product from this same page via its main gallery even when the page lacks
@@ -23322,7 +23485,7 @@ async function extractProductDataFromProductPage({
 }) {
   let effectiveProductUrl = productUrl;
   let html = await fetchHtml(productUrl);
-  const expectedTitle = sanitizeProductTitleForCard(webSearchProduct?.title || "");
+  const expectedTitle = getVerifiedProductTitleCandidate(webSearchProduct?.title || "");
   let product = findBestJsonLdProduct(html, effectiveProductUrl, expectedTitle);
   let productSchemaFound = Boolean(product?.name || product?.offers || product?.image);
   let ecommerceProofFound = hasEcommerceProofText(html);
@@ -23420,11 +23583,14 @@ async function extractProductDataFromProductPage({
     return null;
   }
 
-  const rawTitle =
-    String(product?.name || "").trim() ||
-    String(webSearchProduct?.title || "").trim() ||
-    extractPageTitle(html);
-  const title = sanitizeProductTitleForCard(rawTitle) || rawTitle;
+  const title = resolveVerifiedProductTitle({
+    productName: product?.name,
+    html,
+    metadataTitle: getMetaContent(html, ["og:title", "twitter:title"]),
+    researchTitle: webSearchProduct?.title,
+    pageTitle: extractPageTitle(html),
+    productUrl: effectiveProductUrl,
+  });
 
   const metaDescription = getMetaContent(html, [
     "description",
@@ -27476,6 +27642,11 @@ Return only the required JSON structure.`.trim();
         normalizeComparableValue(imageSourcePageUrl) ===
           normalizeComparableValue(currentUrl)
     );
+    const repairedTitle = resolveVerifiedProductTitle({
+      productName: repairedProduct?.current_title,
+      researchTitle: selectedCandidate?.title,
+      productUrl: currentUrl,
+    });
     const exactIdentityRecovered = isRecoveredAuthoritativeProductIdentity({
       selectedCandidate,
       recoveredProduct: repairedProduct,
@@ -27505,6 +27676,7 @@ Return only the required JSON structure.`.trim();
       repairedProduct?.image_is_main_product_asset !== true ||
       !sameOpenedProductPage ||
       !String(repairedProduct?.identity_evidence || "").trim() ||
+      !repairedTitle ||
       ((!exactIdentityRecovered || !repairedProductConfirmedPurchasable) &&
         !safePurchasableReplacement)
     ) {
@@ -27530,9 +27702,7 @@ Return only the required JSON structure.`.trim();
     repairedRanks.add(originalRank);
     repairedCandidates.push({
       ...selectedCandidate,
-      title:
-        String(repairedProduct?.current_title || "").trim() ||
-        selectedCandidate.title,
+      title: repairedTitle,
       url: currentUrl,
       image_url: imageUrl,
       product_identifier:
@@ -27565,9 +27735,7 @@ Return only the required JSON structure.`.trim();
       exact_page_verified: true,
       locked_product_source: "gpt55_main_product_block",
       locked_product_url: currentUrl,
-      locked_product_title:
-        String(repairedProduct?.current_title || "").trim() ||
-        selectedCandidate.title,
+      locked_product_title: repairedTitle,
       locked_product_identifier:
         String(repairedProduct?.product_identifier || "").trim() || "",
       locked_product_brand: String(repairedProduct?.brand || "").trim(),
@@ -27589,7 +27757,7 @@ Return only the required JSON structure.`.trim();
       locked_product_fingerprint: buildLockedProductIdentityFingerprint({
         url: currentUrl,
         identifier: repairedProduct?.product_identifier,
-        title: repairedProduct?.current_title,
+        title: repairedTitle,
         primaryImageUrl: imageUrl,
       }),
       technical_identity_evidence: String(
@@ -27627,7 +27795,11 @@ function buildLockedProductFromVerifiedExactPageCandidate({
       candidate?.url || candidate?.product_url || candidate?.item_url,
       websiteUrl
     ) || String(candidate?.url || candidate?.product_url || candidate?.item_url || "").trim();
-  const title = String(candidate?.title || candidate?.item_title || "").trim();
+  const title = resolveVerifiedProductTitle({
+    productName: candidate?.locked_product_title,
+    researchTitle: candidate?.title || candidate?.item_title,
+    productUrl,
+  });
   const imageUrl = String(candidate?.image_url || candidate?.imageUrl || "").trim();
   const sourcePageUrl = String(candidate?.product_image_source_page_url || "").trim();
   const confidence = Number(candidate?.product_confidence || 0);
@@ -27801,9 +27973,11 @@ async function hydrateAuthoritativeWebAgentProduct({
     const repairedImage = String(
       candidate?.locked_product_primary_image_url || candidate?.image_url || ""
     ).trim();
-    const repairedTitle = String(
-      candidate?.locked_product_title || candidate?.title || ""
-    ).trim();
+    const repairedTitle = resolveVerifiedProductTitle({
+      productName: candidate?.locked_product_title,
+      researchTitle: candidate?.title,
+      productUrl: repairedUrl,
+    });
     const repairedSourcePage = String(
       candidate?.product_image_source_page_url || repairedUrl
     ).trim();
@@ -32561,7 +32735,7 @@ Selected website item:
 ${websiteItemText}
 
 Platform: ${rule.platform || "Instagram/Facebook"}
-${getLanguageInstruction(rule.language)}
+${getRuleLanguageInstruction(rule)}
 Tone: ${rule.tone || "Professional"}
 CTA type: ${rule.cta_type || "Soft CTA"}
 Destination URL: ${destinationUrl || "Not provided"}
@@ -32617,14 +32791,14 @@ function buildFallbackProductCarouselSlides(rule, products, postContent = "") {
   const productSlides = selectedProducts.map((product, index) => ({
     slide_type: index === 0 ? "product_hook" : "product",
     headline: normalizeSlideText(
-      sanitizeProductTitleForCard(product.title) || product.title || `Product ${index + 1}`,
+      resolveVerifiedProductTitle({ productName: product.title, productUrl: product.url }) || "",
       90
     ),
     body: "",
     cta_text: "",
     product_url: product.url || null,
     image_url: product.image_url || null,
-    product_title: product.title || null,
+    product_title: resolveVerifiedProductTitle({ productName: product.title, productUrl: product.url }) || null,
     product_identity_key: createItemKey(product),
   }));
 
@@ -32705,7 +32879,7 @@ Selected products for the carousel:
 ${productsText}
 
 Platform: ${rule.platform || "Instagram/Facebook"}
-${getLanguageInstruction(rule.language)}
+${getRuleLanguageInstruction(rule)}
 Tone: ${rule.tone || "Professional"}
 CTA type: ${rule.cta_type || "Soft CTA"}
 
@@ -32766,7 +32940,7 @@ Return JSON exactly in this shape:
         cta_text: normalizeSlideText(slide.cta_text || slide.cta || "", 80),
         product_url: product.url || null,
         image_url: product.image_url || null,
-        product_title: product.title || null,
+        product_title: resolveVerifiedProductTitle({ productName: product.title, productUrl: product.url }) || null,
         product_identity_key: createItemKey(product),
       };
     });
@@ -33403,10 +33577,9 @@ function deriveEditorialVisibleCopy(rule, postContent) {
   const rawTitle =
     rule?.website_item?.title ||
     rule?.website_item?.item_title ||
-    rule?.content_type_label ||
-    "Featured product";
+    "";
   const productName = normalizeEditorialVisibleCopyText(
-    sanitizeProductTitleForCard(rawTitle) || rawTitle,
+    getVerifiedProductTitleCandidate(rawTitle),
     110
   );
 
@@ -33481,9 +33654,10 @@ function buildWebsiteItemEditorialPostImagePrompt(
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
   const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
   const customVisualDirection = String(rule?.image_prompt || "").trim();
-  const productTitle = String(
+  const productTitle = getVerifiedProductTitleCandidate(
     rule?.website_item?.title || rule?.website_item?.item_title || ""
-  ).trim();
+  );
+  const hasVerifiedProductTitleForImage = Boolean(productTitle);
   const productBrand = String(
     rule?.website_item?.product_brand ||
       rule?.website_item?.brand ||
@@ -33494,24 +33668,35 @@ function buildWebsiteItemEditorialPostImagePrompt(
   const footerSafeZoneInstruction = `
 BOTTOM SAFE ZONE — ALWAYS REQUIRED:
 - Always reserve roughly the lowest 9–10% of the image as calm visual breathing room beneath the final text line.
-- The entire headline + product/model text stack must end comfortably ABOVE this bottom safe zone.
-- Do not place headline, product/model name, CTA, microcopy, badges or decorative text inside this lowest 9–10%.
+- The entire visible text stack must end comfortably ABOVE this bottom safe zone.
+- Do not place headline${hasVerifiedProductTitleForImage ? ", product/model name" : ""}, CTA, microcopy, badges or decorative text inside this lowest 9–10%.
 - Continue the background naturally through this area; do NOT draw a divider, card, panel, band, frame, placeholder or marked logo box.
 - This safe zone is required whether or not a brand logo is enabled.
 ${includeLogo ? "- A small brand logo will be overlaid later in the TOP-LEFT corner. Keep that corner visually calm and free of important product details, headline text or busy props. The bottom safe zone remains pure breathing room and is NOT the logo area." : "- No logo is enabled, but preserve the same 9–10% breathing room so the composition keeps the same balanced finish."}
 `.trim();
-  const exactCopyBlock = `
+  const exactCopyBlock = hasVerifiedProductTitleForImage
+    ? `
 VISIBLE COPY CONTRACT:
 - Headline: create exactly one short unique editorial headline in the same language as the post.
 - The headline must feel specific to this exact product and should not read like a generic slogan that could fit almost anything.
 - Prefer 2 to 5 words, at most 2 lines.
 - Do not reuse or paraphrase a generic opening line from the supplied post text when it feels broad, repetitive or storefront-like.
 - Avoid generic formulas such as "Built for...", "Made for...", "Ready to...", "Discover...", "Se och hitta...", "Klassisk stil..." or other vague all-purpose lines.
-- Product name/model, exact spelling: "${editorialCopy.productName || productTitle || "Featured product"}"
+- Product name/model, exact spelling: "${productTitle}"
 - Use exactly two visible text roles only: one original editorial headline and the exact product/model name.
 - Do not add a supporting sentence, third line of copy, CTA, URL, microcopy or filler text.
 - Do not invent alternate wording for any exact supplied product/model text.
 - Do not add extra slogans or spelling changes.
+`.trim()
+    : `
+VISIBLE COPY CONTRACT — PRODUCT NAME SAFETY FALLBACK:
+- Headline: create exactly one short unique editorial headline in the same language as the post.
+- The headline must feel specific to this exact product and should not read like a generic slogan that could fit almost anything.
+- Prefer 2 to 5 words, at most 2 lines.
+- The product-name field is missing, generic or placeholder-like. Do NOT display "Product image", "Product photo", "Image", "Produktbild" or any similar placeholder.
+- Do not invent, rewrite or guess a product/model name for the image.
+- Use exactly ONE visible text role: the editorial headline.
+- Do not add a supporting sentence, second product-name line, CTA, URL, microcopy or filler text.
 `.trim();
 
   if (nativeTransparent) {
@@ -33526,15 +33711,15 @@ ${brandProfileText}
 Verified website product:
 ${websiteItemText}
 
-Exact product name to preserve when shown:
-${productTitle || "Use the verified product name from the supplied website item."}
+Product-name display rule:
+${hasVerifiedProductTitleForImage ? `Exact verified product name to preserve when shown: ${productTitle}` : "No verified public product name is available. Do not invent or display a product-name line."}
 
 Product brand:
 ${productBrand || "Use only verified branding visible in the supplied product information."}
 
 Platform: ${rule.platform || "Instagram"}
 Tone: ${rule.tone || "Professional"}
-Language context: ${rule.language || rule?.content_language || "Auto"}
+Language context: ${getRuleVisualLanguageContext(rule)}
 Website URL: ${rule.brand_profile?.website_url || "Not provided"}
 
 ${formatCampaignVisualContextForPrompt(rule)}
@@ -33569,11 +33754,11 @@ AUTHORITATIVE PRODUCT-POST DESIGN CONTRACT:
 - Make the text treatment slightly smaller and more restrained than a typical loud ad poster so it supports the product instead of overpowering it.
 - Avoid oversized typography that spans almost the entire width or visually dominates the composition.
 - Keep the headline within a comfortable centered column, usually around half the image width rather than nearly edge to edge.
-- Keep the product/model line clearly smaller than the headline and compact, ideally on one line when possible.
+${hasVerifiedProductTitleForImage ? "- Keep the product/model line clearly smaller than the headline and compact, ideally on one line when possible." : "- Do not create a product/model line when no verified public product name is available."}
 - Avoid generic headline formulas like "Built for...", "Made for...", "Discover...", "Shop..." or storefront CTAs. When you need to create a headline, make it feel specific to this exact product.
-- Keep the visual copy concise and balanced: exactly 2 visible text roles total — headline + exact product/model name.
+${hasVerifiedProductTitleForImage ? "- Keep the visual copy concise and balanced: exactly 2 visible text roles total — headline + exact product/model name." : "- Keep the visual copy concise and balanced: exactly 1 visible text role total — the headline only."}
 - Create one original product-specific headline that feels tailored to this exact item rather than like a generic store slogan.
-- Show the exact verified product name/model clearly as its own readable element. Do not rename, abbreviate or translate the product name unless the verified website itself supplies that localized name.
+${hasVerifiedProductTitleForImage ? "- Show the exact verified product name/model clearly as its own readable element. Do not rename, abbreviate or translate the product name unless the verified website itself supplies that localized name." : "- Never substitute generic metadata such as Product image, Product photo, Image, Photo or Produktbild as customer-facing copy."}
 - Prefer fewer words over extra copy, but keep the overall text stack compact and slightly reduced in scale so the product stays dominant.
 - Keep the main text primarily in the lower portion of the 4:5 image so the product remains dominant and unobstructed.
 - Do not let the headline or product name sit behind the product, extend underneath the product, or get cut by the product silhouette.
@@ -33610,15 +33795,15 @@ ${brandProfileText}
 Verified website product:
 ${websiteItemText}
 
-Exact product name to preserve when shown:
-${productTitle || "Use the verified product name from the supplied website item."}
+Product-name display rule:
+${hasVerifiedProductTitleForImage ? `Exact verified product name to preserve when shown: ${productTitle}` : "No verified public product name is available. Do not invent or display a product-name line."}
 
 Product brand:
 ${productBrand || "Use only verified branding visible in the supplied product information."}
 
 Platform: ${rule.platform || "Instagram"}
 Tone: ${rule.tone || "Professional"}
-Language context: ${rule.language || rule?.content_language || "Auto"}
+Language context: ${getRuleVisualLanguageContext(rule)}
 Website URL: ${rule.brand_profile?.website_url || "Not provided"}
 
 ${formatCampaignVisualContextForPrompt(rule)}
@@ -33654,11 +33839,11 @@ AUTHORITATIVE PRODUCT-POST DESIGN CONTRACT:
 - Make the text treatment slightly smaller and more restrained than a typical loud ad poster so it supports the product instead of overpowering it.
 - Avoid oversized typography that spans almost the entire width or visually dominates the composition.
 - Keep the headline within a comfortable centered column, usually around half the image width rather than nearly edge to edge.
-- Keep the product/model line clearly smaller than the headline and compact, ideally on one line when possible.
+${hasVerifiedProductTitleForImage ? "- Keep the product/model line clearly smaller than the headline and compact, ideally on one line when possible." : "- Do not create a product/model line when no verified public product name is available."}
 - Avoid generic headline formulas like "Built for...", "Made for...", "Discover...", "Shop..." or storefront CTAs. When you need to create a headline, make it feel specific to this exact product.
-- Keep the visual copy concise and balanced: exactly 2 visible text roles total — headline + exact product/model name.
+${hasVerifiedProductTitleForImage ? "- Keep the visual copy concise and balanced: exactly 2 visible text roles total — headline + exact product/model name." : "- Keep the visual copy concise and balanced: exactly 1 visible text role total — the headline only."}
 - Create one original product-specific headline that feels tailored to this exact item rather than like a generic store slogan.
-- Show the exact verified product name/model clearly as its own readable element. Do not rename, abbreviate or translate the product name unless the verified website itself supplies that localized name.
+${hasVerifiedProductTitleForImage ? "- Show the exact verified product name/model clearly as its own readable element. Do not rename, abbreviate or translate the product name unless the verified website itself supplies that localized name." : "- Never substitute generic metadata such as Product image, Product photo, Image, Photo or Produktbild as customer-facing copy."}
 - Prefer fewer words over extra copy, but keep the overall text stack compact and slightly reduced in scale so the product stays dominant.
 - Keep the main text primarily in the lower portion of the 4:5 image so the product remains dominant and unobstructed.
 - Do not let the headline or product name sit behind the product, extend underneath the product, or get cut by the product silhouette.
@@ -33671,8 +33856,8 @@ AUTHORITATIVE PRODUCT-POST DESIGN CONTRACT:
 - Keep the background continuous and natural through the safe zone; it is breathing room, not a separate footer panel.
 - When a logo is enabled, keep a small calm TOP-LEFT corner for the later local logo overlay. Do not reserve the bottom safe zone for the logo.
 - No CTA button, no "SHOP NOW", no fake UI, no price, no star rating, no invented discount, no invented guarantee, no invented material/specification and no unsupported performance claim.
-- Exactly two visible text roles means exactly two: the headline and the product/model name, nothing else.
-- Do not add a third tiny descriptive row under the product name.
+${hasVerifiedProductTitleForImage ? "- Exactly two visible text roles means exactly two: the headline and the product/model name, nothing else." : "- Exactly one visible text role means exactly one: the headline only. Do not invent a product-name line."}
+- Do not add a tiny descriptive or placeholder row beneath the visible text.
 - If an exact authorized customer-supplied campaign offer is explicitly present in the campaign context, it may be shown exactly as supplied and must not be altered.
 - Do not put text inside white cards, opaque panels, labels, capsules or large text boxes. Typography should feel integrated directly into the design.
 - Do not add unrelated sellable products or accessories that could be mistaken for items from the customer's catalog.
@@ -33687,12 +33872,13 @@ Return only the finished image.
 
 function buildWebsiteItemEditorialTypographyOverlayPrompt(rule, postContent) {
   const editorialCopy = deriveEditorialVisibleCopy(rule, postContent);
-  const productTitle = String(
+  const productTitle = getVerifiedProductTitleCandidate(
     editorialCopy.productName ||
       rule?.website_item?.title ||
       rule?.website_item?.item_title ||
-      "Featured product"
-  ).trim();
+      ""
+  );
+  const hasVerifiedProductTitleForImage = Boolean(productTitle);
   const brandProfileText = formatBrandProfileForPrompt(rule?.brand_profile || {});
   const websiteItemText = formatWebsiteItemForPrompt(rule?.website_item || {});
 
@@ -33716,17 +33902,19 @@ EXACT VISIBLE TYPOGRAPHY:
 - Create exactly one short, unique editorial headline in the same language as the post; normally 2–5 words and at most 2 lines.
 - Make the headline feel specific to this exact product, not like a broad store slogan.
 - Avoid generic formulas such as "Built for...", "Made for...", "Ready to...", "Discover...", "Se och hitta..." or "Klassisk stil...".
-- Product/model name, exact spelling: "${productTitle}"
+${hasVerifiedProductTitleForImage ? `- Product/model name, exact spelling: "${productTitle}"
 - There are exactly TWO text roles: headline + product/model name.
-- Do NOT add a supporting sentence, third copy line, CTA, website URL, hashtags, price, rating, offer, microcopy or filler.
-- Preserve exact supplied spelling for the product/model name. Do not rewrite or translate the exact product/model name.
+- Preserve exact supplied spelling for the product/model name. Do not rewrite or translate the exact product/model name.` : `- No verified public product/model name is available.
+- There is exactly ONE text role: the headline only.
+- Never render placeholder metadata such as "Product image", "Product photo", "Image", "Photo" or "Produktbild".`}
+- Do NOT add a supporting sentence, extra copy line, CTA, website URL, hashtags, price, rating, offer, microcopy or filler.
 
 TRANSPARENT TYPOGRAPHY CONTRACT:
 - Output a square transparent RGBA typography asset.
 - Every pixel outside the letters and very small typography-supporting accents must remain fully transparent.
 - No photo, background, product, person, logo, watermark, frame, panel, card, badge, label, capsule, box, banner, rectangle or opaque plate.
 - Keep the typography as one balanced centered stack.
-- Headline is the primary visual element; product/model name is clearly readable beneath it.
+${hasVerifiedProductTitleForImage ? "- Headline is the primary visual element; product/model name is clearly readable beneath it." : "- Headline is the only visible text element."}
 - Keep the headline narrower than the canvas, ideally 2–5 words and at most 2 lines.
 - Use premium typography that genuinely fits the exact product and reference image: refined serif, modern geometric sans, condensed display, editorial type or another professional treatment.
 - Avoid generic CTA-style headline formulas such as "Built for...", "Made for...", "Discover...", "Shop..." or "Se produkten...".
@@ -34146,7 +34334,7 @@ ${websiteItemText}
 
 Platform: ${rule.platform || "Facebook"}
 Tone: ${rule.tone || "Professional"}
-Language context: ${rule.language || "Auto"}
+Language context: ${getRuleVisualLanguageContext(rule)}
 Website URL: ${rule.brand_profile?.website_url || "Not provided"}
 
 ${formatCampaignVisualContextForPrompt(rule)}
@@ -36671,7 +36859,7 @@ function buildKlingAdvertisingOverlayCopy({ postContent, websiteItem }) {
     .filter(Boolean);
   const firstCaptionLine = captionLines[0] || "";
   let headline = cleanKlingOverlayTextLine(firstCaptionLine, 7, 58);
-  const productTitle = sanitizeProductTitleForCard(
+  const productTitle = getVerifiedProductTitleCandidate(
     websiteItem?.title || websiteItem?.item_title || ""
   );
   if (!headline) {

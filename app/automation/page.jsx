@@ -2966,7 +2966,7 @@ function formatDateTime(value, timeZone = DEFAULT_TIME_ZONE, locale = undefined)
 }
 
 function formatLanguage(value) {
-  if (!value || value === "Auto") return "Auto-detect from prompt";
+  if (!value || value === "Auto") return "English";
   return value;
 }
 
@@ -6104,7 +6104,7 @@ export default function AutomationPage() {
   const plannerUiCopy = {
     planSummary: t("automation.planSummary"),
     readyToCreate: t("automation.readyToCreate"),
-    spreeloChoosesLanguage: getAutoPostLanguageLabel(),
+    spreeloChoosesLanguage: getLanguageDisplayLabel(language),
     platformHelp: t("automation.platformHelp"),
     languageForPosts: t("automation.languageForPosts"),
     repeatFull: t("automation.repeatFull"),
@@ -6127,13 +6127,15 @@ export default function AutomationPage() {
     return plannerUiCopy[key] || t(`automation.${key}`);
   }
 
-  function getAutoPostLanguageLabel() {
-    return t("automation.languageAutoBrandDefault");
-  }
-
   function getLanguageDisplayLabel(value) {
-    if (value === "Auto") return getAutoPostLanguageLabel();
-    const normalizedLanguage = normalizeSingleContentLanguage(value, "English");
+    const fallbackLanguage = normalizeSingleContentLanguage(
+      currentBrandProfile?.content_language || "English",
+      "English"
+    );
+    const normalizedLanguage = normalizeSingleContentLanguage(
+      value && value !== "Auto" ? value : fallbackLanguage,
+      fallbackLanguage
+    );
     return SUPPORTED_CONTENT_LANGUAGES.find((item) => item.language === normalizedLanguage)?.nativeName || normalizedLanguage;
   }
 
@@ -6384,20 +6386,14 @@ useEffect(() => {
 }, []);
 
   const [tone, setTone] = useState("Friendly");
-  const [language, setLanguage] = useState("Auto");
-const baseLanguageOptions = [
-  { value: "Auto", label: getAutoPostLanguageLabel() },
-  ...SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
-    value: item.language,
-    label: item.nativeName || item.language,
-  })),
-];
-const languageOptions = baseLanguageOptions.filter((option, index, options) => {
-  if (option.value === "Auto") return true;
-  return !options.slice(0, index).some(
-    (earlierOption) => earlierOption.label === option.label
-  );
-});
+  const [language, setLanguage] = useState("English");
+  const [languageExplicitlyChosen, setLanguageExplicitlyChosen] = useState(false);
+const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
+  value: item.language,
+  label: item.nativeName || item.language,
+})).filter((option, index, options) =>
+  !options.slice(0, index).some((earlierOption) => earlierOption.label === option.label)
+);
   const [postType, setPostType] = useState("Offer");
   const [length, setLength] = useState("Medium");
   const [ctaType, setCtaType] = useState("Learn more");
@@ -8043,7 +8039,15 @@ async function loadCampaignOpportunityIntoPlanner({
   setPlanCreationMode("campaign");
   setScheduleType("once");
   setPlanName(campaign.title || t("automation.planMode.campaign"));
-  setLanguage(campaign.language ? normalizeSingleContentLanguage(campaign.language, "English") : defaultContentLanguage ? normalizeSingleContentLanguage(defaultContentLanguage, "English") : "Auto");
+  const campaignLanguage = String(campaign.language || "").trim();
+  setLanguage(
+    campaignLanguage && campaignLanguage !== "Auto"
+      ? normalizeSingleContentLanguage(campaignLanguage, "English")
+      : defaultContentLanguage
+        ? normalizeSingleContentLanguage(defaultContentLanguage, "English")
+        : "English"
+  );
+  setLanguageExplicitlyChosen(false);
   setPostType("Campaign");
   setTone("Friendly");
   setCtaType("Learn more");
@@ -8215,8 +8219,9 @@ if (brandProfileError) {
   setCurrentBrandProfile(brandProfileData || null);
   const brandDefaultPostLanguage = brandProfileData?.content_language
     ? normalizeSingleContentLanguage(brandProfileData.content_language, "English")
-    : "Auto";
+    : "English";
   setLanguage(brandDefaultPostLanguage);
+  setLanguageExplicitlyChosen(false);
   setOfferCurrency(inferOfferCurrency(brandProfileData, locale));
   setFocusSource(null);
   setFocusSourceInput("");
@@ -9544,7 +9549,11 @@ function toggleContentType(typeId) {
     setPlanName(firstRule.name || "");
     setPlatform(firstRule.platform || "");
     setTone(firstRule.tone || "Friendly");
-    setLanguage(firstRule.language ? normalizeSingleContentLanguage(firstRule.language, "English") : "Auto");
+    const firstRuleUsesPromptLanguage = String(firstRule.language || "").trim() === "Auto";
+    setLanguage(firstRuleUsesPromptLanguage
+      ? normalizeSingleContentLanguage(currentBrandProfile?.content_language || "English", "English")
+      : normalizeSingleContentLanguage(firstRule.language || currentBrandProfile?.content_language || "English", "English"));
+    setLanguageExplicitlyChosen(!firstRuleUsesPromptLanguage);
     setPostType(firstRule.post_type || "Offer");
     setLength(firstRule.length || "Medium");
     setCtaType(firstRule.cta_type || "Learn more");
@@ -9672,7 +9681,11 @@ function toggleContentType(typeId) {
     setPlanName(rule.name || "");
     setPlatform(rule.platform || "");
     setTone(rule.tone || "Friendly");
-    setLanguage(rule.language ? normalizeSingleContentLanguage(rule.language, "English") : "Auto");
+    const ruleUsesPromptLanguage = String(rule.language || "").trim() === "Auto";
+    setLanguage(ruleUsesPromptLanguage
+      ? normalizeSingleContentLanguage(currentBrandProfile?.content_language || "English", "English")
+      : normalizeSingleContentLanguage(rule.language || currentBrandProfile?.content_language || "English", "English"));
+    setLanguageExplicitlyChosen(!ruleUsesPromptLanguage);
     setPostType(rule.post_type || "Offer");
     setLength(rule.length || "Medium");
     setCtaType(rule.cta_type || "Learn more");
@@ -10060,7 +10073,10 @@ ${slot.campaignSummary}`
     : slot.prompt,
         platform: slotPlatform || platform,
         tone,
-        language: language === "Auto" ? language : normalizeSingleContentLanguage(language, "English"),
+        language:
+          slot.contentTypeId === "manual_prompt" && !languageExplicitlyChosen
+            ? "Auto"
+            : normalizeSingleContentLanguage(language, "English"),
         post_type: postType,
         length,
         cta_type: ctaType,
@@ -10466,7 +10482,8 @@ ${slot.campaignSummary}`
       });
 
 setPlanName("");
-setLanguage(currentBrandProfile?.content_language ? normalizeSingleContentLanguage(currentBrandProfile.content_language, "English") : "Auto");
+setLanguage(currentBrandProfile?.content_language ? normalizeSingleContentLanguage(currentBrandProfile.content_language, "English") : "English");
+setLanguageExplicitlyChosen(false);
 
 setRules((currentRules) =>
   sortAutomationRules([...(insertedRules || []), ...currentRules])
@@ -10613,7 +10630,8 @@ setRules((currentRules) =>
   setSlots([]);
 
   setPlanName("");
-  setLanguage(currentBrandProfile?.content_language ? normalizeSingleContentLanguage(currentBrandProfile.content_language, "English") : "Auto");
+  setLanguage(currentBrandProfile?.content_language ? normalizeSingleContentLanguage(currentBrandProfile.content_language, "English") : "English");
+setLanguageExplicitlyChosen(false);
   setTone("Friendly");
   setPostType("Offer");
   setLength("Medium");
@@ -11053,7 +11071,7 @@ function blockFormatCardClickAfterDrag(event) {
                           <small>{plannerSectionCopy.languageHelp}</small>
                         </span>
                         <span className="sp85-control sp85-select-control">
-                          <select className="sp85-native-select" value={language} onChange={(event) => setLanguage(event.target.value)}>
+                          <select className="sp85-native-select" value={language} onChange={(event) => { setLanguage(event.target.value); setLanguageExplicitlyChosen(true); }}>
                             {languageOptions.map((option) => (
                               <option value={option.value} key={`${option.value}-${option.label}`}>
                                 {option.label}
@@ -11880,7 +11898,7 @@ function blockFormatCardClickAfterDrag(event) {
                       </div>
                       <label className="campaign-v14395-control campaign-v14395-language">
                         <span>{t("automation.redesign.postLanguage")}</span>
-                        <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+                        <select value={language} onChange={(event) => { setLanguage(event.target.value); setLanguageExplicitlyChosen(true); }}>
                           {languageOptions.map((option) => <option value={option.value} key={`campaign-language-${option.value}`}>{option.label}</option>)}
                         </select>
                       </label>
@@ -13160,7 +13178,7 @@ function blockFormatCardClickAfterDrag(event) {
     </div>
     <select
       value={language}
-      onChange={(event) => setLanguage(event.target.value)}
+      onChange={(event) => { setLanguage(event.target.value); setLanguageExplicitlyChosen(true); }}
     >
       {languageOptions.map((option) => (
         <option key={option.value} value={option.value}>

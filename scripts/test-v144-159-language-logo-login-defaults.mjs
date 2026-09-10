@@ -22,7 +22,7 @@ assert.ok(automation.includes('SUPPORTED_CONTENT_LANGUAGES.map((item)'), "AI Con
 assert.ok(automation.includes('content_market, content_language"'), "AI Content Studio must load the current brand default content language");
 assert.ok(automation.includes("const brandDefaultPostLanguage = brandProfileData?.content_language"), "New plans must inherit the brand default post language");
 assert.ok(automation.includes('defaultContentLanguage: brandProfileData?.content_language || ""'), "Campaign handoff must receive the brand default language");
-assert.ok(automation.includes('t("automation.languageAutoBrandDefault")'), "The automatic fallback option must be clearly named instead of impersonating the app language");
+assert.ok(!automation.includes('{ value: "Auto"'), "AI-plan language menu must not reintroduce a visible Automatic option in later versions");
 assert.ok(!automation.includes('{ value: "Svenska", label: "Svenska" }'), "The old hand-maintained short language list must be removed");
 
 const brand = read("app/brand/page.jsx");

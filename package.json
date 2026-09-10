@@ -197,7 +197,8 @@
     "test:v144.156": "node scripts/test-v144-156-admin-command-center.mjs",
     "test:v144.157": "node scripts/test-v144-157-persistent-i18n-integrity.mjs",
     "test:v144.158": "node scripts/test-v144-158-social-channels-regression-fix.mjs",
-    "test:v144.159": "node scripts/test-v144-159-language-logo-login-defaults.mjs"
+    "test:v144.159": "node scripts/test-v144-159-language-logo-login-defaults.mjs",
+    "test:v144.160": "node scripts/test-v144-160-language-product-title-safety.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",
