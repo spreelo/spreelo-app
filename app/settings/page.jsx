@@ -6,6 +6,8 @@ import StripeBillingPanel from "../../components/StripeBillingPanel";
 import SettingsPanels from "../../components/SettingsPanels";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
+import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
+import { SUPPORTED_CONTENT_LANGUAGES } from "../../lib/languageCatalog.js";
 import {
   Bell,
   ChevronRight,
@@ -101,6 +103,8 @@ export default function Settings() {
   const [publishingTimeZoneDraft, setPublishingTimeZoneDraft] = useState("Europe/Stockholm");
   const [savingTimeZone, setSavingTimeZone] = useState(false);
   const [currentBrandProfile, setCurrentBrandProfile] = useState(null);
+  const [defaultPostLanguageDraft, setDefaultPostLanguageDraft] = useState("English");
+  const [savingDefaultPostLanguage, setSavingDefaultPostLanguage] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteReasonDetails, setDeleteReasonDetails] = useState("");
@@ -168,13 +172,14 @@ export default function Settings() {
           : "";
         const { data: brandRows } = await supabase
           .from("brand_profiles")
-          .select("id, business_name, website_url, is_default, created_at")
+          .select("id, business_name, website_url, content_language, is_default, created_at")
           .eq("user_id", user.id)
           .order("is_default", { ascending: false })
           .order("created_at", { ascending: true });
         const brands = brandRows || [];
         const brandData = brands.find((brand) => brand.id === selectedBrandId) || brands[0] || null;
         setCurrentBrandProfile(brandData);
+        setDefaultPostLanguageDraft(normalizeSingleContentLanguage(brandData?.content_language || "English", "English"));
         const { data: creditData } = await supabase
           .from("user_credit_balances")
           .select("credits_remaining, monthly_credit_limit, plan_name, subscription_status, subscription_plan, current_period_end, credits_renewed_at, next_credit_refresh_at, cancel_at_period_end, payment_provider, provider_customer_id, provider_subscription_id, subscription_price_amount, subscription_currency, subscription_interval, subscription_price_lookup_key, purchased_credits_remaining, trial_start, trial_end, pending_subscription_plan, pending_subscription_lookup_key, pending_subscription_effective_at, provider_subscription_schedule_id")
@@ -252,6 +257,37 @@ export default function Settings() {
       // fall back to brand/content language if user metadata cannot be updated.
     } finally {
       setSavingLanguage(false);
+    }
+  }
+
+  async function handleDefaultPostLanguageChange(nextLanguage) {
+    if (!nextLanguage || savingDefaultPostLanguage || !currentUser?.id || !currentBrandProfile?.id) return;
+
+    const normalizedLanguage = normalizeSingleContentLanguage(nextLanguage, "English");
+    setSavingDefaultPostLanguage(true);
+    setProfileMessage("");
+
+    try {
+      const { data, error } = await supabase
+        .from("brand_profiles")
+        .update({
+          content_language: normalizedLanguage,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", currentBrandProfile.id)
+        .eq("user_id", currentUser.id)
+        .select("id, business_name, website_url, content_language, is_default, created_at")
+        .single();
+
+      if (error) throw error;
+
+      setCurrentBrandProfile(data || { ...currentBrandProfile, content_language: normalizedLanguage });
+      setDefaultPostLanguageDraft(normalizedLanguage);
+      setProfileMessage(t("settings.defaultPostLanguageSaved"));
+    } catch (error) {
+      setProfileMessage(error?.message || t("settings.defaultPostLanguageSaveError"));
+    } finally {
+      setSavingDefaultPostLanguage(false);
     }
   }
 
@@ -535,6 +571,12 @@ export default function Settings() {
           recommendedLocale={recommendedLocale}
           savingLanguage={savingLanguage}
           handleLanguageChange={handleLanguageChange}
+          defaultPostLanguageDraft={defaultPostLanguageDraft}
+          setDefaultPostLanguageDraft={setDefaultPostLanguageDraft}
+          savedDefaultPostLanguage={normalizeSingleContentLanguage(currentBrandProfile?.content_language || "English", "English")}
+          savingDefaultPostLanguage={savingDefaultPostLanguage}
+          handleDefaultPostLanguageChange={handleDefaultPostLanguageChange}
+          supportedContentLanguages={SUPPORTED_CONTENT_LANGUAGES}
           publishingTimeZone={publishingTimeZone}
           publishingTimeZoneDraft={publishingTimeZoneDraft}
           setPublishingTimeZoneDraft={setPublishingTimeZoneDraft}

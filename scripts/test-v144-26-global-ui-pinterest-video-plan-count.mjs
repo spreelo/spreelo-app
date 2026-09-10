@@ -31,7 +31,7 @@ assert(SUPPORTED_UI_LOCALES.some((item) => item.locale === "zh"), "Simplified Ch
 assert(page.includes('label: translateContentTypeShortLabel(type)'), "Built-in format labels must come from UI translations.");
 assert(page.includes('String(locale || "en").toLowerCase() === "en" ? config.display_label : ""'), "Raw DB labels may only be used by the English workspace.");
 assert(page.includes('Never leak the English source/config text into a non-English workspace'), "Non-English UI must fail closed instead of leaking English.");
-assert(page.includes('SUPPORTED_UI_LOCALES.find('), "Auto-language labels must use the canonical locale catalog, not a partial hand-written map.");
+assert(page.includes('SUPPORTED_CONTENT_LANGUAGES.find('), "Post-language labels must use the shared canonical language catalog, not a partial hand-written map.");
 assert(uiHook.includes('TRANSLATION_CACHE_VERSION = "v26"'), "The UI translation cache must be bumped after the language-boundary fix.");
 
 

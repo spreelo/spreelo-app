@@ -60,8 +60,8 @@ import AppLayout from "../../components/AppLayout";
 import PlanLimitModal from "../../components/PlanLimitModal";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
-import { SUPPORTED_UI_LOCALES } from "../../lib/i18n/defaultLabels";
 import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
+import { SUPPORTED_CONTENT_LANGUAGES } from "../../lib/languageCatalog.js";
 import { getCreditCostForContent } from "../../lib/credits";
 import { getConfiguredContentCreditCost } from "../../lib/contentEconomics";
 import { parsePlanLimitDatabaseError } from "../../lib/planEntitlements";
@@ -6128,19 +6128,13 @@ export default function AutomationPage() {
   }
 
   function getAutoPostLanguageLabel() {
-    const normalizedLocale = String(locale || "en").trim().toLowerCase().split("-")[0];
-    const localeEntry = SUPPORTED_UI_LOCALES.find(
-      (item) => String(item.locale || "").toLowerCase() === normalizedLocale
-    );
-
-    // The Auto option follows the current workspace language. Using the canonical
-    // locale catalog prevents newer UI languages from silently falling back to
-    // the word "English" in the Content Studio.
-    return localeEntry?.nativeName || localeEntry?.language || "English";
+    return t("automation.languageAutoBrandDefault");
   }
 
   function getLanguageDisplayLabel(value) {
-    return value === "Auto" ? getAutoPostLanguageLabel() : value;
+    if (value === "Auto") return getAutoPostLanguageLabel();
+    const normalizedLanguage = normalizeSingleContentLanguage(value, "English");
+    return SUPPORTED_CONTENT_LANGUAGES.find((item) => item.language === normalizedLanguage)?.nativeName || normalizedLanguage;
   }
 
   function getPlatformIconLabel(value) {
@@ -6393,21 +6387,10 @@ useEffect(() => {
   const [language, setLanguage] = useState("Auto");
 const baseLanguageOptions = [
   { value: "Auto", label: getAutoPostLanguageLabel() },
-  { value: "Svenska", label: "Svenska" },
-  { value: "English", label: "English" },
-  { value: "Dansk", label: "Dansk" },
-  { value: "Norsk", label: "Norsk" },
-  { value: "Deutsch", label: "Deutsch" },
-  { value: "Español", label: "Español" },
-  { value: "Français", label: "Français" },
-  { value: "Italiano", label: "Italiano" },
-  { value: "Nederlands", label: "Nederlands" },
-  { value: "Português", label: "Português" },
-  { value: "Suomi", label: "Suomi" },
-  { value: "Polski", label: "Polski" },
-  { value: "العربية", label: "العربية" },
-  { value: "日本語", label: "日本語" },
-  { value: "中文", label: "中文" },
+  ...SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
+    value: item.language,
+    label: item.nativeName || item.language,
+  })),
 ];
 const languageOptions = baseLanguageOptions.filter((option, index, options) => {
   if (option.value === "Auto") return true;
@@ -7778,6 +7761,7 @@ async function loadCampaignOpportunityIntoPlanner({
   selectedBrandId,
   campaignOpportunityId,
   selectedTimeZone,
+  defaultContentLanguage = "",
 }) {
   if (!campaignOpportunityId) {
     return false;
@@ -8059,7 +8043,7 @@ async function loadCampaignOpportunityIntoPlanner({
   setPlanCreationMode("campaign");
   setScheduleType("once");
   setPlanName(campaign.title || t("automation.planMode.campaign"));
-  setLanguage(campaign.language ? normalizeSingleContentLanguage(campaign.language, "English") : "Auto");
+  setLanguage(campaign.language ? normalizeSingleContentLanguage(campaign.language, "English") : defaultContentLanguage ? normalizeSingleContentLanguage(defaultContentLanguage, "English") : "Auto");
   setPostType("Campaign");
   setTone("Friendly");
   setCtaType("Learn more");
@@ -8219,7 +8203,7 @@ if (!selectedBrandId) {
 
 const { data: brandProfileData, error: brandProfileError } = await supabase
   .from("brand_profiles")
-  .select("id, business_name, website_url, website_product_source_url, website_product_mode_available, logo_url, logo_enabled_by_default, country_code, content_market")
+  .select("id, business_name, website_url, website_product_source_url, website_product_mode_available, logo_url, logo_enabled_by_default, country_code, content_market, content_language")
   .eq("id", selectedBrandId)
   .eq("user_id", user.id)
   .maybeSingle();
@@ -8229,6 +8213,10 @@ if (brandProfileError) {
   setCurrentBrandProfile(null);
 } else {
   setCurrentBrandProfile(brandProfileData || null);
+  const brandDefaultPostLanguage = brandProfileData?.content_language
+    ? normalizeSingleContentLanguage(brandProfileData.content_language, "English")
+    : "Auto";
+  setLanguage(brandDefaultPostLanguage);
   setOfferCurrency(inferOfferCurrency(brandProfileData, locale));
   setFocusSource(null);
   setFocusSourceInput("");
@@ -8284,6 +8272,7 @@ if (campaignOpportunityId) {
     selectedBrandId,
     campaignOpportunityId,
     selectedTimeZone: workspaceTimeZone,
+    defaultContentLanguage: brandProfileData?.content_language || "",
   });
 
   setCampaignDebugInfo((current) => ({
@@ -10477,7 +10466,7 @@ ${slot.campaignSummary}`
       });
 
 setPlanName("");
-setLanguage("Auto");
+setLanguage(currentBrandProfile?.content_language ? normalizeSingleContentLanguage(currentBrandProfile.content_language, "English") : "Auto");
 
 setRules((currentRules) =>
   sortAutomationRules([...(insertedRules || []), ...currentRules])
@@ -10624,7 +10613,7 @@ setRules((currentRules) =>
   setSlots([]);
 
   setPlanName("");
-  setLanguage("Auto");
+  setLanguage(currentBrandProfile?.content_language ? normalizeSingleContentLanguage(currentBrandProfile.content_language, "English") : "Auto");
   setTone("Friendly");
   setPostType("Offer");
   setLength("Medium");

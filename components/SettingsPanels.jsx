@@ -29,6 +29,12 @@ export default function SettingsPanels({
   recommendedLocale,
   savingLanguage,
   handleLanguageChange,
+  defaultPostLanguageDraft,
+  setDefaultPostLanguageDraft,
+  savedDefaultPostLanguage,
+  savingDefaultPostLanguage,
+  handleDefaultPostLanguageChange,
+  supportedContentLanguages = [],
   planName,
   onDeleteAccount,
   publishingTimeZone,
@@ -137,11 +143,24 @@ export default function SettingsPanels({
       <section className="settings-reference-workspace settings-ref-language settings-ref-language-factual">
         <div className="settings-ref-language-card">
           <div className="settings-ref-language-section app-language"><div><h2>{t("settings.appLanguageHeading")}</h2><p>{t("settings.appLanguageDescription")}</p></div><label className="settings-ref-language-select"><span>{t("settings.chooseLanguage")}</span><select value={recommendedLocale} onChange={(event) => handleLanguageChange(event.target.value)} disabled={savingLanguage}>{SUPPORTED_UI_LOCALES.map((item) => <option key={item.locale} value={item.locale}>{item.nativeName || item.language}</option>)}</select><small>{savingLanguage ? t("settings.savingLanguage") : t("settings.languageSavedText")}</small></label></div>
-          <div className="settings-ref-language-section guidance"><div><h2>{t("settings.marketContentLanguage")}</h2><p>{t("settings.marketContentLanguageText")}</p></div><a href="/brand"><span><strong>{t("settings.openBrandProfile")}</strong><small>{t("settings.openBrandProfileText")}</small></span><ArrowRight /></a></div>
+          <div className="settings-ref-language-section default-post-language">
+            <div><h2>{t("settings.defaultPostLanguageHeading")}</h2><p>{t("settings.defaultPostLanguageDescription", { brandName: currentBrandName || t("settings.currentBrandFallback") })}</p></div>
+            <div className="settings-ref-language-select">
+              <label>
+                <span>{t("settings.choosePostLanguage")}</span>
+                <select value={defaultPostLanguageDraft} onChange={(event) => setDefaultPostLanguageDraft(event.target.value)} disabled={savingDefaultPostLanguage || !currentBrandName}>
+                  {supportedContentLanguages.map((item) => <option key={item.locale} value={item.language}>{item.nativeName || item.language}</option>)}
+                </select>
+              </label>
+              <button type="button" className="settings-ref-timezone-save" onClick={() => handleDefaultPostLanguageChange(defaultPostLanguageDraft)} disabled={savingDefaultPostLanguage || !currentBrandName || defaultPostLanguageDraft === savedDefaultPostLanguage}>{savingDefaultPostLanguage ? t("settings.savingDefaultPostLanguage") : defaultPostLanguageDraft === savedDefaultPostLanguage ? t("settings.defaultPostLanguageSavedShort") : t("settings.saveDefaultPostLanguage")}</button>
+              <small>{t("settings.defaultPostLanguageHelp")}</small>
+              <a className="settings-ref-inline-brand-link" href="/brand"><span><strong>{t("settings.openBrandProfile")}</strong><small>{t("settings.openBrandProfileText")}</small></span><ArrowRight /></a>
+            </div>
+          </div>
           <div className="settings-ref-language-section publishing-timezone"><div><h2>{t("settings.publishingTimeZone")}</h2><p>{t("settings.publishingTimeZoneText")}</p></div><div className="settings-ref-language-select"><label><span>{t("settings.workspaceTimeZone")}</span><select value={publishingTimeZoneDraft} onChange={(event) => setPublishingTimeZoneDraft(event.target.value)} aria-busy={savingTimeZone}>{Array.from(new Set([publishingTimeZoneDraft, ...publishingTimeZoneOptions].filter(Boolean))).map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ").replace("/", " / ")}</option>)}</select></label><button type="button" className="settings-ref-timezone-save" onClick={() => handleTimeZoneChange(publishingTimeZoneDraft)} disabled={savingTimeZone || !hasUnsavedTimeZone}>{savingTimeZone ? t("settings.savingTimeZone") : hasUnsavedTimeZone ? t("settings.saveTimeZone") : t("settings.timeZoneSaved")}</button><small>{t("settings.timeZoneAiPlansText")}</small></div></div>
           {profileMessage && <p className="settings-ref-message">{profileMessage}</p>}
         </div>
-        <aside className="settings-ref-language-aside factual"><h2>{t("settings.threeChoices")}</h2><ol><li><strong>{t("settings.appLanguageHeading")}</strong><span>{t("settings.appLanguageChoiceText")}</span></li><li><strong>{t("settings.marketLabel")}</strong><span>{t("settings.marketChoiceText")}</span></li><li><strong>{t("settings.timeZoneLabel")}</strong><span>{t("settings.timeZoneChoiceText")}</span></li></ol></aside>
+        <aside className="settings-ref-language-aside factual"><h2>{t("settings.threeChoices")}</h2><ol><li><strong>{t("settings.appLanguageHeading")}</strong><span>{t("settings.appLanguageChoiceText")}</span></li><li><strong>{t("settings.defaultPostLanguageHeading")}</strong><span>{t("settings.postLanguageChoiceText")}</span></li><li><strong>{t("settings.timeZoneLabel")}</strong><span>{t("settings.timeZoneChoiceText")}</span></li></ol></aside>
       </section>
     );
   }

@@ -4,10 +4,11 @@ import { useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
+import { SUPPORTED_CONTENT_LANGUAGES } from "../../lib/languageCatalog.js";
 
 const platformOptions = ["Instagram", "Facebook", "LinkedIn"];
 const toneOptions = ["Friendly", "Professional", "Sales-focused", "Premium"];
-const languageOptions = ["English", "Swedish"];
+const languageOptions = SUPPORTED_CONTENT_LANGUAGES;
 const postTypeOptions = ["Offer", "News", "Educational", "Reminder"];
 const lengthOptions = ["Short", "Medium", "Long"];
 const ctaTypeOptions = [
@@ -227,8 +228,8 @@ export default function CreatePost() {
                 onChange={(event) => setLanguage(event.target.value)}
               >
                 {languageOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {t(`create.language.${option}`)}
+                  <option key={option.locale} value={option.language}>
+                    {option.nativeName || t(`create.language.${option.language}`)}
                   </option>
                 ))}
               </select>

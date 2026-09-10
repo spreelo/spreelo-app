@@ -610,7 +610,7 @@ export default function LoginPage() {
                         ? t("login.sendNewCodeIn", { seconds: resendCooldown })
                         : t("login.sendCode")}
                   </span>
-                  <ArrowRight size={20} aria-hidden="true" />
+                  {loading ? <RefreshCw className="login-action-spinner" size={20} aria-hidden="true" /> : <ArrowRight size={20} aria-hidden="true" />}
                 </button>
               </form>
             ) : (
@@ -643,7 +643,7 @@ export default function LoginPage() {
                   disabled={loading || verifying}
                 >
                   <span>{verifying ? t("login.signingIn") : t("login.signIn")}</span>
-                  <ArrowRight size={20} aria-hidden="true" />
+                  {verifying ? <RefreshCw className="login-action-spinner" size={20} aria-hidden="true" /> : <ArrowRight size={20} aria-hidden="true" />}
                 </button>
 
                 <button
@@ -652,7 +652,7 @@ export default function LoginPage() {
                   onClick={handleSendCode}
                   disabled={loading || verifying || resendCooldown > 0}
                 >
-                  <RefreshCw size={19} aria-hidden="true" />
+                  <RefreshCw className={loading ? "login-action-spinner" : ""} size={19} aria-hidden="true" />
                   {loading
                     ? t("login.sending")
                     : resendCooldown > 0

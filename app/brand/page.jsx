@@ -8,6 +8,7 @@ import { getValidAnalysisAccessToken } from "../../lib/analysisSession";
 import { getSmoothAnalysisProgress } from "../../lib/analysisProgress";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
+import { SUPPORTED_CONTENT_LANGUAGES } from "../../lib/languageCatalog.js";
 
 const marketOptions = [
   {
@@ -50,23 +51,7 @@ const marketOptions = [
   { label: "Other", countryCode: "OTHER", language: "English" },
 ];
 
-const languageOptions = [
-  "English",
-  "Swedish",
-  "German",
-  "Danish",
-  "Norwegian",
-  "Finnish",
-  "Dutch",
-  "French",
-  "Spanish",
-  "Italian",
-  "Portuguese",
-  "Polish",
-  "Arabic",
-  "Hindi",
-  "Other",
-];
+const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => item.language);
 
 function getLanguageOptionLabel(t, language) {
   const normalizedLanguage = normalizeSingleContentLanguage(language);

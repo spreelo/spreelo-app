@@ -38945,8 +38945,8 @@ export async function applyLogoOverlayIfNeeded({
 
     const useTopLeft = String(placement || "").toLowerCase() === "top-left";
     const logoTargetWidth = useTopLeft
-      ? Math.max(68, Math.min(Math.round(baseWidth * 0.135), 170))
-      : Math.max(72, Math.min(Math.round(baseWidth * 0.16), 220));
+      ? Math.max(78, Math.min(Math.round(baseWidth * 0.165), 210))
+      : Math.max(82, Math.min(Math.round(baseWidth * 0.185), 240));
     const margin = Math.max(useTopLeft ? 28 : 24, Math.round(baseWidth * 0.035));
 
     const logoPng = await sharp(logoBuffer)
@@ -39041,9 +39041,9 @@ async function applyEditorialProductLogoOverlayRequired({
     throw new Error("Could not read base image dimensions for required editorial logo overlay");
   }
 
-  // Editorial Product Posts use a small, consistent TOP-LEFT brand signature.
+  // Editorial Product Posts use a clear, consistent TOP-LEFT brand signature.
   // The bottom 9–10% remains pure breathing room for every post, with or without a logo.
-  const logoTargetWidth = Math.max(68, Math.min(Math.round(baseWidth * 0.135), 170));
+  const logoTargetWidth = Math.max(78, Math.min(Math.round(baseWidth * 0.165), 210));
   const margin = Math.max(28, Math.round(baseWidth * 0.035));
   const logoPng = await sharp(logoBuffer)
     .rotate()
