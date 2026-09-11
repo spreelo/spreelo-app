@@ -242,6 +242,27 @@ async function setReviewCaseFailure(supabase, postId, stage, message, failureCod
       message: error.message,
     });
   }
+
+  // Keep durable Rescue work items aligned with asynchronous Kling completion.
+  // This is especially important for AI-product-video Rescue, which intentionally
+  // returns while the provider task is still running.
+  const { error: workItemError } = await supabase
+    .from("admin_generation_work_items")
+    .update({
+      status: "failed",
+      failure_stage: stage,
+      failure_message: safeMessage,
+      updated_at: nowIso,
+    })
+    .eq("post_id", postId)
+    .eq("status", "running");
+  if (workItemError) {
+    console.warn("Kling finalizer could not update durable admin work-item failure", {
+      postId,
+      stage,
+      message: workItemError.message,
+    });
+  }
 }
 
 async function setReviewCaseReady(supabase, postId) {
@@ -262,6 +283,25 @@ async function setReviewCaseReady(supabase, postId) {
     console.warn("Kling finalizer could not mark admin review ready", {
       postId,
       message: error.message,
+    });
+  }
+
+  const { error: workItemError } = await supabase
+    .from("admin_generation_work_items")
+    .update({
+      status: "approval",
+      rescue_status: "used",
+      failure_code: null,
+      failure_stage: null,
+      failure_message: null,
+      updated_at: nowIso,
+    })
+    .eq("post_id", postId)
+    .eq("status", "running");
+  if (workItemError) {
+    console.warn("Kling finalizer could not mark durable admin work item ready", {
+      postId,
+      message: workItemError.message,
     });
   }
 }

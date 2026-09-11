@@ -385,8 +385,7 @@ const CAMPAIGN_STORE_SEARCH_PRODUCT_FIT_SCORE = 55;
 const CAROUSEL_MIN_PRODUCT_SLIDES = 5;
 const CAROUSEL_PRODUCT_SLIDE_TARGET = 5;
 const CAROUSEL_PLATFORM_MIN_PRODUCT_SLIDES = CAROUSEL_PRODUCT_SLIDE_TARGET;
-const CAROUSEL_OUTRO_SLIDE_COUNT = 1;
-const CAROUSEL_MAX_PRODUCT_SLIDES = CAROUSEL_PRODUCT_SLIDE_TARGET + CAROUSEL_OUTRO_SLIDE_COUNT;
+const CAROUSEL_MAX_PRODUCT_SLIDES = CAROUSEL_PRODUCT_SLIDE_TARGET;
 const CAMPAIGN_LOCKED_SEARCH_POOL_MIN_ITEMS = 15;
 const CAMPAIGN_DESIRED_READY_POOL_ITEMS = CAMPAIGN_LOCKED_SEARCH_POOL_MIN_ITEMS;
 const CAMPAIGN_DELIVERABLE_POOL_MIN_ITEMS = CAROUSEL_PRODUCT_SLIDE_TARGET;
@@ -442,6 +441,8 @@ const WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT = 12;
 const POST_TEXT_MODEL = "gpt-4.1-mini";
 const EDITORIAL_HEADLINE_MODEL =
   process.env.EDITORIAL_HEADLINE_MODEL || "gpt-5.6-sol";
+const CAROUSEL_CREATIVE_MODEL =
+  process.env.CAROUSEL_CREATIVE_MODEL || "gpt-5.6-sol";
 const PRODUCT_RESEARCH_MODEL = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
 const PRODUCT_RESEARCH_FAST_MODEL =
   process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL;
@@ -2874,6 +2875,132 @@ export async function renderCarouselProductSlideImage({
     productLabelDirection: productLabelApplied ? appliedTypography?.profile?.direction || null : null,
     productLabelScript: productLabelApplied ? appliedTypography?.profile?.script || null : null,
     productLabelFontFamily: productLabelApplied ? appliedTypography?.profile?.family || null : null,
+  };
+}
+
+
+export async function generateDesignedCarouselProductSlide({
+  openai,
+  sourceImageUrl,
+  rule,
+  websiteItem,
+  slidePlan,
+  designBrief,
+  slideIndex = 0,
+  slideCount = CAROUSEL_PRODUCT_SLIDE_TARGET,
+}) {
+  if (!openai || !sourceImageUrl || !websiteItem) {
+    throw new Error("Designed carousel slide requires OpenAI, a verified source image and a verified product");
+  }
+
+  const productTitle =
+    resolveVerifiedProductTitle({ productName: websiteItem?.title, productUrl: websiteItem?.url }) ||
+    sanitizeProductTitleForCard(websiteItem?.title) ||
+    "the verified product";
+  const sourceImageBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
+  const normalizedReference = await sharp(sourceImageBuffer)
+    .rotate()
+    .resize({
+      width: 1280,
+      height: 1280,
+      fit: "inside",
+      withoutEnlargement: true,
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  const referenceFile = await toFile(
+    normalizedReference,
+    `verified-carousel-product-${slideIndex + 1}.png`,
+    { type: "image/png" }
+  );
+
+  const headline = normalizeSlideText(slidePlan?.headline || productTitle, 70);
+  const supportingText = normalizeSlideText(slidePlan?.body || slidePlan?.supporting_text || "", 120);
+  const ctaText = normalizeSlideText(slidePlan?.cta_text || "", 55);
+  const language = normalizeSingleContentLanguage(
+    rule?.content_language || rule?.language || rule?.brand_profile?.content_language,
+    "English"
+  );
+  const campaignContext = formatCampaignVisualContextForPrompt(rule) || "Use the brand's normal premium visual character.";
+  const authorizedOffer = getAuthorizedCampaignOffer(rule);
+  const exactTextLines = [
+    `HEADLINE: ${JSON.stringify(headline)}`,
+    `PRODUCT NAME REFERENCE: ${JSON.stringify(productTitle)}`,
+    supportingText ? `SUPPORTING TEXT: ${JSON.stringify(supportingText)}` : "SUPPORTING TEXT: NONE",
+    ctaText ? `CTA TEXT: ${JSON.stringify(ctaText)}` : "CTA TEXT: NONE",
+  ].join("\n");
+
+  const prompt = `
+Create slide ${slideIndex + 1} of ${slideCount} for a premium square ecommerce social-media carousel.
+
+AUTHORITATIVE PRODUCT REFERENCE
+The supplied image is the exact verified retailer image for this product: "${productTitle}".
+The advertised product itself is LOCKED. Preserve the same visible variant, color, material appearance, silhouette/geometry, number and position of parts, buttons, wheels, seams, handles, openings, labels, logos, printed wording, packaging artwork and other identity-defining details that are visible in the reference. Do not substitute, redesign, extend, rotate into an unverified view, add accessories, invent hidden surfaces, change quantities, or create a similar-looking replacement. You may isolate, resize and reposition the exact product and you may replace the surrounding background, but the product identity must stay visually faithful to the reference.
+
+SHARED FIVE-SLIDE DESIGN BRIEF
+${truncateText(String(designBrief || "A coherent premium product carousel with consistent typography, spacing and visual rhythm."), 900)}
+
+CAMPAIGN / VISUAL CONTEXT
+${campaignContext}
+${authorizedOffer ? `AUTHORIZED OFFER: ${authorizedOffer}. Only use these exact offer values if they are present in the locked text below.` : "There is no authorized price/discount claim. Do not add one."}
+
+LOCKED CUSTOMER-FACING TEXT — ${language}
+${exactTextLines}
+
+TEXT RULES
+- Render the HEADLINE exactly as supplied, character for character. Never rewrite, translate, paraphrase or improve it.
+- If SUPPORTING TEXT is NONE, do not invent supporting copy.
+- If CTA TEXT is NONE, do not invent a CTA.
+- The PRODUCT NAME REFERENCE identifies the product and is NOT automatically extra visible text. Do not add it unless the locked HEADLINE/SUPPORTING/CTA already contains it.
+- Do not add any other readable words, prices, discount badges, fake reviews, URLs, watermarks, labels or claims.
+- Proofread the visible locked text character by character. Preserve accents and diacritics.
+
+DESIGN RULES
+- Output one finished 1024x1024 social carousel slide, not a mockup of a phone or post.
+- Build a polished campaign-appropriate environment/background around the exact verified product. The design may use lighting, depth, graphic shapes, framing and tasteful atmosphere, but no invented merchandise.
+- Keep text highly legible and inside generous safe margins. Give the product enough visual importance and avoid covering identity-defining product details with text.
+- Keep continuity with the shared design brief while varying composition enough that the five slides feel intentionally art-directed rather than duplicated.
+- Do not redraw the brand logo. Spreelo will overlay the customer's verified logo separately when enabled.
+`.trim();
+
+  const response = await openai.images.edit(
+    {
+      model: IMAGE_MODEL,
+      image: referenceFile,
+      prompt,
+      size: "1024x1024",
+      quality: "medium",
+      output_format: "png",
+    },
+    { timeout: 70_000, maxRetries: 0 }
+  );
+  const imageBase64 = response?.data?.[0]?.b64_json;
+  if (!imageBase64) {
+    throw new Error("GPT Image returned no designed carousel slide image data");
+  }
+
+  const generatedImageBuffer = Buffer.from(imageBase64, "base64");
+  const identityReview = await reviewKlingOpeningSceneIdentity({
+    openai,
+    websiteItem,
+    sourceImageBuffer: normalizedReference,
+    generatedImageBuffer,
+    fullProductInteractionSafe: false,
+    verifiedViewLock: null,
+  });
+  if (!identityReview.accepted) {
+    throw new Error(
+      `Designed carousel slide failed product identity review (${Math.round((identityReview.confidence || 0) * 100)}%): ${identityReview.reason || "identity mismatch"}`
+    );
+  }
+
+  return {
+    imageBase64,
+    imagePrompt: prompt,
+    identityReview,
+    provider: "gpt-image-2-full-carousel-design",
+    lockedText: { headline, supportingText, ctaText },
   };
 }
 
@@ -6702,6 +6829,37 @@ async function buildOrRefreshWebsiteStoreMap({
   };
 }
 
+function isLikelyCommerceStoreMapShelfNode(node) {
+  const nodeType = String(node?.node_type || node?.nodeType || "unknown").toLowerCase();
+  if (nodeType === "product") return false;
+  if (!["category", "brand", "campaign", "unknown"].includes(nodeType)) return false;
+
+  const url = String(node?.url || node?.canonical_url || "").toLowerCase();
+  const title = String(node?.title || "").trim().toLowerCase();
+  const combined = `${title} ${url}`;
+
+  // Navigation/account/support artifacts are not ecommerce shelves. Filtering
+  // them before the AI ranker prevents protected sites with a tiny partial map
+  // from spending tens of seconds crawling Club/Customer Service/Download.
+  const blockedPathPattern =
+    /(?:\/customer(?:\/|$)|\/customer-service(?:\/|$)|\/kundservice(?:\/|$)|\/account(?:\/|$)|\/login(?:\/|$)|\/sign[-_]?up(?:\/|$)|\/privacy(?:\/|$)|\/terms(?:\/|$)|\/help(?:\/|$)|\/contact(?:\/|$)|\/returns?(?:\/|$)|\/shipping(?:\/|$)|\/metrics(?:\/|$)|\/gatewaysync(?:\/|$))/i;
+  const blockedTitlePattern =
+    /^(?:download|customer service|kundservice|club boozt|sign up|log in|login|my account|privacy|terms|help|contact)$/i;
+
+  if (blockedPathPattern.test(url) || blockedTitlePattern.test(title)) {
+    return false;
+  }
+
+  // A generic word such as "club" can be a legitimate product/brand name, so
+  // only reject it when the surrounding URL clearly identifies account/member
+  // navigation rather than a commerce category.
+  if (/\bclub\b/i.test(title) && /\/(?:customer|account|member|membership)\b/i.test(url)) {
+    return false;
+  }
+
+  return Boolean(combined);
+}
+
 async function rankStoreMapShelvesWithAi({
   openai,
   rule,
@@ -6710,7 +6868,20 @@ async function rankStoreMapShelvesWithAi({
   selectionLimit = STORE_MAP_AGENT_TARGETS.shelfSelectionLimit,
 }) {
   const intent = buildStoreMapIntentForRule(rule);
-  const deterministic = rankStoreMapNodes(nodes, intent, 50);
+  const rankedNodes = rankStoreMapNodes(nodes, intent, 50);
+  const deterministic = rankedNodes.filter(isLikelyCommerceStoreMapShelfNode);
+  if (rankedNodes.length !== deterministic.length) {
+    console.info("Store Map shelf ranking removed non-commerce navigation nodes", {
+      ruleId: rule?.id,
+      rankedNodeCount: rankedNodes.length,
+      commerceShelfCount: deterministic.length,
+      removedCount: rankedNodes.length - deterministic.length,
+      removed: rankedNodes
+        .filter((node) => !isLikelyCommerceStoreMapShelfNode(node))
+        .slice(0, 8)
+        .map((node) => ({ title: node?.title || null, url: node?.url || null })),
+    });
+  }
   const safeSelectionLimit = Math.max(
     1,
     Math.min(12, Number(selectionLimit) || STORE_MAP_AGENT_TARGETS.shelfSelectionLimit)
@@ -15837,6 +16008,248 @@ NON-NEGOTIABLE PRODUCT RULES:
     });
     return fallback;
   }
+}
+
+
+export async function submitAdminRescueAiProductVideo({
+  openai,
+  supabase,
+  rule,
+  postContent,
+  userId,
+  postId,
+}) {
+  const websiteItem = rule?.website_item || null;
+  const sourceImageUrl = String(websiteItem?.image_url || "").trim();
+  if (!openai || !supabase || !postId || !userId || !websiteItem || !sourceImageUrl) {
+    throw new Error("AI product-video rescue requires a fresh post, customer, verified product and product image.");
+  }
+
+  const sourceImageBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
+  if (!sourceImageBuffer?.length) {
+    throw new Error("AI product-video rescue could not load the verified product image.");
+  }
+
+  let referenceSafety = await assessKlingReferenceSafety(sourceImageBuffer, {
+    openai,
+    websiteItem,
+  });
+  let naturalStartBackground = null;
+  let referenceFrameBuffer = null;
+  let sceneTrimSeconds = 0.15;
+  let openingSceneMode = "verified_direct_scene";
+  let imagePrompt = null;
+
+  try {
+    const directOpeningScene = await generateKlingDirectSceneOpeningFrame({
+      openai,
+      rule,
+      sourceImageBuffer,
+      referenceSafety,
+    });
+    referenceFrameBuffer = directOpeningScene.buffer;
+    naturalStartBackground = {
+      source: directOpeningScene.source,
+      assetId: null,
+      assetName: null,
+      family: "verified_in_scene_opening",
+      brightness: "medium",
+    };
+    referenceSafety = {
+      ...referenceSafety,
+      startBackgroundSource: directOpeningScene.source,
+      startBackgroundAssetId: null,
+      startBackgroundAssetName: null,
+      startBackgroundFamily: "verified_in_scene_opening",
+      startBackgroundBrightness: "medium",
+      naturalEnvironmentFromFirstFrame: true,
+      openingSceneMode,
+      openingSceneIdentityConfidence: directOpeningScene.identityConfidence,
+      openingSceneIdentityReason: directOpeningScene.identityReason,
+    };
+    imagePrompt =
+      "Verified GPT-Image-2 direct-scene first frame: exact rescued product is already inside the finished commercial scene before Kling motion begins.";
+  } catch (directSceneError) {
+    console.warn("AI product-video rescue direct scene failed identity safety; using pixel-preserving trimmed setup", {
+      postId,
+      productTitle: websiteItem?.title || null,
+      message: directSceneError?.message || String(directSceneError),
+    });
+    naturalStartBackground = await selectKlingNaturalStartBackground({
+      openai,
+      supabase,
+      rule,
+      sourceImageBuffer,
+    });
+    const fallbackReference = await createKlingProductReferenceFrame(sourceImageBuffer, {
+      naturalBackground: naturalStartBackground,
+    });
+    referenceFrameBuffer = fallbackReference.frameBuffer;
+    referenceSafety = {
+      ...fallbackReference.referenceSafety,
+      verifiedViewLock: referenceSafety?.verifiedViewLock || null,
+      openingSceneMode: "pixel_preserving_setup_fully_trimmed",
+    };
+    openingSceneMode = "pixel_preserving_setup_fully_trimmed";
+    sceneTrimSeconds = 1.9;
+    imagePrompt =
+      "Pixel-preserving rescue guidance frame retained only for Kling identity guidance; setup transition is trimmed from the delivered advertisement.";
+  }
+
+  const uploadedVerifiedProduct = await uploadGeneratedImageToStorage({
+    supabase,
+    imageBase64: sourceImageBuffer.toString("base64"),
+    userId,
+    postId,
+    fileSuffix: "rescue-kling-verified-product",
+  });
+  const uploadedReference = await uploadGeneratedImageToStorage({
+    supabase,
+    imageBase64: referenceFrameBuffer.toString("base64"),
+    userId,
+    postId,
+    fileSuffix: "rescue-kling-reference",
+  });
+  if (!uploadedReference?.imageUrl || !uploadedVerifiedProduct?.imageUrl) {
+    throw new Error("AI product-video rescue could not preserve the verified reference assets.");
+  }
+
+  const overlayCopy = buildKlingAdvertisingOverlayCopy({
+    postContent,
+    websiteItem,
+  });
+  if (!overlayCopy.headline) {
+    throw new Error("AI product-video rescue could not prepare a factual short overlay headline.");
+  }
+
+  const klingPrompt = await buildKlingProductVideoPrompt({
+    openai,
+    rule,
+    postContent,
+    referenceSafety,
+  });
+
+  // Cost invariant: the rescue always uses a NEW post. This atomic claim then
+  // grants exactly one provider submission for that new post and can never
+  // re-open the failed original post's consumed Kling generation.
+  const { data: claimed, error: claimError } = await supabase.rpc(
+    "claim_kling_video_generation",
+    { p_post_id: postId }
+  );
+  if (claimError) {
+    throw new Error(`Could not claim the one allowed Kling rescue generation: ${claimError.message || "unknown claim error"}`);
+  }
+  if (claimed !== true) {
+    throw new Error("The fresh rescue post has already consumed its one allowed Kling generation. No second provider submission was made.");
+  }
+
+  const referenceImageUrl = uploadedReference.imageUrl;
+  const selection = {
+    mode: "kling_professional_advertising_postprocess",
+    rescue_generation: true,
+    reference_safety: referenceSafety,
+    natural_start_background: {
+      source: naturalStartBackground?.source || referenceSafety?.startBackgroundSource || null,
+      asset_id: naturalStartBackground?.assetId || null,
+      asset_name: naturalStartBackground?.assetName || null,
+      family: naturalStartBackground?.family || null,
+      brightness: naturalStartBackground?.brightness || null,
+    },
+    verified_product_image_url: uploadedVerifiedProduct.imageUrl,
+    verified_product_source_url: websiteItem?.image_url || null,
+    verified_product_title: websiteItem?.title || websiteItem?.item_title || null,
+    music_context: {
+      content_type_id: rule?.content_type_id || "ai_product_video",
+      content_type_label: rule?.content_type_label || rule?.post_type || null,
+      content_format: rule?.content_format || "animated_video",
+      campaign_name: getCustomerFacingCampaignTheme(rule) || null,
+      goal: rule?.campaign_goal || rule?.goal || rule?.content_goal || rule?.objective || null,
+      business_name: rule?.brand_profile?.business_name || null,
+      industry: rule?.brand_profile?.industry || rule?.brand_profile?.business_category || null,
+      product_title: websiteItem?.title || websiteItem?.item_title || null,
+      product_category: websiteItem?.category || websiteItem?.product_category || null,
+      post_copy: String(postContent || "").slice(0, 600),
+    },
+    text_overlay_url: null,
+    text_overlay_storage_path: null,
+    text_overlay_provider: null,
+    text_overlay_prompt: null,
+    text_overlay_status: "waiting_for_finished_video",
+    text_overlay_copy: overlayCopy,
+    opening_scene_mode: openingSceneMode,
+    scene_trim_start_seconds: sceneTrimSeconds,
+    overlay_start_seconds: KLING_TEXT_OVERLAY_START_SECONDS,
+    shotstack_render_id: null,
+    shotstack_status: "waiting_for_kling",
+  };
+
+  const preparedAt = new Date().toISOString();
+  const { error: prepareError } = await supabase.from("posts").update({
+    content: postContent,
+    website_url: websiteItem?.url || rule?.brand_profile?.website_url || null,
+    image_url: referenceImageUrl,
+    image_storage_path: uploadedReference.imageStoragePath || null,
+    image_status: "ready",
+    image_prompt: imagePrompt,
+    video_provider: "kling",
+    video_status: "submitting",
+    video_duration_seconds: KLING_AI_VIDEO_DURATION_SECONDS,
+    kling_prompt: klingPrompt,
+    kling_reference_image_url: referenceImageUrl,
+    video_background_selection: selection,
+    include_logo: false,
+    logo_url: null,
+    updated_at: preparedAt,
+  }).eq("id", postId);
+  if (prepareError) {
+    throw new Error(`Could not prepare the fresh AI product-video rescue post: ${prepareError.message}`);
+  }
+
+  // Exactly one provider call. Never retry this submission inside Rescue.
+  const submission = await submitKlingImageToVideo({
+    imageUrl: referenceImageUrl,
+    prompt: klingPrompt,
+    externalTaskId: postId,
+  });
+  const taskId = submission?.taskId;
+  if (!taskId) {
+    throw new Error("Kling accepted no task id for the rescue generation; no retry was attempted.");
+  }
+
+  const submittedStatus = submission.status || "submitted";
+  const submittedAt = new Date().toISOString();
+  const { error: criticalUpdateError } = await supabase.from("posts").update({
+    video_render_id: taskId,
+    video_status: submittedStatus,
+    video_provider: "kling",
+    video_duration_seconds: submission.durationSeconds || KLING_AI_VIDEO_DURATION_SECONDS,
+    video_error: null,
+    kling_task_id: taskId,
+    kling_task_status: submittedStatus,
+    kling_submitted_at: submittedAt,
+    kling_prompt: klingPrompt,
+    kling_reference_image_url: referenceImageUrl,
+    kling_api_family: submission.apiFamily || null,
+    kling_model: submission.model || null,
+    kling_resolution: submission.resolution || null,
+    kling_audio: submission.audio || null,
+    updated_at: submittedAt,
+  }).eq("id", postId);
+  if (criticalUpdateError) {
+    throw new Error(
+      `Kling rescue task ${taskId} was submitted, but Spreelo could not persist its task id: ${criticalUpdateError.message || "unknown database error"}. No replacement task was submitted.`
+    );
+  }
+
+  return {
+    imageUrl: referenceImageUrl,
+    imageStoragePath: uploadedReference.imageStoragePath || null,
+    imagePrompt,
+    taskId,
+    status: submittedStatus,
+    provider: "kling",
+    referenceSafety,
+  };
 }
 
 function normalizeSlideText(value, maxLength = 180) {
@@ -29820,12 +30233,21 @@ async function findProductUrlWithWebSearch({
   openai,
   brandProfile,
   rule,
+  websiteUrl: requestedWebsiteUrl = "",
   attempt = "best_match",
   usedWebsiteItems = [],
   researchModel = PRODUCT_RESEARCH_MODEL,
   desiredProductCount = 5,
 }) {
-  const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
+  // v144.167: market resolution happens before paid research. Never throw that
+  // resolved storefront away by re-reading the original Brand-profile source
+  // (for example Boozt /eu/en after SE was already resolved to the Swedish
+  // storefront). The caller-provided market URL is authoritative for this run.
+  const websiteUrl = normalizeWebsiteUrl(
+    requestedWebsiteUrl ||
+      rule?.product_market_source_url ||
+      getWebsiteProductSourceUrl(brandProfile, rule)
+  );
 
   if (!websiteUrl) {
     return {
@@ -29835,6 +30257,15 @@ async function findProductUrlWithWebSearch({
   }
 
   const websiteHost = getHostnameWithoutWww(websiteUrl);
+  const targetMarketCode = getProductMarketCodeForRule(
+    rule,
+    websiteUrl,
+    brandProfile
+  );
+  const resolvedMarketScope = getWebsiteLocalePathScope(websiteUrl);
+  const primaryMarketLanguages = targetMarketCode
+    ? PRODUCT_MARKET_PRIMARY_LANGUAGES[targetMarketCode] || []
+    : [];
   const campaignPrompt = buildCampaignResearchText(rule) || String(rule?.prompt || "").trim();
 
   if (!websiteHost) {
@@ -29899,11 +30330,27 @@ You are a product researcher for a social media automation app.
 Your job:
 Find real, concrete products from the customer's website that can be promoted in a social media post.
 
-Customer website:
+Customer website (resolved storefront for this run):
 ${websiteUrl}
 
 Allowed domain:
 ${websiteHost}
+
+Target product market code:
+${targetMarketCode || "No explicit market code"}
+
+Resolved storefront locale scope:
+${resolvedMarketScope?.prefix?.join("/") || "No explicit locale path"}
+
+Primary languages for the target market:
+${primaryMarketLanguages.join(", ") || "No market-specific language list"}
+
+STRICT MARKET RULE:
+- The resolved storefront above is authoritative for this research run.
+- Return products for the TARGET PRODUCT MARKET, not a global, EU or neighboring-country assortment.
+- A different language within the same target market is acceptable, but a conflicting market path is not.
+- If the site uses more than one URL layout for the same market, use whichever official product URL is current for that target market.
+- Never switch back to the Brand profile's older/source locale when it conflicts with the resolved target market.
 
 Website search-language and locale hint:
 ${websiteSearchLanguageHint}
@@ -30117,6 +30564,8 @@ ${requestedProductCount <= 1
   const rawProducts = Array.isArray(parsed?.products) ? parsed.products : [];
 
   const validProducts = [];
+  let wrongMarketProductCount = 0;
+  let wrongMarketDiscoveryPageCount = 0;
 
   for (const product of rawProducts) {
     const productUrl = String(product?.url || "").trim();
@@ -30136,7 +30585,8 @@ ${requestedProductCount <= 1
       continue;
     }
 
-    if (!matchesConfiguredWebsiteMarket(productUrl, websiteUrl, getProductMarketCodeForRule(rule, websiteUrl))) {
+    if (!matchesConfiguredWebsiteMarket(productUrl, websiteUrl, targetMarketCode)) {
+      wrongMarketProductCount += 1;
       console.log("Product researcher returned product from the wrong website market", {
         ruleId: rule?.id,
         websiteUrl,
@@ -30221,7 +30671,8 @@ ${requestedProductCount <= 1
       continue;
     }
 
-    if (!matchesConfiguredWebsiteMarket(pageUrl, websiteUrl, getProductMarketCodeForRule(rule, websiteUrl))) {
+    if (!matchesConfiguredWebsiteMarket(pageUrl, websiteUrl, targetMarketCode)) {
+      wrongMarketDiscoveryPageCount += 1;
       console.log("Product researcher returned discovery page from the wrong website market", {
         ruleId: rule?.id,
         websiteUrl,
@@ -30258,9 +30709,23 @@ ${requestedProductCount <= 1
     });
   }
 
+  const marketMismatchOnly =
+    wrongMarketProductCount + wrongMarketDiscoveryPageCount > 0 &&
+    validProducts.length === 0 &&
+    validDiscoveryPages.length === 0;
+
   return {
     products: dedupeUrlItems(validProducts).slice(0, requestedResearchPool),
     discoveryPages: dedupeUrlItems(validDiscoveryPages).slice(0, 4),
+    diagnostics: {
+      targetMarketCode: targetMarketCode || null,
+      resolvedWebsiteUrl: websiteUrl,
+      rawProductCount: rawProducts.length,
+      rawDiscoveryPageCount: rawDiscoveryPages.length,
+      wrongMarketProductCount,
+      wrongMarketDiscoveryPageCount,
+      marketMismatchOnly,
+    },
   };
 }
 
@@ -30297,12 +30762,19 @@ async function findWebsiteProductWithWebSearch({
         Math.max(4, targetVerifiedCount + 3)
     )
   );
-  const knownDomainState = allowIndexedSecurityFallback
-    ? await getWebsiteDomainFetchState(websiteUrl).catch(() => null)
-    : null;
+  // v144.167: domain state can change during Store Map/local verification.
+  // Re-read it here even when the caller started with allowIndexedSecurityFallback=false.
+  // A real 403/rate-limit discovered mid-run should immediately downgrade
+  // discovery to the cheap research model and enable the bounded exact repair.
+  const knownDomainState = await getWebsiteDomainFetchState(websiteUrl).catch(
+    () => null
+  );
   const knownSecurityBlocked = isWebsiteAccessProtectedState(knownDomainState);
   const knownRateLimited = isWebsiteRateLimitedState(knownDomainState);
   const knownDirectAccessUnavailable = knownSecurityBlocked || knownRateLimited;
+  const effectiveIndexedSecurityFallback = Boolean(
+    allowIndexedSecurityFallback || knownDirectAccessUnavailable
+  );
   const manufacturerCatalogSource = isManufacturerCatalogSource(rule, brandProfile);
   const attempts = knownDirectAccessUnavailable
     ? manufacturerCatalogSource
@@ -30343,6 +30815,18 @@ async function findWebsiteProductWithWebSearch({
   );
   const availabilityRejectedCandidates = [];
   const campaignPrompt = buildCampaignResearchText(rule);
+  if (!allowIndexedSecurityFallback && effectiveIndexedSecurityFallback) {
+    console.info("Product research detected protected/rate-limited domain after caller snapshot; enabling bounded protected-site mode", {
+      ruleId: rule?.id,
+      brandProfileId: rule?.brand_profile_id,
+      websiteUrl,
+      securityBlocked: knownSecurityBlocked,
+      rateLimited: knownRateLimited,
+      researchModel: PRODUCT_RESEARCH_FAST_MODEL,
+    });
+  }
+  let consecutiveMarketMismatchOnlyAttempts = 0;
+  let forceFastMarketCorrectionPass = false;
 
   const getIndexedFallbackItems = () =>
     // v144.24: indexed GPT-5.5 repair objects intentionally focus on exact
@@ -30373,7 +30857,7 @@ async function findWebsiteProductWithWebSearch({
     attempt,
   }) => {
     if (
-      !allowIndexedSecurityFallback ||
+      !effectiveIndexedSecurityFallback ||
       (!isWebsiteSecurityBlockedError(directProductError) &&
         !isWebsiteRateLimitError(directProductError))
     ) {
@@ -30550,7 +31034,7 @@ async function findWebsiteProductWithWebSearch({
   };
 
   if (
-    allowIndexedSecurityFallback &&
+    effectiveIndexedSecurityFallback &&
     sharedIndexedSecurityState.batchExecuted &&
     getIndexedFallbackItems().length
   ) {
@@ -30578,6 +31062,7 @@ async function findWebsiteProductWithWebSearch({
       openai,
       brandProfile,
       rule,
+      websiteUrl,
       attempt,
       usedWebsiteItems,
       desiredProductCount: targetVerifiedCount,
@@ -30586,7 +31071,8 @@ async function findWebsiteProductWithWebSearch({
       // product identity + exact original image + purchase availability are
       // still locked by the single GPT-5.5 authoritative repair batch below.
       researchModel:
-        allowIndexedSecurityFallback && knownDirectAccessUnavailable
+        forceFastMarketCorrectionPass ||
+        (effectiveIndexedSecurityFallback && knownDirectAccessUnavailable)
           ? PRODUCT_RESEARCH_FAST_MODEL
           : researchModel,
     });
@@ -30597,6 +31083,41 @@ async function findWebsiteProductWithWebSearch({
     const webSearchDiscoveryPages = Array.isArray(searchResult?.discoveryPages)
       ? searchResult.discoveryPages
       : [];
+
+    if (searchResult?.diagnostics?.marketMismatchOnly) {
+      consecutiveMarketMismatchOnlyAttempts += 1;
+      console.warn("Product researcher returned only wrong-market results", {
+        ruleId: rule?.id,
+        brandProfileId: rule?.brand_profile_id,
+        websiteUrl,
+        targetMarketCode: searchResult.diagnostics.targetMarketCode || null,
+        attempt,
+        wrongMarketProductCount:
+          searchResult.diagnostics.wrongMarketProductCount || 0,
+        wrongMarketDiscoveryPageCount:
+          searchResult.diagnostics.wrongMarketDiscoveryPageCount || 0,
+        nextAttemptUsesFastModel: consecutiveMarketMismatchOnlyAttempts < 2,
+      });
+
+      // One cheap correction pass is allowed. Never pay for three broad
+      // research rounds that all return a different market. This preserves a
+      // recovery chance without repeating the Boozt EU/EN cost spiral.
+      if (consecutiveMarketMismatchOnlyAttempts >= 2) {
+        console.warn("Product researcher stopped repeated wrong-market research attempts", {
+          ruleId: rule?.id,
+          brandProfileId: rule?.brand_profile_id,
+          websiteUrl,
+          targetMarketCode: searchResult.diagnostics.targetMarketCode || null,
+          attemptCount: consecutiveMarketMismatchOnlyAttempts,
+        });
+        break;
+      }
+      forceFastMarketCorrectionPass = true;
+      continue;
+    } else {
+      consecutiveMarketMismatchOnlyAttempts = 0;
+      forceFastMarketCorrectionPass = false;
+    }
 
     if (!webSearchProducts.length && !webSearchDiscoveryPages.length) {
       console.warn("Product researcher found no usable product candidates", {
@@ -30686,7 +31207,7 @@ async function findWebsiteProductWithWebSearch({
             });
           } catch (directProductError) {
             if (
-              allowIndexedSecurityFallback &&
+              effectiveIndexedSecurityFallback &&
               (isWebsiteSecurityBlockedError(directProductError) ||
                 isWebsiteRateLimitError(directProductError))
             ) {
@@ -30989,7 +31510,7 @@ async function prepareWebsiteContentForRule({
   const websiteAccessState = await getWebsiteDomainFetchState(websiteUrl).catch(
     () => null
   );
-  const websiteAccessProtected =
+  let websiteAccessProtected =
     isWebsiteAccessProtectedState(websiteAccessState);
 
   if (contentSourceScope === "exact_product") {
@@ -31941,6 +32462,27 @@ async function prepareWebsiteContentForRule({
           websiteUrl,
           fallbackReason: productResearchFallbackReason,
           message: storeSearchError.message,
+        });
+      }
+    }
+
+    // The domain may become known as protected while Store Map/local
+    // verification is running. Refresh that state before choosing the paid
+    // research model; otherwise one early optimistic snapshot can cause three
+    // expensive GPT-5.5 searches even after the site has started returning 403.
+    if (!websiteAccessProtected) {
+      const latestWebsiteAccessState = await getWebsiteDomainFetchState(
+        websiteUrl
+      ).catch(() => null);
+      if (isWebsiteAccessProtectedState(latestWebsiteAccessState)) {
+        websiteAccessProtected = true;
+        console.info("Website protection detected during local product discovery; upgraded bounded fallback mode", {
+          ruleId: rule.id,
+          brandProfileId: rule.brand_profile_id,
+          websiteUrl,
+          productDiscoveryPath: "web_research_fallback",
+          researchModel: PRODUCT_RESEARCH_FAST_MODEL,
+          indexedSecurityFallback: true,
         });
       }
     }
@@ -33121,196 +33663,254 @@ Return JSON exactly in this shape:
 }
 
 function buildFallbackProductCarouselSlides(rule, products, postContent = "") {
-  const selectedProducts = products.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
-  const productSlides = selectedProducts.map((product, index) => ({
-    slide_type: index === 0 ? "product_hook" : "product",
+  return products.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET).map((product, index) => ({
+    slide_type: index === 0 ? "product_hook" : index === CAROUSEL_PRODUCT_SLIDE_TARGET - 1 ? "product_cta" : "product",
     headline: normalizeSlideText(
       resolveVerifiedProductTitle({ productName: product.title, productUrl: product.url }) || "",
       90
     ),
     body: "",
-    cta_text: "",
+    cta_text: index === CAROUSEL_PRODUCT_SLIDE_TARGET - 1
+      ? normalizeSlideText(rule?.cta_type || "", 70)
+      : "",
+    overlay_text: "",
     product_url: product.url || null,
     image_url: product.image_url || null,
     product_title: resolveVerifiedProductTitle({ productName: product.title, productUrl: product.url }) || null,
     product_identity_key: createItemKey(product),
   }));
-
-  productSlides.push({
-    slide_type: "product_outro",
-    headline: normalizeSlideText(rule?.brand_profile?.business_name || "See more in the collection", 90),
-    body: normalizeSlideText(
-      postContent || "Explore more products from the collection on the website.",
-      180
-    ),
-    cta_text: normalizeSlideText(rule?.cta_type || "", 70),
-    overlay_text: normalizeSlideText(rule?.brand_profile?.business_name || "See more", 80),
-    product_url: getPostDestinationUrl(rule) || null,
-    image_url: null,
-  });
-
-  return productSlides;
 }
 
-function buildCarouselOutroImagePrompt(rule, outroSlide, products) {
-  const brandName = rule?.brand_profile?.business_name || "the brand";
-  const language = normalizeSingleContentLanguage(rule?.language || rule?.brand_profile?.content_language, "English");
-  const productNames = (products || []).slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET).map((item) => item?.title).filter(Boolean).join(", ");
-  const headline = normalizeSlideText(outroSlide?.headline || brandName, 80);
-  const supportingText = normalizeSlideText(outroSlide?.cta_text || outroSlide?.body || rule?.cta_type || "", 90);
-  const campaignVisualContext = formatCampaignVisualContextForPrompt(rule) || "Campaign visual context: General brand CTA.";
-  const authorizedOffer = getAuthorizedCampaignOffer(rule);
-  const offerVisualRule = authorizedOffer
-    ? `Show the exact authorized discount and campaign code from this offer as clear readable overlay text: ${authorizedOffer} Never change or invent any value.`
-    : "Do not show prices or discount claims.";
-
-  return `Create a premium square closing slide for a social media carousel. This is the final CTA slide after product slides for ${brandName}. Use a clean, polished marketing design with a subtle modern background and clear readable text overlay. Write the overlaid text in ${language}. Main overlay text: "${headline}". Supporting overlay text: "${supportingText}". ${campaignVisualContext}. ${offerVisualRule} If this carousel is connected to a campaign, holiday, season, shopping event or theme, the closing image must clearly match that theme and must not look generic or unrelated. The slide should feel like a professional final call-to-action and may use abstract shapes, elegant composition, soft shadows, geometric shapes, or a tasteful category-inspired scene. Do not invent product-like objects that could be mistaken for merchandise from the store. Because this closing slide is generated without a verified product reference, prefer people, activity, environment, atmosphere, abstract shapes or category context instead of newly designed products. Never invent or depict catalog items, product variants, clothing designs, exact product prints, poster motifs, readable slogan text on products, apparel graphics, packaging artwork or branded product designs. Do not place the store name or brand logo onto any depicted product. Avoid close-up hero shots of a single product. For stores that sell printed or text-based products such as posters, apparel, mugs, or accessories, do not generate new readable product text or new product artwork. Keep all non-overlay product details subtle, generic, and secondary to the CTA message. Do not use crowded text. Products featured earlier in the carousel: ${productNames || "selected website products"}.`;
-}
-
-export async function generateCarouselOutroSlideImage(openai, rule, outroSlide, products) {
-  const imagePrompt = buildCarouselOutroImagePrompt(rule, outroSlide, products);
-  const response = await openai.images.generate({
-    model: IMAGE_MODEL,
-    prompt: imagePrompt,
-    size: "1024x1024",
+function normalizeCarouselCreativePlan(plan, rule, products, fallbackCaption = "") {
+  const selectedProducts = products.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  const sourceSlides = Array.isArray(plan?.slides) ? plan.slides : [];
+  const fallbackSlides = buildFallbackProductCarouselSlides(rule, selectedProducts, fallbackCaption);
+  const slides = selectedProducts.map((product, index) => {
+    const candidate = sourceSlides[index] || {};
+    const fallback = fallbackSlides[index] || {};
+    const exactProductTitle =
+      resolveVerifiedProductTitle({ productName: product?.title, productUrl: product?.url }) ||
+      sanitizeProductTitleForCard(product?.title) ||
+      `Product ${index + 1}`;
+    return {
+      slide_type: index === 0 ? "product_hook" : index === selectedProducts.length - 1 ? "product_cta" : "product",
+      headline: normalizeSlideText(candidate?.headline || fallback?.headline || exactProductTitle, 70),
+      body: normalizeSlideText(candidate?.supporting_text || candidate?.body || "", 120),
+      cta_text: index === selectedProducts.length - 1
+        ? normalizeSlideText(candidate?.cta_text || candidate?.cta || fallback?.cta_text || "", 55)
+        : "",
+      overlay_text: normalizeSlideText(candidate?.headline || fallback?.headline || exactProductTitle, 70),
+      product_url: product?.url || null,
+      image_url: product?.image_url || null,
+      product_title: exactProductTitle,
+      product_identity_key: createItemKey(product),
+    };
   });
-
-  const imageBase64 = response?.data?.[0]?.b64_json;
-
-  if (!imageBase64) {
-    throw new Error("OpenAI image generation returned empty outro image data");
-  }
 
   return {
-    imageBase64,
-    imagePrompt,
+    caption: cleanPostContentUrls(
+      removePricesFromAnimatedCaption(
+        sanitizeUnsupportedOfferLanguage(String(plan?.caption || fallbackCaption || "").trim(), selectedProducts[0] || null),
+        rule
+      ),
+      getPostDestinationUrl(rule)
+    ),
+    design_brief: normalizeSlideText(
+      plan?.design_brief ||
+        "One coherent premium social carousel. Keep a consistent visual system, typography hierarchy, spacing and campaign mood across all five slides while adapting each composition to its verified product.",
+      900
+    ),
+    slides,
+    model: plan?.model || null,
   };
 }
 
-async function generateProductCarouselSlides(openai, rule, postContent, products) {
-  const selectedProducts = products.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
-  const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
-  const productsText = formatWebsiteItemsForPrompt(selectedProducts);
+export async function generateProductCarouselCreativePlan(
+  openai,
+  rule,
+  products,
+  fallbackCaption = ""
+) {
+  const selectedProducts = (Array.isArray(products) ? products : [])
+    .filter(Boolean)
+    .slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  if (selectedProducts.length !== CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    throw new Error(`Carousel creative planning requires exactly ${CAROUSEL_PRODUCT_SLIDE_TARGET} verified products.`);
+  }
 
-  try {
-    const completion = await openai.chat.completions.create({
-      model: POST_TEXT_MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are Spreelo, an expert social media product carousel strategist. Return only valid JSON. Do not explain your work.",
-        },
-        {
-          role: "user",
-          content: `
-Create short slide copy for a product carousel.
+  const fallbackPlan = normalizeCarouselCreativePlan(
+    { caption: fallbackCaption, slides: [] },
+    rule,
+    selectedProducts,
+    fallbackCaption
+  );
+  if (!openai) return fallbackPlan;
 
-Brand profile:
-${brandProfileText}
+  const productContext = selectedProducts
+    .map((product, index) => {
+      const description = truncateText(
+        String(product?.description || product?.body || product?.reason || "")
+          .replace(/\s+/g, " ")
+          .trim(),
+        500
+      );
+      return [
+        `PRODUCT ${index + 1} — LOCKED TO SLIDE ${index + 1}`,
+        `Exact title: ${product?.title || "Unknown"}`,
+        `URL: ${product?.url || "Unknown"}`,
+        description ? `Verified description/context: ${description}` : "Verified description/context: none supplied",
+        product?.product_brand ? `Verified product brand: ${product.product_brand}` : "",
+        product?.product_color ? `Verified color: ${product.product_color}` : "",
+      ].filter(Boolean).join("\n");
+    })
+    .join("\n\n");
 
-Selected products for the carousel:
-${productsText}
+  const prompt = `
+You are the senior creative director for Spreelo. Plan ONE coherent five-slide ecommerce product carousel before any image is generated.
 
-Platform: ${rule.platform || "Instagram/Facebook"}
+BRAND PROFILE
+${formatBrandProfileForPrompt(rule?.brand_profile)}
+
+FIVE VERIFIED PRODUCTS — ORDER IS LOCKED
+${productContext}
+
+PLATFORM
+${rule?.platform || "Instagram/Facebook"}
+
 ${getRuleLanguageInstruction(rule)}
-Tone: ${rule.tone || "Professional"}
-CTA type: ${rule.cta_type || "Soft CTA"}
-
-Caption already created for the post:
-${postContent || "Not provided"}
+Tone: ${rule?.tone || "Professional"}
+CTA type: ${rule?.cta_type || "Soft CTA"}
 
 ${formatCampaignIdentityLockForPrompt(rule)}
 
 ${formatAuthorizedCampaignOfferForPrompt(rule)}
 
-Rules:
-- If a CAMPAIGN IDENTITY LOCK is provided above, all carousel copy and the final outro must stay inside that one campaign. Never introduce another named holiday, campaign, theme day, season, shopping event or occasion.
-- Create exactly ${selectedProducts.length} product slides in the same order as the selected products.
-- Then create 1 final outro slide that acts as a closing CTA for the whole carousel.
-- Every product slide must focus on its matching product only.
-- Product slides should use the product title as the main text. Leave product slide body text empty unless a short factual detail is essential and directly belongs to that exact product.
-- Write in the selected post language.
-- Keep text short enough for a social media carousel.
-- Use only facts from the product list and brand profile.
-- Do not invent prices, discounts, stock status, reviews, delivery promises, guarantees or features.
+AUTOMATION / CUSTOMER INTENT
+${truncateText(String(rule?.prompt || "Create a polished product carousel."), 1400)}
+
+${fallbackCaption ? `EXISTING SAFE CAPTION CONTEXT\n${truncateText(fallbackCaption, 1400)}` : ""}
+
+NON-NEGOTIABLE RULES
+- Return exactly five slide plans, in Product 1 → Product 5 order. Never reorder, rename or replace a product.
+- Slide 1 may use a strong carousel-level hook, but the image still features Product 1 only.
+- Slides 2–4 are product-led. Keep visible text very sparse.
+- Slide 5 features Product 5 and also acts as the closing CTA. There is NO sixth/outro slide.
+- Write all customer-facing text in the selected post language.
+- The caption should work for the whole five-product carousel and should be useful, natural social copy rather than five repetitive mini descriptions.
+- The image model must never invent wording. Therefore headline, supporting_text and cta_text are FINAL LOCKED TEXT. Proofread spelling, accents and diacritics before returning them.
+- Keep headline normally 2–7 words; supporting_text normally 0–10 words; CTA normally 0–5 words.
+- Do not invent prices, discounts, stock, shipping, reviews, materials, performance, guarantees, product features or availability.
 - Never mention or infer a product price.
-- The first product slide can feel like a hook, but it must still feature Product 1.
-- The final outro slide should invite the reader to explore more or visit the website.
-- The final outro slide should include short overlay_text suitable for a text overlay on an AI-generated closing image.
-- If an exact authorized campaign offer is provided, make the final outro slide clearly show its exact discount and campaign code. Do not alter the values.
+- Only use a discount/code when the AUTHORIZED CAMPAIGN OFFER explicitly provides it, and reproduce it exactly.
+- If a CAMPAIGN IDENTITY LOCK exists, every slide and the caption must stay inside that exact campaign/theme. Internal scheduling names must never leak into customer copy.
+- design_brief is a shared visual system for all five images: campaign mood, background family, typography character, spacing, hierarchy and compositional rhythm. It must not ask the image model to invent extra merchandise.
+- The five slides must clearly belong together but should not be identical layouts.
+- Do not ask for a logo to be redrawn; Spreelo overlays the verified logo afterward when enabled.
 
-Return JSON exactly in this shape:
-{
-  "slides": [
-    { "headline": "...", "body": "...", "cta_text": "" }
-  ],
-  "outro": { "headline": "...", "body": "...", "cta_text": "...", "overlay_text": "..." }
-}
-          `.trim(),
+Return the strict JSON only.`.trim();
+
+  try {
+    const response = await openai.responses.create(
+      {
+        model: CAROUSEL_CREATIVE_MODEL,
+        reasoning: { effort: "none" },
+        input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
+        max_output_tokens: 1800,
+        text: {
+          verbosity: "low",
+          format: {
+            type: "json_schema",
+            name: "spreelo_product_carousel_plan",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                caption: { type: "string", minLength: 1, maxLength: 2200 },
+                design_brief: { type: "string", minLength: 20, maxLength: 900 },
+                slides: {
+                  type: "array",
+                  minItems: CAROUSEL_PRODUCT_SLIDE_TARGET,
+                  maxItems: CAROUSEL_PRODUCT_SLIDE_TARGET,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      headline: { type: "string", minLength: 1, maxLength: 70 },
+                      supporting_text: { type: "string", maxLength: 120 },
+                      cta_text: { type: "string", maxLength: 55 },
+                    },
+                    required: ["headline", "supporting_text", "cta_text"],
+                  },
+                },
+              },
+              required: ["caption", "design_brief", "slides"],
+            },
+          },
         },
-      ],
-      temperature: 0.55,
+      },
+      { timeout: 35_000, maxRetries: 0 }
+    );
+    const parsed = safeJsonParse(getOpenAiResponseOutputText(response));
+    const normalized = normalizeCarouselCreativePlan(
+      { ...parsed, model: CAROUSEL_CREATIVE_MODEL },
+      rule,
+      selectedProducts,
+      fallbackCaption
+    );
+    if (!normalized.caption || normalized.slides.length !== CAROUSEL_PRODUCT_SLIDE_TARGET) {
+      throw new Error("Carousel creative plan did not satisfy the five-slide contract");
+    }
+
+    try {
+      const validation = await validateProductCopyIdentityWithModel({
+        openai,
+        rule: {
+          ...rule,
+          website_item: selectedProducts[0],
+          website_items: selectedProducts,
+          product_content_contract: buildProductContentContract(
+            selectedProducts,
+            rule?.website_reserve_items || []
+          ),
+        },
+        content: normalized.caption,
+      });
+      if (!validation?.valid) {
+        throw new Error(
+          `Carousel caption product identity validation failed: ${(validation?.invalidMentions || []).join(", ") || validation?.reason || "unknown"}`
+        );
+      }
+    } catch (validationError) {
+      if (!fallbackCaption) throw validationError;
+      normalized.caption = fallbackPlan.caption;
+      console.warn("Carousel Sol caption failed identity validation; keeping the already-safe caption fallback", {
+        ruleId: rule?.id || null,
+        message: validationError?.message || String(validationError),
+      });
+    }
+
+    console.info("Five-product carousel creative plan locked before image generation", {
+      ruleId: rule?.id || null,
+      model: CAROUSEL_CREATIVE_MODEL,
+      productCount: normalized.slides.length,
+      hasCaption: Boolean(normalized.caption),
+      hasDesignBrief: Boolean(normalized.design_brief),
     });
-
-    const raw = completion.choices?.[0]?.message?.content || "";
-    const parsed = safeJsonParse(raw);
-    const sourceSlides = Array.isArray(parsed?.slides) ? parsed.slides : [];
-    const sourceOutro = parsed?.outro || {};
-
-    const slides = selectedProducts.map((product, index) => {
-      const slide = sourceSlides[index] || {};
-      return {
-        slide_type: index === 0 ? "product_hook" : "product",
-        // Product identity is authoritative. AI may not rename or reorder the
-        // concrete product shown on a product slide.
-        headline: normalizeSlideText(
-          sanitizeProductTitleForCard(product.title) ||
-            product.title ||
-            `Product ${index + 1}`,
-          90
-        ),
-        body: "",
-        cta_text: normalizeSlideText(slide.cta_text || slide.cta || "", 80),
-        product_url: product.url || null,
-        image_url: product.image_url || null,
-        product_title: resolveVerifiedProductTitle({ productName: product.title, productUrl: product.url }) || null,
-        product_identity_key: createItemKey(product),
-      };
-    });
-
-    const outroSlide = {
-      slide_type: "product_outro",
-      headline: normalizeSlideText(
-        sourceOutro.headline || sourceOutro.title || rule?.brand_profile?.business_name || "See more from the collection",
-        90
-      ),
-      body: normalizeSlideText(
-        sourceOutro.body || sourceOutro.text || "Explore more products from the collection on the website.",
-        210
-      ),
-      cta_text: normalizeSlideText(sourceOutro.cta_text || sourceOutro.cta || rule?.cta_type || "", 80),
-      overlay_text: normalizeSlideText(
-        sourceOutro.overlay_text || sourceOutro.overlay || sourceOutro.headline || rule?.brand_profile?.business_name || "See more",
-        90
-      ),
-      product_url: getPostDestinationUrl(rule) || null,
-      image_url: null,
-    };
-
-    const combinedSlides = slides.every((slide) => slide.headline || slide.body)
-      ? [...slides, outroSlide]
-      : buildFallbackProductCarouselSlides(rule, selectedProducts, postContent);
-
-    return combinedSlides;
+    return normalized;
   } catch (error) {
-    console.error("Product carousel slide copy generation failed, using fallback slides", {
-      ruleId: rule.id,
-      message: error.message,
+    console.warn("Carousel creative planning failed; using identity-safe fallback plan", {
+      ruleId: rule?.id || null,
+      model: CAROUSEL_CREATIVE_MODEL,
+      message: error?.message || String(error),
     });
-
-    return buildFallbackProductCarouselSlides(rule, selectedProducts, postContent);
+    return fallbackPlan;
   }
+}
+
+async function generateProductCarouselSlides(openai, rule, postContent, products) {
+  const plan = await generateProductCarouselCreativePlan(openai, rule, products, postContent);
+  return plan.slides;
 }
 
 async function mapWithConcurrency(items, concurrency, mapper) {
@@ -33340,6 +33940,7 @@ async function saveCarouselSlidesForPost({
   postContent,
   imageUrl,
   imageStoragePath,
+  creativePlan = null,
 }) {
   if (!isCarouselRule(rule) || !postId) {
     return [];
@@ -33351,12 +33952,12 @@ async function saveCarouselSlidesForPost({
     [rule?.website_reserve_items || []],
     getWebsiteProductSourceUrl(rule?.brand_profile) || rule?.website_url || "",
     CAROUSEL_PRODUCT_SLIDE_TARGET
-  );
-  const carouselRule = {
-    ...rule,
-    website_item: carouselProducts[0] || selectedItem,
-    website_items: carouselProducts,
-  };
+  ).slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  const productCount = carouselProducts.length;
+  if (productCount !== CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    throw new Error(`Carousel needs exactly ${CAROUSEL_PRODUCT_SLIDE_TARGET} verified products with images. Found ${productCount}.`);
+  }
+
   const semanticallyUnverifiedProducts = carouselProducts.filter(
     (product) => product?.product_image_semantic_verified !== true
   );
@@ -33369,345 +33970,189 @@ async function saveCarouselSlidesForPost({
     );
   }
 
-  const slides = await generateCarouselSlides(openai, carouselRule, postContent);
-  const productCount = carouselProducts.length;
-
-  if (productCount < CAROUSEL_PLATFORM_MIN_PRODUCT_SLIDES) {
-    throw new Error(`Carousel needs at least ${CAROUSEL_PLATFORM_MIN_PRODUCT_SLIDES} verified products with images. Found ${productCount}.`);
-  }
-
-  const includeLogo = shouldUseLogoForRule(rule, rule.brand_profile);
-  const destinationUrl = getPostDestinationUrl(rule);
-
-  const backgroundSelectionContext = {
-    assetsPromise: null,
-    bufferPromises: new Map(),
-    usageCounts: new Map(),
+  const carouselRule = {
+    ...rule,
+    website_item: carouselProducts[0] || selectedItem,
+    website_items: carouselProducts,
   };
-  const productLabelAnalyses = await analyzeCarouselProductLabelPlacements({
+  const plan = creativePlan || await generateProductCarouselCreativePlan(
     openai,
-    ruleId: rule?.id,
-    items: carouselProducts.map((product, index) => {
-      const presentation = getCarouselProductLabelPresentation(
-        product,
-        slides[index]?.product_title || ""
-      );
-      return {
-        id: String(index),
-        title: [presentation.brand, presentation.rawTitle || presentation.title]
-          .filter(Boolean)
-          .join(" — "),
-        imageUrl:
-          slides[index]?.image_url ||
-          product?.image_url ||
-          (index === 0 ? imageUrl || selectedItem?.image_url : null) ||
-          null,
-      };
-    }),
-  });
-  if (includeLogo) {
-    for (const [analysisId, analysis] of productLabelAnalyses) {
-      if (analysis?.placement === "bottom_right") {
-        productLabelAnalyses.delete(analysisId);
-      }
-    }
-  }
+    carouselRule,
+    carouselProducts,
+    postContent
+  );
+  const slides = Array.isArray(plan?.slides) && plan.slides.length === CAROUSEL_PRODUCT_SLIDE_TARGET
+    ? plan.slides
+    : buildFallbackProductCarouselSlides(carouselRule, carouselProducts, postContent);
+  const includeLogo = shouldUseLogoForRule(rule, rule.brand_profile);
 
   async function buildCarouselSlideRow(index) {
     const slide = slides[index] || {};
-    const isOutroSlide = String(slide.slide_type || '').toLowerCase() === 'product_outro';
-    const slideProduct = !isOutroSlide ? carouselProducts[index] || null : null;
-    if (!isOutroSlide && slideProduct) {
-      const expectedIdentityKey = createItemKey(slideProduct);
-      const slideIdentityKey = String(slide?.product_identity_key || "").trim();
-      const slideProductUrl = String(slide?.product_url || "").trim();
-      if (
-        (slideIdentityKey && slideIdentityKey !== expectedIdentityKey) ||
-        (slideProductUrl &&
-          !areSameWebsiteItem(
-            slideProduct,
-            {
-              title: slide?.product_title || slideProduct?.title,
-              url: slideProductUrl,
-            },
-            getWebsiteProductSourceUrl(rule?.brand_profile) ||
-              rule?.website_url ||
-              ""
-          ))
-      ) {
-        throw new Error(
-          `Carousel slide ${index + 1} product identity mismatch. Expected ${
-            slideProduct?.title || "selected product"
-          }.`
-        );
-      }
-      if (slideProduct?.product_image_semantic_verified !== true) {
-        throw new Error(
-          `Carousel slide ${index + 1} image was not semantically verified for ${
-            slideProduct?.title || "selected product"
-          }.`
-        );
-      }
-    }
-    // Never trust generated slide order for the source product image. The
-    // selected product object is the single source of truth for title, URL and
-    // image identity.
-    const sourceSlideImageUrl = !isOutroSlide
-      ? slideProduct?.image_url ||
-        (index === 0 ? imageUrl || selectedItem?.image_url : null) ||
-        null
-      : slide.image_url || null;
-    let slideImageUrl = sourceSlideImageUrl;
-    let slideStoragePath = !isOutroSlide && index === 0 ? imageStoragePath || null : null;
-    let generatedImagePrompt = null;
-    let slideRenderedBy = 'source_image';
-    let productCardRenderError = null;
-    let productLabelApplied = false;
-    let tiktokCleanImageUrl = null;
-    let tiktokCleanImageStoragePath = null;
-    let productLabelMetadata = {
-      productLabelSource: "none",
-      productLabelReason: "not_rendered",
-      productLabelLayout: null,
-      productLabelPlacement: null,
-      productLabelFontSize: null,
-      productLabelDirection: null,
-      productLabelScript: null,
-      productLabelFontFamily: null,
-    };
+    const slideProduct = carouselProducts[index] || null;
+    if (!slideProduct) return null;
 
-    if (!isOutroSlide && sourceSlideImageUrl) {
-      try {
-        const productLabelPresentation = getCarouselProductLabelPresentation(
+    const expectedIdentityKey = createItemKey(slideProduct);
+    const slideIdentityKey = String(slide?.product_identity_key || "").trim();
+    const slideProductUrl = String(slide?.product_url || "").trim();
+    if (
+      (slideIdentityKey && slideIdentityKey !== expectedIdentityKey) ||
+      (slideProductUrl &&
+        !areSameWebsiteItem(
           slideProduct,
-          slide.product_title || ""
-        );
-        const renderedProductSlide = await renderCarouselProductSlideImage({
-          sourceImageUrl: sourceSlideImageUrl,
-          openai,
+          { title: slide?.product_title || slideProduct?.title, url: slideProductUrl },
+          getWebsiteProductSourceUrl(rule?.brand_profile) || rule?.website_url || ""
+        ))
+    ) {
+      throw new Error(`Carousel slide ${index + 1} product identity mismatch. Expected ${slideProduct?.title || "selected product"}.`);
+    }
+
+    const sourceSlideImageUrl =
+      slideProduct?.image_url ||
+      (index === 0 ? imageUrl || selectedItem?.image_url : null) ||
+      null;
+    if (!sourceSlideImageUrl) {
+      throw new Error(`Carousel slide ${index + 1} has no verified source image.`);
+    }
+
+    let slideImageUrl = sourceSlideImageUrl;
+    let slideStoragePath = index === 0 ? imageStoragePath || null : null;
+    let tiktokCleanImageUrl = sourceSlideImageUrl;
+    let tiktokCleanImageStoragePath = slideStoragePath;
+    let generatedImagePrompt = null;
+    let slideRenderedBy = "source_image_identity_safe_fallback";
+    let renderError = null;
+    let identityReview = null;
+
+    try {
+      const designed = await generateDesignedCarouselProductSlide({
+        openai,
+        sourceImageUrl: sourceSlideImageUrl,
+        rule: carouselRule,
+        websiteItem: slideProduct,
+        slidePlan: slide,
+        designBrief: plan?.design_brief || "",
+        slideIndex: index,
+        slideCount: CAROUSEL_PRODUCT_SLIDE_TARGET,
+      });
+      generatedImagePrompt = designed.imagePrompt || null;
+      identityReview = designed.identityReview || null;
+      const uploadedImage = await uploadGeneratedImageToStorage({
+        supabase,
+        imageBase64: designed.imageBase64,
+        userId: rule.user_id,
+        postId,
+        fileSuffix: `carousel-slide-${index + 1}-designed`,
+      });
+      slideImageUrl = uploadedImage.imageUrl;
+      slideStoragePath = uploadedImage.imageStoragePath;
+      tiktokCleanImageUrl = slideImageUrl;
+      tiktokCleanImageStoragePath = slideStoragePath;
+      slideRenderedBy = designed.provider || "gpt-image-2-full-carousel-design";
+    } catch (error) {
+      renderError = error?.message || "Unknown carousel design error";
+      console.error("Full carousel product slide design failed; preserving verified source image instead of risking product identity", {
+        ruleId: rule?.id || null,
+        postId,
+        slideOrder: index + 1,
+        productTitle: slideProduct?.title || null,
+        message: renderError,
+      });
+    }
+
+    if (includeLogo && slideImageUrl) {
+      try {
+        const logoOverlayResult = await applyLogoOverlayIfNeeded({
           supabase,
-          rule,
-          websiteItem: slideProduct,
-          backgroundSelectionContext,
-          productTitle: productLabelPresentation.title,
-          productBrand: productLabelPresentation.brand,
-          productDescriptor: productLabelPresentation.descriptor,
-          productLabelAnalysis: productLabelAnalyses.get(String(index)) || null,
-          productLabelAnalysisStatus: productLabelAnalyses.analysisStatus || "not_requested",
+          userId: rule.user_id,
+          postId: `${postId}-carousel-slide-${index + 1}`,
+          imageUrl: slideImageUrl,
+          imageStoragePath: slideStoragePath,
+          brandProfile: rule.brand_profile,
           includeLogo,
-          languageHint: rule?.content_language || rule?.language || rule?.brand_profile?.language || "",
         });
-        const { imageBase64 } = renderedProductSlide;
-        productLabelApplied = Boolean(renderedProductSlide.productLabelApplied);
-        productLabelMetadata = renderedProductSlide;
-        console.info("Carousel product label render decision", {
+        if (logoOverlayResult?.imageUrl) {
+          slideImageUrl = logoOverlayResult.imageUrl;
+          slideStoragePath = logoOverlayResult.imageStoragePath || slideStoragePath;
+        }
+      } catch (logoError) {
+        console.warn("Carousel logo overlay failed; keeping the clean generated slide", {
           ruleId: rule?.id || null,
           postId,
           slideOrder: index + 1,
-          applied: productLabelApplied,
-          source: renderedProductSlide.productLabelSource,
-          reason: renderedProductSlide.productLabelReason,
-          placement: renderedProductSlide.productLabelPlacement,
-          layout: renderedProductSlide.productLabelLayout,
-          fontSize: renderedProductSlide.productLabelFontSize,
-          direction: renderedProductSlide.productLabelDirection,
-          script: renderedProductSlide.productLabelScript,
-          brand: productLabelPresentation.brand || null,
-          title: productLabelPresentation.title || null,
-          descriptor: productLabelPresentation.descriptor || null,
-        });
-
-        const uploadedImage = await uploadGeneratedImageToStorage({
-          supabase,
-          imageBase64,
-          userId: rule.user_id,
-          postId,
-          fileSuffix: `carousel-slide-${index + 1}-rendered`,
-        });
-
-        slideImageUrl = uploadedImage.imageUrl;
-        slideStoragePath = uploadedImage.imageStoragePath;
-        slideRenderedBy = 'step95j_product_carousel_render';
-        tiktokCleanImageUrl = slideImageUrl;
-        tiktokCleanImageStoragePath = slideStoragePath;
-
-        const logoOverlayResult = await applyLogoOverlayIfNeeded({
-          supabase,
-          userId: rule.user_id,
-          postId: `${postId}-carousel-slide-${index + 1}`,
-          imageUrl: slideImageUrl,
-          imageStoragePath: slideStoragePath,
-          brandProfile: rule.brand_profile,
-          includeLogo: includeLogo,
-        });
-
-        if (logoOverlayResult?.imageUrl) {
-          slideImageUrl = logoOverlayResult.imageUrl;
-          slideStoragePath = logoOverlayResult.imageStoragePath || slideStoragePath;
-        }
-      } catch (error) {
-        productCardRenderError = error?.message || 'Unknown product card render error';
-        console.error('Carousel product slide render failed', {
-          ruleId: rule?.id,
-          postId,
-          slideOrder: index + 1,
-          message: productCardRenderError,
+          message: logoError?.message || String(logoError),
         });
       }
     }
-
-    // The campaign outro remains AI-generated exactly as before. It is kept
-    // sequential after product rendering so image generation does not compete
-    // with the three-product Sharp/upload worker pool.
-    if (isOutroSlide && !slideImageUrl) {
-      try {
-        const { imageBase64, imagePrompt } = await generateCarouselOutroSlideImage(
-          openai,
-          rule,
-          slide,
-          carouselProducts
-        );
-
-        const uploadedImage = await uploadGeneratedImageToStorage({
-          supabase,
-          imageBase64,
-          userId: rule.user_id,
-          postId,
-          fileSuffix: `carousel-slide-${index + 1}`,
-        });
-
-        slideImageUrl = uploadedImage.imageUrl;
-        slideStoragePath = uploadedImage.imageStoragePath;
-        generatedImagePrompt = imagePrompt;
-        slideRenderedBy = 'step95g_product_carousel_outro';
-        tiktokCleanImageUrl = slideImageUrl;
-        tiktokCleanImageStoragePath = slideStoragePath;
-
-        const logoOverlayResult = await applyLogoOverlayIfNeeded({
-          supabase,
-          userId: rule.user_id,
-          postId: `${postId}-carousel-slide-${index + 1}`,
-          imageUrl: slideImageUrl,
-          imageStoragePath: slideStoragePath,
-          brandProfile: rule.brand_profile,
-          includeLogo: includeLogo,
-        });
-
-        if (logoOverlayResult?.imageUrl) {
-          slideImageUrl = logoOverlayResult.imageUrl;
-          slideStoragePath = logoOverlayResult.imageStoragePath || slideStoragePath;
-        }
-      } catch (error) {
-        console.error('Carousel outro slide image generation failed', {
-          ruleId: rule?.id,
-          postId,
-          message: error.message,
-        });
-      }
-    }
-
-    const slideProductUrl = !isOutroSlide
-      ? slideProduct?.url || null
-      : destinationUrl || slide.product_url || null;
 
     return {
       user_id: rule.user_id,
       post_id: postId,
       slide_order: index + 1,
-      slide_type: 'content',
+      slide_type: "content",
       headline: null,
       body: null,
       cta_text: null,
       image_url: slideImageUrl,
-      product_url: slideProductUrl,
+      product_url: slideProduct?.url || null,
       logo_enabled: includeLogo,
       metadata: {
-        generated_by: productCount >= CAROUSEL_PLATFORM_MIN_PRODUCT_SLIDES
-          ? slideRenderedBy
-          : 'step94_carousel_draft',
-        carousel_slide_role: slide.slide_type || (index === 0 ? 'product_hook' : index === slides.length - 1 ? 'product_cta' : 'product'),
+        generated_by: slideRenderedBy,
+        carousel_slide_role: slide.slide_type || (index === 0 ? "product_hook" : index === CAROUSEL_PRODUCT_SLIDE_TARGET - 1 ? "product_cta" : "product"),
+        carousel_creative_model: plan?.model || CAROUSEL_CREATIVE_MODEL,
+        carousel_design_brief: plan?.design_brief || null,
+        locked_headline: slide?.headline || null,
+        locked_supporting_text: slide?.body || slide?.supporting_text || null,
+        locked_cta_text: slide?.cta_text || null,
         source_content_type_id: rule.content_type_id || null,
-        product_count: productCount || null,
+        product_count: productCount,
         image_storage_path: slideStoragePath || null,
         tiktok_image_url: tiktokCleanImageUrl || slideImageUrl || null,
         tiktok_image_storage_path: tiktokCleanImageStoragePath || slideStoragePath || null,
-        image_prompt: generatedImagePrompt || null,
-        overlay_text: slide.overlay_text || null,
-        source_image_url: sourceSlideImageUrl || null,
-        rendered_slide: slideRenderedBy !== 'source_image',
+        image_prompt: generatedImagePrompt,
+        source_image_url: sourceSlideImageUrl,
+        rendered_slide: slideRenderedBy !== "source_image_identity_safe_fallback",
         product_title: slideProduct?.title || slide.product_title || null,
-        product_identity_key: !isOutroSlide && slideProduct ? createItemKey(slideProduct) : null,
-        product_identity_url: !isOutroSlide ? slideProduct?.url || null : null,
-        product_image_semantic_verified: !isOutroSlide
-          ? slideProduct?.product_image_semantic_verified === true
-          : null,
-        product_image_semantic_confidence: !isOutroSlide
-          ? Number(slideProduct?.product_image_semantic_confidence || 0) || null
-          : null,
+        product_identity_key: expectedIdentityKey,
+        product_identity_url: slideProduct?.url || null,
+        product_image_semantic_verified: slideProduct?.product_image_semantic_verified === true,
+        product_image_semantic_confidence: Number(slideProduct?.product_image_semantic_confidence || 0) || null,
         product_brand: getTrustedProductCardBrand(slideProduct) || null,
         product_identifier: String(slideProduct?.product_identifier || slideProduct?.locked_product_identifier || "").trim() || null,
         product_display_type: String(slideProduct?.product_display_type || slideProduct?.display_product_type || slideProduct?.locked_product_category || "").trim() || null,
         product_color: String(slideProduct?.product_color || slideProduct?.locked_product_color || "").trim() || null,
         product_image_width: Number(slideProduct?.product_image_width || 0) || null,
         product_image_height: Number(slideProduct?.product_image_height || 0) || null,
-        product_identity_locked: !isOutroSlide ? slideProduct?.product_identity_locked === true : null,
-        locked_product_fingerprint: !isOutroSlide ? String(slideProduct?.locked_product_fingerprint || "").trim() || null : null,
-        product_label_applied: productLabelApplied,
-        product_label_layout: productLabelMetadata.productLabelLayout || null,
-        product_label_placement: productLabelMetadata.productLabelPlacement || null,
-        product_label_source: productLabelMetadata.productLabelSource || "none",
-        product_label_reason: productLabelMetadata.productLabelReason || null,
-        product_label_font_size: productLabelMetadata.productLabelFontSize || null,
-        product_label_direction: productLabelMetadata.productLabelDirection || null,
-        product_label_script: productLabelMetadata.productLabelScript || null,
-        product_label_font_family: productLabelMetadata.productLabelFontFamily || null,
-        product_label_analysis_status: productLabelAnalyses.analysisStatus || "not_requested",
-        bundled_product_fonts_configured: Boolean(bundledProductFontStatus?.configured),
-        product_card_render_error: productCardRenderError || null,
+        product_identity_locked: slideProduct?.product_identity_locked === true,
+        locked_product_fingerprint: String(slideProduct?.locked_product_fingerprint || "").trim() || null,
+        generated_identity_review_confidence: Number(identityReview?.confidence || 0) || null,
+        generated_identity_review_reason: identityReview?.reason || null,
+        product_card_render_error: renderError,
       },
     };
   }
 
-  const productSlideIndexes = [];
-  const outroSlideIndexes = [];
-  for (let index = 0; index < slides.length; index += 1) {
-    const isOutroSlide = String(slides[index]?.slide_type || '').toLowerCase() === 'product_outro';
-    (isOutroSlide ? outroSlideIndexes : productSlideIndexes).push(index);
-  }
-
-  const productRows = await mapWithConcurrency(
-    productSlideIndexes,
+  const rows = (await mapWithConcurrency(
+    Array.from({ length: CAROUSEL_PRODUCT_SLIDE_TARGET }, (_, index) => index),
     CAROUSEL_PRODUCT_RENDER_CONCURRENCY,
     (slideIndex) => buildCarouselSlideRow(slideIndex)
-  );
-  const outroRows = [];
-  for (const slideIndex of outroSlideIndexes) {
-    outroRows.push(await buildCarouselSlideRow(slideIndex));
-  }
-  const rows = [...productRows, ...outroRows]
+  ))
     .filter(Boolean)
     .sort((a, b) => Number(a.slide_order || 0) - Number(b.slide_order || 0));
 
-  if (
-    productCount >= CAROUSEL_PLATFORM_MIN_PRODUCT_SLIDES &&
-    rows.length < productCount + CAROUSEL_OUTRO_SLIDE_COUNT
-  ) {
-    throw new Error(`Carousel product slides were not created correctly. Expected at least ${productCount + CAROUSEL_OUTRO_SLIDE_COUNT}, got ${rows.length}.`);
+  if (rows.length !== CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    throw new Error(`Carousel slides were not created correctly. Expected ${CAROUSEL_PRODUCT_SLIDE_TARGET}, got ${rows.length}.`);
   }
 
-  await supabase.from('post_slides').delete().eq('post_id', postId);
-
+  await supabase.from("post_slides").delete().eq("post_id", postId);
   const insertAttempts = [
     rows,
     rows.map(({ metadata, ...rest }) => rest),
     rows.map(({ metadata, logo_enabled, ...rest }) => rest),
   ];
-
   let insertError = null;
   let inserted = false;
-
   for (const payload of insertAttempts) {
-    const { error } = await supabase.from('post_slides').insert(payload);
+    const { error } = await supabase.from("post_slides").insert(payload);
     if (!error) {
       inserted = true;
       insertError = null;
@@ -33715,30 +34160,24 @@ async function saveCarouselSlidesForPost({
     }
     insertError = error;
   }
-
   if (!inserted) {
-    throw new Error(insertError?.message || 'Could not save carousel slides');
+    throw new Error(insertError?.message || "Could not save carousel slides");
   }
 
   const readyImageCount = rows.filter((row) => row.image_url).length;
-  const slideCount = rows.length;
-  const slideGenerationStatus = slideCount > 0 ? 'ready' : 'failed';
-  const slideRenderStatus = readyImageCount === slideCount && slideCount > 0 ? 'ready' : readyImageCount > 0 ? 'partial' : 'none';
-
-  const postUpdatePayload = {
-    slide_count: slideCount,
-    slide_generation_status: slideGenerationStatus,
-    slide_render_status: slideRenderStatus,
-    updated_at: new Date().toISOString(),
-  };
-
+  const slideGenerationStatus = rows.length === CAROUSEL_PRODUCT_SLIDE_TARGET ? "ready" : "failed";
+  const slideRenderStatus = readyImageCount === rows.length ? "ready" : readyImageCount > 0 ? "partial" : "none";
   const { error: postUpdateError } = await supabase
-    .from('posts')
-    .update(postUpdatePayload)
-    .eq('id', postId);
-
+    .from("posts")
+    .update({
+      slide_count: rows.length,
+      slide_generation_status: slideGenerationStatus,
+      slide_render_status: slideRenderStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", postId);
   if (postUpdateError) {
-    throw new Error(postUpdateError.message || 'Could not update carousel slide summary');
+    throw new Error(postUpdateError.message || "Could not update carousel slide summary");
   }
 
   return rows;
@@ -45140,10 +45579,26 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
         }
 
         automationCurrentStage = "content_generation";
-        let generatedContent = await generateLockedProductPostContentForUse(
-          openai,
-          ruleWithBrandProfile
-        );
+        let carouselCreativePlan = null;
+        let generatedContent = "";
+        if (isCarouselRule(ruleWithBrandProfile)) {
+          carouselCreativePlan = await generateProductCarouselCreativePlan(
+            openai,
+            ruleWithBrandProfile,
+            getCarouselProducts(ruleWithBrandProfile),
+            ""
+          );
+          generatedContent = String(carouselCreativePlan?.caption || "").trim();
+        }
+        if (!generatedContent) {
+          generatedContent = await generateLockedProductPostContentForUse(
+            openai,
+            ruleWithBrandProfile
+          );
+          if (carouselCreativePlan && generatedContent) {
+            carouselCreativePlan = { ...carouselCreativePlan, caption: generatedContent };
+          }
+        }
 
         if (!generatedContent) {
           const message = "OpenAI returned empty content";
@@ -45218,7 +45673,7 @@ scheduled_for: scheduledPublishAtIso,
               : isShotstackAnimatedVideoRule(websitePreparedRule)
               ? ANIMATED_VIDEO_DURATION_SECONDS
               : null,
-    text_model_used: POST_TEXT_MODEL,
+    text_model_used: carouselCreativePlan?.model || POST_TEXT_MODEL,
 image_model_used:
   wantsImage && websitePreparedRule.image_source !== "uploaded"
     ? isKlingAiVideoRule(websitePreparedRule)
@@ -45988,6 +46443,35 @@ product_research_model_used: websitePreparedRule.uses_website_content
             summary.image_generation_failed += 1;
             summary.warnings += 1;
           }
+        } else if (wantsImage && isCarouselRule(ruleWithBrandProfile)) {
+          // The carousel itself owns all five GPT-Image-2 calls. Do not create
+          // a sixth, unused "main post" AI image before the slide pipeline.
+          // Keep the first verified source product as a cheap/safe preview and
+          // emergency fallback; the published carousel uses post_slides.
+          imageUrl = websiteItem?.image_url || websiteItems.find((item) => item?.image_url)?.image_url || null;
+          imageStoragePath = null;
+          finalImagePrompt =
+            "Carousel preview uses the first verified source product image. The five final carousel slides are generated separately from the locked Sol creative plan; no extra AI cover image is generated.";
+
+          const { error: carouselPreviewUpdateError } = await supabase
+            .from("posts")
+            .update({
+              image_url: imageUrl,
+              image_storage_path: null,
+              image_status: imageUrl ? "ready" : "none",
+              image_prompt: finalImagePrompt,
+              include_logo: false,
+              logo_url: null,
+              updated_at: nowIso,
+            })
+            .eq("id", post.id);
+
+          if (carouselPreviewUpdateError) {
+            throw new Error(
+              carouselPreviewUpdateError.message ||
+                "Could not attach verified carousel preview image"
+            );
+          }
         } else if (
           wantsImage &&
           isWebsiteProductPostRule(ruleWithBrandProfile) &&
@@ -46441,6 +46925,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
               postContent: generatedContent,
               imageUrl,
               imageStoragePath,
+              creativePlan: carouselCreativePlan,
             });
 
             const { error: carouselReadyStatusError } = await supabase

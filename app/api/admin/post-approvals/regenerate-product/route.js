@@ -9,6 +9,7 @@ import {
   applyLogoOverlayIfNeeded,
   generateAnimatedProductVideo,
   generateLockedProductPostContentForUse,
+  submitAdminRescueAiProductVideo,
   generateWebsiteItemAdImage,
   generateWebsiteItemEditorialPostImage,
   getCarouselProductLabelPresentation,
@@ -128,6 +129,7 @@ export async function POST(request) {
     }
     occurrence = result.data;
   }
+  const originalWorkItemPostId = String(workItem?.post_id || "").trim() || null;
   const repairSource = post || occurrence || reviewCase || workItem;
   if (!repairSource) {
     return Response.json({ ok: false, error: "The failed generation could not be loaded." }, { status: 404 });
@@ -138,22 +140,32 @@ export async function POST(request) {
     ? await context.admin.from("automation_rules").select("*").eq("id", ruleId).maybeSingle()
     : { data: null };
 
+  const workItemRescueType = String(workItem?.rescue_data?.rescue_type || "").trim().toLowerCase();
+  const workItemContentType = String(workItem?.content_type_id || workItem?.content_type_label || "").trim().toLowerCase();
+  const isAiProductVideoRescue = Boolean(
+    workItemId &&
+      workItemRescueType === "ai_product_video" &&
+      String(workItem?.rescue_status || "").trim().toLowerCase() === "ready"
+  );
   const isKlingAiVideoPost =
+    isAiProductVideoRescue ||
     String(post?.video_provider || "").trim().toLowerCase() === "kling" ||
     String(rule?.content_type_id || "").trim().toLowerCase() === "ai_product_video" ||
-    String(rule?.animation_style || "").trim().toLowerCase() === "kling_product_video";
+    String(rule?.animation_style || "").trim().toLowerCase() === "kling_product_video" ||
+    workItemContentType === "ai_product_video";
 
-  if (isKlingAiVideoPost) {
+  if (isKlingAiVideoPost && !isAiProductVideoRescue) {
     return Response.json(
       {
         ok: false,
         error:
-          "This AI product-video post is limited to one Kling generation. Spreelo will not regenerate or replace the video on the same post. Create a new AI product-video post if a new generation is intentionally required.",
+          "This AI product-video post is limited to one Kling generation. Spreelo will not regenerate or replace the video on the same post. Import a verified AI-product-video Rescue package to create one intentional fresh video post instead.",
         code: "KLING_SINGLE_GENERATION_PER_POST",
       },
       { status: 409 }
     );
   }
+
   const brandProfileId = post?.brand_profile_id || occurrence?.brand_profile_id || reviewCase?.brand_profile_id || workItem?.brand_profile_id || rule?.brand_profile_id || null;
   const { data: brandProfile } = brandProfileId
     ? await context.admin.from("brand_profiles").select("*").eq("id", brandProfileId).maybeSingle()
@@ -180,6 +192,47 @@ export async function POST(request) {
   );
 
   try {
+    // Claim the imported AI-video Rescue package itself before doing any paid or
+    // long-running work. The per-post Kling claim is not enough here because two
+    // concurrent clicks could otherwise create two different fresh posts. Only
+    // one request is allowed to consume a ready Rescue package.
+    if (isAiProductVideoRescue) {
+      const rescueClaimedAt = new Date().toISOString();
+      const claim = await context.admin
+        .from("admin_generation_work_items")
+        .update({
+          status: "running",
+          rescue_status: "used",
+          technical_log: {
+            ...(workItem?.technical_log || {}),
+            ai_product_video_rescue_claim: {
+              claimed_at: rescueClaimedAt,
+              claimed_by: context.user.id,
+            },
+          },
+          updated_at: rescueClaimedAt,
+        })
+        .eq("id", workItemId)
+        .eq("rescue_status", "ready")
+        .select("id")
+        .maybeSingle();
+      if (claim.error) {
+        return Response.json(
+          { ok: false, error: claim.error.message || "AI product-video Rescue could not be claimed." },
+          { status: 409 }
+        );
+      }
+      if (!claim.data?.id) {
+        return Response.json(
+          {
+            ok: false,
+            error: "This AI product-video Rescue package has already been used or is already running. Import a new verified Rescue package before requesting another video generation.",
+            code: "AI_PRODUCT_VIDEO_RESCUE_ALREADY_USED",
+          },
+          { status: 409 }
+        );
+      }
+    }
     if (post?.id) {
       await snapshotAdminPostVersion(context.admin, post.id, {
         reason: "before_admin_product_regeneration",
@@ -232,7 +285,9 @@ export async function POST(request) {
       brand_profile_id: brandProfileId,
       brand_profile: brandProfile || null,
       content_type_id: rule?.content_type_id || post?.post_type || occurrence?.content_type_id || reviewCase?.content_type_label || "website_item",
-      content_format: post?.content_format || occurrence?.content_format || reviewCase?.content_format || rule?.content_format || "single_image",
+      content_format: isAiProductVideoRescue
+        ? "animated_video"
+        : post?.content_format || occurrence?.content_format || reviewCase?.content_format || rule?.content_format || "single_image",
       language: effectiveLanguage,
       tone: post?.tone || rule?.tone || "Professional",
       platform: post?.platform || rule?.platform || "Instagram",
@@ -258,6 +313,14 @@ export async function POST(request) {
     // A terminal generation failure may not have produced a posts row at all.
     // Create a fresh repair draft owned by the original customer before media
     // generation so every later asset is attached to a real post ID.
+    // AI-product-video Rescue is stricter: even when the failed original post
+    // exists, it is never reused. A brand-new post gets its own atomic one-shot
+    // Kling claim, so the failed post can never consume a second generation.
+    const failedAiVideoSourcePost = isAiProductVideoRescue && post?.id ? post : null;
+    const failedAiVideoSourcePostId = failedAiVideoSourcePost?.id || (isAiProductVideoRescue ? originalWorkItemPostId : null);
+    if (failedAiVideoSourcePost) {
+      post = null;
+    }
     if (!post) {
       const insert = await context.admin.from("posts").insert({
         user_id: repairUserId,
@@ -269,8 +332,10 @@ export async function POST(request) {
         language: enhancedRule.language || "English",
         post_type: rule?.post_type || reviewCase?.content_type_label || occurrence?.content_type_label || "Product post",
         content_format: enhancedRule.content_format || "single_image",
-        source: "automation_admin_repair",
-        source_label: "Regenerated from admin-supplied product materials",
+        source: isAiProductVideoRescue ? "automation_admin_rescue_new_video_run" : "automation_admin_repair",
+        source_label: isAiProductVideoRescue
+          ? "Fresh AI product-video run from verified Rescue materials"
+          : "Regenerated from admin-supplied product materials",
         status: "generating",
         approval_required: true,
         approval_token: crypto.randomBytes(32).toString("hex"),
@@ -279,6 +344,8 @@ export async function POST(request) {
         scheduled_for: occurrence?.scheduled_for || reviewCase?.scheduled_for || workItem?.scheduled_for || new Date().toISOString(),
         image_status: "generating",
         video_status: isAnimated ? "rendering" : "none",
+        video_provider: isAiProductVideoRescue ? "kling" : null,
+        video_error: null,
         created_at: now,
         updated_at: now,
       }).select("*").single();
@@ -294,6 +361,10 @@ export async function POST(request) {
             ...(occurrence?.metadata || {}),
             admin_product_items: [product],
             admin_regeneration_started_at: now,
+            ...(failedAiVideoSourcePostId ? {
+              rescue_original_failed_post_id: failedAiVideoSourcePostId,
+              rescue_new_video_post_id: post.id,
+            } : {}),
           },
         }).eq("id", occurrenceId);
       }
@@ -318,6 +389,76 @@ export async function POST(request) {
     let videoRenderId = null;
     let tiktokCleanImageUrl = null;
     let tiktokCleanImageStoragePath = null;
+
+    if (isAiProductVideoRescue) {
+      const submitted = await submitAdminRescueAiProductVideo({
+        openai,
+        supabase: context.admin,
+        rule: {
+          ...enhancedRule,
+          content_type_id: "ai_product_video",
+          content_format: "animated_video",
+          animation_style: "kling_product_video",
+          website_item: lockedProduct,
+          website_items: [lockedProduct],
+        },
+        postContent: generatedContent,
+        userId: repairUserId,
+        postId: post.id,
+      });
+
+      if (occurrenceId) {
+        await context.admin.from("automation_occurrences").update({
+          post_id: post.id,
+          metadata: {
+            ...(occurrence?.metadata || {}),
+            admin_product_items: [product],
+            admin_rescue_video_submitted_at: new Date().toISOString(),
+            rescue_original_failed_post_id: failedAiVideoSourcePostId,
+            rescue_new_video_post_id: post.id,
+            rescue_kling_task_id: submitted.taskId,
+            rescue_credit_refund_available: false,
+          },
+        }).eq("id", occurrenceId);
+      }
+      if (reviewCaseId) {
+        await context.admin.from("admin_review_cases").update({
+          post_id: post.id,
+          product_items: [product],
+          status: "creating",
+          needs_review: true,
+          failure_code: null,
+          failure_stage: null,
+          failure_message: null,
+          updated_at: new Date().toISOString(),
+        }).eq("id", reviewCaseId);
+      }
+      if (workItemId) {
+        await context.admin.from("admin_generation_work_items").update({
+          post_id: post.id,
+          status: "running",
+          rescue_status: "used",
+          failure_code: null,
+          failure_stage: null,
+          failure_message: null,
+          updated_at: new Date().toISOString(),
+        }).eq("id", workItemId);
+      }
+
+      return Response.json({
+        ok: true,
+        post_id: post.id,
+        original_failed_post_id: failedAiVideoSourcePostId,
+        product,
+        content: generatedContent,
+        image_url: submitted.imageUrl,
+        video_url: null,
+        video_task_id: submitted.taskId,
+        video_status: submitted.status,
+        format: "ai_product_video_rescue",
+        new_post: true,
+      });
+    }
 
     if (isAnimated) {
       await context.admin.from("posts").update({
@@ -564,8 +705,8 @@ export async function POST(request) {
       format: isAnimated ? "animated_product_reel" : isAiProductAd ? "ai_product_ad" : "product_post",
     });
   } catch (error) {
+    const failedAt = new Date().toISOString();
     if (post?.id) {
-      const failedAt = new Date().toISOString();
       await context.admin.from("posts").update({
         status: "failed",
         admin_review_status: "needs_repair",
@@ -578,11 +719,20 @@ export async function POST(request) {
         await context.admin.from("admin_review_cases").update({
           status: "needs_repair",
           needs_review: true,
-          failure_stage: "admin_product_regeneration",
+          failure_stage: isAiProductVideoRescue ? "admin_ai_product_video_rescue" : "admin_product_regeneration",
           failure_message: String(error?.message || "Admin regeneration failed").slice(0, 4000),
           updated_at: failedAt,
         }).eq("id", reviewCaseId);
       }
+    }
+    if (workItemId) {
+      await context.admin.from("admin_generation_work_items").update({
+        status: "failed",
+        ...(isAiProductVideoRescue ? { rescue_status: "used" } : {}),
+        failure_stage: isAiProductVideoRescue ? "admin_ai_product_video_rescue" : "admin_product_regeneration",
+        failure_message: String(error?.message || "Admin regeneration failed").slice(0, 4000),
+        updated_at: failedAt,
+      }).eq("id", workItemId);
     }
     return Response.json(
       { ok: false, error: error?.message || "Spreelo could not regenerate this product post." },

@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth";
 import { snapshotAdminPostVersion } from "../../../../../lib/adminPostVersions";
 import { createGenerationCostTracker, wrapOpenAIForCostTracking } from "../../../../../lib/generationCostTracking";
-import { applyLogoOverlayIfNeeded, generateCarouselOutroSlideImage, getCarouselProductLabelPresentation, renderCarouselProductSlideImage, resolveLockedProductUrlForUse, shouldUseLogoForRule } from "../../../cron/run-automations/route.js";
+import { applyLogoOverlayIfNeeded, generateDesignedCarouselProductSlide, generateProductCarouselCreativePlan, resolveLockedProductUrlForUse, shouldUseLogoForRule } from "../../../cron/run-automations/route.js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -174,15 +174,23 @@ export async function POST(request) {
   }
   products = resolvedProducts;
 
-  try {
-    const response = await openai.responses.create({
-      model: process.env.POST_TEXT_MODEL || "gpt-5.5",
-      input: `Write one polished social-media carousel caption in ${language} for ${campaign}. The five admin-supplied product images, product names and product URLs are authoritative and may be a mix of old products and newly added products. Use only those five products. Product descriptions may be empty, so do not invent missing details, prices, offers, specifications or claims. Include a natural CTA and relevant hashtags.\n${JSON.stringify(products)}`,
-      max_output_tokens: 1200,
-    });
-    content = String(response.output_text || content).trim();
-  } catch (error) {
-    if (!content) return Response.json({ ok: false, error: `Caption regeneration failed: ${error.message}` }, { status: 502 });
+  const carouselRule = {
+    ...enhancedRule,
+    content_type_id: enhancedRule?.content_type_id || "carousel_website_item",
+    content_format: "carousel",
+    website_item: products[0],
+    website_items: products,
+    product_content_contract: null,
+  };
+  const creativePlan = await generateProductCarouselCreativePlan(
+    openai,
+    carouselRule,
+    products,
+    content
+  );
+  content = String(creativePlan?.caption || content).trim();
+  if (!content) {
+    return Response.json({ ok: false, error: "Carousel creative planning returned no usable caption." }, { status: 502 });
   }
 
   const now = new Date().toISOString();
@@ -240,46 +248,103 @@ export async function POST(request) {
   const slides = [];
   for (let index = 0; index < products.length; index += 1) {
     const product = products[index];
-    const presentation = getCarouselProductLabelPresentation(product, product.title);
-    const rendered = await renderCarouselProductSlideImage({
-      sourceImageUrl: product.image_url,
-      openai,
-      supabase: context.admin,
-      rule: enhancedRule,
-      websiteItem: product,
-      productTitle: presentation.title,
-      productBrand: presentation.brand,
-      productDescriptor: presentation.descriptor,
-      includeLogo,
-      languageHint: language,
-    });
-    const path = `admin-regenerated/${post.id}/${index + 1}-${crypto.randomUUID()}.png`;
-    const upload = await context.admin.storage.from("post-images").upload(path, Buffer.from(rendered.imageBase64, "base64"), { contentType: "image/png", upsert: false });
-    if (upload.error) return Response.json({ ok: false, error: upload.error.message }, { status: 500 });
-    const { data: publicData } = context.admin.storage.from("post-images").getPublicUrl(path);
-    const tiktokCleanImageUrl = publicData.publicUrl;
-    let finalImageUrl = tiktokCleanImageUrl;
-    let finalImageStoragePath = path;
-    const logoResult = await applyLogoOverlayIfNeeded({
-      supabase: context.admin, userId: post.user_id, postId: `${post.id}-admin-carousel-${index + 1}`,
-      imageUrl: finalImageUrl, imageStoragePath: finalImageStoragePath, brandProfile, includeLogo,
-    });
-    if (logoResult?.imageUrl) { finalImageUrl = logoResult.imageUrl; finalImageStoragePath = logoResult.imageStoragePath || finalImageStoragePath; }
+    const slidePlan = creativePlan?.slides?.[index] || {
+      slide_type: index === 0 ? "product_hook" : index === products.length - 1 ? "product_cta" : "product",
+      headline: product.title,
+      body: "",
+      cta_text: index === products.length - 1 ? rule?.cta_type || "" : "",
+    };
+    let cleanImageUrl = product.image_url;
+    let cleanImageStoragePath = null;
+    let finalImageUrl = cleanImageUrl;
+    let finalImageStoragePath = null;
+    let renderError = null;
+    let imagePrompt = null;
+    let identityReview = null;
+    let renderedBy = "source_image_identity_safe_fallback";
+
+    try {
+      const designed = await generateDesignedCarouselProductSlide({
+        openai,
+        sourceImageUrl: product.image_url,
+        rule: carouselRule,
+        websiteItem: product,
+        slidePlan,
+        designBrief: creativePlan?.design_brief || "",
+        slideIndex: index,
+        slideCount: products.length,
+      });
+      const path = `admin-regenerated/${post.id}/${index + 1}-${crypto.randomUUID()}.png`;
+      const upload = await context.admin.storage.from("post-images").upload(
+        path,
+        Buffer.from(designed.imageBase64, "base64"),
+        { contentType: "image/png", upsert: false }
+      );
+      if (upload.error) throw upload.error;
+      const { data: publicData } = context.admin.storage.from("post-images").getPublicUrl(path);
+      cleanImageUrl = publicData.publicUrl;
+      cleanImageStoragePath = path;
+      finalImageUrl = cleanImageUrl;
+      finalImageStoragePath = path;
+      imagePrompt = designed.imagePrompt || null;
+      identityReview = designed.identityReview || null;
+      renderedBy = designed.provider || "gpt-image-2-full-carousel-design";
+    } catch (error) {
+      renderError = error?.message || String(error);
+      console.warn("Admin carousel full-slide design failed; preserving the authoritative supplied product image", {
+        postId: post.id,
+        slideOrder: index + 1,
+        productTitle: product.title || null,
+        message: renderError,
+      });
+    }
+
+    if (includeLogo && finalImageUrl) {
+      try {
+        const logoResult = await applyLogoOverlayIfNeeded({
+          supabase: context.admin,
+          userId: post.user_id,
+          postId: `${post.id}-admin-carousel-${index + 1}`,
+          imageUrl: finalImageUrl,
+          imageStoragePath: finalImageStoragePath,
+          brandProfile,
+          includeLogo,
+        });
+        if (logoResult?.imageUrl) {
+          finalImageUrl = logoResult.imageUrl;
+          finalImageStoragePath = logoResult.imageStoragePath || finalImageStoragePath;
+        }
+      } catch (logoError) {
+        console.warn("Admin carousel logo overlay failed; keeping clean slide", {
+          postId: post.id,
+          slideOrder: index + 1,
+          message: logoError?.message || String(logoError),
+        });
+      }
+    }
+
     slides.push({
       user_id: post.user_id,
       post_id: post.id,
       slide_order: index + 1,
       slide_type: "content",
-      headline: product.title,
-      body: product.description || null,
+      headline: null,
+      body: null,
       cta_text: null,
       image_url: finalImageUrl,
       product_url: product.url || null,
       logo_enabled: includeLogo,
       metadata: {
         image_storage_path: finalImageStoragePath,
-        tiktok_image_url: tiktokCleanImageUrl,
-        tiktok_image_storage_path: path,
+        tiktok_image_url: cleanImageUrl,
+        tiktok_image_storage_path: cleanImageStoragePath,
+        image_prompt: imagePrompt,
+        generated_by: renderedBy,
+        carousel_creative_model: creativePlan?.model || null,
+        carousel_design_brief: creativePlan?.design_brief || null,
+        locked_headline: slidePlan?.headline || null,
+        locked_supporting_text: slidePlan?.body || slidePlan?.supporting_text || null,
+        locked_cta_text: slidePlan?.cta_text || null,
         product_title: product.title,
         product_description: product.description || null,
         product_brand: product.product_brand || null,
@@ -291,63 +356,15 @@ export async function POST(request) {
         product_identity_locked: product.product_identity_locked === true,
         product_image_semantic_verified: product.product_image_semantic_verified === true,
         source_image_url: product.image_url,
-        carousel_slide_role: "product",
+        carousel_slide_role: slidePlan?.slide_type || (index === 0 ? "product_hook" : index === products.length - 1 ? "product_cta" : "product"),
         admin_regenerated: true,
         admin_materials_authoritative: true,
         admin_manual_override: product.manual_override === true,
         admin_manual_image_override: product.manual_image_override === true,
-        product_label_applied: rendered.productLabelApplied,
-        product_label_placement: rendered.productLabelPlacement,
-        product_label_layout: rendered.productLabelLayout,
+        generated_identity_review_confidence: Number(identityReview?.confidence || 0) || null,
+        generated_identity_review_reason: identityReview?.reason || null,
+        product_card_render_error: renderError,
       },
-    });
-  }
-  const requestedOutro = body?.outro_slide || null;
-  if (body?.preserve_outro && requestedOutro?.image_url) {
-    slides.push({
-      user_id: post.user_id,
-      post_id: post.id,
-      slide_order: 6,
-      slide_type: "content",
-      headline: requestedOutro.headline || brandProfile?.business_name || campaign,
-      body: requestedOutro.body || null,
-      cta_text: requestedOutro.cta_text || null,
-      image_url: requestedOutro.image_url,
-      product_url: requestedOutro.product_url || brandProfile?.website_url || null,
-      logo_enabled: false,
-      metadata: { ...(requestedOutro.metadata || {}), carousel_slide_role: "product_outro", admin_preserved: true },
-    });
-  } else {
-    const outroCopy = {
-      headline: brandProfile?.business_name || campaign,
-      body: content,
-      cta_text: rule?.cta_type || "Explore more",
-    };
-    const generatedOutro = await generateCarouselOutroSlideImage(openai, enhancedRule, outroCopy, products);
-    const outroPath = `admin-regenerated/${post.id}/6-${crypto.randomUUID()}.png`;
-    const outroUpload = await context.admin.storage.from("post-images").upload(outroPath, Buffer.from(generatedOutro.imageBase64, "base64"), { contentType: "image/png", upsert: false });
-    if (outroUpload.error) return Response.json({ ok: false, error: outroUpload.error.message }, { status: 500 });
-    const { data: outroPublicData } = context.admin.storage.from("post-images").getPublicUrl(outroPath);
-    const tiktokCleanOutroUrl = outroPublicData.publicUrl;
-    let finalOutroUrl = tiktokCleanOutroUrl;
-    let finalOutroStoragePath = outroPath;
-    const outroLogoResult = await applyLogoOverlayIfNeeded({
-      supabase: context.admin, userId: post.user_id, postId: `${post.id}-admin-carousel-outro`,
-      imageUrl: finalOutroUrl, imageStoragePath: finalOutroStoragePath, brandProfile, includeLogo,
-    });
-    if (outroLogoResult?.imageUrl) { finalOutroUrl = outroLogoResult.imageUrl; finalOutroStoragePath = outroLogoResult.imageStoragePath || finalOutroStoragePath; }
-    slides.push({
-      user_id: post.user_id,
-      post_id: post.id,
-      slide_order: 6,
-      slide_type: "content",
-      headline: outroCopy.headline,
-      body: outroCopy.body,
-      cta_text: outroCopy.cta_text,
-      image_url: finalOutroUrl,
-      product_url: brandProfile?.website_url || null,
-      logo_enabled: includeLogo,
-      metadata: { carousel_slide_role: "product_outro", admin_regenerated: true, image_prompt: generatedOutro.imagePrompt, image_storage_path: finalOutroStoragePath, tiktok_image_url: tiktokCleanOutroUrl, tiktok_image_storage_path: outroPath },
     });
   }
   const { data: previousSlides, error: previousSlidesError } = await context.admin
@@ -359,7 +376,7 @@ export async function POST(request) {
 
   const deleteSlides = await context.admin.from("post_slides").delete().eq("post_id", post.id);
   if (deleteSlides.error) return Response.json({ ok: false, error: deleteSlides.error.message }, { status: 500 });
-  // post_slides.slide_type is a database-level structural type. Product/outro semantics
+  // post_slides.slide_type is a database-level structural type. Product hook/product/CTA semantics
   // belong in metadata.carousel_slide_role, exactly like the normal carousel generator.
   // Keep every admin-regenerated carousel row on the supported `content` type so an
   // otherwise successful repair can never fail the post_slides_slide_type_check constraint.

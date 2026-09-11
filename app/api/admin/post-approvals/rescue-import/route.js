@@ -3,6 +3,7 @@ import { inflateRawSync } from "node:zlib";
 import sharp from "sharp";
 import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth";
 import { assertPublicHttpUrl } from "../../../../../lib/security";
+import { getPostRescueProductCount, POST_RESCUE_TYPES, resolvePostRescueType } from "../../../../../lib/postRescueFormat";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -134,6 +135,44 @@ function normalizeProduct(raw, index) {
     image_file: cleanText(raw?.image_file || raw?.image_filename, 500),
     remote_image_url: cleanUrl(raw?.image_url || raw?.image_source_url || raw?.original_image_url),
     source_note: cleanText(raw?.source_note || raw?.verification_note, 1200),
+  };
+}
+
+function normalizeSources(rawSources) {
+  const sourceItems = Array.isArray(rawSources) ? rawSources : [];
+  const seen = new Set();
+  const result = [];
+  for (const raw of sourceItems) {
+    const url = cleanUrl(raw?.url || raw?.source_url || raw);
+    if (!url || seen.has(url)) continue;
+    let parsedUrl;
+    try { parsedUrl = new URL(url); } catch { continue; }
+    if (parsedUrl.protocol !== "https:") continue;
+    seen.add(url);
+    result.push({
+      url,
+      supports: cleanText(raw?.supports || raw?.note || raw?.description, 1600),
+    });
+    if (result.length >= 30) break;
+  }
+  return result;
+}
+
+function normalizeVerifiedContext(rawContext) {
+  const context = rawContext && typeof rawContext === "object" && !Array.isArray(rawContext)
+    ? rawContext
+    : {};
+  const keyFacts = Array.isArray(context.key_facts || context.facts)
+    ? (context.key_facts || context.facts)
+        .map((value) => cleanText(value, 1200))
+        .filter(Boolean)
+        .slice(0, 30)
+    : [];
+  return {
+    summary: cleanText(context.summary, 6000),
+    key_facts: keyFacts,
+    audience_or_use_case: cleanText(context.audience_or_use_case || context.audience, 2500),
+    content_notes: cleanText(context.content_notes || context.notes, 4000),
   };
 }
 
@@ -277,10 +316,95 @@ export async function POST(request) {
       return Response.json({ ok: false, error: "manifest.json is not valid JSON." }, { status: 400 });
     }
 
+    const rescueType = resolvePostRescueType(workItem);
+    const declaredRescueType = cleanText(manifest?.rescue_type, 100);
+    if (declaredRescueType && declaredRescueType !== rescueType) {
+      return Response.json({
+        ok: false,
+        error: `This rescue package is for '${declaredRescueType}', but this failed job requires '${rescueType}'.`,
+      }, { status: 400 });
+    }
+
+    if (rescueType === POST_RESCUE_TYPES.SOURCE_RESEARCH) {
+      const sources = normalizeSources(manifest?.sources);
+      const verifiedContext = normalizeVerifiedContext(manifest?.verified_context || manifest?.source_context);
+      if (!sources.length) {
+        return Response.json({ ok: false, error: "This source-research rescue needs at least one verified HTTPS source page." }, { status: 400 });
+      }
+      if (!verifiedContext.summary && !verifiedContext.key_facts.length && !verifiedContext.content_notes) {
+        return Response.json({ ok: false, error: "This source-research rescue needs verified_context with a summary, key facts or task-specific notes." }, { status: 400 });
+      }
+
+      const importedAt = new Date().toISOString();
+      const rescueData = {
+        version: Number(manifest?.version || 3),
+        source_type: cleanText(manifest?.source_type || "chatgpt_rescue", 100),
+        rescue_type: rescueType,
+        imported_file_name: cleanText(file.name, 300),
+        manifest: {
+          post_type: cleanText(manifest?.post_type, 200),
+          website_url: cleanUrl(manifest?.website_url) || workItem.source_url || "",
+          campaign_goal: cleanText(manifest?.campaign_goal, 500),
+          theme: cleanText(manifest?.theme, 500),
+          language: cleanText(manifest?.language, 100),
+          notes: cleanText(manifest?.notes, 3000),
+        },
+        verified_context: verifiedContext,
+        sources,
+        products: [],
+      };
+
+      const update = await context.admin.from("admin_generation_work_items").update({
+        rescue_status: "ready",
+        rescue_data: rescueData,
+        rescue_imported_at: importedAt,
+        rescue_imported_by: context.user.id,
+        technical_log: {
+          ...(workItem.technical_log || {}),
+          rescue_import: {
+            imported_at: importedAt,
+            imported_by: context.user.id,
+            file_name: cleanText(file.name, 300),
+            rescue_type: rescueType,
+            source_count: sources.length,
+            key_fact_count: verifiedContext.key_facts.length,
+          },
+        },
+        updated_at: importedAt,
+      }).eq("id", workItem.id);
+      if (update.error) throw new Error(update.error.message);
+
+      if (workItem.occurrence_id) {
+        const { data: occurrence } = await context.admin.from("automation_occurrences").select("metadata").eq("id", workItem.occurrence_id).maybeSingle();
+        await context.admin.from("automation_occurrences").update({
+          metadata: {
+            ...(occurrence?.metadata || {}),
+            rescue_work_item_id: workItem.id,
+            rescue_imported_at: importedAt,
+            rescue_type: rescueType,
+            rescue_verified_context: verifiedContext,
+            rescue_sources: sources,
+          },
+          updated_at: importedAt,
+        }).eq("id", workItem.occurrence_id);
+      }
+
+      return Response.json({
+        ok: true,
+        work_item_id: workItem.id,
+        rescue_status: "ready",
+        rescue_type: rescueType,
+        product_count: 0,
+        source_count: sources.length,
+        products: [],
+        sources,
+        verified_context: verifiedContext,
+        manifest: rescueData.manifest,
+      });
+    }
+
     const rawProducts = Array.isArray(manifest?.products) ? manifest.products : [];
-    const expectedCount = Math.max(0, Number(workItem.requirement_count || 0));
-    const isCarousel = expectedCount === 5 || /carousel/i.test(String(workItem.content_format || workItem.content_type_id || ""));
-    const neededCount = isCarousel ? 5 : expectedCount > 0 ? expectedCount : 1;
+    const neededCount = getPostRescueProductCount(workItem, rescueType);
     if (rawProducts.length < neededCount) {
       return Response.json({ ok: false, error: `This job needs ${neededCount} complete product${neededCount === 1 ? "" : "s"}, but the ZIP contains ${rawProducts.length}.` }, { status: 400 });
     }
@@ -374,6 +498,7 @@ export async function POST(request) {
     const rescueData = {
       version: Number(manifest?.version || 1),
       source_type: cleanText(manifest?.source_type || "chatgpt_rescue", 100),
+      rescue_type: rescueType,
       imported_file_name: cleanText(file.name, 300),
       manifest: {
         post_type: cleanText(manifest?.post_type, 200),
@@ -397,6 +522,7 @@ export async function POST(request) {
           imported_at: importedAt,
           imported_by: context.user.id,
           file_name: cleanText(file.name, 300),
+          rescue_type: rescueType,
           product_count: importedProducts.length,
           remote_image_count: preparedImages.filter((item) => item.sourceKind === "remote_url").length,
           packaged_image_count: preparedImages.filter((item) => item.sourceKind === "zip_file").length,
@@ -422,6 +548,7 @@ export async function POST(request) {
       ok: true,
       work_item_id: workItem.id,
       rescue_status: "ready",
+      rescue_type: rescueType,
       product_count: importedProducts.length,
       products: importedProducts,
       manifest: rescueData.manifest,

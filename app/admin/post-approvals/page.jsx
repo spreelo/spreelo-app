@@ -34,6 +34,7 @@ import {
 import AppLayout from "../../../components/AppLayout";
 import { supabase } from "../../../lib/supabaseClient";
 import { useUiText } from "../../../lib/i18n/useUiText";
+import { getPostRescueProductCount, POST_RESCUE_TYPES, resolvePostRescueType } from "../../../lib/postRescueFormat";
 
 async function getHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -138,6 +139,7 @@ const PRODUCT_CONTENT_TYPE_IDS = new Set([
   "website_item_text_ad",
   "animated_website_item",
   "carousel_website_item",
+  "ai_product_video",
 ]);
 function isProductDrivenPost(post) {
   const contentTypeId = String(post?.content_type_id || "").trim();
@@ -285,8 +287,6 @@ export default function AdminPostApprovalsPage() {
   const [retryingKling, setRetryingKling] = useState(false);
   const [regenerationError, setRegenerationError] = useState("");
   const [regenerationSuccess, setRegenerationSuccess] = useState("");
-  const [outroSlide, setOutroSlide] = useState(null);
-  const [outroRemoved, setOutroRemoved] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [resolvingProductIndex, setResolvingProductIndex] = useState(null);
   const [savingReviewChanges, setSavingReviewChanges] = useState(false);
@@ -412,8 +412,6 @@ export default function AdminPostApprovalsPage() {
     if (!selectedPost) {
       setMaterials([]);
       setPostCopy("");
-      setOutroSlide(null);
-      setOutroRemoved(false);
       setRegenerationError("");
       setRegenerationSuccess("");
       setLightboxIndex(null);
@@ -445,8 +443,6 @@ export default function AdminPostApprovalsPage() {
     );
     setPostCopy(selectedPost?.content || "");
     setSourceUrl(selectedPost?.source_url || selectedPost?.website_url || "");
-    setOutroSlide(selectedPost?.outro_slide || null);
-    setOutroRemoved(false);
     setRegenerationError("");
     setRegenerationSuccess("");
     setRescueMessage("");
@@ -722,14 +718,14 @@ export default function AdminPostApprovalsPage() {
     setRegenerationSuccess("");
     try {
       const headers = await getHeaders();
-      const response = await fetch("/api/admin/post-approvals/regenerate", { method: "POST", headers, body: JSON.stringify({ post_id: selectedPost.status === "failed" ? null : selectedPost.id, occurrence_id: selectedPost.occurrence_id || null, review_case_id: selectedPost.failure?.review_case_id || null, work_item_id: selectedPost.work_item_id || null, content: postCopy, product_items: materials, preserve_outro: !outroRemoved && Boolean(outroSlide?.image_url), outro_slide: !outroRemoved ? outroSlide : null }) });
+      const response = await fetch("/api/admin/post-approvals/regenerate", { method: "POST", headers, body: JSON.stringify({ post_id: selectedPost.status === "failed" ? null : selectedPost.id, occurrence_id: selectedPost.occurrence_id || null, review_case_id: selectedPost.failure?.review_case_id || null, work_item_id: selectedPost.work_item_id || null, content: postCopy, product_items: materials }) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || "Regeneration failed.");
       setEditorDirty(false);
       setProductDirty(false);
       await loadPosts(result.post_id);
       setSelectedPostId(result.post_id);
-      setRegenerationSuccess(t("admin.approvals.carouselRegenerated", { count: result.slide_count || 6 }));
+      setRegenerationSuccess(t("admin.approvals.carouselRegenerated", { count: result.slide_count || 5 }));
     } catch (actionError) {
       const message = actionError.message || "Regeneration failed.";
       setRegenerationError(message);
@@ -764,11 +760,13 @@ export default function AdminPostApprovalsPage() {
       await loadPosts(result.post_id);
       setSelectedPostId(result.post_id);
       setRegenerationSuccess(
-        result.format === "animated_product_reel"
-          ? t("admin.approvals.productReelRegenerated")
-          : result.format === "ai_product_ad"
-            ? t("admin.approvals.productAdRegenerated")
-            : t("admin.approvals.productPostRegenerated")
+        result.format === "ai_product_video_rescue"
+          ? t("admin.approvals.aiProductVideoRescueSubmitted")
+          : result.format === "animated_product_reel"
+            ? t("admin.approvals.productReelRegenerated")
+            : result.format === "ai_product_ad"
+              ? t("admin.approvals.productAdRegenerated")
+              : t("admin.approvals.productPostRegenerated")
       );
     } catch (actionError) {
       const message = actionError.message || "Product post regeneration failed.";
@@ -943,17 +941,18 @@ export default function AdminPostApprovalsPage() {
 
   function buildRescuePrompt(post) {
     if (!post) return "";
-    const count = Math.max(1, Number(post.requirement_count || (isCarouselPost(post) ? 5 : 1)));
+    const rescueType = resolvePostRescueType(post);
+    const count = getPostRescueProductCount(post, rescueType);
     const ruleSnapshot = post.rule_snapshot || post.work_item?.rule_snapshot || {};
     const matchTerms = Array.isArray(post.product_match_terms) ? post.product_match_terms.filter(Boolean) : [];
     const searchQueries = Array.isArray(post.product_search_queries) ? post.product_search_queries.filter(Boolean) : [];
-    const strategy = post.product_strategy || ruleSnapshot.product_search_intent || (matchTerms.length ? `Theme/search terms: ${matchTerms.join(", ")}` : "Random/suitable current product according to the original task.");
+    const strategy = post.product_strategy || ruleSnapshot.product_search_intent || (matchTerms.length ? `Theme/search terms: ${matchTerms.join(", ")}` : "Use the original task and campaign context.");
     const language = ruleSnapshot.language || ruleSnapshot.content_language || "en";
     const campaignGoal = ruleSnapshot.campaign_goal || "";
     const campaignTheme = ruleSnapshot.campaign_theme || ruleSnapshot.campaign_opportunity_title || "";
     const marketingAngle = ruleSnapshot.marketing_angle || "";
     const customerNeed = ruleSnapshot.target_customer_need || "";
-    return `You are helping Spreelo rescue a failed scheduled post. Use ChatGPT web search/browsing to obtain REAL material from the customer's public website and create a finished ZIP file that can be uploaded back to Spreelo.
+    const commonHeader = `You are helping Spreelo rescue a failed scheduled post. Use ChatGPT web search/browsing to obtain REAL, verifiable material from the customer's public website and create a finished ZIP file that can be uploaded back to Spreelo.
 
 CUSTOMER / TASK
 Company: ${post.brand_name || "—"}
@@ -961,6 +960,7 @@ Website: ${post.brand_website_url || post.source_url || "—"}
 Job source: ${post.source_url || post.brand_website_url || "—"}
 Post type: ${post.content_type_label || post.post_type || "—"}
 Format: ${post.content_format || "—"}
+Rescue type: ${rescueType}
 Platform: ${post.platform || "—"}
 Plan/campaign: ${post.work_item?.plan_name || post.content || "—"}
 Scheduled for: ${post.scheduled_for || "—"}
@@ -972,15 +972,61 @@ Customer need: ${customerNeed || "—"}
 Product strategy: ${strategy}
 Match terms: ${matchTerms.length ? matchTerms.join(", ") : "—"}
 Search queries from original recipe: ${searchQueries.length ? searchQueries.join(" | ") : "—"}
-Required product count: ${count}
 Spreelo failure: ${post.failure?.failure_code || "—"} / ${post.failure?.failure_stage || "—"}
 
 ORIGINAL TASK / STRATEGY
 ${post.prompt_snapshot || ruleSnapshot.prompt || "—"}
-${post.strategy_snapshot || ruleSnapshot.strategy_notes || ""}
+${post.strategy_snapshot || ruleSnapshot.strategy_notes || ""}`;
+
+    if (rescueType === POST_RESCUE_TYPES.SOURCE_RESEARCH) {
+      return `${commonHeader}
 
 REQUIREMENTS
-Find exactly ${count} ${count === 1 ? "product" : "products"} that match the task. Products must be real products from the customer's own website. For every product, verify that product name, product URL and product image belong to exactly the same product. Do not use category images, images from other products or AI-generated replacement images. Use the best available real product image. Include price only when it can be verified. Write a short factual product description without inventing attributes. If the theme requires several products, the selection should work together as a set, not merely match individually.
+This is NOT a product rescue. Do not force products into the package. Research the customer's own public website and collect only factual source material that is relevant to the original post task. Verify every factual claim against a concrete HTTPS page from the customer's website. Do not invent testimonials, statistics, offers, prices, guarantees, opening hours, product facts or other claims.
+
+DELIVER AN ACTUAL ZIP FILE containing manifest.json. No image files are required.
+
+manifest.json must be valid JSON with:
+{
+  "version": 3,
+  "source_type": "chatgpt_rescue",
+  "rescue_type": "source_research",
+  "post_type": ${JSON.stringify(post.content_type_id || post.content_format || "post")},
+  "website_url": ${JSON.stringify(post.brand_website_url || post.source_url || "")},
+  "campaign_goal": ${JSON.stringify(campaignGoal || post.work_item?.plan_name || "")},
+  "theme": ${JSON.stringify(campaignTheme || strategy)},
+  "language": ${JSON.stringify(language)},
+  "verified_context": {
+    "summary": "Short factual summary that gives Spreelo enough verified context to create this post without fetching the blocked website again.",
+    "key_facts": ["Verified fact 1", "Verified fact 2"],
+    "audience_or_use_case": "Only when supported by the website; otherwise empty string",
+    "content_notes": "Any task-specific factual guidance needed for this exact post"
+  },
+  "sources": [
+    {
+      "url": "https://customer.example/relevant-page",
+      "supports": "Which facts in verified_context this page verifies"
+    }
+  ]
+}
+
+SOURCE RULES: Use direct HTTPS pages from the customer's own website whenever possible. Every key fact must be supported by at least one listed source. If the website does not contain enough verified information for the requested post, say so instead of inventing material.`;
+    }
+
+    const typeInstruction = rescueType === POST_RESCUE_TYPES.PRODUCT_CAROUSEL
+      ? "Find exactly five different products that work together as one coherent carousel selection."
+      : rescueType === POST_RESCUE_TYPES.PRODUCT_REEL
+        ? "Find exactly one verified product. Spreelo will rebuild the animated Product Reel from this authoritative product after import."
+        : rescueType === POST_RESCUE_TYPES.AI_PRODUCT_VIDEO
+          ? "Find exactly one verified product. Spreelo will create a NEW rescue video post and allow exactly one fresh provider video generation on that new post; never retry the already failed post."
+          : "Find exactly one verified product for this post.";
+
+    return `${commonHeader}
+Required product count: ${count}
+
+REQUIREMENTS
+${typeInstruction}
+Products must be real products from the customer's own website. For every product, verify that product name, product URL and product image belong to exactly the same product. Do not use category images, images from other products or AI-generated replacement images. Use the best available real product image. Include price only when it can be verified. Write a short factual product description without inventing attributes. ${count > 1 ? "The five products must work together as a set, not merely match individually." : ""}
 
 DELIVER AN ACTUAL ZIP FILE. The ZIP must always contain manifest.json. Real product image files may also be included when available, but they are no longer required.
 
@@ -1001,8 +1047,9 @@ If both image_file and image_url exist, Spreelo uses image_file first. If only i
 
 manifest.json must be valid JSON with:
 {
-  "version": 2,
+  "version": 3,
   "source_type": "chatgpt_rescue",
+  "rescue_type": ${JSON.stringify(rescueType)},
   "post_type": ${JSON.stringify(post.content_type_id || post.content_format || "product_post")},
   "website_url": ${JSON.stringify(post.brand_website_url || post.source_url || "")},
   "campaign_goal": ${JSON.stringify(campaignGoal || post.work_item?.plan_name || "")},
@@ -1026,7 +1073,7 @@ manifest.json must be valid JSON with:
   ]
 }
 
-IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its real CDN, not a search-result thumbnail, not a proxy/cache from another service and not an AI-generated image. If you can attach the image file inside the ZIP, you may use image_file instead. If you cannot verify ${count} complete products with the correct product link and real product image, say so instead of filling the package with uncertain material.`;
+IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its real CDN, not a search-result thumbnail, not a proxy/cache from another service and not an AI-generated image. If you can attach the image file inside the ZIP, you may use image_file instead. If you cannot verify ${count} complete product${count === 1 ? "" : "s"} with the correct product link and real product image, say so instead of filling the package with uncertain material.`;
   }
 
   async function copyRescuePromptAndOpenChatGpt() {
@@ -1057,7 +1104,8 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
       content_format: selectedPost.content_format || null,
       platform: selectedPost.platform || null,
       scheduled_for: selectedPost.scheduled_for || null,
-      requirement_count: Math.max(1, Number(selectedPost.requirement_count || (isCarouselPost(selectedPost) ? 5 : 1))),
+      rescue_type: resolvePostRescueType(selectedPost),
+      requirement_count: getPostRescueProductCount(selectedPost),
       product_strategy: selectedPost.product_strategy || null,
       product_match_terms: selectedPost.product_match_terms || [],
       product_search_queries: selectedPost.product_search_queries || [],
@@ -1090,11 +1138,18 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || "Rescue-ZIP kunde inte importeras.");
-      setMaterials((result.products || []).map((item) => ({ ...emptyCarouselProduct(), ...item })));
-      setEditorDirty(true);
-      setProductDirty(true);
-      setManualEditingIndices([]);
-      setRescueMessage(t("admin.approvals.rescueProductsImported", { count: result.product_count }));
+      if (result.rescue_type === POST_RESCUE_TYPES.SOURCE_RESEARCH) {
+        setMaterials([]);
+        setEditorDirty(false);
+        setProductDirty(false);
+        setRescueMessage(t("admin.approvals.rescueSourcesImported", { count: result.source_count || 0 }));
+      } else {
+        setMaterials((result.products || []).map((item) => ({ ...emptyCarouselProduct(), ...item })));
+        setEditorDirty(true);
+        setProductDirty(true);
+        setManualEditingIndices([]);
+        setRescueMessage(t("admin.approvals.rescueProductsImported", { count: result.product_count }));
+      }
       await loadPosts(selectedPost.id);
       setSelectedPostId(selectedPost.id);
     } catch (uploadError) {
@@ -1459,13 +1514,6 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                             </article>
                           );
                         })}
-                        <article className={`admin-carousel-outro ${outroSlide?.image_url && !outroRemoved ? "complete" : "empty"}`}>
-                          <span className="admin-carousel-number">AI</span>
-                          {outroSlide?.image_url && !outroRemoved ? <button type="button" className="admin-carousel-clear" onClick={() => { setOutroRemoved(true); markEditorDirty({ product: true }); }} aria-label={t("admin.approvals.replaceAiOutro")}><X size={16} /></button> : null}
-                          <div className="admin-carousel-product-image">
-                            {outroSlide?.image_url && !outroRemoved ? <img src={outroSlide.image_url} alt="" /> : <><Sparkles size={30} /><strong>{t("admin.approvals.newAiOutro")}</strong></>}
-                          </div>
-                        </article>
                       </div>
                       {regenerationError ? <div className="admin-alert error admin-regeneration-inline-alert"><AlertTriangle size={16} /> <span>{regenerationError}</span></div> : null}
                       {regenerationSuccess ? <div className="admin-alert success admin-regeneration-inline-alert"><CheckCircle2 size={16} /> <span>{regenerationSuccess}</span></div> : null}

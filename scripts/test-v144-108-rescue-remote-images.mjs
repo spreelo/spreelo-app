@@ -13,7 +13,8 @@ const rescue = read("app/api/admin/post-approvals/rescue-import/route.js");
 assert.match(page, /Minimum valid structure:[\s\S]{0,120}manifest\.json/u);
 assert.match(page, /image_url: a direct HTTPS URL/u);
 assert.match(page, /If both image_file and image_url exist, Spreelo uses image_file first/u);
-assert.match(page, /"version": 2/u);
+assert.match(page, /"version": 3/u);
+assert.ok(page.includes('"rescue_type": ${JSON.stringify(rescueType)}'));
 assert.match(page, /"image_url": "https:\/\/customer-cdn\.example/u);
 assert.doesNotMatch(page, /IMPORTANT: Put the actual real product image files in the ZIP file\. Do not reply only with image links/u);
 

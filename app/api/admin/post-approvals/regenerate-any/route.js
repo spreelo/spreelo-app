@@ -4,6 +4,7 @@ import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth
 import { snapshotAdminPostVersion } from "../../../../../lib/adminPostVersions";
 import { createGenerationCostTracker, wrapOpenAIForCostTracking } from "../../../../../lib/generationCostTracking";
 import { resolveContentLanguagePreference } from "../../../../../lib/contentLanguage";
+import { POST_RESCUE_TYPES, resolvePostRescueType } from "../../../../../lib/postRescueFormat";
 import {
   applyLogoOverlayIfNeeded,
   createEmergencySocialCardUpload,
@@ -26,6 +27,39 @@ function normalizeMode(value) {
   return ["all", "text", "media"].includes(String(value || ""))
     ? String(value)
     : "all";
+}
+
+function buildRescueFocusedPageContext(workItem, sourceUrl) {
+  if (!workItem || resolvePostRescueType(workItem) !== POST_RESCUE_TYPES.SOURCE_RESEARCH) return null;
+  if (String(workItem?.rescue_status || "").toLowerCase() !== "ready") return null;
+  const rescueData = workItem?.rescue_data && typeof workItem.rescue_data === "object" ? workItem.rescue_data : {};
+  const context = rescueData?.verified_context && typeof rescueData.verified_context === "object"
+    ? rescueData.verified_context
+    : {};
+  const sources = Array.isArray(rescueData?.sources) ? rescueData.sources : [];
+  const firstSource = sources.find((item) => /^https?:\/\//i.test(String(item?.url || "")))?.url || sourceUrl || "";
+  const facts = Array.isArray(context?.key_facts) ? context.key_facts.filter(Boolean).slice(0, 30) : [];
+  const sourceLines = sources
+    .filter((item) => /^https?:\/\//i.test(String(item?.url || "")))
+    .slice(0, 30)
+    .map((item, index) => `${index + 1}. ${item.url}${item.supports ? ` — supports: ${item.supports}` : ""}`)
+    .join("\n");
+  const text = [
+    context?.summary ? `Verified summary:\n${context.summary}` : "",
+    facts.length ? `Verified key facts:\n${facts.map((fact) => `- ${fact}`).join("\n")}` : "",
+    context?.audience_or_use_case ? `Verified audience/use-case context:\n${context.audience_or_use_case}` : "",
+    context?.content_notes ? `Task-specific verified notes:\n${context.content_notes}` : "",
+    sourceLines ? `Source pages used by the rescue package:\n${sourceLines}` : "",
+  ].filter(Boolean).join("\n\n");
+  if (!firstSource || !text) return null;
+  return {
+    url: firstSource,
+    sourceScope: "admin_rescue_verified_context",
+    title: rescueData?.manifest?.theme || "Verified rescue research",
+    summary: context?.summary || "Verified factual context imported through Spreelo Rescue.",
+    text,
+    rescueType: POST_RESCUE_TYPES.SOURCE_RESEARCH,
+  };
 }
 
 function isProductDriven(rule, source) {
@@ -153,7 +187,12 @@ export async function POST(request) {
       website_url: sourceUrl || rule.website_url || brandProfile?.website_url || null,
     };
 
-    if (sourceUrl) {
+    const rescueFocusedContext = buildRescueFocusedPageContext(workItem, sourceUrl);
+    if (rescueFocusedContext) {
+      enhancedRule.focused_page_context = rescueFocusedContext;
+      enhancedRule.content_source_url = rescueFocusedContext.url;
+      enhancedRule.content_source_scope = "focus_page";
+    } else if (sourceUrl) {
       const focused = await prepareFocusedPageContextForRule(enhancedRule);
       if (focused) enhancedRule.focused_page_context = focused;
     }
