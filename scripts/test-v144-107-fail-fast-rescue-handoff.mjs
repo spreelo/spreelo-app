@@ -16,10 +16,15 @@ assert.match(
   /if \(isProtectedProductResearchRetryError\(errorOrMessage\)\)[\s\S]{0,300}code: "website_security_blocked"/u
 );
 
-// Single-product protected sources stop before paid indexed/GPT research once
-// fresh locked catalog/public-feed material cannot finish the job.
-assert.match(cron, /Protected product source stopped before paid indexed\/AI research/u);
-assert.match(cron, /adminRescueRequired = true/u);
+// v144.162 supersedes the original single-product fail-fast policy: protected
+// whole-site sources may use exactly one bounded indexed rescue path before the
+// same terminal Admin Rescue handoff. Cheap fresh catalog/public-feed evidence
+// still gets first chance.
+assert.match(
+  cron,
+  /Protected product source will use one bounded indexed web-research fallback before admin rescue/u
+);
+assert.match(cron, /automaticRetryIfFallbackFails: false/u);
 assert.match(
   cron,
   /if \(productIntentScoped && catalogItems\.length && !websiteAccessProtected\)/u
@@ -27,6 +32,10 @@ assert.match(
 assert.match(
   cron,
   /Protected website product selected from fresh locked catalog without paid research/u
+);
+assert.match(
+  cron,
+  /allowIndexedSecurityFallback:[\s\S]{0,180}websiteAccessProtected[\s\S]{0,180}rate_limited/u
 );
 
 // Carousel protected sources get only the cheap offline verified pool before
@@ -57,6 +66,9 @@ assert.match(
 assert.match(cron, /fail_fast_security_block: true/u);
 assert.match(cron, /admin_rescue_required: true/u);
 assert.match(cron, /protected_product_source: true/u);
-assert.doesNotMatch(cron, /allowIndexedSecurityFallback: true/u);
+assert.match(
+  cron,
+  /Protected product-source research exhausted this occurrence; stopping for admin rescue instead of starting another paid retry/u
+);
 
-console.log("v144.107 fail-fast + rescue handoff checks passed.");
+console.log("v144.107 rescue-handoff safety checks passed under v144.162 bounded-fallback policy.");

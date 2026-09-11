@@ -505,6 +505,13 @@ function isWebsiteAccessProtectedState(state) {
   return isWebsiteAccessProtectedStatus(state?.lastStatus);
 }
 
+function isWebsiteRateLimitedState(state) {
+  return Boolean(
+    Number(state?.lastStatus || 0) === 429 ||
+      state?.cooldownActive === true
+  );
+}
+
 function isWebsiteSecurityBlockedError(error) {
   const status = Number(
     error?.status || error?.statusCode || error?.response?.status || 0
@@ -18887,7 +18894,7 @@ function normalizeWebsiteTextIntentMetadata(metadata = {}) {
       ],
       WEBSITE_TEXT_INTENT_MATCH_TERM_LIMIT
     ),
-    productSearchQueries: collectUniqueTerms(
+    productSearchQueries: normalizeStoreSearchQueries(
       [
         ...splitStoreSearchQueryLine(metadata.product_search_queries),
         ...splitStoreSearchQueryLine(metadata.productSearchQueries),
@@ -18932,7 +18939,7 @@ function buildDeterministicWebsiteTextProductIntent(rule) {
     ],
     WEBSITE_TEXT_INTENT_MATCH_TERM_LIMIT
   );
-  const productSearchQueries = collectUniqueTerms(
+  const productSearchQueries = normalizeStoreSearchQueries(
     [
       ...existingMetadata.productSearchQueries,
       ...inferredTerms.slice(0, WEBSITE_TEXT_INTENT_QUERY_LIMIT),
@@ -29675,6 +29682,7 @@ async function findProductUrlWithWebSearch({
   attempt = "best_match",
   usedWebsiteItems = [],
   researchModel = PRODUCT_RESEARCH_MODEL,
+  desiredProductCount = 5,
 }) {
   const websiteUrl = getWebsiteProductSourceUrl(brandProfile);
 
@@ -29726,6 +29734,17 @@ async function findProductUrlWithWebSearch({
     brandProfile,
     rule,
   });
+  const requestedProductCount = Math.max(
+    1,
+    Math.min(8, Number(desiredProductCount || 5) || 5)
+  );
+  // Single-product posts still ask the researcher for a small ranked shortlist
+  // rather than the first hit. This preserves editorial choice without paying
+  // for the historical 5-8 product sweep when one final product is needed.
+  const requestedResearchPool =
+    requestedProductCount <= 1
+      ? 3
+      : Math.min(8, Math.max(requestedProductCount, requestedProductCount + 1));
 
 const response = await openai.responses.create(
   {
@@ -29931,8 +29950,10 @@ JSON shape:
   ]
 }
 
-Return 5 to 8 real product pages if possible.
-For campaign carousels, stop once you have enough concrete product pages for a useful carousel. Do not keep searching for perfect products when five good-enough products are available.
+Return up to ${requestedResearchPool} strong real product pages if possible, ranked best first.
+${requestedProductCount <= 1
+  ? "This is a single-product task. A small ranked shortlist is enough; stop after you have up to three strong candidates. Do not perform a broad 5-8 product sweep."
+  : `This task needs about ${requestedProductCount} usable products. Stop once you have enough strong candidates plus at most one useful reserve; do not keep searching for perfect products.`}
 `.trim(),
   },
   { timeout: 40_000, maxRetries: 0 }
@@ -30097,7 +30118,7 @@ For campaign carousels, stop once you have enough concrete product pages for a u
   }
 
   return {
-    products: dedupeUrlItems(validProducts).slice(0, 8),
+    products: dedupeUrlItems(validProducts).slice(0, requestedResearchPool),
     discoveryPages: dedupeUrlItems(validDiscoveryPages).slice(0, 4),
   };
 }
@@ -30139,8 +30160,10 @@ async function findWebsiteProductWithWebSearch({
     ? await getWebsiteDomainFetchState(websiteUrl).catch(() => null)
     : null;
   const knownSecurityBlocked = isWebsiteAccessProtectedState(knownDomainState);
+  const knownRateLimited = isWebsiteRateLimitedState(knownDomainState);
+  const knownDirectAccessUnavailable = knownSecurityBlocked || knownRateLimited;
   const manufacturerCatalogSource = isManufacturerCatalogSource(rule, brandProfile);
-  const attempts = knownSecurityBlocked
+  const attempts = knownDirectAccessUnavailable
     ? manufacturerCatalogSource
       ? ["stock_first", "domain_site_search"]
       : ["stock_first", "stock_broad", "domain_site_search"]
@@ -30208,7 +30231,11 @@ async function findWebsiteProductWithWebSearch({
     directProductError,
     attempt,
   }) => {
-    if (!allowIndexedSecurityFallback || !isWebsiteSecurityBlockedError(directProductError)) {
+    if (
+      !allowIndexedSecurityFallback ||
+      (!isWebsiteSecurityBlockedError(directProductError) &&
+        !isWebsiteRateLimitError(directProductError))
+    ) {
       return [];
     }
     if (indexedSecurityFallbackBatches >= MAX_INDEXED_SECURITY_FALLBACK_BATCHES) {
@@ -30412,12 +30439,13 @@ async function findWebsiteProductWithWebSearch({
       rule,
       attempt,
       usedWebsiteItems,
+      desiredProductCount: targetVerifiedCount,
       // v144.11: once this domain is already known to answer Spreelo with 403,
       // candidate discovery can use the inexpensive research model. Exact
       // product identity + exact original image + purchase availability are
       // still locked by the single GPT-5.5 authoritative repair batch below.
       researchModel:
-        allowIndexedSecurityFallback && knownSecurityBlocked
+        allowIndexedSecurityFallback && knownDirectAccessUnavailable
           ? PRODUCT_RESEARCH_FAST_MODEL
           : researchModel,
     });
@@ -30518,7 +30546,8 @@ async function findWebsiteProductWithWebSearch({
           } catch (directProductError) {
             if (
               allowIndexedSecurityFallback &&
-              isWebsiteSecurityBlockedError(directProductError)
+              (isWebsiteSecurityBlockedError(directProductError) ||
+                isWebsiteRateLimitError(directProductError))
             ) {
               // v144.17: one security-blocked product proves that the direct
               // verification path is unavailable. Repair the whole useful
@@ -30644,13 +30673,14 @@ async function findWebsiteProductWithWebSearch({
           verifiedCount: verifiedItems.length,
         });
 
-        if (verifiedItems.length >= MAX_VERIFIED_ITEMS) {
-          console.log("Product researcher stopped after reaching max verified products", {
+        if (verifiedItems.length >= targetVerifiedCount) {
+          console.log("Product researcher stopped after reaching required verified products", {
             ruleId: rule?.id,
             brandProfileId: rule?.brand_profile_id,
             websiteUrl,
             attempt,
             verifiedCount: verifiedItems.length,
+            targetVerifiedCount,
           });
 
           return applyAiCampaignFitScores({
@@ -30658,7 +30688,7 @@ async function findWebsiteProductWithWebSearch({
             rule,
             brandProfile,
             items: verifiedItems,
-            maxItems: MAX_VERIFIED_ITEMS,
+            maxItems: targetVerifiedCount,
             model: fitModel,
             minimumStrongProducts: fitMinimumStrongProducts,
           });
@@ -31180,6 +31210,12 @@ async function prepareWebsiteContentForRule({
     }
   }
 
+  // v144.162 cost guard: web research is a rescue path, not a routine second
+  // opinion. Track why the deterministic/local discovery layers were unable to
+  // finish so logs can explain every paid fallback.
+  let productResearchFallbackReason = websiteAccessProtected
+    ? "security_blocked"
+    : null;
   let storeMapSingleProductResult = null;
   if (
     STORE_MAP_PRODUCT_AGENT_ENABLED &&
@@ -31211,14 +31247,24 @@ async function prepareWebsiteContentForRule({
       }
     } catch (error) {
       if (isWebsiteRateLimitError(error)) {
-        throw error;
+        productResearchFallbackReason = "rate_limited";
+        console.info("Store Map rate limited; preserving the occurrence and continuing to bounded product-research fallback", {
+          ruleId: rule.id,
+          brandProfileId: rule.brand_profile_id,
+          websiteUrl,
+          productDiscoveryPath: "web_research_fallback_pending",
+          fallbackReason: productResearchFallbackReason,
+          retryAfterMs: Number(error?.retryAfterMs || 0),
+        });
+      } else {
+        console.log("Store Map Product Agent unavailable for single-product post; continuing with existing fallbacks", {
+          ruleId: rule.id,
+          brandProfileId: rule.brand_profile_id,
+          websiteUrl,
+          message: error.message,
+        });
+        productResearchFallbackReason ||= "store_map_unavailable";
       }
-      console.log("Store Map Product Agent unavailable for single-product post; continuing with existing fallbacks", {
-        ruleId: rule.id,
-        brandProfileId: rule.brand_profile_id,
-        websiteUrl,
-        message: error.message,
-      });
     }
   }
 
@@ -31238,15 +31284,17 @@ async function prepareWebsiteContentForRule({
     storeMapSingleProductResult?.diagnostics?.rate_limited &&
     !storeMapSingleProductResult?.products?.length
   ) {
-    throw new WebsiteRateLimitError(
-      "The website temporarily rate limited Store Map product verification.",
-      {
-        url: websiteUrl,
-        domain: getWebsiteFetchDomain(websiteUrl),
-        retryAfterMs: Number(storeMapSingleProductResult.diagnostics.retry_after_ms || 0),
-        status: 429,
-      }
-    );
+    productResearchFallbackReason = "rate_limited";
+    console.info("Store Map reported a rate-limited product source; continuing to bounded web-research fallback", {
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      productDiscoveryPath: "web_research_fallback_pending",
+      fallbackReason: productResearchFallbackReason,
+      retryAfterMs: Number(
+        storeMapSingleProductResult.diagnostics.retry_after_ms || 0
+      ),
+    });
   }
 
   if (storeMapSingleProductResult?.products?.length) {
@@ -31295,6 +31343,9 @@ async function prepareWebsiteContentForRule({
           ruleId: rule.id,
           brandProfileId: rule.brand_profile_id,
           websiteUrl,
+          productDiscoveryPath: "product_engine_store_map",
+          fallbackReason: null,
+          paidWebResearchUsed: false,
           productUrl: prepared?.websiteItem?.url || candidate.url,
           title: prepared?.websiteItem?.title || candidate.title,
           verifiedProductCount: storeMapSingleProductResult.products.length,
@@ -31309,7 +31360,17 @@ async function prepareWebsiteContentForRule({
         summary.website_content_success += 1;
         return prepared;
       } catch (error) {
-        if (isWebsiteRateLimitError(error)) throw error;
+        if (isWebsiteRateLimitError(error)) {
+          productResearchFallbackReason = "rate_limited";
+          console.info("Store Map product lock was rate limited; switching to bounded web-research fallback", {
+            ruleId: rule.id,
+            brandProfileId: rule.brand_profile_id,
+            websiteUrl,
+            productUrl: candidate?.url || null,
+            fallbackReason: productResearchFallbackReason,
+          });
+          break;
+        }
         lockFailures.push({
           productUrl: candidate?.url || null,
           title: candidate?.title || null,
@@ -31328,6 +31389,7 @@ async function prepareWebsiteContentForRule({
     }
 
     if (lockFailures.length) {
+      productResearchFallbackReason ||= "verified_product_lock_failed";
       console.warn("Store Map verified product pool exhausted during exact-page locking; continuing with remaining product fallbacks", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
@@ -31375,6 +31437,59 @@ async function prepareWebsiteContentForRule({
   if (
     catalogSelection?.item &&
     productIntentScoped &&
+    !websiteAccessProtected &&
+    isAcceptableWebsiteTextProductSelection(catalogSelection.item, rule)
+  ) {
+    try {
+      // The candidate has already been selected from the ranked local catalog
+      // with recent-product avoidance and campaign/product-fit scoring. Verify
+      // and lock that exact product deterministically before paying for a second
+      // web-research opinion.
+      const preparedCatalogItem = await finalizePreparedWebsiteItem(
+        catalogSelection.item,
+        catalogSelection.cycleNumber,
+        { allowAiRepair: false }
+      );
+
+      console.log("Website product selected from ranked verified catalog before paid web research", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        productDiscoveryPath: "product_engine_ranked_catalog",
+        fallbackReason: null,
+        paidWebResearchUsed: false,
+        productUrl:
+          preparedCatalogItem?.websiteItem?.url || catalogSelection.item.url,
+        title:
+          preparedCatalogItem?.websiteItem?.title || catalogSelection.item.title,
+        catalogCount: catalogItems.length,
+        recentUsedCount: recentUsedItems.length,
+      });
+
+      summary.website_items_found += 1;
+      summary.website_content_success += 1;
+      return preparedCatalogItem;
+    } catch (error) {
+      if (isWebsiteRateLimitError(error)) {
+        productResearchFallbackReason = "rate_limited";
+      } else {
+        productResearchFallbackReason ||= "verified_catalog_lock_failed";
+      }
+      console.info("Ranked catalog product could not be locked deterministically; continuing through bounded fallbacks", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        productUrl: catalogSelection.item?.url || null,
+        title: catalogSelection.item?.title || null,
+        fallbackReason: productResearchFallbackReason,
+        message: error?.message || String(error),
+      });
+    }
+  }
+
+  if (
+    catalogSelection?.item &&
+    productIntentScoped &&
     websiteAccessProtected &&
     isAuthoritativePublicCommerceFeedLockedProduct(catalogSelection.item) &&
     isAcceptableWebsiteTextProductSelection(catalogSelection.item, rule)
@@ -31413,24 +31528,30 @@ async function prepareWebsiteContentForRule({
         productUrl: preparedProtectedCatalogItem?.websiteItem?.url || catalogSelection.item.url,
         title: preparedProtectedCatalogItem?.websiteItem?.title || catalogSelection.item.title,
         paidProtectedResearchSkipped: true,
+        productDiscoveryPath: "protected_verified_catalog",
+        fallbackReason: null,
+        paidWebResearchUsed: false,
       });
       summary.website_items_found += 1;
       summary.website_content_success += 1;
       return preparedProtectedCatalogItem;
     } catch (error) {
-      if (isWebsiteRateLimitError(error)) throw error;
-      console.info("Protected fresh catalog candidate could not be locked deterministically; handing off to admin rescue", {
+      productResearchFallbackReason = isWebsiteRateLimitError(error)
+        ? "rate_limited"
+        : "security_blocked";
+      console.info("Protected fresh catalog candidate could not be locked deterministically; continuing to bounded indexed web-research fallback", {
         ruleId: rule.id,
         brandProfileId: rule.brand_profile_id,
         websiteUrl,
         productUrl: catalogSelection.item?.url || null,
+        fallbackReason: productResearchFallbackReason,
         message: error?.message || String(error),
       });
     }
   }
 
   if (catalogSelection?.item && productIntentScoped) {
-    console.log("Website text product-intent rule found a catalog match, but will still run focused product research before final selection", {
+    console.log("Website text product-intent local selection could not finish; paid research remains available only as fallback", {
       ruleId: rule.id,
       brandProfileId: rule.brand_profile_id,
       websiteUrl,
@@ -31438,35 +31559,37 @@ async function prepareWebsiteContentForRule({
       title: catalogSelection.item.title,
       catalogCount: catalogItems.length,
       recentUsedCount: recentUsedItems.length,
+      fallbackReason:
+        productResearchFallbackReason || "local_selection_unavailable",
     });
   }
 
-  // v144.107 fail-fast: once this domain is confirmed protected, do not enter
-  // GPT web research / indexed repair. A fresh fully locked catalog or public
-  // commerce-feed item was already given the chance above. If that did not
-  // produce the post, the cheapest and safest next step is Admin Rescue.
+  if (!catalogSelection?.item && productIntentScoped) {
+    productResearchFallbackReason ||=
+      catalogItems.length > 0
+        ? "no_unused_acceptable_local_product"
+        : "no_verified_local_product";
+  }
+
   if (websiteAccessProtected) {
-    console.warn("Protected product source stopped before paid indexed/AI research", {
+    console.info("Protected product source will use one bounded indexed web-research fallback before admin rescue", {
       ruleId: rule.id,
       brandProfileId: rule.brand_profile_id,
       websiteUrl,
       domain: getWebsiteFetchDomain(websiteUrl),
       safeCatalogCandidateCount: catalogItems.length,
-      failFast: true,
-      adminRescueRequired: true,
+      productDiscoveryPath: "web_research_fallback_pending",
+      fallbackReason: productResearchFallbackReason || "security_blocked",
+      automaticRetryIfFallbackFails: false,
     });
-    const protectedError = new ProtectedProductResearchRetryError(
-      "The product source is protected by website security and Spreelo cannot safely continue automatic product retrieval. The occurrence has been stopped for admin rescue; no automatic protected-source retry or paid indexed product research will be started.",
-      { url: websiteUrl }
-    );
-    protectedError.failFast = true;
-    protectedError.adminRescueRequired = true;
-    protectedError.safeCatalogCandidateCount = catalogItems.length;
-    throw protectedError;
   }
 
   try {
-    if (productIntentScoped && !websiteAccessProtected) {
+    if (
+      productIntentScoped &&
+      !websiteAccessProtected &&
+      productResearchFallbackReason !== "rate_limited"
+    ) {
       try {
         const storeSearchCandidates = await discoverProductCandidatesFromStoreSearch({
           websiteUrl,
@@ -31565,12 +31688,14 @@ async function prepareWebsiteContentForRule({
 
                 summary.website_items_found += 1;
                 summary.website_content_success += 1;
-                summary.website_web_search_success += 1;
 
                 console.log("Store-search product locked successfully", {
                   ruleId: rule.id,
                   brandProfileId: rule.brand_profile_id,
                   websiteUrl,
+                  productDiscoveryPath: "product_engine_store_search",
+                  fallbackReason: null,
+                  paidWebResearchUsed: false,
                   productUrl: prepared?.websiteItem?.url || candidate?.url || null,
                   title: prepared?.websiteItem?.title || candidate?.title || null,
                   lockCandidateIndex: candidateIndex,
@@ -31634,7 +31759,15 @@ async function prepareWebsiteContentForRule({
 
                 summary.website_items_found += 1;
                 summary.website_content_success += 1;
-                summary.website_web_search_success += 1;
+                console.log("Store-search bounded AI repair completed without domain web research", {
+                  ruleId: rule.id,
+                  brandProfileId: rule.brand_profile_id,
+                  websiteUrl,
+                  productDiscoveryPath: "product_engine_store_search_repair",
+                  fallbackReason: null,
+                  paidWebResearchUsed: false,
+                  productUrl: repaired?.websiteItem?.url || firstStoreSearchSelection.item?.url || null,
+                });
                 return repaired;
               } catch (error) {
                 if (isWebsiteRateLimitError(error)) throw error;
@@ -31650,15 +31783,39 @@ async function prepareWebsiteContentForRule({
           }
         }
       } catch (storeSearchError) {
-        if (isWebsiteRateLimitError(storeSearchError)) throw storeSearchError;
+        if (isWebsiteRateLimitError(storeSearchError)) {
+          productResearchFallbackReason = "rate_limited";
+        } else {
+          productResearchFallbackReason ||= "store_search_unavailable";
+        }
         console.log("Website text store-search product discovery failed", {
           ruleId: rule.id,
           brandProfileId: rule.brand_profile_id,
           websiteUrl,
+          fallbackReason: productResearchFallbackReason,
           message: storeSearchError.message,
         });
       }
     }
+
+    const resolvedWebResearchFallbackReason =
+      productResearchFallbackReason ||
+      (websiteAccessProtected
+        ? "security_blocked"
+        : catalogItems.length
+          ? "local_candidates_exhausted"
+          : "no_verified_local_product");
+    console.info("Starting bounded product web-research fallback", {
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      productDiscoveryPath: "web_research_fallback",
+      fallbackReason: resolvedWebResearchFallbackReason,
+      paidWebResearchUsed: true,
+      localCatalogCandidateCount: catalogItems.length,
+      recentUsedCount: recentUsedItems.length,
+      desiredVerifiedCount: 2,
+    });
 
     const webSearchItems = await findWebsiteProductWithWebSearch({
       openai,
@@ -31666,14 +31823,20 @@ async function prepareWebsiteContentForRule({
       rule,
       websiteUrl,
       usedWebsiteItems: recentUsedItems,
+      researchModel:
+        websiteAccessProtected ||
+        resolvedWebResearchFallbackReason === "rate_limited"
+          ? PRODUCT_RESEARCH_FAST_MODEL
+          : PRODUCT_RESEARCH_MODEL,
       fitModel: productIntentScoped ? PRODUCT_RESEARCH_FAST_MODEL : PRODUCT_RESEARCH_MODEL,
       fitMinimumStrongProducts: productIntentScoped ? 1 : CAROUSEL_MIN_PRODUCT_SLIDES,
-      // v144.11: every product-image format shares the same exact-product
-      // 403 fallback. For a single-product post one verified item is enough,
-      // but the single repair batch may also return reserves for video/image
-      // fallback without paying one GPT-5.5 request per product.
-      allowIndexedSecurityFallback: false,
-      desiredVerifiedCount: 1,
+      // v144.162: a single-product post ultimately needs one item, but keep a
+      // tiny two-product verified shortlist so a relevance/lock issue on the
+      // first candidate cannot turn the cost guard into a new failure mode.
+      allowIndexedSecurityFallback:
+        websiteAccessProtected ||
+        resolvedWebResearchFallbackReason === "rate_limited",
+      desiredVerifiedCount: 2,
       indexedSecurityRepairBatchSize: 4,
     });
 
@@ -31750,6 +31913,9 @@ async function prepareWebsiteContentForRule({
             ruleId: rule.id,
             brandProfileId: rule.brand_profile_id,
             websiteUrl,
+            productDiscoveryPath: "web_research_fallback",
+            fallbackReason: resolvedWebResearchFallbackReason,
+            paidWebResearchUsed: true,
             productUrl: protectedSelection.item.url,
             title: protectedSelection.item.title,
             verifiedPoolCount: protectedAuthoritativePool.length,
@@ -31844,6 +32010,17 @@ async function prepareWebsiteContentForRule({
           summary.website_items_found += 1;
           summary.website_content_success += 1;
           summary.website_web_search_success += 1;
+          console.log("Web-research fallback product locked successfully", {
+            ruleId: rule.id,
+            brandProfileId: rule.brand_profile_id,
+            websiteUrl,
+            productDiscoveryPath: "web_research_fallback",
+            fallbackReason: resolvedWebResearchFallbackReason,
+            paidWebResearchUsed: true,
+            productUrl: finalized?.websiteItem?.url || selected.item?.url || null,
+            title: finalized?.websiteItem?.title || selected.item?.title || null,
+            verifiedPoolCount: webSearchItems.length,
+          });
           return finalized;
         } catch (error) {
           if (isWebsiteRateLimitError(error)) throw error;
@@ -31896,6 +32073,15 @@ async function prepareWebsiteContentForRule({
           summary.website_items_found += 1;
           summary.website_content_success += 1;
           summary.website_web_search_success += 1;
+          console.log("Web-research fallback completed after one bounded product lock repair", {
+            ruleId: rule.id,
+            brandProfileId: rule.brand_profile_id,
+            websiteUrl,
+            productDiscoveryPath: "web_research_fallback_repair",
+            fallbackReason: resolvedWebResearchFallbackReason,
+            paidWebResearchUsed: true,
+            productUrl: repaired?.websiteItem?.url || firstWebSearchSelection.item?.url || null,
+          });
           return repaired;
         } catch (error) {
           if (isWebsiteRateLimitError(error)) throw error;
