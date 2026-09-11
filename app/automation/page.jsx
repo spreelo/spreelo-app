@@ -6737,6 +6737,17 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
     return fallback || t("automation.contentPlan");
   }
 
+  function getCanonicalContentTypeLabel(contentTypeId, fallback = "") {
+    const type = getContentTypeById(contentTypeId);
+    if (type?.label) return String(type.label).trim();
+
+    const formatItem = getExploreFormatItem(contentTypeId);
+    const defaultLabel = String(formatItem?.default_label || "").trim();
+    if (defaultLabel) return defaultLabel;
+
+    return String(fallback || contentTypeId || "Content").trim();
+  }
+
   function getCurrentSlotCreditLabel(slot) {
     const credits = getCurrentCreditCost(slot);
     return t("automation.creditCount", { count: credits });
@@ -10134,7 +10145,7 @@ ${slot.campaignSummary}`
           ? editingRuleSnapshot?.credit_released_at || null
           : null,
                content_type_id: slot.contentTypeId,
-        content_type_label: getUnifiedContentTypeLabel(
+        content_type_label: getCanonicalContentTypeLabel(
           slot.contentTypeId,
           slot.contentTypeLabel
         ),

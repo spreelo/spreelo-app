@@ -46,9 +46,12 @@ function buildSourceFingerprints(defaultLabels) {
 
 function sourceMetadataNeedsRefresh(defaultLabels, labels) {
   const existing = getSourceFingerprints(labels);
-  return Object.entries(defaultLabels || {}).some(
-    ([key, value]) => existing[key] !== sourceFingerprint(value)
-  );
+  const cleanLabels = stripTranslationMetadata(labels);
+  return Object.entries(defaultLabels || {}).some(([key, value]) => {
+    if (existing[key] !== sourceFingerprint(value)) return true;
+    if (isLanguageNeutralUiSource(value) && String(cleanLabels?.[key] || "") !== String(value)) return true;
+    return false;
+  });
 }
 
 function withTranslationMetadata({ labels, intentionalUnchangedKeys, deferredKeys, defaultLabels }) {
@@ -90,6 +93,14 @@ function stripTranslationMetadata(labels) {
   if (!labels || typeof labels !== "object" || Array.isArray(labels)) return {};
   const { [TRANSLATION_META_KEY]: _meta, ...clean } = labels;
   return clean;
+}
+
+function seedLanguageNeutralLabels(defaultLabels, labels) {
+  const seeded = { ...(labels || {}) };
+  for (const [key, value] of Object.entries(defaultLabels || {})) {
+    if (isLanguageNeutralUiSource(value)) seeded[key] = String(value);
+  }
+  return seeded;
 }
 
 function targetLocaleRequiresLocalizedScript(locale) {
@@ -134,12 +145,19 @@ function parseNamespaces(value) {
 }
 
 function shouldRetranslateLabel({ key, defaultValue, translatedValue, locale, intentionalUnchangedKeys }) {
+  const defaultText = String(defaultValue || "").trim();
+
+  // Brand, platform and system labels declared language-neutral are source data,
+  // not translation work. Keep the canonical English value without an AI call.
+  if (locale !== DEFAULT_UI_LOCALE && isLanguageNeutralUiSource(defaultText)) {
+    return false;
+  }
+
   if (translatedValue === null || translatedValue === undefined) {
     return true;
   }
 
   const translatedText = String(translatedValue).trim();
-  const defaultText = String(defaultValue || "").trim();
 
   if (!translatedText) {
     return true;
@@ -522,7 +540,7 @@ async function waitForTranslationPack({ supabaseAdmin, locale, namespace }) {
 
 async function persistSourceMetadataBaseline({ supabaseAdmin, locale, languageName, namespace, existingPack, defaultLabels }) {
   if (!existingPack?.id || !sourceMetadataNeedsRefresh(defaultLabels, existingPack.labels || {})) return;
-  const existingLabels = existingPack.labels || {};
+  const existingLabels = seedLanguageNeutralLabels(defaultLabels, existingPack.labels || {});
   const payload = withTranslationMetadata({
     labels: existingLabels,
     intentionalUnchangedKeys: getIntentionalUnchangedKeys(existingLabels),
@@ -544,7 +562,7 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
   if (locale === DEFAULT_UI_LOCALE) return defaultLabels;
 
   let existingPack = await readTranslationPack({ supabaseAdmin, locale, namespace });
-  let existingLabels = existingPack?.labels || {};
+  let existingLabels = seedLanguageNeutralLabels(defaultLabels, existingPack?.labels || {});
   const refreshRequested = existingPack?.status === "refresh_requested";
   let missingLabels = refreshRequested
     ? { ...defaultLabels }
@@ -593,7 +611,7 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
   // Re-read after acquiring the lease: another worker may have completed the
   // pack immediately before our atomic claim succeeded.
   existingPack = await readTranslationPack({ supabaseAdmin, locale, namespace });
-  existingLabels = existingPack?.labels || existingLabels;
+  existingLabels = seedLanguageNeutralLabels(defaultLabels, existingPack?.labels || existingLabels);
   const forceRefresh = refreshRequested || existingPack?.status === "refresh_requested";
   missingLabels = forceRefresh
     ? { ...defaultLabels }

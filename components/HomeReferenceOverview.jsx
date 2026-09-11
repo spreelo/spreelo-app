@@ -43,13 +43,9 @@ function formatPlannedItemDate(item, locale) {
   return "—";
 }
 
-function plannedItemTitle(item, t) {
-  return item?.content_type_label || item?.idea || item?.name || item?.post_type || t("homeReference.plannedItem");
-}
-
-function humanizeContentType(value, t) {
+function getKnownContentTypeLabel(value, t) {
   const raw = String(value || "").trim();
-  if (!raw) return "—";
+  if (!raw) return null;
 
   const labels = {
     website_item: t("homeReference.type.productPost"),
@@ -68,7 +64,27 @@ function humanizeContentType(value, t) {
     seasonal: t("homeReference.type.seasonal"),
   };
 
-  return labels[raw] || raw.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return labels[raw] || null;
+}
+
+function humanizeContentType(value, t) {
+  const raw = String(value || "").trim();
+  if (!raw) return "—";
+  return getKnownContentTypeLabel(raw, t) || raw.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function plannedItemTypeLabel(item, t) {
+  return getKnownContentTypeLabel(item?.content_type_id, t)
+    || humanizeContentType(item?.content_type_label || item?.content_type_id || item?.post_type || "website_item", t);
+}
+
+function plannedItemTitle(item, t) {
+  return getKnownContentTypeLabel(item?.content_type_id, t)
+    || item?.content_type_label
+    || item?.idea
+    || item?.name
+    || item?.post_type
+    || t("homeReference.plannedItem");
 }
 
 function planContentTypes(plan, t) {
@@ -256,7 +272,7 @@ export default function HomeReferenceOverview({
                       <div className="home-plan-inline-meta-v153">
                         <span><b>{t("homeReference.dateTime")}</b>{formatPlannedItemDate(item, locale)}</span>
                         <span><b>{t("homeReference.channel")}</b>{platform}</span>
-                        <span><b>{t("homeReference.type")}</b>{humanizeContentType(item?.content_type_label || item?.content_type_id || item?.post_type || "website_item", t)}</span>
+                        <span><b>{t("homeReference.type")}</b>{plannedItemTypeLabel(item, t)}</span>
                       </div>
                       <div className="home-plan-inline-actions-v153">
                         {isGeneratedPost ? <a className="home-reference-open-item" href={`/posts/${item.id}`}>{t("homeReference.open")}<ArrowRight /></a> : (
