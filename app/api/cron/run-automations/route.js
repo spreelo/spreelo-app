@@ -439,6 +439,8 @@ const WEBSITE_TEXT_INTENT_AI_SCORE_MAX_ITEMS = 25;
 const WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT = 12;
 
 const POST_TEXT_MODEL = "gpt-4.1-mini";
+const EDITORIAL_HEADLINE_MODEL =
+  process.env.EDITORIAL_HEADLINE_MODEL || "gpt-5.6-sol";
 const PRODUCT_RESEARCH_MODEL = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
 const PRODUCT_RESEARCH_FAST_MODEL =
   process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL;
@@ -33828,10 +33830,239 @@ function deriveEditorialVisibleCopy(rule, postContent) {
   };
 }
 
+
+function buildEditorialHeadlineSpellingReference(value) {
+  const words = String(value || "")
+    .trim()
+    .split(/\s+/u)
+    .filter(Boolean);
+
+  return words
+    .map((word) => `${word} = ${Array.from(word).join("-")}`)
+    .join("; ");
+}
+
+function getDeterministicEditorialHeadlineFallback(rule, postContent) {
+  const editorialCopy = deriveEditorialVisibleCopy(rule, postContent);
+  const productName = editorialCopy.productName || getVerifiedProductTitleCandidate(
+    rule?.website_item?.title || rule?.website_item?.item_title || ""
+  );
+  const candidates = [editorialCopy.headline, editorialCopy.supportingLine];
+
+  for (const rawCandidate of candidates) {
+    const candidate = normalizeEditorialVisibleCopyText(rawCandidate, 64);
+    const wordCount = candidate.split(/\s+/u).filter(Boolean).length;
+    if (!candidate || wordCount < 2 || wordCount > 6 || candidate.length > 48) continue;
+    if (isProductLabelTextRedundant(productName, candidate)) continue;
+    if (looksLikeGenericEditorialHeadline(candidate, {
+      productName,
+      brandName:
+        rule?.website_item?.product_brand ||
+        rule?.website_item?.brand ||
+        rule?.brand_profile?.business_name || "",
+      websiteUrl: rule?.brand_profile?.website_url || "",
+    })) continue;
+    return candidate;
+  }
+
+  return "";
+}
+
+async function buildEditorialHeadlineVisionInput(sourceImageBuffer) {
+  const visionBuffer = await sharp(sourceImageBuffer)
+    .rotate()
+    .flatten({ background: "#ffffff" })
+    .resize({
+      width: 768,
+      height: 768,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 82, mozjpeg: true })
+    .toBuffer();
+
+  return `data:image/jpeg;base64,${visionBuffer.toString("base64")}`;
+}
+
+async function prepareLockedEditorialHeadline({
+  openai,
+  rule,
+  postContent,
+  sourceImageBuffer,
+}) {
+  const productTitle = getVerifiedProductTitleCandidate(
+    rule?.website_item?.title || rule?.website_item?.item_title || ""
+  );
+  const productBrand = String(
+    rule?.website_item?.product_brand ||
+      rule?.website_item?.brand ||
+      ""
+  ).trim();
+  const productType = String(
+    rule?.website_item?.product_display_type ||
+      rule?.website_item?.display_product_type ||
+      rule?.website_item?.locked_product_category ||
+      rule?.website_item?.category ||
+      rule?.website_item?.type ||
+      ""
+  ).trim();
+  const productVariant = String(
+    rule?.website_item?.product_color ||
+      rule?.website_item?.locked_product_color ||
+      rule?.website_item?.color ||
+      ""
+  ).trim();
+  const productDescription = truncateText(
+    rule?.website_item?.description || "",
+    900
+  );
+  const brandProfile = rule?.brand_profile || {};
+  const campaignContext = isCampaignScopedWebsiteRule(rule)
+    ? truncateText(formatCampaignVisualContextForPrompt(rule), 1400)
+    : "Not a calendar campaign.";
+  const fallbackHeadline = getDeterministicEditorialHeadlineFallback(rule, postContent);
+
+  const textPrompt = `
+You are Spreelo's final multilingual advertising headline writer and proofreader.
+
+Create the exact visible editorial headline that will be handed to an image model.
+The image model is NOT allowed to invent or rewrite the wording after this step.
+
+Use only the supplied product, brand, post and campaign context. Do not browse, search the web, infer unsupported facts or add claims that are not supported below.
+
+BRAND
+- Business: ${brandProfile.business_name || "Not provided"}
+- Industry: ${brandProfile.industry || "Not provided"}
+- Target audience: ${brandProfile.target_audience || "Not provided"}
+- Market: ${brandProfile.content_market || brandProfile.country_code || "Not provided"}
+- Content language: ${getRuleVisualLanguageContext(rule)}
+- Tone: ${rule?.tone || "Professional"}
+
+VERIFIED PRODUCT
+- Exact product/model name: ${productTitle || "Not provided"}
+- Product brand: ${productBrand || "Not provided"}
+- Product type: ${productType || "Not provided"}
+- Variant/colour: ${productVariant || "Not provided"}
+- Verified description: ${productDescription || "Not provided"}
+
+POST CONTEXT
+${truncateText(postContent || "Not provided", 1600)}
+
+CAMPAIGN CONTEXT
+${campaignContext}
+
+HEADLINE RULES
+- Write in the selected content language above.
+- Create one concise, premium, product-specific editorial headline, normally 2 to 5 words and never more than 6 words.
+- Make it fit the exact product and the actual angle of the post.
+- Do not merely repeat the product/model name.
+- Avoid generic storefront wording such as Discover, Shop now, Learn more, Built for, Made for, Ready for, or equivalents in the selected language.
+- Do not invent materials, performance, provenance, discounts, guarantees, availability, prices or other product facts.
+- Natural emotional language is allowed only when it does not imply an unsupported factual claim.
+- After drafting, silently proofread the final headline character by character for spelling, accents/diacritics, grammar and accidental word substitutions.
+- Return only the final proofread headline in the JSON field. Do not include alternatives or commentary.
+`.trim();
+
+  const content = [{ type: "input_text", text: textPrompt }];
+  let visionIncluded = false;
+  try {
+    if (sourceImageBuffer) {
+      const imageUrl = await buildEditorialHeadlineVisionInput(sourceImageBuffer);
+      content.push({ type: "input_image", image_url: imageUrl, detail: "low" });
+      visionIncluded = true;
+    }
+  } catch (error) {
+    console.warn("Editorial headline vision input could not be prepared; continuing with verified text context", {
+      ruleId: rule?.id || null,
+      message: error?.message || String(error),
+    });
+  }
+
+  try {
+    const response = await openai.responses.create(
+      {
+        model: EDITORIAL_HEADLINE_MODEL,
+        reasoning: { effort: "none" },
+        input: [{ role: "user", content }],
+        max_output_tokens: 120,
+        text: {
+          verbosity: "low",
+          format: {
+            type: "json_schema",
+            name: "editorial_product_headline",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                headline: { type: "string", minLength: 2, maxLength: 64 },
+              },
+              required: ["headline"],
+            },
+          },
+        },
+      },
+      { timeout: 25_000, maxRetries: 0 }
+    );
+
+    const parsed = safeJsonParse(getOpenAiResponseOutputText(response));
+    const headline = normalizeEditorialVisibleCopyText(parsed?.headline || "", 64);
+    const wordCount = headline.split(/\s+/u).filter(Boolean).length;
+    const isValidHeadline = Boolean(
+      headline &&
+      wordCount >= 2 &&
+      wordCount <= 6 &&
+      headline.length <= 48 &&
+      !isProductLabelTextRedundant(productTitle, headline) &&
+      !looksLikeGenericEditorialHeadline(headline, {
+        productName: productTitle,
+        brandName: productBrand || brandProfile.business_name || "",
+        websiteUrl: brandProfile.website_url || "",
+      })
+    );
+
+    if (!isValidHeadline) {
+      throw new Error("GPT-5.6 Sol returned an editorial headline that failed Spreelo's local headline contract");
+    }
+
+    console.info("Editorial product headline locked before image generation", {
+      ruleId: rule?.id || null,
+      model: EDITORIAL_HEADLINE_MODEL,
+      headline,
+      visionIncluded,
+      source: "gpt-5.6-sol-proofread",
+    });
+
+    return {
+      headline,
+      source: "gpt-5.6-sol-proofread",
+      visionIncluded,
+    };
+  } catch (error) {
+    console.warn("Editorial headline preparation unavailable; using pre-image text fallback without adding web research", {
+      ruleId: rule?.id || null,
+      model: EDITORIAL_HEADLINE_MODEL,
+      message: error?.message || String(error),
+      fallbackHeadline: fallbackHeadline || null,
+    });
+
+    return {
+      headline: fallbackHeadline,
+      source: fallbackHeadline ? "post-copy-fallback" : "product-name-only-fallback",
+      visionIncluded,
+    };
+  }
+}
+
 function buildWebsiteItemEditorialPostImagePrompt(
   rule,
   postContent,
-  { nativeTransparent = false, includeLogo = false } = {}
+  {
+    nativeTransparent = false,
+    includeLogo = false,
+    lockedHeadline = "",
+    headlineSource = "pre-image-copy",
+  } = {}
 ) {
   const brandProfileText = formatBrandProfileForPrompt(rule.brand_profile);
   const websiteItemText = formatWebsiteItemForPrompt(rule.website_item);
@@ -33846,7 +34077,11 @@ function buildWebsiteItemEditorialPostImagePrompt(
       rule?.brand_profile?.business_name ||
       ""
   ).trim();
-  const editorialCopy = deriveEditorialVisibleCopy(rule, postContent);
+  const exactHeadline = normalizeEditorialVisibleCopyText(lockedHeadline, 64);
+  const hasLockedHeadline = Boolean(exactHeadline);
+  const headlineSpellingReference = hasLockedHeadline
+    ? buildEditorialHeadlineSpellingReference(exactHeadline)
+    : "";
   const footerSafeZoneInstruction = `
 BOTTOM SAFE ZONE — ALWAYS REQUIRED:
 - Always reserve roughly the lowest 9–10% of the image as calm visual breathing room beneath the final text line.
@@ -33856,30 +34091,76 @@ BOTTOM SAFE ZONE — ALWAYS REQUIRED:
 - This safe zone is required whether or not a brand logo is enabled.
 ${includeLogo ? "- A small brand logo will be overlaid later in the TOP-LEFT corner. Keep that corner visually calm and free of important product details, headline text or busy props. The bottom safe zone remains pure breathing room and is NOT the logo area." : "- No logo is enabled, but preserve the same 9–10% breathing room so the composition keeps the same balanced finish."}
 `.trim();
-  const exactCopyBlock = hasVerifiedProductTitleForImage
+  const exactCopyBlock = hasLockedHeadline && hasVerifiedProductTitleForImage
     ? `
-VISIBLE COPY CONTRACT:
-- Headline: create exactly one short unique editorial headline in the same language as the post.
-- The headline must feel specific to this exact product and should not read like a generic slogan that could fit almost anything.
-- Prefer 2 to 5 words, at most 2 lines.
-- Do not reuse or paraphrase a generic opening line from the supplied post text when it feels broad, repetitive or storefront-like.
-- Avoid generic formulas such as "Built for...", "Made for...", "Ready to...", "Discover...", "Se och hitta...", "Klassisk stil..." or other vague all-purpose lines.
-- Product name/model, exact spelling: "${productTitle}"
-- Use exactly two visible text roles only: one original editorial headline and the exact product/model name.
-- Do not add a supporting sentence, third line of copy, CTA, URL, microcopy or filler text.
-- Do not invent alternate wording for any exact supplied product/model text.
-- Do not add extra slogans or spelling changes.
+LOCKED VISIBLE COPY CONTRACT — WORDING WAS FINALIZED BEFORE IMAGE GENERATION:
+- Locked headline, exact words: "${exactHeadline}"
+- Headline spelling reference: ${headlineSpellingReference}
+- Exact verified product/model name: "${productTitle}"
+- The headline wording is immutable. Do NOT rewrite, paraphrase, translate, autocorrect, substitute, add or remove any word.
+- You may change capitalization only when needed for typography, but every letter, accent/diacritic and word must otherwise remain the same and in the same order.
+- Render the locked headline character-for-character. Double-check every visible word against the spelling reference before finalizing the image.
+- Render the product/model name with the exact verified spelling. Do not rename, abbreviate or translate it.
+- Use exactly two visible text roles only: the locked headline and the exact product/model name.
+- Do not add a supporting sentence, third line of copy, CTA, URL, microcopy, badge text, filler text or any additional slogan.
+- Headline source: ${headlineSource}. The image model's job is visual design and typography, not copywriting.
 `.trim()
-    : `
-VISIBLE COPY CONTRACT — PRODUCT NAME SAFETY FALLBACK:
-- Headline: create exactly one short unique editorial headline in the same language as the post.
-- The headline must feel specific to this exact product and should not read like a generic slogan that could fit almost anything.
-- Prefer 2 to 5 words, at most 2 lines.
-- The product-name field is missing, generic or placeholder-like. Do NOT display "Product image", "Product photo", "Image", "Produktbild" or any similar placeholder.
-- Do not invent, rewrite or guess a product/model name for the image.
-- Use exactly ONE visible text role: the editorial headline.
-- Do not add a supporting sentence, second product-name line, CTA, URL, microcopy or filler text.
+    : hasLockedHeadline
+      ? `
+LOCKED VISIBLE COPY CONTRACT — WORDING WAS FINALIZED BEFORE IMAGE GENERATION:
+- Locked headline, exact words: "${exactHeadline}"
+- Headline spelling reference: ${headlineSpellingReference}
+- The headline wording is immutable. Do NOT rewrite, paraphrase, translate, autocorrect, substitute, add or remove any word.
+- You may change capitalization only when needed for typography, but every letter, accent/diacritic and word must otherwise remain the same and in the same order.
+- Render the locked headline character-for-character. Double-check every visible word against the spelling reference before finalizing the image.
+- No verified public product/model name is available. Do not invent one and do not show placeholders such as Product image, Product photo, Image, Photo or Produktbild.
+- Use exactly ONE visible text role: the editorial headline (the locked headline above).
+- Do not add supporting copy, CTA, URL, microcopy, badge text, filler text or another slogan.
+- Headline source: ${headlineSource}. The image model's job is visual design and typography, not copywriting.
+`.trim()
+      : hasVerifiedProductTitleForImage
+        ? `
+LOCKED VISIBLE COPY CONTRACT — SAFE FALLBACK:
+- No separate headline was approved before image generation. Do NOT invent one.
+- Show only the exact verified product/model name: "${productTitle}"
+- Render that product/model name with the exact verified spelling. Do not rename, abbreviate, translate or add a slogan.
+- Use exactly ONE visible text role: the exact product/model name.
+- Do not add supporting copy, CTA, URL, microcopy, badge text or filler text.
+`.trim()
+        : `
+LOCKED VISIBLE COPY CONTRACT — SAFE FALLBACK:
+- No headline or verified public product/model name was approved before image generation.
+- Do not invent customer-facing text. Keep the finished composition text-free.
 `.trim();
+
+  const headlineScaleInstruction = hasLockedHeadline
+    ? "- Keep the locked headline short-looking and premium in the composition, at most 2 lines and clearly narrower than the full image width."
+    : "- No separate headline is approved. Do not create or invent one.";
+  const headlineColumnInstruction = hasLockedHeadline
+    ? "- Keep the locked headline within a comfortable centered column, usually around half the image width rather than nearly edge to edge."
+    : "- Do not reserve space for an invented headline.";
+  const productNameScaleInstruction = hasVerifiedProductTitleForImage
+    ? hasLockedHeadline
+      ? "- Keep the exact product/model line clearly smaller than the locked headline and compact, ideally on one line when possible."
+      : "- The exact product/model name is the only approved visible text; make it clear and premium without adding another line of copy."
+    : "- Do not create a product/model line when no verified public product name is available.";
+  const visibleRoleBalanceInstruction = hasLockedHeadline && hasVerifiedProductTitleForImage
+    ? "- Keep the visual copy concise and balanced: exactly 2 visible text roles total — locked headline + exact product/model name."
+    : hasLockedHeadline
+      ? "- Keep the visual copy concise and balanced: exactly 1 visible text role total — the locked headline only."
+      : hasVerifiedProductTitleForImage
+        ? "- Keep the visual copy concise and balanced: exactly 1 visible text role total — the exact product/model name only."
+        : "- Keep the composition text-free because no visible copy was approved.";
+  const immutableHeadlineInstruction = hasLockedHeadline
+    ? "- Treat the locked headline above as immutable copy. Focus creativity on typography, placement, hierarchy and composition — never on rewriting its words."
+    : "- No headline was approved before image generation. Do not invent, infer or derive one from the post context.";
+  const exactVisibleRolesInstruction = hasLockedHeadline && hasVerifiedProductTitleForImage
+    ? "- Exactly two visible text roles means exactly two: the locked headline and the exact product/model name, nothing else."
+    : hasLockedHeadline
+      ? "- Exactly one visible text role means exactly one: the locked headline, nothing else."
+      : hasVerifiedProductTitleForImage
+        ? "- Exactly one visible text role means exactly one: the exact product/model name, nothing else."
+        : "- Do not render any customer-facing text.";
 
   if (nativeTransparent) {
     return `
@@ -33932,14 +34213,14 @@ AUTHORITATIVE PRODUCT-POST DESIGN CONTRACT:
 - Background, lighting, product placement and typography must feel intentionally art-directed as one coherent image, not like separate layers or a generic template.
 - Let the typography style adapt freely to the product and background: modern sans, condensed display, refined serif, editorial type or another professional choice that genuinely fits.
 - Mobile readability is mandatory. Do not use microtext.
-- Keep the main headline short and premium: ideally 2 to 5 words, at most 2 lines, and clearly narrower than the full image width.
+${headlineScaleInstruction}
 - Make the text treatment slightly smaller and more restrained than a typical loud ad poster so it supports the product instead of overpowering it.
 - Avoid oversized typography that spans almost the entire width or visually dominates the composition.
-- Keep the headline within a comfortable centered column, usually around half the image width rather than nearly edge to edge.
-${hasVerifiedProductTitleForImage ? "- Keep the product/model line clearly smaller than the headline and compact, ideally on one line when possible." : "- Do not create a product/model line when no verified public product name is available."}
-- Avoid generic headline formulas like "Built for...", "Made for...", "Discover...", "Shop..." or storefront CTAs. When you need to create a headline, make it feel specific to this exact product.
-${hasVerifiedProductTitleForImage ? "- Keep the visual copy concise and balanced: exactly 2 visible text roles total — headline + exact product/model name." : "- Keep the visual copy concise and balanced: exactly 1 visible text role total — the headline only."}
-- Create one original product-specific headline that feels tailored to this exact item rather than like a generic store slogan.
+${headlineColumnInstruction}
+${productNameScaleInstruction}
+${hasLockedHeadline ? "- Do not replace the locked headline with generic CTA/storefront wording. Preserve its exact words." : "- Do not invent a generic CTA/storefront headline."}
+${visibleRoleBalanceInstruction}
+${immutableHeadlineInstruction}
 ${hasVerifiedProductTitleForImage ? "- Show the exact verified product name/model clearly as its own readable element. Do not rename, abbreviate or translate the product name unless the verified website itself supplies that localized name." : "- Never substitute generic metadata such as Product image, Product photo, Image, Photo or Produktbild as customer-facing copy."}
 - Prefer fewer words over extra copy, but keep the overall text stack compact and slightly reduced in scale so the product stays dominant.
 - Keep the main text primarily in the lower portion of the 4:5 image so the product remains dominant and unobstructed.
@@ -33953,7 +34234,7 @@ ${hasVerifiedProductTitleForImage ? "- Show the exact verified product name/mode
 - Keep the background continuous and natural through the safe zone; it is breathing room, not a separate footer panel.
 - When a logo is enabled, keep a small calm TOP-LEFT corner for the later local logo overlay. Do not reserve the bottom safe zone for the logo.
 - Do not add a supporting sentence, third text row, descriptive micro-line, CTA button, website URL, fake UI, price, star rating, invented discount, invented guarantee, invented material/specification or unsupported performance claim.
-- Exactly two visible text roles means exactly two: the headline and the product/model name, nothing else.
+${exactVisibleRolesInstruction}
 - If an exact authorized customer-supplied campaign offer is explicitly present in the campaign context, it may be shown exactly as supplied and must not be altered.
 - Do not put text inside white cards, opaque panels, labels, capsules or large text boxes. Typography should feel integrated directly into the design.
 - Do not add unrelated sellable products or accessories that could be mistaken for items from the customer's catalog.
@@ -34017,14 +34298,14 @@ AUTHORITATIVE PRODUCT-POST DESIGN CONTRACT:
 - Background, lighting, product placement and typography must feel intentionally art-directed as one coherent image, not like separate layers or a generic template.
 - Let the typography style adapt freely to the product and background: modern sans, condensed display, refined serif, editorial type or another professional choice that genuinely fits.
 - Mobile readability is mandatory. Do not use microtext.
-- Keep the main headline short and premium: ideally 2 to 5 words, at most 2 lines, and clearly narrower than the full image width.
+${headlineScaleInstruction}
 - Make the text treatment slightly smaller and more restrained than a typical loud ad poster so it supports the product instead of overpowering it.
 - Avoid oversized typography that spans almost the entire width or visually dominates the composition.
-- Keep the headline within a comfortable centered column, usually around half the image width rather than nearly edge to edge.
-${hasVerifiedProductTitleForImage ? "- Keep the product/model line clearly smaller than the headline and compact, ideally on one line when possible." : "- Do not create a product/model line when no verified public product name is available."}
-- Avoid generic headline formulas like "Built for...", "Made for...", "Discover...", "Shop..." or storefront CTAs. When you need to create a headline, make it feel specific to this exact product.
-${hasVerifiedProductTitleForImage ? "- Keep the visual copy concise and balanced: exactly 2 visible text roles total — headline + exact product/model name." : "- Keep the visual copy concise and balanced: exactly 1 visible text role total — the headline only."}
-- Create one original product-specific headline that feels tailored to this exact item rather than like a generic store slogan.
+${headlineColumnInstruction}
+${productNameScaleInstruction}
+${hasLockedHeadline ? "- Do not replace the locked headline with generic CTA/storefront wording. Preserve its exact words." : "- Do not invent a generic CTA/storefront headline."}
+${visibleRoleBalanceInstruction}
+${immutableHeadlineInstruction}
 ${hasVerifiedProductTitleForImage ? "- Show the exact verified product name/model clearly as its own readable element. Do not rename, abbreviate or translate the product name unless the verified website itself supplies that localized name." : "- Never substitute generic metadata such as Product image, Product photo, Image, Photo or Produktbild as customer-facing copy."}
 - Prefer fewer words over extra copy, but keep the overall text stack compact and slightly reduced in scale so the product stays dominant.
 - Keep the main text primarily in the lower portion of the 4:5 image so the product remains dominant and unobstructed.
@@ -34038,7 +34319,7 @@ ${hasVerifiedProductTitleForImage ? "- Show the exact verified product name/mode
 - Keep the background continuous and natural through the safe zone; it is breathing room, not a separate footer panel.
 - When a logo is enabled, keep a small calm TOP-LEFT corner for the later local logo overlay. Do not reserve the bottom safe zone for the logo.
 - No CTA button, no "SHOP NOW", no fake UI, no price, no star rating, no invented discount, no invented guarantee, no invented material/specification and no unsupported performance claim.
-${hasVerifiedProductTitleForImage ? "- Exactly two visible text roles means exactly two: the headline and the product/model name, nothing else." : "- Exactly one visible text role means exactly one: the headline only. Do not invent a product-name line."}
+${exactVisibleRolesInstruction}
 - Do not add a tiny descriptive or placeholder row beneath the visible text.
 - If an exact authorized customer-supplied campaign offer is explicitly present in the campaign context, it may be shown exactly as supplied and must not be altered.
 - Do not put text inside white cards, opaque panels, labels, capsules or large text boxes. Typography should feel integrated directly into the design.
@@ -34242,6 +34523,12 @@ export async function generateWebsiteItemEditorialPostImage(openai, rule, postCo
   }
 
   const sourceImageBuffer = await fetchImageBufferForOverlay(sourceImageUrl);
+  const lockedHeadline = await prepareLockedEditorialHeadline({
+    openai,
+    rule,
+    postContent,
+    sourceImageBuffer,
+  });
   let nativeReference = null;
 
   try {
@@ -34254,6 +34541,8 @@ export async function generateWebsiteItemEditorialPostImage(openai, rule, postCo
     const prompt = buildWebsiteItemEditorialPostImagePrompt(rule, postContent, {
       nativeTransparent: true,
       includeLogo: shouldUseLogoForEditorialProductPost(rule, rule?.brand_profile),
+      lockedHeadline: lockedHeadline.headline,
+      headlineSource: lockedHeadline.source,
     });
 
     const canvasBuffer = await sharp({
@@ -34304,18 +34593,24 @@ export async function generateWebsiteItemEditorialPostImage(openai, rule, postCo
       placement: nativeReference.placement,
       nativeTransparency: nativeReference.nativeTransparency,
       campaignScoped: isCampaignScopedWebsiteRule(rule),
+      headline: lockedHeadline.headline || null,
+      headlineSource: lockedHeadline.source,
     });
 
     return {
       imageBase64,
       imagePrompt: prompt,
       productHandlingMode: "native_transparent_single_pass",
+      headline: lockedHeadline.headline || null,
+      headlineSource: lockedHeadline.source,
     };
   }
 
   const prompt = buildWebsiteItemEditorialPostImagePrompt(rule, postContent, {
     nativeTransparent: false,
     includeLogo: shouldUseLogoForEditorialProductPost(rule, rule?.brand_profile),
+    lockedHeadline: lockedHeadline.headline,
+    headlineSource: lockedHeadline.source,
   });
   const normalizedSourceImageBuffer = await sharp(sourceImageBuffer)
     .rotate()
@@ -34357,12 +34652,16 @@ export async function generateWebsiteItemEditorialPostImage(openai, rule, postCo
     productTitle: rule?.website_item?.title || null,
     sourceImageUrl,
     campaignScoped: isCampaignScopedWebsiteRule(rule),
+    headline: lockedHeadline.headline || null,
+    headlineSource: lockedHeadline.source,
   });
 
   return {
     imageBase64,
     imagePrompt: prompt,
     productHandlingMode: "high_fidelity_recreation",
+    headline: lockedHeadline.headline || null,
+    headlineSource: lockedHeadline.source,
   };
 }
 
@@ -45547,6 +45846,8 @@ product_research_model_used: websitePreparedRule.uses_website_content
               productTitle: websiteItem?.title || null,
               productHandlingMode:
                 generatedProductPost.productHandlingMode || null,
+              headline: generatedProductPost.headline || null,
+              headlineSource: generatedProductPost.headlineSource || null,
               campaignScoped: isCampaignScopedWebsiteRule(ruleWithBrandProfile),
             });
           } catch (renderError) {
