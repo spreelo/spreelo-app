@@ -1,9 +1,11 @@
 import crypto from "crypto";
+import OpenAI from "openai";
 import { inflateRawSync } from "node:zlib";
 import sharp from "sharp";
 import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth";
 import { assertPublicHttpUrl } from "../../../../../lib/security";
 import { getPostRescueProductCount, POST_RESCUE_TYPES, resolvePostRescueType } from "../../../../../lib/postRescueFormat";
+import { validateCampaignRescueMaterial } from "../../../../../lib/campaignRescueValidation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -293,6 +295,34 @@ export async function POST(request) {
       return Response.json({ ok: false, error: "Rescue packages can only be imported into failed work items." }, { status: 409 });
     }
 
+    // v144.171: Campaign Rescue validation is locked to the ORIGINAL rule
+    // snapshot saved with the failed work item. A later edit to the live
+    // automation rule must not silently redefine what this Rescue was meant
+    // to save. Fall back to the current rule only for legacy work items whose
+    // snapshot is unexpectedly empty.
+    let originalRule = workItem?.rule_snapshot && typeof workItem.rule_snapshot === "object"
+      ? workItem.rule_snapshot
+      : {};
+    if (!Object.keys(originalRule).length && workItem.automation_rule_id) {
+      const { data: liveRule } = await context.admin
+        .from("automation_rules")
+        .select("*")
+        .eq("id", workItem.automation_rule_id)
+        .maybeSingle();
+      originalRule = liveRule || {};
+    }
+    const isCalendarCampaignRescue = String(originalRule?.queue_source || "").trim().toLowerCase() === "campaign";
+    if (isCalendarCampaignRescue && !process.env.OPENAI_API_KEY) {
+      return Response.json({
+        ok: false,
+        code: "CAMPAIGN_RESCUE_VALIDATION_UNAVAILABLE",
+        error: "Calendar-campaign Rescue validation is unavailable because OPENAI_API_KEY is not configured.",
+      }, { status: 503 });
+    }
+    const campaignValidationOpenAI = isCalendarCampaignRescue
+      ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+      : null;
+
     const zipBytes = Buffer.from(await file.arrayBuffer());
     let entries;
     try {
@@ -335,6 +365,23 @@ export async function POST(request) {
         return Response.json({ ok: false, error: "This source-research rescue needs verified_context with a summary, key facts or task-specific notes." }, { status: 400 });
       }
 
+      const campaignValidation = await validateCampaignRescueMaterial({
+        rule: originalRule,
+        workItem,
+        rescueType,
+        sources,
+        verifiedContext,
+        openai: campaignValidationOpenAI,
+      });
+      if (campaignValidation.required && !campaignValidation.accepted) {
+        return Response.json({
+          ok: false,
+          code: "CAMPAIGN_RESCUE_THEME_MISMATCH",
+          error: `This Rescue research does not fit the original calendar campaign closely enough: ${campaignValidation.reason || "campaign relevance was not confirmed"}`,
+          campaign_validation: campaignValidation,
+        }, { status: 422 });
+      }
+
       const importedAt = new Date().toISOString();
       const rescueData = {
         version: Number(manifest?.version || 3),
@@ -352,6 +399,7 @@ export async function POST(request) {
         verified_context: verifiedContext,
         sources,
         products: [],
+        campaign_validation: campaignValidation,
       };
 
       const update = await context.admin.from("admin_generation_work_items").update({
@@ -368,6 +416,10 @@ export async function POST(request) {
             rescue_type: rescueType,
             source_count: sources.length,
             key_fact_count: verifiedContext.key_facts.length,
+            campaign_validation_required: campaignValidation.required,
+            campaign_validation_status: campaignValidation.status,
+            campaign_validation_confidence: campaignValidation.confidence ?? null,
+            campaign_validation_model: campaignValidation.model || null,
           },
         },
         updated_at: importedAt,
@@ -384,6 +436,7 @@ export async function POST(request) {
             rescue_type: rescueType,
             rescue_verified_context: verifiedContext,
             rescue_sources: sources,
+            rescue_campaign_validation: campaignValidation,
           },
           updated_at: importedAt,
         }).eq("id", workItem.occurrence_id);
@@ -399,6 +452,7 @@ export async function POST(request) {
         products: [],
         sources,
         verified_context: verifiedContext,
+        campaign_validation: campaignValidation,
         manifest: rescueData.manifest,
       });
     }
@@ -410,12 +464,32 @@ export async function POST(request) {
     }
 
     const normalized = rawProducts.slice(0, neededCount).map(normalizeProduct);
-    const preparedImages = [];
     for (let index = 0; index < normalized.length; index += 1) {
       const product = normalized[index];
       if (!product.title || !product.url || (!product.image_file && !product.remote_image_url)) {
         return Response.json({ ok: false, error: `Product ${index + 1} needs product_name/title, product_url and either image_file or image_url.` }, { status: 400 });
       }
+    }
+
+    const campaignValidation = await validateCampaignRescueMaterial({
+      rule: originalRule,
+      workItem,
+      rescueType,
+      products: normalized,
+      openai: campaignValidationOpenAI,
+    });
+    if (campaignValidation.required && !campaignValidation.accepted) {
+      return Response.json({
+        ok: false,
+        code: "CAMPAIGN_RESCUE_THEME_MISMATCH",
+        error: `The rescued product selection does not fit the original calendar campaign closely enough: ${campaignValidation.reason || "campaign relevance was not confirmed"}`,
+        campaign_validation: campaignValidation,
+      }, { status: 422 });
+    }
+
+    const preparedImages = [];
+    for (let index = 0; index < normalized.length; index += 1) {
+      const product = normalized[index];
 
       if (product.image_file) {
         const imageEntry = findEntry(entries, product.image_file);
@@ -509,6 +583,7 @@ export async function POST(request) {
         notes: cleanText(manifest?.notes, 3000),
       },
       products: importedProducts,
+      campaign_validation: campaignValidation,
     };
 
     const update = await context.admin.from("admin_generation_work_items").update({
@@ -526,6 +601,10 @@ export async function POST(request) {
           product_count: importedProducts.length,
           remote_image_count: preparedImages.filter((item) => item.sourceKind === "remote_url").length,
           packaged_image_count: preparedImages.filter((item) => item.sourceKind === "zip_file").length,
+          campaign_validation_required: campaignValidation.required,
+          campaign_validation_status: campaignValidation.status,
+          campaign_validation_confidence: campaignValidation.confidence ?? null,
+          campaign_validation_model: campaignValidation.model || null,
         },
       },
       updated_at: importedAt,
@@ -538,7 +617,13 @@ export async function POST(request) {
     if (workItem.occurrence_id) {
       const { data: occurrence } = await context.admin.from("automation_occurrences").select("metadata").eq("id", workItem.occurrence_id).maybeSingle();
       await context.admin.from("automation_occurrences").update({
-        metadata: { ...(occurrence?.metadata || {}), admin_product_items: importedProducts, rescue_work_item_id: workItem.id, rescue_imported_at: importedAt },
+        metadata: {
+          ...(occurrence?.metadata || {}),
+          admin_product_items: importedProducts,
+          rescue_work_item_id: workItem.id,
+          rescue_imported_at: importedAt,
+          rescue_campaign_validation: campaignValidation,
+        },
         updated_at: importedAt,
       }).eq("id", workItem.occurrence_id);
       await context.admin.from("admin_review_cases").update({ product_items: importedProducts, updated_at: importedAt }).eq("occurrence_id", workItem.occurrence_id);
@@ -551,6 +636,7 @@ export async function POST(request) {
       rescue_type: rescueType,
       product_count: importedProducts.length,
       products: importedProducts,
+      campaign_validation: campaignValidation,
       manifest: rescueData.manifest,
     });
   } catch (error) {

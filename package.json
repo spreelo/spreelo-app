@@ -203,7 +203,10 @@
     "test:v144.162": "node scripts/test-v144-162-product-research-cost-guard.mjs",
     "test:v144.163": "node scripts/test-v144-163-neutral-system-label-canonical-content-types.mjs",
     "test:v144.164": "node scripts/test-v144-164-explicit-calendar-campaign-scope.mjs",
-    "test:v144.168": "node scripts/test-v144-168-format-aware-rescue-carousel.mjs"
+    "test:v144.168": "node scripts/test-v144-168-format-aware-rescue-carousel.mjs",
+    "test:v144.169": "node scripts/test-v144-169-ordinary-carousel-shared-catalog.mjs",
+    "test:v144.170": "node scripts/test-v144-170-carousel-identity-review.mjs",
+    "test:v144.171": "node scripts/test-v144-171-campaign-rescue-validation.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

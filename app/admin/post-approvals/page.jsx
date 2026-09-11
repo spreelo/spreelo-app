@@ -952,7 +952,12 @@ export default function AdminPostApprovalsPage() {
     const campaignTheme = ruleSnapshot.campaign_theme || ruleSnapshot.campaign_opportunity_title || "";
     const marketingAngle = ruleSnapshot.marketing_angle || "";
     const customerNeed = ruleSnapshot.target_customer_need || "";
+    const isCalendarCampaignRescue = String(ruleSnapshot.queue_source || "").trim().toLowerCase() === "campaign";
+    const campaignRescueLock = isCalendarCampaignRescue
+      ? `\nCALENDAR CAMPAIGN RESCUE LOCK\nThis failed post belongs to Spreelo's campaign calendar. The rescued material MUST fit the ORIGINAL campaign context below. Do not substitute another holiday, season, audience, product theme or marketing angle. Do not invent a discount, offer or sale unless the original campaign explicitly authorizes it. Spreelo will validate the imported Rescue package against this original campaign before allowing regeneration.\n`
+      : "";
     const commonHeader = `You are helping Spreelo rescue a failed scheduled post. Use ChatGPT web search/browsing to obtain REAL, verifiable material from the customer's public website and create a finished ZIP file that can be uploaded back to Spreelo.
+${campaignRescueLock}
 
 CUSTOMER / TASK
 Company: ${post.brand_name || "—"}

@@ -2981,15 +2981,24 @@ DESIGN RULES
   }
 
   const generatedImageBuffer = Buffer.from(imageBase64, "base64");
-  const identityReview = await reviewKlingOpeningSceneIdentity({
+  const identityReview = await reviewCarouselProductSlideIdentity({
     openai,
     websiteItem,
     sourceImageBuffer: normalizedReference,
     generatedImageBuffer,
-    fullProductInteractionSafe: false,
-    verifiedViewLock: null,
   });
   if (!identityReview.accepted) {
+    console.warn("Carousel product identity review rejected designed slide", {
+      productTitle,
+      confidence: identityReview.confidence,
+      sameProduct: identityReview.sameProduct,
+      visibleVariantMatch: identityReview.visibleVariantMatch,
+      identityMarkingsOk: identityReview.identityMarkingsOk,
+      inventedIdentityDetail: identityReview.inventedIdentityDetail,
+      verifiedViewPreserved: identityReview.verifiedViewPreserved,
+      unverifiedSurfaceExposed: identityReview.unverifiedSurfaceExposed,
+      reason: identityReview.reason,
+    });
     throw new Error(
       `Designed carousel slide failed product identity review (${Math.round((identityReview.confidence || 0) * 100)}%): ${identityReview.reason || "identity mismatch"}`
     );
@@ -7707,6 +7716,117 @@ function summarizeStoreMapCandidateDecisions(candidateDecisions = []) {
   };
 }
 
+async function finalizeOrdinaryCarouselFromVerifiedCatalog({
+  supabase,
+  rule,
+  summary,
+  websiteUrl,
+  contentType,
+  catalogItems,
+  recentUsedItems,
+  usedWebsiteImageUrlsThisRun,
+}) {
+  if (isCampaignScopedWebsiteRule(rule)) {
+    return null;
+  }
+
+  const verifiedCatalogItems = dedupeWebsiteItemsByUrlTitleAndImage(
+    (catalogItems || []).filter(isValidCarouselProduct)
+  );
+  const rankedCatalogProducts = selectCarouselProductsFromPool({
+    items: verifiedCatalogItems,
+    rule,
+    sourceUrl: websiteUrl,
+    recentUsedItems,
+    usedWebsiteImageUrlsThisRun,
+    allowReuseWhenExhausted: false,
+    limit: CAROUSEL_PRODUCT_SLIDE_TARGET + CAROUSEL_PRODUCT_RESERVE_TARGET,
+  });
+
+  if (rankedCatalogProducts.length < CAROUSEL_PRODUCT_SLIDE_TARGET) {
+    return null;
+  }
+
+  const selectedProducts = rankedCatalogProducts.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
+  const reserveProducts = rankedCatalogProducts
+    .slice(CAROUSEL_PRODUCT_SLIDE_TARGET)
+    .slice(0, CAROUSEL_PRODUCT_RESERVE_TARGET);
+  const cycleNumber = await getCurrentWebsiteCycle({
+    supabase,
+    userId: rule.user_id,
+    brandProfileId: rule.brand_profile_id,
+    sourceUrl: websiteUrl,
+    contentType,
+  });
+
+  for (const product of selectedProducts) {
+    usedWebsiteImageUrlsThisRun.add(normalizeComparableValue(product.image_url));
+  }
+
+  await Promise.all(
+    selectedProducts.map((product) =>
+      markWebsiteProductCatalogItemUsed({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        productUrl: product.url,
+        sourceUrl: websiteUrl,
+        websiteItem: product,
+        usedSource: getWebsiteCatalogUsedSource(rule),
+      })
+    )
+  );
+
+  await recordProductEngineV2Run({
+    supabase,
+    rule,
+    sourceUrl: websiteUrl,
+    platform: selectedProducts[0]?.commerce_platform || "catalog",
+    candidateCount: verifiedCatalogItems.length,
+    verifiedCount: verifiedCatalogItems.length,
+    selectedProducts,
+    reserveProducts,
+    discoveryMethods: ["verified_brand_catalog", "ordinary_carousel_catalog_early_exit"],
+    metadata: {
+      campaign_rule: false,
+      required_count: CAROUSEL_PRODUCT_SLIDE_TARGET,
+      reserve_target: CAROUSEL_PRODUCT_RESERVE_TARGET,
+      early_exit: true,
+      fresh_discovery_skipped: true,
+      source_scope: getRuleContentSourceScope(rule),
+    },
+  });
+
+  summary.website_items_found += selectedProducts.length;
+  summary.website_content_success += 1;
+  summary.website_image_used += selectedProducts.length;
+
+  console.log("Ordinary carousel selected five products from verified brand catalog before fresh discovery", {
+    ruleId: rule.id,
+    brandProfileId: rule.brand_profile_id,
+    websiteUrl,
+    verifiedCatalogCount: verifiedCatalogItems.length,
+    selectedCount: selectedProducts.length,
+    reserveCount: reserveProducts.length,
+    calendarCampaignPipelineUntouched: true,
+  });
+
+  return {
+    websiteItems: selectedProducts,
+    websiteReserveItems: reserveProducts,
+    productContentContract: buildProductContentContract(selectedProducts, reserveProducts),
+    websiteItem: selectedProducts[0],
+    websiteSourceUrl: websiteUrl,
+    websiteCycleNumber: cycleNumber,
+    useWebsiteImage: true,
+    websiteRule: rule,
+    productEngineDiagnostics: {
+      verifiedCatalogEarlyExit: true,
+      verifiedCatalogCount: verifiedCatalogItems.length,
+    },
+  };
+}
+
 async function finalizeCarouselFromStoreMapEarlyExit({
   supabase,
   rule,
@@ -7970,8 +8090,15 @@ async function prepareCarouselProductsForRule({
     rule
   );
 
-  if (isCampaignRule) {
-    const brandWideCatalogItems = filterWebsiteCatalogItemsForRule(
+  // v144.169: ordinary whole-site carousels must see the same brand-wide
+  // verified product catalog that single-product posts already use. Previously
+  // the carousel loaded this pool only after an expensive Store Map pass. That
+  // could leave known verified products excluded from rediscovery while still
+  // being unavailable to the carousel selector itself. Calendar campaigns keep
+  // their existing campaign-first relevance pipeline below.
+  let brandWideCatalogItems = [];
+  if (isCampaignRule || contentSourceScope === "whole_website") {
+    brandWideCatalogItems = filterWebsiteCatalogItemsForRule(
       await getWebsiteProductCatalogItems({
         supabase,
         userId: rule.user_id,
@@ -7981,9 +8108,20 @@ async function prepareCarouselProductsForRule({
       }),
       rule
     );
+  }
+
+  if (isCampaignRule) {
     catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
       ...catalogItems,
       ...brandWideCatalogItems,
+    ]);
+  } else if (contentSourceScope === "whole_website" && brandWideCatalogItems.length) {
+    catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
+      ...catalogItems,
+      ...brandWideCatalogItems.map((item) => ({
+        ...item,
+        selection_priority: Number(item.selection_priority || 0) || 20,
+      })),
     ]);
   }
 
@@ -8059,6 +8197,29 @@ async function prepareCarouselProductsForRule({
     contentType,
     limit: WEBSITE_PRODUCT_REUSE_LIMIT,
   });
+
+  // v144.169: a normal (non-calendar-campaign) whole-site carousel now starts
+  // with the same already-verified brand catalog pool used successfully by
+  // ordinary product posts. If five fresh verified products are already
+  // available, do not re-crawl the store merely because the format is a
+  // carousel. Explicit calendar campaigns deliberately bypass this shortcut so
+  // their theme terms, search queries and senior campaign-fit review remain
+  // authoritative.
+  if (!isCampaignRule && contentSourceScope === "whole_website") {
+    const catalogEarlyExit = await finalizeOrdinaryCarouselFromVerifiedCatalog({
+      supabase,
+      rule,
+      summary,
+      websiteUrl,
+      contentType,
+      catalogItems,
+      recentUsedItems,
+      usedWebsiteImageUrlsThisRun,
+    });
+    if (catalogEarlyExit) {
+      return catalogEarlyExit;
+    }
+  }
 
   // v144.107 fail-fast for carousels. A known protected retailer gets only
   // the cheap deterministic sources above: fresh previously verified catalog
@@ -9480,27 +9641,6 @@ async function prepareCarouselProductsForRule({
         status: 429,
       }
     );
-  }
-
-  const brandWideCatalogItems = filterWebsiteCatalogItemsForRule(
-    await getWebsiteProductCatalogItems({
-      supabase,
-      userId: rule.user_id,
-      brandProfileId: rule.brand_profile_id,
-      sourceUrl: "",
-      limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
-    }),
-    rule
-  );
-
-  if (!isCampaignRule && brandWideCatalogItems.length) {
-    catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
-      ...catalogItems,
-      ...brandWideCatalogItems.map((item) => ({
-        ...item,
-        selection_priority: Number(item.selection_priority || 0) || 20,
-      })),
-    ]);
   }
 
   if (isCampaignRule) {
@@ -15513,6 +15653,137 @@ async function assessKlingReferenceSafety(sourceImageBuffer, { openai = null, we
     sourceHeight: Number(sourceMetadata.height || 0) || null,
     verifiedViewLock,
   };
+}
+
+async function reviewCarouselProductSlideIdentity({
+  openai,
+  websiteItem,
+  sourceImageBuffer,
+  generatedImageBuffer,
+}) {
+  if (!openai || !sourceImageBuffer?.length || !generatedImageBuffer?.length) {
+    return {
+      accepted: false,
+      confidence: 0,
+      reason: "carousel_identity_reviewer_unavailable",
+      sameProduct: false,
+      visibleVariantMatch: false,
+      identityMarkingsOk: false,
+      inventedIdentityDetail: true,
+      verifiedViewPreserved: false,
+      unverifiedSurfaceExposed: true,
+    };
+  }
+
+  const productTitle = String(
+    websiteItem?.title || websiteItem?.item_title || "the verified product"
+  ).trim();
+  const sourceDataUrl = `data:image/png;base64,${sourceImageBuffer.toString("base64")}`;
+  const generatedDataUrl = `data:image/png;base64,${generatedImageBuffer.toString("base64")}`;
+
+  try {
+    const response = await openai.responses.create(
+      {
+        model: PRODUCT_RESEARCH_FAST_MODEL,
+        input: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text:
+                  `Compare two images of the ecommerce product named "${productTitle}". ` +
+                  "Image 1 is the authoritative retailer reference. Image 2 is a designed social-media carousel slide. Judge ONLY whether the advertised product itself remains the same verified product. " +
+                  "IGNORE campaign headlines, supporting text, CTA text, decorative typography, backgrounds, lighting, graphic shapes, framing, people and props that are clearly outside the product. Those elements are intentionally allowed to differ. " +
+                  "For identity_markings_ok, return true when Image 1 has no visible product-bound logo/label/printed identity marking, OR when every such marking that is visible on the product is preserved faithfully in Image 2. Do not count marketing copy placed around the product as a product marking. " +
+                  "Reject if the product was substituted or if its visible variant, shape, marbling/pattern, color, material appearance, packaging, quantity, distinctive geometry, controls, seams, openings, labels or other identity-defining product details changed. " +
+                  "Reject if Image 2 invents or exposes a new identity-defining product side/surface/detail not verified by Image 1. Repositioning, scaling, isolation and a new environment are allowed as long as the verified product identity remains faithful. If uncertain about the product identity itself, reject. Return only the requested JSON.",
+              },
+              { type: "input_text", text: "IMAGE 1 — authoritative retailer product" },
+              { type: "input_image", image_url: sourceDataUrl, detail: "high" },
+              { type: "input_text", text: "IMAGE 2 — designed social carousel slide" },
+              { type: "input_image", image_url: generatedDataUrl, detail: "high" },
+            ],
+          },
+        ],
+        max_output_tokens: 500,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "carousel_product_identity",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                same_product: { type: "boolean" },
+                visible_variant_match: { type: "boolean" },
+                identity_markings_ok: { type: "boolean" },
+                invented_identity_detail: { type: "boolean" },
+                verified_view_preserved: { type: "boolean" },
+                unverified_surface_exposed: { type: "boolean" },
+                confidence: { type: "number", minimum: 0, maximum: 1 },
+                reason: { type: "string" },
+              },
+              required: [
+                "same_product",
+                "visible_variant_match",
+                "identity_markings_ok",
+                "invented_identity_detail",
+                "verified_view_preserved",
+                "unverified_surface_exposed",
+                "confidence",
+                "reason",
+              ],
+            },
+          },
+        },
+      },
+      { timeout: 20_000, maxRetries: 0 }
+    );
+    const parsed = safeJsonParse(getOpenAiResponseOutputText(response));
+    const confidence = Number(parsed?.confidence || 0);
+    const sameProduct = parsed?.same_product === true;
+    const visibleVariantMatch = parsed?.visible_variant_match === true;
+    const identityMarkingsOk = parsed?.identity_markings_ok === true;
+    const inventedIdentityDetail = parsed?.invented_identity_detail === true;
+    const verifiedViewPreserved = parsed?.verified_view_preserved === true;
+    const unverifiedSurfaceExposed = parsed?.unverified_surface_exposed === true;
+    const accepted = Boolean(
+      sameProduct &&
+        visibleVariantMatch &&
+        identityMarkingsOk &&
+        !inventedIdentityDetail &&
+        verifiedViewPreserved &&
+        !unverifiedSurfaceExposed &&
+        confidence >= 0.9
+    );
+    return {
+      accepted,
+      confidence,
+      sameProduct,
+      visibleVariantMatch,
+      identityMarkingsOk,
+      inventedIdentityDetail,
+      verifiedViewPreserved,
+      unverifiedSurfaceExposed,
+      reason:
+        String(parsed?.reason || "").trim() ||
+        (accepted ? "verified_carousel_product" : "carousel_product_identity_uncertain"),
+    };
+  } catch (error) {
+    return {
+      accepted: false,
+      confidence: 0,
+      reason: `carousel_identity_review_failed: ${error?.message || String(error)}`,
+      sameProduct: false,
+      visibleVariantMatch: false,
+      identityMarkingsOk: false,
+      inventedIdentityDetail: true,
+      verifiedViewPreserved: false,
+      unverifiedSurfaceExposed: true,
+    };
+  }
 }
 
 async function reviewKlingOpeningSceneIdentity({
