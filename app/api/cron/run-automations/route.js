@@ -67,6 +67,7 @@ import {
   dedupeProductCandidateQueueRows,
   detectCommercePlatform,
   getAdaptiveProductPoolTargets,
+  getDeterministicProductImageVariantConflict,
   hasConcreteProductPageProof,
   haveProductTitlesIdentityAgreement,
   isLikelyProductDetailUrl,
@@ -4581,11 +4582,66 @@ function scoreProductDiversityAgainstRecentHistory(item, usedItems) {
   return score;
 }
 
+function getProductCategoryRotationKey(item) {
+  const preferredSource = String(
+    item?.store_map_node_url || item?.source_page_url || item?.category_url || ""
+  ).trim();
+  const rawProductUrl = String(
+    item?.url || item?.product_url || item?.item_url || ""
+  ).trim();
+  const raw = preferredSource || rawProductUrl;
+  if (!raw) return "";
+
+  try {
+    const parsed = new URL(raw);
+    const segments = parsed.pathname
+      .split("/")
+      .map((segment) => decodeURIComponent(segment).trim().toLowerCase())
+      .filter(Boolean);
+    if (!segments.length) return "";
+
+    // Product URLs commonly encode one or more taxonomy segments before the
+    // final slug. Keep up to the last two taxonomy segments so rotation works
+    // across languages/platforms without relying on hardcoded category names.
+    const productMarkerIndex = segments.findIndex((segment) =>
+      ["p", "pd", "product", "products", "produkt", "produkter", "item", "artikel"].includes(segment)
+    );
+    const taxonomy = productMarkerIndex >= 0
+      ? segments.slice(productMarkerIndex + 1, -1)
+      : segments.slice(0, -1);
+    const meaningful = taxonomy.filter((segment) => segment.length >= 2);
+    if (!meaningful.length) return "";
+    return `${parsed.hostname.toLowerCase().replace(/^www\./, "")}|${meaningful.slice(-2).join("/")}`;
+  } catch {
+    return "";
+  }
+}
+
+function scoreProductCategoryDiversityAgainstRecentHistory(item, usedItems) {
+  const candidateKey = getProductCategoryRotationKey(item);
+  if (!candidateKey) return 0;
+  const recentKeys = (usedItems || [])
+    .slice(0, 8)
+    .map(getProductCategoryRotationKey)
+    .filter(Boolean);
+  if (!recentKeys.length) return 0;
+  if (candidateKey === recentKeys[0]) return -38;
+  if (recentKeys.slice(0, 4).includes(candidateKey)) return -16;
+  return 8;
+}
+
 function hasMeaningfullyDiverseProductCandidate(items, recentUsedItems) {
   const recent = getRecentProductDiversityProfiles(recentUsedItems, 4);
-  if (!recent.length) return true;
-  const mostRecent = recent[0];
+  const mostRecentCategoryKey = getProductCategoryRotationKey((recentUsedItems || [])[0]);
+  if (!recent.length && !mostRecentCategoryKey) return true;
+  const mostRecent = recent[0] || {};
   return (items || []).some((item) => {
+    const candidateCategoryKey = getProductCategoryRotationKey(item);
+    if (
+      candidateCategoryKey &&
+      mostRecentCategoryKey &&
+      candidateCategoryKey !== mostRecentCategoryKey
+    ) return true;
     const candidate = getProductDiversityProfile(item);
     if (candidate.family && mostRecent.family && candidate.family !== mostRecent.family) return true;
     if (!candidate.family || !mostRecent.family) {
@@ -6651,12 +6707,18 @@ async function rankStoreMapShelvesWithAi({
   rule,
   brandProfile,
   nodes,
+  selectionLimit = STORE_MAP_AGENT_TARGETS.shelfSelectionLimit,
 }) {
   const intent = buildStoreMapIntentForRule(rule);
   const deterministic = rankStoreMapNodes(nodes, intent, 50);
+  const safeSelectionLimit = Math.max(
+    1,
+    Math.min(12, Number(selectionLimit) || STORE_MAP_AGENT_TARGETS.shelfSelectionLimit)
+  );
+  const campaignScoped = isCampaignScopedWebsiteRule(rule);
   if (!openai || deterministic.length < 2) {
     return prioritizeStoreMapShelvesForExecution(
-      deterministic.slice(0, STORE_MAP_AGENT_TARGETS.shelfSelectionLimit)
+      deterministic.slice(0, safeSelectionLimit)
     );
   }
 
@@ -6687,13 +6749,16 @@ Analogy:
 The website is a store. The entries below are shelves or departments. Choose the shelves that a skilled buyer should inspect deeply before selecting products. Do not choose a few random products before choosing the right shelves.
 
 Goal:
-Select and order the most promising shelves for this campaign. Prefer exact campaign, occasion, recipient, category or use-case shelves. Use related shelves only as reserves. Do not select account, policy, editorial, search or individual product pages.
+${campaignScoped
+  ? "Select and order the most promising shelves for this campaign. Prefer exact campaign, occasion, recipient, category or use-case shelves. Use related shelves only as reserves."
+  : "Select and order several distinct, high-quality product/category shelves for normal recurring content. Prefer useful breadth across different departments or product families instead of several near-duplicate shelves from the same branch. Keep product relevance and concrete sellable inventory ahead of variety."}
+Do not select account, policy, editorial, search or individual product pages.
 
 Brand profile:
 ${formatBrandProfileForPrompt(brandProfile)}
 
-Campaign / product need:
-${buildCampaignResearchText(rule) || rule?.prompt || "Find the best products for this carousel."}
+${campaignScoped ? "Campaign / product need:" : "Content / product need:"}
+${buildCampaignResearchText(rule) || rule?.prompt || (campaignScoped ? "Find the best products for this campaign." : "Find strong products for recurring content.")}
 
 Available store shelves:
 ${shelfBlock}
@@ -6732,11 +6797,11 @@ Return strict JSON only:
         ),
         store_map_ai_reason: String(selection?.reason || "").slice(0, 500),
       });
-      if (selected.length >= STORE_MAP_AGENT_TARGETS.shelfSelectionLimit) break;
+      if (selected.length >= safeSelectionLimit) break;
     }
 
     for (const node of deterministic) {
-      if (selected.length >= STORE_MAP_AGENT_TARGETS.shelfSelectionLimit) break;
+      if (selected.length >= safeSelectionLimit) break;
       if (seen.has(node.url)) continue;
       seen.add(node.url);
       selected.push(node);
@@ -6754,7 +6819,7 @@ Return strict JSON only:
       message: error.message,
     });
     return prioritizeStoreMapShelvesForExecution(
-      deterministic.slice(0, STORE_MAP_AGENT_TARGETS.shelfSelectionLimit)
+      deterministic.slice(0, safeSelectionLimit)
     );
   }
 }
@@ -6782,6 +6847,11 @@ async function discoverProductsFromStoreMapAgent({
   }
 
   const agentTargets = getStoreMapAgentTargets(requiredCount);
+  const campaignScoped = isCampaignScopedWebsiteRule(rule);
+  const shelfSelectionLimit =
+    campaignScoped || requiredCount >= CAROUSEL_PRODUCT_SLIDE_TARGET
+      ? agentTargets.shelfSelectionLimit
+      : Math.max(4, agentTargets.shelfSelectionLimit);
   const startedAt = Date.now();
   const agentDeadline = Math.min(
     // One sufficiently deep first pass is cheaper than several truncated
@@ -6811,14 +6881,26 @@ async function discoverProductsFromStoreMapAgent({
     };
   }
 
+  const knownListingUrls = new Set(
+    storeMap.nodes
+      .filter((node) =>
+        ["category", "brand", "campaign"].includes(
+          String(node?.node_type || node?.nodeType || "").toLowerCase()
+        )
+      )
+      .map((node) => canonicalizeStoreMapUrl(node?.url || "", storeMap.originUrl || websiteUrl))
+      .filter(Boolean)
+      .map(normalizeComparableValue)
+  );
   const selectedShelves = (
     await rankStoreMapShelvesWithAi({
       openai,
       rule,
       brandProfile,
       nodes: storeMap.nodes,
+      selectionLimit: shelfSelectionLimit,
     })
-  ).slice(0, agentTargets.shelfSelectionLimit);
+  ).slice(0, shelfSelectionLimit);
   const products = [];
   const shelfDiagnostics = [];
   const candidateDiagnostics = [];
@@ -6842,6 +6924,7 @@ async function discoverProductsFromStoreMapAgent({
         deadlineMs: agentDeadline,
         excludeProductUrls: recentProductUrls,
         verificationCache,
+        knownListingUrls,
       });
       const shelfCandidateDiagnostics = candidateDiagnostics.slice(
         shelfDiagnosticStart
@@ -7031,6 +7114,7 @@ async function discoverProductsFromStoreMapAgent({
           deadlineMs: agentDeadline,
           excludeProductUrls: Array.from(seenProductUrls),
           verificationCache,
+          knownListingUrls,
         });
       } catch (error) {
         campaignExpansionRounds.push({
@@ -7179,6 +7263,11 @@ async function discoverProductsFromStoreMapAgent({
     mapNodeCount: storeMap.nodes.length,
     mapRefreshed: storeMap.refreshed,
     selectedShelfCount: selectedShelves.length,
+    shelfSelectionLimit,
+    knownListingUrlCount: knownListingUrls.size,
+    distinctProductShelfCount: new Set(
+      verifiedProducts.map((item) => normalizeComparableValue(item?.store_map_node_url || item?.source_page_url || "")).filter(Boolean)
+    ).size,
     usableProductCount: verifiedProducts.length,
     deeplyVerifiedProductCount: verifiedProducts.filter(
       (item) => item?.verification_level !== "category_card"
@@ -7201,6 +7290,11 @@ async function discoverProductsFromStoreMapAgent({
       map_node_count: storeMap.nodes.length,
       map_pages_visited: storeMap.visitedPageCount,
       selected_shelves: shelfDiagnostics,
+      shelf_selection_limit: shelfSelectionLimit,
+      known_listing_url_count: knownListingUrls.size,
+      distinct_product_shelf_count: new Set(
+        verifiedProducts.map((item) => normalizeComparableValue(item?.store_map_node_url || item?.source_page_url || "")).filter(Boolean)
+      ).size,
       usable_product_count: verifiedProducts.length,
       deeply_verified_product_count: verifiedProducts.filter(
         (item) => item?.verification_level !== "category_card"
@@ -22319,10 +22413,13 @@ async function chooseUnusedWebsiteItem({
     .sort((a, b) => {
       if (!rule) return 0;
 
+      const categoryRotationEnabled = !isCampaignScopedWebsiteRule(rule);
       const aScore = scoreWebsiteItemForRule(a, rule) +
-        scoreProductDiversityAgainstRecentHistory(a, usedItems);
+        scoreProductDiversityAgainstRecentHistory(a, usedItems) +
+        (categoryRotationEnabled ? scoreProductCategoryDiversityAgainstRecentHistory(a, usedItems) : 0);
       const bScore = scoreWebsiteItemForRule(b, rule) +
-        scoreProductDiversityAgainstRecentHistory(b, usedItems);
+        scoreProductDiversityAgainstRecentHistory(b, usedItems) +
+        (categoryRotationEnabled ? scoreProductCategoryDiversityAgainstRecentHistory(b, usedItems) : 0);
       const scoreDelta = bScore - aScore;
 
       if (scoreDelta !== 0) return scoreDelta;
@@ -24338,6 +24435,7 @@ async function discoverProductsFromFocusedCategory({
   deadlineMs = Date.now() + WEBSITE_VERIFICATION_SOFT_DEADLINE_MS,
   excludeProductUrls = [],
   verificationCache = null,
+  knownListingUrls = null,
 }) {
   const knownDomainState = await getWebsiteDomainFetchState(categoryUrl).catch(() => null);
   if (isWebsiteAccessProtectedState(knownDomainState)) {
@@ -24372,6 +24470,20 @@ async function discoverProductsFromFocusedCategory({
       .filter(Boolean)
       .map(normalizeComparableValue)
   );
+  const knownListingUrlSet = knownListingUrls instanceof Set
+    ? knownListingUrls
+    : new Set(
+        (Array.isArray(knownListingUrls) ? knownListingUrls : [])
+          .map((value) => canonicalizeStoreMapUrl(value, categoryUrl))
+          .filter(Boolean)
+          .map(normalizeComparableValue)
+      );
+  let knownListingCandidatesSkipped = 0;
+  let knownListingExpansionQueued = 0;
+  const isKnownListingUrl = (value) => {
+    const canonical = canonicalizeStoreMapUrl(value, categoryUrl);
+    return Boolean(canonical && knownListingUrlSet.has(normalizeComparableValue(canonical)));
+  };
 
   while (
     pageQueue.length &&
@@ -24405,22 +24517,48 @@ async function discoverProductsFromFocusedCategory({
         campaignPrompt,
       });
 
-      candidates.push(
-        ...[...cardCandidates, ...jsonLdCandidates, ...linkCandidates].map((item) => ({
+      const pageCandidates = [...cardCandidates, ...jsonLdCandidates, ...linkCandidates];
+      for (const item of pageCandidates) {
+        if (isKnownListingUrl(item?.url)) {
+          knownListingCandidatesSkipped += 1;
+          const listingUrl = canonicalizeStoreMapUrl(item.url, categoryUrl);
+          const listingKey = normalizeComparableValue(listingUrl);
+          if (
+            listingUrl &&
+            listingKey &&
+            !visitedPages.has(listingKey) &&
+            !pageQueue.some((queuedUrl) => normalizeComparableValue(queuedUrl) === listingKey)
+          ) {
+            pageQueue.push(listingUrl);
+            knownListingExpansionQueued += 1;
+          }
+          continue;
+        }
+        candidates.push({
           ...item,
           commerce_platform: detectedPlatform,
           source_page_url: item.source_page_url || pageUrl,
-        }))
-      );
+        });
+      }
 
       const expansionUrls = extractFocusedCategoryExpansionUrls({
         html,
         pageUrl,
         categoryUrl,
       });
-      for (const expansionUrl of expansionUrls) {
-        if (!visitedPages.has(normalizeComparableValue(expansionUrl))) {
+      for (const link of extractLinks(html, pageUrl)) {
+        if (!isKnownListingUrl(link?.url)) continue;
+        const listingUrl = canonicalizeStoreMapUrl(link.url, categoryUrl);
+        if (listingUrl) expansionUrls.push(listingUrl);
+      }
+      for (const expansionUrl of Array.from(new Set(expansionUrls))) {
+        const expansionKey = normalizeComparableValue(expansionUrl);
+        if (
+          !visitedPages.has(expansionKey) &&
+          !pageQueue.some((queuedUrl) => normalizeComparableValue(queuedUrl) === expansionKey)
+        ) {
           pageQueue.push(expansionUrl);
+          if (isKnownListingUrl(expansionUrl)) knownListingExpansionQueued += 1;
         }
       }
     } catch (error) {
@@ -24454,6 +24592,7 @@ async function discoverProductsFromFocusedCategory({
     [...candidates, ...queuedCandidates],
     categoryUrl
   )
+    .filter((candidate) => !isKnownListingUrl(candidate?.url))
     .filter((candidate) => {
       const canonicalUrl = canonicalizeWebsiteProductUrl(candidate?.url, categoryUrl);
       return !canonicalUrl || !excludedProductUrls.has(normalizeComparableValue(canonicalUrl));
@@ -24479,6 +24618,7 @@ async function discoverProductsFromFocusedCategory({
         [...dedupedCandidates, ...broaderCandidates],
         categoryUrl
       )
+        .filter((candidate) => !isKnownListingUrl(candidate?.url))
         .filter((candidate) => {
           const canonicalUrl = canonicalizeWebsiteProductUrl(candidate?.url, categoryUrl);
           return !canonicalUrl || !excludedProductUrls.has(normalizeComparableValue(canonicalUrl));
@@ -24555,6 +24695,9 @@ async function discoverProductsFromFocusedCategory({
     requiredCount: CAROUSEL_PRODUCT_SLIDE_TARGET,
     reserveTarget: CAROUSEL_PRODUCT_RESERVE_TARGET,
     excludedPreviouslyVerifiedCount: excludedProductUrls.size,
+    knownListingUrlCount: knownListingUrlSet.size,
+    knownListingCandidatesSkipped,
+    knownListingExpansionQueued,
   });
 
   return result;
@@ -30913,6 +31056,10 @@ async function prepareWebsiteContentForRule({
     contentType,
     limit: WEBSITE_PRODUCT_REUSE_LIMIT,
   });
+  // Share one verification cache across the whole single-product occurrence.
+  // Once a URL has been proven to be a listing/non-product (or a product), later
+  // local fallbacks must reuse that answer instead of fetching/verifying it again.
+  const productVerificationCache = new Map();
 
   if (contentSourceScope === "product_category" || contentSourceScope === "focus_page") {
     if (websiteAccessProtected) {
@@ -30934,6 +31081,7 @@ async function prepareWebsiteContentForRule({
       categoryUrl: websiteUrl,
       rule,
       limit: WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT,
+      verificationCache: productVerificationCache,
     });
 
     if (productIntentScoped && focusedCategoryItems.length) {
@@ -31230,6 +31378,7 @@ async function prepareWebsiteContentForRule({
         requiredCount: 1,
         recentUsedItems,
         usedWebsiteImageUrlsThisRun,
+        verificationCache: productVerificationCache,
       });
       if (storeMapSingleProductResult.products.length) {
         catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
@@ -32128,6 +32277,7 @@ async function prepareWebsiteContentForRule({
         websiteUrl,
         supabase,
         rule,
+        verificationCache: productVerificationCache,
       });
 
       if (productIntentScoped && discoveredItems.length) {
@@ -38886,6 +39036,39 @@ async function reviewResolvedProductImageIdentity({
   const resolvedItems = Array.isArray(items) ? items.filter(Boolean) : [];
   if (!resolvedItems.length) return [];
 
+  // v144.166: filenames/CDN paths sometimes expose a strong variant mismatch
+  // that vision can miss (for example a locked 5-pack 290 g product pointing
+  // at a 6-pack 350 g asset). Fail closed only when two independent variant
+  // dimensions disagree; a single stale number is not enough to reject.
+  const deterministicVariantConflicts = new Map();
+  resolvedItems.forEach((item, itemIndex) => {
+    const conflict = getDeterministicProductImageVariantConflict({
+      productTitle: item?.title || item?.item_title || "",
+      imageUrl: item?.image_url || "",
+    });
+    if (!conflict) return;
+    deterministicVariantConflicts.set(itemIndex, conflict);
+    console.warn("Product image rejected by deterministic variant guard", {
+      ruleId,
+      productUrl: getProductImageResolverPageUrl(item) || null,
+      productTitle: item?.title || item?.item_title || null,
+      imageUrl: item?.image_url || null,
+      conflicts: conflict.conflicts,
+    });
+  });
+
+  const rejectDeterministicVariantConflict = (item) => {
+    const { product_image_verified_candidates, ...cleanItem } = item;
+    return {
+      ...cleanItem,
+      image_url: null,
+      product_image_identity_verified: false,
+      product_image_identity_unresolved: true,
+      product_image_semantic_verified: false,
+      product_image_semantic_reason: "deterministic_variant_conflict",
+    };
+  };
+
   // v144.40: never let an unresolved reserve image invalidate a product image
   // that has already completed the exact semantic gate. The old all-or-nothing
   // batch path could turn a proven primary product into a failure when any
@@ -38894,6 +39077,7 @@ async function reviewResolvedProductImageIdentity({
     resolvedItems
       .map((item, itemIndex) =>
         item?.image_url &&
+        !deterministicVariantConflicts.has(itemIndex) &&
         item?.product_image_identity_verified === true &&
         item?.product_image_identity_unresolved !== true &&
         item?.product_image_semantic_verified === true
@@ -38914,6 +39098,9 @@ async function reviewResolvedProductImageIdentity({
   if (!openai) {
     if (failClosed) {
       return resolvedItems.map((item, itemIndex) => {
+        if (deterministicVariantConflicts.has(itemIndex)) {
+          return rejectDeterministicVariantConflict(item);
+        }
         if (finalVerifiedIndexes.has(itemIndex)) return item;
         return {
           ...item,
@@ -38925,11 +39112,16 @@ async function reviewResolvedProductImageIdentity({
         };
       });
     }
-    return resolvedItems;
+    return resolvedItems.map((item, itemIndex) =>
+      deterministicVariantConflicts.has(itemIndex)
+        ? rejectDeterministicVariantConflict(item)
+        : item
+    );
   }
 
   const imageOptions = [];
   for (let itemIndex = 0; itemIndex < resolvedItems.length; itemIndex += 1) {
+    if (deterministicVariantConflicts.has(itemIndex)) continue;
     if (finalVerifiedIndexes.has(itemIndex)) continue;
     const item = resolvedItems[itemIndex];
     const seenUrls = new Set();
@@ -38983,6 +39175,9 @@ async function reviewResolvedProductImageIdentity({
 
   if (!imageOptions.length) {
     return resolvedItems.map((item, itemIndex) => {
+      if (deterministicVariantConflicts.has(itemIndex)) {
+        return rejectDeterministicVariantConflict(item);
+      }
       if (finalVerifiedIndexes.has(itemIndex)) return item;
       return {
         ...item,
@@ -39034,6 +39229,9 @@ async function reviewResolvedProductImageIdentity({
 
   if (!visionImageOptions.length) {
     return resolvedItems.map((item, itemIndex) => {
+      if (deterministicVariantConflicts.has(itemIndex)) {
+        return rejectDeterministicVariantConflict(item);
+      }
       if (finalVerifiedIndexes.has(itemIndex)) return item;
       if (!failClosed) return item;
       const { product_image_verified_candidates, ...cleanItem } = item;
@@ -39145,6 +39343,9 @@ async function reviewResolvedProductImageIdentity({
     );
 
     return resolvedItems.map((item, itemIndex) => {
+      if (deterministicVariantConflicts.has(itemIndex)) {
+        return rejectDeterministicVariantConflict(item);
+      }
       if (finalVerifiedIndexes.has(itemIndex)) {
         return item;
       }
@@ -39262,9 +39463,18 @@ async function reviewResolvedProductImageIdentity({
       message: error?.message || String(error),
     });
 
-    if (!failClosed) return resolvedItems;
+    if (!failClosed) {
+      return resolvedItems.map((item, itemIndex) =>
+        deterministicVariantConflicts.has(itemIndex)
+          ? rejectDeterministicVariantConflict(item)
+          : item
+      );
+    }
 
     return resolvedItems.map((item, itemIndex) => {
+      if (deterministicVariantConflicts.has(itemIndex)) {
+        return rejectDeterministicVariantConflict(item);
+      }
       if (finalVerifiedIndexes.has(itemIndex)) return item;
       const { product_image_verified_candidates, ...cleanItem } = item;
       return {
