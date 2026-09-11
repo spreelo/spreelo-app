@@ -9537,11 +9537,7 @@ function toggleContentType(typeId) {
 
     const firstRule = groupedRules[0];
     const isCampaignRuleGroup = groupedRules.some(
-      (rule) =>
-        rule?.queue_source === "campaign" ||
-        rule?.campaign_goal ||
-        rule?.campaign_phase ||
-        rule?.campaign_post_index
+      (rule) => rule?.queue_source === "campaign"
     );
     const selectedTimeZone = firstRule.timezone || timeZone || DEFAULT_TIME_ZONE;
     const firstStartDate =
@@ -9627,12 +9623,7 @@ function toggleContentType(typeId) {
         usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
         contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
         animationStyle: rule.animation_style || contentType?.animationStyle || null,
-        isCampaignSlot: Boolean(
-          rule.queue_source === "campaign" ||
-            rule.campaign_goal ||
-            rule.campaign_phase ||
-            rule.campaign_post_index
-        ),
+        isCampaignSlot: rule.queue_source === "campaign",
         campaignPhase: rule.campaign_phase || "",
         marketingAngle: rule.marketing_angle || "",
         customerStage: rule.customer_stage || "",
@@ -9682,7 +9673,7 @@ function toggleContentType(typeId) {
     setMessage("");
     setCampaignOpportunity(null);
     setPlanCreationMode(
-      rule.queue_source === "campaign" || rule.campaign_goal || rule.campaign_phase
+      rule.queue_source === "campaign"
         ? "campaign"
         : contentTypeId === "manual_prompt"
         ? "manual"
@@ -9750,12 +9741,7 @@ function toggleContentType(typeId) {
         usesWebsiteContent: Boolean(rule.uses_website_content || contentType?.usesWebsiteContent),
         contentFormat: rule.content_format || contentType?.contentFormat || "single_image",
         animationStyle: rule.animation_style || contentType?.animationStyle || null,
-        isCampaignSlot: Boolean(
-          rule.queue_source === "campaign" ||
-            rule.campaign_goal ||
-            rule.campaign_phase ||
-            rule.campaign_post_index
-        ),
+        isCampaignSlot: rule.queue_source === "campaign",
         campaignPhase: rule.campaign_phase || "",
         marketingAngle: rule.marketing_angle || "",
         customerStage: rule.customer_stage || "",

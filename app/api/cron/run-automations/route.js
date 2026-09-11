@@ -17070,17 +17070,13 @@ async function markWebsiteProductCatalogItemUsed({
 
 
 function isCampaignScopedWebsiteRule(rule) {
-  return Boolean(
-    rule?.campaign_phase ||
-      rule?.marketing_angle ||
-      rule?.customer_stage ||
-      rule?.cta_strength ||
-      rule?.campaign_goal ||
-      rule?.target_customer_need ||
-      rule?.strategy_notes ||
-      rule?.campaign_post_index ||
-      rule?.campaign_post_count
-  );
+  // Calendar campaigns are explicitly persisted with queue_source="campaign".
+  // Ordinary AI plans also carry strategy/campaign-like fields (phase, angle,
+  // goal, notes, etc.) for content planning, so those fields must never be used
+  // as campaign identity by themselves. Keeping this classification tied to the
+  // explicit queue source prevents normal plans from entering the heavier
+  // campaign product-selection path while preserving all normal fallbacks.
+  return isExplicitCalendarCampaignRule(rule);
 }
 
 function hasProductSearchMetadata(rule) {

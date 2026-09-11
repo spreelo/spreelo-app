@@ -201,7 +201,8 @@
     "test:v144.160": "node scripts/test-v144-160-language-product-title-safety.mjs",
     "test:v144.161": "node scripts/test-v144-161-automation-prerender-tdz.mjs",
     "test:v144.162": "node scripts/test-v144-162-product-research-cost-guard.mjs",
-    "test:v144.163": "node scripts/test-v144-163-neutral-system-label-canonical-content-types.mjs"
+    "test:v144.163": "node scripts/test-v144-163-neutral-system-label-canonical-content-types.mjs",
+    "test:v144.164": "node scripts/test-v144-164-explicit-calendar-campaign-scope.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",
