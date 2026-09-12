@@ -9,6 +9,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+const ADMIN_CAROUSEL_SLIDE_RENDER_ATTEMPTS = 2;
+const ADMIN_CAROUSEL_RENDER_FAILURE_CODE = "carousel_slide_render_incomplete";
+
 export async function POST(request) {
   const context = await getAdminContext(request);
   if (context.error) return adminContextError(context);
@@ -206,13 +209,13 @@ export async function POST(request) {
       language,
       source: "automation_admin_repair",
       source_label: "Regenerated from admin-supplied verified materials",
-      status: "pending_approval",
+      status: "generating",
       approval_required: true,
       approval_token: crypto.randomBytes(32).toString("hex"),
       admin_review_status: "pending",
       admin_product_items: products,
       scheduled_for: occurrence?.scheduled_for || reviewCase?.scheduled_for || workItem?.scheduled_for || new Date().toISOString(),
-      image_status: "ready",
+      image_status: "generating",
       created_at: now,
       updated_at: now,
     }).select("*").single();
@@ -241,7 +244,7 @@ export async function POST(request) {
       await context.admin.from("admin_generation_work_items").update({ post_id: post.id, status: "running", updated_at: now }).eq("id", workItemId);
     }
   } else {
-    const update = await context.admin.from("posts").update({ content, content_format: "carousel", status: "pending_approval", admin_review_status: "pending", admin_product_items: products, image_status: "ready", updated_at: now }).eq("id", post.id);
+    const update = await context.admin.from("posts").update({ content, content_format: "carousel", status: "generating", admin_review_status: "pending", admin_product_items: products, image_status: "generating", updated_at: now }).eq("id", post.id);
     if (update.error) return Response.json({ ok: false, error: update.error.message }, { status: 500 });
   }
 
@@ -262,41 +265,54 @@ export async function POST(request) {
     let imagePrompt = null;
     let identityReview = null;
     let renderedBy = "source_image_identity_safe_fallback";
+    const renderAttemptErrors = [];
+    let renderAttemptCount = 0;
 
-    try {
-      const designed = await generateDesignedCarouselProductSlide({
-        openai,
-        sourceImageUrl: product.image_url,
-        rule: carouselRule,
-        websiteItem: product,
-        slidePlan,
-        designBrief: creativePlan?.design_brief || "",
-        slideIndex: index,
-        slideCount: products.length,
-      });
-      const path = `admin-regenerated/${post.id}/${index + 1}-${crypto.randomUUID()}.png`;
-      const upload = await context.admin.storage.from("post-images").upload(
-        path,
-        Buffer.from(designed.imageBase64, "base64"),
-        { contentType: "image/png", upsert: false }
-      );
-      if (upload.error) throw upload.error;
-      const { data: publicData } = context.admin.storage.from("post-images").getPublicUrl(path);
-      cleanImageUrl = publicData.publicUrl;
-      cleanImageStoragePath = path;
-      finalImageUrl = cleanImageUrl;
-      finalImageStoragePath = path;
-      imagePrompt = designed.imagePrompt || null;
-      identityReview = designed.identityReview || null;
-      renderedBy = designed.provider || "gpt-image-2-full-carousel-design";
-    } catch (error) {
-      renderError = error?.message || String(error);
-      console.warn("Admin carousel full-slide design failed; preserving the authoritative supplied product image", {
-        postId: post.id,
-        slideOrder: index + 1,
-        productTitle: product.title || null,
-        message: renderError,
-      });
+    for (let attempt = 1; attempt <= ADMIN_CAROUSEL_SLIDE_RENDER_ATTEMPTS; attempt += 1) {
+      renderAttemptCount = attempt;
+      try {
+        // Keep the exact same verified product, Sol-locked copy and shared design brief
+        // on the retry. Only GPT Image gets another chance to produce a compliant render.
+        const designed = await generateDesignedCarouselProductSlide({
+          openai,
+          sourceImageUrl: product.image_url,
+          rule: carouselRule,
+          websiteItem: product,
+          slidePlan,
+          designBrief: creativePlan?.design_brief || "",
+          slideIndex: index,
+          slideCount: products.length,
+        });
+        const path = `admin-regenerated/${post.id}/${index + 1}-attempt-${attempt}-${crypto.randomUUID()}.png`;
+        const upload = await context.admin.storage.from("post-images").upload(
+          path,
+          Buffer.from(designed.imageBase64, "base64"),
+          { contentType: "image/png", upsert: false }
+        );
+        if (upload.error) throw upload.error;
+        const { data: publicData } = context.admin.storage.from("post-images").getPublicUrl(path);
+        cleanImageUrl = publicData.publicUrl;
+        cleanImageStoragePath = path;
+        finalImageUrl = cleanImageUrl;
+        finalImageStoragePath = path;
+        imagePrompt = designed.imagePrompt || null;
+        identityReview = designed.identityReview || null;
+        renderedBy = designed.provider || "gpt-image-2-full-carousel-design";
+        renderError = null;
+        break;
+      } catch (error) {
+        const attemptError = error?.message || String(error);
+        renderAttemptErrors.push(attemptError);
+        renderError = attemptError;
+        console.warn("Admin carousel full-slide design attempt failed", {
+          postId: post.id,
+          slideOrder: index + 1,
+          productTitle: product.title || null,
+          attempt,
+          maxAttempts: ADMIN_CAROUSEL_SLIDE_RENDER_ATTEMPTS,
+          message: attemptError,
+        });
+      }
     }
 
     if (includeLogo && finalImageUrl) {
@@ -340,6 +356,9 @@ export async function POST(request) {
         tiktok_image_storage_path: cleanImageStoragePath,
         image_prompt: imagePrompt,
         generated_by: renderedBy,
+        rendered_slide: renderedBy !== "source_image_identity_safe_fallback" && !renderError,
+        render_attempt_count: renderAttemptCount,
+        render_attempt_errors: renderAttemptErrors,
         carousel_creative_model: creativePlan?.model || null,
         carousel_design_brief: creativePlan?.design_brief || null,
         locked_headline: slidePlan?.headline || null,
@@ -393,6 +412,82 @@ export async function POST(request) {
     if (previousSlides?.length) await context.admin.from("post_slides").insert(previousSlides);
     return Response.json({ ok: false, error: `Regeneration could not be saved: ${insertSlides.error.message}` }, { status: 500 });
   }
+
+  const renderedSlides = slides.filter((slide) => slide?.metadata?.rendered_slide === true);
+  const failedSlideOrders = slides
+    .filter((slide) => slide?.metadata?.rendered_slide !== true)
+    .map((slide) => Number(slide.slide_order || 0))
+    .filter(Boolean);
+  if (renderedSlides.length !== 5) {
+    const failedAt = new Date().toISOString();
+    const failureMessage = `Carousel Rescue rendered ${renderedSlides.length} of 5 slides after ${ADMIN_CAROUSEL_SLIDE_RENDER_ATTEMPTS} attempts per failed slide. Slides ${failedSlideOrders.join(", ")} still need a compliant full design.`;
+    await context.admin.from("posts").update({
+      content,
+      status: "failed",
+      admin_review_status: "needs_repair",
+      admin_product_items: products,
+      slide_count: slides.length,
+      slide_generation_status: "failed",
+      slide_render_status: renderedSlides.length > 0 ? "partial" : "none",
+      image_status: "failed",
+      updated_at: failedAt,
+    }).eq("id", post.id);
+    if (occurrenceId) {
+      await context.admin.from("automation_occurrences").update({
+        post_id: post.id,
+        metadata: {
+          ...(occurrence?.metadata || {}),
+          admin_product_items: products,
+          admin_regeneration_incomplete_at: failedAt,
+          admin_carousel_rendered_slide_count: renderedSlides.length,
+          admin_carousel_failed_slide_orders: failedSlideOrders,
+        },
+      }).eq("id", occurrenceId);
+    }
+    const failedReviewPayload = {
+      occurrence_id: occurrenceId || null,
+      post_id: post.id,
+      user_id: post.user_id,
+      brand_profile_id: post.brand_profile_id,
+      automation_rule_id: post.automation_rule_id,
+      status: "needs_repair",
+      draft_content: content,
+      product_items: products,
+      needs_review: true,
+      failure_code: ADMIN_CAROUSEL_RENDER_FAILURE_CODE,
+      failure_stage: "admin_carousel_regeneration",
+      failure_message: failureMessage,
+      updated_at: failedAt,
+    };
+    if (reviewCaseId) {
+      await context.admin.from("admin_review_cases").update(failedReviewPayload).eq("id", reviewCaseId);
+    } else {
+      await context.admin.from("admin_review_cases").upsert(failedReviewPayload, { onConflict: occurrenceId ? "occurrence_id" : "post_id" });
+    }
+    const failedWorkItemPatch = {
+      post_id: post.id,
+      status: "failed",
+      rescue_status: "needed",
+      failure_code: ADMIN_CAROUSEL_RENDER_FAILURE_CODE,
+      failure_stage: "admin_carousel_regeneration",
+      failure_message: failureMessage,
+      updated_at: failedAt,
+    };
+    if (workItemId) {
+      await context.admin.from("admin_generation_work_items").update(failedWorkItemPatch).eq("id", workItemId);
+    } else if (occurrenceId) {
+      await context.admin.from("admin_generation_work_items").update(failedWorkItemPatch).eq("occurrence_id", occurrenceId);
+    }
+    return Response.json({
+      ok: false,
+      error: failureMessage,
+      post_id: post.id,
+      slide_count: slides.length,
+      rendered_slide_count: renderedSlides.length,
+      failed_slide_orders: failedSlideOrders,
+    }, { status: 422 });
+  }
+
   const postReadyUpdate = await context.admin.from("posts").update({
     content,
     status: "pending_approval",

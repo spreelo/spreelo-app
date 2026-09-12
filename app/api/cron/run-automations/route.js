@@ -7733,13 +7733,18 @@ async function finalizeOrdinaryCarouselFromVerifiedCatalog({
   const verifiedCatalogItems = dedupeWebsiteItemsByUrlTitleAndImage(
     (catalogItems || []).filter(isValidCarouselProduct)
   );
+  // v144.173: ordinary carousels prefer fresh verified products, but an
+  // exhausted rotation must never make a five-product carousel fail when the
+  // source-scoped verified catalog still contains five real products. The
+  // selector keeps fresh items first and then fills from the least-used /
+  // least-recently-used verified products.
   const rankedCatalogProducts = selectCarouselProductsFromPool({
     items: verifiedCatalogItems,
     rule,
     sourceUrl: websiteUrl,
     recentUsedItems,
     usedWebsiteImageUrlsThisRun,
-    allowReuseWhenExhausted: false,
+    allowReuseWhenExhausted: true,
     limit: CAROUSEL_PRODUCT_SLIDE_TARGET + CAROUSEL_PRODUCT_RESERVE_TARGET,
   });
 
@@ -8198,14 +8203,15 @@ async function prepareCarouselProductsForRule({
     limit: WEBSITE_PRODUCT_REUSE_LIMIT,
   });
 
-  // v144.169: a normal (non-calendar-campaign) whole-site carousel now starts
-  // with the same already-verified brand catalog pool used successfully by
-  // ordinary product posts. If five fresh verified products are already
-  // available, do not re-crawl the store merely because the format is a
-  // carousel. Explicit calendar campaigns deliberately bypass this shortcut so
-  // their theme terms, search queries and senior campaign-fit review remain
+  // v144.173: every ordinary carousel may first use its already-verified
+  // catalog pool. Whole-site rules have the brand-wide pool merged above;
+  // product_category/focus_page rules keep their source-scoped pool, so this
+  // cannot pull unrelated products from outside a customer-selected category.
+  // The selector prefers unused products and only reuses older verified items
+  // when the rotation is exhausted. Explicit calendar campaigns still bypass
+  // this shortcut so campaign relevance and senior theme review remain
   // authoritative.
-  if (!isCampaignRule && contentSourceScope === "whole_website") {
+  if (!isCampaignRule) {
     const catalogEarlyExit = await finalizeOrdinaryCarouselFromVerifiedCatalog({
       supabase,
       rule,
@@ -8586,13 +8592,18 @@ async function prepareCarouselProductsForRule({
     });
 
     if (selectedFocusedItems.length < CAROUSEL_MIN_PRODUCT_SLIDES) {
+      // v144.173: fresh category products remain first choice. If the focused
+      // category contains enough verified products only because some were used
+      // before, reuse the least-used / oldest-used eligible products instead of
+      // failing the carousel. Campaign rules still pass through the campaign
+      // safety filter inside selectCarouselProductsFromPool.
       selectedFocusedItems = selectCarouselProductsFromPool({
         items: validFocusedItems,
         rule,
         sourceUrl: websiteUrl,
         recentUsedItems,
         usedWebsiteImageUrlsThisRun,
-        allowReuseWhenExhausted: false,
+        allowReuseWhenExhausted: true,
       });
     }
 
@@ -10489,7 +10500,7 @@ async function prepareCarouselProductsForRule({
       sourceUrl: websiteUrl,
       recentUsedItems,
       usedWebsiteImageUrlsThisRun,
-      allowReuseWhenExhausted: false,
+      allowReuseWhenExhausted: true,
     });
     const mergedProducts = mergeCarouselProductSelections(
       selectedProducts,
@@ -10511,7 +10522,7 @@ async function prepareCarouselProductsForRule({
       sourceUrl: websiteUrl,
       recentUsedItems,
       usedWebsiteImageUrlsThisRun,
-      allowReuseWhenExhausted: false,
+      allowReuseWhenExhausted: true,
       limit: CAROUSEL_PRODUCT_SLIDE_TARGET,
     });
     selectedProducts = fallbackPool;

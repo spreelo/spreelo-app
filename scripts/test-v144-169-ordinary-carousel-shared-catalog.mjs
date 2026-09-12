@@ -25,8 +25,8 @@ const prep = route.slice(prepStart, prepEnd);
 
 assert.match(prep, /if \(isCampaignRule \|\| contentSourceScope === "whole_website"\) \{/u,
   "Whole-site ordinary carousels must load brand-wide verified catalog rows before discovery");
-assert.match(prep, /if \(!isCampaignRule && contentSourceScope === "whole_website"\) \{[\s\S]{0,600}finalizeOrdinaryCarouselFromVerifiedCatalog/u,
-  "Only ordinary whole-site carousels may use the verified catalog early exit");
+assert.match(prep, /if \(!isCampaignRule\) \{[\s\S]{0,700}finalizeOrdinaryCarouselFromVerifiedCatalog/u,
+  "Ordinary carousels may use their verified catalog before discovery; focused scopes remain source-scoped");
 
 const earlyExitPos = prep.indexOf("finalizeOrdinaryCarouselFromVerifiedCatalog({");
 const storeMapPos = prep.indexOf("await runStoreMapProductAgentOnce();");
