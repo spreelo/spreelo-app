@@ -504,7 +504,7 @@ const contentTypes = [
     label: "Product image carousel",
     shortLabel: "Image carousel",
     description:
-      "Show five verified products plus one AI-designed closing campaign image in a swipeable carousel.",
+      "Show five verified products in five coordinated AI-designed slides. The fifth product slide also carries the closing CTA.",
     prompt:
       "Use the website URL from the brand profile. Identify several concrete products, services, listings, offers or other sellable items from the website and create a swipeable carousel draft around them. The carousel should feel like a curated collection, guide, comparison or campaign post with one clear shared theme. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
     imagePrompt:
@@ -2439,6 +2439,7 @@ function createSlot(overrides = {}) {
 
   return {
     id: makeSlotId(),
+    automationRuleId: overrides.automationRuleId || null,
     weekday,
     startDate,
     publishTime,
@@ -6442,6 +6443,7 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
   const [deletingRules, setDeletingRules] = useState(false);
   const [openPickerId, setOpenPickerId] = useState(null);
   const [weekdayMoveSourceSlotId, setWeekdayMoveSourceSlotId] = useState("");
+  const [textSettingSavingKey, setTextSettingSavingKey] = useState("");
 
   useEffect(() => {
     const browserTimeZone = getBrowserTimeZone();
@@ -8382,6 +8384,36 @@ const { data, error } = await supabase
     );
   }
 
+  async function updateSlotTextPreference(slot, field, nextValue) {
+    const previousValue = Boolean(slot?.[field]);
+    updateSlot(slot.id, field, nextValue);
+
+    if (!slot?.automationRuleId) return;
+
+    const column = field === "includeEmojis" ? "include_emojis" : "include_hashtags";
+    const savingKey = `${slot.id}:${field}`;
+    setTextSettingSavingKey(savingKey);
+
+    const { error } = await supabase
+      .from("automation_rules")
+      .update({ [column]: nextValue, updated_at: new Date().toISOString() })
+      .eq("id", slot.automationRuleId)
+      .eq("brand_profile_id", selectedBrandId);
+
+    if (error) {
+      updateSlot(slot.id, field, previousValue);
+      setMessage(error.message || t("automation.textSettingSaveError"));
+    } else {
+      setRules((currentRules) =>
+        currentRules.map((rule) =>
+          rule.id === slot.automationRuleId ? { ...rule, [column]: nextValue } : rule
+        )
+      );
+    }
+
+    setTextSettingSavingKey((current) => current === savingKey ? "" : current);
+  }
+
   const weeklyDayCounts = useMemo(() => {
     const counts = Object.fromEntries(weekdays.map((weekday) => [weekday, 0]));
     for (const slot of slots) {
@@ -8993,6 +9025,7 @@ function addSlot() {
         {
           ...slotToCopy,
           id: makeSlotId(),
+          automationRuleId: null,
           originalUploadedImageStoragePath: "",
           uploadedImageStoragePath: slotToCopy.uploadedImageFile
             ? slotToCopy.uploadedImageStoragePath
@@ -9594,7 +9627,18 @@ function toggleContentType(typeId) {
       const contentType = getContentTypeById(rule.content_type_id);
       const contentTypeId = contentType?.id || rule.content_type_id || "manual_prompt";
 
+const preparedSlots = groupedRules.map((rule) => {
+      const ruleStartDate =
+        rule.run_date ||
+        getDateInputValueInTimeZone(
+          rule.next_run_at ? new Date(rule.next_run_at) : new Date(),
+          selectedTimeZone
+        );
+      const contentType = getContentTypeById(rule.content_type_id);
+      const contentTypeId = contentType?.id || rule.content_type_id || "manual_prompt";
+
       return createSlot({
+        automationRuleId: rule.id,
         startDate: ruleStartDate,
         weekday: rule.weekday || getWeekdayFromDateString(ruleStartDate, selectedTimeZone),
         publishTime: normalizeTime(rule.publish_time || defaultPublishTime),
@@ -9712,6 +9756,7 @@ function toggleContentType(typeId) {
     setSelectedContentTypeIds(contentTypeId ? [contentTypeId] : []);
     setSlots([
       createSlot({
+        automationRuleId: rule.id,
         startDate: ruleStartDate,
         weekday: rule.weekday || getWeekdayFromDateString(ruleStartDate, selectedTimeZone),
         publishTime: rulePublishTime,
@@ -10484,6 +10529,16 @@ setLanguageExplicitlyChosen(false);
 setRules((currentRules) =>
   sortAutomationRules([...(insertedRules || []), ...currentRules])
 );
+
+      const insertedRuleIdBySlotId = new Map(
+        slotsToSave.map((slot, index) => [slot.id, rows[index]?.id || insertedRules?.[index]?.id || null])
+      );
+      setSlots((currentSlots) =>
+        currentSlots.map((slot) => {
+          const automationRuleId = insertedRuleIdBySlotId.get(slot.id);
+          return automationRuleId ? { ...slot, automationRuleId } : slot;
+        })
+      );
     }
 
     setSaving(false);
@@ -11647,6 +11702,30 @@ function blockFormatCardClickAfterDrag(event) {
                             ) : (
                               <span>{platformLabel}</span>
                             )}
+                            <div className="plan-v144177-copy-settings" role="group" aria-label={t("automation.textSettings")}>
+                              <button
+                                type="button"
+                                className={`plan-v144177-copy-toggle${slot.includeEmojis ? " is-on" : " is-off"}`}
+                                aria-pressed={slot.includeEmojis}
+                                disabled={isPastCampaignSlot || textSettingSavingKey === `${slot.id}:includeEmojis`}
+                                onClick={() => updateSlotTextPreference(slot, "includeEmojis", !slot.includeEmojis)}
+                              >
+                                <span className="plan-v144177-copy-icon" aria-hidden="true">😊</span>
+                                <span>{t("automation.emojis")}</span>
+                                <b>{slot.includeEmojis ? t("automation.on") : t("automation.off")}</b>
+                              </button>
+                              <button
+                                type="button"
+                                className={`plan-v144177-copy-toggle${slot.includeHashtags ? " is-on" : " is-off"}`}
+                                aria-pressed={slot.includeHashtags}
+                                disabled={isPastCampaignSlot || textSettingSavingKey === `${slot.id}:includeHashtags`}
+                                onClick={() => updateSlotTextPreference(slot, "includeHashtags", !slot.includeHashtags)}
+                              >
+                                <span className="plan-v144177-copy-icon plan-v144177-hash-icon" aria-hidden="true">#</span>
+                                <span>{t("automation.hashtags")}</span>
+                                <b>{slot.includeHashtags ? t("automation.on") : t("automation.off")}</b>
+                              </button>
+                            </div>
                           </div>
                           <button
                             type="button"
@@ -13026,7 +13105,7 @@ function blockFormatCardClickAfterDrag(event) {
                       type="checkbox"
                       checked={slot.includeEmojis}
                       onChange={(event) =>
-                        updateSlot(slot.id, "includeEmojis", event.target.checked)
+                        updateSlotTextPreference(slot, "includeEmojis", event.target.checked)
                       }
                     />
                     {t("automation.emojis")}
@@ -13037,7 +13116,7 @@ function blockFormatCardClickAfterDrag(event) {
                       type="checkbox"
                       checked={slot.includeHashtags}
                       onChange={(event) =>
-                        updateSlot(slot.id, "includeHashtags", event.target.checked)
+                        updateSlotTextPreference(slot, "includeHashtags", event.target.checked)
                       }
                     />
                     {t("automation.hashtags")}

@@ -11604,8 +11604,8 @@ Length: ${rule.length || "Medium"}
 CTA type: ${isGiveawayRule ? "Participate in the giveaway" : rule.cta_type || "Soft CTA"}
 Destination URL: ${destinationUrl || "Not provided"}
 
-Include emojis: ${rule.include_emojis ? "Yes" : "No"}
-Include hashtags: ${rule.include_hashtags ? "Yes" : "No"}
+Include emojis: ${rule.include_emojis !== false ? "Yes" : "No"}
+Include hashtags: ${rule.include_hashtags !== false ? "Yes" : "No"}
 
 User instruction:
 ${rule.prompt || ""}
@@ -34145,6 +34145,45 @@ function headlineAnchorsToVerifiedProduct(headline, productTitle) {
   });
 }
 
+function normalizeCarouselHashtag(value) {
+  const raw = String(value || "").trim().replace(/^#+/u, "");
+  const cleaned = raw.replace(/[^\p{L}\p{N}_]/gu, "");
+  if (!cleaned) return "";
+  return `#${Array.from(cleaned).slice(0, 40).join("")}`;
+}
+
+function applyCarouselCaptionPreferences(caption, hashtags, rule) {
+  const includeHashtags = rule?.include_hashtags !== false;
+  const includeEmojis = rule?.include_emojis !== false;
+  const originalCaption = String(caption || "");
+  const existingHashtags = originalCaption.match(/#[\p{L}\p{N}_]+/gu) || [];
+  let body = originalCaption
+    .replace(/(^|\s)#[\p{L}\p{N}_]+/gu, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (!includeEmojis) {
+    body = body
+      .replace(/\p{Extended_Pictographic}/gu, "")
+      .replace(/[\uFE0E\uFE0F]/g, "")
+      .replace(/ {2,}/g, " ")
+      .replace(/[ \t]+\n/g, "\n")
+      .trim();
+  }
+
+  if (!includeHashtags) return body;
+
+  const hashtagSource = Array.isArray(hashtags) && hashtags.length ? hashtags : existingHashtags;
+  const normalizedTags = Array.from(new Set(
+    hashtagSource
+      .map(normalizeCarouselHashtag)
+      .filter(Boolean)
+  )).slice(0, 6);
+
+  return normalizedTags.length ? `${body}\n\n${normalizedTags.join(" ")}`.trim() : body;
+}
+
 function normalizeCarouselCreativePlan(plan, rule, products, fallbackCaption = "") {
   const selectedProducts = products.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
   const sourceSlides = Array.isArray(plan?.slides) ? plan.slides : [];
@@ -34176,12 +34215,16 @@ function normalizeCarouselCreativePlan(plan, rule, products, fallbackCaption = "
   });
 
   return {
-    caption: cleanPostContentUrls(
-      removePricesFromAnimatedCaption(
-        sanitizeUnsupportedOfferLanguage(String(plan?.caption || fallbackCaption || "").trim(), selectedProducts[0] || null),
-        rule
+    caption: applyCarouselCaptionPreferences(
+      cleanPostContentUrls(
+        removePricesFromAnimatedCaption(
+          sanitizeUnsupportedOfferLanguage(String(plan?.caption || fallbackCaption || "").trim(), selectedProducts[0] || null),
+          rule
+        ),
+        getPostDestinationUrl(rule)
       ),
-      getPostDestinationUrl(rule)
+      plan?.hashtags,
+      rule
     ),
     design_brief: normalizeSlideText(
       plan?.design_brief ||
@@ -34233,6 +34276,9 @@ export async function generateProductCarouselCreativePlan(
     })
     .join("\n\n");
 
+  const carouselIncludeEmojis = rule?.include_emojis !== false;
+  const carouselIncludeHashtags = rule?.include_hashtags !== false;
+
   const prompt = `
 You are the senior creative director for Spreelo. Plan ONE coherent five-slide ecommerce product carousel before any image is generated.
 
@@ -34266,6 +34312,9 @@ NON-NEGOTIABLE RULES
 - No slide may show page numbers, fractions or sequence markers such as "1/5", "2/5" or "5/5".
 - Write all customer-facing text in the selected post language.
 - The caption should work for the whole five-product carousel and should be useful, natural social copy rather than five repetitive mini descriptions.
+- Emoji preference: ${carouselIncludeEmojis ? "ENABLED — use a small number of natural, relevant emojis when they improve the social caption; do not overdo it." : "DISABLED — do not use any emojis anywhere in the caption."}
+- Hashtag preference: ${carouselIncludeHashtags ? "ENABLED — return 3–6 relevant hashtags in the separate hashtags array. Do not place hashtags inside the caption field itself." : "DISABLED — return an empty hashtags array and do not use any hashtags anywhere in the caption."}
+- The hashtags array is appended to the caption by Spreelo after generation. Do not put hashtags in slide headlines, supporting text or CTA text.
 - The image model must never invent wording. Therefore headline, supporting_text and cta_text are FINAL LOCKED TEXT. Proofread spelling, accents and diacritics before returning them.
 - Keep headline normally 2–7 words; supporting_text normally 0–10 words; CTA normally 0–5 words.
 - Do not invent prices, discounts, stock, shipping, reviews, materials, performance, guarantees, product features or availability.
@@ -34297,6 +34346,12 @@ Return the strict JSON only.`.trim();
               properties: {
                 caption: { type: "string", minLength: 1, maxLength: 2200 },
                 design_brief: { type: "string", minLength: 20, maxLength: 900 },
+                hashtags: {
+                  type: "array",
+                  minItems: carouselIncludeHashtags ? 3 : 0,
+                  maxItems: carouselIncludeHashtags ? 6 : 0,
+                  items: { type: "string", minLength: 2, maxLength: 42 },
+                },
                 slides: {
                   type: "array",
                   minItems: CAROUSEL_PRODUCT_SLIDE_TARGET,
@@ -34313,7 +34368,7 @@ Return the strict JSON only.`.trim();
                   },
                 },
               },
-              required: ["caption", "design_brief", "slides"],
+              required: ["caption", "design_brief", "hashtags", "slides"],
             },
           },
         },
@@ -46107,8 +46162,8 @@ const { data: post, error: postError } = await supabase
   rule.website_url ||
   null,
             length: rule.length || null,
-            include_emojis: Boolean(rule.include_emojis),
-            include_hashtags: Boolean(rule.include_hashtags),
+            include_emojis: rule.include_emojis !== false,
+            include_hashtags: rule.include_hashtags !== false,
             cta_type: rule.cta_type || null,
 
             source: "automation",
