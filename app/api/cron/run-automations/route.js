@@ -2932,7 +2932,8 @@ export async function generateDesignedCarouselProductSlide({
   ].join("\n");
 
   const prompt = `
-Create slide ${slideIndex + 1} of ${slideCount} for a premium square ecommerce social-media carousel.
+Create one premium square ecommerce social-media carousel slide.
+This image belongs to internal slide position ${slideIndex + 1} in a ${slideCount}-slide carousel, but that position is INTERNAL ONLY and must never be shown visually.
 
 AUTHORITATIVE PRODUCT REFERENCE
 The supplied image is the exact verified retailer image for this product: "${productTitle}".
@@ -2958,6 +2959,7 @@ TEXT RULES
 
 DESIGN RULES
 - Output one finished 1024x1024 social carousel slide, not a mockup of a phone or post.
+- Never render pagination, fractions, slide counters, progress markers or sequence text such as "1/5", "2/5", "3/5" or "5/5".
 - Build a polished campaign-appropriate environment/background around the exact verified product. The design may use lighting, depth, graphic shapes, framing and tasteful atmosphere, but no invented merchandise.
 - Keep text highly legible and inside generous safe margins. Give the product enough visual importance and avoid covering identity-defining product details with text.
 - Keep continuity with the shared design brief while varying composition enough that the five slides feel intentionally art-directed rather than duplicated.
@@ -34093,7 +34095,7 @@ Return JSON exactly in this shape:
 
 function buildFallbackProductCarouselSlides(rule, products, postContent = "") {
   return products.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET).map((product, index) => ({
-    slide_type: index === 0 ? "product_hook" : index === CAROUSEL_PRODUCT_SLIDE_TARGET - 1 ? "product_cta" : "product",
+    slide_type: index === CAROUSEL_PRODUCT_SLIDE_TARGET - 1 ? "product_cta" : "product",
     headline: normalizeSlideText(
       resolveVerifiedProductTitle({ productName: product.title, productUrl: product.url }) || "",
       90
@@ -34110,6 +34112,39 @@ function buildFallbackProductCarouselSlides(rule, products, postContent = "") {
   }));
 }
 
+function normalizeCarouselIdentityTokens(value) {
+  return normalizeSearchText(value)
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .split(/\s+/u)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function headlineAnchorsToVerifiedProduct(headline, productTitle) {
+  const headlineText = String(headline || "").trim();
+  const productText = String(productTitle || "").trim();
+  if (!headlineText || !productText) return false;
+  const headlineTokens = normalizeCarouselIdentityTokens(headlineText);
+  const productTokens = normalizeCarouselIdentityTokens(productText);
+  if (!headlineTokens.length || !productTokens.length) return false;
+
+  const significantHeadline = headlineTokens.filter((token) => token.length >= 4);
+  const significantProduct = productTokens.filter((token) => token.length >= 4);
+  if (!significantHeadline.length || !significantProduct.length) return false;
+
+  return significantProduct.some((productToken) => {
+    return significantHeadline.some((headlineToken) => {
+      const minLength = Math.min(productToken.length, headlineToken.length);
+      if (minLength < 5) return false;
+      return (
+        productToken === headlineToken ||
+        productToken.includes(headlineToken) ||
+        headlineToken.includes(productToken)
+      );
+    });
+  });
+}
+
 function normalizeCarouselCreativePlan(plan, rule, products, fallbackCaption = "") {
   const selectedProducts = products.slice(0, CAROUSEL_PRODUCT_SLIDE_TARGET);
   const sourceSlides = Array.isArray(plan?.slides) ? plan.slides : [];
@@ -34121,14 +34156,18 @@ function normalizeCarouselCreativePlan(plan, rule, products, fallbackCaption = "
       resolveVerifiedProductTitle({ productName: product?.title, productUrl: product?.url }) ||
       sanitizeProductTitleForCard(product?.title) ||
       `Product ${index + 1}`;
+    const proposedHeadline = normalizeSlideText(candidate?.headline || fallback?.headline || exactProductTitle, 70);
+    const safeHeadline = index === 0 && !headlineAnchorsToVerifiedProduct(proposedHeadline, exactProductTitle)
+      ? normalizeSlideText(fallback?.headline || exactProductTitle, 70)
+      : proposedHeadline;
     return {
-      slide_type: index === 0 ? "product_hook" : index === selectedProducts.length - 1 ? "product_cta" : "product",
-      headline: normalizeSlideText(candidate?.headline || fallback?.headline || exactProductTitle, 70),
+      slide_type: index === selectedProducts.length - 1 ? "product_cta" : "product",
+      headline: safeHeadline,
       body: normalizeSlideText(candidate?.supporting_text || candidate?.body || "", 120),
       cta_text: index === selectedProducts.length - 1
         ? normalizeSlideText(candidate?.cta_text || candidate?.cta || fallback?.cta_text || "", 55)
         : "",
-      overlay_text: normalizeSlideText(candidate?.headline || fallback?.headline || exactProductTitle, 70),
+      overlay_text: safeHeadline,
       product_url: product?.url || null,
       image_url: product?.image_url || null,
       product_title: exactProductTitle,
@@ -34221,9 +34260,10 @@ ${fallbackCaption ? `EXISTING SAFE CAPTION CONTEXT\n${truncateText(fallbackCapti
 
 NON-NEGOTIABLE RULES
 - Return exactly five slide plans, in Product 1 → Product 5 order. Never reorder, rename or replace a product.
-- Slide 1 may use a strong carousel-level hook, but the image still features Product 1 only.
-- Slides 2–4 are product-led. Keep visible text very sparse.
+- Slide 1 must be product-led and specific to Product 1. Do not use a generic collection intro, broad theme-only hook or overview headline that could fit the whole carousel.
+- Slides 2–4 are also product-led. Keep visible text very sparse.
 - Slide 5 features Product 5 and also acts as the closing CTA. There is NO sixth/outro slide.
+- No slide may show page numbers, fractions or sequence markers such as "1/5", "2/5" or "5/5".
 - Write all customer-facing text in the selected post language.
 - The caption should work for the whole five-product carousel and should be useful, natural social copy rather than five repetitive mini descriptions.
 - The image model must never invent wording. Therefore headline, supporting_text and cta_text are FINAL LOCKED TEXT. Proofread spelling, accents and diacritics before returning them.
@@ -34526,7 +34566,7 @@ async function saveCarouselSlidesForPost({
       logo_enabled: includeLogo,
       metadata: {
         generated_by: slideRenderedBy,
-        carousel_slide_role: slide.slide_type || (index === 0 ? "product_hook" : index === CAROUSEL_PRODUCT_SLIDE_TARGET - 1 ? "product_cta" : "product"),
+        carousel_slide_role: slide.slide_type || (index === CAROUSEL_PRODUCT_SLIDE_TARGET - 1 ? "product_cta" : "product"),
         carousel_creative_model: plan?.model || CAROUSEL_CREATIVE_MODEL,
         carousel_design_brief: plan?.design_brief || null,
         locked_headline: slide?.headline || null,

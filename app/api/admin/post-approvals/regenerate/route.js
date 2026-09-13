@@ -252,7 +252,7 @@ export async function POST(request) {
   for (let index = 0; index < products.length; index += 1) {
     const product = products[index];
     const slidePlan = creativePlan?.slides?.[index] || {
-      slide_type: index === 0 ? "product_hook" : index === products.length - 1 ? "product_cta" : "product",
+      slide_type: index === products.length - 1 ? "product_cta" : "product",
       headline: product.title,
       body: "",
       cta_text: index === products.length - 1 ? rule?.cta_type || "" : "",
@@ -375,7 +375,7 @@ export async function POST(request) {
         product_identity_locked: product.product_identity_locked === true,
         product_image_semantic_verified: product.product_image_semantic_verified === true,
         source_image_url: product.image_url,
-        carousel_slide_role: slidePlan?.slide_type || (index === 0 ? "product_hook" : index === products.length - 1 ? "product_cta" : "product"),
+        carousel_slide_role: slidePlan?.slide_type || (index === products.length - 1 ? "product_cta" : "product"),
         admin_regenerated: true,
         admin_materials_authoritative: true,
         admin_manual_override: product.manual_override === true,
