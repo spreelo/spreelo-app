@@ -9627,16 +9627,6 @@ function toggleContentType(typeId) {
       const contentType = getContentTypeById(rule.content_type_id);
       const contentTypeId = contentType?.id || rule.content_type_id || "manual_prompt";
 
-const preparedSlots = groupedRules.map((rule) => {
-      const ruleStartDate =
-        rule.run_date ||
-        getDateInputValueInTimeZone(
-          rule.next_run_at ? new Date(rule.next_run_at) : new Date(),
-          selectedTimeZone
-        );
-      const contentType = getContentTypeById(rule.content_type_id);
-      const contentTypeId = contentType?.id || rule.content_type_id || "manual_prompt";
-
       return createSlot({
         automationRuleId: rule.id,
         startDate: ruleStartDate,
