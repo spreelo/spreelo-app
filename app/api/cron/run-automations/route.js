@@ -4965,6 +4965,83 @@ function selectCarouselProductsFromPool({
     .slice(0, Math.max(1, Number(limit) || CAROUSEL_PRODUCT_SLIDE_TARGET));
 }
 
+function websiteCatalogItemMatchesFocusedHistory(item, focusedHistoryItems = [], sourceUrl = "") {
+  if (!item || !Array.isArray(focusedHistoryItems) || !focusedHistoryItems.length) {
+    return false;
+  }
+
+  const itemUrl = normalizeComparableValue(
+    canonicalizeWebsiteProductUrl(item?.url || item?.product_url || "", sourceUrl) ||
+      item?.url ||
+      item?.product_url ||
+      ""
+  );
+  const itemTitle = normalizeComparableValue(item?.title || item?.item_title || "");
+  const itemImage = normalizeComparableValue(item?.image_url || item?.item_image_url || "");
+
+  return focusedHistoryItems.some((usedItem) => {
+    const usedUrl = normalizeComparableValue(
+      canonicalizeWebsiteProductUrl(
+        usedItem?.item_url || usedItem?.product_url || usedItem?.url || "",
+        sourceUrl
+      ) ||
+        usedItem?.item_url ||
+        usedItem?.product_url ||
+        usedItem?.url ||
+        ""
+    );
+    const usedTitle = normalizeComparableValue(
+      usedItem?.item_title || usedItem?.title || ""
+    );
+    const usedImage = normalizeComparableValue(
+      usedItem?.item_image_url || usedItem?.image_url || ""
+    );
+
+    return Boolean(
+      (itemUrl && usedUrl && itemUrl === usedUrl) ||
+        (itemTitle && usedTitle && itemTitle === usedTitle) ||
+        (itemImage && usedImage && itemImage === usedImage)
+    );
+  });
+}
+
+function websiteCatalogItemBelongsToFocusedSource(item, focusedUrl = "") {
+  const focused = normalizeComparableValue(focusedUrl);
+  if (!focused || !item) return false;
+
+  const sourceCandidates = [
+    item?.source_url,
+    item?.store_map_node_url,
+    item?.source_page_url,
+    item?.category_url,
+    ...(Array.isArray(item?.category_urls) ? item.category_urls : []),
+  ]
+    .map((value) => normalizeComparableValue(value))
+    .filter(Boolean);
+
+  return sourceCandidates.some(
+    (candidate) => candidate === focused || candidate.startsWith(`${focused}/`)
+  );
+}
+
+function getFocusedOrdinaryVerifiedCatalogPool({
+  sourceScopedItems = [],
+  brandWideItems = [],
+  focusedHistoryItems = [],
+  focusedUrl = "",
+}) {
+  const recoveredFromBrandCatalog = (brandWideItems || []).filter(
+    (item) =>
+      websiteCatalogItemBelongsToFocusedSource(item, focusedUrl) ||
+      websiteCatalogItemMatchesFocusedHistory(item, focusedHistoryItems, focusedUrl)
+  );
+
+  return dedupeWebsiteItemsByUrlTitleAndImage([
+    ...(sourceScopedItems || []),
+    ...recoveredFromBrandCatalog,
+  ]).filter(isValidCarouselProduct);
+}
+
 function getCarouselProductSelectionKey(item, sourceUrl = "") {
   const normalized = normalizeWebsiteItem(item, item?.url || item?.source_url || sourceUrl);
 
@@ -7092,9 +7169,19 @@ async function discoverProductsFromStoreMapAgent({
     let shelfProducts = [];
     try {
       const shelfDiagnosticStart = candidateDiagnostics.length;
-      const recentProductUrls = (recentUsedItems || [])
-        .map((item) => item?.item_url || item?.product_url || item?.url || "")
-        .filter(Boolean);
+      // v144.175: ordinary five-product carousels are allowed to reuse verified
+      // products after the fresh rotation is exhausted. Do not remove those
+      // products during Store Map discovery, otherwise they can never reach
+      // the later fresh-first selector. Calendar campaigns keep the existing
+      // exclusion so their themed discovery continues to seek fresh matches
+      // before the campaign-aware reuse ladder is considered.
+      const allowOrdinaryCarouselReuseDuringDiscovery =
+        !campaignScoped && requiredCount >= CAROUSEL_PRODUCT_SLIDE_TARGET;
+      const recentProductUrls = allowOrdinaryCarouselReuseDuringDiscovery
+        ? []
+        : (recentUsedItems || [])
+            .map((item) => item?.item_url || item?.product_url || item?.url || "")
+            .filter(Boolean);
       shelfProducts = await discoverProductsFromFocusedCategory({
         supabase,
         categoryUrl: shelf.url,
@@ -8102,7 +8189,23 @@ async function prepareCarouselProductsForRule({
   // being unavailable to the carousel selector itself. Calendar campaigns keep
   // their existing campaign-first relevance pipeline below.
   let brandWideCatalogItems = [];
+  const isFocusedOrdinaryCarousel =
+    !isCampaignRule &&
+    (contentSourceScope === "product_category" || contentSourceScope === "focus_page");
   if (isCampaignRule || contentSourceScope === "whole_website") {
+    brandWideCatalogItems = filterWebsiteCatalogItemsForRule(
+      await getWebsiteProductCatalogItems({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        sourceUrl: "",
+        limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
+      }),
+      rule
+    );
+  }
+
+  if (isFocusedOrdinaryCarousel) {
     brandWideCatalogItems = filterWebsiteCatalogItemsForRule(
       await getWebsiteProductCatalogItems({
         supabase,
@@ -8128,6 +8231,42 @@ async function prepareCarouselProductsForRule({
         selection_priority: Number(item.selection_priority || 0) || 20,
       })),
     ]);
+  } else if (isFocusedOrdinaryCarousel && brandWideCatalogItems.length) {
+    // v144.175: a focused ordinary carousel must keep previously verified
+    // products available as a reserve pool before fresh discovery excludes
+    // them. Recover only products that are proven to belong to this focused
+    // source: either persisted category/store-map metadata says so, or the
+    // exact product was previously delivered from this same focused source.
+    // This prevents unrelated brand-wide products from leaking into a
+    // customer-selected category while still allowing safe reuse.
+    const focusedHistoryItems = await getUsedWebsiteItems({
+      supabase,
+      userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id,
+      sourceUrl: websiteUrl,
+      contentType: null,
+      limit: Math.max(WEBSITE_PRODUCT_REUSE_LIMIT, 300),
+    });
+
+    catalogItems = getFocusedOrdinaryVerifiedCatalogPool({
+      sourceScopedItems: catalogItems,
+      brandWideItems: brandWideCatalogItems,
+      focusedHistoryItems,
+      focusedUrl: websiteUrl,
+    });
+
+    console.log("Focused ordinary carousel recovered verified reserve products before discovery", {
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      sourceScopedCatalogCount: catalogItems.filter((item) =>
+        normalizeComparableValue(item?.source_url) === normalizeComparableValue(websiteUrl)
+      ).length,
+      brandWideCatalogCount: brandWideCatalogItems.length,
+      focusedHistoryCount: focusedHistoryItems.length,
+      focusedVerifiedPoolCount: catalogItems.length,
+      reuseAvailableBeforeDiscovery: true,
+    });
   }
 
   if (websiteAccessProtected) {
@@ -8581,7 +8720,15 @@ async function prepareCarouselProductsForRule({
       deadlineMs: productPreparationDeadline,
       verificationCache: productVerificationCache,
     });
-    const validFocusedItems = focusedCategoryItems.filter(isValidCarouselProduct);
+    // v144.175: for ordinary focused carousels, combine newly discovered
+    // products with the safe source-proven verified reserve pool recovered
+    // above. Fresh products still rank first; previously used catalog items
+    // only fill missing positions. Calendar campaigns deliberately keep the
+    // original focused campaign pool untouched.
+    const validFocusedItems = dedupeWebsiteItemsByUrlTitleAndImage([
+      ...(!isCampaignRule ? catalogItems : []),
+      ...focusedCategoryItems,
+    ]).filter(isValidCarouselProduct);
     let selectedFocusedItems = selectCarouselProductsFromPool({
       items: validFocusedItems,
       rule,
