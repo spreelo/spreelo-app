@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { authorizeSocialConnectionForTrial, getTrialRestrictionCode, preflightSocialConnectionForTrial } from "../../../../lib/freeTrial.js";
 
 function createSupabaseAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -115,6 +116,7 @@ async function saveFacebookConnection({
     brand_profile_id: brandProfileId,
     platform: "facebook",
     page_id: page.id,
+    external_account_id: String(page.id),
     page_name: page.name || "Facebook Page",
     page_access_token: page.access_token,
     permissions: page.tasks || [],
@@ -319,11 +321,27 @@ export async function POST(request) {
       );
     }
 
+    await preflightSocialConnectionForTrial({
+      supabaseAdmin,
+      userId: user.id,
+      brandProfileId: selectionSession.brand_profile_id,
+      platform: "facebook",
+      externalAccountId: selectedPage.id,
+    });
+
     await saveFacebookConnection({
       supabaseAdmin,
       userId: user.id,
       brandProfileId: selectionSession.brand_profile_id,
       page: selectedPage,
+    });
+
+    await authorizeSocialConnectionForTrial({
+      supabaseAdmin,
+      userId: user.id,
+      brandProfileId: selectionSession.brand_profile_id,
+      platform: "facebook",
+      externalAccountId: selectedPage.id,
     });
 
     await supabaseAdmin
@@ -343,6 +361,10 @@ export async function POST(request) {
   } catch (error) {
     console.error("Meta page selection POST error:", error);
 
+    const trialCode = getTrialRestrictionCode(error);
+    if (trialCode) {
+      return NextResponse.json({ error: trialCode, code: trialCode, trialRestriction: true }, { status: 409 });
+    }
     return NextResponse.json(
       { error: "Could not save selected Facebook page" },
       { status: 500 }

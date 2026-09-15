@@ -28,7 +28,7 @@ assert.match(cron, /applyCarouselCaptionPreferences/);
 assert.match(cron, /include_emojis: rule\.include_emojis !== false/);
 assert.match(cron, /include_hashtags: rule\.include_hashtags !== false/);
 
-assert.match(mass, /AI-designed carousel – 5 products/);
+assert.match(mass, /automation\.contentType\.carousel_website_item\.shortLabel/);
 assert.match(formats, /default_label: "AI-designed carousel – 5 products"/);
 assert.match(labels, /"automation\.textSettings": "Text settings"/);
 assert.match(labels, /"automation\.on": "On"/);

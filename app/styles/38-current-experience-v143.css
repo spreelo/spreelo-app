@@ -12842,3 +12842,26 @@ html body .campaign-v14335-slot-list article:has(.custom-time-popover) {
   .admin-v14401-workbench .admin-v14370-review-row{grid-template-columns:auto 48px minmax(0,1fr) auto!important}
   .admin-v14401-workbench .admin-v14412-review-cost{display:none}
 }
+
+/* v144.180 — Free-trial social-account restriction dialog */
+.social-trial-restriction-backdrop{position:fixed;inset:0;z-index:1600;display:grid;place-items:center;padding:20px;background:rgba(8,18,31,.66);backdrop-filter:blur(10px)}
+.social-trial-restriction-modal{width:min(560px,100%);padding:32px;border:1px solid rgba(255,255,255,.82);border-radius:24px;background:linear-gradient(145deg,#fff,#fbfcfe);box-shadow:0 30px 90px rgba(8,18,31,.3);text-align:center}
+.social-trial-restriction-icon{display:grid;place-items:center;width:60px;height:60px;margin:0 auto 14px;border-radius:18px;background:rgba(239,95,67,.1);color:#df5438}
+.social-trial-restriction-modal h2{margin:7px 0 10px;font-size:clamp(25px,4vw,34px);line-height:1.12;color:#102039}
+.social-trial-restriction-modal>p:not(.social-v74-eyebrow){margin:0 auto;color:#667085;line-height:1.65;max-width:470px}
+.social-trial-restriction-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:24px}
+.social-trial-restriction-actions button{min-height:48px;padding:0 16px;border:1px solid #d7dde7;border-radius:12px;background:#fff;color:#17253b;font-weight:800;cursor:pointer}
+.social-trial-restriction-actions .primary{border-color:#e65338;background:linear-gradient(180deg,#fb684b,#d9472d);color:#fff}
+@media(max-width:560px){.social-trial-restriction-backdrop{padding:12px;align-items:end}.social-trial-restriction-modal{padding:26px 18px 20px;border-radius:22px}.social-trial-restriction-actions{grid-template-columns:1fr}}
+
+/* v144.180 — analysis usage limits */
+.brand-analysis-usage{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;color:#748095;font-size:11px;font-weight:750}
+.brand-analysis-usage span{display:inline-flex;align-items:center;min-height:30px;padding:0 10px;border:1px solid rgba(137,151,173,.22);border-radius:999px;background:rgba(255,255,255,.62);box-shadow:inset 0 1px 0 rgba(255,255,255,.72)}
+.brand-analysis-limit-backdrop{position:fixed;inset:0;z-index:1650;display:grid;place-items:center;padding:20px;background:rgba(8,18,31,.64);backdrop-filter:blur(10px)}
+.brand-analysis-limit-modal{width:min(560px,100%);padding:32px;border:1px solid rgba(255,255,255,.82);border-radius:24px;background:linear-gradient(145deg,#fff,#fbfcfe);box-shadow:0 30px 90px rgba(8,18,31,.3);text-align:center}
+.brand-analysis-limit-icon{display:grid;place-items:center;width:60px;height:60px;margin:0 auto 14px;border-radius:18px;background:rgba(92,85,214,.1);color:#5d56d7}
+.brand-analysis-limit-modal h2{margin:7px 0 10px;font-size:clamp(25px,4vw,34px);line-height:1.12;color:#102039}
+.brand-analysis-limit-modal>p:not(.dashboard-eyebrow){max-width:475px;margin:0 auto 22px;color:#667085;line-height:1.65}
+.brand-analysis-limit-modal .brand-result-primary{width:min(240px,100%);margin:0 auto}
+@media(max-width:560px){.brand-analysis-usage{display:grid;grid-template-columns:1fr 1fr;gap:6px}.brand-analysis-usage span{justify-content:center;padding:0 8px;font-size:10px}.brand-analysis-limit-backdrop{padding:12px;align-items:end}.brand-analysis-limit-modal{padding:26px 18px 20px;border-radius:22px}}
+@media(max-width:360px){.brand-analysis-usage{grid-template-columns:1fr}}

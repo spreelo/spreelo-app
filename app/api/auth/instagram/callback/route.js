@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildSocialOAuthResultUrl } from "../../../../../lib/socialOAuthResult";
+import { authorizeSocialConnectionForTrial, getTrialRestrictionCode, preflightSocialConnectionForTrial } from "../../../../../lib/freeTrial.js";
 import {
   createSupabaseAdminClient,
   exchangeInstagramCodeForShortToken,
@@ -120,6 +121,14 @@ export async function GET(request) {
 
     const tokenExpiresAt = getInstagramTokenExpiresAt(longTokenResult.expiresIn);
 
+    await preflightSocialConnectionForTrial({
+      supabaseAdmin,
+      userId: decodedState.userId,
+      brandProfileId: decodedState.brandProfileId,
+      platform: "instagram",
+      externalAccountId: instagramUserId,
+    });
+
     await saveInstagramConnection({
       supabaseAdmin,
       userId: decodedState.userId,
@@ -133,6 +142,14 @@ export async function GET(request) {
         "instagram_business_content_publish",
       ],
       profile,
+    });
+
+    await authorizeSocialConnectionForTrial({
+      supabaseAdmin,
+      userId: decodedState.userId,
+      brandProfileId: decodedState.brandProfileId,
+      platform: "instagram",
+      externalAccountId: instagramUserId,
     });
 
     const response = NextResponse.redirect(
@@ -151,8 +168,9 @@ export async function GET(request) {
       callbackRequestUrl: request.url,
     });
 
+    const trialCode = getTrialRestrictionCode(callbackError);
     return NextResponse.redirect(
-      buildSocialOAuthResultUrl(baseUrl, { error: "instagram_callback_failed" })
+      buildSocialOAuthResultUrl(baseUrl, { error: trialCode || "instagram_callback_failed" })
     );
   }
 }

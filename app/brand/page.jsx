@@ -367,6 +367,8 @@ export default function BrandProfile() {
   const [analysisResultStep, setAnalysisResultStep] = useState("result");
   const [analysisRescuePending, setAnalysisRescuePending] = useState(false);
   const [analysisRescueReason, setAnalysisRescueReason] = useState("generic");
+  const [analysisUsage, setAnalysisUsage] = useState(null);
+  const [analysisLimitNotice, setAnalysisLimitNotice] = useState(null);
   const autoAnalysisStartedRef = useRef(false);
 
   const [allBrands, setAllBrands] = useState([]);
@@ -418,6 +420,27 @@ export default function BrandProfile() {
   }, [contentMarket, countryCode, contentLanguage]);
 
   const normalizedContentLanguage = normalizeSingleContentLanguage(contentLanguage);
+
+  const browserTimezone = useMemo(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; }
+    catch { return "UTC"; }
+  }, []);
+
+  async function refreshAnalysisUsage(accessToken = "") {
+    try {
+      let token = accessToken;
+      if (!token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token || "";
+      }
+      if (!token) return;
+      const response = await fetch(`/api/analyze-brand/usage?timezone=${encodeURIComponent(browserTimezone)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok && payload?.usage) setAnalysisUsage(payload.usage);
+    } catch {}
+  }
 
   const brandInitials = useMemo(() => {
     const words = String(businessName || "")
@@ -496,6 +519,7 @@ export default function BrandProfile() {
       }
 
       setUser(user);
+      void refreshAnalysisUsage();
 
       const { data: brandListData, error: brandListError } = await supabase
         .from("brand_profiles")
@@ -1025,6 +1049,7 @@ export default function BrandProfile() {
         countryCode: contentSettingsTouched ? countryCode : "",
         contentLanguage: contentSettingsTouched ? contentLanguage : "",
         notificationLocale: locale || "en",
+        timezone: browserTimezone,
       };
 
       const startResponse = await fetchWithTimeout(
@@ -1042,6 +1067,14 @@ export default function BrandProfile() {
 
       const startResult = await readApiJson(startResponse);
 
+      if (startResult?.analysisLimit) {
+        setAnalysisLimitNotice(startResult.analysisLimit);
+        setAnalysisUsage((current) => ({ ...(current || {}), ...startResult.analysisLimit }));
+        setShowAnalysisResult(false);
+        setMessage("");
+        return;
+      }
+
       if (!startResponse.ok || !startResult?.ok) {
         throw new Error(
           getFriendlyAnalysisError(
@@ -1050,6 +1083,8 @@ export default function BrandProfile() {
           )
         );
       }
+
+      if (startResult?.analysisUsage) setAnalysisUsage(startResult.analysisUsage);
 
       const jobId = String(startResult.job_id || startResult.job?.id || "");
 
@@ -2094,6 +2129,13 @@ export default function BrandProfile() {
               </button>
             ) : null}
 
+            {analysisUsage && !analysisUsage.admin ? (
+              <div className="brand-analysis-usage" aria-label={t("brand.analysisUsage.title")}>
+                <span>{t("brand.analysisUsage.today", { count: analysisUsage.dailyCount ?? 0, limit: analysisUsage.dailyLimit ?? 0 })}</span>
+                <span>{t("brand.analysisUsage.month", { count: analysisUsage.monthlyCount ?? 0, limit: analysisUsage.monthlyLimit ?? 0 })}</span>
+              </div>
+            ) : null}
+
             {analyzing && (
               <div className="brand-profile-analysis-card">
                 <div className="brand-profile-analysis-header">
@@ -2234,6 +2276,22 @@ export default function BrandProfile() {
             </section>
           </div>
         )}
+
+        {analysisLimitNotice ? (
+          <div className="brand-analysis-limit-backdrop" role="presentation">
+            <section className="brand-analysis-limit-modal" role="dialog" aria-modal="true" aria-label={t("brand.analysisLimit.title")}>
+              <span className="brand-analysis-limit-icon"><ShieldCheck size={24} aria-hidden="true" /></span>
+              <p className="dashboard-eyebrow">{t("brand.analysisLimit.eyebrow")}</p>
+              <h2>{t(analysisLimitNotice.reason === "monthly_limit" ? "brand.analysisLimit.monthlyTitle" : analysisLimitNotice.reason === "daily_limit" ? "brand.analysisLimit.dailyTitle" : "brand.analysisLimit.cooldownTitle")}</h2>
+              <p>{t(analysisLimitNotice.reason === "monthly_limit" ? "brand.analysisLimit.monthlyText" : analysisLimitNotice.reason === "daily_limit" ? "brand.analysisLimit.dailyText" : "brand.analysisLimit.cooldownText", {
+                count: analysisLimitNotice.reason === "monthly_limit" ? analysisLimitNotice.monthlyCount : analysisLimitNotice.dailyCount,
+                limit: analysisLimitNotice.reason === "monthly_limit" ? analysisLimitNotice.monthlyLimit : analysisLimitNotice.dailyLimit,
+                date: new Intl.DateTimeFormat(locale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: browserTimezone }).format(new Date(analysisLimitNotice.reason === "monthly_limit" ? analysisLimitNotice.monthlyResetAt : analysisLimitNotice.reason === "daily_limit" ? analysisLimitNotice.dailyResetAt : analysisLimitNotice.retryAt)),
+              })}</p>
+              <button type="button" className="brand-result-primary" onClick={() => setAnalysisLimitNotice(null)}>{t("common.close")}</button>
+            </section>
+          </div>
+        ) : null}
 
         {showLogoModal && (
           <div className="brand-logo-modal-backdrop" role="presentation">

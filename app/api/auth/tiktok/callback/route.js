@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildSocialOAuthResultUrl } from "../../../../../lib/socialOAuthResult.js";
+import { authorizeSocialConnectionForTrial, getTrialRestrictionCode, preflightSocialConnectionForTrial } from "../../../../../lib/freeTrial.js";
 import {
   createSupabaseAdminClient,
   exchangeTikTokCode,
@@ -67,6 +68,14 @@ export async function GET(request) {
       fetchTikTokCreatorInfo(token.access_token),
     ]);
 
+    await preflightSocialConnectionForTrial({
+      supabaseAdmin,
+      userId: decodedState.userId,
+      brandProfileId: decodedState.brandProfileId,
+      platform: "tiktok",
+      externalAccountId: token.open_id,
+    });
+
     await saveTikTokConnection({
       supabaseAdmin,
       userId: decodedState.userId,
@@ -80,12 +89,21 @@ export async function GET(request) {
       permissions: grantedScopes,
     });
 
+    await authorizeSocialConnectionForTrial({
+      supabaseAdmin,
+      userId: decodedState.userId,
+      brandProfileId: decodedState.brandProfileId,
+      platform: "tiktok",
+      externalAccountId: token.open_id,
+    });
+
     const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { connected: "tiktok" }));
     response.cookies.delete("spreelo_tiktok_oauth_state");
     return response;
   } catch (error) {
     console.error("TikTok callback failed", error);
-    const code = error?.requiresReconnect ? "tiktok_token_failed" : "tiktok_callback_failed";
+    const trialCode = getTrialRestrictionCode(error);
+    const code = trialCode || (error?.requiresReconnect ? "tiktok_token_failed" : "tiktok_callback_failed");
     const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { error: code }));
     response.cookies.delete("spreelo_tiktok_oauth_state");
     return response;

@@ -55,6 +55,7 @@ async function getAdminHeaders() {
 
 function WarningPills({ customer, t }) {
   const pills = [];
+  if (customer.rescue429BrandCount) pills.push(["rate-limit", t("admin.customers.rescue429Count", { count: customer.rescue429BrandCount })]);
   if (customer.blockedBrandCount) pills.push(["blocked", t("admin.customers.blocked")]);
   if (customer.failedCount) pills.push(["failed", t("admin.customers.failedCount", { count: customer.failedCount })]);
   if (customer.refundedCredits) pills.push(["refunded", t("admin.customers.refundedCount", { count: customer.refundedCredits })]);
@@ -77,7 +78,7 @@ export default function AdminCustomersPage() {
   const [payload, setPayload] = useState({ customers: [], summary: {}, warnings: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const filters = [["all", t("admin.customers.filter.all")], ["failed", t("admin.customers.filter.failed")], ["refunded", t("admin.customers.filter.refunded")], ["blocked", t("admin.customers.filter.blocked")], ["reruns", t("admin.customers.filter.reruns")]];
+  const filters = [["all", t("admin.customers.filter.all")], ["failed", t("admin.customers.filter.failed")], ["refunded", t("admin.customers.filter.refunded")], ["blocked", t("admin.customers.filter.blocked")], ["rescue429", t("admin.customers.filter.rescue429")], ["reruns", t("admin.customers.filter.reruns")]];
 
   useEffect(() => {
     const queryMonth = new URLSearchParams(window.location.search).get("month");
@@ -172,13 +173,14 @@ export default function AdminCustomersPage() {
             <div className="admin-empty-state"><LoaderCircle className="admin-spin" size={22} /> {t("admin.customers.loading")}</div>
           ) : payload.customers?.length ? (
             <div className="admin-v140-customer-list">
-              <div className="admin-v140-customer-head"><span>{t("admin.customers.customer")}</span><span>{t("admin.customers.planCredits")}</span><span>{t("admin.customers.result")}</span><span>{t("admin.customers.warnings")}</span><span>{t("admin.customers.lastActive")}</span><span /></div>
+              <div className="admin-v140-customer-head"><span>{t("admin.customers.customer")}</span><span>{t("admin.customers.planCredits")}</span><span>{t("admin.customers.result")}</span><span>{t("admin.customers.warnings")}</span><span>{t("admin.customers.webStatus")}</span><span>{t("admin.customers.lastActive")}</span><span /></div>
               {payload.customers.map((customer) => (
                 <a className="admin-v140-customer-row" href={`/admin/customers/${customer.id}?month=${month}`} key={customer.id}>
                   <div className="admin-v140-customer-name"><strong>{customer.name || customer.email || t("admin.customers.unnamed")}</strong><span>{customer.email || "—"}</span><small>{t("admin.customers.brandsCount", { count: customer.brandCount })}</small></div>
                   <div><strong>{customer.planName || "—"}</strong><span>{Number(customer.creditsRemaining || 0).toLocaleString(locale || "en")} {t("admin.customers.credits")}</span><small>{customer.subscriptionStatus || "—"}</small></div>
                   <div className="admin-v140-result-cell"><strong>{formatPercent(customer.successRate, locale)}</strong><span>{t("admin.customers.successResult", { completed: customer.completedCount, failed: customer.failedCount })}</span><small>{t("admin.customers.publishedCount", { count: customer.publishedCount })}</small></div>
                   <WarningPills customer={customer} t={t} />
+                  <div className={`admin-v179-web-status ${customer.rescue429BrandCount ? "active" : "normal"}`}><strong>{customer.rescue429BrandCount ? t("admin.customers.webStatusRescue", { count: customer.rescue429BrandCount }) : t("admin.customers.webStatusNormal")}</strong><span>{customer.rescue429BrandCount ? t("admin.customers.webStatusRescueHint") : t("admin.customers.webStatusNormalHint")}</span></div>
                   <div><strong>{formatDate(customer.lastActivityAt, locale)}</strong><span>{t("admin.customers.customerSince", { date: formatDate(customer.createdAt, locale) })}</span></div>
                   <ChevronRight size={20} aria-hidden="true" />
                 </a>

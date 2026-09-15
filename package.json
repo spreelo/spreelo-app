@@ -207,7 +207,9 @@
     "test:v144.169": "node scripts/test-v144-169-ordinary-carousel-shared-catalog.mjs",
     "test:v144.170": "node scripts/test-v144-170-carousel-identity-review.mjs",
     "test:v144.171": "node scripts/test-v144-171-campaign-rescue-validation.mjs",
-    "test:v144.173": "node scripts/test-v144-173-carousel-reuse-after-exhaustion.mjs"
+    "test:v144.173": "node scripts/test-v144-173-carousel-reuse-after-exhaustion.mjs",
+    "test:v144.179": "node scripts/test-v144-179-brand-429-rescue-cost-guard.mjs",
+    "test:v144.180": "node scripts/test-v144-180-free-trial-analysis-guard.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

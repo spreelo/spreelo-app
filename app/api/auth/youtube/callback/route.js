@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildSocialOAuthResultUrl } from "../../../../../lib/socialOAuthResult.js";
+import { authorizeSocialConnectionForTrial, getTrialRestrictionCode, preflightSocialConnectionForTrial } from "../../../../../lib/freeTrial.js";
 import {
   createSupabaseAdminClient,
   exchangeYouTubeCode,
@@ -65,6 +66,12 @@ export async function GET(request) {
       throw error;
     }
 
+    callbackStage = "trial_preflight";
+    await preflightSocialConnectionForTrial({
+      supabaseAdmin, userId: decoded.userId, brandProfileId: decoded.brandProfileId,
+      platform: "youtube", externalAccountId: channel.id,
+    });
+
     callbackStage = "save";
     await saveYouTubeConnection({
       supabaseAdmin,
@@ -76,6 +83,12 @@ export async function GET(request) {
       tokenExpiresAt: getYouTubeTokenExpiresAt(token.expires_in),
     });
 
+    callbackStage = "trial";
+    await authorizeSocialConnectionForTrial({
+      supabaseAdmin, userId: decoded.userId, brandProfileId: decoded.brandProfileId,
+      platform: "youtube", externalAccountId: channel.id,
+    });
+
     const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { connected: "youtube" }));
     response.cookies.delete("spreelo_youtube_oauth_state");
     return response;
@@ -84,7 +97,8 @@ export async function GET(request) {
       message: error?.message,
       stack: error?.stack,
     });
-    const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { error: "youtube_callback_failed" }));
+    const trialCode = getTrialRestrictionCode(error);
+    const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { error: trialCode || "youtube_callback_failed" }));
     response.cookies.delete("spreelo_youtube_oauth_state");
     return response;
   }

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
@@ -9,6 +10,8 @@ import {
   inferContentLanguageFromWebsiteSignals,
   normalizeSingleContentLanguage,
 } from "../../../lib/contentLanguage.js";
+import { isBrand429RescueActive } from "../../../lib/brandWebsiteRescue.js";
+import { maybeSendAnalysisUsageAlerts } from "../../../lib/analysisUsageAlerts.js";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +19,13 @@ const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 const WEBSITE_MAX_TEXT_CHARS = 18000;
 const WEBSITE_MAX_PRODUCT_SOURCE_PAGES = 4;
 const WEBSITE_MAX_PRODUCT_SOURCE_TEXT_CHARS = 9000;
-const MAX_ANALYSES_PER_24_HOURS = 25;
-const MIN_MINUTES_BETWEEN_ANALYSES = 1;
 const MAX_CAMPAIGN_OPPORTUNITIES = 25;
+
+function publicAnalysisUsage(usage) {
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return usage || null;
+  const { requestKey: _internalRequestKey, ...safeUsage } = usage;
+  return safeUsage;
+}
 
 function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
@@ -1135,45 +1142,6 @@ async function fetchWebsiteHtml(websiteUrl) {
   }
 }
 
-async function checkRateLimit({ supabase, userId }) {
-  const now = new Date();
-
-  const lastAllowedTime = new Date(
-    now.getTime() - MIN_MINUTES_BETWEEN_ANALYSES * 60 * 1000
-  ).toISOString();
-
-  const last24Hours = new Date(
-    now.getTime() - 24 * 60 * 60 * 1000
-  ).toISOString();
-
-  const { data: recentRuns, error: recentError } = await supabase
-    .from("brand_analysis_runs")
-    .select("id, created_at")
-    .eq("user_id", userId)
-    .gte("created_at", last24Hours)
-    .order("created_at", { ascending: false });
-
-  if (recentError) {
-    throw new Error(recentError.message || "Could not check analyze limit");
-  }
-
-  const runs = recentRuns || [];
-
-  if (runs.length >= MAX_ANALYSES_PER_24_HOURS) {
-    throw new Error(
-      `Analyze limit reached. You can analyze your brand ${MAX_ANALYSES_PER_24_HOURS} times per 24 hours.`
-    );
-  }
-
-  const latestRun = runs[0];
-
-  if (latestRun?.created_at && latestRun.created_at > lastAllowedTime) {
-    throw new Error(
-      `Please wait ${MIN_MINUTES_BETWEEN_ANALYSES} minutes before analyzing again.`
-    );
-  }
-}
-
 async function logAnalysisRun({ supabase, userId, websiteUrl }) {
   const { error } = await supabase.from("brand_analysis_runs").insert({
     user_id: userId,
@@ -1217,6 +1185,14 @@ async function saveBrandProfile({
   campaignCalendarYear,
   websiteProductMode,
 }) {
+  const { data: existingWebsiteAccess } = await supabase
+    .from("brand_profiles")
+    .select("website_access_status, website_access_status_code, website_access_message, website_access_checked_at")
+    .eq("id", brandProfileId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const preserve429Rescue = isBrand429RescueActive(existingWebsiteAccess);
+
   const { data, error } = await supabase
     .from("brand_profiles")
     .update({
@@ -1241,12 +1217,16 @@ async function saveBrandProfile({
       website_product_source_url: websiteProductMode?.available
   ? websiteProductMode?.source_url || websiteUrl || ""
   : "",
-      website_access_status: websiteUrl ? "accessible" : "not_checked",
-      website_security_provider: null,
-      website_security_confidence: null,
-      website_access_status_code: websiteUrl ? 200 : null,
-      website_access_message: null,
-      website_access_checked_at: websiteUrl ? new Date().toISOString() : null,
+      ...(preserve429Rescue
+        ? {}
+        : {
+            website_access_status: websiteUrl ? "accessible" : "not_checked",
+            website_security_provider: null,
+            website_security_confidence: null,
+            website_access_status_code: websiteUrl ? 200 : null,
+            website_access_message: null,
+            website_access_checked_at: websiteUrl ? new Date().toISOString() : null,
+          }),
       updated_at: new Date().toISOString(),
     })
     .eq("id", brandProfileId)
@@ -2078,6 +2058,7 @@ export async function POST(request) {
     requestedWebsiteUrl = websiteUrl;
     resolvedWebsiteUrl = websiteUrl;
     const brandDescription = String(body?.brandDescription || "").trim();
+    const analysisTimezone = String(body?.timezone || "UTC").trim() || "UTC";
 
   const requestedMarketSetup = inferMarketSetup({
   websiteUrl,
@@ -2127,10 +2108,47 @@ const requestedContentLanguage = requestedMarketSetup.contentLanguage;
       brandProfileId,
     });
 
-    await checkRateLimit({
-      supabase,
-      userId: user.id,
-    });
+    // v144.180: legacy synchronous analysis must obey the same customer-facing
+    // daily/monthly quota as the durable background start route. Internal
+    // workers do not call this endpoint, so they remain outside customer quota.
+    const quotaRequestKey = randomUUID();
+    const { data: analysisUsage, error: quotaError } = await supabase.rpc(
+      "claim_spreelo_brand_analysis_quota",
+      {
+        p_brand_profile_id: brandProfileId,
+        p_timezone: analysisTimezone,
+        p_request_key: quotaRequestKey,
+      }
+    );
+    if (quotaError) throw new Error(quotaError.message || "Could not check analysis allowance.");
+    const safeAnalysisUsage = publicAnalysisUsage(analysisUsage);
+    const serviceRoleKeyForUsage = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const usageAdmin = serviceRoleKeyForUsage
+      ? createClient(supabaseUrl, serviceRoleKeyForUsage, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+      : null;
+    if (analysisUsage?.allowed === false) {
+      if (usageAdmin) {
+        void maybeSendAnalysisUsageAlerts(usageAdmin, {
+          userId: user.id,
+          brandProfileId,
+          usage: safeAnalysisUsage,
+        });
+      }
+      return Response.json(
+        { ok: false, error: "analysis_usage_limit", analysisLimit: safeAnalysisUsage },
+        { status: 429 }
+      );
+    }
+
+    if (usageAdmin) {
+      void maybeSendAnalysisUsageAlerts(usageAdmin, {
+        userId: user.id,
+        brandProfileId,
+        usage: safeAnalysisUsage,
+      });
+    }
 
     const openai = new OpenAI({
       apiKey: openaiApiKey,
@@ -2260,6 +2278,7 @@ contentLanguage: finalContentLanguage,
       profile: savedProfile,
       detected_language: profile.detected_language || null,
       campaign_opportunities_count: savedOpportunities.length,
+      analysisUsage: safeAnalysisUsage,
       message: finalWebsiteUrl
         ? `Website analyzed, brand profile saved and ${savedOpportunities.length} campaign opportunities created.`
         : `Description analyzed, brand profile saved and ${savedOpportunities.length} campaign opportunities created.`,

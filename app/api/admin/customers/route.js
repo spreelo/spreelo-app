@@ -151,6 +151,9 @@ export async function GET(request) {
       const blockedBrands = customerBrands.filter(
         (row) => row.website_access_status === "security_blocked"
       );
+      const rescue429Brands = customerBrands.filter(
+        (row) => row.website_access_status === "rate_limited_rescue"
+      );
       const successRate = completed.length + failed.length > 0
         ? Math.round((completed.length / (completed.length + failed.length)) * 1000) / 10
         : null;
@@ -174,6 +177,7 @@ export async function GET(request) {
         monthlyCreditLimit: Number(balance?.monthly_credit_limit || 0),
         brandCount: customerBrands.length,
         blockedBrandCount: blockedBrands.length,
+        rescue429BrandCount: rescue429Brands.length,
         postCount: customerPosts.length,
         publishedCount: published.length,
         completedCount: completed.length,
@@ -187,6 +191,7 @@ export async function GET(request) {
           .filter(Boolean)
           .join(" "),
         warningCodes: [
+          rescue429Brands.length ? "website_rate_limit_rescue" : null,
           blockedBrands.length ? "website_blocked" : null,
           failed.length ? "creation_failed" : null,
           refunds ? "credits_refunded" : null,
@@ -207,6 +212,7 @@ export async function GET(request) {
     if (range.filter === "failed") customers = customers.filter((row) => row.failedCount > 0);
     if (range.filter === "refunded") customers = customers.filter((row) => row.refundedCredits > 0);
     if (range.filter === "blocked") customers = customers.filter((row) => row.blockedBrandCount > 0);
+    if (range.filter === "rescue429") customers = customers.filter((row) => row.rescue429BrandCount > 0);
     if (range.filter === "reruns") customers = customers.filter((row) => row.automaticReruns > 0);
 
     customers = customers.map(({ brandSearchText, ...customer }) => customer);
@@ -236,6 +242,7 @@ export async function GET(request) {
       summary: {
         customerCount: customers.length,
         brandCount: brands.length,
+        rescue429BrandCount: brands.filter((row) => row.website_access_status === "rate_limited_rescue").length,
         createdPosts: posts.length,
         publishedPosts: posts.filter((row) => row.status === "published").length,
         completedOccurrences: totalCompleted,

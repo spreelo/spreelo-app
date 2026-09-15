@@ -6550,11 +6550,18 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
       ? (existingWeeklyCredits + plannedCredits) * 4
       : existingWeeklyCredits * 4 + plannedCredits;
 
-  const hasEnoughCredits =
-    !creditBalance || plannedCredits <= creditBalance.credits_remaining;
-
-  const creditsRemaining = creditBalance?.credits_remaining ?? 0;
-  const monthlyCreditLimit = creditBalance?.monthly_credit_limit ?? 0;
+  const plannerFreeTrialLocked = Boolean(
+    creditBalance &&
+    String(creditBalance?.subscription_plan || creditBalance?.plan_name || "free").toLowerCase() === "free" &&
+    String(creditBalance?.free_trial_status || "").toLowerCase() === "locked"
+  );
+  const creditsRemaining = plannerFreeTrialLocked
+    ? Number(creditBalance?.free_trial_credit_amount || 100)
+    : (creditBalance?.credits_remaining ?? 0);
+  const monthlyCreditLimit = plannerFreeTrialLocked
+    ? Number(creditBalance?.free_trial_credit_amount || 100)
+    : (creditBalance?.monthly_credit_limit ?? 0);
+  const hasEnoughCredits = !creditBalance || plannedCredits <= creditsRemaining;
   const creditUsagePercent =
     monthlyCreditLimit > 0
       ? Math.min(100, Math.round((creditsRemaining / monthlyCreditLimit) * 100))
@@ -8343,10 +8350,11 @@ const { data, error } = await supabase
       }
     }
 
+    try { await supabase.rpc("refresh_spreelo_free_trial_state"); } catch {}
     const { data: balanceData, error: balanceError } = await supabase
       .from("user_credit_balances")
       .select(
-  "credits_remaining, monthly_credit_limit, plan_name, subscription_status, subscription_plan, current_period_start, current_period_end, credits_renewed_at, trial_start, trial_end, cancel_at_period_end, payment_provider, provider_customer_id, provider_subscription_id, subscription_price_amount, subscription_currency"
+  "credits_remaining, monthly_credit_limit, plan_name, subscription_status, subscription_plan, current_period_start, current_period_end, credits_renewed_at, trial_start, trial_end, free_trial_status, free_trial_credit_amount, free_trial_started_at, free_trial_ends_at, cancel_at_period_end, payment_provider, provider_customer_id, provider_subscription_id, subscription_price_amount, subscription_currency"
 )
       .eq("user_id", user.id)
       .single();
@@ -9912,7 +9920,18 @@ function toggleContentType(typeId) {
       return;
     }
 
-       if (creditBalance && plannedCredits > creditBalance.credits_remaining) {
+    const freeTrialLocked = String(creditBalance?.subscription_plan || creditBalance?.plan_name || "free").toLowerCase() === "free" && String(creditBalance?.free_trial_status || "").toLowerCase() === "locked";
+    if (freeTrialLocked && plannedCredits > 0) {
+      if (!connectedPlatformOptions.length || !platform) {
+        setMessage("");
+        setShowSocialChannelRequiredModal(true);
+      } else {
+        setMessage(t("automation.freeTrialLockedCredits"));
+      }
+      return;
+    }
+
+    if (creditBalance && plannedCredits > creditBalance.credits_remaining) {
       setMessage(t("automation.errorCredits", { credits: plannedCredits, remaining: creditBalance.credits_remaining }));
       return;
     }

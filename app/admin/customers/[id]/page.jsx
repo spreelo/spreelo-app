@@ -66,7 +66,7 @@ function Status({ value }) {
     ? "ok"
     : normalized.includes("fail") || normalized.includes("blocked") || normalized === "error"
       ? "danger"
-      : normalized.includes("running") || normalized.includes("pending") || normalized.includes("reserved")
+      : normalized.includes("rate_limited") || normalized.includes("rescue") || normalized.includes("running") || normalized.includes("pending") || normalized.includes("reserved")
         ? "warning"
         : "neutral";
   return <span className={`admin-v140-status ${tone}`}>{safeText(value)}</span>;
@@ -86,6 +86,7 @@ export default function AdminCustomerCardPage({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [savingReviewPolicyId, setSavingReviewPolicyId] = useState("");
+  const [saving429RescueId, setSaving429RescueId] = useState("");
   const tabs = [["overview", t("admin.customer.tab.overview")], ["brands", t("admin.customer.tab.brands")], ["posts", t("admin.customer.tab.posts")], ["credits", t("admin.customer.tab.credits")], ["failures", t("admin.customer.tab.failures")], ["technical", t("admin.customer.tab.technical")]];
 
   useEffect(() => {
@@ -138,6 +139,37 @@ export default function AdminCustomerCardPage({ params }) {
     }
   }
 
+  async function setBrand429Rescue(brandId, enabled) {
+    setSaving429RescueId(brandId);
+    setError("");
+    try {
+      const headers = { ...(await getAdminHeaders()), "Content-Type": "application/json" };
+      const response = await fetch(`/api/admin/customers/${encodeURIComponent(customerId)}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ action: "set_brand_429_rescue", brand_profile_id: brandId, enabled }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.brand) throw new Error(result?.error || t("admin.customer.rescue429SaveError"));
+      setPayload((current) => {
+        if (!current) return current;
+        const brands = (current.brands || []).map((brand) => brand.id === brandId ? { ...brand, ...result.brand } : brand);
+        return {
+          ...current,
+          brands,
+          summary: {
+            ...(current.summary || {}),
+            rescue429BrandCount: brands.filter((brand) => brand.website_access_status === "rate_limited_rescue").length,
+          },
+        };
+      });
+    } catch (rescueError) {
+      setError(rescueError.message || t("admin.customer.rescue429SaveError"));
+    } finally {
+      setSaving429RescueId("");
+    }
+  }
+
   const brandById = useMemo(() => new Map((payload?.brands || []).map((brand) => [brand.id, brand])), [payload?.brands]);
   const ruleById = useMemo(() => new Map((payload?.rules || []).map((rule) => [rule.id, rule])), [payload?.rules]);
   const summary = payload?.summary || {};
@@ -171,7 +203,8 @@ export default function AdminCustomerCardPage({ params }) {
                 <p>{customer.email || "—"} · {t("admin.customer.customerSince", { date: formatDate(customer.createdAt, locale) })}</p>
                 <div className="admin-v140-pill-row">
                   <Status value={balance.subscription_status || t("admin.customer.unknownSubscription")} />
-                  {summary.blockedBrandCount ? <span className="admin-v140-pill blocked">{t("admin.customer.blockedWebsites", { count: summary.blockedBrandCount })}</span> : <span className="admin-v140-pill ok">{t("admin.customer.webAccessOk")}</span>}
+                  {summary.rescue429BrandCount ? <span className="admin-v140-pill rate-limit">{t("admin.customer.rescue429Brands", { count: summary.rescue429BrandCount })}</span> : null}
+                  {summary.blockedBrandCount ? <span className="admin-v140-pill blocked">{t("admin.customer.blockedWebsites", { count: summary.blockedBrandCount })}</span> : !summary.rescue429BrandCount ? <span className="admin-v140-pill ok">{t("admin.customer.webAccessOk")}</span> : null}
                   {summary.unexpectedAutomaticReruns ? <span className="admin-v140-pill rerun">{t("admin.customer.rerunDetected")}</span> : <span className="admin-v140-pill ok">{t("admin.customer.noReruns")}</span>}
                 </div>
               </div>
@@ -233,13 +266,22 @@ export default function AdminCustomerCardPage({ params }) {
                 <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.brandsCount", { count: payload.brands.length })}</span><h2>{t("admin.customer.customerBrands")}</h2></div></div>
                 {payload.brands.length ? <div className="admin-v140-brand-grid">{payload.brands.map((brand) => (
                   <article key={brand.id} className="admin-v14401-customer-brand-card">
-                    <header><span className="admin-v140-brand-icon"><Building2 size={19} /></span><div><h3>{brand.business_name || t("admin.customer.unnamedBrand")}</h3><p>{brand.website_url || t("admin.customer.noWebsite")}</p></div><Status value={brand.website_access_status || t("admin.customer.unknown")} /></header>
-                    <div className={`admin-v14401-customer-policy ${brand.admin_review_required === false ? "direct" : "review"}`}>
-                      <div><ShieldCheck size={16} /><span><strong>{t("admin.customer.reviewPolicyTitle")}</strong><small>{brand.admin_review_required === false ? t("admin.customer.reviewPolicyDirect") : t("admin.customer.reviewPolicyAdmin")}</small></span></div>
-                      <button type="button" disabled={savingReviewPolicyId === brand.id} className={brand.admin_review_required !== false ? "on" : ""} onClick={() => setBrandReviewPolicy(brand.id, brand.admin_review_required === false)} aria-pressed={brand.admin_review_required !== false}><span /></button>
-                    </div>
-                    <dl><div><dt>{t("admin.customer.industry")}</dt><dd>{brand.industry || "—"}</dd></div><div><dt>{t("admin.customer.market")}</dt><dd>{brand.content_market || brand.country_code || "—"}</dd></div><div><dt>{t("admin.customer.language")}</dt><dd>{brand.content_language || "—"}</dd></div><div><dt>{t("admin.customer.productSource")}</dt><dd>{brand.website_product_source_url || "—"}</dd></div><div><dt>{t("admin.customer.securitySystem")}</dt><dd>{brand.website_security_provider || "—"}</dd></div><div><dt>{t("admin.customer.lastChecked")}</dt><dd>{formatDate(brand.website_access_checked_at, locale)}</dd></div></dl>
-                    {brand.website_access_message ? <p className="admin-v140-brand-message">{brand.website_access_message}</p> : null}
+                    {(() => {
+                      const rescue429Active = brand.website_access_status === "rate_limited_rescue";
+                      return <>
+                        <header><span className="admin-v140-brand-icon"><Building2 size={19} /></span><div><h3>{brand.business_name || t("admin.customer.unnamedBrand")}</h3><p>{brand.website_url || t("admin.customer.noWebsite")}</p></div><Status value={rescue429Active ? t("admin.customer.rescue429Status") : (brand.website_access_status || t("admin.customer.unknown"))} /></header>
+                        <div className={`admin-v14401-customer-policy ${brand.admin_review_required === false ? "direct" : "review"}`}>
+                          <div><ShieldCheck size={16} /><span><strong>{t("admin.customer.reviewPolicyTitle")}</strong><small>{brand.admin_review_required === false ? t("admin.customer.reviewPolicyDirect") : t("admin.customer.reviewPolicyAdmin")}</small></span></div>
+                          <button type="button" disabled={savingReviewPolicyId === brand.id} className={brand.admin_review_required !== false ? "on" : ""} onClick={() => setBrandReviewPolicy(brand.id, brand.admin_review_required === false)} aria-pressed={brand.admin_review_required !== false}><span /></button>
+                        </div>
+                        <div className={`admin-v14401-customer-policy admin-v179-429-policy ${rescue429Active ? "rate-limit" : "direct"}`}>
+                          <div><ShieldAlert size={16} /><span><strong>{t("admin.customer.rescue429Title")}</strong><small>{rescue429Active ? t("admin.customer.rescue429Active", { date: formatDate(brand.website_access_checked_at, locale) }) : t("admin.customer.rescue429Normal")}</small></span></div>
+                          <button type="button" disabled={saving429RescueId === brand.id} className={rescue429Active ? "on" : ""} onClick={() => setBrand429Rescue(brand.id, !rescue429Active)} aria-pressed={rescue429Active} aria-label={rescue429Active ? t("admin.customer.rescue429DisableAria") : t("admin.customer.rescue429EnableAria")}><span /></button>
+                        </div>
+                        <dl><div><dt>{t("admin.customer.industry")}</dt><dd>{brand.industry || "—"}</dd></div><div><dt>{t("admin.customer.market")}</dt><dd>{brand.content_market || brand.country_code || "—"}</dd></div><div><dt>{t("admin.customer.language")}</dt><dd>{brand.content_language || "—"}</dd></div><div><dt>{t("admin.customer.productSource")}</dt><dd>{brand.website_product_source_url || "—"}</dd></div><div><dt>{t("admin.customer.securitySystem")}</dt><dd>{brand.website_security_provider || "—"}</dd></div><div><dt>{t("admin.customer.lastChecked")}</dt><dd>{formatDate(brand.website_access_checked_at, locale)}</dd></div></dl>
+                        {rescue429Active ? <p className="admin-v140-brand-message admin-v179-429-message">{t("admin.customer.rescue429Message")}</p> : brand.website_access_message ? <p className="admin-v140-brand-message">{brand.website_access_message}</p> : null}
+                      </>;
+                    })()}
                   </article>
                 ))}</div> : <Empty>{t("admin.customer.noBrands")}</Empty>}
               </section>

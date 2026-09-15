@@ -101,6 +101,10 @@ export default function SelectFacebookPage() {
     const data = await response.json();
 
     if (!response.ok) {
+      if (data?.trialRestriction && data?.code) {
+        window.location.href = `/social-channels/oauth-complete?error=${encodeURIComponent(data.code)}`;
+        return;
+      }
       setMessage(data?.error || t("social.errorConnectSelectedPage"));
       setSavingPageId("");
       return;

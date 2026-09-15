@@ -480,6 +480,10 @@ export default function OnboardingPage() {
           countryCode: contentSettingsTouched ? countryCode : "",
           contentLanguage: contentSettingsTouched ? contentLanguage : "",
           notificationLocale: locale || "en",
+          timezone: (() => {
+            try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; }
+            catch { return "UTC"; }
+          })(),
         }),
       });
 

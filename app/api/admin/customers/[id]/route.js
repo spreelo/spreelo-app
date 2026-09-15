@@ -1,4 +1,5 @@
 import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth";
+import { buildBrand429RescueUpdate } from "../../../../../lib/brandWebsiteRescue.js";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,7 @@ function summarize({ posts, occurrences, brands, rules }) {
         : null,
     failureReasons,
     blockedBrandCount: brands.filter((row) => row.website_access_status === "security_blocked").length,
+    rescue429BrandCount: brands.filter((row) => row.website_access_status === "rate_limited_rescue").length,
   };
 }
 
@@ -311,6 +313,47 @@ export async function GET(request, { params }) {
   } catch (error) {
     return Response.json(
       { ok: false, error: error.message || "Could not load the customer card." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request, { params }) {
+  const context = await getAdminContext(request);
+  if (context.error) return adminContextError(context);
+
+  try {
+    const { id } = await params;
+    const userId = String(id || "").trim();
+    const body = await request.json().catch(() => ({}));
+    if (body?.action !== "set_brand_429_rescue") {
+      return Response.json({ ok: false, error: "Unsupported customer action." }, { status: 400 });
+    }
+
+    const brandProfileId = String(body?.brand_profile_id || "").trim();
+    if (!userId || !brandProfileId) {
+      return Response.json({ ok: false, error: "Customer and brand are required." }, { status: 400 });
+    }
+
+    const enabled = body?.enabled === true;
+    const payload = buildBrand429RescueUpdate({ enabled });
+    const { data, error } = await context.admin
+      .from("brand_profiles")
+      .update(payload)
+      .eq("id", brandProfileId)
+      .eq("user_id", userId)
+      .select("id, website_access_status, website_access_status_code, website_access_message, website_access_checked_at, updated_at")
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      return Response.json({ ok: false, error: "Brand not found for this customer." }, { status: 404 });
+    }
+
+    return Response.json({ ok: true, brand: data });
+  } catch (error) {
+    return Response.json(
+      { ok: false, error: error.message || "Could not update 429 Rescue." },
       { status: 500 }
     );
   }

@@ -4,8 +4,6 @@ import {
   getAuthenticatedBillingUser,
   getCheckoutOrigin,
   getOrCreateStripeCustomer,
-  getTrialEligibility,
-  SPREELO_TRIAL_DAYS,
   stripeRequest,
 } from "../../../../lib/stripeBilling";
 
@@ -19,7 +17,6 @@ export async function POST(request) {
 
     const body = await request.json().catch(() => ({}));
     const lookup = getAllowedCheckoutLookup(body?.lookupKey);
-    const wantsTrial = Boolean(body?.trial);
     if (!lookup) return Response.json({ ok: false, error: "Unknown Spreelo price." }, { status: 400 });
 
     const { data: currentBilling } = await context.admin
@@ -31,8 +28,6 @@ export async function POST(request) {
     const subscriptionStatus = String(currentBilling?.subscription_status || "").toLowerCase();
     const hasStripeSubscription = Boolean(currentBilling?.payment_provider === "stripe" && currentBilling?.provider_subscription_id);
 
-    let trialIdentity = null;
-
     if (lookup.kind === "subscription") {
       const blockingStatuses = new Set(["active", "trialing", "past_due", "unpaid", "paused"]);
       if (hasStripeSubscription && blockingStatuses.has(subscriptionStatus)) {
@@ -41,32 +36,10 @@ export async function POST(request) {
           { status: 409 }
         );
       }
-
-      if (wantsTrial) {
-        const eligibility = await getTrialEligibility(context.admin, context.user.id);
-        if (!eligibility.eligible) {
-          const error = eligibility.reason === "website_required"
-            ? "Add your business website before starting the free trial."
-            : "This business has already used its Spreelo free trial.";
-          return Response.json({ ok: false, error, trialIneligible: true, reason: eligibility.reason }, { status: 409 });
-        }
-        const { data: claim, error: claimError } = await context.admin.rpc("claim_spreelo_trial_business", {
-          p_user_id: context.user.id,
-          p_domain_key: eligibility.domainKey,
-          p_business_name_key: eligibility.businessNameKey,
-          p_brand_profile_id: eligibility.brandProfileId,
-        });
-        if (claimError) throw new Error(`Could not reserve free trial: ${claimError.message}`);
-        if (!claim?.eligible) {
-          return Response.json({ ok: false, error: "This business has already used its Spreelo free trial.", trialIneligible: true }, { status: 409 });
-        }
-        trialIdentity = eligibility;
-      }
     }
 
     if (lookup.kind === "credits") {
-      const topUpStatuses = new Set(["active", "trialing"]);
-      if (!hasStripeSubscription || !topUpStatuses.has(subscriptionStatus)) {
+      if (!hasStripeSubscription || subscriptionStatus !== "active") {
         return Response.json(
           { ok: false, error: "Extra credits require an active Spreelo subscription." },
           { status: 409 }
@@ -96,13 +69,6 @@ export async function POST(request) {
     if (lookup.kind === "subscription") {
       params["subscription_data[metadata][spreelo_user_id]"] = context.user.id;
       params["subscription_data[metadata][spreelo_lookup_key]"] = lookup.lookupKey;
-      if (wantsTrial && trialIdentity?.domainKey) {
-        params["subscription_data[trial_period_days]"] = SPREELO_TRIAL_DAYS;
-        params["subscription_data[metadata][spreelo_trial]"] = "1";
-        params["subscription_data[metadata][spreelo_trial_domain]"] = trialIdentity.domainKey;
-        params["metadata[spreelo_trial]"] = "1";
-        params["metadata[spreelo_trial_domain]"] = trialIdentity.domainKey;
-      }
     }
 
     const session = await stripeRequest("/v1/checkout/sessions", { method: "POST", params });

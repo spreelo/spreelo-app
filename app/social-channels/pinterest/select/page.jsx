@@ -67,6 +67,10 @@ export default function SelectPinterestBoard() {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data?.connected) {
+      if (data?.trialRestriction && data?.code) {
+        window.location.href = `/social-channels/oauth-complete?error=${encodeURIComponent(data.code)}`;
+        return;
+      }
       setMessage(data?.error || t("social.pinterestErrorCreateSandboxBoard"));
       setCreatingSandboxBoard(false);
       return;
@@ -88,6 +92,10 @@ export default function SelectPinterestBoard() {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
+      if (data?.trialRestriction && data?.code) {
+        window.location.href = `/social-channels/oauth-complete?error=${encodeURIComponent(data.code)}`;
+        return;
+      }
       setMessage(data?.error || t("social.pinterestErrorSelectBoard"));
       setSavingId("");
       return;

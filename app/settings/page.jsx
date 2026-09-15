@@ -180,9 +180,10 @@ export default function Settings() {
         const brandData = brands.find((brand) => brand.id === selectedBrandId) || brands[0] || null;
         setCurrentBrandProfile(brandData);
         setDefaultPostLanguageDraft(normalizeSingleContentLanguage(brandData?.content_language || "English", "English"));
+        try { await supabase.rpc("refresh_spreelo_free_trial_state"); } catch {}
         const { data: creditData } = await supabase
           .from("user_credit_balances")
-          .select("credits_remaining, monthly_credit_limit, plan_name, subscription_status, subscription_plan, current_period_end, credits_renewed_at, next_credit_refresh_at, cancel_at_period_end, payment_provider, provider_customer_id, provider_subscription_id, subscription_price_amount, subscription_currency, subscription_interval, subscription_price_lookup_key, purchased_credits_remaining, trial_start, trial_end, pending_subscription_plan, pending_subscription_lookup_key, pending_subscription_effective_at, provider_subscription_schedule_id")
+          .select("credits_remaining, monthly_credit_limit, plan_name, subscription_status, subscription_plan, current_period_end, credits_renewed_at, next_credit_refresh_at, cancel_at_period_end, payment_provider, provider_customer_id, provider_subscription_id, subscription_price_amount, subscription_currency, subscription_interval, subscription_price_lookup_key, purchased_credits_remaining, trial_start, trial_end, free_trial_status, free_trial_credit_amount, free_trial_started_at, free_trial_ends_at, pending_subscription_plan, pending_subscription_lookup_key, pending_subscription_effective_at, provider_subscription_schedule_id")
           .eq("user_id", user.id)
           .maybeSingle();
         setCreditBalance(creditData || null);
@@ -215,8 +216,13 @@ export default function Settings() {
     return raw.replace(/^plan\s*:\s*/i, "") || "Free";
   }, [creditBalance]);
 
-  const creditRemaining = Number(creditBalance?.credits_remaining || 0);
-  const creditLimit = Number(creditBalance?.monthly_credit_limit || 0);
+  const freeTrialLocked = String(creditBalance?.subscription_plan || creditBalance?.plan_name || "free").toLowerCase() === "free" && String(creditBalance?.free_trial_status || "").toLowerCase() === "locked";
+  const creditRemaining = freeTrialLocked
+    ? Number(creditBalance?.free_trial_credit_amount || 100)
+    : Number(creditBalance?.credits_remaining || 0);
+  const creditLimit = freeTrialLocked
+    ? Number(creditBalance?.free_trial_credit_amount || 100)
+    : Number(creditBalance?.monthly_credit_limit || 0);
   const creditPercent = creditLimit > 0 ? Math.max(0, Math.min(100, (creditRemaining / creditLimit) * 100)) : 0;
 
   const renewalLabel = useMemo(() => {

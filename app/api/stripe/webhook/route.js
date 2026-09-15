@@ -5,13 +5,11 @@ import {
   getCreditPackByLookupKey,
   getPlanByLookupKey,
   getServerSupabase,
-  SPREELO_TRIAL_CREDITS,
   stripeRequest,
   unixToIso,
   verifyStripeWebhookSignature,
 } from "../../../../lib/stripeBilling";
-import { getServerTranslations } from "../../../../lib/i18n/serverUiText.js";
-import { resolveLocaleFromUserMetadata } from "../../../../lib/userAppLocale.js";
+import { markFreeTrialUsedForPaidPlan } from "../../../../lib/freeTrial.js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -64,8 +62,9 @@ async function applySubscription(admin, userId, subscription, { grantCredits = f
   const trialEnd = unixToIso(subscription?.trial_end);
   const status = String(subscription.status || "active").toLowerCase();
   const activeLike = ["active", "trialing"].includes(status);
-  const isTrial = status === "trialing" && String(subscription?.metadata?.spreelo_trial || "") === "1";
-  const trialDomain = String(subscription?.metadata?.spreelo_trial_domain || "").trim().toLowerCase();
+  // v144.180 no longer creates Stripe trials. Any legacy/unexpected Stripe
+  // trialing state is synchronized without granting promotional credits.
+  const isTrial = false;
 
   // Account deletion cancels Stripe before removing Spreelo data. Stripe can
   // deliver subscription.deleted a moment later; acknowledge that webhook
@@ -76,21 +75,7 @@ async function applySubscription(admin, userId, subscription, { grantCredits = f
     .eq("user_id", userId)
     .maybeSingle();
   if (balanceLookupError) throw new Error(`Could not verify Spreelo billing account: ${balanceLookupError.message}`);
-  if (!balanceExists?.user_id) {
-    if (trialDomain) {
-      const { error: trialError } = await admin.rpc("mark_spreelo_trial_business", {
-        p_user_id: userId,
-        p_domain_key: trialDomain,
-        p_status: "consumed",
-        p_customer_id: typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id || null,
-        p_subscription_id: subscription.id,
-        p_trial_start: trialStart,
-        p_trial_end: trialEnd,
-      });
-      if (trialError) console.error("Could not preserve deleted-account trial claim", { userId, message: trialError.message });
-    }
-    return;
-  }
+  if (!balanceExists?.user_id) return;
 
   const { error } = await admin.rpc("apply_stripe_subscription_state_v14378", {
     p_user_id: userId,
@@ -106,33 +91,18 @@ async function applySubscription(admin, userId, subscription, { grantCredits = f
     p_cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
     p_price_amount: Number(primaryItem?.price?.unit_amount || 0),
     p_currency: String(primaryItem?.price?.currency || "sek").toUpperCase(),
-    p_grant_credits: Boolean(grantCredits && activeLike && !isTrial),
+    p_grant_credits: Boolean(grantCredits && activeLike && status === "active"),
     p_source_id: sourceId,
-    p_next_credit_refresh_at: plan.interval === "year" && activeLike && !isTrial ? addUtcMonths(new Date().toISOString(), 1) : currentEnd,
-    p_is_trial: isTrial,
-    p_trial_credits: SPREELO_TRIAL_CREDITS,
+    p_next_credit_refresh_at: plan.interval === "year" && status === "active" ? addUtcMonths(new Date().toISOString(), 1) : currentEnd,
+    p_is_trial: false,
+    p_trial_credits: 0,
     p_trial_start: trialStart,
     p_trial_end: trialEnd,
   });
   if (error) throw new Error(`Could not apply Stripe subscription: ${error.message}`);
 
-  if (trialDomain) {
-    const trialStatus = isTrial ? "active" : ["active", "canceled", "cancelled", "incomplete_expired"].includes(status) ? "consumed" : null;
-    if (trialStatus) {
-      const { error: trialError } = await admin.rpc("mark_spreelo_trial_business", {
-        p_user_id: userId,
-        p_domain_key: trialDomain,
-        p_status: trialStatus,
-        p_customer_id: typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id || null,
-        p_subscription_id: subscription.id,
-        p_trial_start: trialStart,
-        p_trial_end: trialEnd,
-      });
-      if (trialError) console.error("Could not update trial business claim", { userId, message: trialError.message });
-    }
-  }
-
   if (status === "active" && lookupKey) {
+    await markFreeTrialUsedForPaidPlan(admin, userId);
     await admin
       .from("stripe_plan_changes")
       .update({ status: "completed", updated_at: new Date().toISOString() })
@@ -161,37 +131,6 @@ async function grantCreditPack(admin, session, eventId) {
   if (error) throw new Error(`Could not grant purchased credits: ${error.message}`);
 }
 
-
-async function sendTrialEndingReminder(admin, userId, subscription) {
-  if (!userId || !process.env.RESEND_API_KEY) return;
-  const { data } = await admin.auth.admin.getUserById(userId);
-  const user = data?.user;
-  const email = String(user?.email || "").trim();
-  if (!email) return;
-  const locale = resolveLocaleFromUserMetadata(user?.user_metadata || {}, "en");
-  const { t } = await getServerTranslations({ supabaseAdmin: admin, locale, namespaces: ["emails"] });
-  const trialEnd = unixToIso(subscription?.trial_end);
-  const dateLabel = trialEnd
-    ? new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" }).format(new Date(trialEnd))
-    : t("emails.trialEnding.soon");
-  const subject = t("emails.trialEnding.subject");
-  const title = t("emails.trialEnding.title");
-  const text = t("emails.trialEnding.text", { date: dateLabel || t("emails.trialEnding.soon") });
-  const button = t("emails.trialEnding.button");
-  const appUrl = String(process.env.NEXT_PUBLIC_APP_URL || "https://app.spreelo.com").replace(/\/$/, "");
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: process.env.RESEND_FROM_EMAIL || "Spreelo <noreply@spreelo.com>",
-      to: email,
-      subject,
-      text: `${title}\n\n${text}\n\n${appUrl}/settings`,
-      html: `<div style="font-family:Arial,sans-serif;background:#f4efe9;padding:30px"><div style="max-width:620px;margin:auto;background:#fff;border:1px solid #e6ddd6;border-radius:20px;padding:30px"><div style="font-size:20px;font-weight:800;color:#17253b">spreelo</div><h1 style="font-size:26px;color:#17253b">${title}</h1><p style="color:#667085;line-height:1.7">${text}</p><a href="${appUrl}/settings" style="display:inline-block;margin-top:12px;padding:13px 18px;border-radius:11px;background:#f25f43;color:#fff;text-decoration:none;font-weight:800">${button}</a></div></div>`,
-    }),
-  });
-  if (!response.ok) console.error("Trial ending email failed", { userId, status: response.status });
-}
 
 async function handleEvent(admin, event) {
   const object = event?.data?.object || {};
@@ -244,11 +183,6 @@ async function handleEvent(admin, event) {
     return;
   }
 
-  if (event.type === "customer.subscription.trial_will_end") {
-    const userId = await resolveUserId(admin, object);
-    await sendTrialEndingReminder(admin, userId, object);
-    return;
-  }
 
   if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
     const userId = await resolveUserId(admin, object);

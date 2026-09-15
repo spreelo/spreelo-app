@@ -250,10 +250,14 @@ export default function AppLayout({ active, children }) {
     setLoadingCredits(true);
 
     try {
+      try {
+        await withTimeout(supabase.rpc("refresh_spreelo_free_trial_state"), WORKSPACE_REQUEST_TIMEOUT_MS);
+      } catch {}
+
       const { data, error } = await withTimeout(
         supabase
           .from("user_credit_balances")
-          .select("credits_remaining, monthly_credit_limit, plan_name, subscription_plan, subscription_status, current_period_end, credits_renewed_at, trial_end, purchased_credits_remaining")
+          .select("credits_remaining, monthly_credit_limit, plan_name, subscription_plan, subscription_status, current_period_end, credits_renewed_at, trial_end, purchased_credits_remaining, free_trial_status, free_trial_credit_amount, free_trial_ends_at")
           .eq("user_id", currentUser.id)
           .maybeSingle(),
         WORKSPACE_REQUEST_TIMEOUT_MS
@@ -269,8 +273,30 @@ export default function AppLayout({ active, children }) {
     }
   }
 
+  function isLockedFreeTrial() {
+    const plan = String(creditBalance?.subscription_plan || creditBalance?.plan_name || "free").trim().toLowerCase();
+    return plan === "free" && String(creditBalance?.free_trial_status || "").toLowerCase() === "locked";
+  }
+
+  function isActiveFreeTrial() {
+    const plan = String(creditBalance?.subscription_plan || creditBalance?.plan_name || "free").trim().toLowerCase();
+    return plan === "free" && String(creditBalance?.free_trial_status || "").toLowerCase() === "active";
+  }
+
+  function getVisibleCreditBalance() {
+    if (isLockedFreeTrial()) return Number(creditBalance?.free_trial_credit_amount || 100);
+    return Number(creditBalance?.credits_remaining || 0);
+  }
+
+  function getVisibleCreditLimit() {
+    if (isLockedFreeTrial()) return Number(creditBalance?.free_trial_credit_amount || 100);
+    return Number(creditBalance?.monthly_credit_limit || 0);
+  }
+
   function getCreditResetLabel() {
-    const value = creditBalance?.current_period_end || creditBalance?.credits_renewed_at;
+    const value = isActiveFreeTrial()
+      ? (creditBalance?.free_trial_ends_at || creditBalance?.trial_end)
+      : (creditBalance?.current_period_end || creditBalance?.credits_renewed_at);
     if (!value) return t("layout.creditsResetUnknown");
 
     const date = new Date(value);
@@ -781,8 +807,8 @@ export default function AppLayout({ active, children }) {
             ) : creditBalance ? (
               <>
                 <div className="sidebar-credit-count">
-                  <strong>{Number(creditBalance.credits_remaining || 0)}</strong>
-                  <span>/ {Number(creditBalance.monthly_credit_limit || 0)} {t("layout.creditsLeft")}</span>
+                  <strong>{getVisibleCreditBalance()}</strong>
+                  <span>/ {getVisibleCreditLimit()} {t("layout.creditsLeft")}</span>
                 </div>
                 <div className="sidebar-credit-progress" aria-hidden="true">
                   <span
@@ -791,17 +817,19 @@ export default function AppLayout({ active, children }) {
                         0,
                         Math.min(
                           100,
-                          Number(creditBalance.monthly_credit_limit || 0) > 0
-                            ? (Number(creditBalance.credits_remaining || 0) /
-                                Number(creditBalance.monthly_credit_limit || 1)) *
-                              100
+                          getVisibleCreditLimit() > 0
+                            ? (getVisibleCreditBalance() / getVisibleCreditLimit()) * 100
                             : 0
                         )
                       )}%`,
                     }}
                   />
                 </div>
-                <small>{t("layout.creditsReset", { date: getCreditResetLabel() })}</small>
+                <small>{isLockedFreeTrial()
+                  ? t("layout.freeTrialCreditsLocked")
+                  : isActiveFreeTrial()
+                    ? t("layout.freeTrialEnds", { date: getCreditResetLabel() })
+                    : t("layout.creditsReset", { date: getCreditResetLabel() })}</small>
               </>
             ) : (
               <p className="sidebar-credit-loading">{t("layout.creditsUnavailable")}</p>

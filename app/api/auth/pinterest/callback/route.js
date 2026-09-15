@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildSocialOAuthResultUrl } from "../../../../../lib/socialOAuthResult";
+import { getTrialRestrictionCode, preflightSocialConnectionForTrial } from "../../../../../lib/freeTrial.js";
 import {
   createSupabaseAdminClient,
   exchangePinterestCode,
@@ -51,6 +52,15 @@ export async function GET(request) {
     callbackStage = "account";
     const account = await fetchPinterestUserAccount(token.access_token);
 
+    callbackStage = "trial_preflight";
+    await preflightSocialConnectionForTrial({
+      supabaseAdmin,
+      userId: decoded.userId,
+      brandProfileId: decoded.brandProfileId,
+      platform: "pinterest",
+      externalAccountId: String(account?.id || account?.username || "").trim(),
+    });
+
     callbackStage = "save";
     const connectionId = await savePendingPinterestConnection({
       supabaseAdmin,
@@ -72,7 +82,8 @@ export async function GET(request) {
     return response;
   } catch (error) {
     console.error(`Pinterest OAuth callback failed at ${callbackStage}`, error);
-    const errorCode = callbackStage === "token"
+    const trialCode = getTrialRestrictionCode(error);
+    const errorCode = trialCode || (callbackStage === "token"
       ? "pinterest_token_failed"
       : callbackStage === "account"
         ? "pinterest_account_failed"
@@ -80,7 +91,7 @@ export async function GET(request) {
           ? "pinterest_schema_missing"
           : callbackStage === "save"
             ? "pinterest_save_failed"
-            : "pinterest_callback_failed";
+            : "pinterest_callback_failed");
     const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { error: errorCode }));
     response.cookies.delete("spreelo_pinterest_oauth_state");
     return response;

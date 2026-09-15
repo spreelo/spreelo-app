@@ -7,6 +7,7 @@ import {
   updateBrandAnalysisJob,
 } from "../../analyze-brand/jobHelpers.js";
 import { sendLifecycleEmail } from "../../../../lib/lifecycleEmails.js";
+import { isBrand429RescueActive } from "../../../../lib/brandWebsiteRescue.js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -226,6 +227,13 @@ function isWebsiteFetchTimeout(error) {
 }
 
 async function saveWebsiteAccessState({ supabase, job, error, manualRescue = false }) {
+  const { data: existingWebsiteAccess } = await supabase
+    .from("brand_profiles")
+    .select("website_access_status")
+    .eq("id", job.brand_profile_id)
+    .eq("user_id", job.user_id)
+    .maybeSingle();
+  const preserve429Rescue = isBrand429RescueActive(existingWebsiteAccess);
   const timedOut = isWebsiteFetchTimeout(error);
   const providerLabel = String(error?.providerLabel || "website security");
   const message = manualRescue
@@ -235,12 +243,16 @@ async function saveWebsiteAccessState({ supabase, job, error, manualRescue = fal
     : "Spreelo's direct website connection timed out. One short automatic retry will be made before the analysis is handed to manual rescue.";
 
   const profileUpdates = {
-    website_access_status: timedOut ? "direct_fetch_timeout" : "security_blocked",
-    website_security_provider: timedOut ? "unknown" : error?.provider || "unknown",
-    website_security_confidence: timedOut ? "low" : error?.confidence || "low",
-    website_access_status_code: timedOut ? 408 : Number(error?.status || 403),
-    website_access_message: message,
-    website_access_checked_at: new Date().toISOString(),
+    ...(preserve429Rescue
+      ? {}
+      : {
+          website_access_status: timedOut ? "direct_fetch_timeout" : "security_blocked",
+          website_security_provider: timedOut ? "unknown" : error?.provider || "unknown",
+          website_security_confidence: timedOut ? "low" : error?.confidence || "low",
+          website_access_status_code: timedOut ? 408 : Number(error?.status || 403),
+          website_access_message: message,
+          website_access_checked_at: new Date().toISOString(),
+        }),
     updated_at: new Date().toISOString(),
   };
   if (manualRescue && job.analysis_kind !== "annual_calendar_refresh") {

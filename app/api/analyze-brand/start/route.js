@@ -1,7 +1,22 @@
+import { randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
+import { maybeSendAnalysisUsageAlerts } from "../../../../lib/analysisUsageAlerts.js";
 import { normalizeUiLocale } from "../../../../lib/i18n/defaultLabels.js";
 
 export const dynamic = "force-dynamic";
+
+function createServiceAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+function publicAnalysisUsage(usage) {
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return usage || null;
+  const { requestKey: _internalRequestKey, ...safeUsage } = usage;
+  return safeUsage;
+}
 
 function normalizeWebsiteUrl(value) {
   const trimmedValue = String(value || "").trim();
@@ -115,6 +130,7 @@ export async function POST(request) {
     const notificationLocale = normalizeUiLocale(
       body?.notificationLocale || user?.user_metadata?.app_locale || "en"
     );
+    const analysisTimezone = String(body?.timezone || "UTC").trim() || "UTC";
 
     const requestedMarketSetup = inferMarketSetup({
       contentMarket: body?.contentMarket,
@@ -183,6 +199,36 @@ export async function POST(request) {
       });
     }
 
+    const quotaRequestKey = randomUUID();
+    const { data: analysisUsage, error: quotaError } = await supabase.rpc(
+      "claim_spreelo_brand_analysis_quota",
+      {
+        p_brand_profile_id: brandProfileId,
+        p_timezone: analysisTimezone,
+        p_request_key: quotaRequestKey,
+      }
+    );
+    if (quotaError) throw new Error(quotaError.message || "Could not check analysis allowance.");
+    const admin = createServiceAdmin();
+    const safeAnalysisUsage = publicAnalysisUsage(analysisUsage);
+    if (analysisUsage?.allowed === false) {
+      if (admin) {
+        void maybeSendAnalysisUsageAlerts(admin, {
+          userId: user.id,
+          brandProfileId,
+          usage: safeAnalysisUsage,
+        });
+      }
+      return Response.json(
+        {
+          ok: false,
+          error: "analysis_usage_limit",
+          analysisLimit: safeAnalysisUsage,
+        },
+        { status: 429 }
+      );
+    }
+
     const { data: job, error: insertError } = await supabase
       .from("brand_analysis_jobs")
       .insert({
@@ -216,13 +262,43 @@ export async function POST(request) {
       .single();
 
     if (insertError) {
+      if (admin) {
+        try {
+          const { error: releaseError } = await admin.rpc("release_spreelo_brand_analysis_quota", {
+            p_user_id: user.id,
+            p_request_key: quotaRequestKey,
+          });
+          if (releaseError) {
+            console.error("Could not release failed brand-analysis quota claim:", {
+              userId: user.id,
+              brandProfileId,
+              message: releaseError.message,
+            });
+          }
+        } catch (releaseError) {
+          console.error("Could not release failed brand-analysis quota claim:", {
+            userId: user.id,
+            brandProfileId,
+            message: releaseError?.message,
+          });
+        }
+      }
       throw new Error(insertError.message || "Could not start analysis.");
+    }
+
+    if (admin) {
+      void maybeSendAnalysisUsageAlerts(admin, {
+        userId: user.id,
+        brandProfileId,
+        usage: safeAnalysisUsage,
+      });
     }
 
     return Response.json({
       ok: true,
       job,
       job_id: job.id,
+      analysisUsage: safeAnalysisUsage,
       message: "Brand analysis job started.",
     });
   } catch (error) {

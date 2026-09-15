@@ -13,6 +13,7 @@ import {
   resolveCalendarVisualTheme,
   scoreCalendarVisualAsset,
 } from "../../../lib/calendarVisualThemes.js";
+import { isBrand429RescueActive } from "../../../lib/brandWebsiteRescue.js";
 
 export const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 export const WEBSITE_MAX_TEXT_CHARS = 8000;
@@ -2471,40 +2472,6 @@ Website-content rules:
   };
 }
 
-export async function checkRateLimit({ supabase, userId }) {
-  const now = new Date();
-
-  const lastAllowedTime = new Date(now.getTime() - 60 * 1000).toISOString();
-  const last24Hours = new Date(
-    now.getTime() - 24 * 60 * 60 * 1000
-  ).toISOString();
-
-  const { data: recentRuns, error: recentError } = await supabase
-    .from("brand_analysis_runs")
-    .select("id, created_at")
-    .eq("user_id", userId)
-    .gte("created_at", last24Hours)
-    .order("created_at", { ascending: false });
-
-  if (recentError) {
-    throw new Error(recentError.message || "Could not check analyze limit.");
-  }
-
-  const runs = recentRuns || [];
-
-  if (runs.length >= 25) {
-    throw new Error(
-      "Analyze limit reached. You can analyze your brand 25 times per 24 hours."
-    );
-  }
-
-  const latestRun = runs[0];
-
-  if (latestRun?.created_at && latestRun.created_at > lastAllowedTime) {
-    throw new Error("Please wait 1 minute before analyzing again.");
-  }
-}
-
 export async function logAnalysisRun({ supabase, userId, websiteUrl }) {
   const { error } = await supabase.from("brand_analysis_runs").insert({
     user_id: userId,
@@ -2531,6 +2498,14 @@ export async function saveBrandProfile({
   websiteAccessStatus = "",
   websiteAccessMessage = "",
 }) {
+  const { data: existingWebsiteAccess } = await supabase
+    .from("brand_profiles")
+    .select("website_access_status, website_access_status_code, website_access_message, website_access_checked_at")
+    .eq("id", brandProfileId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const preserve429Rescue = isBrand429RescueActive(existingWebsiteAccess);
+
   const { data, error } = await supabase
     .from("brand_profiles")
     .update({
@@ -2553,15 +2528,19 @@ export async function saveBrandProfile({
       website_product_source_url: websiteProductMode?.available
         ? websiteProductMode?.source_url || websiteUrl || ""
         : "",
-      website_access_status: websiteUrl
-        ? websiteAccessStatus || "accessible"
-        : "not_checked",
-      website_security_provider: null,
-      website_security_confidence: null,
-      website_access_status_code:
-        websiteUrl && websiteAccessStatus !== "web_research" ? 200 : null,
-      website_access_message: websiteAccessMessage || null,
-      website_access_checked_at: websiteUrl ? new Date().toISOString() : null,
+      ...(preserve429Rescue
+        ? {}
+        : {
+            website_access_status: websiteUrl
+              ? websiteAccessStatus || "accessible"
+              : "not_checked",
+            website_security_provider: null,
+            website_security_confidence: null,
+            website_access_status_code:
+              websiteUrl && websiteAccessStatus !== "web_research" ? 200 : null,
+            website_access_message: websiteAccessMessage || null,
+            website_access_checked_at: websiteUrl ? new Date().toISOString() : null,
+          }),
       updated_at: new Date().toISOString(),
     })
     .eq("id", brandProfileId)
@@ -2778,10 +2757,6 @@ export async function runBrandAnalysisJob({
     startedAt: new Date().toISOString(),
   });
 
-  await checkRateLimit({
-    supabase,
-    userId,
-  });
 
   const businessName = String(job.business_name || "").trim();
   const websiteUrl = normalizeWebsiteUrl(job.website_url);

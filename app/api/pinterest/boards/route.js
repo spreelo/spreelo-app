@@ -8,6 +8,7 @@ import {
   getPinterestApiEnvironment,
   isPinterestAuthError,
 } from "../../../../lib/pinterestOAuth";
+import { authorizeSocialConnectionForTrial, getTrialRestrictionCode, preflightSocialConnectionForTrial } from "../../../../lib/freeTrial.js";
 
 function bearer(request) {
   const value = request.headers.get("authorization") || "";
@@ -24,7 +25,7 @@ async function authenticatedUser({ supabaseAdmin, request }) {
 async function getConnection({ supabaseAdmin, connectionId, userId }) {
   const { data, error } = await supabaseAdmin
     .from("social_connections")
-    .select("id, user_id, brand_profile_id, platform, page_id, page_name, page_access_token, token_expires_at, refresh_token, refresh_token_expires_at, permissions, status")
+    .select("id, user_id, brand_profile_id, platform, page_id, external_account_id, page_name, page_access_token, token_expires_at, refresh_token, refresh_token_expires_at, permissions, status")
     .eq("id", connectionId)
     .eq("user_id", userId)
     .eq("platform", "pinterest")
@@ -103,6 +104,7 @@ async function activatePinterestBoard({
   const activePayload = {
     brand_profile_id: connection.brand_profile_id,
     page_id: String(selected.id),
+    external_account_id: connection.external_account_id || connection.page_id,
     page_name: selected.name || "Pinterest board",
     page_access_token: connection.page_access_token,
     token_expires_at: connection.token_expires_at,
@@ -206,6 +208,14 @@ export async function POST(request) {
         return NextResponse.json({ error: "Sandbox board creation is only available in Pinterest Sandbox" }, { status: 400 });
       }
 
+      await preflightSocialConnectionForTrial({
+        supabaseAdmin,
+        userId: user.id,
+        brandProfileId: connection.brand_profile_id,
+        platform: "pinterest",
+        externalAccountId: connection.external_account_id || connection.page_id,
+      });
+
       const preferredName = "Spreelo Test";
       let selected = loaded.boards.find(
         (board) => String(board?.name || "").trim().toLowerCase() === preferredName.toLowerCase()
@@ -221,6 +231,22 @@ export async function POST(request) {
         });
       }
 
+      const board = await activatePinterestBoard({
+        supabaseAdmin,
+        userId: user.id,
+        connectionId,
+        connection,
+        selected,
+      });
+
+      await authorizeSocialConnectionForTrial({
+        supabaseAdmin,
+        userId: user.id,
+        brandProfileId: connection.brand_profile_id,
+        platform: "pinterest",
+        externalAccountId: connection.external_account_id || connection.page_id,
+      });
+
       const testImageUrl = new URL(
         "/backgrounds/spreelo-social-hero-desktop-v143-42.png",
         request.url
@@ -234,14 +260,6 @@ export async function POST(request) {
           source_type: "image_url",
           url: testImageUrl,
         },
-      });
-
-      const board = await activatePinterestBoard({
-        supabaseAdmin,
-        userId: user.id,
-        connectionId,
-        connection,
-        selected,
       });
 
       console.info("Pinterest Sandbox board ready", {
@@ -266,12 +284,28 @@ export async function POST(request) {
     const selected = loaded.boards.find((board) => String(board.id) === boardId);
     if (!selected) return NextResponse.json({ error: "Selected Pinterest board is not available" }, { status: 404 });
 
+    await preflightSocialConnectionForTrial({
+      supabaseAdmin,
+      userId: user.id,
+      brandProfileId: connection.brand_profile_id,
+      platform: "pinterest",
+      externalAccountId: connection.external_account_id || connection.page_id,
+    });
+
     const board = await activatePinterestBoard({
       supabaseAdmin,
       userId: user.id,
       connectionId,
       connection,
       selected,
+    });
+
+    await authorizeSocialConnectionForTrial({
+      supabaseAdmin,
+      userId: user.id,
+      brandProfileId: connection.brand_profile_id,
+      platform: "pinterest",
+      externalAccountId: connection.external_account_id || connection.page_id,
     });
 
     return NextResponse.json({
@@ -282,6 +316,10 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error("Pinterest board selection failed", error);
+    const trialCode = getTrialRestrictionCode(error);
+    if (trialCode) {
+      return NextResponse.json({ error: trialCode, code: trialCode, trialRestriction: true }, { status: 409 });
+    }
     return NextResponse.json({ error: error.message || "Could not connect Pinterest board" }, { status: 500 });
   }
 }

@@ -774,10 +774,11 @@ export default function Home() {
       setSuggestedCampaign(upcomingCampaigns[0] || null);
     }
 
+    try { await supabase.rpc("refresh_spreelo_free_trial_state"); } catch {}
     const { data: balanceData } = await supabase
       .from("user_credit_balances")
       .select(
-        "credits_remaining, monthly_credit_limit, plan_name, subscription_status, subscription_plan, current_period_end, trial_end"
+        "credits_remaining, monthly_credit_limit, plan_name, subscription_status, subscription_plan, current_period_end, trial_end, free_trial_status, free_trial_credit_amount, free_trial_ends_at"
       )
       .eq("user_id", user.id)
       .single();
@@ -852,8 +853,13 @@ export default function Home() {
       selectedPendingPostIds.includes(postId)
     );
 
-  const creditsRemaining = creditBalance?.credits_remaining ?? 0;
-  const monthlyCreditLimit = creditBalance?.monthly_credit_limit ?? 0;
+  const freeTrialLocked = String(creditBalance?.subscription_plan || creditBalance?.plan_name || "free").toLowerCase() === "free" && String(creditBalance?.free_trial_status || "").toLowerCase() === "locked";
+  const creditsRemaining = freeTrialLocked
+    ? Number(creditBalance?.free_trial_credit_amount || 100)
+    : (creditBalance?.credits_remaining ?? 0);
+  const monthlyCreditLimit = freeTrialLocked
+    ? Number(creditBalance?.free_trial_credit_amount || 100)
+    : (creditBalance?.monthly_credit_limit ?? 0);
 
   const creditUsagePercent =
     monthlyCreditLimit > 0
@@ -1528,7 +1534,7 @@ export default function Home() {
                 <div className="home-v14335-side-title"><CircleDollarSign /><h3>{t("dashboard.creditStatus")}</h3></div>
                 <h2>{creditsRemaining}<span>{t("dashboard.creditsLeft", { limit: monthlyCreditLimit || "—" })}</span></h2>
                 <div><i style={{ width: `${creditUsagePercent}%` }} /></div>
-                <p>{creditBalance?.plan_name || "Free"}</p>
+                <p>{freeTrialLocked ? t("dashboard.freeTrialCreditsLocked") : (creditBalance?.plan_name || "Free")}</p>
                 <a href="/settings">{t("dashboard.manageCredits")} <ArrowRight /></a>
               </section>
             </aside>

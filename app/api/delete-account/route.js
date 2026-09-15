@@ -129,6 +129,30 @@ function extractPostImagePathsFromSlide(slide) {
   return paths;
 }
 
+async function updateRowsByColumn(
+  supabaseAdmin,
+  tableName,
+  columnName,
+  value,
+  updates,
+  { optional = false } = {}
+) {
+  if (!value) return;
+
+  const { error } = await supabaseAdmin
+    .from(tableName)
+    .update(updates)
+    .eq(columnName, value);
+
+  if (error) {
+    if (optional && isIgnorableOptionalError(error)) {
+      console.warn(`Delete account optional anonymization skipped for ${tableName}.${columnName}:`, error.message);
+      return;
+    }
+    throw new Error(`${tableName}: ${error.message}`);
+  }
+}
+
 async function deleteRowsByColumn(
   supabaseAdmin,
   tableName,
@@ -740,6 +764,63 @@ export async function POST(request) {
     await deleteRowsByColumn(
       supabaseAdmin,
       "trial_claims",
+      "user_id",
+      userId,
+      { optional: true }
+    );
+
+    // v144.180: preserve only the minimum anti-abuse evidence needed to stop
+    // repeated free trials after account deletion. Personal account/brand links
+    // are removed, while the hashed social fingerprint / claimed domain remains.
+    const trialAnonymizedAt = new Date().toISOString();
+    await updateRowsByColumn(
+      supabaseAdmin,
+      "trial_social_account_claims",
+      "user_id",
+      userId,
+      {
+        user_id: null,
+        brand_profile_id: null,
+        status: "consumed",
+        trial_ended_at: trialAnonymizedAt,
+        updated_at: trialAnonymizedAt,
+      },
+      { optional: true }
+    );
+    await updateRowsByColumn(
+      supabaseAdmin,
+      "trial_business_claims",
+      "user_id",
+      userId,
+      {
+        user_id: null,
+        brand_profile_id: null,
+        status: "consumed",
+        pending_expires_at: null,
+        trial_ended_at: trialAnonymizedAt,
+        provider_customer_id: null,
+        provider_subscription_id: null,
+        updated_at: trialAnonymizedAt,
+      },
+      { optional: true }
+    );
+    await deleteRowsByColumn(
+      supabaseAdmin,
+      "brand_analysis_usage_alerts",
+      "user_id",
+      userId,
+      { optional: true }
+    );
+    await deleteRowsByColumn(
+      supabaseAdmin,
+      "brand_analysis_usage_events",
+      "user_id",
+      userId,
+      { optional: true }
+    );
+    await deleteRowsByColumn(
+      supabaseAdmin,
+      "brand_analysis_limit_hit_counters",
       "user_id",
       userId,
       { optional: true }

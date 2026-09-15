@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildSocialOAuthResultUrl } from "../../../../../lib/socialOAuthResult";
+import { authorizeSocialConnectionForTrial, getTrialRestrictionCode, preflightSocialConnectionForTrial } from "../../../../../lib/freeTrial.js";
 import {
   createSupabaseAdminClient,
   exchangeThreadsCodeForShortToken,
@@ -64,6 +65,12 @@ export async function GET(request) {
     const threadsUserId = profile?.id || shortToken.userId;
     if (!threadsUserId) throw new Error("Threads profile did not return a user id");
 
+    callbackStage = "trial_preflight";
+    await preflightSocialConnectionForTrial({
+      supabaseAdmin, userId: decoded.userId, brandProfileId: decoded.brandProfileId,
+      platform: "threads", externalAccountId: threadsUserId,
+    });
+
     callbackStage = "save";
     await saveThreadsConnection({
       supabaseAdmin,
@@ -75,6 +82,12 @@ export async function GET(request) {
       tokenExpiresAt: getThreadsTokenExpiresAt(longToken.expiresIn),
     });
 
+    callbackStage = "trial";
+    await authorizeSocialConnectionForTrial({
+      supabaseAdmin, userId: decoded.userId, brandProfileId: decoded.brandProfileId,
+      platform: "threads", externalAccountId: threadsUserId,
+    });
+
     const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { connected: "threads" }));
     response.cookies.delete("spreelo_threads_oauth_state");
     return response;
@@ -83,7 +96,8 @@ export async function GET(request) {
       message: error?.message,
       stack: error?.stack,
     });
-    const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { error: "threads_callback_failed" }));
+    const trialCode = getTrialRestrictionCode(error);
+    const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { error: trialCode || "threads_callback_failed" }));
     response.cookies.delete("spreelo_threads_oauth_state");
     return response;
   }

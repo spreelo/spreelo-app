@@ -48,6 +48,11 @@ import { submitKlingImageToVideo } from "../../../../lib/kling.js";
 import { selectBestVideoMusic } from "../../../../lib/videoMusicLibrary.js";
 import { createGenerationCostTracker, ensureOpenAIResponseCostTracked, wrapOpenAIForCostTracking } from "../../../../lib/generationCostTracking.js";
 import {
+  BRAND_429_RESCUE_INTERNAL_MESSAGE,
+  buildBrand429RescueUpdate,
+  isBrand429RescueActive,
+} from "../../../../lib/brandWebsiteRescue.js";
+import {
   buildVideoBackgroundProfile,
   chooseVideoBackground,
 } from "../../../../lib/videoBackgroundSelection.js";
@@ -56,6 +61,7 @@ import {
   chooseImageBackground,
 } from "../../../../lib/imageBackgroundSelection.js";
 import { createPlanPreviewToken } from "../../../../lib/planPreviewToken.js";
+import { refreshFreeTrialStateForUser } from "../../../../lib/freeTrial.js";
 import {
   cancelCampaignResearchJobsForOccurrence,
   cancelOtherActiveCampaignResearchJobs,
@@ -12803,6 +12809,14 @@ function classifyAutomationCreationFailure(errorOrMessage, stage = "unhandled") 
   const normalized = message.toLowerCase();
   const normalizedStage = String(stage || "unhandled").toLowerCase();
 
+  if (["WEBSITE_RATE_LIMITED", "WEBSITE_429_RESCUE_ACTIVE"].includes(String(errorOrMessage?.code || ""))) {
+    return {
+      code: "website_rate_limit_rescue",
+      customerMessage:
+        "The website returned 429 Too Many Requests. Spreelo has routed this occurrence to Admin Rescue and future website-dependent generations for this brand will stay in Rescue until an administrator re-enables normal flow.",
+    };
+  }
+
   if (errorOrMessage?.code === "WEBSITE_RATE_LIMIT_RETRY_EXHAUSTED") {
     return {
       code: "website_rate_limit_exhausted",
@@ -12847,9 +12861,9 @@ function classifyAutomationCreationFailure(errorOrMessage, stage = "unhandled") 
     !/openai|quota|billing/.test(normalized)
   ) {
     return {
-      code: "website_rate_limited",
+      code: "website_rate_limit_rescue",
       customerMessage:
-        "The website temporarily limited access. Spreelo has paused this post and will continue automatically after the website cooldown ends.",
+        "The website returned a rate limit. Spreelo has routed this occurrence to Admin Rescue and future website-dependent generations for this brand will stay in Rescue until an administrator re-enables normal flow.",
     };
   }
 
@@ -13572,6 +13586,43 @@ async function sendAutomationCreationFailureEmail({
   return { status: "suppressed", reason: "admin_review_required" };
 }
 
+async function markBrandFor429Rescue({ supabase, rule, brandProfile, errorOrMessage }) {
+  const brandProfileId = rule?.brand_profile_id || brandProfile?.id || null;
+  if (!brandProfileId) return { updated: false, reason: "missing_brand_profile" };
+
+  const nowIso = new Date().toISOString();
+  const payload = buildBrand429RescueUpdate({ enabled: true, nowIso });
+  const { data, error } = await supabase
+    .from("brand_profiles")
+    .update(payload)
+    .eq("id", brandProfileId)
+    .eq("user_id", rule?.user_id || brandProfile?.user_id || "")
+    .select("id, website_access_status, website_access_status_code, website_access_message, website_access_checked_at")
+    .maybeSingle();
+
+  if (error) {
+    console.warn("Could not mark brand for 429 Rescue", {
+      brandProfileId,
+      ruleId: rule?.id || null,
+      message: error.message,
+    });
+    return { updated: false, reason: error.message || "update_failed" };
+  }
+
+  if (brandProfile && typeof brandProfile === "object") {
+    Object.assign(brandProfile, data || payload);
+  }
+
+  console.warn("Brand switched to 429 Rescue after website rate limit", {
+    brandProfileId,
+    ruleId: rule?.id || null,
+    websiteDomain: getWebsiteFetchDomain(errorOrMessage?.domain || errorOrMessage?.url || brandProfile?.website_url || rule?.website_url || ""),
+    detectedAt: data?.website_access_checked_at || nowIso,
+  });
+
+  return { updated: true, brand: data || { id: brandProfileId, ...payload } };
+}
+
 async function deferAutomationOccurrenceForWebsiteRateLimit({
   supabase,
   occurrenceId,
@@ -13860,39 +13911,43 @@ async function failAutomationOccurrenceTerminal({
       }
     }
 
-    await sendImmediateAdminFailureAlertEmail({
-      supabase,
-      resendApiKey,
-      rule,
-      brandProfile: resolvedBrandProfile,
-      occurrenceId,
-      runLogId: incidentContext?.runLogId || metadata?.run_log_id || null,
-      failureCode: failure.code,
-      stage: stage || "unhandled",
-      message: internalMessage,
-      errorStack: errorOrMessage?.stack || null,
-      productItems: repairProductItems,
-      kind: "generation",
-      severity: "critical",
-      workerName: incidentContext?.workerName || metadata?.worker_name || null,
-      scheduledFor,
-      retryCount: incidentContext?.retryCount ?? metadata?.retry_count ?? null,
-      retryLimit: incidentContext?.retryLimit ?? metadata?.retry_limit ?? null,
-      queueContext: incidentContext?.queueContext || null,
-      workerActivity: incidentContext?.workerActivity || [],
-      metadata: metadata || {},
-    });
+    if (metadata?.suppress_immediate_admin_alert !== true) {
+      await sendImmediateAdminFailureAlertEmail({
+        supabase,
+        resendApiKey,
+        rule,
+        brandProfile: resolvedBrandProfile,
+        occurrenceId,
+        runLogId: incidentContext?.runLogId || metadata?.run_log_id || null,
+        failureCode: failure.code,
+        stage: stage || "unhandled",
+        message: internalMessage,
+        errorStack: errorOrMessage?.stack || null,
+        productItems: repairProductItems,
+        kind: "generation",
+        severity: "critical",
+        workerName: incidentContext?.workerName || metadata?.worker_name || null,
+        scheduledFor,
+        retryCount: incidentContext?.retryCount ?? metadata?.retry_count ?? null,
+        retryLimit: incidentContext?.retryLimit ?? metadata?.retry_limit ?? null,
+        queueContext: incidentContext?.queueContext || null,
+        workerActivity: incidentContext?.workerActivity || [],
+        metadata: metadata || {},
+      });
+    }
 
-    const notification = await sendAutomationCreationFailureEmail({
-      supabase,
-      resendApiKey,
-      rule,
-      brandProfile: resolvedBrandProfile,
-      occurrenceId,
-      customerMessage: failure.customerMessage,
-      refundedCredits,
-    });
-    notificationStatus = notification.status;
+    if (metadata?.suppress_customer_notification !== true) {
+      const notification = await sendAutomationCreationFailureEmail({
+        supabase,
+        resendApiKey,
+        rule,
+        brandProfile: resolvedBrandProfile,
+        occurrenceId,
+        customerMessage: failure.customerMessage,
+        refundedCredits,
+      });
+      notificationStatus = notification.status;
+    }
   }
 
   return {
@@ -14053,7 +14108,7 @@ async function getBrandProfileForRule(supabase, rule) {
   const { data, error } = await supabase
     .from("brand_profiles")
     .select(
-  "id, business_name, website_url, website_product_source_url, website_product_mode_available, website_product_mode_reason, brand_description, industry, target_audience, content_market, country_code, content_language, logo_url, logo_storage_path, logo_enabled_by_default"
+  "id, business_name, website_url, website_product_source_url, website_product_mode_available, website_product_mode_reason, website_access_status, website_access_status_code, website_access_message, website_access_checked_at, brand_description, industry, target_audience, content_market, country_code, content_language, logo_url, logo_storage_path, logo_enabled_by_default"
 )
     .eq("id", rule.brand_profile_id)
     .eq("user_id", rule.user_id)
@@ -44792,6 +44847,37 @@ async function runAutomationCron(request, options = {}) {
         return result;
       };
 
+      const rescueCurrentOccurrenceForWebsiteRateLimit = async (
+        errorOrMessage,
+        stage,
+        extraSummary = {}
+      ) => {
+        const rescueState = await markBrandFor429Rescue({
+          supabase,
+          rule,
+          brandProfile: automationBrandProfile,
+          errorOrMessage,
+        });
+        const rescueError = new Error(
+          String(errorOrMessage?.message || BRAND_429_RESCUE_INTERNAL_MESSAGE)
+        );
+        rescueError.code = "WEBSITE_429_RESCUE_ACTIVE";
+        rescueError.status = 429;
+        rescueError.domain =
+          errorOrMessage?.domain ||
+          getWebsiteFetchDomain(errorOrMessage?.url || automationBrandProfile?.website_url || rule?.website_url || "");
+        await failCurrentOccurrence(rescueError, stage, {
+          ...(extraSummary || {}),
+          brand_429_rescue: true,
+          brand_429_rescue_auto_enabled: Boolean(rescueState?.updated),
+          website_domain: rescueError.domain || null,
+          automatic_retry_scheduled: false,
+        });
+        summary.website_rate_limit_rescue_handoffs =
+          Number(summary.website_rate_limit_rescue_handoffs || 0) + 1;
+        return { terminal: true, rescue: true, domain: rescueError.domain || null };
+      };
+
       const deferCurrentOccurrenceForWebsiteRateLimit = async (
         errorOrMessage,
         stage,
@@ -45523,10 +45609,65 @@ async function runAutomationCron(request, options = {}) {
           continue;
         }
 
+        if (rule.uses_website_content && isBrand429RescueActive(automationBrandProfile)) {
+          automationCurrentStage = "brand_429_rescue_gate";
+          const rescueError = new Error(BRAND_429_RESCUE_INTERNAL_MESSAGE);
+          rescueError.code = "WEBSITE_429_RESCUE_ACTIVE";
+          rescueError.status = 429;
+          await failCurrentOccurrence(rescueError, automationCurrentStage, {
+            brand_429_rescue: true,
+            brand_429_rescue_precheck: true,
+            suppress_immediate_admin_alert: true,
+            suppress_customer_notification: true,
+            automatic_retry_scheduled: false,
+            website_domain: getWebsiteFetchDomain(
+              automationBrandProfile?.website_product_source_url ||
+                automationBrandProfile?.website_url ||
+                rule.website_url ||
+                ""
+            ),
+          });
+          summary.errors += 1;
+          summary.website_rate_limit_rescue_prevented_paid_generation =
+            Number(summary.website_rate_limit_rescue_prevented_paid_generation || 0) + 1;
+          continue;
+        }
+
         if (isAnimatedVideoRule(rule)) {
           animatedVideoRendersThisRun += 1;
         }
 
+
+        // v144.180: refresh the cardless Free-trial state before any paid
+        // generation work. This closes the server-side gap where an expired or
+        // still-locked trial could otherwise reach AI generation with stale
+        // credits/reservations before the final debit was rejected.
+        if (!isAdminTestRun) {
+          let refreshedTrialBalance = null;
+          try {
+            refreshedTrialBalance = await refreshFreeTrialStateForUser(supabase, rule.user_id);
+          } catch (trialRefreshError) {
+            const message = trialRefreshError?.message || "Could not validate free trial state";
+            await failCurrentOccurrence(message, "free_trial_credit_gate");
+            summary.errors += 1;
+            summary.no_credit_balance += 1;
+            continue;
+          }
+
+          const refreshedPlan = String(
+            refreshedTrialBalance?.subscription_plan || refreshedTrialBalance?.plan_name || "free"
+          ).trim().toLowerCase();
+          const refreshedTrialStatus = String(refreshedTrialBalance?.free_trial_status || "").trim().toLowerCase();
+          if (refreshedPlan === "free" && ["locked", "expired"].includes(refreshedTrialStatus)) {
+            await failCurrentOccurrence("Not enough credits", "free_trial_credit_gate", {
+              free_trial_status: refreshedTrialStatus,
+              prevented_paid_generation: true,
+            });
+            summary.errors += 1;
+            summary.not_enough_credits += 1;
+            continue;
+          }
+        }
 
         const creditCost = Number(rule.credit_cost || 1);
         const hasReservedCredits =
@@ -45670,11 +45811,8 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
             const canUseCampaignDeliveryFallback =
               isCarouselRule(rule) &&
               isCampaignScopedWebsiteRule(rule) &&
-              (
-                isWebsiteRateLimitError(carouselError) ||
-                carouselError?.code ===
-                  "CAMPAIGN_CAROUSEL_INSUFFICIENT_PRODUCTS"
-              );
+              carouselError?.code ===
+                "CAMPAIGN_CAROUSEL_INSUFFICIENT_PRODUCTS";
 
             if (canUseCampaignDeliveryFallback) {
               websiteSourceUrl =
@@ -45753,7 +45891,7 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
                 websiteRateLimited: isWebsiteRateLimitError(carouselError),
               });
             } else if (isWebsiteRateLimitError(carouselError)) {
-              const rateLimitResult = await deferCurrentOccurrenceForWebsiteRateLimit(
+              await rescueCurrentOccurrenceForWebsiteRateLimit(
                 carouselError,
                 "carousel_product_prepare",
                 {
@@ -45763,12 +45901,8 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
                     carouselError?.productEngineDiagnostics || null,
                 }
               );
-              if (rateLimitResult.terminal) {
-                summary.errors += 1;
-                summary.website_content_failed += 1;
-              } else {
-                summary.skipped += 1;
-              }
+              summary.errors += 1;
+              summary.website_content_failed += 1;
               continue;
             } else {
               await failCurrentOccurrence(carouselError, "carousel_product_prepare", {
@@ -47803,14 +47937,10 @@ product_research_model_used: websitePreparedRule.uses_website_content
           automationOccurrenceId &&
           isWebsiteRateLimitError(error)
         ) {
-          const rateLimitResult = await deferCurrentOccurrenceForWebsiteRateLimit(error, failureStage, {
+          await rescueCurrentOccurrenceForWebsiteRateLimit(error, failureStage, {
             website_domain: getWebsiteFetchDomain(error?.domain || error?.url || ""),
           });
-          if (rateLimitResult.terminal) {
-            summary.errors += 1;
-          } else {
-            summary.skipped += 1;
-          }
+          summary.errors += 1;
         } else if (
           automationOccurrenceClaimed &&
           automationOccurrenceId &&

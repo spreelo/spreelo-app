@@ -144,6 +144,7 @@ function getConnectEndpoint(platformKey) {
 }
 
 const SOCIAL_OAUTH_MESSAGE_TYPE = "spreelo-social-oauth-result";
+const FREE_TRIAL_RESTRICTION_ERRORS = new Set(["trial_social_account_used", "trial_account_already_used", "trial_business_already_used"]);
 
 function getOAuthPopupFeatures() {
   const width = 620;
@@ -219,6 +220,9 @@ function getSocialUrlMessageFromValues({ t, connected, error, pinterestTestPin }
     tiktok_publish_scope_denied: "social.errorTikTokScope",
     tiktok_token_failed: "social.errorTikTokToken",
     tiktok_callback_failed: "social.errorTikTokCallback",
+    trial_social_account_used: "social.trialRestrictionText",
+    trial_account_already_used: "social.trialAccountUsedText",
+    trial_business_already_used: "social.trialBusinessUsedText",
   };
 
   return t(knownErrors[error] || "social.errorGenericConnect");
@@ -371,6 +375,7 @@ export default function SocialChannelsPage() {
   const [connectingPlatform, setConnectingPlatform] = useState("");
   const [connectionSuccess, setConnectionSuccess] = useState(null);
   const [planLimitDetails, setPlanLimitDetails] = useState(null);
+  const [trialRestrictionCode, setTrialRestrictionCode] = useState("");
   const [oauthFlow, setOauthFlow] = useState(null);
   const oauthPopupRef = useRef(null);
   const oauthPollRef = useRef(null);
@@ -424,6 +429,12 @@ export default function SocialChannelsPage() {
       }
 
       const errorCode = String(event.data?.error || "").trim();
+      if (FREE_TRIAL_RESTRICTION_ERRORS.has(errorCode)) {
+        setTrialRestrictionCode(errorCode);
+        setMessage("");
+        setMessageKind("info");
+        return;
+      }
       const errorMessage = getSocialUrlMessageFromValues({ t: tRef.current, error: errorCode });
       setMessage(errorMessage || tRef.current("social.errorGenericConnect"));
       setMessageKind("error");
@@ -534,11 +545,17 @@ export default function SocialChannelsPage() {
     }
 
     setConnectionsByPlatform(getLatestConnectionsByPlatform(connections || []));
-    const connectedPlatformKey = new URLSearchParams(window.location.search).get("connected");
+    const urlParams = new URLSearchParams(window.location.search);
+    const connectedPlatformKey = urlParams.get("connected");
+    const urlErrorCode = String(urlParams.get("error") || "").trim();
     const urlMessage = getSocialUrlMessage({ t });
-    if (urlMessage) {
+    if (FREE_TRIAL_RESTRICTION_ERRORS.has(urlErrorCode)) {
+      setTrialRestrictionCode(urlErrorCode);
+      setMessage("");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (urlMessage) {
       setMessage(urlMessage);
-      setMessageKind(new URLSearchParams(window.location.search).get("error") ? "error" : "success");
+      setMessageKind(urlErrorCode ? "error" : "success");
       if (connectedPlatformKey) {
         const platform = selectedPlatforms.find((item) => item.key === connectedPlatformKey);
         if (platform) setConnectionSuccess({ platform, brandName: selectedBrand.business_name || "" });
@@ -779,6 +796,20 @@ export default function SocialChannelsPage() {
                 <button type="button" className="primary" onClick={continueOAuthFlow}>
                   {t("social.oauthContinue")}
                 </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+        {trialRestrictionCode ? (
+          <div className="social-trial-restriction-backdrop" role="presentation">
+            <section className="social-trial-restriction-modal" role="dialog" aria-modal="true" aria-label={t(trialRestrictionCode === "trial_business_already_used" ? "social.trialBusinessUsedTitle" : trialRestrictionCode === "trial_account_already_used" ? "social.trialAccountUsedTitle" : "social.trialRestrictionTitle")}>
+              <span className="social-trial-restriction-icon"><ShieldCheck size={24} aria-hidden="true" /></span>
+              <p className="social-v74-eyebrow">{t("social.trialRestrictionEyebrow")}</p>
+              <h2>{t(trialRestrictionCode === "trial_business_already_used" ? "social.trialBusinessUsedTitle" : trialRestrictionCode === "trial_account_already_used" ? "social.trialAccountUsedTitle" : "social.trialRestrictionTitle")}</h2>
+              <p>{t(trialRestrictionCode === "trial_business_already_used" ? "social.trialBusinessUsedText" : trialRestrictionCode === "trial_account_already_used" ? "social.trialAccountUsedText" : "social.trialRestrictionText")}</p>
+              <div className="social-trial-restriction-actions">
+                <button type="button" onClick={() => setTrialRestrictionCode("")}>{t("social.trialRestrictionCancel")}</button>
+                <button type="button" className="primary" onClick={() => { window.location.href = "/settings#spreelo-plans"; }}>{t("social.trialRestrictionPlans")}</button>
               </div>
             </section>
           </div>
