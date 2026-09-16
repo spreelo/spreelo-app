@@ -23,6 +23,7 @@ const ECONOMICS_COLUMNS = [
   "active",
   "sort_order",
   "customer_credit_cost",
+  "credit_variant_prices",
   "estimated_cost_sek",
   "available_starter",
   "available_growth",
@@ -49,6 +50,20 @@ function parseCredit(value, fallback = 10) {
   return parsed;
 }
 
+
+function parseCreditVariantPrices(value, fallback = {}) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : fallback;
+  const result = {};
+  Object.entries(source || {}).forEach(([rawKey, rawValue]) => {
+    const key = String(rawKey || "").trim().toLowerCase();
+    if (!/^[a-z][a-z0-9_]{1,50}$/.test(key)) return;
+    const parsed = Number.parseInt(rawValue, 10);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100000) return;
+    result[key] = parsed;
+  });
+  return result;
+}
+
 function parseEstimatedCost(value) {
   if (value === "" || value == null) return null;
   const parsed = Number(value);
@@ -65,6 +80,7 @@ function changedFields(before = {}, after = {}) {
     "category",
     "active",
     "customer_credit_cost",
+    "credit_variant_prices",
     "estimated_cost_sek",
     "available_starter",
     "available_growth",
@@ -108,6 +124,21 @@ function sanitizeUpdate(body, existing, userId) {
   const category = ALLOWED_CATEGORIES.has(requestedCategory)
     ? requestedCategory
     : existing.category || defaults.category || "popular";
+  let creditVariantPrices = parseCreditVariantPrices(
+    body?.credit_variant_prices,
+    existing.credit_variant_prices || {}
+  );
+  if (existing.content_type_id === "engagement_humor") {
+    const hasExplicitVariantPrices =
+      body?.credit_variant_prices &&
+      typeof body.credit_variant_prices === "object" &&
+      !Array.isArray(body.credit_variant_prices);
+    if (hasExplicitVariantPrices && Number(creditVariantPrices.ai_video) > 0) {
+      currentCredit = Number(creditVariantPrices.ai_video);
+    } else {
+      creditVariantPrices = { ...creditVariantPrices, ai_video: currentCredit };
+    }
+  }
 
   return {
     content_type_id: existing.content_type_id,
@@ -116,6 +147,7 @@ function sanitizeUpdate(body, existing, userId) {
     category,
     active: body?.active === true,
     customer_credit_cost: currentCredit,
+    credit_variant_prices: creditVariantPrices,
     estimated_cost_sek: parseEstimatedCost(body?.estimated_cost_sek),
     available_starter: body?.available_starter !== false,
     available_growth: body?.available_growth !== false,
@@ -387,6 +419,7 @@ export async function POST(request) {
       active: false,
       sort_order: Math.max(1000, Number(body?.sort_order || 9999)),
       customer_credit_cost: parseCredit(body?.customer_credit_cost, 10),
+      credit_variant_prices: parseCreditVariantPrices(body?.credit_variant_prices, {}),
       estimated_cost_sek: parseEstimatedCost(body?.estimated_cost_sek),
       available_starter: body?.available_starter !== false,
       available_growth: body?.available_growth !== false,

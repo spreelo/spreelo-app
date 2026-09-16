@@ -1,4 +1,5 @@
 import { getAuthenticatedBillingUser } from "../../../lib/stripeBilling";
+import { getContentTypePreferredTimes } from "../../../lib/contentPlanningStrategy";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,22 +16,6 @@ const SMART_SLOTS_BY_WEEKDAY = {
   Saturday: ["10:30", "14:30", "16:30", "19:00"],
   Sunday: ["10:30", "16:30", "18:30", "19:30"],
 };
-const TYPE_TIME_PREFERENCES = {
-  website_item: ["11:30", "12:15", "16:30", "18:30"],
-  website_item_text_ad: ["11:30", "12:15", "16:30", "18:30"],
-  animated_website_item: ["16:30", "18:30", "19:00", "12:15"],
-  kling_ai_video: ["16:30", "18:30", "19:00", "12:15"],
-  carousel_website_item: ["12:15", "16:30", "18:30", "19:00"],
-  problem_solution: ["08:30", "12:15", "16:30", "18:30"],
-  tips: ["10:30", "12:15", "18:30", "19:30"],
-  mistakes: ["10:30", "12:15", "18:30", "19:30"],
-  faq: ["12:15", "16:30", "18:30", "10:30"],
-  checklist: ["08:30", "12:15", "18:30", "19:30"],
-  mini_guide: ["12:15", "18:30", "19:30", "10:30"],
-  seasonal: ["10:30", "12:15", "16:30", "18:30"],
-  manual_prompt: ["10:30", "12:15", "16:30"],
-};
-
 function stableHash(value) {
   let hash = 2166136261;
   for (const character of String(value || "")) {
@@ -56,7 +41,7 @@ function distributeInsideDaypart(baseTime, seed) {
 
 function getPreferredTime(contentTypeId, weekday) {
   const allowed = SMART_SLOTS_BY_WEEKDAY[weekday] || SMART_SLOTS_BY_WEEKDAY.Monday;
-  const preferred = TYPE_TIME_PREFERENCES[contentTypeId] || TYPE_TIME_PREFERENCES.manual_prompt;
+  const preferred = getContentTypePreferredTimes(contentTypeId);
   return preferred.find((time) => allowed.includes(time)) || allowed[0] || "10:30";
 }
 
@@ -143,6 +128,8 @@ function startOfWeekDate(dateValue, timeZone = "UTC") {
 }
 
 function getPlanGroupKey(rule) {
+  const explicitGroupId = String(rule?.recurring_plan_group_id || "").trim();
+  if (explicitGroupId) return `group:${explicitGroupId}`;
   return [
     String(rule?.name || "").trim(),
     String(rule?.schedule_type || "").trim(),
@@ -234,6 +221,11 @@ async function loadPlan(context, planRuleId) {
     brandName: brand?.business_name || "",
     timezone: selectedRule.timezone || "UTC",
     planState: selectedRule.plan_state || (selectedRule.is_active ? "active" : "paused"),
+    pauseReason: selectedRule.plan_pause_reason || null,
+    pausedAt: selectedRule.plan_paused_at || null,
+    creditPauseRequiredAmount: Math.max(0, Number(selectedRule.credit_pause_required_amount || 0)),
+    creditPauseBalanceAtPause: Math.max(0, Number(selectedRule.credit_pause_balance_at_pause || 0)),
+    recurringPlanGroupId: selectedRule.recurring_plan_group_id || null,
     today,
     brandProfileId: selectedRule.brand_profile_id || null,
     rules: rules.map((rule) => ({

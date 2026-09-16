@@ -18,7 +18,7 @@ export async function GET() {
 
     const { data, error } = await admin
       .from("content_format_library")
-      .select("content_type_id, display_label, description, icon_name, image_url, image_storage_path, icon_url, icon_storage_path, category, is_featured, active, sort_order, customer_credit_cost, estimated_cost_sek, available_starter, available_growth, available_pro, pending_credit_cost, pending_effective_at, is_custom, updated_at")
+      .select("content_type_id, display_label, description, icon_name, image_url, image_storage_path, icon_url, icon_storage_path, category, is_featured, active, sort_order, customer_credit_cost, credit_variant_prices, estimated_cost_sek, available_starter, available_growth, available_pro, pending_credit_cost, pending_effective_at, is_custom, updated_at")
       .order("sort_order", { ascending: true });
 
     if (error) {

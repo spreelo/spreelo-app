@@ -29,7 +29,10 @@ assert(cron.includes('source: "kling_verified_product_image"'), "Kling path is n
 assert(cron.includes("buildKlingProductVideoPrompt"), "Product-specific Kling creative prompt builder missing");
 assert(cron.includes('supabase.rpc(\n              "claim_kling_video_generation"'), "Atomic Kling generation claim missing");
 assert(cron.includes("submitKlingImageToVideo"), "Kling provider submission missing");
-assert((cron.match(/await submitKlingImageToVideo\(/g) || []).length === 1, "Kling provider must have exactly one submission call path");
+const klingSubmitCallCount = (cron.match(/await submitKlingImageToVideo\(/g) || []).length;
+const klingClaimCallCount = (cron.match(/"claim_kling_video_generation"/g) || []).length;
+assert(klingSubmitCallCount === 3, "Only the normal product-video, admin-rescue product-video and v144.181 engagement-video paths may submit Kling");
+assert(klingClaimCallCount === klingSubmitCallCount, "Every Kling provider submission path must have its own atomic one-shot claim");
 assert(cron.includes("kling_no_retry: true"), "Terminal no-auto-retry metadata missing");
 assert(cron.includes("isShotstackAnimatedVideoRule"), "Shotstack and Kling video paths are not isolated");
 assert(cron.includes('String(post?.video_provider || "").trim().toLowerCase() === "kling"'), "Kling drafts are not protected from old Shotstack stale cleanup");

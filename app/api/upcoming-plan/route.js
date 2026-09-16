@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { verifyPlanPreviewToken } from "../../../lib/planPreviewToken";
 
+import { getContentTypePreferredTimes } from "../../../lib/contentPlanningStrategy";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_TIME_ZONE = "UTC";
@@ -25,22 +26,6 @@ const SMART_SLOTS_BY_WEEKDAY = {
   Saturday: ["10:30", "14:30", "16:30", "19:00"],
   Sunday: ["10:30", "16:30", "18:30", "19:30"],
 };
-const TYPE_TIME_PREFERENCES = {
-  website_item: ["11:30", "12:15", "16:30", "18:30"],
-  website_item_text_ad: ["11:30", "12:15", "16:30", "18:30"],
-  animated_website_item: ["16:30", "18:30", "19:00", "12:15"],
-  kling_ai_video: ["16:30", "18:30", "19:00", "12:15"],
-  carousel_website_item: ["12:15", "16:30", "18:30", "19:00"],
-  problem_solution: ["08:30", "12:15", "16:30", "18:30"],
-  tips: ["10:30", "12:15", "18:30", "19:30"],
-  mistakes: ["10:30", "12:15", "18:30", "19:30"],
-  faq: ["12:15", "16:30", "18:30", "10:30"],
-  checklist: ["08:30", "12:15", "18:30", "19:30"],
-  mini_guide: ["12:15", "18:30", "19:30", "10:30"],
-  seasonal: ["10:30", "12:15", "16:30", "18:30"],
-  manual_prompt: ["10:30", "12:15", "16:30"],
-};
-
 function stableScheduleHash(value) {
   let hash = 2166136261;
   for (const character of String(value || "")) {
@@ -66,7 +51,7 @@ function distributeInsideDaypart(baseTime, seed) {
 
 function getPreferredTime(contentTypeId, weekday) {
   const allowed = SMART_SLOTS_BY_WEEKDAY[weekday] || SMART_SLOTS_BY_WEEKDAY.Monday;
-  const preferred = TYPE_TIME_PREFERENCES[contentTypeId] || TYPE_TIME_PREFERENCES.manual_prompt;
+  const preferred = getContentTypePreferredTimes(contentTypeId);
   return preferred.find((time) => allowed.includes(time)) || allowed[0] || "10:30";
 }
 

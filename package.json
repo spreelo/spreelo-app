@@ -209,7 +209,10 @@
     "test:v144.171": "node scripts/test-v144-171-campaign-rescue-validation.mjs",
     "test:v144.173": "node scripts/test-v144-173-carousel-reuse-after-exhaustion.mjs",
     "test:v144.179": "node scripts/test-v144-179-brand-429-rescue-cost-guard.mjs",
-    "test:v144.180": "node scripts/test-v144-180-free-trial-analysis-guard.mjs"
+    "test:v144.180": "node scripts/test-v144-180-free-trial-analysis-guard.mjs",
+    "test:v144.181": "node scripts/test-v144-181-editorial-quality-credit-controls.mjs",
+    "test:v144.182": "node scripts/test-v144-182-smart-content-mix.mjs",
+    "test:v144.183": "node scripts/test-v144-183-recurring-credit-pause-resume.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

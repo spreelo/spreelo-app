@@ -274,6 +274,8 @@ const DASHBOARD_CONTENT_TYPE_KEYS = {
   tips: "dashboard.contentType.tips",
   mistakes: "dashboard.contentType.commonMistakes",
   faq: "dashboard.contentType.faq",
+  guide_choice: "dashboard.contentType.guideChoice",
+  engagement_humor: "dashboard.contentType.engagementHumor",
   checklist: "dashboard.contentType.checklist",
   service_focus: "dashboard.contentType.serviceFocus",
   seasonal: "dashboard.contentType.seasonal",
@@ -445,6 +447,8 @@ function groupContentPlans(rules = []) {
 }
 
 function getOperationalPlanGroupKey(rule) {
+  const explicitGroupId = String(rule?.recurring_plan_group_id || "").trim();
+  if (explicitGroupId) return `group:${explicitGroupId}`;
   const createdMinute = String(rule?.created_at || "").slice(0, 16);
   const name = String(rule?.name || rule?.content_type_label || rule?.post_type || "").trim();
   const scheduleType = String(rule?.schedule_type || "").trim();
@@ -466,6 +470,11 @@ function groupOperationalPlans(rules = []) {
         next_run_at: null,
         plan_state: rule?.plan_state || "active",
         plan_ended_at: rule?.plan_ended_at || null,
+        recurring_plan_group_id: rule?.recurring_plan_group_id || null,
+        pauseReason: rule?.plan_pause_reason || null,
+        pausedAt: rule?.plan_paused_at || null,
+        creditPauseRequiredAmount: Math.max(0, Number(rule?.credit_pause_required_amount || 0)),
+        creditPauseBalanceAtPause: Math.max(0, Number(rule?.credit_pause_balance_at_pause || 0)),
         rules: [],
         ruleIds: [],
       });
@@ -475,6 +484,11 @@ function groupOperationalPlans(rules = []) {
     group.ruleIds.push(rule.id);
     if (rule?.plan_state === "ended") group.plan_state = "ended";
     else if (rule?.plan_state === "paused" && group.plan_state !== "ended") group.plan_state = "paused";
+    if (rule?.plan_pause_reason === "insufficient_credits") group.pauseReason = "insufficient_credits";
+    else if (!group.pauseReason && rule?.plan_pause_reason) group.pauseReason = rule.plan_pause_reason;
+    group.creditPauseRequiredAmount = Math.max(group.creditPauseRequiredAmount || 0, Number(rule?.credit_pause_required_amount || 0));
+    group.creditPauseBalanceAtPause = Math.max(group.creditPauseBalanceAtPause || 0, Number(rule?.credit_pause_balance_at_pause || 0));
+    if (rule?.plan_paused_at && (!group.pausedAt || new Date(rule.plan_paused_at) > new Date(group.pausedAt))) group.pausedAt = rule.plan_paused_at;
     if (rule?.plan_ended_at && (!group.plan_ended_at || new Date(rule.plan_ended_at) > new Date(group.plan_ended_at))) {
       group.plan_ended_at = rule.plan_ended_at;
     }
@@ -703,7 +717,7 @@ export default function Home() {
       }
     }
 
-    const rulesSelect = "id, brand_profile_id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, plan_state, plan_ended_at, content_type_id, content_type_label, content_format, queue_source, uses_website_content, generate_image, approval_required, created_at, generation_occurrence_status, generation_customer_message, generation_refunded_credits, generation_notification_status, generation_occurrence_scheduled_for";
+    const rulesSelect = "id, brand_profile_id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, plan_state, plan_ended_at, recurring_plan_group_id, plan_pause_reason, plan_paused_at, credit_pause_required_amount, credit_pause_balance_at_pause, content_type_id, content_type_label, content_format, queue_source, uses_website_content, generate_image, approval_required, credit_cost, credit_reservation_status, credit_reserved_amount, created_at, generation_occurrence_status, generation_customer_message, generation_refunded_credits, generation_notification_status, generation_occurrence_scheduled_for";
     const legacyRulesSelect = "id, brand_profile_id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, content_type_id, content_type_label, content_format, queue_source, uses_website_content, generate_image, approval_required, created_at, generation_occurrence_status, generation_customer_message, generation_refunded_credits, generation_notification_status, generation_occurrence_scheduled_for";
 
     let rulesResult = await supabase
@@ -714,7 +728,7 @@ export default function Home() {
       .order("next_run_at", { ascending: true });
 
     const lifecycleColumnsMissing = Boolean(
-      rulesResult.error && /plan_state|plan_ended_at|schema cache|PGRST204/i.test(String(rulesResult.error.message || ""))
+      rulesResult.error && /plan_state|plan_ended_at|recurring_plan_group_id|plan_pause_reason|credit_pause_required_amount|schema cache|PGRST204/i.test(String(rulesResult.error.message || ""))
     );
     if (lifecycleColumnsMissing) {
       rulesResult = await supabase
@@ -728,6 +742,11 @@ export default function Home() {
           ...rule,
           plan_state: rule.is_active ? "active" : rule.schedule_type === "weekly" ? "paused" : "active",
           plan_ended_at: null,
+          recurring_plan_group_id: null,
+          plan_pause_reason: null,
+          plan_paused_at: null,
+          credit_pause_required_amount: null,
+          credit_pause_balance_at_pause: null,
         }));
       }
     }
@@ -1019,23 +1038,49 @@ export default function Home() {
         } : rule));
       } else {
         const isActive = nextState === "active";
-        const { error } = await supabase
-          .from("automation_rules")
-          .update({
+        const isCreditPaused = isActive && plan.pauseReason === "insufficient_credits";
+
+        if (isCreditPaused) {
+          const anchorRuleId = plan.ruleIds[0];
+          const { data: resumeResult, error: resumeError } = await supabase.rpc(
+            "resume_credit_paused_recurring_plan",
+            { p_rule_id: anchorRuleId }
+          );
+          if (resumeError) throw resumeError;
+          if (resumeResult?.resumed !== true) {
+            const required = Number(resumeResult?.required_credits || plan.creditPauseRequiredAmount || 0);
+            const available = Number(resumeResult?.credits_remaining ?? creditBalance?.credits_remaining ?? 0);
+            throw new Error(t("dashboard.creditPauseResumeNeedsCredits", { required, available }));
+          }
+          await loadDashboard();
+        } else {
+          const now = new Date().toISOString();
+          const { error } = await supabase
+            .from("automation_rules")
+            .update({
+              is_active: isActive,
+              plan_state: isActive ? "active" : "paused",
+              plan_ended_at: null,
+              plan_pause_reason: isActive ? null : "manual",
+              plan_paused_at: isActive ? null : now,
+              credit_pause_required_amount: null,
+              credit_pause_balance_at_pause: null,
+              updated_at: now,
+            })
+            .eq("brand_profile_id", currentBrandId)
+            .in("id", plan.ruleIds);
+          if (error) throw error;
+          setRules((current) => current.map((rule) => plan.ruleIds.includes(rule.id) ? {
+            ...rule,
             is_active: isActive,
             plan_state: isActive ? "active" : "paused",
             plan_ended_at: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("brand_profile_id", currentBrandId)
-          .in("id", plan.ruleIds);
-        if (error) throw error;
-        setRules((current) => current.map((rule) => plan.ruleIds.includes(rule.id) ? {
-          ...rule,
-          is_active: isActive,
-          plan_state: isActive ? "active" : "paused",
-          plan_ended_at: null,
-        } : rule));
+            plan_pause_reason: isActive ? null : "manual",
+            plan_paused_at: isActive ? null : now,
+            credit_pause_required_amount: null,
+            credit_pause_balance_at_pause: null,
+          } : rule));
+        }
       }
       setMessage(t("dashboard.scheduleUpdated"));
     } catch (error) {
@@ -1056,6 +1101,7 @@ export default function Home() {
   function renderOperationalPlanRow(plan, kind = "recurring") {
     const labels = getOperationalContentLabels(plan);
     const isPaused = plan.plan_state === "paused" || !plan.anyActive;
+    const isCreditPaused = isPaused && plan.pauseReason === "insufficient_credits";
     const actionBusy = scheduleActionLoading === plan.id;
     const nextRun = plan.next_run_at || plan.rules?.map((rule) => rule?.next_run_at || rule?.run_date).find(Boolean);
     return (
@@ -1069,7 +1115,11 @@ export default function Home() {
                 {kind === "recurring" && plan.postsPerWeek ? t("dashboard.postsPerWeek", { count: plan.postsPerWeek }) : null}
                 {kind === "recurring" && plan.postsPerWeek && nextRun ? " · " : null}
                 {nextRun ? t("dashboard.nextRun", { date: formatShortDate(nextRun, t, locale) }) : null}
+                {isCreditPaused ? `${nextRun || plan.postsPerWeek ? " · " : ""}${t("dashboard.planStatus.pausedForCredits")}` : null}
               </small>
+              {isCreditPaused ? (
+                <small>{t("dashboard.creditPauseHelp", { credits: plan.creditPauseRequiredAmount || 0 })}</small>
+              ) : null}
             </div>
           </div>
           <div className="home-v14369-operation-meta">

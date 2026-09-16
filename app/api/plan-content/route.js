@@ -6,6 +6,8 @@ import {
   getContentTypeDestinationPlatforms,
   normalizeSpreeloPlatformList,
 } from "../../../lib/platformContentCompatibility";
+import { hasVerifiedServiceEvidence } from "../../../lib/editorialContentStrategy";
+import { CONTENT_GOAL_WEIGHTS, getContentGoalWeight } from "../../../lib/contentPlanningStrategy";
 
 export const maxDuration = 60;
 
@@ -54,6 +56,13 @@ const FORMAT_DEFINITIONS = [
     purpose: "Use movement to create attention around one verified product.",
   },
   {
+    id: "ai_product_video",
+    label: "AI product video",
+    category: "product",
+    requiresProducts: true,
+    purpose: "Turn one verified product image into a short AI product video when motion adds enough strategic value to justify the higher production cost.",
+  },
+  {
     id: "carousel_website_item",
     label: "Product image carousel",
     category: "product",
@@ -62,58 +71,40 @@ const FORMAT_DEFINITIONS = [
   },
   {
     id: "problem_solution",
-    label: "Problem → Solution",
+    label: "Problem & solution",
     category: "persuasion",
-    purpose: "Start from a real customer need and explain how the business helps.",
+    purpose: "Start from a real customer problem and, when genuinely relevant, connect it to a verified product or service from the business.",
   },
   {
     id: "tips",
-    label: "Tips & advice",
+    label: "Tips & knowledge",
     category: "education",
-    purpose: "Give one practical, useful and easy-to-save tip.",
-  },
-  {
-    id: "mistakes",
-    label: "Common mistakes",
-    category: "education",
-    purpose: "Help customers avoid common mistakes without sounding judgmental.",
+    purpose: "Share useful advice, facts or a strong knowledge angle such as a practical tip, common mistake, myth/fact or useful insight.",
   },
   {
     id: "faq",
-    label: "FAQ / Questions",
+    label: "Question & answer",
     category: "trust",
-    purpose: "Answer a grounded customer question and reduce uncertainty.",
+    purpose: "Answer a grounded customer question using verified company information or safe general knowledge without inventing company policy.",
   },
   {
-    id: "checklist",
-    label: "Checklist",
+    id: "guide_choice",
+    label: "Guide & decision help",
     category: "education",
-    purpose: "Create a structured, useful and save-worthy action list.",
+    purpose: "Help the audience choose correctly or understand how something works through the best fitting guide, checklist or step-by-step structure.",
   },
   {
     id: "service_focus",
     label: "Service in focus",
     category: "service",
     requiresServices: true,
-    purpose: "Explain one verified service and the value it gives the customer.",
+    purpose: "Explain one verified service through the strongest customer-relevant angle and only supported service facts.",
   },
   {
-    id: "myth_fact",
-    label: "Myth vs fact",
-    category: "trust",
-    purpose: "Correct a safe, relevant misconception with a trustworthy explanation.",
-  },
-  {
-    id: "seasonal",
-    label: "Seasonal post",
-    category: "timely",
-    purpose: "Connect the business to a genuinely relevant season or current customer need.",
-  },
-  {
-    id: "mini_guide",
-    label: "Mini-guide",
-    category: "education",
-    purpose: "Teach a useful subject in clear steps or sections.",
+    id: "engagement_humor",
+    label: "Engagement & humour",
+    category: "engagement",
+    purpose: "Create a brand-appropriate idea designed for natural reactions, comments and shares, using humour, choices, questions or relatable situations when they fit.",
   },
 ];
 
@@ -123,68 +114,20 @@ const GOAL_LABELS = {
   build_trust: "Build trust",
 };
 
-const GOAL_WEIGHTS = {
-  sell_more: {
-    website_item: 96,
-    website_item_text_ad: 100,
-    animated_website_item: 92,
-    carousel_website_item: 94,
-    problem_solution: 86,
-    faq: 78,
-    checklist: 68,
-    service_focus: 92,
-    tips: 54,
-    mistakes: 52,
-    myth_fact: 48,
-    seasonal: 58,
-    mini_guide: 62,
-  },
-  get_followers: {
-    tips: 100,
-    mini_guide: 98,
-    mistakes: 94,
-    myth_fact: 91,
-    seasonal: 88,
-    problem_solution: 80,
-    carousel_website_item: 74,
-    animated_website_item: 70,
-    checklist: 82,
-    faq: 68,
-    website_item: 45,
-    website_item_text_ad: 38,
-    service_focus: 52,
-  },
-  build_trust: {
-    faq: 100,
-    tips: 96,
-    checklist: 94,
-    mini_guide: 93,
-    problem_solution: 88,
-    service_focus: 90,
-    myth_fact: 84,
-    mistakes: 80,
-    seasonal: 52,
-    website_item: 58,
-    website_item_text_ad: 42,
-    animated_website_item: 45,
-    carousel_website_item: 56,
-  },
-};
+const GOAL_WEIGHTS = CONTENT_GOAL_WEIGHTS;
 
 const DEFAULT_ROLE_BY_FORMAT = {
   website_item: ["Product recommendation", "Present one relevant product and explain why it fits the current customer need."],
   website_item_text_ad: ["Strong product ad", "Create a visually strong sales moment around one relevant verified product."],
   animated_website_item: ["Attention-driving product Reel", "Use motion to make one relevant product stand out and drive the next step."],
+  ai_product_video: ["AI product video", "Use a verified product image for a short AI video only when motion clearly strengthens the idea."],
   carousel_website_item: ["Curated product collection", "Help the audience discover several relevant products around one clear theme."],
-  problem_solution: ["Recognisable need", "Create recognition around a real customer problem and connect it to a useful solution."],
-  tips: ["Useful expert tip", "Give practical value that supports the selected goal without forcing a sale."],
-  mistakes: ["Avoid a common mistake", "Help the audience avoid a relevant mistake and demonstrate useful expertise."],
-  faq: ["Remove uncertainty", "Answer a grounded question that can reduce doubt and make the next step easier."],
-  checklist: ["Practical checklist", "Turn the business's knowledge into a clear list the audience can save and use."],
-  service_focus: ["Service clarity", "Explain one verified service and why it matters for the right customer."],
-  myth_fact: ["Clarify a misconception", "Correct a safe misconception and build credibility through a clear explanation."],
-  seasonal: ["Timely relevance", "Connect the business to a genuinely relevant current season or customer situation."],
-  mini_guide: ["Save-worthy mini-guide", "Teach a useful subject in a structured way that supports the selected goal."],
+  problem_solution: ["Problem & solution", "Create recognition around a real customer problem and connect it to a genuinely relevant solution."],
+  tips: ["Useful knowledge", "Give practical value through the strongest fitting tip, fact or insight without forcing a sale."],
+  faq: ["Question & answer", "Answer a grounded question that reduces doubt and makes the next step easier."],
+  guide_choice: ["Decision help", "Help the audience choose well or do something correctly in a concise, useful structure."],
+  service_focus: ["Service clarity", "Explain one verified service through a customer-relevant angle and supported facts."],
+  engagement_humor: ["Engagement idea", "Create a brand-appropriate reason for the audience to react, comment or share."],
 };
 
 function safeJsonParse(value) {
@@ -218,24 +161,11 @@ function clampPostCount(value) {
   return Math.min(Math.max(Math.round(numberValue), 1), 7);
 }
 
-function inferServiceEvidence(brandProfile) {
-  const text = [
-    brandProfile?.industry,
-    brandProfile?.brand_description,
-    brandProfile?.target_audience,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
 
-  if (!text) return !brandProfile?.website_product_mode_available;
-
-  return /service|services|agency|consult|consultation|booking|appointment|treatment|repair|installation|cleaning|studio|salon|clinic|coach|training|accounting|legal|photograph|design|marketing|software|saas|platform|support|tjänst|bokning|behandling|reparation|installation|städ|salong|klinik|redovisning|juridik|fotograf|utbildning/.test(text) || !brandProfile?.website_product_mode_available;
-}
 
 function getAvailableFormats(brandProfile) {
   const hasProducts = Boolean(brandProfile?.website_product_mode_available);
-  const hasServices = inferServiceEvidence(brandProfile);
+  const hasServices = hasVerifiedServiceEvidence(brandProfile);
 
   return FORMAT_DEFINITIONS.filter((format) => {
     if (format.requiresProducts && !hasProducts) return false;
@@ -275,6 +205,7 @@ function getDefaultMarketingValues(goalId, formatId) {
     "website_item",
     "website_item_text_ad",
     "animated_website_item",
+    "ai_product_video",
     "carousel_website_item",
   ]);
 
@@ -294,7 +225,7 @@ function getDefaultMarketingValues(goalId, formatId) {
     };
   }
 
-  if (["faq", "myth_fact", "service_focus"].includes(formatId)) {
+  if (["faq", "service_focus"].includes(formatId)) {
     return {
       marketing_angle: "trust",
       customer_stage: "warm",
@@ -303,7 +234,7 @@ function getDefaultMarketingValues(goalId, formatId) {
   }
 
   return {
-    marketing_angle: ["tips", "mistakes", "checklist", "mini_guide"].includes(formatId)
+    marketing_angle: ["tips", "guide_choice"].includes(formatId)
       ? "education"
       : "engagement",
     customer_stage: goalId === "get_followers" ? "cold" : "warm",
@@ -329,7 +260,7 @@ function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory
           selectedPlatforms,
         });
         const score =
-          Number(goalWeights[format.id] || 40) -
+          getContentGoalWeight(goalId, format.id, Number(goalWeights[format.id] || 40)) -
           getRecencyPenalty(format.id, recentHistory) -
           categoryPenalty -
           productPenalty +
@@ -570,7 +501,7 @@ export async function POST(request) {
 
     const { data: brandProfile, error: brandError } = await supabase
       .from("brand_profiles")
-      .select("id, business_name, website_url, industry, target_audience, brand_description, country_code, content_market, content_language, website_product_mode_available")
+      .select("id, business_name, website_url, industry, target_audience, brand_description, country_code, content_market, content_language, website_product_mode_available, website_product_mode_reason, website_product_source_url, website_service_mode_available, website_service_mode_reason, website_service_source_url")
       .eq("id", brandProfileId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -639,7 +570,7 @@ BUSINESS
 - Market: ${brandProfile.content_market || brandProfile.country_code || ""}
 - Content language: ${brandProfile.content_language || ""}
 - Verified product mode available: ${Boolean(brandProfile.website_product_mode_available)}
-- Verified service evidence: ${inferServiceEvidence(brandProfile)}
+- Verified service evidence: ${hasVerifiedServiceEvidence(brandProfile)}
 
 PLAN
 - Goal: ${GOAL_LABELS[goalId]}
@@ -670,8 +601,9 @@ RULES
 - Spreelo creates one master content idea and uses platform adapters where listed. Do not invent separate creative concepts for each channel.
 - Do not select Custom post/manual_prompt, discount campaigns, focused-page input, customer cases, local-angle posts, comparisons or behind-the-scenes posts.
 - Do not select product formats unless verified product mode is available.
+- Treat ai_product_video as a premium motion format. Select it only when motion clearly adds strategic value; prefer a lower-cost product format when a static or lighter-motion format can do the job equally well.
 - Select service_focus only when there is credible service evidence.
-- Select seasonal only when the market, date and business create a genuinely useful timely angle.
+- Seasonality is a context layer, not a format. Use timely or seasonal framing only when it genuinely improves one of the available editorial ideas.
 - Do not repeat a format in the same week unless there are too few valid formats. Prefer meaningful variety over a fixed sequence.
 - Avoid formats used in the most recent posts when equally strong alternatives exist. Look across roughly the last 8-12 weeks.
 - Also avoid repeating the same product or subject visible in recent history; the later generation system will select exact products, but the plan should create room for variety.

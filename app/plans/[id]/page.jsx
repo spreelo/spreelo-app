@@ -6,6 +6,7 @@ import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Clock3, Lock, Save,
 import AppLayout from "../../../components/AppLayout";
 import { supabase } from "../../../lib/supabaseClient";
 import { useUiText } from "../../../lib/i18n/useUiText";
+import { getContentTypePreferredTimes } from "../../../lib/contentPlanningStrategy";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -16,15 +17,6 @@ const SMART_SLOTS_BY_WEEKDAY = {
   Friday: ["09:30", "11:30", "16:30", "18:30"], Saturday: ["10:30", "14:30", "16:30", "19:00"],
   Sunday: ["10:30", "16:30", "18:30", "19:30"],
 };
-const TYPE_TIME_PREFERENCES = {
-  website_item: ["11:30", "12:15", "16:30", "18:30"], website_item_text_ad: ["11:30", "12:15", "16:30", "18:30"],
-  animated_website_item: ["16:30", "18:30", "19:00", "12:15"], kling_ai_video: ["16:30", "18:30", "19:00", "12:15"],
-  carousel_website_item: ["12:15", "16:30", "18:30", "19:00"], problem_solution: ["08:30", "12:15", "16:30", "18:30"],
-  tips: ["10:30", "12:15", "18:30", "19:30"], faq: ["12:15", "16:30", "18:30", "10:30"],
-  checklist: ["08:30", "12:15", "18:30", "19:30"], mini_guide: ["12:15", "18:30", "19:30", "10:30"],
-  seasonal: ["10:30", "12:15", "16:30", "18:30"], manual_prompt: ["10:30", "12:15", "16:30"],
-};
-
 function addDays(dateValue, days) {
   const [year, month, day] = String(dateValue || "").split("-").map(Number);
   if (![year, month, day].every(Number.isFinite)) return "";
@@ -67,7 +59,7 @@ function weekdayFromDate(dateValue) {
 function preferredDisplayTime(contentTypeId, dateValue, fallbackTime) {
   const weekday = weekdayFromDate(dateValue);
   const allowed = SMART_SLOTS_BY_WEEKDAY[weekday] || [];
-  const preferred = TYPE_TIME_PREFERENCES[contentTypeId] || TYPE_TIME_PREFERENCES.manual_prompt;
+  const preferred = getContentTypePreferredTimes(contentTypeId);
   return preferred.find((time) => allowed.includes(time)) || allowed[0] || fallbackTime || "10:30";
 }
 
@@ -239,10 +231,15 @@ export default function RecurringPlanManager() {
           <a href="/" className="plan-manager-back"><ArrowLeft size={17} />{t("planManager.backHome")}</a>
           <header className="plan-manager-hero">
             <div><span>{t("planManager.eyebrow")}</span><h1>{plan?.name || t("planManager.title")}</h1><p>{plan?.brandName ? `${plan.brandName} · ` : ""}{t("planManager.subtitle")}</p></div>
-            <div className={`plan-manager-state ${plan?.planState === "paused" ? "paused" : "active"}`}><span />{plan?.planState === "paused" ? t("planManager.paused") : t("planManager.active")}</div>
+            <div className={`plan-manager-state ${plan?.planState === "paused" ? "paused" : "active"}`}><span />{plan?.planState === "paused" ? (plan?.pauseReason === "insufficient_credits" ? t("planManager.pausedForCredits") : t("planManager.paused")) : t("planManager.active")}</div>
           </header>
 
           {message ? <div className="plan-manager-message">{message}</div> : null}
+          {!loading && plan?.pauseReason === "insufficient_credits" ? (
+            <div className="plan-manager-message">
+              {t("planManager.creditPauseHelp", { credits: plan.creditPauseRequiredAmount || 0 })}
+            </div>
+          ) : null}
           {loading ? <section className="plan-manager-loading">{t("planManager.loading")}</section> : null}
 
           {!loading && plan ? (

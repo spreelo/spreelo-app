@@ -515,6 +515,16 @@ async function validateFinishedKlingProductIdentity({ openai, supabase, post, ta
   if (!selection || typeof selection !== "object" || Array.isArray(selection)) {
     throw new Error("Kling finished-video product identity metadata is missing");
   }
+  if (selection.identity_validation_required === false) {
+    return {
+      passed: true,
+      cached: true,
+      validation: {
+        status: "not_required",
+        reason: "This Kling task is an engagement concept video without a locked verified product identity.",
+      },
+    };
+  }
 
   const existing = selection?.product_video_validation;
   if (existing?.status === "passed") {

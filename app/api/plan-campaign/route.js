@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
+import { hasVerifiedServiceEvidence } from "../../../lib/editorialContentStrategy";
 
 export const maxDuration = 60;
 
@@ -25,6 +26,7 @@ const allowedCtaStrengths = new Set(["soft", "medium", "strong"]);
 const allowedContentModes = new Set([
   "website_product_ad",
   "website_reel",
+  "website_ai_video",
   "generic_campaign",
   "mixed_campaign_and_website",
   "website_product",
@@ -35,6 +37,8 @@ const allowedContentModes = new Set([
   "problem_solution",
   "tips",
   "faq",
+  "guide_choice",
+  "engagement_humor",
   "checklist",
   "mistakes",
   "myth_fact",
@@ -46,11 +50,14 @@ const actionableContentModes = new Set([
   "website_product",
   "website_product_ad",
   "website_reel",
+  "website_ai_video",
   "website_service",
   "website_carousel",
   "problem_solution",
   "tips",
   "faq",
+  "guide_choice",
+  "engagement_humor",
   "checklist",
   "mistakes",
   "myth_fact",
@@ -62,6 +69,7 @@ const productCampaignModes = new Set([
   "website_product",
   "website_product_ad",
   "website_reel",
+  "website_ai_video",
   "website_carousel",
 ]);
 
@@ -69,12 +77,21 @@ const supportingCampaignModes = [
   "problem_solution",
   "tips",
   "faq",
-  "checklist",
-  "mistakes",
-  "myth_fact",
-  "mini_guide",
-  "seasonal",
+  "guide_choice",
+  "engagement_humor",
 ];
+
+function normalizeEditorialCampaignMode(mode) {
+  const value = String(mode || "").trim().toLowerCase();
+  const aliases = {
+    checklist: "guide_choice",
+    mini_guide: "guide_choice",
+    mistakes: "tips",
+    myth_fact: "tips",
+    seasonal: "tips",
+  };
+  return aliases[value] || value;
+}
 
 function safeJsonParse(value) {
   try {
@@ -387,6 +404,7 @@ function planHasRequiredProductSearchMetadata(postPlan) {
     "website_product",
     "website_product_ad",
     "website_reel",
+    "website_ai_video",
     "website_service",
     "website_carousel",
   ]);
@@ -414,22 +432,7 @@ function campaignHasProductCapability(campaign, brandProfile) {
 }
 
 function campaignHasServiceCapability(campaign, brandProfile) {
-  const text = [
-    campaign?.website_content_strategy,
-    campaign?.website_content_fit,
-    campaign?.industry,
-    campaign?.description,
-    campaign?.campaign_goal,
-    brandProfile?.industry,
-    brandProfile?.brand_description,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return /service|services|booking|appointment|consult|treatment|repair|installation|cleaning|agency|studio|salon|clinic|software|saas|platform|support|tjänst|bokning|behandling|reparation|installation|städ|salong|klinik/.test(
-    text
-  );
+  return hasVerifiedServiceEvidence(brandProfile);
 }
 
 
@@ -462,6 +465,12 @@ function campaignSupportsAnimatedReel(campaign, brandProfile = {}) {
   return /fashion|clothing|apparel|beauty|cosmetic|jewelry|jewellery|food|drink|candy|toy|gift|home decor|interior|sports|outdoor|tech|electronics|launch|new product|collection|look|style|visual|video|motion|reel|mode|kläder|skönhet|smycke|mat|dryck|godis|leksak|present|inredning|sport|teknik|lansering|nyhet|kollektion|stil|visuell/.test(text);
 }
 
+function campaignSupportsAiProductVideo(campaign, brandProfile = {}) {
+  // AI product video uses the same verified visual capability gate as Reels,
+  // but remains optional and is additionally limited by campaign mix policy.
+  return campaignSupportsAnimatedReel(campaign, brandProfile);
+}
+
 function getProductCampaignCountBounds(postCount) {
   const count = Math.max(1, Number(postCount || 1));
 
@@ -492,15 +501,30 @@ function chooseSupportingCampaignMode(campaign, index = 0) {
   const preferred = [];
 
   if (/question|uncertainty|hesitat|faq|fråga|osäker|tvekan/.test(text)) preferred.push("faq");
-  if (/guide|choose|compare|how to|så väljer|hur du|guide/.test(text)) preferred.push("mini_guide");
-  if (/check|prepare|remember|lista|förbered|kom ihåg/.test(text)) preferred.push("checklist");
-  if (/mistake|avoid|misstag|undvik/.test(text)) preferred.push("mistakes");
-  if (/myth|misconception|myt|missuppfattning/.test(text)) preferred.push("myth_fact");
-  if (/season|holiday|christmas|halloween|easter|summer|winter|spring|autumn|jul|påsk|sommar|vinter|vår|höst/.test(text)) preferred.push("seasonal");
-  preferred.push("problem_solution", "tips", "mini_guide", "faq", "checklist");
+  if (/guide|choose|compare|how to|så väljer|hur du|guide/.test(text)) preferred.push("guide_choice");
+  if (/check|prepare|remember|lista|förbered|kom ihåg/.test(text)) preferred.push("guide_choice");
+  if (/mistake|avoid|misstag|undvik/.test(text)) preferred.push("tips");
+  if (/myth|misconception|myt|missuppfattning/.test(text)) preferred.push("tips");
+  // Seasonality is contextual input, not a forced content-type preference.
+  preferred.push("problem_solution", "tips", "guide_choice", "faq", "engagement_humor");
 
   const unique = [...new Set(preferred.filter((mode) => supportingCampaignModes.includes(mode)))];
   return unique[(getCampaignVariationSeed(campaign) + index) % unique.length] || "tips";
+}
+
+function getProductReductionPriority(mode) {
+  const priority = {
+    // If the AI over-produces product-led posts, remove premium motion before
+    // cheaper static formats. This does not prevent motion from being selected
+    // when it fits inside the campaign mix and adds material value.
+    website_ai_video: -2,
+    website_reel: -1,
+    website_product: 0,
+    website_carousel: 2,
+    website_product_ad: 99,
+  };
+
+  return priority[String(mode || "").trim().toLowerCase()] ?? 50;
 }
 
 function getDefaultCampaignModeCopy(mode) {
@@ -508,10 +532,13 @@ function getDefaultCampaignModeCopy(mode) {
     website_product: ["Relevant product", "Present one campaign-relevant product and connect it to the customer's current need."],
     website_product_ad: ["AI product ad", "Create a visually strong AI-designed product advertisement for one verified campaign-relevant product."],
     website_reel: ["Animated product Reel", "Use motion only when the selected product image and campaign idea genuinely benefit from the format."],
+    website_ai_video: ["AI product video", "Use one verified product image for a short AI product video only when generative motion materially strengthens the campaign idea."],
     website_carousel: ["Curated product selection", "Show five distinct campaign-relevant product families around one clear theme."],
     problem_solution: ["Problem → solution", "Start from a real seasonal or campaign-related need and show a useful way forward."],
     tips: ["Useful campaign tip", "Give practical advice that strengthens the campaign without becoming a pure advertisement."],
     faq: ["Campaign FAQ", "Answer a grounded question that can reduce hesitation before the customer acts."],
+    guide_choice: ["Guide & decision help", "Help the audience choose, prepare or act with a clear practical guide."],
+    engagement_humor: ["Engagement & humour", "Create a natural conversation, reaction or share-worthy campaign moment that fits the brand."],
     checklist: ["Campaign checklist", "Create a practical list the audience can save and use."],
     mistakes: ["Common mistake", "Help the audience avoid a relevant mistake connected to the campaign."],
     myth_fact: ["Myth vs fact", "Clarify a relevant misconception and strengthen confidence."],
@@ -527,6 +554,7 @@ function applyCampaignModeToItem(item, mode, campaign, index) {
   const isProduct = productCampaignModes.has(mode);
   const isAd = mode === "website_product_ad";
   const isReel = mode === "website_reel";
+  const isAiVideo = mode === "website_ai_video";
   const isCarousel = mode === "website_carousel";
   const productMatchTerms = normalizeCampaignProductTerms(
     campaign,
@@ -556,7 +584,7 @@ function applyCampaignModeToItem(item, mode, campaign, index) {
     marketing_angle: isProduct
       ? isCarousel
         ? "product_discovery"
-        : isAd || isReel
+        : isAd || isReel || isAiVideo
         ? "product_push"
         : "product_push"
       : item?.marketing_angle === "offer" || item?.marketing_angle === "urgency"
@@ -587,7 +615,11 @@ function enforceProductDrivenCampaignPolicy(items, campaign, brandProfile) {
 
   const { minimum, maximum } = getProductCampaignCountBounds(normalized.length);
   const reelAllowed = campaignSupportsAnimatedReel(campaign, brandProfile);
+  const aiVideoAllowed = campaignSupportsAiProductVideo(campaign, brandProfile);
+  const maxMotionFormats = normalized.length >= 6 ? 2 : 1;
   let carouselSeen = false;
+  let aiVideoSeen = false;
+  let motionFormatCount = 0;
 
   for (let index = 0; index < normalized.length; index += 1) {
     const mode = normalized[index].content_source_mode;
@@ -595,20 +627,33 @@ function enforceProductDrivenCampaignPolicy(items, campaign, brandProfile) {
     if (mode === "website_carousel") {
       if (carouselSeen) {
         normalized[index] = applyCampaignModeToItem(normalized[index], "website_product", campaign, index);
+      } else {
+        carouselSeen = true;
       }
-      carouselSeen = true;
     }
 
-    if (normalized[index].content_source_mode === "website_reel") {
-      if (!reelAllowed) {
+    const currentMode = normalized[index].content_source_mode;
+    if (currentMode === "website_reel") {
+      if (!reelAllowed || motionFormatCount >= maxMotionFormats) {
         normalized[index] = applyCampaignModeToItem(normalized[index], "website_product", campaign, index);
+      } else {
+        motionFormatCount += 1;
+      }
+    }
+
+    if (normalized[index].content_source_mode === "website_ai_video") {
+      if (!aiVideoAllowed || aiVideoSeen || motionFormatCount >= maxMotionFormats) {
+        normalized[index] = applyCampaignModeToItem(normalized[index], "website_product", campaign, index);
+      } else {
+        aiVideoSeen = true;
+        motionFormatCount += 1;
       }
     }
   }
 
   if (!normalized.some((item) => item.content_source_mode === "website_product_ad")) {
     const preferredIndex = normalized.findIndex((item) =>
-      ["website_product", "website_reel"].includes(item.content_source_mode)
+      ["website_product", "website_reel", "website_ai_video"].includes(item.content_source_mode)
     );
     const replacementIndex = preferredIndex >= 0
       ? preferredIndex
@@ -626,15 +671,27 @@ function enforceProductDrivenCampaignPolicy(items, campaign, brandProfile) {
     (item) => item.content_source_mode === "website_product_ad"
   );
 
-  for (let index = normalized.length - 1; index >= 0 && productCount > maximum; index -= 1) {
-    const mode = normalized[index].content_source_mode;
-    if (!productCampaignModes.has(mode) || index === protectedAdIndex) continue;
+  const reductionCandidates = normalized
+    .map((item, index) => ({ item, index }))
+    .filter(({ item, index }) =>
+      productCampaignModes.has(item?.content_source_mode) && index !== protectedAdIndex
+    )
+    .sort((left, right) => {
+      const priorityDifference =
+        getProductReductionPriority(left.item?.content_source_mode) -
+        getProductReductionPriority(right.item?.content_source_mode);
+      if (priorityDifference !== 0) return priorityDifference;
+      return right.index - left.index;
+    });
 
-    normalized[index] = applyCampaignModeToItem(
-      normalized[index],
-      chooseSupportingCampaignMode(campaign, index),
+  for (const candidate of reductionCandidates) {
+    if (productCount <= maximum) break;
+
+    normalized[candidate.index] = applyCampaignModeToItem(
+      normalized[candidate.index],
+      chooseSupportingCampaignMode(campaign, candidate.index),
       campaign,
-      index
+      candidate.index
     );
     productCount -= 1;
   }
@@ -663,6 +720,9 @@ function planSatisfiesV129CampaignPolicy(postPlan, campaign, brandProfile) {
   const carouselCount = items.filter((item) => item?.content_source_mode === "website_carousel").length;
   const adCount = items.filter((item) => item?.content_source_mode === "website_product_ad").length;
   const reelCount = items.filter((item) => item?.content_source_mode === "website_reel").length;
+  const aiVideoCount = items.filter((item) => item?.content_source_mode === "website_ai_video").length;
+  const motionFormatCount = reelCount + aiVideoCount;
+  const maxMotionFormats = items.length >= 6 ? 2 : 1;
   const { minimum, maximum } = getProductCampaignCountBounds(items.length);
 
   return (
@@ -670,44 +730,22 @@ function planSatisfiesV129CampaignPolicy(postPlan, campaign, brandProfile) {
     productCount <= maximum &&
     adCount >= 1 &&
     carouselCount <= 1 &&
-    (reelCount === 0 || campaignSupportsAnimatedReel(campaign, brandProfile))
+    aiVideoCount <= 1 &&
+    motionFormatCount <= maxMotionFormats &&
+    (reelCount === 0 || campaignSupportsAnimatedReel(campaign, brandProfile)) &&
+    (aiVideoCount === 0 || campaignSupportsAiProductVideo(campaign, brandProfile))
   );
 }
 
 function getSafeNonProductCampaignMode(campaign, item, marketingAngle, index, total) {
-  const campaignText = [
-    campaign?.title,
-    campaign?.description,
-    campaign?.event_type,
-    campaign?.campaign_category,
-    campaign?.campaign_goal,
-    item?.role,
-    item?.purpose,
-    item?.strategic_reason,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  const hasTimelyContext = Boolean(
-    campaign?.event_date || campaign?.start_date || campaign?.end_date
-  );
-
   if (marketingAngle === "trust") return "faq";
-  if (marketingAngle === "engagement") return "tips";
-  if (marketingAngle === "product_discovery") return "mini_guide";
+  if (marketingAngle === "engagement") return "engagement_humor";
+  if (marketingAngle === "product_discovery") return "guide_choice";
   if (marketingAngle === "product_push" || marketingAngle === "offer") {
     return "problem_solution";
   }
   if (marketingAngle === "urgency") {
     return index >= Math.max(total - 2, 0) ? "faq" : "problem_solution";
-  }
-  if (
-    hasTimelyContext ||
-    /season|holiday|christmas|halloween|easter|summer|winter|spring|autumn|fall|jul|påsk|sommar|vinter|vår|höst/.test(
-      campaignText
-    )
-  ) {
-    return "seasonal";
   }
   return index === 0 ? "problem_solution" : "tips";
 }
@@ -721,11 +759,11 @@ function normalizeCampaignContentMode({
   index,
   total,
 }) {
-  const normalizedMode = normalizeEnum(
+  const normalizedMode = normalizeEditorialCampaignMode(normalizeEnum(
     requestedMode,
     allowedContentModes,
     ""
-  );
+  ));
   const hasProducts = campaignHasProductCapability(campaign, brandProfile);
   const hasServices = campaignHasServiceCapability(campaign, brandProfile);
   const laterPost = index >= Math.max(1, Math.floor(total / 2));
@@ -736,6 +774,7 @@ function normalizeCampaignContentMode({
         "website_product",
         "website_product_ad",
         "website_reel",
+        "website_ai_video",
         "website_carousel",
       ].includes(normalizedMode) &&
       !hasProducts
@@ -989,7 +1028,7 @@ export async function POST(request) {
 
     const { data: brandProfile, error: brandError } = await supabase
       .from("brand_profiles")
-      .select("id, business_name, website_url, industry, target_audience, brand_description, country_code, content_market, content_language, website_product_mode_available")
+      .select("id, business_name, website_url, industry, target_audience, brand_description, country_code, content_market, content_language, website_product_mode_available, website_product_mode_reason, website_product_source_url, website_service_mode_available, website_service_mode_reason, website_service_source_url")
       .eq("id", brandProfileId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -1035,7 +1074,8 @@ Business:
 - Market: ${brandProfile.content_market || brandProfile.country_code || campaign.market || campaign.country_code || ""}
 - Country code: ${brandProfile.country_code || campaign.country_code || ""}
 - Content language: ${brandProfile.content_language || campaign.language || ""}
-- Website products/services available: ${brandProfile.website_product_mode_available ? "yes" : "unknown/no"}
+- Verified website catalog available: ${brandProfile.website_product_mode_available ? "yes" : "unknown/no"}
+- Verified service evidence available: ${hasVerifiedServiceEvidence(brandProfile) ? "yes" : "no"}
 
 Campaign:
 - Title: ${campaign.title || ""}
@@ -1068,7 +1108,7 @@ Return JSON in this exact shape:
       "marketing_angle": "awareness | engagement | product_discovery | product_push | trust | offer | urgency",
       "customer_stage": "cold | warm | ready_to_buy",
       "cta_strength": "soft | medium | strong",
-      "content_source_mode": "website_product | website_product_ad | website_reel | website_service | website_carousel | problem_solution | tips | faq | checklist | mistakes | myth_fact | mini_guide | seasonal",
+      "content_source_mode": "website_product | website_product_ad | website_reel | website_ai_video | website_service | website_carousel | problem_solution | tips | faq | guide_choice | engagement_humor",
       "timing_anchor": "inspiration | engagement | trust | conversion | deadline | event | evergreen",
       "publish_date": "YYYY-MM-DD or empty string",
       "publish_time": "HH:MM or empty string",
@@ -1093,14 +1133,16 @@ Strategic rules:
 - Choose publish_date and publish_time when there is enough date information. Use empty string only if the client scheduler should decide.
 - Times must fit the post's job: inspiration can be morning/midday, product/offer often lunch/afternoon, urgency often late afternoon/evening, relationship/event-day content can be morning or evening depending on context.
 - Every post must use one real Spreelo format from the allowed content_source_mode list. Never return generic_campaign, mixed_campaign_and_website, ai_image_overlay, ai_image_text or manual/custom post.
-- Choose content_source_mode with care. Do not use website_product, website_product_ad, website_reel or website_carousel unless the business has verified product mode.
-- For a verified store or ecommerce campaign, normally make approximately 65-80% of the complete campaign product formats. The remaining posts should be supporting formats such as FAQ, tips, mini-guide, checklist, problem → solution or seasonal content when they strengthen the campaign.
+- Choose content_source_mode with care. Do not use website_product, website_product_ad, website_reel, website_ai_video or website_carousel unless the business has verified product mode.
+- Select website_service only when verified service evidence exists for this business. Use it when a real service is strategically relevant to the campaign phase; never invent a service or its inclusions.
+- For a verified store or ecommerce campaign, normally make approximately 65-80% of the complete campaign product formats. The remaining posts should use the current supporting formats: problem_solution, tips, faq, guide_choice or engagement_humor when they strengthen the campaign. Seasonal relevance is a context layer, not a separate format.
 - Every verified store or ecommerce campaign must contain at least one website_product_ad.
 - A campaign may contain at most one website_carousel. Use it only when five distinct product families genuinely fit one clear campaign theme.
 - website_reel is optional, never mandatory. Use it only when a likely usable product image exists and motion adds strategic value for the specific product and campaign.
-- Do not automatically repeat the same carousel + Reel + seasonal combination. Vary the mix according to the company, theme, products, audience, buying situation and available material.
-- Use website_product_ad for a visually strong AI-designed product advertisement. Use problem_solution, tips, faq, checklist, mistakes, myth_fact, mini_guide and seasonal whenever those formats are a better strategic fit. Do not create customer cases, local-angle posts, comparisons or behind-the-scenes posts.
-- For every post that uses website_product, website_product_ad, website_reel, website_service or website_carousel, create product_match_terms, product_search_queries, product_avoid_terms and product_search_intent.
+- website_ai_video is a premium generative-video format, optional and never mandatory. Use at most one per campaign and only when generative motion materially strengthens a verified product idea; prefer a lower-cost product format when motion adds little value. For campaigns with fewer than 6 posts, normally choose at most one motion product format across website_reel and website_ai_video.
+- Do not automatically repeat the same carousel + Reel + seasonal-angle combination. Vary the mix according to the company, theme, products, audience, buying situation and available material.
+- Use website_product_ad for a visually strong AI-designed product advertisement. Use problem_solution, tips, faq, guide_choice and engagement_humor whenever those current formats are a better strategic fit. Common mistakes and myth-versus-fact are optional creative angles inside tips; checklist and step-by-step are optional structures inside guide_choice; seasonality is contextual. Do not create customer cases, local-angle posts, comparisons or behind-the-scenes posts.
+- For every post that uses website_product, website_product_ad, website_reel, website_ai_video, website_service or website_carousel, create product_match_terms, product_search_queries, product_avoid_terms and product_search_intent.
 - Product terms must be created dynamically for this exact campaign, country, market, language and brand. Do not rely on a fixed Swedish or English keyword list.
 - First use the campaign's saved product search strategy and assortment evidence to infer how this specific business names and groups products: motif/design-led, category-led, recipient/use-case-led, problem/benefit-led, style/material-led, brand/model-led or another pattern.
 - product_search_intent must describe that business-specific search approach in one short sentence.

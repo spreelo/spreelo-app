@@ -821,6 +821,31 @@ function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "", evidence
       : "",
   };
 }
+
+function normalizeWebsiteServiceMode(rawValue, fallbackWebsiteUrl = "", legacyProductMode = null) {
+  const rawMode = rawValue && typeof rawValue === "object" ? rawValue : {};
+  const legacySourceType = normalizeWebsiteProductSourceType(
+    legacyProductMode?.source_type,
+    Boolean(legacyProductMode?.available)
+  );
+  const legacyServiceEvidence = Boolean(legacyProductMode?.available) &&
+    new Set(["service_catalog", "booking", "course_event"]).has(legacySourceType);
+  const available = Boolean(rawMode.available) || legacyServiceEvidence;
+  const rawSourceUrl = String(rawMode.source_url || "").trim();
+  const normalizedSourceUrl = rawSourceUrl ? normalizeWebsiteUrl(rawSourceUrl) : "";
+  const reason = String(rawMode.reason || "").trim().slice(0, 500);
+
+  return {
+    available,
+    reason: reason || (legacyServiceEvidence
+      ? "A concrete service or bookable offering was verified during website analysis."
+      : "No concrete named or bookable service was verified during website analysis."),
+    source_url: available
+      ? normalizedSourceUrl || String(legacyProductMode?.source_url || "").trim() || normalizeWebsiteUrl(fallbackWebsiteUrl)
+      : "",
+  };
+}
+
 function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
   const title = String(rawOpportunity?.title || "").trim();
 
@@ -1184,6 +1209,7 @@ async function saveBrandProfile({
   contentLanguage,
   campaignCalendarYear,
   websiteProductMode,
+  websiteServiceMode,
 }) {
   const { data: existingWebsiteAccess } = await supabase
     .from("brand_profiles")
@@ -1217,6 +1243,12 @@ async function saveBrandProfile({
       website_product_source_url: websiteProductMode?.available
   ? websiteProductMode?.source_url || websiteUrl || ""
   : "",
+      website_service_mode_available: Boolean(websiteServiceMode?.available),
+      website_service_mode_checked_at: websiteUrl ? new Date().toISOString() : null,
+      website_service_mode_reason: String(websiteServiceMode?.reason || "").trim(),
+      website_service_source_url: websiteServiceMode?.available
+        ? websiteServiceMode?.source_url || websiteUrl || ""
+        : "",
       ...(preserve429Rescue
         ? {}
         : {
@@ -1232,7 +1264,7 @@ async function saveBrandProfile({
     .eq("id", brandProfileId)
     .eq("user_id", userId)
    .select(
-  "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, campaign_calendar_year, campaign_calendar_generated_at, campaign_calendar_refreshed_at, website_product_mode_available, website_product_mode_checked_at, website_product_mode_reason, website_product_source_url, website_access_status, website_security_provider, website_security_confidence, website_access_status_code, website_access_message, website_access_checked_at"
+  "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, campaign_calendar_year, campaign_calendar_generated_at, campaign_calendar_refreshed_at, website_product_mode_available, website_product_mode_checked_at, website_product_mode_reason, website_product_source_url, website_service_mode_available, website_service_mode_checked_at, website_service_mode_reason, website_service_source_url, website_access_status, website_security_provider, website_security_confidence, website_access_status_code, website_access_message, website_access_checked_at"
 )
     .single();
 
@@ -1447,6 +1479,11 @@ Return JSON only in this exact shape:
     "reason": "Short internal explanation. True only if the provided website content or checked candidate source pages clearly contain stable individual items suitable for website-based posts.",
     "source_url": "The exact URL where the best product/service/listing/menu/treatment/course/event/offer items were found. Empty string when available is false."
   },
+  "website_service_mode": {
+    "available": false,
+    "reason": "Short internal explanation. True only when at least one concrete named, described or bookable service/treatment/appointment/course is verified on the official website.",
+    "source_url": "Exact official URL that verifies the service. Empty string when available is false."
+  },
   "campaign_opportunities": [
     {
       "title": "Campaign or theme day name",
@@ -1637,6 +1674,10 @@ Rules:
 
 Website product mode rule:
 - website_product_mode.available means Spreelo is allowed to use the website product/service research flow for this brand. It does not mean the first brand-analysis scrape already found the final product to post.
+- Evaluate website_service_mode independently from website_product_mode. Mixed businesses may have both enabled.
+- Set website_service_mode.available to true only when official website evidence verifies at least one concrete named, described or bookable service, treatment, appointment, consultation, course or similar service offering.
+- Do not infer a service from industry labels or generic service/support wording.
+- Set website_service_mode.source_url to an exact official page that verifies the service.
 - website_product_mode.source_type must classify how those items are offered: ecommerce for direct checkout; retailer_catalog for retailer assortments; manufacturer_catalog for an official manufacturer's product range typically sold through dealers; service_catalog, menu, booking, listing, course_event, or other as appropriate.
 - manufacturer_catalog is fully eligible even without direct checkout or stock counters on the manufacturer site.
 - Set website_product_mode.available to true when the website appears product-based, ecommerce, retail, catalog-based, service-menu-based, bookable, listing-based, restaurant/menu-based, course/event-based or otherwise likely to contain concrete sellable/selectable website items.
@@ -1706,6 +1747,11 @@ Campaign rule:
     "reason": "",
     "source_url": ""
   },
+  "website_service_mode": {
+    "available": false,
+    "reason": "",
+    "source_url": ""
+  },
   "campaign_opportunities": []
 }
 `.trim(),
@@ -1732,6 +1778,11 @@ return {
     parsed.website_product_mode,
     websiteUrl,
     productModeEvidenceText
+  ),
+  website_service_mode: normalizeWebsiteServiceMode(
+    parsed.website_service_mode,
+    websiteUrl,
+    normalizeWebsiteProductMode(parsed.website_product_mode, websiteUrl, productModeEvidenceText)
   ),
   campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
     ? parsed.campaign_opportunities
@@ -1982,8 +2033,15 @@ Rules:
   },
   website_product_mode: {
     available: false,
+    source_type: "",
     reason:
       "No website was provided, so website product mode is not available.",
+    source_url: "",
+  },
+  website_service_mode: {
+    available: false,
+    reason: "No website was provided, so verified service mode is not available.",
+    source_url: "",
   },
   campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
     ? parsed.campaign_opportunities
@@ -2253,6 +2311,7 @@ countryCode: finalCountryCode,
 contentLanguage: finalContentLanguage,
       campaignCalendarYear,
       websiteProductMode: analysis.website_product_mode,
+      websiteServiceMode: analysis.website_service_mode,
     });
     const savedOpportunities = await replaceBrandCampaignOpportunities({
       supabase,

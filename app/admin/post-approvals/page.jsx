@@ -35,6 +35,7 @@ import AppLayout from "../../../components/AppLayout";
 import { supabase } from "../../../lib/supabaseClient";
 import { useUiText } from "../../../lib/i18n/useUiText";
 import { getPostRescueProductCount, POST_RESCUE_TYPES, resolvePostRescueType } from "../../../lib/postRescueFormat";
+import { buildEditorialQualityInstruction } from "../../../lib/editorialContentStrategy";
 
 async function getHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -953,6 +954,11 @@ export default function AdminPostApprovalsPage() {
     const marketingAngle = ruleSnapshot.marketing_angle || "";
     const customerNeed = ruleSnapshot.target_customer_need || "";
     const isCalendarCampaignRescue = String(ruleSnapshot.queue_source || "").trim().toLowerCase() === "campaign";
+    const editorialQualityContract = buildEditorialQualityInstruction({
+      contentTypeId: post.content_type_id || ruleSnapshot.content_type_id || "",
+      hasVerifiedWebsiteItem: Boolean(post.website_item || ruleSnapshot.website_item || post.product_title),
+      hasVerifiedService: Boolean(ruleSnapshot.website_service_mode_available),
+    });
     const campaignRescueLock = isCalendarCampaignRescue
       ? `\nCALENDAR CAMPAIGN RESCUE LOCK\nThis failed post belongs to Spreelo's campaign calendar. The rescued material MUST fit the ORIGINAL campaign context below. Do not substitute another holiday, season, audience, product theme or marketing angle. Do not invent a discount, offer or sale unless the original campaign explicitly authorizes it. Spreelo will validate the imported Rescue package against this original campaign before allowing regeneration.\n`
       : "";
@@ -981,7 +987,10 @@ Spreelo failure: ${post.failure?.failure_code || "—"} / ${post.failure?.failur
 
 ORIGINAL TASK / STRATEGY
 ${post.prompt_snapshot || ruleSnapshot.prompt || "—"}
-${post.strategy_snapshot || ruleSnapshot.strategy_notes || ""}`;
+${post.strategy_snapshot || ruleSnapshot.strategy_notes || ""}
+
+EDITORIAL QUALITY CONTRACT
+${editorialQualityContract || "Preserve the original post type, factual constraints and quality level."}`;
 
     if (rescueType === POST_RESCUE_TYPES.SOURCE_RESEARCH) {
       return `${commonHeader}

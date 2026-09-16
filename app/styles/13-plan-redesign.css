@@ -6029,3 +6029,74 @@ html body .automation-page.plan-v70-active .plan-v90-settings-grid .platform-sel
     max-width: 100% !important;
   }
 }
+
+/* v144.181: explicit media/cost choice for Engagement & humour. */
+.plan-v181-engagement-media-picker {
+  margin: 14px 0 18px;
+  padding: 15px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 18px;
+  background: rgba(7,10,20,.44);
+}
+.plan-v181-engagement-media-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.plan-v181-engagement-media-heading strong { display: block; }
+.plan-v181-engagement-media-heading p { margin: 4px 0 0; opacity: .72; font-size: 13px; }
+.plan-v181-engagement-media-heading > span {
+  white-space: nowrap;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+}
+.plan-v181-engagement-media-options { display: grid; gap: 8px; }
+.plan-v181-engagement-media-options > button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 18px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 14px;
+  padding: 11px 12px;
+  background: rgba(255,255,255,.035);
+  color: inherit;
+  cursor: pointer;
+}
+.plan-v181-engagement-media-options > button.selected {
+  border-color: rgba(255,255,255,.30);
+  background: rgba(255,255,255,.09);
+}
+.plan-v181-engagement-media-options > button:disabled { opacity: .46; cursor: not-allowed; }
+.plan-v181-engagement-media-radio {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  position: relative;
+}
+.plan-v181-engagement-media-options > button.selected .plan-v181-engagement-media-radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.plan-v181-engagement-media-copy strong,
+.plan-v181-engagement-media-copy small,
+.plan-v181-engagement-media-copy em { display: block; }
+.plan-v181-engagement-media-copy small { margin-top: 2px; opacity: .72; font-size: 12px; }
+.plan-v181-engagement-media-copy em { margin-top: 3px; opacity: .66; font-size: 11px; font-style: normal; }
+.plan-v181-engagement-media-options > button > b { font-size: 12px; white-space: nowrap; }
+
+/* v144.181: clear all-format grouping without changing the existing cards. */
+.plan-v181-format-groups { display: grid; gap: 22px; }
+.plan-v181-format-group { display: grid; gap: 10px; }
+.plan-v181-format-group > h4 { margin: 0; font-size: 0.88rem; font-weight: 750; letter-spacing: 0.02em; opacity: 0.78; }

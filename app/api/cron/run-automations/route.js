@@ -63,6 +63,15 @@ import {
 import { createPlanPreviewToken } from "../../../../lib/planPreviewToken.js";
 import { refreshFreeTrialStateForUser } from "../../../../lib/freeTrial.js";
 import {
+  buildEditorialQualityInstruction,
+  hasVerifiedServiceEvidence,
+} from "../../../../lib/editorialContentStrategy.js";
+import {
+  getContentGoalWeight,
+  getContentTypePreferredTimes,
+  isStrategicProductContentType,
+} from "../../../../lib/contentPlanningStrategy.js";
+import {
   cancelCampaignResearchJobsForOccurrence,
   cancelOtherActiveCampaignResearchJobs,
   cleanupTerminalCampaignResearchJobs,
@@ -202,6 +211,7 @@ const KLING_AI_VIDEO_DURATION_SECONDS = Math.max(
   3,
   Math.min(15, Number(process.env.KLING_VIDEO_DURATION_SECONDS || 6) || 6)
 );
+const ENGAGEMENT_AI_VIDEO_DURATION_SECONDS = 10;
 const KLING_NATURAL_SCENE_TRIM_SECONDS = Math.max(
   0,
   Math.min(1.5, Number(process.env.KLING_NATURAL_SCENE_TRIM_SECONDS || 0.7) || 0.7)
@@ -1017,12 +1027,7 @@ function getAdaptiveVariantContentType(variant, rule = null) {
 }
 
 function isAdaptiveProductContentType(contentTypeId) {
-  return [
-    "website_item",
-    "website_item_text_ad",
-    "animated_website_item",
-    "carousel_website_item",
-  ].includes(String(contentTypeId || "").trim());
+  return isStrategicProductContentType(contentTypeId);
 }
 
 function getCircularVariantDistance(index, targetIndex, length) {
@@ -1140,6 +1145,9 @@ function selectHistoryBalancedAdaptiveVariant({
     // Keep the AI-curated order meaningful while still letting history drive variation.
     score += Math.max(0, 12 - index * 1.25);
     score += Math.max(0, 16 - circularDistance * 5);
+    // Keep recurring variation aligned with the same goal-fit table used by
+    // AI Content Studio, while history still prevents repetitive weeks.
+    score += (getContentGoalWeight(goalId, contentTypeId, 60) - 60) * 0.35;
 
     if (usedThisRun.has(contentTypeId)) score -= 125;
     if (firstRecentIndex === 0) score -= 115;
@@ -3314,25 +3322,9 @@ const WEEKLY_SMART_SLOTS_BY_WEEKDAY = {
   Sunday: ["10:30", "16:30", "18:30", "19:30"],
 };
 
-const WEEKLY_TYPE_TIME_PREFERENCES = {
-  website_item: ["11:30", "12:15", "16:30", "18:30"],
-  website_item_text_ad: ["11:30", "12:15", "16:30", "18:30"],
-  animated_website_item: ["16:30", "18:30", "19:00", "12:15"],
-  kling_ai_video: ["16:30", "18:30", "19:00", "12:15"],
-  carousel_website_item: ["12:15", "16:30", "18:30", "19:00"],
-  problem_solution: ["08:30", "12:15", "16:30", "18:30"],
-  tips: ["10:30", "12:15", "18:30", "19:30"],
-  mistakes: ["10:30", "12:15", "18:30", "19:30"],
-  faq: ["12:15", "16:30", "18:30", "10:30"],
-  checklist: ["08:30", "12:15", "18:30", "19:30"],
-  mini_guide: ["12:15", "18:30", "19:30", "10:30"],
-  seasonal: ["10:30", "12:15", "16:30", "18:30"],
-  manual_prompt: ["10:30", "12:15", "16:30"],
-};
-
 function getWeeklyPreferredWindowTime(contentTypeId, weekday) {
   const allowed = WEEKLY_SMART_SLOTS_BY_WEEKDAY[weekday] || WEEKLY_SMART_SLOTS_BY_WEEKDAY.Monday;
-  const preferred = WEEKLY_TYPE_TIME_PREFERENCES[contentTypeId] || WEEKLY_TYPE_TIME_PREFERENCES.manual_prompt;
+  const preferred = getContentTypePreferredTimes(contentTypeId);
   return preferred.find((time) => allowed.includes(time)) || allowed[0] || "10:30";
 }
 
@@ -3420,6 +3412,18 @@ function isRuleReadyForGeneration(rule, now = new Date()) {
   const scheduledAtMs = new Date(getScheduledPublishAtIso(rule, now)).getTime();
   if (!Number.isFinite(scheduledAtMs)) return false;
   return now.getTime() >= getGenerationDueAtMs(rule);
+}
+
+function isRecurringRuleCreditCycleReady(rule) {
+  if (rule?.is_admin_test === true) return true;
+  if (String(rule?.schedule_type || "").toLowerCase() !== "weekly") return true;
+
+  const status = String(rule?.credit_reservation_status || "legacy").toLowerCase();
+  // v144.183: consumed means this weekday already ran in the funded current
+  // cycle and is waiting for the complete next cycle to be reserved. Unfunded
+  // means the whole plan is paused for credits. Neither may fall through to
+  // the legacy direct-debit path.
+  return !["consumed", "unfunded"].includes(status);
 }
 
 function isRuleRetryGateOpen(rule, now = new Date()) {
@@ -4185,6 +4189,14 @@ function isProductContentTypeRule(rule) {
 function getWebsiteProductSourceUrl(brandProfile, rule = null) {
   const focusedUrl = getRuleContentSourceUrl(rule);
   if (focusedUrl) return focusedUrl;
+
+  if (String(rule?.content_type_id || "").trim() === "service_focus") {
+    return normalizeWebsiteUrl(
+      brandProfile?.website_service_source_url ||
+      brandProfile?.website_product_source_url ||
+      brandProfile?.website_url
+    );
+  }
 
   return normalizeWebsiteUrl(
     brandProfile?.website_product_source_url || brandProfile?.website_url
@@ -11545,6 +11557,11 @@ function buildAutomationPrompt(rule) {
   const authorizedCampaignOfferText = formatAuthorizedCampaignOfferForPrompt(rule);
   const hasAuthorizedCampaignOffer = Boolean(getAuthorizedCampaignOffer(rule));
   const focusedPageContextText = formatFocusedPageContextForPrompt(rule);
+  const editorialQualityText = buildEditorialQualityInstruction({
+    contentTypeId: rule?.content_type_id,
+    hasVerifiedWebsiteItem: Boolean(rule?.website_item?.title || rule?.website_item?.item_title),
+    hasVerifiedService: hasVerifiedServiceEvidence(rule?.brand_profile || rule),
+  });
   const destinationUrl = isGiveawayRule ? "" : getPostDestinationUrl(rule);
   const productContract = rule?.product_content_contract ||
     buildProductContentContract(
@@ -11590,8 +11607,17 @@ ${isAnimatedVideoRule(rule)
   ? `Animated Reel price rule:\n- Do not mention a product price anywhere in this caption.\n- ${hasAuthorizedCampaignOffer ? "The exact authorized campaign discount may be mentioned, but it must not be presented as a product price." : "Do not write a currency symbol, currency code, monetary amount, discount price or \"from\" price."}`
   : ""}
 
-${isKlingAiVideoRule(rule)
+${isKlingAiVideoRule(rule) && !isEngagementAiVideoRule(rule)
   ? `AI product video overlay-copy rule:\n- The FIRST non-empty line of the caption must be a short standalone advertising headline in the selected post language, normally 3-6 words.\n- It must be semantically complete and make full sense when shown entirely by itself, without a logo, business name, second line or surrounding caption.\n- Never write an unfinished phrase that expects another word, name or clause to follow. Keep the headline naturally short enough that Spreelo never needs to cut words from it.\n- It must fit this exact verified product and the actual content angle/campaign, while remaining factual and avoiding unverified claims.\n- Do not put an emoji, hashtag, price, URL or trailing punctuation-only decoration on that first line.\n- Spreelo will reuse that exact complete first line as the transparent video headline. It will not truncate a longer headline into a fragment.\n- After that first line, continue with the normal social caption.`
+  : ""}
+
+${isEngagementAiVideoRule(rule)
+  ? `Engagement video overlay-copy rule:
+- The FIRST non-empty line must be a short, complete hook in the selected post language, normally 3-8 words.
+- It must be understandable on its own in about one second and naturally support a reaction, comment, laugh, choice or share.
+- Keep it factual and brand-appropriate. Do not use a URL, hashtag, price or unfinished phrase on that line.
+- Spreelo may reuse that line as controlled typography after generation, so do not ask the video model to render text.
+- Continue with the normal caption after the hook.`
   : ""}
 
 ${focusedPageContextText}
@@ -11601,6 +11627,8 @@ ${campaignStrategyText}
 ${campaignIdentityLockText}
 
 ${authorizedCampaignOfferText}
+
+${editorialQualityText}
 
 Platform: ${rule.platform || "Instagram"}
 ${getRuleLanguageInstruction(rule)}
@@ -13894,6 +13922,36 @@ async function failAutomationOccurrenceTerminal({
   const heldRescueCredits = Math.max(0, Number(data?.held_rescue_credits || 0));
   let notificationStatus = String(data?.notification_status || "suppressed");
 
+  // v144.183: older terminal-failure RPCs preserve a recurring plan by
+  // reserving this one weekday's next occurrence immediately. Weekly plans now
+  // advance at a complete-cycle barrier instead. Return that individual next
+  // reservation and mark this weekday as finished for the current cycle, then
+  // let the shared cycle coordinator either reserve the whole next week or
+  // pause the entire plan for credits. This keeps failure/rescue paths aligned
+  // with successful weekly runs without changing one-time/campaign behavior.
+  if (
+    handled &&
+    keepRuleActive &&
+    String(rule?.schedule_type || "").toLowerCase() === "weekly"
+  ) {
+    const { data: deferredCycle, error: deferredCycleError } = await supabase.rpc(
+      "spreelo_defer_recurring_rule_reservation_to_cycle_system",
+      { p_rule_id: rule.id }
+    );
+
+    if (deferredCycleError) {
+      console.error("Could not move recurring failure reservation to the weekly cycle barrier", {
+        ruleId: rule.id,
+        occurrenceId,
+        message: deferredCycleError.message,
+      });
+    } else if (deferredCycle?.paused === true) {
+      data.plan_continues = false;
+      data.next_run_at = null;
+      data.recurring_plan_paused_for_credits = true;
+    }
+  }
+
   await upsertAdminReviewCase(supabase, repairCaseValues);
 
   if (handled) {
@@ -14108,7 +14166,7 @@ async function getBrandProfileForRule(supabase, rule) {
   const { data, error } = await supabase
     .from("brand_profiles")
     .select(
-  "id, business_name, website_url, website_product_source_url, website_product_mode_available, website_product_mode_reason, website_access_status, website_access_status_code, website_access_message, website_access_checked_at, brand_description, industry, target_audience, content_market, country_code, content_language, logo_url, logo_storage_path, logo_enabled_by_default"
+  "id, business_name, website_url, website_product_source_url, website_product_mode_available, website_product_mode_reason, website_service_source_url, website_service_mode_available, website_service_mode_reason, website_access_status, website_access_status_code, website_access_message, website_access_checked_at, brand_description, industry, target_audience, content_market, country_code, content_language, logo_url, logo_storage_path, logo_enabled_by_default"
 )
     .eq("id", rule.brand_profile_id)
     .eq("user_id", rule.user_id)
@@ -15289,11 +15347,16 @@ async function resolveMarketAwareProductSourceUrl({
   return sourceUrl;
 }
 
-export async function prepareFocusedPageContextForRule(rule) {
-  const sourceUrl = getRuleContentSourceUrl(rule);
+export async function prepareFocusedPageContextForRule(rule, brandProfile = null) {
+  const isVerifiedServicePost = String(rule?.content_type_id || "").trim() === "service_focus";
+  const sourceUrl =
+    getRuleContentSourceUrl(rule) ||
+    (isVerifiedServicePost ? normalizeWebsiteUrl(brandProfile?.website_service_source_url || "") : "");
   if (!sourceUrl) return null;
 
-  const sourceScope = getRuleContentSourceScope(rule);
+  const sourceScope = isVerifiedServicePost && !getRuleContentSourceUrl(rule)
+    ? "focus_page"
+    : getRuleContentSourceScope(rule);
   const shouldFetchAsPageContext =
     !isProductContentTypeRule(rule) || sourceScope === "focus_page";
 
@@ -15329,6 +15392,8 @@ export async function prepareFocusedPageContextForRule(rule) {
       text,
     };
   } catch (error) {
+    if (isWebsiteRateLimitError(error)) throw error;
+
     if (rule?.content_source_summary || rule?.content_source_title) {
       console.warn("Could not refresh focused page; using the verified saved page summary", {
         ruleId: rule?.id,
@@ -15543,10 +15608,24 @@ function isAnimatedVideoRule(rule) {
   return normalizeContentFormat(rule?.content_format) === "animated_video";
 }
 
+function isEngagementAiVideoRule(rule) {
+  return (
+    String(rule?.content_type_id || "").trim().toLowerCase() === "engagement_humor" &&
+    String(rule?.animation_style || "").trim().toLowerCase() === "engagement_ai_video"
+  );
+}
+
+function isOptionalEditorialProductUnavailableError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  if (!message) return false;
+  return /no verified matching website product|no verified product could be selected|no verified website product found|could not be confirmed as a current official product/.test(message);
+}
+
 function isKlingAiVideoRule(rule) {
   return (
     String(rule?.content_type_id || "").trim().toLowerCase() === "ai_product_video" ||
-    String(rule?.animation_style || "").trim().toLowerCase() === "kling_product_video"
+    String(rule?.animation_style || "").trim().toLowerCase() === "kling_product_video" ||
+    isEngagementAiVideoRule(rule)
   );
 }
 
@@ -16494,6 +16573,184 @@ NON-NEGOTIABLE PRODUCT RULES:
     });
     return fallback;
   }
+}
+
+
+function buildKlingEngagementVideoPrompt({ rule, postContent, referenceSafety = null }) {
+  const brandName = String(rule?.brand_profile?.business_name || "the brand").trim();
+  const audience = String(rule?.brand_profile?.target_audience || "the brand audience").trim();
+  const productTitle = String(rule?.website_item?.title || rule?.website_item?.item_title || "").trim();
+  const captionContext = truncateText(String(postContent || "").replace(/\s+/g, " ").trim(), 700);
+  const productSafety = productTitle
+    ? `${getKlingProviderSafetyPrefix(referenceSafety)} The verified product ${productTitle} must remain visually unchanged. Keep the same verified camera-facing view and never invent hidden product surfaces, controls, labels or functionality.`
+    : "There is no verified product identity to preserve. Keep the scene physically coherent and do not invent branded products, logos, packaging or readable trademarks.";
+  return truncateText(`
+Create one premium 10-second vertical social-media engagement video for ${brandName}.
+Audience: ${audience}.
+Caption/idea context: ${captionContext || "Create a simple, instantly understandable, brand-relevant interaction or relatable moment."}
+${productSafety}
+The purpose is natural engagement: a reaction, comment, laugh, choice or share. Humour is optional and must fit the brand tone. The central idea should be understood within the first 1-2 seconds.
+Start meaningful action immediately. Build one coherent setup and payoff in the same physical scene. Resolve the main action by about 8.5 seconds and hold a clean, stable final composition for roughly the last 1.0-1.5 seconds so Spreelo can add controlled typography later.
+Do not generate readable overlay text, captions, slogans, UI, fake buttons, prices, watermarks or logos. Do not use cheap engagement-bait gestures. Do not create a disconnected montage or teleport between locations. Keep people, props, lighting and environment spatially consistent across the entire clip.
+`, 2450);
+}
+
+
+async function submitKlingEngagementConceptVideo({
+  openai,
+  supabase,
+  rule,
+  postContent,
+  userId,
+  postId,
+  costTracker = null,
+}) {
+  const generatedFrame = await generateAutomationImage(
+    openai,
+    {
+      ...rule,
+      image_prompt: `${String(rule?.image_prompt || "").trim()}\nCreate a strong first frame for a 10-second vertical engagement video. Keep it visually simple, physically coherent and free of readable overlay text; Spreelo adds controlled typography later.`.trim(),
+    },
+    postContent,
+    costTracker
+  );
+  const sourceBuffer = Buffer.from(generatedFrame.imageBase64, "base64");
+  const [backgroundBuffer, foregroundBuffer] = await Promise.all([
+    sharp(sourceBuffer)
+      .rotate()
+      .resize({ width: 1080, height: 1920, fit: "cover", position: "attention" })
+      .blur(22)
+      .modulate({ brightness: 0.72 })
+      .png()
+      .toBuffer(),
+    sharp(sourceBuffer)
+      .rotate()
+      .resize({ width: 1080, height: 1920, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer(),
+  ]);
+  const verticalFrame = await sharp(backgroundBuffer)
+    .composite([{ input: foregroundBuffer, left: 0, top: 0 }])
+    .png()
+    .toBuffer();
+  const uploaded = await uploadGeneratedImageToStorage({
+    supabase,
+    imageBase64: verticalFrame.toString("base64"),
+    userId,
+    postId,
+    fileSuffix: "engagement-kling-reference",
+  });
+  if (!uploaded.imageUrl) throw new Error("Could not create the engagement-video first frame");
+
+  const captionLines = String(postContent || "")
+    .split(/\n+/)
+    .map((line) => String(line || "").trim())
+    .filter(Boolean);
+  const brandName = String(rule?.brand_profile?.business_name || "").trim();
+  const headline =
+    cleanKlingOverlayTextLine(captionLines[0] || "", 8, 64) ||
+    cleanKlingOverlayTextLine(brandName, 8, 64);
+  if (!headline) {
+    throw new Error("Engagement video could not prepare a short customer-language overlay headline");
+  }
+  let subheadline = "";
+  for (const line of captionLines.slice(1, 4)) {
+    const candidate = cleanKlingOverlayTextLine(line, 6, 46);
+    if (candidate && candidate.toLowerCase() !== headline.toLowerCase()) {
+      subheadline = candidate;
+      break;
+    }
+  }
+  const overlayCopy = { headline, subheadline };
+  const prompt = buildKlingEngagementVideoPrompt({ rule, postContent });
+
+  const { data: claimed, error: claimError } = await supabase.rpc(
+    "claim_kling_video_generation",
+    { p_post_id: postId }
+  );
+  if (claimError) throw new Error(`Could not claim the one allowed engagement-video generation: ${claimError.message || "unknown error"}`);
+  if (claimed !== true) throw new Error("This post has already consumed its one allowed AI-video generation.");
+
+  const selection = {
+    mode: "kling_professional_advertising_postprocess",
+    identity_validation_required: false,
+    reference_safety: null,
+    verified_product_image_url: null,
+    verified_product_source_url: null,
+    verified_product_title: null,
+    music_context: {
+      content_type_id: rule?.content_type_id || "engagement_humor",
+      content_type_label: rule?.content_type_label || "Engagement & humour",
+      content_format: "animated_video",
+      campaign_name: getCustomerFacingCampaignTheme(rule) || null,
+      goal: rule?.campaign_goal || rule?.goal || rule?.content_goal || rule?.objective || null,
+      business_name: brandName || null,
+      industry: rule?.brand_profile?.industry || rule?.brand_profile?.business_category || null,
+      post_copy: String(postContent || "").slice(0, 600),
+    },
+    text_overlay_url: null,
+    text_overlay_storage_path: null,
+    text_overlay_provider: null,
+    text_overlay_prompt: null,
+    text_overlay_status: "waiting_for_finished_video",
+    text_overlay_copy: overlayCopy,
+    opening_scene_mode: "engagement_ai_concept",
+    scene_trim_start_seconds: 0,
+    overlay_start_seconds: 1.0,
+    shotstack_render_id: null,
+    shotstack_status: "waiting_for_kling",
+  };
+
+  await supabase.from("posts").update({
+    content: postContent,
+    image_url: uploaded.imageUrl,
+    image_storage_path: uploaded.imageStoragePath,
+    image_status: "ready",
+    image_prompt: generatedFrame.imagePrompt,
+    video_provider: "kling",
+    video_status: "submitting",
+    video_duration_seconds: ENGAGEMENT_AI_VIDEO_DURATION_SECONDS,
+    kling_prompt: prompt,
+    kling_reference_image_url: uploaded.imageUrl,
+    video_background_selection: selection,
+    include_logo: false,
+    logo_url: null,
+    updated_at: new Date().toISOString(),
+  }).eq("id", postId);
+
+  const submission = await submitKlingImageToVideo({
+    imageUrl: uploaded.imageUrl,
+    prompt,
+    externalTaskId: postId,
+    durationSeconds: ENGAGEMENT_AI_VIDEO_DURATION_SECONDS,
+  });
+  const submittedAt = new Date().toISOString();
+  const { error: persistError } = await supabase.from("posts").update({
+    video_render_id: submission.taskId,
+    video_status: submission.status || "submitted",
+    video_provider: "kling",
+    video_duration_seconds: submission.durationSeconds || ENGAGEMENT_AI_VIDEO_DURATION_SECONDS,
+    video_error: null,
+    kling_task_id: submission.taskId,
+    kling_task_status: submission.status || "submitted",
+    kling_submitted_at: submittedAt,
+    kling_prompt: prompt,
+    kling_reference_image_url: uploaded.imageUrl,
+    kling_api_family: submission.apiFamily || null,
+    kling_model: submission.model || null,
+    kling_resolution: submission.resolution || null,
+    kling_audio: submission.audio || null,
+    updated_at: submittedAt,
+  }).eq("id", postId);
+  if (persistError) {
+    throw new Error(`Engagement video ${submission.taskId} was submitted, but Spreelo could not persist its task id: ${persistError.message || "unknown database error"}`);
+  }
+  return {
+    imageUrl: uploaded.imageUrl,
+    imageStoragePath: uploaded.imageStoragePath,
+    imagePrompt: generatedFrame.imagePrompt,
+    videoRenderId: submission.taskId,
+  };
 }
 
 
@@ -44347,7 +44604,10 @@ async function getRulesToProcess({
 
   const readyRules = (upcomingRulesWithOverrides || [])
     .filter(
-      (rule) => isRuleReadyForGeneration(rule, now) && isRuleRetryGateOpen(rule, now)
+      (rule) =>
+        isRecurringRuleCreditCycleReady(rule) &&
+        isRuleReadyForGeneration(rule, now) &&
+        isRuleRetryGateOpen(rule, now)
     )
     .sort((a, b) => {
       const priorityDifference =
@@ -44378,7 +44638,10 @@ async function getRulesToProcess({
 
   const oldRulesThatAreDue = (fallbackRules || [])
     .filter(
-      (rule) => isRuleDueByOldSchedule(rule, now) && isRuleRetryGateOpen(rule, now)
+      (rule) =>
+        isRecurringRuleCreditCycleReady(rule) &&
+        isRuleDueByOldSchedule(rule, now) &&
+        isRuleRetryGateOpen(rule, now)
     );
 
   const uniqueRules = new Map();
@@ -45669,7 +45932,111 @@ async function runAutomationCron(request, options = {}) {
           }
         }
 
-        const creditCost = Number(rule.credit_cost || 1);
+        const creditCost = Math.max(1, Number(rule.credit_cost || 1));
+
+        if (
+          !isAdminTestRun &&
+          String(rule.schedule_type || "").toLowerCase() === "weekly" &&
+          ["consumed", "unfunded"].includes(
+            String(rule.credit_reservation_status || "").toLowerCase()
+          )
+        ) {
+          // Another worker may have advanced this plan to the cycle barrier or
+          // credit-pause state after the queue snapshot was selected. Never
+          // bypass that state with the legacy direct-debit path.
+          summary.skipped += 1;
+          continue;
+        }
+
+        if (
+          !isAdminTestRun &&
+          String(rule.schedule_type || "").toLowerCase() === "weekly" &&
+          rule.credit_reservation_status === "reserved"
+        ) {
+          const { data: reservationCheck, error: reservationCheckError } =
+            await supabase.rpc("spreelo_reconcile_weekly_reservation_for_execution", {
+              p_rule_id: rule.id,
+              p_required_cost: creditCost,
+            });
+
+          if (reservationCheckError) {
+            await failCurrentOccurrence(
+              reservationCheckError.message || "Could not validate reserved credits",
+              "credit_reservation_reconcile"
+            );
+            summary.errors += 1;
+            summary.no_credit_balance += 1;
+            continue;
+          }
+
+          if (reservationCheck?.funded === false) {
+            automationCurrentStage = "recurring_credit_cycle_gate";
+            const creditPauseSummary = {
+              recurring_cycle_credit_gate: true,
+              required_credit_cost: creditCost,
+              reserved_credit_amount: Number(
+                reservationCheck?.reserved_amount || rule.credit_reserved_amount || 0
+              ),
+              additional_required: Number(reservationCheck?.additional_required || 0),
+              credits_remaining: Number(reservationCheck?.credits_remaining || 0),
+            };
+
+            const { data: creditPauseResult, error: creditPauseError } = await supabase.rpc(
+              "spreelo_pause_recurring_occurrence_for_credit_shortage",
+              {
+                p_occurrence_id: automationOccurrenceId,
+                p_rule_id: rule.id,
+                p_failure_stage: automationCurrentStage,
+                p_message: "Not enough credits",
+              }
+            );
+
+            if (creditPauseError) {
+              console.error("Could not pause complete recurring plan after weekly credit shortage", {
+                ruleId: rule.id,
+                occurrenceId: automationOccurrenceId,
+                message: creditPauseError.message,
+              });
+              await failCurrentOccurrence("Not enough credits", automationCurrentStage, {
+                ...creditPauseSummary,
+                recurring_plan_pause_rpc_failed: true,
+              });
+            } else {
+              if (automationWorkerActivityEntry) {
+                automationWorkerActivityEntry.status = "failed";
+                automationWorkerActivityEntry.stage = automationCurrentStage;
+              }
+              await cancelCampaignResearchJobsForOccurrence({
+                supabase,
+                openai,
+                occurrenceId: automationOccurrenceId,
+                reason: "recurring_plan_paused_for_credits",
+              });
+              await finishRunLog("failed", "Not enough credits", {
+                stage: automationCurrentStage,
+                failure_code: "insufficient_credits",
+                notification_status: "suppressed",
+                terminal_failure: true,
+                recurring_plan_continues: false,
+                recurring_plan_paused_for_credits: true,
+                required_cycle_credits: Number(creditPauseResult?.required_credits || 0),
+                released_credits: Number(creditPauseResult?.released_credits || 0),
+                ...creditPauseSummary,
+              });
+            }
+
+            summary.errors += 1;
+            summary.not_enough_credits += 1;
+            summary.recurring_plans_paused_for_credits =
+              Number(summary.recurring_plans_paused_for_credits || 0) + 1;
+            continue;
+          }
+
+          if (Number.isFinite(Number(reservationCheck?.reserved_amount))) {
+            rule.credit_reserved_amount = Number(reservationCheck.reserved_amount);
+          }
+        }
+
         const hasReservedCredits =
           !isAdminTestRun &&
           rule.credit_reservation_status === "reserved" &&
@@ -45718,7 +46085,7 @@ let websitePreparedRule = rule;
 let animatedReelCandidates = [];
 let animatedReelRejectedCandidates = [];
 automationCurrentStage = "focused_page_context";
-const focusedPageContext = await prepareFocusedPageContextForRule(rule);
+const focusedPageContext = await prepareFocusedPageContextForRule(rule, brandProfile);
 
         if (isCarouselRule(rule)) {
           automationCurrentStage = "carousel_product_prepare";
@@ -45917,7 +46284,10 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
               continue;
             }
           }
-        } else if (rule.uses_website_content) {
+        } else if (
+          rule.uses_website_content &&
+          String(rule?.content_type_id || "").trim() !== "service_focus"
+        ) {
           automationCurrentStage = "single_product_prepare";
           try {
            const preparedWebsiteContent = await prepareWebsiteContentForRule({
@@ -45956,9 +46326,43 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
             automationRunWebsiteItem = websiteItem;
             automationRunWebsiteItems = websiteItem ? [websiteItem] : [];
           } catch (websiteError) {
-            summary.website_content_failed += 1;
+            const contentTypeId = String(rule?.content_type_id || "").trim().toLowerCase();
+            const mayUseNonProductFallback =
+              contentTypeId === "problem_solution" ||
+              isEngagementAiVideoRule(rule);
 
-            throw websiteError;
+            if (
+              mayUseNonProductFallback &&
+              !isWebsiteRateLimitError(websiteError) &&
+              isOptionalEditorialProductUnavailableError(websiteError)
+            ) {
+              websiteItem = null;
+              websiteSourceUrl = null;
+              websiteCycleNumber = 1;
+              useWebsiteImage = false;
+              websiteReserveItems = [];
+              productContentContract = null;
+              websitePreparedRule = {
+                ...rule,
+                uses_website_content: false,
+                image_source: "ai",
+                website_item: null,
+                website_items: [],
+              };
+              automationRunWebsiteItem = null;
+              automationRunWebsiteItems = [];
+              summary.editorial_non_product_fallback =
+                Number(summary.editorial_non_product_fallback || 0) + 1;
+              console.info("Editorial post continued without a forced product because no verified product fit was available", {
+                ruleId: rule.id,
+                contentTypeId,
+                brandProfileId: rule.brand_profile_id,
+                message: websiteError?.message || String(websiteError),
+              });
+            } else {
+              summary.website_content_failed += 1;
+              throw websiteError;
+            }
           }
         }
 
@@ -46138,76 +46542,82 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
         }
 
         if (isAnimatedVideoRule(websitePreparedRule || rule)) {
-          if (isKlingAiVideoRule(websitePreparedRule || rule)) {
-            // Kling needs the exact verified source image, not the Shotstack
-            // cutout/overlay preparation chain. Avoid any unnecessary AI image
-            // edit here: fetch the authoritative product pixels once and build
-            // the 9:16 reference deterministically later.
-            const normalizedImageUrl = normalizeShopifyImageWidthUrl(
-              websiteItem?.image_url,
-              1600
-            );
-            const authoritativeImageUrl = resolveUrl(
-              normalizedImageUrl,
-              websiteItem?.url || normalizedImageUrl
-            );
-            if (
-              !websiteItem ||
-              !authoritativeImageUrl ||
-              !isHttpUrl(authoritativeImageUrl) ||
-              isBadProductImageUrl(authoritativeImageUrl)
-            ) {
+          const engagementConceptWithoutProduct =
+            isEngagementAiVideoRule(websitePreparedRule || rule) && !websiteItem;
+
+          if (!engagementConceptWithoutProduct) {
+            if (isKlingAiVideoRule(websitePreparedRule || rule)) {
+              // Kling needs the exact verified source image, not the Shotstack
+              // cutout/overlay preparation chain. Avoid any unnecessary AI image
+              // edit here: fetch the authoritative product pixels once and build
+              // the 9:16 reference deterministically later. Engagement videos
+              // only enter this branch when a verified product was actually found.
+              const normalizedImageUrl = normalizeShopifyImageWidthUrl(
+                websiteItem?.image_url,
+                1600
+              );
+              const authoritativeImageUrl = resolveUrl(
+                normalizedImageUrl,
+                websiteItem?.url || normalizedImageUrl
+              );
+              if (
+                !websiteItem ||
+                !authoritativeImageUrl ||
+                !isHttpUrl(authoritativeImageUrl) ||
+                isBadProductImageUrl(authoritativeImageUrl)
+              ) {
+                throw new Error(
+                  "AI product video could not find a usable verified product image."
+                );
+              }
+
+              const sourceImageBuffer = await fetchImageBufferForOverlay(authoritativeImageUrl);
+              animatedReelCandidates = [
+                {
+                  item: websiteItem,
+                  imageSelection: {
+                    url: authoritativeImageUrl,
+                    source: "kling_verified_product_image",
+                    sourceImageBuffer,
+                  },
+                },
+              ];
+              animatedReelRejectedCandidates = [];
+            } else {
+              const preparedAnimatedCandidates = await prepareAnimatedReelProductCandidates({
+                openai,
+                ruleId: rule.id,
+                primaryItem: websiteItem,
+                reserveItems: websiteReserveItems,
+                sourceUrl: websiteSourceUrl || brandProfile?.website_url || rule.website_url || "",
+                maximumCandidates: 4,
+              });
+
+              animatedReelCandidates = preparedAnimatedCandidates.candidates;
+              animatedReelRejectedCandidates = preparedAnimatedCandidates.rejected;
+            }
+
+            if (!animatedReelCandidates.length) {
+              const attemptedTitles = animatedReelRejectedCandidates
+                .map((entry) => entry?.item?.title || entry?.item?.item_title)
+                .filter(Boolean)
+                .slice(0, 4);
               throw new Error(
-                "AI product video could not find a usable verified product image."
+                `Animated product video could not find a usable product image after checking the main product and available reserves${attemptedTitles.length ? `: ${attemptedTitles.join(", ")}` : ""}.`
               );
             }
 
-            const sourceImageBuffer = await fetchImageBufferForOverlay(authoritativeImageUrl);
-            animatedReelCandidates = [
-              {
-                item: websiteItem,
-                imageSelection: {
-                  url: authoritativeImageUrl,
-                  source: "kling_verified_product_image",
-                  sourceImageBuffer,
-                },
-              },
-            ];
-            animatedReelRejectedCandidates = [];
-          } else {
-            const preparedAnimatedCandidates = await prepareAnimatedReelProductCandidates({
-              openai,
-              ruleId: rule.id,
-              primaryItem: websiteItem,
-              reserveItems: websiteReserveItems,
-              sourceUrl: websiteSourceUrl || brandProfile?.website_url || rule.website_url || "",
-              maximumCandidates: 4,
-            });
-
-            animatedReelCandidates = preparedAnimatedCandidates.candidates;
-            animatedReelRejectedCandidates = preparedAnimatedCandidates.rejected;
-          }
-
-          if (!animatedReelCandidates.length) {
-            const attemptedTitles = animatedReelRejectedCandidates
-              .map((entry) => entry?.item?.title || entry?.item?.item_title)
-              .filter(Boolean)
-              .slice(0, 4);
-            throw new Error(
-              `Animated product video could not find a usable product image after checking the main product and available reserves${attemptedTitles.length ? `: ${attemptedTitles.join(", ")}` : ""}.`
+            websiteItem = animatedReelCandidates[0].item;
+            websiteReserveItems = animatedReelCandidates
+              .slice(1)
+              .map((entry) => entry.item);
+            productContentContract = buildProductContentContract(
+              [websiteItem],
+              websiteReserveItems
             );
+            automationRunWebsiteItem = websiteItem;
+            automationRunWebsiteItems = [websiteItem];
           }
-
-          websiteItem = animatedReelCandidates[0].item;
-          websiteReserveItems = animatedReelCandidates
-            .slice(1)
-            .map((entry) => entry.item);
-          productContentContract = buildProductContentContract(
-            [websiteItem],
-            websiteReserveItems
-          );
-          automationRunWebsiteItem = websiteItem;
-          automationRunWebsiteItems = [websiteItem];
         }
 
         let ruleWithBrandProfile = {
@@ -46230,7 +46640,11 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule);
           );
         }
 
-        if (isAnimatedVideoRule(ruleWithBrandProfile) && !websiteItem?.image_url) {
+        if (
+          isAnimatedVideoRule(ruleWithBrandProfile) &&
+          !isEngagementAiVideoRule(ruleWithBrandProfile) &&
+          !websiteItem?.image_url
+        ) {
           throw new Error(
             "Animated product video needs a verified product image. No usable image was found for the selected website item."
           );
@@ -46327,7 +46741,9 @@ scheduled_for: scheduledPublishAtIso,
               ? "shotstack"
               : null,
             video_duration_seconds: isKlingAiVideoRule(websitePreparedRule)
-              ? KLING_AI_VIDEO_DURATION_SECONDS
+              ? isEngagementAiVideoRule(websitePreparedRule)
+                ? ENGAGEMENT_AI_VIDEO_DURATION_SECONDS
+                : KLING_AI_VIDEO_DURATION_SECONDS
               : isShotstackAnimatedVideoRule(websitePreparedRule)
               ? ANIMATED_VIDEO_DURATION_SECONDS
               : null,
@@ -46437,7 +46853,14 @@ product_research_model_used: websitePreparedRule.uses_website_content
         let animatedVideoFinalError = null;
         let klingPrompt = null;
 
-        const isWebsiteBasedPost = Boolean(websitePreparedRule.uses_website_content || websiteItem || websiteSourceUrl);
+        const isServiceFocusPost = String(websitePreparedRule?.content_type_id || "").trim() === "service_focus";
+        // Service in focus uses its verified source page as factual context, but
+        // it is not a product-image post. Let the normal AI visual path create
+        // a service-specific visual instead of suppressing the image merely
+        // because no product image exists on the verified service page.
+        const isWebsiteBasedPost = !isServiceFocusPost && Boolean(
+          websitePreparedRule.uses_website_content || websiteItem || websiteSourceUrl
+        );
         const ruleImageSource = String(websitePreparedRule.image_source || "").trim().toLowerCase();
 
         if (wantsImage && ruleImageSource === "uploaded") {
@@ -46510,6 +46933,57 @@ product_research_model_used: websitePreparedRule.uses_website_content
 
           summary.uploaded_image_used =
             Number(summary.uploaded_image_used || 0) + 1;
+        } else if (
+          wantsImage &&
+          isEngagementAiVideoRule(ruleWithBrandProfile) &&
+          !animatedReelCandidates[0]
+        ) {
+          automationCurrentStage = "engagement_video_submit";
+          try {
+            const engagementVideo = await submitKlingEngagementConceptVideo({
+              openai,
+              supabase,
+              rule: ruleWithBrandProfile,
+              postContent: generatedContent,
+              userId: rule.user_id,
+              postId: post.id,
+              costTracker: activeGenerationCostTracker,
+            });
+            imageUrl = engagementVideo.imageUrl;
+            imageStoragePath = engagementVideo.imageStoragePath;
+            finalImagePrompt = engagementVideo.imagePrompt;
+            videoRenderId = engagementVideo.videoRenderId;
+            summary.video_submitted = Number(summary.video_submitted || 0) + 1;
+            summary.image_generated = Number(summary.image_generated || 0) + 1;
+          } catch (videoError) {
+            const failureMessage = truncateText(
+              videoError?.message || "Engagement AI video could not be submitted.",
+              1000
+            );
+            await supabase.from("posts").update({
+              image_url: imageUrl,
+              image_storage_path: imageStoragePath,
+              image_status: imageUrl ? "ready" : "failed",
+              image_prompt: finalImagePrompt,
+              video_url: null,
+              video_storage_path: null,
+              video_status: "failed",
+              video_provider: "kling",
+              video_render_id: videoRenderId || null,
+              video_error: failureMessage,
+              kling_task_id: videoRenderId || null,
+              kling_task_status: "failed",
+              updated_at: new Date().toISOString(),
+            }).eq("id", post.id);
+            await failCurrentOccurrence(videoError, "engagement_video_submit", {
+              failed_post_id: post.id,
+              kling_no_retry: true,
+              kling_task_id: videoRenderId || null,
+            });
+            summary.video_generation_failed = Number(summary.video_generation_failed || 0) + 1;
+            summary.errors += 1;
+            continue;
+          }
         } else if (wantsImage && isKlingAiVideoRule(ruleWithBrandProfile)) {
           automationCurrentStage = "kling_video_submit";
           const candidate = animatedReelCandidates[0];
@@ -46536,6 +47010,9 @@ product_research_model_used: websitePreparedRule.uses_website_content
               ...ruleWithBrandProfile,
               website_item: candidate.item,
             };
+            const requestedKlingDurationSeconds = isEngagementAiVideoRule(klingRuleContext)
+              ? ENGAGEMENT_AI_VIDEO_DURATION_SECONDS
+              : KLING_AI_VIDEO_DURATION_SECONDS;
             let referenceSafety = await assessKlingReferenceSafety(sourceImageBuffer, {
               openai,
               websiteItem: candidate.item,
@@ -46640,12 +47117,18 @@ product_research_model_used: websitePreparedRule.uses_website_content
               throw new Error("AI product video could not prepare a factual short overlay headline");
             }
 
-            klingPrompt = await buildKlingProductVideoPrompt({
-              openai,
-              rule: klingRuleContext,
-              postContent: generatedContent,
-              referenceSafety,
-            });
+            klingPrompt = isEngagementAiVideoRule(klingRuleContext)
+              ? buildKlingEngagementVideoPrompt({
+                  rule: klingRuleContext,
+                  postContent: generatedContent,
+                  referenceSafety,
+                })
+              : await buildKlingProductVideoPrompt({
+                  openai,
+                  rule: klingRuleContext,
+                  postContent: generatedContent,
+                  referenceSafety,
+                });
 
             // This RPC is the hard cost guard. It can move a post from 0 -> 1
             // generation exactly once, atomically across all queue workers.
@@ -46694,7 +47177,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
               image_prompt: finalImagePrompt,
               video_provider: "kling",
               video_status: "submitting",
-              video_duration_seconds: KLING_AI_VIDEO_DURATION_SECONDS,
+              video_duration_seconds: requestedKlingDurationSeconds,
               kling_prompt: klingPrompt,
               kling_reference_image_url: imageUrl,
               video_background_selection: {
@@ -46746,6 +47229,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
               imageUrl,
               prompt: klingPrompt,
               externalTaskId: post.id,
+              durationSeconds: requestedKlingDurationSeconds,
             });
 
             videoRenderId = klingSubmission.taskId;
@@ -46759,7 +47243,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
               video_render_id: videoRenderId,
               video_status: submittedStatus,
               video_provider: "kling",
-              video_duration_seconds: klingSubmission.durationSeconds || KLING_AI_VIDEO_DURATION_SECONDS,
+              video_duration_seconds: klingSubmission.durationSeconds || requestedKlingDurationSeconds,
               video_error: null,
               kling_task_id: videoRenderId,
               kling_task_status: submittedStatus,

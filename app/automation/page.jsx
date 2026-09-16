@@ -63,13 +63,21 @@ import { useUiText } from "../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
 import { SUPPORTED_CONTENT_LANGUAGES } from "../../lib/languageCatalog.js";
 import { getCreditCostForContent } from "../../lib/credits";
-import { getConfiguredContentCreditCost } from "../../lib/contentEconomics";
+import {
+  getConfiguredContentCreditCost,
+  getConfiguredContentCreditVariantCost,
+} from "../../lib/contentEconomics";
 import { parsePlanLimitDatabaseError } from "../../lib/planEntitlements";
 import {
   DEFAULT_CONTENT_FORMAT_MAP,
   normalizeContentFormatRows,
 } from "../../lib/contentFormatLibrary";
 import { enforceDirectCalendarCampaignPolicy } from "../../lib/calendarCampaignPolicy";
+import {
+  hasVerifiedServiceEvidence,
+  normalizeEditorialContentTypeId,
+} from "../../lib/editorialContentStrategy";
+import { CONTENT_TYPE_TIMING } from "../../lib/contentPlanningStrategy";
 import {
   getContentTypeCoverageScore,
   getContentTypeDestinationPlatforms,
@@ -252,72 +260,7 @@ const smartPostingDayGoalBonus = {
   stay_visible: { Monday: 6, Tuesday: 6, Wednesday: 6, Thursday: 6, Friday: 6, Sunday: 5 },
 };
 
-const smartPostingTypePreferences = {
-  website_item: {
-    dayBonus: { Thursday: 10, Friday: 12, Saturday: 9, Sunday: 4 },
-    preferredTimes: ["11:30", "12:15", "16:30", "18:30"],
-  },
-  carousel_website_item: {
-    dayBonus: { Wednesday: 8, Thursday: 10, Friday: 9, Saturday: 7, Sunday: 5 },
-    preferredTimes: ["12:15", "16:30", "18:30", "19:00"],
-  },
-  problem_solution: {
-    dayBonus: { Monday: 7, Tuesday: 8, Wednesday: 7, Thursday: 5, Sunday: 4 },
-    preferredTimes: ["08:30", "12:15", "16:30", "18:30"],
-  },
-  tips: {
-    dayBonus: { Tuesday: 8, Wednesday: 9, Thursday: 6, Sunday: 7, Saturday: 3 },
-    preferredTimes: ["10:30", "12:15", "18:30", "19:30"],
-  },
-  mistakes: {
-    dayBonus: { Tuesday: 7, Wednesday: 8, Thursday: 5, Sunday: 5 },
-    preferredTimes: ["10:30", "12:15", "18:30", "19:30"],
-  },
-  faq: {
-    dayBonus: { Tuesday: 6, Wednesday: 7, Thursday: 8, Sunday: 5 },
-    preferredTimes: ["12:15", "16:30", "18:30", "10:30"],
-  },
-  behind_scenes: {
-    dayBonus: { Wednesday: 6, Thursday: 7, Friday: 8, Saturday: 5 },
-    preferredTimes: ["13:30", "16:30", "18:30"],
-  },
-  checklist: {
-    dayBonus: { Monday: 7, Tuesday: 7, Wednesday: 8, Sunday: 8, Thursday: 4 },
-    preferredTimes: ["08:30", "12:15", "18:30", "19:30"],
-  },
-  service_focus: {
-    dayBonus: { Tuesday: 7, Wednesday: 7, Thursday: 8, Friday: 5 },
-    preferredTimes: ["10:30", "12:15", "16:30"],
-  },
-  case_example: {
-    dayBonus: { Tuesday: 7, Wednesday: 8, Thursday: 8, Sunday: 4 },
-    preferredTimes: ["11:30", "13:30", "18:30"],
-  },
-  myth_fact: {
-    dayBonus: { Tuesday: 8, Wednesday: 8, Thursday: 6, Sunday: 5 },
-    preferredTimes: ["10:30", "11:30", "18:30"],
-  },
-  local: {
-    dayBonus: { Monday: 6, Thursday: 7, Friday: 8, Saturday: 6 },
-    preferredTimes: ["08:30", "10:30", "11:30", "16:30"],
-  },
-  seasonal: {
-    dayBonus: { Thursday: 7, Friday: 8, Saturday: 7, Sunday: 6 },
-    preferredTimes: ["10:30", "12:15", "16:30", "18:30"],
-  },
-  comparison: {
-    dayBonus: { Tuesday: 7, Wednesday: 8, Thursday: 7, Sunday: 5 },
-    preferredTimes: ["10:30", "11:30", "18:30"],
-  },
-  mini_guide: {
-    dayBonus: { Tuesday: 8, Wednesday: 9, Sunday: 8, Monday: 4, Thursday: 4 },
-    preferredTimes: ["12:15", "18:30", "19:30", "10:30"],
-  },
-  manual_prompt: {
-    dayBonus: { Tuesday: 6, Wednesday: 6, Thursday: 6, Friday: 5 },
-    preferredTimes: ["10:30", "12:15", "16:30"],
-  },
-};
+const smartPostingTypePreferences = CONTENT_TYPE_TIMING;
 
 const recommendedWeeklySchedule = weekdays.map((weekday) => ({
   weekday,
@@ -514,145 +457,152 @@ const contentTypes = [
   },
     {
     id: "problem_solution",
-    label: "Problem → Solution",
-    shortLabel: "Problem solved",
-    description: "Highlight a customer problem and show how your business solves it.",
+    label: "Problem & solution",
+    shortLabel: "Problem & solution",
+    description: "Show a customer problem and connect it to a relevant product or service.",
     prompt:
-      "Create a social media post that starts from a real customer problem, frustration, need or question related to this business. Then explain how the business, service or offer helps solve that problem. Make it useful, trustworthy and specific. Do not exaggerate, scare the audience or invent guarantees.",
+      "Start with a real customer problem, friction, need or desired outcome. Then connect it to a genuinely relevant verified product or service from the business when one is available and factually supports the solution. Never force a product or invent a product/service benefit. If no verified business solution fits, keep the post useful and solve the problem without fabricating a sales connection.",
     imagePrompt:
-      "Create a professional image that visualizes a customer problem being solved in a natural and trustworthy way. Make it relevant to the business, polished and believable. Do not include readable text.",
+      "Create a polished visual that makes the problem and solution immediately understandable. If a verified business item is supplied, preserve it faithfully and make it the natural solution rather than inventing a substitute. Avoid generic stock-like filler and avoid long readable text inside an AI-generated scene.",
     usesWebsiteContent: false,
   },
   {
     id: "tips",
-    label: "Tips & advice",
-    shortLabel: "Tips",
-    description: "Teach the audience something useful.",
+    label: "Tips & knowledge",
+    shortLabel: "Tips & knowledge",
+    description: "Share useful advice, facts and smart tips for your audience.",
     prompt:
-      "Create a useful social media post that teaches the audience one practical tip related to this business. Make it specific, helpful and easy to understand. Avoid sounding like an advertisement.",
+      "Create a genuinely useful knowledge post for this brand's audience. Choose the strongest natural angle for the topic: a practical tip, common mistake, myth vs fact, did-you-know insight, a few things to consider, or a better way to do something. Do not repeat a format mechanically and do not make the post feel like filler or an advertisement.",
     imagePrompt:
-      "Create a professional image that visually supports a helpful tip. Make it relevant to the business, clear, polished and not generic.",
-    usesWebsiteContent: false,
-  },
-  {
-    id: "mistakes",
-    label: "Common mistakes",
-    shortLabel: "Mistakes",
-    description: "Show expertise and help customers avoid problems.",
-    prompt:
-      "Create a social media post about common mistakes customers often make related to this business, product or service. Explain them in a helpful and non-judgmental way, and position the business as knowledgeable and trustworthy.",
-    imagePrompt:
-      "Create a professional image that suggests common mistakes or things to avoid in a tasteful, helpful and non-negative way.",
+      "Choose a visual presentation that makes the knowledge easy to grasp and worth saving. Use a clear concept, concise information design or a relevant scene as appropriate. Do not create generic decorative imagery when a more useful visual structure would communicate the idea better.",
     usesWebsiteContent: false,
   },
   {
     id: "faq",
-    label: "FAQ / Questions",
-    shortLabel: "FAQ",
-    description: "Answer a common customer question.",
+    label: "Question & answer",
+    shortLabel: "Question & answer",
+    description: "Answer a relevant question customers may have.",
     prompt:
-      "Create a social media post that answers a common customer question related to this business. Make the answer clear, trustworthy and useful. The post should reduce uncertainty and make it easier for the customer to take the next step.",
+      "Answer a real, relevant question a potential customer could reasonably have. Prefer verified business, website or source-page information. Never invent company-specific prices, policies, delivery terms, returns, guarantees, availability, service inclusions or product features. If a company-specific answer is not supported, use only safe general knowledge without presenting it as company policy.",
     imagePrompt:
-      "Create a professional image that supports a question-and-answer or guidance theme, without adding readable text.",
+      "Create a clear, trustworthy visual that supports the specific question and answer. Prefer a simple visual concept or concise information design over a generic question-mark image. Avoid long text baked into an AI-generated scene.",
     usesWebsiteContent: false,
   },
   {
-    id: "behind_scenes",
-    label: "Behind the scenes",
-    shortLabel: "Behind scenes",
-    description: "Build trust by showing the process.",
+    id: "guide_choice",
+    label: "Guide & decision help",
+    shortLabel: "Guide & decision help",
+    description: "Help customers choose the right option or understand how something works.",
     prompt:
-      "Create a behind-the-scenes social media post for this business. Show what happens in the process, preparation, workday or service delivery. Make it feel authentic, trustworthy and interesting.",
+      "Help the audience make a better decision or do something correctly. Choose the structure that best fits the idea: a buying or selection guide, checklist, step-by-step, which-option-fits-you guide, things to consider before choosing/buying/booking, or another concise decision aid. Use verified products or services only when they genuinely improve the guidance. Do not turn the guide into a generic sales list.",
     imagePrompt:
-      "Create an authentic behind-the-scenes style image connected to the business or service. Make it natural, professional and trustworthy.",
+      "Create a useful visual structure for the guide: concise steps, a decision aid, comparison-style composition or another clear learning layout. The visual should help the audience understand the guidance at a glance instead of acting as decoration.",
+    usesWebsiteContent: false,
+  },
+  {
+    id: "service_focus",
+    label: "Service in focus",
+    shortLabel: "Service in focus",
+    description: "Highlight a real service you offer.",
+    prompt:
+      "Focus on one verified service from this business. Choose the strongest customer-relevant angle: the problem it solves, what the customer receives, who it suits, when it is useful, how the process works, a common misunderstanding, or what to know before booking or choosing it. Never invent what is included and avoid generic hard-sell copy.",
+    imagePrompt:
+      "Create a believable, specific visual that helps the audience understand the verified service, its process or customer benefit. Avoid generic smiling-professional imagery when a more informative service-specific visual is possible.",
+    usesWebsiteContent: true,
+  },
+  {
+    id: "engagement_humor",
+    label: "Engagement & humour",
+    shortLabel: "Engagement & humour",
+    description: "Create content that encourages reactions, comments and shares.",
+    prompt:
+      "Create a highly engaging social idea that gives this brand's real audience a natural reason to react, comment or share. Choose the best fitting approach for the brand and topic: relatable humour, light industry humour, A/B choice, pick one, opinion question, guess, true/false, an unexpected verified fact, what-would-you-do scenario or another relatable interaction. Humour is optional and must fit the brand tone. Avoid cheap engagement bait, invented facts and forced products.",
+    imagePrompt:
+      "Create a scroll-stopping visual whose central idea is understandable within one or two seconds. It may be a relatable AI scene, a clean A/B or choice layout, a real verified product image used naturally, or concise information design. If overlay text is useful, keep it short and self-contained; do not ask the image model to render long copy.",
+    usesWebsiteContent: false,
+    contentFormat: "single_image",
+    animationStyle: null,
+  },
+  // Legacy editorial ids remain readable for historical rules, but are retired from new plans.
+  {
+    id: "mistakes",
+    label: "Common mistakes",
+    shortLabel: "Mistakes",
+    description: "Legacy format now handled by Tips & knowledge.",
+    prompt: "Create a useful post about a relevant mistake and how to avoid it.",
+    imagePrompt: "Create a useful visual that supports the correction.",
     usesWebsiteContent: false,
   },
   {
     id: "checklist",
     label: "Checklist",
     shortLabel: "Checklist",
-    description: "Create a save-worthy post.",
-    prompt:
-      "Create a practical checklist-style social media post related to this business. Make it easy to save, useful and specific. Keep the structure clear and helpful.",
-    imagePrompt:
-      "Create a professional image that visually supports a checklist or preparation theme, without adding readable text.",
-    usesWebsiteContent: false,
-  },
-  {
-    id: "service_focus",
-    label: "Service in focus",
-    shortLabel: "Service",
-    description: "Explain one service without hard selling.",
-    prompt:
-      "Create a social media post that explains one service or offer from this business in a clear and helpful way. Focus on the value for the customer, not hard selling.",
-    imagePrompt:
-      "Create a professional image that visualizes the service or customer benefit in a believable and polished way.",
-    usesWebsiteContent: false,
-  },
-  {
-    id: "case_example",
-    label: "Customer case / example",
-    shortLabel: "Case",
-    description: "Use examples to build trust.",
-    prompt:
-      "Create a social media post based on a realistic customer case or example for this business. Do not invent sensitive personal details. Make it feel credible, useful and trust-building.",
-    imagePrompt:
-      "Create a professional image that supports a customer example or real-life scenario, without showing private or sensitive details.",
+    description: "Legacy format now handled by Guide & decision help.",
+    prompt: "Create a practical checklist-style post.",
+    imagePrompt: "Create a clear checklist-supporting visual.",
     usesWebsiteContent: false,
   },
   {
     id: "myth_fact",
     label: "Myth vs fact",
     shortLabel: "Myth vs fact",
-    description: "Correct misunderstandings.",
-    prompt:
-      "Create a myth-vs-fact style social media post related to this business or industry. Correct a common misunderstanding and explain the truth in a simple, trustworthy way.",
-    imagePrompt:
-      "Create a professional image that suggests clarity, understanding or comparison, without adding readable text.",
-    usesWebsiteContent: false,
-  },
-  {
-    id: "local",
-    label: "Local connection",
-    shortLabel: "Local",
-    description: "Make the post feel locally relevant.",
-    prompt:
-      "Create a social media post with a local angle for this business. Make it feel relevant to the local community, season, area or everyday customer situation. Keep it natural and not forced.",
-    imagePrompt:
-      "Create a professional image with a local or community feeling that fits the business, without using specific landmarks unless clearly provided.",
+    description: "Legacy format now handled by Tips & knowledge.",
+    prompt: "Create a factual myth-versus-fact post.",
+    imagePrompt: "Create a clear truth-versus-myth visual concept.",
     usesWebsiteContent: false,
   },
   {
     id: "seasonal",
     label: "Seasonal post",
     shortLabel: "Seasonal",
-    description: "Connect content to current timing.",
-    prompt:
-      "Create a seasonal or timely social media post for this business. Connect the message to the current season, common customer needs or relevant timing in a natural way.",
-    imagePrompt:
-      "Create a professional seasonal image that fits the business and timing, avoiding clichés and readable text.",
+    description: "Legacy format; seasonality is now a contextual layer.",
+    prompt: "Create a timely post only when the season is genuinely relevant.",
+    imagePrompt: "Create a relevant timely visual without seasonal clichés.",
+    usesWebsiteContent: false,
+  },
+  {
+    id: "mini_guide",
+    label: "Mini-guide",
+    shortLabel: "Mini-guide",
+    description: "Legacy format now handled by Guide & decision help.",
+    prompt: "Create a concise useful guide.",
+    imagePrompt: "Create a clear guide-supporting visual.",
+    usesWebsiteContent: false,
+  },
+  {
+    id: "behind_scenes",
+    label: "Behind the scenes",
+    shortLabel: "Behind scenes",
+    description: "Legacy retired format.",
+    prompt: "Create an authentic behind-the-scenes post.",
+    imagePrompt: "Create an authentic behind-the-scenes visual.",
+    usesWebsiteContent: false,
+  },
+  {
+    id: "case_example",
+    label: "Customer case / example",
+    shortLabel: "Case",
+    description: "Legacy retired format.",
+    prompt: "Create a credible example without inventing customer facts.",
+    imagePrompt: "Create a relevant example visual.",
+    usesWebsiteContent: false,
+  },
+  {
+    id: "local",
+    label: "Local connection",
+    shortLabel: "Local",
+    description: "Legacy retired format.",
+    prompt: "Create a locally relevant post only when supported by context.",
+    imagePrompt: "Create a relevant local visual without invented landmarks.",
     usesWebsiteContent: false,
   },
   {
     id: "comparison",
     label: "Comparison",
     shortLabel: "Comparison",
-    description: "Explain differences clearly.",
-    prompt:
-      "Create a social media post that compares two options, approaches or choices related to this business. Help the customer understand the difference and make a better decision.",
-    imagePrompt:
-      "Create a professional image that suggests comparison or decision-making in a clean and tasteful way, without split-screen text.",
-    usesWebsiteContent: false,
-  },
-   {
-    id: "mini_guide",
-    label: "Mini-guide",
-    shortLabel: "Mini-guide",
-    description: "Give deeper value in one post.",
-    prompt:
-      "Create a mini-guide social media post related to this business. Teach the audience something useful in a structured way with clear steps or sections.",
-    imagePrompt:
-      "Create a professional image that supports a guide or learning theme, clean and easy to understand without readable text.",
+    description: "Legacy retired format.",
+    prompt: "Create a useful comparison.",
+    imagePrompt: "Create a clear comparison visual.",
     usesWebsiteContent: false,
   },
   {
@@ -673,13 +623,23 @@ const RETIRED_CONTENT_TYPE_IDS = new Set([
   "case_example",
   "local",
   "comparison",
+  "mistakes",
+  "checklist",
+  "myth_fact",
+  "seasonal",
+  "mini_guide",
 ]);
 
 const RETIRED_CONTENT_TYPE_FALLBACKS = {
   behind_scenes: "tips",
-  case_example: "checklist",
-  local: "seasonal",
-  comparison: "mini_guide",
+  case_example: "guide_choice",
+  local: "tips",
+  comparison: "guide_choice",
+  mistakes: "tips",
+  checklist: "guide_choice",
+  myth_fact: "tips",
+  seasonal: "tips",
+  mini_guide: "guide_choice",
 };
 
 const slotTypeIcons = {
@@ -700,6 +660,8 @@ const slotTypeIcons = {
   seasonal: "📅",
   comparison: "⚖️",
   mini_guide: "📘",
+  guide_choice: "📘",
+  engagement_humor: "💬",
   manual_prompt: "✍️",
   custom: "✍️",
 };
@@ -727,6 +689,8 @@ const slotTypeIconComponents = {
   seasonal: CalendarDays,
   comparison: Scale,
   mini_guide: BookOpen,
+  guide_choice: BookOpen,
+  engagement_humor: MessageCircleHeart,
   manual_prompt: PenLine,
   giveaway: Gift,
   custom: PenLine,
@@ -875,10 +839,14 @@ function PlannerSummaryIcon({ type, success = false }) {
 const recommendedContentTypeIds = [
   "website_item",
   "website_item_text_ad",
+  "animated_website_item",
+  "ai_product_video",
   "carousel_website_item",
+  "problem_solution",
   "tips",
-  "mistakes",
   "faq",
+  "guide_choice",
+  "engagement_humor",
 ];
 
 const autoPlanGoals = [
@@ -910,24 +878,26 @@ const autoPlanStrategies = {
     label: "Sell more",
     contentTypeIds: [
       "problem_solution",
+      "service_focus",
       "carousel_website_item",
       "website_item_text_ad",
       "faq",
       "website_item",
       "animated_website_item",
-      "checklist",
+      "ai_product_video",
     ],
     imageCount: 5,
   },
   get_followers: {
     label: "Get more followers",
     contentTypeIds: [
-      "seasonal",
+      "engagement_humor",
       "tips",
-      "mini_guide",
-      "myth_fact",
+      "guide_choice",
       "problem_solution",
-      "mistakes",
+      "faq",
+      "service_focus",
+      "animated_website_item",
       "carousel_website_item",
     ],
     imageCount: 4,
@@ -936,12 +906,13 @@ const autoPlanStrategies = {
     label: "Build trust",
     contentTypeIds: [
       "tips",
-      "problem_solution",
       "faq",
-      "checklist",
-      "mini_guide",
+      "guide_choice",
       "service_focus",
-      "myth_fact",
+      "problem_solution",
+      "engagement_humor",
+      "website_item",
+      "carousel_website_item",
     ],
     imageCount: 4,
   },
@@ -949,25 +920,27 @@ const autoPlanStrategies = {
     label: "Give tips & advice",
     contentTypeIds: [
       "tips",
-      "mistakes",
+      "guide_choice",
+      "faq",
+      "service_focus",
+      "problem_solution",
       "carousel_website_item",
-      "mini_guide",
       "website_item",
-      "checklist",
-      "myth_fact",
+      "engagement_humor",
     ],
     imageCount: 4,
   },
   stay_visible: {
     label: "Keep the account active",
     contentTypeIds: [
-      "seasonal",
+      "engagement_humor",
       "tips",
+      "problem_solution",
+      "faq",
+      "service_focus",
+      "guide_choice",
       "website_item",
       "carousel_website_item",
-      "faq",
-      "mistakes",
-      "myth_fact",
     ],
     imageCount: 4,
   },
@@ -976,48 +949,53 @@ const autoPlanStrategies = {
 const goalMarketingSequences = {
   sell_more: [
     { contentTypeId: "problem_solution", label: "Need hook", description: "Create buying interest by showing a clear need, problem or desirable outcome before selling.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
+    { contentTypeId: "service_focus", label: "Verified service solution", description: "Use a real verified service when it directly solves the customer need and is relevant to the sales goal.", marketingAngle: "conversion", customerStage: "warm", ctaStrength: "medium" },
     { contentTypeId: "carousel_website_item", label: "Product guide", description: "Show a curated set of relevant products with one shared buying theme.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "medium" },
     { contentTypeId: "website_item_text_ad", label: "Strong product ad", description: "Use one concrete product in a visually strong AI-designed advertisement.", marketingAngle: "product_push", customerStage: "warm", ctaStrength: "medium" },
     { contentTypeId: "faq", label: "Remove buying doubt", description: "Answer a useful question that can reduce hesitation before purchase or contact.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "medium" },
     { contentTypeId: "website_item", label: "Clear product recommendation", description: "Recommend one concrete product and explain why it is a good choice now.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "strong" },
-    { contentTypeId: "animated_website_item", label: "Product Reel", description: "Use movement to give a strong product one more attention-grabbing sales moment.", marketingAngle: "product_push", customerStage: "ready_to_buy", ctaStrength: "strong" },
-    { contentTypeId: "checklist", label: "Buying checklist", description: "Help ready customers check what matters before taking the next step.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "strong" },
+    { contentTypeId: "animated_website_item", label: "Product Reel", description: "Use movement to give a strong product an attention-grabbing sales moment.", marketingAngle: "product_push", customerStage: "ready_to_buy", ctaStrength: "strong" },
+    { contentTypeId: "ai_product_video", label: "Premium product video", description: "Use a verified product image for AI video only when motion adds enough value to justify the higher production cost.", marketingAngle: "product_push", customerStage: "ready_to_buy", ctaStrength: "strong" },
   ],
   get_followers: [
-    { contentTypeId: "seasonal", label: "Broad timely hook", description: "Start with a relatable, timely idea that can reach people beyond existing customers.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
+    { contentTypeId: "engagement_humor", label: "Engagement hook", description: "Start with a relatable idea that gives people a natural reason to react, comment or share.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
     { contentTypeId: "tips", label: "Useful quick tip", description: "Give easy value that people can like, save or share.", marketingAngle: "engagement", customerStage: "cold", ctaStrength: "soft" },
-    { contentTypeId: "mini_guide", label: "Save-worthy guide", description: "Give new visitors a compact guide that makes the account worth following.", marketingAngle: "guide", customerStage: "cold", ctaStrength: "soft" },
-    { contentTypeId: "myth_fact", label: "Attention hook", description: "Correct a useful misconception in a simple format that encourages engagement.", marketingAngle: "engagement", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "guide_choice", label: "Save-worthy guide", description: "Give new visitors a compact guide that makes the account worth following.", marketingAngle: "guide", customerStage: "cold", ctaStrength: "soft" },
     { contentTypeId: "problem_solution", label: "Recognisable problem", description: "Use a need people recognise so new audiences understand why the brand matters.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
-    { contentTypeId: "mistakes", label: "Common mistake", description: "Create useful content people may save, share and return to.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "carousel_website_item", label: "Visual inspiration", description: "Use a strong product collection when the assortment genuinely gives people a reason to swipe and follow.", marketingAngle: "inspiration", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "faq", label: "Useful answer", description: "Answer a relevant question clearly so new visitors quickly understand the business.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "service_focus", label: "Useful service angle", description: "Use a verified service when it gives new audiences a concrete, useful reason to understand the business.", marketingAngle: "awareness", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "animated_website_item", label: "Visual product moment", description: "Use a product Reel when movement gives a verified product real discovery value.", marketingAngle: "engagement", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "carousel_website_item", label: "Visual inspiration", description: "Use a strong product collection when the assortment genuinely gives people a reason to swipe and follow.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "soft" },
   ],
   build_trust: [
     { contentTypeId: "tips", label: "Expert tip", description: "Open with useful expertise that makes the brand feel competent.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "problem_solution", label: "Problem and solution", description: "Explain a customer problem and how the business helps solve it.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
     { contentTypeId: "faq", label: "Answer doubts", description: "Remove common hesitation with a clear, grounded answer.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "checklist", label: "Practical checklist", description: "Turn expertise into a useful checklist customers can rely on.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "mini_guide", label: "Helpful guide", description: "Explain a relevant topic in clear steps that demonstrate knowledge.", marketingAngle: "guide", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "service_focus", label: "Service clarity", description: "Explain one verified service so the customer understands what it includes and why it matters.", marketingAngle: "education", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "myth_fact", label: "Responsible clarification", description: "Correct a misunderstanding with a simple, trustworthy explanation.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "guide_choice", label: "Practical guide", description: "Turn expertise into useful decision help customers can rely on.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "service_focus", label: "Service clarity", description: "Explain one verified service through what it solves, who it suits or what the customer receives.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "problem_solution", label: "Problem and solution", description: "Explain a real customer problem and a grounded way the business can help.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "engagement_humor", label: "Human brand moment", description: "Use a brand-appropriate engagement idea that adds personality without weakening trust.", marketingAngle: "engagement", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "website_item", label: "Verified product clarity", description: "Use one real product when it helps explain the offer with concrete verified evidence.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "carousel_website_item", label: "Verified selection", description: "Use a curated product selection when comparison through the assortment improves clarity.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "medium" },
   ],
   educate_customers: [
     { contentTypeId: "tips", label: "Quick practical tip", description: "Start with one helpful tip that is easy to understand and save.", marketingAngle: "education", customerStage: "cold", ctaStrength: "soft" },
-    { contentTypeId: "mistakes", label: "Common mistake", description: "Help customers avoid a mistake or misunderstanding connected to the business.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "carousel_website_item", label: "Visual guide", description: "Use carousel when several verified products or examples make the advice easier to act on.", marketingAngle: "guide", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "mini_guide", label: "Step-by-step guide", description: "Teach a useful process in a compact, structured format.", marketingAngle: "guide", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "guide_choice", label: "Step-by-step guide", description: "Teach a useful process in a compact, structured format.", marketingAngle: "guide", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "faq", label: "Helpful answer", description: "Answer a common question with grounded information.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "service_focus", label: "Explain a service", description: "Teach the audience how one verified service works or when it is useful.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "problem_solution", label: "Useful solution", description: "Explain a customer problem and a useful grounded way forward.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "carousel_website_item", label: "Visual guide", description: "Use a carousel when several verified products make the advice easier to act on.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "medium" },
     { contentTypeId: "website_item", label: "Recommended solution", description: "Connect the advice to one relevant verified product from the website.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "medium" },
-    { contentTypeId: "checklist", label: "Checklist", description: "Turn the advice into a simple action list.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "myth_fact", label: "Myth vs fact", description: "Correct a misconception and build authority.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "engagement_humor", label: "Knowledge engagement", description: "Use a light interactive angle when it helps the audience remember or discuss the topic.", marketingAngle: "engagement", customerStage: "warm", ctaStrength: "soft" },
   ],
   stay_visible: [
-    { contentTypeId: "seasonal", label: "Timely inspiration", description: "Keep the brand present with a relevant seasonal or everyday angle.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
+    { contentTypeId: "engagement_humor", label: "Engagement moment", description: "Keep the brand present with a relevant, natural reason for the audience to react or share.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
     { contentTypeId: "tips", label: "Useful value post", description: "Give value so the account does not only sell.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "website_item", label: "Product reminder", description: "Keep one concrete verified product visible in the weekly mix.", marketingAngle: "product_push", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "carousel_website_item", label: "Mini collection", description: "Use carousel occasionally to show a relevant verified collection.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "problem_solution", label: "Relevant need", description: "Connect the brand to a real audience problem without forcing a sale.", marketingAngle: "awareness", customerStage: "warm", ctaStrength: "soft" },
     { contentTypeId: "faq", label: "Helpful answer", description: "Answer a common question and reduce friction.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "mistakes", label: "Useful correction", description: "Help the audience avoid a common mistake.", marketingAngle: "education", customerStage: "warm", ctaStrength: "soft" },
-    { contentTypeId: "myth_fact", label: "Simple clarification", description: "Correct a misconception and keep the content varied.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "service_focus", label: "Service reminder", description: "Keep a verified service visible when it is relevant without turning every week into a sales push.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "guide_choice", label: "Useful guide", description: "Help the audience make one better choice or understand a useful process.", marketingAngle: "guide", customerStage: "warm", ctaStrength: "soft" },
+    { contentTypeId: "website_item", label: "Product reminder", description: "Keep one concrete verified product visible when product mode is available.", marketingAngle: "product_push", customerStage: "warm", ctaStrength: "medium" },
+    { contentTypeId: "carousel_website_item", label: "Mini collection", description: "Use a carousel occasionally to show a relevant verified collection.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "medium" },
   ],
 };
 
@@ -1060,26 +1038,43 @@ function getRuleImageSource(slot) {
 }
 
 function getContentTypeById(typeId) {
-  return contentTypes.find((type) => type.id === typeId) || null;
+  const normalizedTypeId = normalizeEditorialContentTypeId(typeId);
+  return contentTypes.find((type) => type.id === normalizedTypeId) || null;
 }
-function getBrandSafeContentTypeId(typeId, websiteProductModeAvailable) {
+function getBrandSafeContentTypeId(
+  typeId,
+  websiteProductModeAvailable,
+  verifiedServiceModeAvailable = true
+) {
   if (RETIRED_CONTENT_TYPE_IDS.has(typeId)) {
     return RETIRED_CONTENT_TYPE_FALLBACKS[typeId] || "tips";
+  }
+
+  if (typeId === "service_focus" && !verifiedServiceModeAvailable) {
+    return "problem_solution";
   }
 
   if (!websiteProductModeAvailable) {
     if (["website_item", "website_item_text_ad", "animated_website_item", "ai_product_video"].includes(typeId)) {
       return "problem_solution";
     }
-    if (typeId === "carousel_website_item") return "mini_guide";
+    if (typeId === "carousel_website_item") return "guide_choice";
   }
 
   return typeId;
 }
 
-function getBrandSafeContentTypeIds(typeIds, websiteProductModeAvailable) {
+function getBrandSafeContentTypeIds(
+  typeIds,
+  websiteProductModeAvailable,
+  verifiedServiceModeAvailable = true
+) {
   return typeIds.map((typeId) =>
-    getBrandSafeContentTypeId(typeId, websiteProductModeAvailable)
+    getBrandSafeContentTypeId(
+      typeId,
+      websiteProductModeAvailable,
+      verifiedServiceModeAvailable
+    )
   );
 }
 
@@ -1091,12 +1086,14 @@ function getGoalPlanningStep({
   goalId,
   index = 0,
   websiteProductModeAvailable = true,
+  verifiedServiceModeAvailable = true,
 }) {
   const sequence = getGoalMarketingSequence(goalId);
   const rawStep = sequence[index % sequence.length] || sequence[0];
   const safeContentTypeId = getBrandSafeContentTypeId(
     rawStep.contentTypeId,
-    websiteProductModeAvailable
+    websiteProductModeAvailable,
+    verifiedServiceModeAvailable
   );
 
   if (safeContentTypeId === rawStep.contentTypeId) {
@@ -1108,12 +1105,84 @@ function getGoalPlanningStep({
   return {
     ...rawStep,
     contentTypeId: safeContentTypeId,
-    label: rawStep.label || fallbackContentType?.label || "Planned post",
+    label: fallbackContentType?.label || "Planned post",
     description:
-      rawStep.description ||
       fallbackContentType?.description ||
       "Create a useful post that supports the selected goal.",
   };
+}
+
+function getGoalPlanningSteps({
+  goalId,
+  postCount = DEFAULT_AUTO_PLAN_POST_COUNT,
+  websiteProductModeAvailable = true,
+  verifiedServiceModeAvailable = true,
+}) {
+  const count = Math.max(1, Number(postCount) || DEFAULT_AUTO_PLAN_POST_COUNT);
+  const primarySequence = getGoalMarketingSequence(goalId);
+  const supportingSequences = [
+    primarySequence,
+    getGoalMarketingSequence("build_trust"),
+    getGoalMarketingSequence("get_followers"),
+    getGoalMarketingSequence("educate_customers"),
+    getGoalMarketingSequence("stay_visible"),
+  ];
+  const uniqueSteps = [];
+  const seenTypeIds = new Set();
+
+  for (const sequence of supportingSequences) {
+    for (const rawStep of sequence) {
+      const safeContentTypeId = getBrandSafeContentTypeId(
+        rawStep.contentTypeId,
+        websiteProductModeAvailable,
+        verifiedServiceModeAvailable
+      );
+      const type = getContentTypeById(safeContentTypeId);
+      if (!type || type.id === "manual_prompt" || seenTypeIds.has(type.id)) continue;
+
+      const step = safeContentTypeId === rawStep.contentTypeId
+        ? rawStep
+        : {
+            ...rawStep,
+            contentTypeId: safeContentTypeId,
+            label: type.label,
+            description: type.description,
+          };
+      uniqueSteps.push(step);
+      seenTypeIds.add(type.id);
+      if (uniqueSteps.length >= count) return uniqueSteps;
+    }
+  }
+
+  // A business with neither product nor service evidence can have fewer than
+  // seven distinct safe strategic formats. Only then allow a repeat, while
+  // keeping the original goal order and avoiding back-to-back duplicates.
+  const repeatCandidates = primarySequence
+    .map((rawStep) => {
+      const safeContentTypeId = getBrandSafeContentTypeId(
+        rawStep.contentTypeId,
+        websiteProductModeAvailable,
+        verifiedServiceModeAvailable
+      );
+      const type = getContentTypeById(safeContentTypeId);
+      if (!type || type.id === "manual_prompt") return null;
+      return safeContentTypeId === rawStep.contentTypeId
+        ? rawStep
+        : { ...rawStep, contentTypeId: safeContentTypeId, label: type.label, description: type.description };
+    })
+    .filter(Boolean);
+
+  let cursor = 0;
+  while (uniqueSteps.length < count && repeatCandidates.length) {
+    const candidate = repeatCandidates[cursor % repeatCandidates.length];
+    cursor += 1;
+    if (uniqueSteps.at(-1)?.contentTypeId === candidate.contentTypeId && repeatCandidates.length > 1) {
+      continue;
+    }
+    uniqueSteps.push(candidate);
+  }
+
+  return uniqueSteps.slice(0, count);
 }
 
 function buildGoalSlotPrompt(type, step, goalId) {
@@ -1139,23 +1208,25 @@ function getGoalContentTypeIds({
   goalId,
   postCount,
   websiteProductModeAvailable,
+  verifiedServiceModeAvailable = true,
 }) {
   if (!goalId) return [];
 
-  const count = Number(postCount) || DEFAULT_AUTO_PLAN_POST_COUNT;
-
-  return Array.from({ length: count }).map((_, index) =>
-    getGoalPlanningStep({
-      goalId,
-      index,
-      websiteProductModeAvailable,
-    }).contentTypeId
-  );
+  return getGoalPlanningSteps({
+    goalId,
+    postCount,
+    websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
+  }).map((step) => step.contentTypeId);
 }
-function getVisibleContentTypes(websiteProductModeAvailable) {
+function getVisibleContentTypes(websiteProductModeAvailable, brandProfile = null) {
   return contentTypes.filter((type) => {
     if (RETIRED_CONTENT_TYPE_IDS.has(type.id)) {
       return false;
+    }
+
+    if (type.id === "service_focus") {
+      return hasVerifiedServiceEvidence(brandProfile);
     }
 
     if (
@@ -1454,21 +1525,48 @@ function buildAdaptiveWeeklyVariants({
   goalId,
   slotIndex,
   websiteProductModeAvailable,
+  verifiedServiceModeAvailable = true,
   selectedPlatforms = [],
   platformCapabilities = {},
+  creditCostResolver = getCreditCostForContent,
 }) {
   if (!slot || !goalId) return [];
 
   const targetPlatforms = normalizeSpreeloPlatformList(selectedPlatforms);
   const fitsTargetPlatforms = (type) => {
     if (!targetPlatforms.length || !type) return true;
+    const contentFormat = type.id === "engagement_humor"
+      ? "single_image"
+      : type.contentFormat || "single_image";
     const destinations = getRuntimeContentTypeDestinationPlatforms({
       contentTypeId: type.id,
-      contentFormat: type.contentFormat || "single_image",
+      contentFormat,
       selectedPlatforms: targetPlatforms,
       platformCapabilities,
     });
     return targetPlatforms.every((platform) => destinations.includes(platform));
+  };
+
+  const getAdaptivePresentation = (type, rawVariant = null) => {
+    const isEngagement = type?.id === "engagement_humor";
+    const usesWebsiteContent = type?.id === "problem_solution"
+      ? Boolean(websiteProductModeAvailable)
+      : isEngagement
+        ? false
+        : Boolean(type?.usesWebsiteContent);
+    const contentFormat = isEngagement ? "single_image" : type?.contentFormat || "single_image";
+    const animationStyle = isEngagement ? null : type?.animationStyle || null;
+    const imageSource = isEngagement
+      ? "ai"
+      : contentFormat === "carousel"
+        ? "website_carousel"
+        : usesWebsiteContent
+          ? "website"
+          : "ai";
+    const creditVariant = isEngagement
+      ? String(rawVariant?.creditVariant || rawVariant?.credit_variant || "ai_image")
+      : "";
+    return { usesWebsiteContent, contentFormat, animationStyle, imageSource, creditVariant };
   };
 
   if (Array.isArray(slot.adaptiveVariants) && slot.adaptiveVariants.length > 1) {
@@ -1478,7 +1576,8 @@ function buildAdaptiveWeeklyVariants({
     for (const rawVariant of slot.adaptiveVariants) {
       const safeTypeId = getBrandSafeContentTypeId(
         rawVariant?.contentTypeId,
-        websiteProductModeAvailable
+        websiteProductModeAvailable,
+        verifiedServiceModeAvailable
       );
       const type = getContentTypeById(safeTypeId);
       if (
@@ -1488,13 +1587,12 @@ function buildAdaptiveWeeklyVariants({
         !fitsTargetPlatforms(type)
       ) continue;
 
+      const presentation = getAdaptivePresentation(type, rawVariant);
       const draftSlot = {
         ...slot,
         contentTypeId: type.id,
         contentTypeLabel: type.label,
-        usesWebsiteContent: Boolean(type.usesWebsiteContent),
-        contentFormat: type.contentFormat || "single_image",
-        animationStyle: type.animationStyle || null,
+        ...presentation,
         generateImage: true,
       };
 
@@ -1505,11 +1603,12 @@ function buildAdaptiveWeeklyVariants({
         prompt: rawVariant?.prompt || type.prompt,
         imagePrompt: rawVariant?.imagePrompt || type.imagePrompt || slot.imagePrompt || "",
         generateImage: true,
-        imageSource: getRuleImageSource(draftSlot),
-        usesWebsiteContent: Boolean(type.usesWebsiteContent),
-        contentFormat: type.contentFormat || "single_image",
-        animationStyle: type.animationStyle || null,
-        creditCost: getCreditCostForContent(draftSlot),
+        imageSource: presentation.imageSource,
+        usesWebsiteContent: presentation.usesWebsiteContent,
+        contentFormat: presentation.contentFormat,
+        animationStyle: presentation.animationStyle,
+        creditVariant: presentation.creditVariant,
+        creditCost: creditCostResolver(draftSlot),
       });
       seenTypeIds.add(type.id);
 
@@ -1540,10 +1639,11 @@ function buildAdaptiveWeeklyVariants({
     usesWebsiteContent: Boolean(slot.usesWebsiteContent),
     contentFormat: slot.contentFormat || "single_image",
     animationStyle: slot.animationStyle || null,
+    creditVariant: slot.creditVariant || "",
     marketingAngle: slot.marketingAngle || "",
     customerStage: slot.customerStage || "",
     ctaStrength: slot.ctaStrength || "",
-    creditCost: getCreditCostForContent(slot),
+    creditCost: creditCostResolver(slot),
   };
 
   if (baseVariant.contentTypeId) {
@@ -1554,22 +1654,21 @@ function buildAdaptiveWeeklyVariants({
   for (const rawStep of candidateSteps) {
     const safeTypeId = getBrandSafeContentTypeId(
       rawStep.contentTypeId,
-      websiteProductModeAvailable
+      websiteProductModeAvailable,
+      verifiedServiceModeAvailable
     );
     if (!safeTypeId || seenTypeIds.has(safeTypeId)) continue;
 
     const type = getContentTypeById(safeTypeId);
     if (!type || type.id === "manual_prompt" || !fitsTargetPlatforms(type)) continue;
 
+    const presentation = getAdaptivePresentation(type);
     const draftSlot = {
       ...slot,
       contentTypeId: type.id,
       contentTypeLabel: type.label,
-      usesWebsiteContent: Boolean(type.usesWebsiteContent),
-      contentFormat: type.contentFormat || "single_image",
-      animationStyle: type.animationStyle || null,
+      ...presentation,
       generateImage: true,
-      imageSource: type.usesWebsiteContent ? "website" : "ai",
     };
 
     const step = {
@@ -1584,14 +1683,15 @@ function buildAdaptiveWeeklyVariants({
       prompt,
       imagePrompt: type.imagePrompt || slot.imagePrompt || "",
       generateImage: true,
-      imageSource: getRuleImageSource(draftSlot),
-      usesWebsiteContent: Boolean(type.usesWebsiteContent),
-      contentFormat: type.contentFormat || "single_image",
-      animationStyle: type.animationStyle || null,
+      imageSource: presentation.imageSource,
+      usesWebsiteContent: presentation.usesWebsiteContent,
+      contentFormat: presentation.contentFormat,
+      animationStyle: presentation.animationStyle,
+      creditVariant: presentation.creditVariant,
       marketingAngle: rawStep.marketingAngle || "",
       customerStage: rawStep.customerStage || "",
       ctaStrength: rawStep.ctaStrength || "",
-      creditCost: getCreditCostForContent(draftSlot),
+      creditCost: creditCostResolver(draftSlot),
     });
     seenTypeIds.add(type.id);
 
@@ -2042,18 +2142,38 @@ function getCampaignPublishWindowIdFromTime(publishTime = "") {
   return "evening";
 }
 
-function getCampaignPublishWindowId(intent = "", timingAnchor = "", marketingAngle = "") {
+function getCampaignPublishWindowId(
+  intent = "",
+  timingAnchor = "",
+  marketingAngle = "",
+  contentSourceMode = ""
+) {
   const normalizedIntent = String(intent || "").toLowerCase();
   const normalizedAnchor = String(timingAnchor || "").toLowerCase();
   const normalizedAngle = String(marketingAngle || "").toLowerCase();
+  const normalizedSourceMode = String(contentSourceMode || "").toLowerCase();
   const combined = `${normalizedIntent} ${normalizedAnchor} ${normalizedAngle}`;
 
+  // Campaign phase/deadline is stronger than the generic type timing profile.
   if (/evening|kväll|aften|kveld|last|deadline|urgency|urgent|sista|slut|final/.test(combined)) {
     return "evening";
   }
 
-  if (/engagement|comment|react|community|interaktion|engagera/.test(combined)) {
+  if (
+    normalizedSourceMode === "engagement_humor" ||
+    /engagement|comment|react|community|interaktion|engagera/.test(combined)
+  ) {
     return "evening";
+  }
+
+  // Once campaign phase is respected, let the same content-type timing profile
+  // used by AI Content Studio influence the best daypart for this format.
+  if (normalizedSourceMode) {
+    const contentTypeId = getCampaignSlotContentTypeId(normalizedSourceMode);
+    const preferredTimes = smartPostingTypePreferences[contentTypeId]?.preferredTimes || [];
+    if (preferredTimes.length) {
+      return getCampaignPublishWindowIdFromTime(preferredTimes[0]);
+    }
   }
 
   if (/conversion|product_push|offer|sale|köp|purchase|shop|product|produkt/.test(combined)) {
@@ -2084,6 +2204,53 @@ function getQueuedCampaignPublishTime(windowId = "lateMorning", queueIndex = 0) 
   return minutesToPublishTime(getPublishTimeMinutes(lastTime) + (safeIndex - times.length + 1) * 35);
 }
 
+function getCampaignTypeAwarePublishTime({
+  contentSourceMode = "",
+  weekday = "",
+  intent = "",
+  timingAnchor = "",
+  marketingAngle = "",
+  queueIndex = 0,
+  fallbackTime = "",
+}) {
+  const windowId = getCampaignPublishWindowId(
+    intent,
+    timingAnchor,
+    marketingAngle,
+    contentSourceMode
+  );
+  const contentTypeId = getCampaignSlotContentTypeId(contentSourceMode);
+  const preferredTypeTime = weekday
+    ? getPreferredTimeForContentWeekday(contentTypeId, weekday)
+    : "";
+  const safeFallbackTime = /^\d{2}:\d{2}$/.test(String(fallbackTime || "").slice(0, 5))
+    ? String(fallbackTime).slice(0, 5)
+    : "";
+
+  // An explicit campaign schedule that already belongs to the right strategic
+  // daypart is stronger than generic type timing. This keeps deadline/event
+  // intent intact while still allowing type timing to improve generic slots.
+  if (
+    Number(queueIndex || 0) === 0 &&
+    safeFallbackTime &&
+    getCampaignPublishWindowIdFromTime(safeFallbackTime) === windowId
+  ) {
+    return safeFallbackTime;
+  }
+
+  // Otherwise use the shared type-specific exact time when it belongs to the
+  // strategic campaign daypart. Deadline/urgency windows still take precedence.
+  if (
+    Number(queueIndex || 0) === 0 &&
+    preferredTypeTime &&
+    getCampaignPublishWindowIdFromTime(preferredTypeTime) === windowId
+  ) {
+    return preferredTypeTime;
+  }
+
+  return getQueuedCampaignPublishTime(windowId, queueIndex) || safeFallbackTime || "10:30";
+}
+
 function assignQueuedCampaignPublishTimes(scheduleItems = []) {
   const queueCountsByDateWindow = {};
 
@@ -2095,7 +2262,8 @@ function assignQueuedCampaignPublishTimes(scheduleItems = []) {
       getCampaignPublishWindowId(
         item.intent || postPlanItem.intended_intent,
         item.timingAnchor || postPlanItem.timing_anchor,
-        postPlanItem.marketing_angle
+        postPlanItem.marketing_angle,
+        postPlanItem.content_source_mode
       );
     const queueKey = `${item.startDate || ""}-${windowId}`;
     const queueIndex = queueCountsByDateWindow[queueKey] || 0;
@@ -2117,9 +2285,9 @@ function getCampaignTimeWindowDisplay(publishTime = "", t) {
   );
 }
 
-function getRecommendedCampaignPublishTime(intent = "", timingAnchor = "", marketingAngle = "") {
+function getRecommendedCampaignPublishTime(intent = "", timingAnchor = "", marketingAngle = "", contentSourceMode = "") {
   return getQueuedCampaignPublishTime(
-    getCampaignPublishWindowId(intent, timingAnchor, marketingAngle),
+    getCampaignPublishWindowId(intent, timingAnchor, marketingAngle, contentSourceMode),
     0
   );
 }
@@ -2197,8 +2365,8 @@ function getSmartPostingScore({
   score += getTimePreferenceScore(typePreference.preferredTimes, publishTime);
 
   if (weekday === "Saturday" || weekday === "Sunday") {
-    score += ["website_item", "carousel_website_item", "seasonal", "checklist", "mini_guide"].includes(
-      contentTypeId
+    score += ["website_item", "carousel_website_item", "engagement_humor", "guide_choice"].includes(
+      normalizeEditorialContentTypeId(contentTypeId)
     )
       ? 4
       : -3;
@@ -2481,6 +2649,7 @@ contentTypeLabel: overrides.contentTypeLabel || null,
 usesWebsiteContent: Boolean(overrides.usesWebsiteContent),
 contentFormat: overrides.contentFormat || "single_image",
 animationStyle: overrides.animationStyle || null,
+creditVariant: overrides.creditVariant || "",
 destinationPlatforms: normalizeSpreeloPlatformList(overrides.destinationPlatforms || []),
 platformAdaptations:
   overrides.platformAdaptations && typeof overrides.platformAdaptations === "object"
@@ -2547,6 +2716,27 @@ function createSlotFromContentType(type, index = 0, options = {}) {
       ? options.generateImage
       : true;
 
+  const websiteAvailable = options.websiteProductModeAvailable === true;
+  const engagementVariant = type.id === "engagement_humor"
+    ? String(options.engagementVariant || "ai_image")
+    : "";
+  const effectiveUsesWebsiteContent = type.id === "problem_solution"
+    ? websiteAvailable
+    : type.id === "engagement_humor"
+      ? websiteAvailable && ["ai_video", "product_image"].includes(engagementVariant)
+      : Boolean(type.usesWebsiteContent);
+  const effectiveContentFormat = type.id === "engagement_humor"
+    ? (engagementVariant === "ai_video" ? "animated_video" : "single_image")
+    : type.contentFormat || "single_image";
+  const effectiveAnimationStyle = type.id === "engagement_humor"
+    ? (engagementVariant === "ai_video" ? "engagement_ai_video" : null)
+    : type.animationStyle || null;
+  const effectiveImageSource = type.id === "engagement_humor"
+    ? (engagementVariant === "product_image" ? "website" : "ai")
+    : effectiveUsesWebsiteContent
+      ? "website"
+      : "ai";
+
   return createSlot({
     weekday: schedule.weekday,
     startDate: schedule.startDate,
@@ -2554,11 +2744,13 @@ function createSlotFromContentType(type, index = 0, options = {}) {
     prompt: type.prompt,
     imagePrompt: type.imagePrompt,
     generateImage: shouldGenerateImage,
+    imageSource: effectiveImageSource,
     contentTypeId: type.id,
     contentTypeLabel: type.label,
-    usesWebsiteContent: Boolean(type.usesWebsiteContent),
-    contentFormat: type.contentFormat || "single_image",
-    animationStyle: type.animationStyle || null,
+    usesWebsiteContent: effectiveUsesWebsiteContent,
+    contentFormat: effectiveContentFormat,
+    animationStyle: effectiveAnimationStyle,
+    creditVariant: engagementVariant,
     contentSourceScope: options.contentSource?.sourceScope || "whole_website",
     contentSourceUrl: options.contentSource?.url || "",
     contentSourceTitle: options.contentSource?.displayTitle || "",
@@ -2579,14 +2771,14 @@ function createRecommendedSlots(options = {}) {
   const strategy = getAutoPlanStrategy(options.autoPlanGoal);
   const postCount = options.postCount || DEFAULT_AUTO_PLAN_POST_COUNT;
   const websiteProductModeAvailable = options.websiteProductModeAvailable !== false;
+  const verifiedServiceModeAvailable = options.verifiedServiceModeAvailable === true;
 
-  const planningSteps = Array.from({ length: postCount }).map((_, index) =>
-    getGoalPlanningStep({
-      goalId: options.autoPlanGoal,
-      index,
-      websiteProductModeAvailable,
-    })
-  );
+  const planningSteps = getGoalPlanningSteps({
+    goalId: options.autoPlanGoal,
+    postCount,
+    websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
+  });
 
   const repeatedTypeIds = planningSteps.map((step) => step.contentTypeId);
   const types = repeatedTypeIds.map(getContentTypeById).filter(Boolean);
@@ -2618,9 +2810,16 @@ function createRecommendedSlots(options = {}) {
           ? true
           : shouldAutoPlanGenerateImage(index, strategy.imageCount),
       contentTypeId: type.id,
-      contentTypeLabel: planningStep.label || type.label,
-      usesWebsiteContent: Boolean(type.usesWebsiteContent),
-      contentFormat: type.contentFormat || "single_image",
+      contentTypeLabel: type.label,
+      usesWebsiteContent:
+        type.id === "problem_solution"
+          ? websiteProductModeAvailable
+          : type.id === "engagement_humor"
+            ? false
+            : Boolean(type.usesWebsiteContent),
+      contentFormat: type.id === "engagement_humor" ? "single_image" : type.contentFormat || "single_image",
+      animationStyle: type.id === "engagement_humor" ? null : type.animationStyle || null,
+      creditVariant: type.id === "engagement_humor" ? "ai_image" : "",
       marketingAngle: planningStep.marketingAngle || "",
       customerStage: planningStep.customerStage || "",
       ctaStrength: planningStep.ctaStrength || "",
@@ -2640,14 +2839,16 @@ function createRecommendedSlots(options = {}) {
 function normalizeDynamicPlanningStep(
   rawStep,
   goalId,
-  websiteProductModeAvailable
+  websiteProductModeAvailable,
+  verifiedServiceModeAvailable = true
 ) {
   const rawContentTypeId = String(
     rawStep?.content_type_id || rawStep?.contentTypeId || ""
   ).trim();
   const contentTypeId = getBrandSafeContentTypeId(
     rawContentTypeId,
-    websiteProductModeAvailable
+    websiteProductModeAvailable,
+    verifiedServiceModeAvailable
   );
   const type = getContentTypeById(contentTypeId);
 
@@ -2677,6 +2878,7 @@ function getNormalizedDynamicPlanningSteps({
   goalId,
   postCount,
   websiteProductModeAvailable,
+  verifiedServiceModeAvailable = true,
 }) {
   const count = Math.max(1, Number(postCount) || DEFAULT_AUTO_PLAN_POST_COUNT);
   const steps = [];
@@ -2686,7 +2888,8 @@ function getNormalizedDynamicPlanningSteps({
     const step = normalizeDynamicPlanningStep(
       rawStep,
       goalId,
-      websiteProductModeAvailable
+      websiteProductModeAvailable,
+      verifiedServiceModeAvailable
     );
     if (!step || seenTypeIds.has(step.contentTypeId)) continue;
     seenTypeIds.add(step.contentTypeId);
@@ -2694,13 +2897,15 @@ function getNormalizedDynamicPlanningSteps({
     if (steps.length >= count) break;
   }
 
-  for (let index = 0; steps.length < count && index < count * 4; index += 1) {
-    const fallbackStep = getGoalPlanningStep({
-      goalId,
-      index,
-      websiteProductModeAvailable,
-      platformCapabilities: runtimePlatformCapabilities,
-    });
+  const fallbackSteps = getGoalPlanningSteps({
+    goalId,
+    postCount: count,
+    websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
+  });
+
+  for (const fallbackStep of fallbackSteps) {
+    if (steps.length >= count) break;
     const normalizedFallback = normalizeDynamicPlanningStep(
       {
         content_type_id: fallbackStep.contentTypeId,
@@ -2711,11 +2916,10 @@ function getNormalizedDynamicPlanningSteps({
         cta_strength: fallbackStep.ctaStrength,
       },
       goalId,
-      websiteProductModeAvailable
+      websiteProductModeAvailable,
+      verifiedServiceModeAvailable
     );
-    if (!normalizedFallback || seenTypeIds.has(normalizedFallback.contentTypeId)) {
-      continue;
-    }
+    if (!normalizedFallback || seenTypeIds.has(normalizedFallback.contentTypeId)) continue;
     seenTypeIds.add(normalizedFallback.contentTypeId);
     steps.push(normalizedFallback);
   }
@@ -2762,17 +2966,20 @@ function createDynamicRecommendedSlots(options = {}) {
   const goalId = options.autoPlanGoal || "";
   const postCount = options.postCount || DEFAULT_AUTO_PLAN_POST_COUNT;
   const websiteProductModeAvailable = options.websiteProductModeAvailable !== false;
+  const verifiedServiceModeAvailable = options.verifiedServiceModeAvailable === true;
   const planningSteps = getNormalizedDynamicPlanningSteps({
     rawSteps: options.plan?.posts,
     goalId,
     postCount,
     websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
   });
   const rotationSteps = getNormalizedDynamicPlanningSteps({
     rawSteps: options.plan?.rotation_pool,
     goalId,
     postCount: Math.max(6, Math.min(10, contentTypes.length)),
     websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
   });
   const contentTypeIds = planningSteps.map((step) => step.contentTypeId);
   const smartSchedule = buildSmartSlotSchedule({
@@ -3170,6 +3377,8 @@ function getContentTypeIcon(typeId) {
     behind_scenes: "🎥",
     checklist: "✓",
     service_focus: "✦",
+    guide_choice: "▤",
+    engagement_humor: "💬",
     case_example: "👥",
     myth_fact: "↔",
     local: "⌖",
@@ -3196,7 +3405,9 @@ function getContentPreviewCardId(typeId) {
     faq: "faq",
     behind_scenes: "customer_inspiration",
     checklist: "checklist",
-    service_focus: "product_focus",
+    service_focus: "service_focus",
+    guide_choice: "decision_help",
+    engagement_humor: "engagement_humor",
     case_example: "customer_inspiration",
     myth_fact: "tips_advice",
     local: "local_relevance",
@@ -3226,6 +3437,9 @@ function getContentPreviewCardIcon(cardId) {
     seasonal: "☀️",
     local_relevance: "📍",
     problem_solution: "⚡",
+    service_focus: "🧩",
+    decision_help: "🧭",
+    engagement_humor: "💬",
     custom_prompt: "✎",
     giveaway: "🎁",
     content_mix: "✦",
@@ -3238,8 +3452,8 @@ function getGoalBonusPreviewCardIds(goalId) {
   if (goalId === "sell_more") return ["offers", "reminders"];
   if (goalId === "get_followers") return ["customer_inspiration", "local_relevance"];
   if (goalId === "build_trust") return ["customer_inspiration", "faq"];
-  if (goalId === "educate_customers") return ["tips_advice", "mini_guide"];
-  if (goalId === "stay_visible") return ["seasonal", "reminders"];
+  if (goalId === "educate_customers") return ["tips_advice", "decision_help"];
+  if (goalId === "stay_visible") return ["engagement_humor", "reminders"];
 
   return [];
 }
@@ -3301,6 +3515,7 @@ function getPlanIncludedContentTypes({
   autoPlanPostCount,
   selectedContentTypeIds,
   websiteProductModeAvailable,
+  verifiedServiceModeAvailable = true,
   slots = [],
 }) {
   if (planCreationMode === "campaign") {
@@ -3327,6 +3542,7 @@ function getPlanIncludedContentTypes({
     goalId: autoPlanGoal,
     postCount: autoPlanPostCount,
     websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
   })
     .map(getContentTypeById)
     .filter(Boolean);
@@ -4679,7 +4895,8 @@ function buildFixedEventCampaignSchedule({
       publishWindow: getCampaignPublishWindowId(
         intent,
         timingAnchor,
-        postPlanItem?.marketing_angle
+        postPlanItem?.marketing_angle,
+        postPlanItem?.content_source_mode
       ),
       daysBeforeEvent: actualDaysBeforeEvent,
       timingAnchor,
@@ -4770,7 +4987,8 @@ function buildDateRangeCampaignSchedule({
       publishWindow: getCampaignPublishWindowId(
         intent,
         timingAnchor,
-        postPlanItem?.marketing_angle
+        postPlanItem?.marketing_angle,
+        postPlanItem?.content_source_mode
       ),
       daysBeforeEvent: daysBeforeCampaignEnd,
       timingAnchor,
@@ -4881,28 +5099,33 @@ function getCampaignSlotContentTypeId(sourceMode) {
     website_product: "website_item",
     website_product_ad: "website_item_text_ad",
     website_reel: "animated_website_item",
+    website_ai_video: "ai_product_video",
     website_service: "service_focus",
     problem_solution: "problem_solution",
     tips: "tips",
     faq: "faq",
-    checklist: "checklist",
-    mistakes: "mistakes",
-    myth_fact: "myth_fact",
-    mini_guide: "mini_guide",
-    seasonal: "seasonal",
+    guide_choice: "guide_choice",
+    engagement_humor: "engagement_humor",
+    checklist: "guide_choice",
+    mistakes: "tips",
+    myth_fact: "tips",
+    mini_guide: "guide_choice",
+    seasonal: "tips",
   };
 
-  return mappedContentTypes[sourceMode] || "seasonal";
+  return mappedContentTypes[sourceMode] || "tips";
 }
 
 function getCampaignSlotContentFormat(sourceMode) {
   if (sourceMode === "website_carousel") return "carousel";
-  if (sourceMode === "website_reel") return "animated_video";
+  if (["website_reel", "website_ai_video"].includes(sourceMode)) return "animated_video";
   return "single_image";
 }
 
 function getCampaignSlotAnimationStyle(sourceMode) {
-  return sourceMode === "website_reel" ? "product_push" : null;
+  if (sourceMode === "website_reel") return "product_push";
+  if (sourceMode === "website_ai_video") return "kling_product_video";
+  return null;
 }
 
 function getCampaignSlotContentTypeLabel(campaign, sourceMode) {
@@ -4915,20 +5138,22 @@ function getCampaignSourceModeForSelectedContentType(contentTypeId) {
     website_item: "website_product",
     website_item_text_ad: "website_product_ad",
     animated_website_item: "website_reel",
-    ai_product_video: "website_product",
+    ai_product_video: "website_ai_video",
     carousel_website_item: "website_carousel",
     service_focus: "website_service",
     problem_solution: "problem_solution",
     tips: "tips",
     faq: "faq",
-    checklist: "checklist",
-    mistakes: "mistakes",
-    myth_fact: "myth_fact",
-    mini_guide: "mini_guide",
-    seasonal: "seasonal",
+    guide_choice: "guide_choice",
+    engagement_humor: "engagement_humor",
+    checklist: "guide_choice",
+    mistakes: "tips",
+    myth_fact: "tips",
+    mini_guide: "guide_choice",
+    seasonal: "tips",
   };
 
-  return mappedSourceModes[contentTypeId] || "";
+  return mappedSourceModes[normalizeEditorialContentTypeId(contentTypeId)] || "";
 }
 
 function buildSelectedCampaignFormatPrompt(campaign, postPlanItem, index, selectedType) {
@@ -5032,11 +5257,14 @@ const CAMPAIGN_ACTIONABLE_SOURCE_MODES = new Set([
   "website_product",
   "website_product_ad",
   "website_reel",
+  "website_ai_video",
   "website_service",
   "website_carousel",
   "problem_solution",
   "tips",
   "faq",
+  "guide_choice",
+  "engagement_humor",
   "checklist",
   "mistakes",
   "myth_fact",
@@ -5044,61 +5272,51 @@ const CAMPAIGN_ACTIONABLE_SOURCE_MODES = new Set([
   "seasonal",
 ]);
 
-function campaignHasServiceWebsiteFit(campaign) {
-  const fit = String(campaign?.website_content_fit || "").toLowerCase();
-  const strategy = String(campaign?.website_content_strategy || "").toLowerCase();
-  const text = getCampaignFormatDecisionText(campaign, {}).toLowerCase();
+function campaignHasServiceWebsiteFit(campaign, brandProfile = null) {
+  const explicitSourceType = String(
+    campaign?.website_source_type ||
+      campaign?.verified_website_source_type ||
+      campaign?.source_type ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
 
   return (
-    fit !== "weak" &&
-    strategy !== "none" &&
-    (strategy === "service" ||
-      /service|services|booking|appointment|consult|treatment|repair|installation|cleaning|agency|studio|salon|clinic|software|saas|platform|support|tjänst|bokning|behandling|reparation|installation|städ|salong|klinik/.test(
-        text
-      ))
+    hasVerifiedServiceEvidence(brandProfile) ||
+    campaign?.verified_service_evidence === true ||
+    ["service_catalog", "booking", "course_event"].includes(explicitSourceType)
   );
 }
 
 function getCampaignSafeNonProductMode(campaign, postPlanItem, index, total) {
   const marketingAngle = normalizeStrategyValue(postPlanItem?.marketing_angle);
   const phase = normalizeStrategyValue(postPlanItem?.campaign_phase);
-  const text = getCampaignFormatDecisionText(campaign, postPlanItem).toLowerCase();
-  const hasTimelyContext = Boolean(
-    campaign?.event_date || campaign?.start_date || campaign?.end_date
-  );
-
   if (marketingAngle === "trust" || phase === "trust") return "faq";
-  if (marketingAngle === "engagement") return "tips";
-  if (marketingAngle === "product_discovery") return "mini_guide";
+  if (marketingAngle === "engagement") return "engagement_humor";
+  if (marketingAngle === "product_discovery") return "guide_choice";
   if (marketingAngle === "product_push" || marketingAngle === "offer") {
     return "problem_solution";
   }
   if (marketingAngle === "urgency" || phase === "last_chance") {
     return index >= Math.max(total - 2, 0) ? "faq" : "problem_solution";
   }
-  if (
-    hasTimelyContext ||
-    /season|holiday|christmas|halloween|easter|summer|winter|spring|autumn|fall|jul|påsk|sommar|vinter|vår|höst/.test(
-      text
-    )
-  ) {
-    return "seasonal";
-  }
   return index === 0 ? "problem_solution" : "tips";
 }
 
-function getCampaignContentSourceMode(campaign, postPlanItem, index, total) {
+function getCampaignContentSourceMode(campaign, postPlanItem, index, total, brandProfile = null) {
   const explicitMode = String(postPlanItem?.content_source_mode || "")
     .trim()
     .toLowerCase();
   const hasProducts = campaignHasProductWebsiteFit(campaign);
-  const hasServices = campaignHasServiceWebsiteFit(campaign);
+  const hasServices = campaignHasServiceWebsiteFit(campaign, brandProfile);
   const marketingAngle = normalizeStrategyValue(postPlanItem?.marketing_angle);
   const laterPost = index >= Math.max(1, Math.floor(total / 2));
   const productModes = new Set([
     "website_product",
     "website_product_ad",
     "website_reel",
+    "website_ai_video",
     "website_carousel",
   ]);
 
@@ -5159,6 +5377,7 @@ function shouldUseWebsiteContentForCampaign(sourceMode, campaign = null) {
     "website_product",
     "website_product_ad",
     "website_reel",
+    "website_ai_video",
     "website_service",
     "website_carousel",
   ].includes(sourceMode);
@@ -5197,6 +5416,10 @@ function getCampaignSourceInstruction(sourceMode, campaign = null) {
 
   if (sourceMode === "website_reel") {
     return `Use one relevant verified product from the brand website and create the existing animated product-Reel format. Select a product that works visually in motion and genuinely fits the campaign. Keep all product facts grounded in the website and do not invent prices, discounts, stock, delivery promises or features. If no verified matching product can be found, the automation should stop with an error instead of silently creating a generic fallback.${productSelectionInstruction}`;
+  }
+
+  if (sourceMode === "website_ai_video") {
+    return `Use one relevant verified product image from the brand website and create the existing AI product-video format. Generative motion must materially strengthen this campaign moment; preserve the visible product identity, branding, colours, proportions and printed details exactly, and never invent hidden product surfaces or unsupported product facts. If no verified matching product with a usable image can be found, the automation should stop with an error instead of silently creating a generic fallback.${productSelectionInstruction}`;
   }
 
   if (sourceMode === "website_service") {
@@ -5555,6 +5778,7 @@ function buildCampaignImagePrompt(campaign, postPlanItem, index) {
 
 function createCampaignSlotsFromOpportunity({
   campaign,
+  brandProfile = null,
   timeZone = DEFAULT_TIME_ZONE,
   defaultPublishTime = "09:00",
 }) {
@@ -5604,7 +5828,8 @@ function createCampaignSlotsFromOpportunity({
         campaign,
         enhancedPostPlanItem,
         index,
-        fixedSchedule.length
+        fixedSchedule.length,
+        brandProfile
       );
 
       enhancedPostPlanItem.content_source_mode = contentSourceMode;
@@ -5612,14 +5837,15 @@ function createCampaignSlotsFromOpportunity({
       return createSlot({
         startDate,
         weekday: schedule.weekday || getWeekdayFromDateString(startDate, timeZone),
-        publishTime: schedule.publishTime || getQueuedCampaignPublishTime(
-          schedule.publishWindow || getCampaignPublishWindowId(
-            schedule.intent,
-            schedule.timingAnchor,
-            enhancedPostPlanItem.marketing_angle
-          ),
-          sameDayIndex
-        ),
+        publishTime: getCampaignTypeAwarePublishTime({
+          contentSourceMode,
+          weekday: schedule.weekday || getWeekdayFromDateString(startDate, timeZone),
+          intent: schedule.intent,
+          timingAnchor: schedule.timingAnchor,
+          marketingAngle: enhancedPostPlanItem.marketing_angle,
+          queueIndex: sameDayIndex,
+          fallbackTime: schedule.publishTime,
+        }),
         prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
         generateImage: true,
@@ -5686,7 +5912,8 @@ function createCampaignSlotsFromOpportunity({
         campaign,
         enhancedPostPlanItem,
         index,
-        postPlan.length
+        postPlan.length,
+        brandProfile
       );
 
       enhancedPostPlanItem.content_source_mode = contentSourceMode;
@@ -5694,11 +5921,15 @@ function createCampaignSlotsFromOpportunity({
       return createSlot({
         startDate,
         weekday: schedule.weekday || getWeekdayFromDateString(startDate, timeZone),
-        publishTime: schedule.publishTime || getRecommendedCampaignPublishTime(
-          enhancedPostPlanItem.intended_intent,
-          enhancedPostPlanItem.timing_anchor,
-          enhancedPostPlanItem.marketing_angle
-        ),
+        publishTime: getCampaignTypeAwarePublishTime({
+          contentSourceMode,
+          weekday: schedule.weekday || getWeekdayFromDateString(startDate, timeZone),
+          intent: schedule.intent || enhancedPostPlanItem.intended_intent,
+          timingAnchor: schedule.timingAnchor || enhancedPostPlanItem.timing_anchor,
+          marketingAngle: enhancedPostPlanItem.marketing_angle,
+          queueIndex: schedule.queueIndex || 0,
+          fallbackTime: schedule.publishTime,
+        }),
         prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
         imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem),
         generateImage: true,
@@ -5734,11 +5965,24 @@ function createCampaignSlotsFromOpportunity({
 
   const fallbackStartDate = getSafeCampaignStartDate(campaign, timeZone);
 
+  const flexibleContentTypeIds = postPlan.map((postPlanItem, index) =>
+    getCampaignSlotContentTypeId(
+      getCampaignContentSourceMode(
+        campaign,
+        postPlanItem,
+        index,
+        postPlan.length,
+        brandProfile
+      )
+    )
+  );
   const smartSchedule = buildSmartSlotSchedule({
     startDate: fallbackStartDate,
     count: postPlan.length,
     timeZone,
     firstPublishTime: defaultPublishTime,
+    contentTypeIds: flexibleContentTypeIds,
+    goalId: "sell_more",
   });
 
   return postPlan.map((postPlanItem, index) => {
@@ -5761,7 +6005,8 @@ function createCampaignSlotsFromOpportunity({
       campaign,
       enhancedPostPlanItem,
       index,
-      postPlan.length
+      postPlan.length,
+      brandProfile
     );
 
     enhancedPostPlanItem.content_source_mode = contentSourceMode;
@@ -6326,6 +6571,7 @@ const [slots, setSlots] = useState([]);
   );
   const [formatFilter, setFormatFilter] = useState("all");
   const [formatPreviewId, setFormatPreviewId] = useState("");
+  const [engagementMediaVariant, setEngagementMediaVariant] = useState("ai_video");
   const [returnToAllFormatsAfterPreview, setReturnToAllFormatsAfterPreview] = useState(false);
   const [formatGuardMessage, setFormatGuardMessage] = useState("");
   const [editingRuleId, setEditingRuleId] = useState("");
@@ -6337,7 +6583,21 @@ const [slots, setSlots] = useState([]);
 
   const getCurrentCreditCost = useCallback((input = {}) => {
     const contentTypeId = String(input.contentTypeId || input.content_type_id || "").trim();
-    const configured = getConfiguredContentCreditCost(contentEconomicsByType[contentTypeId]);
+    const economicsRow = contentEconomicsByType[contentTypeId];
+    if (contentTypeId === "engagement_humor") {
+      const inferredVariant = String(
+        input.creditVariant ||
+          input.credit_variant ||
+          (String(input.animationStyle || input.animation_style || "").toLowerCase() === "engagement_ai_video"
+            ? "ai_video"
+            : String(input.imageSource || input.image_source || "").toLowerCase() === "website"
+              ? "product_image"
+              : "ai_image")
+      ).trim();
+      const variantCost = getConfiguredContentCreditVariantCost(economicsRow, inferredVariant);
+      if (variantCost) return variantCost;
+    }
+    const configured = getConfiguredContentCreditCost(economicsRow);
     return getCreditCostForContent({ ...input, configuredCreditCost: configured || undefined });
   }, [contentEconomicsByType]);
 
@@ -6580,15 +6840,16 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
     const websiteProductModeAvailable = Boolean(
     currentBrandProfile?.website_product_mode_available
   );
+  const verifiedServiceModeAvailable = hasVerifiedServiceEvidence(currentBrandProfile);
 
   const visibleContentTypes = useMemo(() => {
-    return getVisibleContentTypes(websiteProductModeAvailable).filter((type) => {
+    return getVisibleContentTypes(websiteProductModeAvailable, currentBrandProfile).filter((type) => {
       const config = contentEconomicsByType[type.id];
       if (config?.active === false) return false;
       if (!currentPlanKey) return true;
       return config?.[`available_${currentPlanKey}`] !== false;
     });
-  }, [websiteProductModeAvailable, contentEconomicsByType, currentPlanKey]);
+  }, [websiteProductModeAvailable, currentBrandProfile, contentEconomicsByType, currentPlanKey]);
 
   const selectedPlatformSignature = selectedPlatformKeys.join("|");
 
@@ -6706,6 +6967,39 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
       .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
   }, [contentFormatLibrary, visibleContentTypes, locale, currentPlanKey]);
 
+  const groupedExploreFormatItems = useMemo(() => {
+    const eligibleItems = exploreFormatItems.filter(
+      (item) => planCreationMode !== "campaign" || item.kind === "content_type"
+    );
+    const productIds = new Set([
+      "website_item",
+      "website_item_text_ad",
+      "animated_website_item",
+      "ai_product_video",
+      "carousel_website_item",
+    ]);
+    const createSelfIds = new Set(["manual_prompt", "giveaway", "focus_source"]);
+    const groups = [
+      { id: "products", labelKey: "automation.formatGroup.products", items: [] },
+      { id: "content", labelKey: "automation.formatGroup.content", items: [] },
+      { id: "createSelf", labelKey: "automation.formatGroup.createSelf", items: [] },
+      { id: "campaigns", labelKey: "automation.formatGroup.campaigns", items: [] },
+    ];
+    const groupMap = Object.fromEntries(groups.map((group) => [group.id, group]));
+
+    for (const item of eligibleItems) {
+      if (item.kind === "offer_campaign") groupMap.campaigns.items.push(item);
+      else if (productIds.has(item.id)) groupMap.products.items.push(item);
+      else if (createSelfIds.has(item.id) || item.kind === "giveaway" || item.kind === "focus_source") {
+        groupMap.createSelf.items.push(item);
+      } else {
+        groupMap.content.items.push(item);
+      }
+    }
+
+    return groups.filter((group) => group.items.length > 0);
+  }, [exploreFormatItems, planCreationMode]);
+
   const filteredExploreFormatItems = useMemo(() => {
     if (formatFilter === "all") return exploreFormatItems;
     if (formatFilter === "popular") {
@@ -6774,8 +7068,10 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
             goalId: autoPlanGoal || "stay_visible",
             slotIndex,
             websiteProductModeAvailable,
+            verifiedServiceModeAvailable,
             selectedPlatforms: selectedPlatformKeys,
             platformCapabilities: runtimePlatformCapabilities,
+            creditCostResolver: getCurrentCreditCost,
           })
         : [];
       // The recurring runner uses history_balanced selection:
@@ -6801,6 +7097,7 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
     varyWeeklyContentTypes,
     autoPlanGoal,
     websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
     selectedPlatformSignature,
     runtimePlatformCapabilities.pinterestVideo,
     getCurrentCreditCost,
@@ -6812,7 +7109,7 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
   );
 
   const focusedSourceContentTypes = useMemo(() => {
-    const types = getVisibleContentTypes(websiteProductModeAvailable);
+    const types = getVisibleContentTypes(websiteProductModeAvailable, currentBrandProfile);
     const productTypeIds = new Set([
       "website_item",
       "website_item_text_ad",
@@ -6830,7 +7127,7 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
     }
 
     return types;
-  }, [websiteProductModeAvailable, focusSource?.sourceScope]);
+  }, [websiteProductModeAvailable, currentBrandProfile, focusSource?.sourceScope]);
   const includedContentTypes = useMemo(() => {
   return getPlanIncludedContentTypes({
     planCreationMode,
@@ -6838,6 +7135,7 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
     autoPlanPostCount,
     selectedContentTypeIds,
     websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
     slots,
   });
 }, [
@@ -6846,6 +7144,7 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
   autoPlanPostCount,
   selectedContentTypeIds,
   websiteProductModeAvailable,
+  verifiedServiceModeAvailable,
   slots,
 ]);
 const planWasSaved = Boolean(savedPlanSummary);
@@ -7125,19 +7424,19 @@ const shouldShowPlannerDetails =
             "problem_solution",
             "website_item_text_ad",
             sourceAllowsCarousel ? "carousel_website_item" : "website_item",
-            "checklist",
+            "guide_choice",
             "website_item",
             "faq",
             "animated_website_item",
           ]
         : [
             "problem_solution",
-            "service_focus",
+            "guide_choice",
             "tips",
             "faq",
-            "mini_guide",
-            "myth_fact",
-            "checklist",
+            "guide_choice",
+            "engagement_humor",
+            "tips",
           ];
       const selectedTypeIds = typeIds.slice(0, postCount);
       const campaignScopeDescription =
@@ -7619,7 +7918,8 @@ function buildFocusedRangeCampaignSchedule({
           getCampaignPublishWindowId(
             getCampaignPostIntent(postPlan[0] || {}, 0, 1),
             (postPlan[0] || {})?.timing_anchor,
-            (postPlan[0] || {})?.marketing_angle
+            (postPlan[0] || {})?.marketing_angle,
+            (postPlan[0] || {})?.content_source_mode
           ),
           0
         ),
@@ -7642,7 +7942,8 @@ function buildFocusedRangeCampaignSchedule({
       publishWindow: getCampaignPublishWindowId(
         intent,
         timingAnchor,
-        postPlanItem?.marketing_angle
+        postPlanItem?.marketing_angle,
+        postPlanItem?.content_source_mode
       ),
       postPlanItem,
       intent,
@@ -7655,6 +7956,7 @@ function buildFocusedRangeCampaignSchedule({
 
 function buildDirectCalendarCampaignSlots({
   campaign,
+  brandProfile = null,
   timeZone = DEFAULT_TIME_ZONE,
   defaultPublishTime = "09:00",
 }) {
@@ -7707,7 +8009,8 @@ function buildDirectCalendarCampaignSlots({
       campaign,
       enhancedPostPlanItem,
       index,
-      schedule.length
+      schedule.length,
+      brandProfile
     );
 
     enhancedPostPlanItem.content_source_mode = contentSourceMode;
@@ -7726,7 +8029,8 @@ function buildDirectCalendarCampaignSlots({
   // saved post_plan. In that case this direct browser-side path is the real
   // campaign planner, so it must apply the same V129 product policy before the
   // slots are shown: normally 65-80% product formats, at least one AI product
-  // ad, at most one carousel, and Reels only when the campaign supports them.
+  // ad, at most one carousel, and only limited motion formats when the campaign
+  // has verified product visuals and motion materially improves the message.
   const policyPostPlan = enforceDirectCalendarCampaignPolicy(
     plannedItems.map((item) => item.postPlanItem),
     campaign
@@ -7739,9 +8043,17 @@ function buildDirectCalendarCampaignSlots({
     return createSlot({
       startDate: plannedItem.startDate,
       weekday: plannedItem.weekday,
-      publishTime:
-        plannedItem.scheduleItem.publishTime ||
-        getCampaignPublishTime(defaultPublishTime, index),
+      publishTime: getCampaignTypeAwarePublishTime({
+        contentSourceMode,
+        weekday: plannedItem.weekday,
+        intent: plannedItem.scheduleItem.intent,
+        timingAnchor: plannedItem.scheduleItem.timingAnchor || enhancedPostPlanItem.timing_anchor,
+        marketingAngle: enhancedPostPlanItem.marketing_angle,
+        queueIndex: plannedItem.scheduleItem.queueIndex || 0,
+        fallbackTime:
+          plannedItem.scheduleItem.publishTime ||
+          getCampaignPublishTime(defaultPublishTime, index),
+      }),
       prompt: buildCampaignPrompt(campaign, enhancedPostPlanItem, index),
       imagePrompt: buildCampaignImagePrompt(campaign, enhancedPostPlanItem, index),
       generateImage: true,
@@ -7911,11 +8223,13 @@ async function loadCampaignOpportunityIntoPlanner({
     campaignSlots = hasUsablePostPlan
       ? createCampaignSlotsFromOpportunity({
           campaign,
+          brandProfile: currentBrandProfile,
           timeZone: campaignTimeZone,
           defaultPublishTime: campaignPublishTime,
         })
       : buildDirectCalendarCampaignSlots({
           campaign,
+          brandProfile: currentBrandProfile,
           timeZone: campaignTimeZone,
           defaultPublishTime: campaignPublishTime,
         });
@@ -7955,6 +8269,7 @@ async function loadCampaignOpportunityIntoPlanner({
 
     campaignSlots = createCampaignSlotsFromOpportunity({
       campaign: fallbackCampaign,
+      brandProfile: currentBrandProfile,
       timeZone: campaignTimeZone,
       defaultPublishTime: campaignPublishTime,
     });
@@ -7995,7 +8310,8 @@ async function loadCampaignOpportunityIntoPlanner({
         campaign,
         enhancedPostPlanItem,
         index,
-        emergencyPostPlan.length
+        emergencyPostPlan.length,
+        currentBrandProfile
       );
 
       enhancedPostPlanItem.content_source_mode = contentSourceMode;
@@ -8226,7 +8542,7 @@ if (!selectedBrandId) {
 
 const { data: brandProfileData, error: brandProfileError } = await supabase
   .from("brand_profiles")
-  .select("id, business_name, website_url, website_product_source_url, website_product_mode_available, logo_url, logo_enabled_by_default, country_code, content_market, content_language")
+  .select("id, business_name, website_url, website_product_source_url, website_product_mode_available, website_product_mode_reason, website_service_source_url, website_service_mode_available, website_service_mode_reason, logo_url, logo_enabled_by_default, country_code, content_market, content_language")
   .eq("id", selectedBrandId)
   .eq("user_id", user.id)
   .maybeSingle();
@@ -8794,7 +9110,8 @@ const fallbackStartDate =
             campaignOpportunity,
             postPlanItem,
             nextIndex,
-            nextTotal
+            nextTotal,
+            currentBrandProfile
           ));
 
     postPlanItem.content_source_mode = contentSourceMode;
@@ -8947,7 +9264,7 @@ function addSlot() {
   setShowAddPostModal(true);
 }
 
-  function addSlotFromContentType(typeId) {
+  function addSlotFromContentType(typeId, options = {}) {
     const selectedType = getContentTypeById(typeId);
 
     if (!selectedType) return;
@@ -8977,6 +9294,34 @@ function addSlot() {
         publishTime: getRecommendedTimeForDate(planStartDate, timeZone),
       };
 
+      const requestedEngagementVariant = String(options.engagementVariant || "ai_video");
+      const engagementVariant = selectedType.id === "engagement_humor"
+        ? (requestedEngagementVariant === "product_image" && !websiteProductModeAvailable
+            ? "ai_image"
+            : requestedEngagementVariant)
+        : "";
+      const problemUsesWebsite = selectedType.id === "problem_solution" && websiteProductModeAvailable;
+      const engagementUsesWebsite = selectedType.id === "engagement_humor" &&
+        websiteProductModeAvailable && ["ai_video", "product_image"].includes(engagementVariant);
+      const effectiveUsesWebsiteContent = selectedType.id === "service_focus"
+        ? true
+        : problemUsesWebsite || engagementUsesWebsite || Boolean(selectedType.usesWebsiteContent);
+      const effectiveContentFormat = selectedType.id === "engagement_humor"
+        ? (engagementVariant === "ai_video" ? "animated_video" : "single_image")
+        : selectedType.contentFormat || "single_image";
+      const effectiveAnimationStyle = selectedType.id === "engagement_humor"
+        ? (engagementVariant === "ai_video" ? "engagement_ai_video" : null)
+        : selectedType.animationStyle || null;
+      const effectiveImageSource = selectedType.id === "engagement_humor"
+        ? (engagementVariant === "product_image" ? "website" : "ai")
+        : selectedType.id === "manual_prompt"
+          ? "ai"
+          : effectiveContentFormat === "carousel"
+            ? "website_carousel"
+            : effectiveUsesWebsiteContent
+              ? "website"
+              : "ai";
+
       const newSlot = createSlot({
         startDate: schedule.startDate,
         publishTime: schedule.publishTime,
@@ -8985,19 +9330,13 @@ function addSlot() {
         imagePrompt: selectedType.imagePrompt,
         generateImage: true,
         manualImageMode: selectedType.id === "manual_prompt" ? "ai" : undefined,
-        imageSource:
-          selectedType.id === "manual_prompt"
-            ? "ai"
-            : selectedType.contentFormat === "carousel"
-            ? "website_carousel"
-            : selectedType.usesWebsiteContent
-            ? "website"
-            : "ai",
+        imageSource: effectiveImageSource,
         contentTypeId: selectedType.id,
         contentTypeLabel: selectedType.label,
-        usesWebsiteContent: Boolean(selectedType.usesWebsiteContent),
-        contentFormat: selectedType.contentFormat || "single_image",
-        animationStyle: selectedType.animationStyle || null,
+        usesWebsiteContent: effectiveUsesWebsiteContent,
+        contentFormat: effectiveContentFormat,
+        animationStyle: effectiveAnimationStyle,
+        creditVariant: engagementVariant,
         timeZone,
       });
 
@@ -9134,6 +9473,7 @@ async function applyDynamicAutoPlan({ goalId, postCount }) {
     goalId,
     postCount: safePostCount,
     websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
   });
   const activePlatformKeys = normalizeSpreeloPlatformList(selectedPlatformKeys);
   const fallbackSlots = createRecommendedSlots({
@@ -9143,6 +9483,7 @@ async function applyDynamicAutoPlan({ goalId, postCount }) {
     firstPublishTime: defaultPublishTime,
     postCount: safePostCount,
     websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
     platformKeys: activePlatformKeys,
     platformCapabilities: runtimePlatformCapabilities,
   });
@@ -9164,6 +9505,7 @@ async function applyDynamicAutoPlan({ goalId, postCount }) {
         firstPublishTime: defaultPublishTime,
         postCount: safePostCount,
         websiteProductModeAvailable,
+        verifiedServiceModeAvailable,
         platformKeys: activePlatformKeys,
         platformCapabilities: runtimePlatformCapabilities,
       });
@@ -9227,6 +9569,7 @@ async function applyDynamicAutoPlan({ goalId, postCount }) {
       firstPublishTime: defaultPublishTime,
       postCount: safePostCount,
       websiteProductModeAvailable,
+      verifiedServiceModeAvailable,
       platformKeys: activePlatformKeys,
       platformCapabilities: runtimePlatformCapabilities,
     });
@@ -9263,6 +9606,7 @@ async function changeAutoPlanGoal(goalId) {
     goalId,
     postCount: autoPlanPostCount,
     websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
   });
 
   setMessage("");
@@ -9301,6 +9645,7 @@ async function changeAutoPlanGoal(goalId) {
     goalId: autoPlanGoal,
     postCount: nextCount,
     websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
   });
 
   setSelectedContentTypeIds(goalContentTypeIds);
@@ -9324,6 +9669,7 @@ async function changeAutoPlanGoal(goalId) {
     goalId: autoPlanGoal,
     postCount: autoPlanPostCount,
     websiteProductModeAvailable,
+    verifiedServiceModeAvailable,
   });
 
   setSelectedContentTypeIds(goalContentTypeIds);
@@ -10074,6 +10420,12 @@ try {
 const editingRuleSnapshot = editingRuleId
   ? rules.find((rule) => rule.id === editingRuleId) || null
   : null;
+const recurringPlanGroupId =
+  scheduleType === "weekly"
+    ? editingRuleId
+      ? editingRuleSnapshot?.recurring_plan_group_id || null
+      : makeAutomationRuleId()
+    : null;
 
 const rows = preparedSlots.map((slot, slotIndex) => {
       const declaredWeekday = slot.weekday || getWeekdayFromDateString(slot.startDate, selectedTimeZone);
@@ -10155,6 +10507,19 @@ ${slot.campaignSummary}`
             : Boolean(currentBrandProfile?.logo_url) && currentBrandProfile?.logo_enabled_by_default !== false,
         credit_cost: getCurrentCreditCost(slot),
         schedule_type: scheduleType,
+        recurring_plan_group_id: recurringPlanGroupId,
+        plan_pause_reason: editingRuleId
+          ? editingRuleSnapshot?.plan_pause_reason || null
+          : null,
+        plan_paused_at: editingRuleId
+          ? editingRuleSnapshot?.plan_paused_at || null
+          : null,
+        credit_pause_required_amount: editingRuleId
+          ? editingRuleSnapshot?.credit_pause_required_amount || null
+          : null,
+        credit_pause_balance_at_pause: editingRuleId
+          ? editingRuleSnapshot?.credit_pause_balance_at_pause || null
+          : null,
         run_date: normalizedStartDate,
         timezone: selectedTimeZone,
         next_run_at: getInitialNextRunAtIso({
@@ -10225,8 +10590,10 @@ ${slot.campaignSummary}`
                   goalId: autoPlanGoal || "stay_visible",
                   slotIndex,
                   websiteProductModeAvailable,
+                  verifiedServiceModeAvailable,
                   selectedPlatforms: slotDestinationKeys,
                   platformCapabilities: runtimePlatformCapabilities,
+                  creditCostResolver: getCurrentCreditCost,
                 }),
               }
             : null
@@ -10589,6 +10956,9 @@ setRules((currentRules) =>
   setGiveawayPlannerOpen(false);
   setReturnToAllFormatsAfterPreview(Boolean(options?.fromAllFormats));
   setShowAddPostModal(false);
+  if (formatId === "engagement_humor") {
+    setEngagementMediaVariant("ai_video");
+  }
   setFormatPreviewId(formatId);
 }
 
@@ -10671,7 +11041,12 @@ setRules((currentRules) =>
   }
 
   setReturnToAllFormatsAfterPreview(false);
-  addSlotFromContentType(selectedFormatPreview.id);
+  addSlotFromContentType(
+    selectedFormatPreview.id,
+    selectedFormatPreview.id === "engagement_humor"
+      ? { engagementVariant: engagementMediaVariant }
+      : {}
+  );
 }
 
  function chooseRedesignFormat(typeId) {
@@ -13637,6 +14012,68 @@ function blockFormatCardClickAfterDrag(event) {
 
                 <p className="plan-v72-format-modal-lead">{selectedFormatPreview.description}</p>
 
+                {selectedFormatPreview.id === "engagement_humor" ? (
+                  <div className="plan-v181-engagement-media-picker">
+                    <div className="plan-v181-engagement-media-heading">
+                      <div>
+                        <strong>{t("automation.engagementMedia.title")}</strong>
+                        <p>{t("automation.engagementMedia.help")}</p>
+                      </div>
+                      <span>
+                        {t("automation.engagementMedia.selectedCost", {
+                          credits: getConfiguredContentCreditVariantCost(
+                            contentEconomicsByType.engagement_humor,
+                            engagementMediaVariant
+                          ) || getCurrentCreditCost({ contentTypeId: "engagement_humor", creditVariant: engagementMediaVariant }),
+                        })}
+                      </span>
+                    </div>
+                    <div className="plan-v181-engagement-media-options">
+                      {[
+                        {
+                          id: "ai_video",
+                          label: t("automation.engagementMedia.aiVideo"),
+                          description: t("automation.engagementMedia.aiVideoDescription"),
+                        },
+                        {
+                          id: "ai_image",
+                          label: t("automation.engagementMedia.aiImage"),
+                          description: t("automation.engagementMedia.aiImageDescription"),
+                        },
+                        {
+                          id: "product_image",
+                          label: t("automation.engagementMedia.productImage"),
+                          description: t("automation.engagementMedia.productImageDescription"),
+                          disabled: !websiteProductModeAvailable,
+                        },
+                      ].map((option) => {
+                        const cost = getConfiguredContentCreditVariantCost(
+                          contentEconomicsByType.engagement_humor,
+                          option.id
+                        ) || getCurrentCreditCost({ contentTypeId: "engagement_humor", creditVariant: option.id });
+                        const selected = engagementMediaVariant === option.id;
+                        return (
+                          <button
+                            type="button"
+                            key={option.id}
+                            className={selected ? "selected" : ""}
+                            disabled={option.disabled}
+                            onClick={() => setEngagementMediaVariant(option.id)}
+                          >
+                            <span className="plan-v181-engagement-media-radio" aria-hidden="true" />
+                            <span className="plan-v181-engagement-media-copy">
+                              <strong>{option.label}</strong>
+                              <small>{option.description}</small>
+                              {option.disabled ? <em>{t("automation.engagementMedia.productUnavailable")}</em> : null}
+                            </span>
+                            <b>{t("automation.creditCount", { count: cost })}</b>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="plan-v72-format-modal-benefits">
                   <article>
                     <span><WandSparkles size={18} aria-hidden="true" /></span>
@@ -13927,16 +14364,23 @@ function blockFormatCardClickAfterDrag(event) {
                   )}
                 </div>
               ) : (
-                <div className="plan-v72-all-formats-grid grid">
-                  {exploreFormatItems.filter((item) => planCreationMode !== "campaign" || item.kind === "content_type").map((item, index) => (
-                    <ContentFormatCard
-                      item={item}
-                      index={index}
-                      view="grid"
-                      key={`modal-format-${item.id}`}
-                      disabled={planCreationMode === "campaign" && item.kind !== "content_type"}
-                      onClick={() => requestFormatPreview(item.id, { fromAllFormats: true })}
-                    />
+                <div className="plan-v181-format-groups">
+                  {groupedExploreFormatItems.map((group) => (
+                    <section className="plan-v181-format-group" key={`format-group-${group.id}`}>
+                      <h4>{t(group.labelKey)}</h4>
+                      <div className="plan-v72-all-formats-grid grid">
+                        {group.items.map((item, index) => (
+                          <ContentFormatCard
+                            item={item}
+                            index={index}
+                            view="grid"
+                            key={`modal-format-${item.id}`}
+                            disabled={planCreationMode === "campaign" && item.kind !== "content_type"}
+                            onClick={() => requestFormatPreview(item.id, { fromAllFormats: true })}
+                          />
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
               )}

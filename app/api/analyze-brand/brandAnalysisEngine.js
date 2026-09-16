@@ -1558,6 +1558,31 @@ function normalizeWebsiteProductMode(rawValue, fallbackWebsiteUrl = "", evidence
   };
 }
 
+function normalizeWebsiteServiceMode(rawValue, fallbackWebsiteUrl = "", legacyProductMode = null) {
+  const rawMode = rawValue && typeof rawValue === "object" ? rawValue : {};
+  const legacySourceType = normalizeWebsiteProductSourceType(
+    legacyProductMode?.source_type,
+    Boolean(legacyProductMode?.available)
+  );
+  const legacyServiceEvidence = Boolean(legacyProductMode?.available) &&
+    new Set(["service_catalog", "booking", "course_event"]).has(legacySourceType);
+  const available = Boolean(rawMode.available) || legacyServiceEvidence;
+  const rawSourceUrl = String(rawMode.source_url || "").trim();
+  const normalizedSourceUrl = rawSourceUrl ? normalizeWebsiteUrl(rawSourceUrl) : "";
+  const reason = String(rawMode.reason || "").trim().slice(0, 500);
+
+  return {
+    available,
+    reason: reason || (legacyServiceEvidence
+      ? "A concrete service or bookable offering was verified during website analysis."
+      : "No concrete named or bookable service was verified during website analysis."),
+    source_url: available
+      ? normalizedSourceUrl || String(legacyProductMode?.source_url || "").trim() || normalizeWebsiteUrl(fallbackWebsiteUrl)
+      : "",
+  };
+}
+
+
 export function normalizeCampaignOpportunity(rawOpportunity, fallbackYear) {
   const title = String(rawOpportunity?.title || "").trim();
 
@@ -1991,6 +2016,11 @@ Return JSON only in this exact shape:
     "reason": "Short internal explanation. True only if the provided website content or checked candidate pages clearly contain stable individual items suitable for website-based posts.",
     "source_url": "The exact URL where the best item-level evidence was found. Empty string when available is false."
   },
+  "website_service_mode": {
+    "available": false,
+    "reason": "Short internal explanation. True only when at least one concrete named, described or bookable service/treatment/appointment/course is verified on the official website.",
+    "source_url": "Exact official URL that verifies the service. Empty string when available is false."
+  },
   "campaign_opportunities": [
     {
       "title": "Campaign or theme name",
@@ -2121,6 +2151,10 @@ Website product mode:
   6. enough item-specific description to write a concrete post.
 - Set website_product_mode.available to false only when the website is mainly brochure-only, portfolio/blog/news-only, a pure store locator, or does not appear to provide any realistic website items for Spreelo to research.
 - Do not set website_product_mode.available to false just because the site is a large store chain, uses category pages, campaign pages or requires deeper product discovery.
+- Evaluate website_service_mode independently from website_product_mode. A mixed retailer can have both product mode and service mode available.
+- Set website_service_mode.available to true only when the official website evidence verifies at least one concrete named, described or bookable service, treatment, appointment, consultation, course or similar service offering.
+- Do not infer service availability merely from the industry, business name, generic words such as service/support, or from product sales.
+- Set website_service_mode.source_url to the strongest exact official page that verifies the service.
 - Do not set it to true only because the website mentions broad categories, discounts, offers, products or services.
 - If the site clearly appears product-based/ecommerce but item-level evidence is incomplete in this first analysis, set available true and explain that product pages must be verified during post generation.
 - If available is true, source_url must be the exact URL where the strongest item-level evidence was found.
@@ -2170,6 +2204,11 @@ Accuracy:
     "reason": "",
     "source_url": ""
   },
+  "website_service_mode": {
+    "available": false,
+    "reason": "",
+    "source_url": ""
+  },
   "campaign_opportunities": []
 }
 `.trim(),
@@ -2195,6 +2234,11 @@ Accuracy:
     parsed.website_product_mode,
     websiteUrl,
     productModeEvidenceText
+  );
+  const normalizedWebsiteServiceMode = normalizeWebsiteServiceMode(
+    parsed.website_service_mode,
+    websiteUrl,
+    normalizedWebsiteProductMode
   );
   const campaignOpportunities = await repairCampaignProductMetadataWithOpenAI({
     openai,
@@ -2223,6 +2267,7 @@ Accuracy:
     market_setup: normalizedMarketSetup,
     profile: normalizedProfile,
     website_product_mode: normalizedWebsiteProductMode,
+    website_service_mode: normalizedWebsiteServiceMode,
     campaign_opportunities: campaignOpportunities,
   };
 }
@@ -2466,6 +2511,11 @@ Website-content rules:
         "No website was provided, so website product mode is not available.",
       source_url: "",
     },
+    website_service_mode: {
+      available: false,
+      reason: "No website was provided, so verified service mode is not available.",
+      source_url: "",
+    },
     campaign_opportunities: Array.isArray(parsed.campaign_opportunities)
       ? parsed.campaign_opportunities
       : [],
@@ -2495,6 +2545,7 @@ export async function saveBrandProfile({
   contentLanguage,
   campaignCalendarYear,
   websiteProductMode,
+  websiteServiceMode,
   websiteAccessStatus = "",
   websiteAccessMessage = "",
 }) {
@@ -2528,6 +2579,12 @@ export async function saveBrandProfile({
       website_product_source_url: websiteProductMode?.available
         ? websiteProductMode?.source_url || websiteUrl || ""
         : "",
+      website_service_mode_available: Boolean(websiteServiceMode?.available),
+      website_service_mode_checked_at: websiteUrl ? new Date().toISOString() : null,
+      website_service_mode_reason: String(websiteServiceMode?.reason || "").trim(),
+      website_service_source_url: websiteServiceMode?.available
+        ? websiteServiceMode?.source_url || websiteUrl || ""
+        : "",
       ...(preserve429Rescue
         ? {}
         : {
@@ -2546,7 +2603,7 @@ export async function saveBrandProfile({
     .eq("id", brandProfileId)
     .eq("user_id", userId)
     .select(
-      "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, campaign_calendar_year, campaign_calendar_generated_at, campaign_calendar_refreshed_at, website_product_mode_available, website_product_mode_checked_at, website_product_mode_reason, website_product_source_url, website_access_status, website_security_provider, website_security_confidence, website_access_status_code, website_access_message, website_access_checked_at"
+      "id, business_name, website_url, brand_description, industry, target_audience, content_market, country_code, content_language, campaign_calendar_year, campaign_calendar_generated_at, campaign_calendar_refreshed_at, website_product_mode_available, website_product_mode_checked_at, website_product_mode_reason, website_product_source_url, website_service_mode_available, website_service_mode_checked_at, website_service_mode_reason, website_service_source_url, website_access_status, website_security_provider, website_security_confidence, website_access_status_code, website_access_message, website_access_checked_at"
     )
     .single();
 
@@ -2951,6 +3008,7 @@ export async function runBrandAnalysisJob({
     contentLanguage: finalContentLanguage,
     campaignCalendarYear,
     websiteProductMode: analysis.website_product_mode,
+    websiteServiceMode: analysis.website_service_mode,
     websiteAccessStatus: webResearchEvidence ? "web_research" : "accessible",
     websiteAccessMessage: webResearchEvidence
       ? "The website blocked Spreelo's direct analysis connection. The profile was completed using public evidence from the official domain."
@@ -2996,6 +3054,7 @@ export async function runBrandAnalysisJob({
       country_code: finalCountryCode,
       content_language: finalContentLanguage,
       website_product_mode: analysis.website_product_mode,
+      website_service_mode: analysis.website_service_mode,
       campaign_opportunities_count: savedOpportunities.length,
       campaign_opportunities: savedOpportunities,
     },

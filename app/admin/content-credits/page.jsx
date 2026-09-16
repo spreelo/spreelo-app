@@ -71,6 +71,7 @@ function cloneFormats(rows = []) {
   return rows.map((row) => ({
     ...row,
     customer_credit_cost: Number(row.customer_credit_cost || row.effective_credit_cost || 10),
+    credit_variant_prices: row.credit_variant_prices && typeof row.credit_variant_prices === "object" ? { ...row.credit_variant_prices } : {},
     estimated_cost_sek: row.estimated_cost_sek == null ? "" : String(row.estimated_cost_sek),
   }));
 }
@@ -155,6 +156,7 @@ export default function AdminContentCreditsPage() {
           category: next.category,
           active: Boolean(next.active),
           customer_credit_cost: Number(next.customer_credit_cost),
+          credit_variant_prices: next.credit_variant_prices || {},
           estimated_cost_sek: next.estimated_cost_sek,
           available_starter: Boolean(next.available_starter),
           available_growth: Boolean(next.available_growth),
@@ -430,7 +432,10 @@ export default function AdminContentCreditsPage() {
                       </div>
 
                       <div className="admin-econ-credit-cell">
-                        <input type="number" min="1" value={row.customer_credit_cost} onChange={(event) => updateRow(row.content_type_id, { customer_credit_cost: event.target.value })} />
+                        <input type="number" min="1" value={row.customer_credit_cost} onChange={(event) => updateRow(row.content_type_id, row.content_type_id === "engagement_humor" ? {
+                          customer_credit_cost: event.target.value,
+                          credit_variant_prices: { ...(row.credit_variant_prices || {}), ai_video: event.target.value },
+                        } : { customer_credit_cost: event.target.value })} />
                         <small>{t("admin.contentCredits.credits")}</small>
                         {scheduled ? <em>{t("admin.contentCredits.scheduled", { credits: row.pending_credit_cost, date: formatDateTime(row.pending_effective_at, locale) })}</em> : null}
                       </div>
@@ -508,9 +513,42 @@ export default function AdminContentCreditsPage() {
               <label><span>{t("admin.contentCredits.customerDescription")}</span><textarea rows="3" value={selectedEditor.description || ""} onChange={(event) => updateRow(selectedEditor.content_type_id, { description: event.target.value })} /></label>
               <label><span>{t("admin.contentCredits.category")}</span><select value={selectedEditor.category} onChange={(event) => updateRow(selectedEditor.content_type_id, { category: event.target.value })}>{CATEGORY_VALUES.map((value) => <option value={value} key={value}>{t(`admin.formats.category.${value}`)}</option>)}</select></label>
               <div className="admin-econ-modal-grid">
-                <label><span>{t("admin.contentCredits.creditCost")}</span><input type="number" min="1" value={selectedEditor.customer_credit_cost} onChange={(event) => updateRow(selectedEditor.content_type_id, { customer_credit_cost: event.target.value })} /></label>
+                <label><span>{t("admin.contentCredits.creditCost")}</span><input type="number" min="1" value={selectedEditor.customer_credit_cost} onChange={(event) => updateRow(selectedEditor.content_type_id, selectedEditor.content_type_id === "engagement_humor" ? {
+                  customer_credit_cost: event.target.value,
+                  credit_variant_prices: { ...(selectedEditor.credit_variant_prices || {}), ai_video: event.target.value },
+                } : { customer_credit_cost: event.target.value })} /></label>
                 <label><span>{t("admin.contentCredits.estimatedCost")}</span><input type="number" min="0" step="0.01" value={selectedEditor.estimated_cost_sek} onChange={(event) => updateRow(selectedEditor.content_type_id, { estimated_cost_sek: event.target.value })} /></label>
               </div>
+              {selectedEditor.content_type_id === "engagement_humor" ? (
+                <div className="admin-econ-schedule-box">
+                  <div>
+                    <strong>{t("admin.contentCredits.variantPricingTitle")}</strong>
+                    <p>{t("admin.contentCredits.variantPricingText")}</p>
+                  </div>
+                  <div className="admin-econ-modal-grid">
+                    {[
+                      ["ai_video", "admin.contentCredits.variant.aiVideo"],
+                      ["ai_image", "admin.contentCredits.variant.aiImage"],
+                      ["product_image", "admin.contentCredits.variant.productImage"],
+                    ].map(([variantId, labelKey]) => (
+                      <label key={variantId}>
+                        <span>{t(labelKey)}</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={selectedEditor.credit_variant_prices?.[variantId] || ""}
+                          onChange={(event) => updateRow(selectedEditor.content_type_id, {
+                            credit_variant_prices: {
+                              ...(selectedEditor.credit_variant_prices || {}),
+                              [variantId]: event.target.value,
+                            },
+                          })}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className="admin-econ-schedule-box">
                 <div><strong>{t("admin.contentCredits.scheduleTitle")}</strong><p>{t("admin.contentCredits.scheduleText")}</p></div>
                 <label><span>{t("admin.contentCredits.futureCredits")}</span><input type="number" min="1" value={selectedEditor.pending_credit_cost || ""} onChange={(event) => updateRow(selectedEditor.content_type_id, { pending_credit_cost: event.target.value || null })} /></label>

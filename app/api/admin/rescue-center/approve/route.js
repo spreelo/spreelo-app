@@ -31,6 +31,7 @@ async function approveBrandAnalysis({ admin, rescueCase, brand, manifest }) {
     contentLanguage,
     campaignCalendarYear: calendarYear,
     websiteProductMode: manifest.website_product_mode,
+    websiteServiceMode: manifest.website_service_mode,
     websiteAccessStatus: "manual_rescue",
     websiteAccessMessage: "Website analysis was completed through Spreelo Admin Rescue using verified public sources.",
   });
@@ -143,7 +144,7 @@ export async function POST(request) {
 
     const { data: brand, error: brandError } = await context.admin
       .from("brand_profiles")
-      .select("id,user_id,business_name,website_url,brand_description,industry,target_audience,content_market,country_code,content_language,campaign_calendar_year,calendar_generation_mode,analysis_rescue_required,website_product_mode_available,website_product_mode_reason,website_product_source_url")
+      .select("id,user_id,business_name,website_url,brand_description,industry,target_audience,content_market,country_code,content_language,campaign_calendar_year,calendar_generation_mode,analysis_rescue_required,website_product_mode_available,website_product_mode_reason,website_product_source_url,website_service_mode_available,website_service_mode_reason,website_service_source_url")
       .eq("id", rescueCase.brand_profile_id)
       .eq("user_id", rescueCase.user_id)
       .maybeSingle();
