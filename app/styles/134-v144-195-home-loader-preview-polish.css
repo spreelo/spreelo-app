@@ -1,0 +1,218 @@
+/* Spreelo v144.195 — mobile Home parity + loader centering + preview-chip polish
+   Finalizes the mobile fixes requested after v144.194 without changing business logic. */
+
+/* --------------------------------------------------------------------------
+   1) HOME > INNEHÅLLSPLANER
+   Force all three plan category headers to use the exact same mobile structure.
+   This also neutralizes older article-grid rules that could push the 2nd/3rd card inward.
+   -------------------------------------------------------------------------- */
+@media (max-width:900px) {
+  html body .home-reference-page .home-reference-plans-v153 > article.home-plan-section-v153,
+  html body .home-reference-page .home-reference-plans-v153 > article.home-plan-section-v153.recurring,
+  html body .home-reference-page .home-reference-plans-v153 > article.home-plan-section-v153.scheduled,
+  html body .home-reference-page .home-reference-plans-v153 > article.home-plan-section-v153.campaign {
+    display:block !important;
+    grid-template-columns:none !important;
+    grid-template-rows:none !important;
+    grid-template-areas:none !important;
+    width:100% !important;
+    min-width:0 !important;
+    height:auto !important;
+    min-height:0 !important;
+    margin:0 !important;
+    padding:0 !important;
+    overflow:hidden !important;
+  }
+
+  html body .home-reference-page .home-reference-plans-v153 > article.home-plan-section-v153 > .home-plan-section-head-v153,
+  html body .home-reference-page .home-reference-plans-v153 > article.home-plan-section-v153.recurring > .home-plan-section-head-v153,
+  html body .home-reference-page .home-reference-plans-v153 > article.home-plan-section-v153.scheduled > .home-plan-section-head-v153,
+  html body .home-reference-page .home-reference-plans-v153 > article.home-plan-section-v153.campaign > .home-plan-section-head-v153 {
+    position:relative !important;
+    display:grid !important;
+    grid-column:1 / -1 !important;
+    grid-row:auto !important;
+    grid-template-columns:42px minmax(0,1fr) !important;
+    grid-template-rows:auto auto !important;
+    grid-template-areas:
+      "icon copy"
+      ". action" !important;
+    align-items:start !important;
+    justify-items:stretch !important;
+    place-self:stretch !important;
+    gap:10px 12px !important;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:none !important;
+    margin:0 !important;
+    padding:16px 15px !important;
+    box-sizing:border-box !important;
+    transform:none !important;
+  }
+
+  html body .home-reference-page .home-plan-section-head-v153 > .home-plan-overview-icon {
+    grid-area:icon !important;
+    grid-column:1 !important;
+    grid-row:1 !important;
+    align-self:start !important;
+    justify-self:center !important;
+    width:40px !important;
+    height:40px !important;
+    margin:0 !important;
+    transform:none !important;
+  }
+
+  html body .home-reference-page .home-plan-section-head-v153 > .home-plan-overview-copy {
+    grid-area:copy !important;
+    grid-column:2 !important;
+    grid-row:1 !important;
+    display:block !important;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:none !important;
+    margin:0 !important;
+    padding:0 !important;
+    transform:none !important;
+  }
+
+  html body .home-reference-page .home-plan-section-head-v153 .home-plan-overview-title-row {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-start !important;
+    flex-wrap:wrap !important;
+    gap:6px 9px !important;
+    width:100% !important;
+    min-width:0 !important;
+    margin:0 !important;
+    padding:0 !important;
+    text-align:left !important;
+  }
+
+  html body .home-reference-page .home-plan-section-head-v153 .home-plan-overview-title-row h3 {
+    flex:0 1 auto !important;
+    width:auto !important;
+    max-width:100% !important;
+    margin:0 !important;
+    padding:0 !important;
+    color:#101d30 !important;
+    font-size:16px !important;
+    line-height:1.24 !important;
+    font-weight:800 !important;
+    text-align:left !important;
+    white-space:normal !important;
+    word-break:normal !important;
+    overflow-wrap:normal !important;
+  }
+
+  html body .home-reference-page .home-plan-section-head-v153 .home-plan-overview-count {
+    flex:0 0 auto !important;
+    min-height:25px !important;
+    margin:0 !important;
+    padding:0 9px !important;
+    font-size:11px !important;
+    line-height:1 !important;
+    white-space:nowrap !important;
+  }
+
+  html body .home-reference-page .home-plan-section-head-v153 .home-plan-overview-copy > p {
+    display:block !important;
+    width:100% !important;
+    max-width:none !important;
+    margin:6px 0 0 !important;
+    padding:0 !important;
+    color:#657287 !important;
+    font-size:12.9px !important;
+    line-height:1.45 !important;
+    text-align:left !important;
+    white-space:normal !important;
+    word-break:normal !important;
+    overflow-wrap:normal !important;
+  }
+
+  html body .home-reference-page .home-plan-section-head-v153 .home-plan-overview-action {
+    grid-area:action !important;
+    grid-column:2 !important;
+    grid-row:2 !important;
+    align-self:start !important;
+    justify-self:stretch !important;
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:7px !important;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:none !important;
+    min-height:40px !important;
+    margin:0 !important;
+    padding:0 12px !important;
+    box-sizing:border-box !important;
+    font-size:12px !important;
+    line-height:1.15 !important;
+    text-align:center !important;
+    white-space:nowrap !important;
+    transform:none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   2) WORKSPACE LOADER
+   Explicit flex centering removes the slight rightward drift seen in mobile Safari.
+   -------------------------------------------------------------------------- */
+@media (max-width:560px) {
+  html body .workspace-loader-page {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:100% !important;
+    min-width:0 !important;
+    min-height:100svh !important;
+    margin:0 !important;
+    padding:18px 16px !important;
+    box-sizing:border-box !important;
+  }
+
+  html body .workspace-loader-card {
+    flex:0 1 420px !important;
+    width:min(420px, calc(100vw - 32px)) !important;
+    max-width:100% !important;
+    margin:0 auto !important;
+    box-sizing:border-box !important;
+    transform:none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3) ONBOARDING > PLANNED POST LABELS
+   Give the colored labels proper horizontal breathing room and true vertical centering.
+   -------------------------------------------------------------------------- */
+html body .spreelo191-post-card > span.spreelo191-post-label {
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  align-self:flex-start !important;
+  width:auto !important;
+  max-width:100% !important;
+  min-height:31px !important;
+  padding:5px 9px !important;
+  box-sizing:border-box !important;
+  line-height:1.22 !important;
+  text-align:center !important;
+  white-space:normal !important;
+  overflow:visible !important;
+  text-overflow:clip !important;
+}
+
+@media (max-width:720px) {
+  html body .spreelo191-post-card {
+    flex:0 0 142px !important;
+    min-width:142px !important;
+  }
+
+  html body .spreelo191-post-card > span.spreelo191-post-label {
+    min-height:36px !important;
+    margin-top:6px !important;
+    padding:5px 9px !important;
+    font-size:11px !important;
+    line-height:1.22 !important;
+  }
+}
