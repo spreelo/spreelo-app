@@ -11383,7 +11383,10 @@ function blockFormatCardClickAfterDrag(event) {
       date: formatSmartOnboardingPreviewDate(slot?.startDate, locale),
       label: getUnifiedContentTypeLabel(slot?.contentTypeId, slot?.contentTypeLabel) || t("automation.onboardingV191.postFallback"),
       image: SMART_ONBOARDING_PREVIEW_IMAGES[index % SMART_ONBOARDING_PREVIEW_IMAGES.length],
+      tone: index % 5,
     }));
+  const smartOnboardingIntroText = t("automation.onboardingV191.intro", { brandName: smartOnboardingBrandName });
+  const smartOnboardingIntroParts = String(smartOnboardingIntroText).split(String(smartOnboardingBrandName));
   const smartOnboardingCostSummary = t("automation.onboardingV191.costSummary", { credits: plannedCredits });
   const smartOnboardingVariedSummary = t("automation.onboardingV191.variedSummary");
 
@@ -14920,7 +14923,13 @@ function blockFormatCardClickAfterDrag(event) {
                         {t("automation.onboardingV191.titleLine1")}
                         <span>{t("automation.onboardingV191.titleLine2")}</span>
                       </h2>
-                      <p>{t("automation.onboardingV191.intro", { brandName: smartOnboardingBrandName })}</p>
+                      <p>{smartOnboardingIntroParts.length > 1 ? (
+                        <>
+                          {smartOnboardingIntroParts[0]}
+                          <strong className="spreelo192-brand-highlight">{smartOnboardingBrandName}</strong>
+                          {smartOnboardingIntroParts.slice(1).join(smartOnboardingBrandName)}
+                        </>
+                      ) : smartOnboardingIntroText}</p>
                     </div>
                     <div className="spreelo191-hero-art" aria-hidden="true">
                       <img src="/backgrounds/spreelo-onboarding-reference-room.png" alt="" />
@@ -14997,7 +15006,7 @@ function blockFormatCardClickAfterDrag(event) {
                         <article key={post.id} className="spreelo191-post-card">
                           <strong>{post.date}</strong>
                           <img src={post.image} alt="" />
-                          <span>{post.label}</span>
+                          <span className={`spreelo191-post-label spreelo192-post-tone-${post.tone}`}>{post.label}</span>
                         </article>
                       ))}
                     </div>
