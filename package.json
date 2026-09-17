@@ -215,7 +215,8 @@
     "test:v144.183": "node scripts/test-v144-183-recurring-credit-pause-resume.mjs",
     "test:v144.186": "node scripts/test-v144-186-smart-onboarding-admin-team.mjs",
     "test:v144.187": "node scripts/test-v144-187-onboarding-reference-match.mjs",
-    "test:v144.188": "node scripts/test-v144-188-onboarding-reference-exact.mjs"
+    "test:v144.188": "node scripts/test-v144-188-onboarding-reference-exact.mjs",
+    "test:v144.191": "node scripts/test-v144-191-onboarding-variant5.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",
