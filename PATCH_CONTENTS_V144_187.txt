@@ -1,0 +1,14 @@
+Spreelo v144.187 — onboarding reference-match correction
+
+Base: v144.186 direct-from-v144.183 package.
+
+UI-only change:
+- compact approved first-step modal
+- desktop 2-column recommendation grid
+- responsive mobile six-row layout
+- normal desktop/portrait phone operation without internal scrolling
+- current brand logo used in visual tile when available
+- fresh canonical i18n keys
+
+No SQL migration in v144.187.
+See PATCH_V144_187.md and DEPLOY_V144_187.md.

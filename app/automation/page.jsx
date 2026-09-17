@@ -11261,7 +11261,6 @@ function blockFormatCardClickAfterDrag(event) {
 }
 
   const smartOnboardingBrandName = currentBrandProfile?.business_name || t("automation.yourBusiness");
-  const smartOnboardingAudience = String(currentBrandProfile?.target_audience || "").trim() || t("automation.onboarding.audienceFallback");
   const smartOnboardingIndustry = String(currentBrandProfile?.industry || "").trim();
   const smartOnboardingMarket = String(currentBrandProfile?.content_market || currentBrandProfile?.country_code || "").trim();
   const smartOnboardingMarketText = smartOnboardingIndustry && smartOnboardingMarket
@@ -11276,11 +11275,6 @@ function blockFormatCardClickAfterDrag(event) {
       : smartOnboardingHasServices
         ? t("automation.onboarding.offeringServices")
         : t("automation.onboarding.offeringGeneral");
-  const smartOnboardingWhy = autoPlanGoal === "sell_more"
-    ? t("automation.onboarding.whySell")
-    : autoPlanGoal === "get_followers"
-      ? t("automation.onboarding.whyFollowers")
-      : t("automation.onboarding.whyTrust");
   const smartOnboardingDays = Array.from(new Set(
     [...slots]
       .sort((a, b) => String(a.startDate || "").localeCompare(String(b.startDate || "")))
@@ -11302,6 +11296,24 @@ function blockFormatCardClickAfterDrag(event) {
   const smartOnboardingBalanceWeeks = plannedCredits > 0 && Number(creditsRemaining) > 0
     ? Math.max(0, Math.floor(Number(creditsRemaining) / plannedCredits))
     : 0;
+  const smartOnboardingTypeLabels = smartOnboardingTypes.map((item) => item.label).filter(Boolean);
+  const smartOnboardingTypeSummary = smartOnboardingTypeLabels.length > 3
+    ? t("automation.onboardingV187.compactList", {
+        items: smartOnboardingTypeLabels.slice(0, 3).join(", "),
+        count: smartOnboardingTypeLabels.length - 3,
+      })
+    : smartOnboardingTypeLabels.join(", ") || t("automation.onboardingV187.variedFallback");
+  const smartOnboardingChannelSummary = smartOnboardingChannels.length > 3
+    ? t("automation.onboardingV187.compactList", {
+        items: smartOnboardingChannels.slice(0, 3).join(", "),
+        count: smartOnboardingChannels.length - 3,
+      })
+    : smartOnboardingChannels.join(", ") || t("automation.onboarding.noChannels");
+  const smartOnboardingGoalSummary = autoPlanGoal === "sell_more"
+    ? t("automation.onboardingV187.goalSell")
+    : autoPlanGoal === "get_followers"
+      ? t("automation.onboardingV187.goalFollowers")
+      : t("automation.onboardingV187.goalTrust");
 
   function dismissSmartOnboarding() {
     smartOnboardingDismissedRef.current = true;
@@ -14800,60 +14812,71 @@ function blockFormatCardClickAfterDrag(event) {
 )}
       {showSmartOnboarding ? (
         <div className="spreelo186-onboarding-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) dismissSmartOnboarding(); }}>
-          <section className="spreelo186-onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="spreelo186-onboarding-title">
-            <header className="spreelo186-onboarding-header">
+          <section className="spreelo186-onboarding-modal spreelo187-onboarding-reference" role="dialog" aria-modal="true" aria-labelledby="spreelo187-onboarding-title">
+            <header className="spreelo186-onboarding-header spreelo187-onboarding-header">
               <div className="spreelo186-onboarding-logo"><img src="/brand/spreelologo.png" alt="Spreelo" /></div>
               <span className="spreelo186-onboarding-badge"><Rocket size={14}/>{t("automation.onboarding.badge")}</span>
               <button type="button" className="spreelo186-onboarding-close" onClick={dismissSmartOnboarding} aria-label={t("automation.onboarding.close")}><X size={20}/></button>
-              <div className="spreelo186-onboarding-title-wrap">
-                <div>
-                  <h2 id="spreelo186-onboarding-title">{t("automation.onboarding.title", { brandName: smartOnboardingBrandName })}</h2>
-                  <p>{t("automation.onboarding.intro")}</p>
+
+              <div className="spreelo187-onboarding-intro">
+                <div className="spreelo187-onboarding-copy">
+                  <h2 id="spreelo187-onboarding-title">{t("automation.onboardingV187.title")}</h2>
+                  <p>{t("automation.onboardingV187.intro", { brandName: smartOnboardingBrandName })}</p>
                 </div>
-                <img className="spreelo186-onboarding-hero" src="/backgrounds/spreelo-ai-studio-hero-mobile-v14379.png" alt={t("automation.onboarding.heroAlt")} />
+                <div className={`spreelo187-onboarding-visual${currentBrandProfile?.logo_url ? " has-brand-logo" : ""}`} aria-hidden="true">
+                  <img className="spreelo187-onboarding-visual-bg" src="/backgrounds/spreelo-ai-studio-hero-mobile-v14379.png" alt="" />
+                  {currentBrandProfile?.logo_url ? <img className="spreelo187-onboarding-brand-logo" src={currentBrandProfile.logo_url} alt="" /> : <Sparkles className="spreelo187-onboarding-visual-mark" size={30}/>} 
+                </div>
               </div>
             </header>
 
-            <div className="spreelo186-onboarding-scroll">
+            <div className="spreelo187-onboarding-content">
               {smartOnboardingLoading ? <div className="spreelo186-onboarding-loading"><LoaderCircle className="admin-spin" size={20}/>{t("automation.onboarding.loading")}</div> : null}
 
-              <section className="spreelo186-onboarding-panel why">
-                <div className="spreelo186-onboarding-panel-title"><span><Gift size={18}/></span><h3>{t("automation.onboarding.whyTitle")}</h3><ChevronDown size={18}/></div>
-                <div className="spreelo186-reason-grid">
-                  <article><span className="purple"><Users size={21}/></span><div><strong>{t("automation.onboarding.audience")}</strong><p>{smartOnboardingAudience}</p></div></article>
-                  <article><span className="red"><TrendingUp size={21}/></span><div><strong>{t("automation.onboarding.market")}</strong><p>{smartOnboardingMarketText}</p></div></article>
-                  <article><span className="green"><ShoppingBag size={21}/></span><div><strong>{t("automation.onboarding.offering")}</strong><p>{smartOnboardingOffering}</p></div></article>
-                  <article><span className="yellow"><Lightbulb size={21}/></span><div><strong>{t("automation.onboarding.whyPlan")}</strong><p>{smartOnboardingWhy}</p></div></article>
+              <section className="spreelo187-recommended-plan">
+                <div className="spreelo187-recommended-heading"><Sparkles size={18}/><h3>{t("automation.onboardingV187.recommendedTitle")}</h3></div>
+                <div className="spreelo187-plan-grid">
+                  <article className="goal">
+                    <span className="icon red"><Target size={21}/></span>
+                    <div><strong>{t("automation.onboarding.goal")}</strong><p>{smartOnboardingGoalSummary}</p></div>
+                  </article>
+                  <article className="market desktop-support-card">
+                    <span className="icon red"><TrendingUp size={21}/></span>
+                    <div><strong>{t("automation.onboarding.market")}</strong><p>{smartOnboardingMarketText}</p></div>
+                  </article>
+                  <article className="frequency">
+                    <span className="icon red"><CalendarDays size={21}/></span>
+                    <div><strong>{t("automation.onboarding.frequency", { count: autoPlanPostCount })}</strong><p>{t("automation.onboardingV187.frequencyHelp")}</p></div>
+                  </article>
+                  <article className="offering desktop-support-card">
+                    <span className="icon green"><ShoppingBag size={21}/></span>
+                    <div><strong>{t("automation.onboarding.offering")}</strong><p>{smartOnboardingOffering}</p></div>
+                  </article>
+                  <article className="days">
+                    <span className="icon red"><CalendarClock size={21}/></span>
+                    <div><strong>{t("automation.onboarding.publishingDays")}</strong><p>{smartOnboardingDays.join(" · ") || "—"}</p></div>
+                  </article>
+                  <article className="channels">
+                    <span className="icon purple"><Globe2 size={21}/></span>
+                    <div><strong>{t("automation.onboarding.channel")}</strong><p title={smartOnboardingChannels.join(", ")}>{smartOnboardingChannelSummary}</p></div>
+                  </article>
+                  <article className="cost">
+                    <span className="icon red"><CreditCard size={21}/></span>
+                    <div><strong>{t("automation.onboarding.estimatedCost")}</strong><p>{t("automation.onboarding.creditsPerWeek", { credits: plannedCredits })}{smartOnboardingBalanceWeeks > 0 ? ` · ${t("automation.onboardingV187.balanceShort", { weeks: smartOnboardingBalanceWeeks })}` : ""}</p></div>
+                  </article>
+                  <article className="varied">
+                    <span className="icon yellow"><Lightbulb size={21}/></span>
+                    <div><strong>{t("automation.onboardingV187.variedContent")}</strong><p title={smartOnboardingTypeLabels.join(", ")}>{varyWeeklyContentTypes ? smartOnboardingTypeSummary : t("automation.onboarding.weeklyVariationOff")}</p></div>
+                  </article>
                 </div>
               </section>
 
-              <section className="spreelo186-onboarding-panel settings">
-                <div className="spreelo186-onboarding-panel-title"><span><SlidersHorizontal size={18}/></span><h3>{t("automation.onboarding.settingsTitle")}</h3><ChevronDown size={18}/></div>
-                <div className="spreelo186-settings-grid">
-                  <article><span><Target size={19}/></span><div><small>{t("automation.onboarding.goal")}</small><strong>{translateAutoPlanGoalLabel(autoPlanGoal)}</strong></div></article>
-                  <article><span><CalendarDays size={19}/></span><div><small>{t("automation.onboarding.frequencyLabel")}</small><strong>{t("automation.onboarding.frequency", { count: autoPlanPostCount })}</strong></div></article>
-                  <article className="wide"><span><CalendarClock size={19}/></span><div><small>{t("automation.onboarding.publishingDays")}</small><strong>{smartOnboardingDays.join(" · ") || "—"}</strong></div></article>
-                  <article className="wide"><span><Globe2 size={19}/></span><div><small>{t("automation.onboarding.channel")}</small><strong>{smartOnboardingChannels.join(" · ") || t("automation.onboarding.noChannels")}</strong><em>{t("automation.onboarding.connected", { count: connectedPlatformOptions.length })}</em></div><a href="/social-channels">{t("automation.onboarding.connectMore")}<ChevronRight size={15}/></a></article>
-                  <article><span><CalendarDays size={19}/></span><div><small>{t("automation.onboarding.startDate")}</small><strong>{formatStartDateLabel(planStartDate, timeZone, locale)}</strong></div></article>
-                  <article><span><CreditCard size={19}/></span><div><small>{t("automation.onboarding.estimatedCost")}</small><strong>{t("automation.onboarding.creditsPerWeek", { credits: plannedCredits })}</strong>{smartOnboardingBalanceWeeks > 0 ? <em>{t("automation.onboarding.balanceWeeks", { weeks: smartOnboardingBalanceWeeks })}</em> : null}</div></article>
-                  <article className="wide"><span><Repeat2 size={19}/></span><div><small>{t("automation.onboarding.weeklyVariation")}</small><strong>{varyWeeklyContentTypes ? t("automation.onboarding.weeklyVariationOn") : t("automation.onboarding.weeklyVariationOff")}</strong></div></article>
-                </div>
-              </section>
-
-              <section className="spreelo186-onboarding-panel types">
-                <div className="spreelo186-onboarding-panel-title"><span><Layers size={18}/></span><h3>{t("automation.onboarding.contentTypesTitle")}</h3><ChevronDown size={18}/></div>
-                <div className="spreelo186-type-grid">
-                  {smartOnboardingTypes.map((item, index) => <article key={item.id} className={`tone-${index % 4}`}><span><LayoutGrid size={19}/></span><strong>{item.label}</strong></article>)}
-                </div>
-              </section>
-
-              <div className="spreelo186-onboarding-note"><Sparkles size={18}/><span>{t("automation.onboarding.startNote")}</span></div>
+              <div className="spreelo186-onboarding-note spreelo187-onboarding-note"><Sparkles size={18}/><span>{t("automation.onboardingV187.startNote")}</span></div>
             </div>
 
-            <footer className="spreelo186-onboarding-actions">
-              <button type="button" className="primary" disabled={saving || smartOnboardingLoading || !slots.length} onClick={() => void savePlan()}>{saving ? <LoaderCircle className="admin-spin" size={18}/> : <Rocket size={18}/>} {saving ? t("automation.onboarding.activating") : t("automation.onboarding.activate")}</button>
+            <footer className="spreelo186-onboarding-actions spreelo187-onboarding-actions">
+              <button type="button" className="primary" disabled={saving || smartOnboardingLoading || !slots.length} onClick={() => void savePlan()}>{saving ? <LoaderCircle className="admin-spin" size={18}/> : <Rocket size={18}/>} {saving ? t("automation.onboarding.activating") : t("automation.onboardingV187.activate")}</button>
               <button type="button" className="secondary" onClick={dismissSmartOnboarding}>{t("automation.onboarding.review")}</button>
-              <button type="button" className="skip" onClick={dismissSmartOnboarding}>{t("automation.onboarding.skip")}</button>
             </footer>
           </section>
         </div>

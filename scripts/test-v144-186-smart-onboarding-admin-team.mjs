@@ -40,14 +40,13 @@ for (const key of [
 ]) assert.ok(labels.includes(`\"${key}\"`), `Missing i18n key ${key}`);
 
 assert.match(automation, /spreelo186-onboarding-modal/);
-assert.match(automation, /automation\.onboarding\.whyTitle/);
-assert.match(automation, /automation\.onboarding\.settingsTitle/);
-assert.match(automation, /automation\.onboarding\.contentTypesTitle/);
-assert.match(automation, /automation\.onboarding\.startDate/);
+assert.match(automation, /automation\.onboardingV187\.recommendedTitle/);
+assert.match(automation, /automation\.onboardingV187\.title/);
+assert.match(automation, /automation\.onboardingV187\.variedContent/);
 assert.match(automation, /automation\.onboarding\.estimatedCost/);
 assert.match(automation, /smartOnboardingTypes\.map/);
 assert.doesNotMatch(automation, /smartOnboardingTypes\.slice\(0,\s*4\)/);
-assert.match(automation, /varyWeeklyContentTypes \? t\("automation\.onboarding\.weeklyVariationOn"\)/);
+assert.match(automation, /varyWeeklyContentTypes \? smartOnboardingTypeSummary/);
 assert.match(automation, /normalizedEmail === SPREELO_INTERNAL_TESTER_EMAIL/);
 assert.match(automation, /hasCampaignHandoff \|\| hasDirectPlan/);
 assert.match(automation, /!isInternalTester && hasCompletedFirstPlan/);
