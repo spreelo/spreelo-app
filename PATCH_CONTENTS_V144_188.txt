@@ -1,0 +1,17 @@
+Spreelo v144.188 complete release is based on v144.187.
+
+Files changed/added for v144.188:
+- app/automation/page.jsx
+- app/globals.css
+- app/styles/127-v144-188-onboarding-final-match.css
+- lib/i18n/defaultLabels.js
+- public/backgrounds/spreelo-onboarding-reference-room.png
+- scripts/test-v144-186-smart-onboarding-admin-team.mjs
+- scripts/test-v144-187-onboarding-reference-match.mjs
+- scripts/test-v144-188-onboarding-reference-exact.mjs
+- package.json
+- PATCH_V144_188.md
+- DEPLOY_V144_188.md
+- PATCH_CONTENTS_V144_188.txt
+
+No SQL migration is added in v144.188.

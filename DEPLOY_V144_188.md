@@ -1,8 +1,14 @@
-# Deploy Spreelo v144.188
+# Deploy v144.188
 
-1. Deploy the complete v144.188 application package.
-2. Do **not** run any new SQL for v144.188.
-3. Keep the existing database state from v144.186.
-4. After deploy, verify the onboarding once on desktop and once on mobile.
+1. Replace current app with the contents of this package.
+2. Install dependencies as normal.
+3. Build and deploy.
+4. Open AI Content Studio with a first-time / onboarding brand.
+5. Verify:
+   - desktop modal shows without scroll,
+   - hero image matches the approved reference style,
+   - desktop plan tiles have larger spacing,
+   - mobile rows show chevrons,
+   - CTA buttons remain visible and aligned.
 
-v144.188 changes onboarding presentation only.
+No SQL required for v144.188.

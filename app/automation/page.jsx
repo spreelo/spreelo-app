@@ -11329,6 +11329,19 @@ function blockFormatCardClickAfterDrag(event) {
     : autoPlanGoal === "get_followers"
       ? t("automation.onboardingV187.goalFollowers")
       : t("automation.onboardingV187.goalTrust");
+  const onboardingIsSwedish = String(locale || "en").toLowerCase().startsWith("sv");
+  const smartOnboardingTitle = onboardingIsSwedish
+    ? "Kom igång med din AI-innehållsstudio"
+    : t("automation.onboardingV187.title");
+  const smartOnboardingIntro = onboardingIsSwedish
+    ? `Vi har analyserat ditt varumärke ${smartOnboardingBrandName} och skapat en rekommenderad startplan. Du kan alltid granska och anpassa planen innan du aktiverar den.`
+    : t("automation.onboardingV187.intro", { brandName: smartOnboardingBrandName });
+  const smartOnboardingNote = onboardingIsSwedish
+    ? "Detta är en startrekommendation från Spreelo. Planen baseras på den information vi har idag och kan justeras när som helst."
+    : t("automation.onboardingV187.note");
+  const smartOnboardingActivateLabel = onboardingIsSwedish
+    ? "Aktivera planen"
+    : t("automation.onboardingV187.activate");
 
   function dismissSmartOnboarding() {
     smartOnboardingDismissedRef.current = true;
@@ -14835,8 +14848,8 @@ function blockFormatCardClickAfterDrag(event) {
 
               <div className="spreelo187-onboarding-intro">
                 <div className="spreelo187-onboarding-copy">
-                  <h2 id="spreelo187-onboarding-title">{t("automation.onboardingV187.title")}</h2>
-                  <p>{t("automation.onboardingV187.intro", { brandName: smartOnboardingBrandName })}</p>
+                  <h2 id="spreelo187-onboarding-title">{smartOnboardingTitle}</h2>
+                  <p>{smartOnboardingIntro}</p>
                 </div>
                 <div className="spreelo187-onboarding-visual" aria-hidden="true">
                   <img className="spreelo188-onboarding-reference-image" src="/backgrounds/spreelo-onboarding-reference-room.png" alt="" />
@@ -14894,11 +14907,11 @@ function blockFormatCardClickAfterDrag(event) {
                 </div>
               </section>
 
-              <div className="spreelo186-onboarding-note spreelo187-onboarding-note"><Sparkles size={18}/><span>{t("automation.onboardingV187.startNote")}</span></div>
+              <div className="spreelo186-onboarding-note spreelo187-onboarding-note"><Sparkles size={18}/><span>{smartOnboardingNote}</span></div>
             </div>
 
             <footer className="spreelo186-onboarding-actions spreelo187-onboarding-actions">
-              <button type="button" className="primary" disabled={saving || smartOnboardingLoading || !slots.length} onClick={() => void savePlan()}>{saving ? <LoaderCircle className="admin-spin" size={18}/> : <Rocket size={18}/>} {saving ? t("automation.onboarding.activating") : t("automation.onboardingV187.activate")}</button>
+              <button type="button" className="primary" disabled={saving || smartOnboardingLoading || !slots.length} onClick={() => void savePlan()}>{saving ? <LoaderCircle className="admin-spin" size={18}/> : <Rocket size={18}/>} {saving ? t("automation.onboarding.activating") : smartOnboardingActivateLabel}</button>
               <button type="button" className="secondary" onClick={dismissSmartOnboarding}>{t("automation.onboarding.review")}</button>
             </footer>
           </section>
