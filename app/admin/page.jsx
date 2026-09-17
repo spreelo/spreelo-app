@@ -202,6 +202,7 @@ export default function AdminDashboardPage() {
   const [backgroundJobCount, setBackgroundJobCount] = useState(0);
   const [backgroundStopping, setBackgroundStopping] = useState(false);
   const [backgroundStopMessage, setBackgroundStopMessage] = useState("");
+  const [canManageTeam, setCanManageTeam] = useState(false);
 
   useEffect(() => { loadAdminData(); }, []);
 
@@ -214,17 +215,19 @@ export default function AdminDashboardPage() {
       const fullName = String(metadata.full_name || metadata.name || session?.user?.email || "Admin").trim();
       setAdminName(fullName.split(/\s+/)[0] || "Admin");
       const headers = await getAdminHeaders();
-      const [overviewResponse, translationsResponse, backgroundJobsResponse, healthResponse] = await Promise.all([
+      const [overviewResponse, translationsResponse, backgroundJobsResponse, healthResponse, adminMeResponse] = await Promise.all([
         fetch("/api/admin/overview", { headers, cache: "no-store" }),
         fetch("/api/admin/translations", { headers, cache: "no-store" }),
         fetch("/api/admin/openai-background-jobs", { headers, cache: "no-store" }),
         fetch("/api/admin/system-health", { headers, cache: "no-store" }),
+        fetch("/api/admin/me", { headers, cache: "no-store" }),
       ]);
-      const [overviewPayload, translationsPayload, backgroundPayload, healthPayload] = await Promise.all([
+      const [overviewPayload, translationsPayload, backgroundPayload, healthPayload, adminMePayload] = await Promise.all([
         overviewResponse.json().catch(() => ({})),
         translationsResponse.json().catch(() => ({})),
         backgroundJobsResponse.json().catch(() => ({})),
         healthResponse.json().catch(() => ({})),
+        adminMeResponse.json().catch(() => ({})),
       ]);
       if (!overviewResponse.ok) throw new Error(overviewPayload?.error || t("adminCommand.error.loadOverview"));
       setStats({ ...EMPTY_STATS, ...(overviewPayload.stats || {}) });
@@ -239,6 +242,7 @@ export default function AdminDashboardPage() {
       setBackgroundJobCount(backgroundJobsResponse.ok ? Number(backgroundPayload?.counts?.total || 0) : 0);
       if (healthResponse.ok) setHealth(healthPayload);
       else setWarnings((current) => [...current, { key: "health", message: healthPayload?.error || t("adminCommand.error.health") }]);
+      setCanManageTeam(Boolean(adminMeResponse.ok && adminMePayload?.canManageTeam));
     } catch (loadError) {
       setError(loadError?.message || t("adminCommand.error.loadOverview"));
     } finally {
@@ -371,6 +375,7 @@ export default function AdminDashboardPage() {
                   <QuickLink href="#translations" icon={Languages} title={t("adminCommand.quick.translations")} text={t("adminCommand.quick.translationsText", { count: requestedLocaleCount })} />
                   <QuickLink href="/admin/content-formats" icon={LayoutGrid} title={t("adminCommand.quick.contentFormats")} text={t("adminCommand.quick.contentFormatsText")} />
                   <QuickLink href="/admin/icons" icon={Shapes} title={t("adminCommand.quick.icons")} text={t("adminCommand.quick.iconsText")} />
+                  {canManageTeam ? <QuickLink href="/admin/team" icon={Users} title={t("adminCommand.quick.adminTeam")} text={t("adminCommand.quick.adminTeamText")} /> : null}
                 </QuickGroup>
               </div>
             </section>

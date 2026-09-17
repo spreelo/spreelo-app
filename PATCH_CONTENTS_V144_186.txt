@@ -1,0 +1,26 @@
+Spreelo v144.186 — direct update from v144.183
+
+Base:
+  spreelo-144.183-RECURRING-CREDIT-PAUSE-AUTO-RESUME-FINAL.zip
+
+This package was built directly from v144.183. Codex v144.184/v144.185 were not used as the code base.
+
+Main additions/changes:
+- Smart first-plan onboarding modal matching the approved Spreelo structure/design.
+- Safe first-plan gating, including Johan/admin test override and campaign/direct-plan suppression.
+- Smart goal/post-frequency recommendation limited to supported goals and 3/5/7 posts.
+- Existing v144.182 content strategy reused for actual content mix.
+- Full plan settings, start date, cost, all content types and weekly-variation state shown in onboarding.
+- Primary-admin-only admin team management and secure invitation/acceptance/revocation flow.
+- Invited admin protected app-metadata bypass for plan/social-account limits.
+- Latest entitlements: Starter 1/1/1, Growth 1/5/3, Pro 1/unlimited/5 (brands/social accounts/rolling plans).
+- New v144.186 SQL delta plus consolidated SQL.
+- English canonical i18n keys for new visible UI/email copy.
+- Regression tests for v144.180-v144.183, admin bypass, and v144.186.
+
+Deployment:
+1. Existing v144.183 database: run spreelo-v144.186-SQL.sql.
+2. Deploy this application package.
+3. Set SPREELO_PRIMARY_ADMIN_EMAIL if a primary admin other than johan@foldern.com is desired.
+
+See PATCH_V144_186.md and DEPLOY_V144_186.md for details.

@@ -50,6 +50,7 @@ import {
   Trophy,
   Trash2,
   TrendingUp,
+  Users,
   Video,
   WandSparkles,
   Wrench,
@@ -78,6 +79,7 @@ import {
   normalizeEditorialContentTypeId,
 } from "../../lib/editorialContentStrategy";
 import { CONTENT_TYPE_TIMING } from "../../lib/contentPlanningStrategy";
+import { getFallbackSmartOnboardingRecommendation } from "../../lib/smartOnboardingPlan";
 import {
   getContentTypeCoverageScore,
   getContentTypeDestinationPlatforms,
@@ -6680,6 +6682,11 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
   const [showVariationInfoModal, setShowVariationInfoModal] = useState(false);
   const [showRecommendationInfoModal, setShowRecommendationInfoModal] = useState(false);
   const [showSocialChannelRequiredModal, setShowSocialChannelRequiredModal] = useState(false);
+  const [showSmartOnboarding, setShowSmartOnboarding] = useState(false);
+  const [smartOnboardingLoading, setSmartOnboardingLoading] = useState(false);
+  const [hasCompletedFirstPlan, setHasCompletedFirstPlan] = useState(false);
+  const smartOnboardingPreparedRef = useRef(false);
+  const smartOnboardingDismissedRef = useRef(false);
   const formatStripRef = useRef(null);
   const autoPlanRequestIdRef = useRef(0);
   const formatDragRef = useRef({
@@ -6874,6 +6881,85 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
     Boolean(savedPlanSummary),
     planCreationMode,
     runtimePlatformCapabilities.pinterestVideo,
+  ]);
+
+  useEffect(() => {
+    if (loading || !currentBrandId || !currentBrandProfile || smartOnboardingPreparedRef.current || smartOnboardingDismissedRef.current) return;
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedMode = params.get("mode") || "";
+    const storedCampaignHandoff = getStoredCalendarCampaignHandoff();
+    const hasCampaignHandoff = Boolean(
+      requestedMode === "campaign" ||
+      params.get("campaignOpportunityId") ||
+      params.get("campaignId") ||
+      isRecentCalendarCampaignHandoff(storedCampaignHandoff)
+    );
+    const hasDirectPlan = Boolean(params.get("plan"));
+    if (hasCampaignHandoff || hasDirectPlan || planCreationMode === "campaign") return;
+
+    const normalizedEmail = String(currentUserEmail || "").trim().toLowerCase();
+    const isInternalTester = normalizedEmail === SPREELO_INTERNAL_TESTER_EMAIL;
+    if (!isInternalTester && hasCompletedFirstPlan) return;
+
+    smartOnboardingPreparedRef.current = true;
+    setSmartOnboardingLoading(true);
+    setPlanCreationMode("auto");
+    setScheduleType("weekly");
+    setVaryWeeklyContentTypes(true);
+
+    const fallback = getFallbackSmartOnboardingRecommendation({
+      brandProfile: currentBrandProfile,
+      connectedPlatformCount: connectedPlatforms.length,
+    });
+    const profileVersion = String(currentBrandProfile?.updated_at || "profile").replace(/[^a-zA-Z0-9]/g, "").slice(0, 32);
+    const cacheKey = `spreelo_smart_onboarding_${currentBrandId}_${profileVersion}`;
+    let recommendation = fallback;
+    try {
+      const cached = JSON.parse(window.localStorage.getItem(cacheKey) || "null");
+      if (["sell_more", "get_followers", "build_trust"].includes(cached?.goalId) && [3, 5, 7].includes(Number(cached?.postCount))) {
+        recommendation = { goalId: cached.goalId, postCount: Number(cached.postCount) };
+      }
+    } catch {
+      window.localStorage.removeItem(cacheKey);
+    }
+
+    setAutoPlanGoal(recommendation.goalId);
+    setAutoPlanPostCount(recommendation.postCount);
+    void applyDynamicAutoPlan({ goalId: recommendation.goalId, postCount: recommendation.postCount });
+    setShowSmartOnboarding(true);
+    setSmartOnboardingLoading(false);
+
+    // Improve the next recommendation in the background. Never replace the
+    // plan currently shown in the popup: that avoids activation races and visual jumps.
+    void (async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        if (!accessToken) return;
+        const response = await fetch("/api/onboarding-plan", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ brandProfileId: currentBrandId }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) return;
+        if (!["sell_more", "get_followers", "build_trust"].includes(payload?.goalId)) return;
+        if (![3, 5, 7].includes(Number(payload?.postCount))) return;
+        window.localStorage.setItem(cacheKey, JSON.stringify({ goalId: payload.goalId, postCount: Number(payload.postCount) }));
+      } catch (error) {
+        console.warn("Could not refine smart onboarding recommendation", error);
+      }
+    })();
+  }, [
+    loading,
+    currentBrandId,
+    currentBrandProfile,
+    currentUserEmail,
+    hasCompletedFirstPlan,
+    connectedPlatforms.length,
+    planCreationMode,
   ]);
 
   const displayedAutoPlanPostCountOptions = useMemo(
@@ -8399,7 +8485,7 @@ async function loadConnectedPlatformsForBrand(userId, brandProfileId) {
   if (!userId || !brandProfileId) {
     setConnectedPlatforms([]);
     setPlatform("");
-    return;
+    return [];
   }
 
   setLoadingConnectedPlatforms(true);
@@ -8416,7 +8502,7 @@ async function loadConnectedPlatformsForBrand(userId, brandProfileId) {
     setConnectedPlatforms([]);
     setPlatform("");
     setLoadingConnectedPlatforms(false);
-    return;
+    return [];
   }
 
   const uniquePlatforms = Array.from(
@@ -8450,6 +8536,7 @@ async function loadConnectedPlatformsForBrand(userId, brandProfileId) {
   });
 
   setLoadingConnectedPlatforms(false);
+  return uniquePlatforms;
 }
 
 async function loadRules() {
@@ -8465,6 +8552,10 @@ async function loadRules() {
     }
 
     setCurrentUserEmail(user.email || "");
+    setHasCompletedFirstPlan(Boolean(
+      user?.user_metadata?.spreelo_first_plan_activated ||
+      user?.user_metadata?.spreelo_plan_guide_completed
+    ));
     const workspaceTimeZone = user?.user_metadata?.publishing_timezone || getBrowserTimeZone() || DEFAULT_TIME_ZONE;
     const workspaceStartDate = getDateInputValueInTimeZone(new Date(), workspaceTimeZone);
     const workspaceRecommendedTime = getRecommendedTimeForDate(workspaceStartDate, workspaceTimeZone);
@@ -8542,7 +8633,7 @@ if (!selectedBrandId) {
 
 const { data: brandProfileData, error: brandProfileError } = await supabase
   .from("brand_profiles")
-  .select("id, business_name, website_url, website_product_source_url, website_product_mode_available, website_product_mode_reason, website_service_source_url, website_service_mode_available, website_service_mode_reason, logo_url, logo_enabled_by_default, country_code, content_market, content_language")
+  .select("id, business_name, website_url, brand_description, industry, target_audience, website_product_source_url, website_product_mode_available, website_product_mode_reason, website_service_source_url, website_service_mode_available, website_service_mode_reason, logo_url, logo_enabled_by_default, country_code, content_market, content_language, updated_at")
   .eq("id", selectedBrandId)
   .eq("user_id", user.id)
   .maybeSingle();
@@ -8639,8 +8730,14 @@ const { data, error } = await supabase
   .eq("brand_profile_id", selectedBrandId);
     if (error) {
       setMessage(error.message);
+      smartOnboardingDismissedRef.current = true;
     } else {
     const sortedRules = sortAutomationRules(data || []);
+    setHasCompletedFirstPlan(Boolean(
+      sortedRules.length > 0 ||
+      user?.user_metadata?.spreelo_first_plan_activated ||
+      user?.user_metadata?.spreelo_plan_guide_completed
+    ));
 
       setRules(sortedRules);
       if (!guideInitialized) {
@@ -10871,6 +10968,8 @@ ${slot.campaignSummary}`
 
       setGuideExpanded(false);
       setGuideInitialized(true);
+      setShowSmartOnboarding(false);
+      setHasCompletedFirstPlan(true);
       void supabase.auth.updateUser({
         data: {
           spreelo_first_plan_activated: true,
@@ -11160,6 +11259,54 @@ function blockFormatCardClickAfterDrag(event) {
   event.preventDefault();
   event.stopPropagation();
 }
+
+  const smartOnboardingBrandName = currentBrandProfile?.business_name || t("automation.yourBusiness");
+  const smartOnboardingAudience = String(currentBrandProfile?.target_audience || "").trim() || t("automation.onboarding.audienceFallback");
+  const smartOnboardingIndustry = String(currentBrandProfile?.industry || "").trim();
+  const smartOnboardingMarket = String(currentBrandProfile?.content_market || currentBrandProfile?.country_code || "").trim();
+  const smartOnboardingMarketText = smartOnboardingIndustry && smartOnboardingMarket
+    ? t("automation.onboarding.marketValue", { industry: smartOnboardingIndustry, market: smartOnboardingMarket })
+    : smartOnboardingIndustry || smartOnboardingMarket || t("automation.onboarding.marketFallback");
+  const smartOnboardingHasProducts = Boolean(currentBrandProfile?.website_product_mode_available);
+  const smartOnboardingHasServices = Boolean(currentBrandProfile?.website_service_mode_available);
+  const smartOnboardingOffering = smartOnboardingHasProducts && smartOnboardingHasServices
+    ? t("automation.onboarding.offeringMixed")
+    : smartOnboardingHasProducts
+      ? t("automation.onboarding.offeringProducts")
+      : smartOnboardingHasServices
+        ? t("automation.onboarding.offeringServices")
+        : t("automation.onboarding.offeringGeneral");
+  const smartOnboardingWhy = autoPlanGoal === "sell_more"
+    ? t("automation.onboarding.whySell")
+    : autoPlanGoal === "get_followers"
+      ? t("automation.onboarding.whyFollowers")
+      : t("automation.onboarding.whyTrust");
+  const smartOnboardingDays = Array.from(new Set(
+    [...slots]
+      .sort((a, b) => String(a.startDate || "").localeCompare(String(b.startDate || "")))
+      .map((slot) => slot.weekday || getWeekdayFromDateString(slot.startDate, timeZone))
+      .map((weekday) => {
+        const index = weekdays.indexOf(weekday);
+        return index >= 0 ? weekdayLabels[index] : weekday;
+      })
+      .filter(Boolean)
+  ));
+  const smartOnboardingTypes = Array.from(new Map(
+    slots
+      .filter((slot) => slot?.contentTypeId)
+      .map((slot) => [slot.contentTypeId, getUnifiedContentTypeLabel(slot.contentTypeId, slot.contentTypeLabel)])
+  ).entries()).map(([id, label]) => ({ id, label }));
+  const smartOnboardingChannels = selectedPlatformOptions.length
+    ? selectedPlatformOptions.map((item) => item.label).filter(Boolean)
+    : connectedPlatformOptions.map((item) => item.label).filter(Boolean);
+  const smartOnboardingBalanceWeeks = plannedCredits > 0 && Number(creditsRemaining) > 0
+    ? Math.max(0, Math.floor(Number(creditsRemaining) / plannedCredits))
+    : 0;
+
+  function dismissSmartOnboarding() {
+    smartOnboardingDismissedRef.current = true;
+    setShowSmartOnboarding(false);
+  }
 
   return (
     <AppLayout active="automation">
@@ -14651,6 +14798,66 @@ function blockFormatCardClickAfterDrag(event) {
     </div>
   </div>
 )}
+      {showSmartOnboarding ? (
+        <div className="spreelo186-onboarding-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) dismissSmartOnboarding(); }}>
+          <section className="spreelo186-onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="spreelo186-onboarding-title">
+            <header className="spreelo186-onboarding-header">
+              <div className="spreelo186-onboarding-logo"><img src="/brand/spreelologo.png" alt="Spreelo" /></div>
+              <span className="spreelo186-onboarding-badge"><Rocket size={14}/>{t("automation.onboarding.badge")}</span>
+              <button type="button" className="spreelo186-onboarding-close" onClick={dismissSmartOnboarding} aria-label={t("automation.onboarding.close")}><X size={20}/></button>
+              <div className="spreelo186-onboarding-title-wrap">
+                <div>
+                  <h2 id="spreelo186-onboarding-title">{t("automation.onboarding.title", { brandName: smartOnboardingBrandName })}</h2>
+                  <p>{t("automation.onboarding.intro")}</p>
+                </div>
+                <img className="spreelo186-onboarding-hero" src="/backgrounds/spreelo-ai-studio-hero-mobile-v14379.png" alt={t("automation.onboarding.heroAlt")} />
+              </div>
+            </header>
+
+            <div className="spreelo186-onboarding-scroll">
+              {smartOnboardingLoading ? <div className="spreelo186-onboarding-loading"><LoaderCircle className="admin-spin" size={20}/>{t("automation.onboarding.loading")}</div> : null}
+
+              <section className="spreelo186-onboarding-panel why">
+                <div className="spreelo186-onboarding-panel-title"><span><Gift size={18}/></span><h3>{t("automation.onboarding.whyTitle")}</h3><ChevronDown size={18}/></div>
+                <div className="spreelo186-reason-grid">
+                  <article><span className="purple"><Users size={21}/></span><div><strong>{t("automation.onboarding.audience")}</strong><p>{smartOnboardingAudience}</p></div></article>
+                  <article><span className="red"><TrendingUp size={21}/></span><div><strong>{t("automation.onboarding.market")}</strong><p>{smartOnboardingMarketText}</p></div></article>
+                  <article><span className="green"><ShoppingBag size={21}/></span><div><strong>{t("automation.onboarding.offering")}</strong><p>{smartOnboardingOffering}</p></div></article>
+                  <article><span className="yellow"><Lightbulb size={21}/></span><div><strong>{t("automation.onboarding.whyPlan")}</strong><p>{smartOnboardingWhy}</p></div></article>
+                </div>
+              </section>
+
+              <section className="spreelo186-onboarding-panel settings">
+                <div className="spreelo186-onboarding-panel-title"><span><SlidersHorizontal size={18}/></span><h3>{t("automation.onboarding.settingsTitle")}</h3><ChevronDown size={18}/></div>
+                <div className="spreelo186-settings-grid">
+                  <article><span><Target size={19}/></span><div><small>{t("automation.onboarding.goal")}</small><strong>{translateAutoPlanGoalLabel(autoPlanGoal)}</strong></div></article>
+                  <article><span><CalendarDays size={19}/></span><div><small>{t("automation.onboarding.frequencyLabel")}</small><strong>{t("automation.onboarding.frequency", { count: autoPlanPostCount })}</strong></div></article>
+                  <article className="wide"><span><CalendarClock size={19}/></span><div><small>{t("automation.onboarding.publishingDays")}</small><strong>{smartOnboardingDays.join(" · ") || "—"}</strong></div></article>
+                  <article className="wide"><span><Globe2 size={19}/></span><div><small>{t("automation.onboarding.channel")}</small><strong>{smartOnboardingChannels.join(" · ") || t("automation.onboarding.noChannels")}</strong><em>{t("automation.onboarding.connected", { count: connectedPlatformOptions.length })}</em></div><a href="/social-channels">{t("automation.onboarding.connectMore")}<ChevronRight size={15}/></a></article>
+                  <article><span><CalendarDays size={19}/></span><div><small>{t("automation.onboarding.startDate")}</small><strong>{formatStartDateLabel(planStartDate, timeZone, locale)}</strong></div></article>
+                  <article><span><CreditCard size={19}/></span><div><small>{t("automation.onboarding.estimatedCost")}</small><strong>{t("automation.onboarding.creditsPerWeek", { credits: plannedCredits })}</strong>{smartOnboardingBalanceWeeks > 0 ? <em>{t("automation.onboarding.balanceWeeks", { weeks: smartOnboardingBalanceWeeks })}</em> : null}</div></article>
+                  <article className="wide"><span><Repeat2 size={19}/></span><div><small>{t("automation.onboarding.weeklyVariation")}</small><strong>{varyWeeklyContentTypes ? t("automation.onboarding.weeklyVariationOn") : t("automation.onboarding.weeklyVariationOff")}</strong></div></article>
+                </div>
+              </section>
+
+              <section className="spreelo186-onboarding-panel types">
+                <div className="spreelo186-onboarding-panel-title"><span><Layers size={18}/></span><h3>{t("automation.onboarding.contentTypesTitle")}</h3><ChevronDown size={18}/></div>
+                <div className="spreelo186-type-grid">
+                  {smartOnboardingTypes.map((item, index) => <article key={item.id} className={`tone-${index % 4}`}><span><LayoutGrid size={19}/></span><strong>{item.label}</strong></article>)}
+                </div>
+              </section>
+
+              <div className="spreelo186-onboarding-note"><Sparkles size={18}/><span>{t("automation.onboarding.startNote")}</span></div>
+            </div>
+
+            <footer className="spreelo186-onboarding-actions">
+              <button type="button" className="primary" disabled={saving || smartOnboardingLoading || !slots.length} onClick={() => void savePlan()}>{saving ? <LoaderCircle className="admin-spin" size={18}/> : <Rocket size={18}/>} {saving ? t("automation.onboarding.activating") : t("automation.onboarding.activate")}</button>
+              <button type="button" className="secondary" onClick={dismissSmartOnboarding}>{t("automation.onboarding.review")}</button>
+              <button type="button" className="skip" onClick={dismissSmartOnboarding}>{t("automation.onboarding.skip")}</button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
       <PlanLimitModal details={planLimitDetails} onClose={() => setPlanLimitDetails(null)} />
       </div>
     </AppLayout>

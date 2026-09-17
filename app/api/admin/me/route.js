@@ -10,6 +10,7 @@ export async function GET(request) {
         ok: true,
         isAdmin: false,
         canManage: false,
+        canManageTeam: false,
         user: {
           id: context.user.id,
           email: context.user.email || null,
@@ -24,6 +25,9 @@ export async function GET(request) {
     ok: true,
     isAdmin: true,
     canManage: true,
+    canManageTeam: context.canManageTeam === true,
+    isPrimaryAdmin: context.isPrimaryAdmin === true,
+    adminSource: context.adminSource || "configured",
     user: {
       id: context.user.id,
       email: context.user.email || null,

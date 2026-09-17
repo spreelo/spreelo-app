@@ -5,7 +5,7 @@ import {
   createSignedYouTubeState,
   getYouTubeEnv,
 } from "../../../../../lib/youtubeOAuth.js";
-import { isConfiguredAdminEmail } from "../../../../../lib/adminAuth.js";
+import { hasAdminPlanLimitBypass } from "../../../../../lib/adminAuth.js";
 import { checkSocialConnectionCapacity } from "../../../../../lib/planEntitlements.js";
 
 function getSupabaseClient(authorizationHeader) {
@@ -46,7 +46,7 @@ export async function POST(request) {
     const auth = await getAuthenticatedBrand({ request, brandProfileId });
     if (auth.error) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
 
-    const capacity = isConfiguredAdminEmail(auth.user.email)
+    const capacity = hasAdminPlanLimitBypass(auth.user)
       ? { allowed: true }
       : await checkSocialConnectionCapacity(auth.supabase, auth.user.id, {
           brandProfileId,

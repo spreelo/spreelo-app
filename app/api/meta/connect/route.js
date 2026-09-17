@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { isConfiguredAdminEmail } from "../../../../lib/adminAuth";
+import { hasAdminPlanLimitBypass } from "../../../../lib/adminAuth";
 import { checkSocialConnectionCapacity } from "../../../../lib/planEntitlements";
 
 function base64UrlEncode(value) {
@@ -143,7 +143,7 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, error: authResult.error }, { status: authResult.status });
     }
 
-    const capacity = isConfiguredAdminEmail(authResult.user.email)
+    const capacity = hasAdminPlanLimitBypass(authResult.user)
       ? { allowed: true }
       : await checkSocialConnectionCapacity(authResult.supabase, authResult.user.id, {
           brandProfileId,

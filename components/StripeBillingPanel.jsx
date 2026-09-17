@@ -42,12 +42,12 @@ const PLANS = [
   {
     key: "growth", name: "Growth", credits: 450, month: 599, year: 5990,
     monthLookup: "spreelo_growth_monthly", yearLookup: "spreelo_growth_yearly", featured: true, rank: 2,
-    audienceKey: "billing.planAudienceGrowth", brands: 2, socialAccounts: 5, recurringPlans: 3,
+    audienceKey: "billing.planAudienceGrowth", brands: 1, socialAccounts: 5, recurringPlans: 3,
   },
   {
     key: "pro", name: "Pro", credits: 1000, month: 999, year: 9990,
     monthLookup: "spreelo_pro_monthly", yearLookup: "spreelo_pro_yearly", rank: 3,
-    audienceKey: "billing.planAudiencePro", brands: 5, socialAccounts: null, recurringPlans: 8,
+    audienceKey: "billing.planAudiencePro", brands: 1, socialAccounts: null, recurringPlans: 5,
   },
 ];
 
