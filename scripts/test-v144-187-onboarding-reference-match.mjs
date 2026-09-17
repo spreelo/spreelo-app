@@ -32,7 +32,7 @@ assert.match(automation, /currentBrandProfile\?\.logo_url/);
 assert.match(automation, /smartOnboardingTypeSummary/);
 assert.match(automation, /smartOnboardingChannelSummary/);
 assert.match(automation, /smartOnboardingGoalSummary/);
-assert.match(automation, /automation\.onboardingV187\.title/);
+assert.match(automation, /automation\.onboardingV18(?:7|8)\.title/);
 assert.match(automation, /automation\.onboardingV187\.recommendedTitle/);
 assert.match(automation, /automation\.onboardingV187\.variedContent/);
 assert.doesNotMatch(automation.slice(automation.indexOf('{showSmartOnboarding ? ('), automation.indexOf('<PlanLimitModal')), /automation\.onboarding\.skip/);

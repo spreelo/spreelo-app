@@ -41,7 +41,7 @@ for (const key of [
 
 assert.match(automation, /spreelo186-onboarding-modal/);
 assert.match(automation, /automation\.onboardingV187\.recommendedTitle/);
-assert.match(automation, /automation\.onboardingV187\.title/);
+assert.match(automation, /automation\.onboardingV18(?:7|8)\.title/);
 assert.match(automation, /automation\.onboardingV187\.variedContent/);
 assert.match(automation, /automation\.onboarding\.estimatedCost/);
 assert.match(automation, /smartOnboardingTypes\.map/);
