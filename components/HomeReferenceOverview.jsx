@@ -190,7 +190,7 @@ export default function HomeReferenceOverview({
             <a className="home-reference-plans-show-all" href="/automation">{t("homeReference.showAll")}</a>
           </header>
 
-          <article className="home-plan-overview-card recurring home-plan-section-v153">
+          <section className="home-plan-overview-card recurring home-plan-section-v153 home-plan-section-v196">
             <div className="home-plan-section-head-v153">
               <div className="home-plan-overview-icon"><RefreshCw aria-hidden="true" /></div>
               <div className="home-plan-overview-copy">
@@ -238,9 +238,9 @@ export default function HomeReferenceOverview({
                 })}
               </div>
             ) : null}
-          </article>
+          </section>
 
-          <article className="home-plan-overview-card scheduled home-plan-section-v153">
+          <section className="home-plan-overview-card scheduled home-plan-section-v153 home-plan-section-v196">
             <div className="home-plan-section-head-v153">
               <div className="home-plan-overview-icon"><CalendarDays aria-hidden="true" /></div>
               <div className="home-plan-overview-copy">
@@ -286,9 +286,9 @@ export default function HomeReferenceOverview({
                 })}
               </div>
             ) : null}
-          </article>
+          </section>
 
-          <article className="home-plan-overview-card campaign home-plan-section-v153">
+          <section className="home-plan-overview-card campaign home-plan-section-v153 home-plan-section-v196">
             <div className="home-plan-section-head-v153">
               <div className="home-plan-overview-icon"><Gift aria-hidden="true" /></div>
               <div className="home-plan-overview-copy">
@@ -335,7 +335,7 @@ export default function HomeReferenceOverview({
                 })}
               </div>
             ) : null}
-          </article>
+          </section>
         </section>
 
         <aside className="home-reference-coach">

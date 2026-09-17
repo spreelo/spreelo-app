@@ -6091,6 +6091,48 @@ function formatSmartOnboardingPreviewDate(dateString, locale = "en") {
     .replace(/\./g, "");
 }
 
+function formatSmartOnboardingPreviewDateParts(dateString, locale = "en") {
+  if (!dateString) return { weekday: "", day: "", month: "" };
+  const date = new Date(`${dateString}T12:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return { weekday: "", day: String(dateString), month: "" };
+  }
+  const intlLocale = getIntlLocaleFromUiLocale(locale);
+  return {
+    weekday: new Intl.DateTimeFormat(intlLocale, { weekday: "short" }).format(date).replace(/\./g, "").toUpperCase(),
+    day: new Intl.DateTimeFormat(intlLocale, { day: "numeric" }).format(date),
+    month: new Intl.DateTimeFormat(intlLocale, { month: "short" }).format(date).replace(/\./g, "").toUpperCase(),
+  };
+}
+
+function getSmartOnboardingPreviewIconKey(contentTypeId, label = "") {
+  const id = String(contentTypeId || "").toLowerCase();
+  const copy = String(label || "").toLowerCase();
+  if (id.includes("guide") || copy.includes("guide")) return "guide";
+  if (id.includes("carousel") || copy.includes("karus") || copy.includes("carousel")) return "carousel";
+  if (id.includes("problem") || copy.includes("problem")) return "problem";
+  if (id.includes("video") || id.includes("animated") || copy.includes("video") || copy.includes("animer")) return "video";
+  if (id.includes("checklist") || copy.includes("checklist")) return "checklist";
+  if (id.includes("faq") || copy.includes("faq")) return "faq";
+  if (id.includes("season") || copy.includes("säsong") || copy.includes("season")) return "seasonal";
+  if (id.includes("tips") || copy.includes("tips")) return "tips";
+  if (id.includes("website_item") || copy.includes("produkt") || copy.includes("product")) return "product";
+  return "default";
+}
+
+const SMART_ONBOARDING_PREVIEW_ICON_COMPONENTS = {
+  guide: BookOpen,
+  carousel: Box,
+  problem: Lightbulb,
+  video: Video,
+  checklist: ListChecks,
+  faq: MessageCircleHeart,
+  seasonal: Gift,
+  tips: Sparkles,
+  product: ShoppingBag,
+  default: Sparkles,
+};
+
 function normalizePlatformKey(platformValue) {
   const normalized = normalizeSpreeloPlatformKey(platformValue);
   if (normalized) return normalized;
@@ -6717,6 +6759,7 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
   const [hasCompletedFirstPlan, setHasCompletedFirstPlan] = useState(false);
   const smartOnboardingPreparedRef = useRef(false);
   const smartOnboardingDismissedRef = useRef(false);
+  const onboardingPreviewScrollRef = useRef(null);
   const formatStripRef = useRef(null);
   const autoPlanRequestIdRef = useRef(0);
   const formatDragRef = useRef({
@@ -11378,18 +11421,31 @@ function blockFormatCardClickAfterDrag(event) {
       return String(a?.publishTime || "").localeCompare(String(b?.publishTime || ""));
     })
     .slice(0, 5)
-    .map((slot, index) => ({
-      id: slot?.id || `${slot?.startDate || "preview"}-${index}`,
-      date: formatSmartOnboardingPreviewDate(slot?.startDate, locale),
-      label: getUnifiedContentTypeLabel(slot?.contentTypeId, slot?.contentTypeLabel) || t("automation.onboardingV191.postFallback"),
-      image: SMART_ONBOARDING_PREVIEW_IMAGES[index % SMART_ONBOARDING_PREVIEW_IMAGES.length],
-      tone: index % 5,
-    }));
+    .map((slot, index) => {
+      const label = getUnifiedContentTypeLabel(slot?.contentTypeId, slot?.contentTypeLabel) || t("automation.onboardingV191.postFallback");
+      return {
+        id: slot?.id || `${slot?.startDate || "preview"}-${index}`,
+        date: formatSmartOnboardingPreviewDate(slot?.startDate, locale),
+        dateParts: formatSmartOnboardingPreviewDateParts(slot?.startDate, locale),
+        label,
+        image: SMART_ONBOARDING_PREVIEW_IMAGES[index % SMART_ONBOARDING_PREVIEW_IMAGES.length],
+        tone: index % 5,
+        iconKey: getSmartOnboardingPreviewIconKey(slot?.contentTypeId, label),
+      };
+    });
   const smartOnboardingIntroText = t("automation.onboardingV191.intro", { brandName: smartOnboardingBrandName });
   const smartOnboardingIntroParts = String(smartOnboardingIntroText).split(String(smartOnboardingBrandName));
   const smartOnboardingCostSummary = t("automation.onboardingV191.costSummary", { credits: plannedCredits });
   const smartOnboardingVariedSummary = t("automation.onboardingV191.variedSummary");
 
+
+  function scrollSmartOnboardingPreview(direction) {
+    const scroller = onboardingPreviewScrollRef.current;
+    if (!scroller) return;
+    const card = scroller.querySelector(".spreelo196-post-card");
+    const distance = card ? card.getBoundingClientRect().width + 14 : 220;
+    scroller.scrollBy({ left: direction * distance, behavior: "smooth" });
+  }
 
   function dismissSmartOnboarding() {
     smartOnboardingDismissedRef.current = true;
@@ -14996,19 +15052,49 @@ function blockFormatCardClickAfterDrag(event) {
                     </article>
                   </section>
 
-                  <section className="spreelo191-planned">
-                    <div className="spreelo191-section-heading">
+                  <section className="spreelo191-planned spreelo196-planned">
+                    <div className="spreelo191-section-heading spreelo196-section-heading">
                       <div><CalendarDays size={18}/><strong>{t("automation.onboardingV191.plannedTitle")}</strong></div>
                       <button type="button" onClick={dismissSmartOnboarding}>{t("automation.onboardingV191.showMore")}</button>
                     </div>
-                    <div className="spreelo191-post-row">
-                      {smartOnboardingPreviewPosts.map((post) => (
-                        <article key={post.id} className="spreelo191-post-card">
-                          <strong>{post.date}</strong>
-                          <img src={post.image} alt="" />
-                          <span className={`spreelo191-post-label spreelo192-post-tone-${post.tone}`}>{post.label}</span>
-                        </article>
-                      ))}
+                    <div className="spreelo196-post-carousel">
+                      <button
+                        type="button"
+                        className="spreelo196-scroll-button previous"
+                        onClick={() => scrollSmartOnboardingPreview(-1)}
+                        aria-label={t("automation.onboardingV196.previousPosts")}
+                      >
+                        <ChevronLeft size={20}/>
+                      </button>
+                      <div className="spreelo191-post-row spreelo196-post-row" ref={onboardingPreviewScrollRef}>
+                        {smartOnboardingPreviewPosts.map((post) => {
+                          const PreviewIcon = SMART_ONBOARDING_PREVIEW_ICON_COMPONENTS[post.iconKey] || Sparkles;
+                          return (
+                            <article key={post.id} className={`spreelo196-post-card spreelo196-post-tone-${post.tone} spreelo192-post-tone-${post.tone}`}>
+                              <div className="spreelo196-post-media">
+                                <img src={post.image} alt="" />
+                                <div className="spreelo196-date-badge" aria-label={post.date}>
+                                  <span>{post.dateParts.weekday}</span>
+                                  <strong>{post.dateParts.day}</strong>
+                                  <span>{post.dateParts.month}</span>
+                                </div>
+                              </div>
+                              <div className="spreelo196-post-footer">
+                                <span className="spreelo196-post-type-icon"><PreviewIcon size={21}/></span>
+                                <strong>{post.label}</strong>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                      <button
+                        type="button"
+                        className="spreelo196-scroll-button next"
+                        onClick={() => scrollSmartOnboardingPreview(1)}
+                        aria-label={t("automation.onboardingV196.nextPosts")}
+                      >
+                        <ChevronLeft className="spreelo196-next-glyph" size={20}/>
+                      </button>
                     </div>
                   </section>
 
