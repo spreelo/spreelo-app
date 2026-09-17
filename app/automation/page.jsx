@@ -6760,6 +6760,13 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
   const smartOnboardingPreparedRef = useRef(false);
   const smartOnboardingDismissedRef = useRef(false);
   const onboardingPreviewScrollRef = useRef(null);
+  const onboardingPreviewDragRef = useRef({
+    active: false,
+    dragging: false,
+    startX: 0,
+    startScrollLeft: 0,
+    pointerId: null,
+  });
   const formatStripRef = useRef(null);
   const autoPlanRequestIdRef = useRef(0);
   const formatDragRef = useRef({
@@ -11447,6 +11454,67 @@ function blockFormatCardClickAfterDrag(event) {
     scroller.scrollBy({ left: direction * distance, behavior: "smooth" });
   }
 
+  function handleSmartOnboardingPreviewPointerDown(event) {
+    if (event.pointerType !== "mouse" || event.button !== 0) return;
+    const scroller = onboardingPreviewScrollRef.current;
+    if (!scroller) return;
+
+    onboardingPreviewDragRef.current = {
+      active: true,
+      dragging: false,
+      startX: event.clientX,
+      startScrollLeft: scroller.scrollLeft,
+      pointerId: event.pointerId,
+    };
+  }
+
+  function handleSmartOnboardingPreviewPointerMove(event) {
+    const scroller = onboardingPreviewScrollRef.current;
+    const drag = onboardingPreviewDragRef.current;
+    if (!scroller || !drag.active || event.pointerType !== "mouse") return;
+
+    const delta = event.clientX - drag.startX;
+    if (!drag.dragging && Math.abs(delta) > 5) {
+      drag.dragging = true;
+      scroller.classList.add("is-dragging");
+      try { scroller.setPointerCapture?.(event.pointerId); } catch {}
+    }
+
+    if (!drag.dragging) return;
+    event.preventDefault();
+    scroller.scrollLeft = drag.startScrollLeft - delta;
+  }
+
+  function finishSmartOnboardingPreviewDrag(event) {
+    const scroller = onboardingPreviewScrollRef.current;
+    const drag = onboardingPreviewDragRef.current;
+    if (!scroller || !drag.active) return;
+
+    drag.active = false;
+    drag.dragging = false;
+    scroller.classList.remove("is-dragging");
+    try {
+      if (scroller.hasPointerCapture?.(event.pointerId)) {
+        scroller.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {}
+  }
+
+  function handleSmartOnboardingPreviewWheel(event) {
+    const scroller = onboardingPreviewScrollRef.current;
+    if (!scroller || scroller.scrollWidth <= scroller.clientWidth) return;
+
+    const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    if (!delta) return;
+
+    const atStart = scroller.scrollLeft <= 1;
+    const atEnd = scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 1;
+    if ((delta < 0 && atStart) || (delta > 0 && atEnd)) return;
+
+    event.preventDefault();
+    scroller.scrollLeft += delta;
+  }
+
   function dismissSmartOnboarding() {
     smartOnboardingDismissedRef.current = true;
     setShowSmartOnboarding(false);
@@ -15055,7 +15123,6 @@ function blockFormatCardClickAfterDrag(event) {
                   <section className="spreelo191-planned spreelo196-planned">
                     <div className="spreelo191-section-heading spreelo196-section-heading">
                       <div><CalendarDays size={18}/><strong>{t("automation.onboardingV191.plannedTitle")}</strong></div>
-                      <button type="button" onClick={dismissSmartOnboarding}>{t("automation.onboardingV191.showMore")}</button>
                     </div>
                     <div className="spreelo196-post-carousel">
                       <button
@@ -15066,7 +15133,15 @@ function blockFormatCardClickAfterDrag(event) {
                       >
                         <ChevronLeft size={20}/>
                       </button>
-                      <div className="spreelo191-post-row spreelo196-post-row" ref={onboardingPreviewScrollRef}>
+                      <div
+                        className="spreelo191-post-row spreelo196-post-row"
+                        ref={onboardingPreviewScrollRef}
+                        onPointerDown={handleSmartOnboardingPreviewPointerDown}
+                        onPointerMove={handleSmartOnboardingPreviewPointerMove}
+                        onPointerUp={finishSmartOnboardingPreviewDrag}
+                        onPointerCancel={finishSmartOnboardingPreviewDrag}
+                        onWheel={handleSmartOnboardingPreviewWheel}
+                      >
                         {smartOnboardingPreviewPosts.map((post) => {
                           const PreviewIcon = SMART_ONBOARDING_PREVIEW_ICON_COMPONENTS[post.iconKey] || Sparkles;
                           return (
@@ -15119,7 +15194,7 @@ function blockFormatCardClickAfterDrag(event) {
 
                   <div className="spreelo191-note">
                     <Sparkles size={18}/>
-                    <span>{t("automation.onboardingV191.oneTimeNote")}</span>
+                    <span>{t("automation.onboardingV198.untilFirstPlanNote")}</span>
                   </div>
                 </div>
 
@@ -15134,7 +15209,7 @@ function blockFormatCardClickAfterDrag(event) {
                     {saving ? t("automation.onboarding.activating") : t("automation.onboardingV191.activate")}
                   </button>
                   <button type="button" className="spreelo191-secondary" onClick={dismissSmartOnboarding}>
-                    {t("automation.onboarding.review")}
+                    {t("automation.onboardingV198.chooseSettings")}
                   </button>
                 </footer>
               </section>

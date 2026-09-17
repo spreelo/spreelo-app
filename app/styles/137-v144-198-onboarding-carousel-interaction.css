@@ -1,0 +1,34 @@
+/* Spreelo v144.198 — onboarding planned-post interaction polish
+   - no misleading "Show more" action
+   - desktop carousel can be click-dragged horizontally
+   - mouse wheel scrolls the carousel horizontally while there is content left
+   - native touch scrolling remains intact */
+
+html body .spreelo196-section-heading {
+  justify-content:flex-start !important;
+}
+
+html body .spreelo196-post-row {
+  cursor:grab !important;
+  user-select:none !important;
+  -webkit-user-select:none !important;
+}
+
+html body .spreelo196-post-row.is-dragging {
+  cursor:grabbing !important;
+  scroll-behavior:auto !important;
+}
+
+html body .spreelo196-post-row.is-dragging .spreelo196-post-card,
+html body .spreelo196-post-row.is-dragging img {
+  pointer-events:none !important;
+}
+
+@media (hover:none), (pointer:coarse) {
+  html body .spreelo196-post-row {
+    cursor:auto !important;
+    user-select:auto !important;
+    -webkit-user-select:auto !important;
+    touch-action:pan-x pan-y !important;
+  }
+}
