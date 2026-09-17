@@ -1,0 +1,93 @@
+/* Spreelo v144.197 — planned-preview reference finish
+   Precise visual correction against the approved reference:
+   1) date badge anchors to the image's top-left corner
+   2) the post-name area becomes a clearly separated pastel panel */
+
+/* Keep the card shell neutral so the lower content panel reads as its own block. */
+html body .spreelo196-post-card {
+  background:#fff !important;
+  border-color:rgba(103,74,190,.14) !important;
+  box-shadow:0 10px 26px rgba(62,52,104,.07) !important;
+}
+
+/* Date tile: virtually flush with the image corner, matching the reference composition. */
+html body .spreelo196-date-badge {
+  top:0 !important;
+  left:0 !important;
+  width:68px !important;
+  min-height:76px !important;
+  padding:8px 6px !important;
+  border:1px solid rgba(255,255,255,.92) !important;
+  border-radius:16px 16px 16px 0 !important;
+  background:var(--preview-date) !important;
+  box-shadow:0 8px 20px rgba(53,43,91,.10) !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+}
+
+/* Stronger panel variables for the distinct lower information block. */
+html body .spreelo196-post-tone-0 { --preview-panel:#fff0df; --preview-panel-icon:#ffe2c3; --preview-panel-border:#f5dac0; }
+html body .spreelo196-post-tone-1 { --preview-panel:#e4f8f0; --preview-panel-icon:#c9f1e3; --preview-panel-border:#cfeee3; }
+html body .spreelo196-post-tone-2 { --preview-panel:#eee8ff; --preview-panel-icon:#ddd2ff; --preview-panel-border:#ddd4fa; }
+html body .spreelo196-post-tone-3 { --preview-panel:#e9edff; --preview-panel-icon:#d8deff; --preview-panel-border:#d8def8; }
+html body .spreelo196-post-tone-4 { --preview-panel:#e5f7ec; --preview-panel-icon:#ccefd9; --preview-panel-border:#d2ecdc; }
+
+/* The lower title block is intentionally more visible than v144.196. */
+html body .spreelo196-post-footer {
+  grid-template-columns:46px minmax(0,1fr) !important;
+  gap:11px !important;
+  min-height:86px !important;
+  margin-top:9px !important;
+  padding:11px 12px !important;
+  border:1px solid var(--preview-panel-border) !important;
+  border-radius:16px !important;
+  color:#172551 !important;
+  background:var(--preview-panel) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.72) !important;
+}
+
+html body .spreelo196-post-type-icon {
+  width:46px !important;
+  height:46px !important;
+  color:var(--preview-accent) !important;
+  background:var(--preview-panel-icon) !important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.44) !important;
+}
+
+html body .spreelo196-post-footer > strong {
+  align-self:center !important;
+  color:#172551 !important;
+  font-size:14.2px !important;
+  line-height:1.22 !important;
+  font-weight:850 !important;
+}
+
+@media (max-width:720px) {
+  html body .spreelo196-date-badge {
+    top:0 !important;
+    left:0 !important;
+    width:59px !important;
+    min-height:67px !important;
+    padding:6px 5px !important;
+    border-radius:14px 14px 14px 0 !important;
+  }
+
+  html body .spreelo196-post-footer {
+    grid-template-columns:39px minmax(0,1fr) !important;
+    gap:9px !important;
+    min-height:78px !important;
+    margin-top:8px !important;
+    padding:9px 10px !important;
+    border-radius:14px !important;
+  }
+
+  html body .spreelo196-post-type-icon {
+    width:39px !important;
+    height:39px !important;
+  }
+
+  html body .spreelo196-post-footer > strong {
+    font-size:12.8px !important;
+    line-height:1.22 !important;
+  }
+}
