@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  BarChart3,
   BookOpen,
+  Box,
   CalendarClock,
   CalendarDays,
   CheckCircle2,
@@ -14,6 +16,7 @@ import {
   Clapperboard,
   Clock3,
   ClipboardList,
+  Coins,
   CreditCard,
   FileSearch,
   HelpCircle,
@@ -41,6 +44,7 @@ import {
   Rocket,
   Scale,
   Send,
+  Share2,
   ShieldCheck,
   ShoppingBag,
   SlidersHorizontal,
@@ -722,7 +726,9 @@ const contentFormatIconComponents = {
   MapPin,
   CalendarDays,
   Scale,
+  BarChart3,
   BookOpen,
+  Box,
   Link2,
   Tag,
   PenLine,
@@ -11333,15 +11339,38 @@ function blockFormatCardClickAfterDrag(event) {
   const smartOnboardingTitle = onboardingIsSwedish
     ? "Kom igång med din AI-innehållsstudio"
     : t("automation.onboardingV187.title");
-  const smartOnboardingIntro = onboardingIsSwedish
+  const smartOnboardingIntroDesktop = onboardingIsSwedish
+    ? `Vi har analyserat ditt varumärke ${smartOnboardingBrandName} och skapat en rekommenderad startplan som ger dig en bra grund att utgå ifrån. Du kan alltid granska, justera och anpassa planen innan du aktiverar den.`
+    : t("automation.onboardingV187.intro", { brandName: smartOnboardingBrandName });
+  const smartOnboardingIntroMobile = onboardingIsSwedish
     ? `Vi har analyserat ditt varumärke ${smartOnboardingBrandName} och skapat en rekommenderad startplan. Du kan alltid granska och anpassa planen innan du aktiverar den.`
     : t("automation.onboardingV187.intro", { brandName: smartOnboardingBrandName });
-  const smartOnboardingNote = onboardingIsSwedish
+  const smartOnboardingNoteDesktop = onboardingIsSwedish
     ? "Detta är en startrekommendation från Spreelo. Planen baseras på den information vi har idag och kan justeras när som helst."
-    : t("automation.onboardingV187.note");
+    : t("automation.onboardingV187.startNote");
+  const smartOnboardingNoteMobile = onboardingIsSwedish
+    ? "Detta är en startrekommendation från Spreelo. Du kan när som helst ändra mål, frekvens, innehållstyper och kanaler."
+    : t("automation.onboardingV187.startNote");
   const smartOnboardingActivateLabel = onboardingIsSwedish
     ? "Aktivera planen"
     : t("automation.onboardingV187.activate");
+  const smartOnboardingReviewLabel = onboardingIsSwedish
+    ? "Granska och anpassa"
+    : t("automation.onboarding.review");
+  const smartOnboardingMarketSummary = onboardingIsSwedish
+    ? "Innehållet anpassas efter din bransch, marknad och visuella identitet."
+    : smartOnboardingMarketCardText;
+  const smartOnboardingOfferingSummary = onboardingIsSwedish
+    ? "Vi blandar produktinlägg, inspiration, guider och frågor för variation."
+    : smartOnboardingOffering;
+  const smartOnboardingVariedSummary = onboardingIsSwedish
+    ? "En mix av produktfokus, inspiration, tips och engagerande inlägg."
+    : (varyWeeklyContentTypes ? smartOnboardingTypeSummaryCompact : t("automation.onboarding.weeklyVariationOff"));
+  const smartOnboardingCostSummary = onboardingIsSwedish
+    ? `Cirka ${plannedCredits} krediter per vecka${smartOnboardingBalanceWeeks > 0 ? ` (kan variera något).` : "."}`
+    : `${t("automation.onboarding.creditsPerWeek", { credits: plannedCredits })}${smartOnboardingBalanceWeeks > 0 ? ` · ${t("automation.onboardingV187.balanceShort", { weeks: smartOnboardingBalanceWeeks })}` : ""}`;
+  const smartOnboardingChannelTitle = onboardingIsSwedish ? "Kanal" : t("automation.onboarding.channel");
+  const smartOnboardingOfferingTitle = onboardingIsSwedish ? "Utbud" : t("automation.onboarding.offering");
 
   function dismissSmartOnboarding() {
     smartOnboardingDismissedRef.current = true;
@@ -14849,7 +14878,8 @@ function blockFormatCardClickAfterDrag(event) {
               <div className="spreelo187-onboarding-intro">
                 <div className="spreelo187-onboarding-copy">
                   <h2 id="spreelo187-onboarding-title">{smartOnboardingTitle}</h2>
-                  <p>{smartOnboardingIntro}</p>
+                  <p className="spreelo190-intro-desktop">{smartOnboardingIntroDesktop}</p>
+                  <p className="spreelo190-intro-mobile">{smartOnboardingIntroMobile}</p>
                 </div>
                 <div className="spreelo187-onboarding-visual" aria-hidden="true">
                   <img className="spreelo188-onboarding-reference-image" src="/backgrounds/spreelo-onboarding-reference-room.png" alt="" />
@@ -14870,8 +14900,8 @@ function blockFormatCardClickAfterDrag(event) {
                     <span className="chevron" aria-hidden="true"><ChevronRight size={15} /></span>
                   </article>
                   <article className="market desktop-support-card">
-                    <span className="icon red"><TrendingUp size={21}/></span>
-                    <div><strong>{t("automation.onboarding.market")}</strong><p>{smartOnboardingMarketCardText}</p></div>
+                    <span className="icon red"><BarChart3 size={21}/></span>
+                    <div><strong>{t("automation.onboarding.market")}</strong><p>{smartOnboardingMarketSummary}</p></div>
                     <span className="chevron" aria-hidden="true"><ChevronRight size={15} /></span>
                   </article>
                   <article className="frequency">
@@ -14880,8 +14910,8 @@ function blockFormatCardClickAfterDrag(event) {
                     <span className="chevron" aria-hidden="true"><ChevronRight size={15} /></span>
                   </article>
                   <article className="offering desktop-support-card">
-                    <span className="icon green"><ShoppingBag size={21}/></span>
-                    <div><strong>{t("automation.onboarding.offering")}</strong><p>{smartOnboardingOffering}</p></div>
+                    <span className="icon green"><Box size={21}/></span>
+                    <div><strong>{smartOnboardingOfferingTitle}</strong><p>{smartOnboardingOfferingSummary}</p></div>
                     <span className="chevron" aria-hidden="true"><ChevronRight size={15} /></span>
                   </article>
                   <article className="days">
@@ -14890,29 +14920,33 @@ function blockFormatCardClickAfterDrag(event) {
                     <span className="chevron" aria-hidden="true"><ChevronRight size={15} /></span>
                   </article>
                   <article className="channels">
-                    <span className="icon purple"><Globe2 size={21}/></span>
-                    <div><strong>{t("automation.onboarding.channel")}</strong><p title={smartOnboardingChannels.join(", ")}>{smartOnboardingChannelSummaryCompact}</p></div>
+                    <span className="icon purple"><Share2 size={21}/></span>
+                    <div><strong>{smartOnboardingChannelTitle}</strong><p title={smartOnboardingChannels.join(", ")}>{smartOnboardingChannelSummaryCompact}</p></div>
                     <span className="chevron" aria-hidden="true"><ChevronRight size={15} /></span>
                   </article>
                   <article className="cost">
-                    <span className="icon red"><CreditCard size={21}/></span>
-                    <div><strong>{t("automation.onboarding.estimatedCost")}</strong><p>{t("automation.onboarding.creditsPerWeek", { credits: plannedCredits })}{smartOnboardingBalanceWeeks > 0 ? ` · ${t("automation.onboardingV187.balanceShort", { weeks: smartOnboardingBalanceWeeks })}` : ""}</p></div>
+                    <span className="icon red"><Coins size={21}/></span>
+                    <div><strong>{t("automation.onboarding.estimatedCost")}</strong><p>{smartOnboardingCostSummary}</p></div>
                     <span className="chevron" aria-hidden="true"><ChevronRight size={15} /></span>
                   </article>
                   <article className="varied">
                     <span className="icon yellow"><Lightbulb size={21}/></span>
-                    <div><strong>{t("automation.onboardingV187.variedContent")}</strong><p title={smartOnboardingTypeLabels.join(", ")}>{varyWeeklyContentTypes ? smartOnboardingTypeSummaryCompact : t("automation.onboarding.weeklyVariationOff")}</p></div>
+                    <div><strong>{t("automation.onboardingV187.variedContent")}</strong><p title={smartOnboardingTypeLabels.join(", ")}>{smartOnboardingVariedSummary}</p></div>
                     <span className="chevron" aria-hidden="true"><ChevronRight size={15} /></span>
                   </article>
                 </div>
               </section>
 
-              <div className="spreelo186-onboarding-note spreelo187-onboarding-note"><Sparkles size={18}/><span>{smartOnboardingNote}</span></div>
+              <div className="spreelo186-onboarding-note spreelo187-onboarding-note">
+                <Sparkles size={18}/>
+                <span className="spreelo190-note-desktop">{smartOnboardingNoteDesktop}</span>
+                <span className="spreelo190-note-mobile">{smartOnboardingNoteMobile}</span>
+              </div>
             </div>
 
             <footer className="spreelo186-onboarding-actions spreelo187-onboarding-actions">
               <button type="button" className="primary" disabled={saving || smartOnboardingLoading || !slots.length} onClick={() => void savePlan()}>{saving ? <LoaderCircle className="admin-spin" size={18}/> : <Rocket size={18}/>} {saving ? t("automation.onboarding.activating") : smartOnboardingActivateLabel}</button>
-              <button type="button" className="secondary" onClick={dismissSmartOnboarding}>{t("automation.onboarding.review")}</button>
+              <button type="button" className="secondary" onClick={dismissSmartOnboarding}>{smartOnboardingReviewLabel}</button>
             </footer>
           </section>
         </div>
