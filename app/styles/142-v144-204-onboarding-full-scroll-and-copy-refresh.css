@@ -1,0 +1,78 @@
+/* Spreelo v144.204 — onboarding final flow polish
+   - removes the inner scrolling content area so the full modal/page scrolls naturally
+   - keeps the agreed desktop/mobile guide layout
+   - tightens CTA area and lets the guide feel more like one coherent screen */
+
+html body .spreelo191-backdrop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 22px 18px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+html body .spreelo191-modal {
+  width: min(1380px, calc(100vw - 36px));
+  max-height: none;
+  height: auto;
+  overflow: visible;
+  margin: 0 auto;
+}
+
+html body .spreelo191-body {
+  min-height: auto;
+  overflow: visible;
+  padding-bottom: 22px;
+}
+
+html body .spreelo203-overview {
+  gap: 18px;
+}
+
+html body .spreelo203-start-row {
+  margin-top: -2px;
+}
+
+html body .spreelo203-note {
+  justify-content: center;
+}
+
+@media (max-width: 1200px) {
+  html body .spreelo191-modal {
+    width: min(1120px, calc(100vw - 28px));
+  }
+}
+
+@media (max-width: 720px) {
+  html body .spreelo191-backdrop {
+    inset: 0;
+    height: auto;
+    padding: 10px 8px 20px;
+    align-items: flex-start;
+  }
+
+  html body .spreelo191-modal {
+    width: min(100%, 430px);
+    max-width: 430px;
+    margin: 0 auto;
+    border-radius: 28px;
+  }
+
+  html body .spreelo191-body {
+    padding-bottom: 18px !important;
+  }
+
+  html body .spreelo203-hero-copy h2 {
+    font-size: 32px;
+  }
+
+  html body .spreelo203-ready-pill {
+    left: clamp(108px, 38vw, 148px);
+    bottom: 0;
+  }
+
+  html body .spreelo203-action-stack {
+    gap: 12px;
+  }
+}
