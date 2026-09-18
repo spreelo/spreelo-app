@@ -32,6 +32,23 @@ export default function AdminTeamPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const adminTeamApiErrorKeys = {
+    ADMIN_TEAM_PRIMARY_ONLY: "adminTeam.error.primaryOnly",
+    ADMIN_TEAM_INVALID_EMAIL: "adminTeam.error.invalidEmail",
+    ADMIN_TEAM_CONFIGURED_ALREADY: "adminTeam.error.configuredAlready",
+    ADMIN_TEAM_ACTIVE_ALREADY: "adminTeam.error.activeAlready",
+    ADMIN_TEAM_EMAIL_REQUIRED: "adminTeam.error.emailRequired",
+    ADMIN_TEAM_CONFIGURED_CANNOT_REVOKE: "adminTeam.error.configuredCannotRevoke",
+    ADMIN_TEAM_ACTIVE_NOT_FOUND: "adminTeam.error.activeNotFound",
+    ADMIN_TEAM_ACCOUNT_LOAD_FAILED: "adminTeam.error.accountLoad",
+    ADMIN_TEAM_REVOKE_SAFETY_FAILED: "adminTeam.error.revokeSafe",
+  };
+
+  function getAdminTeamApiError(payload, fallbackKey) {
+    const translationKey = adminTeamApiErrorKeys[String(payload?.code || "")];
+    return translationKey ? t(translationKey) : t(fallbackKey);
+  }
+
   const activeMembers = useMemo(() => (data.members || []).filter((item) => item.status === "active"), [data.members]);
   const pendingInvites = useMemo(() => (data.invites || []).filter((item) => !item.accepted_at && !item.revoked_at && new Date(item.expires_at).getTime() > Date.now()), [data.invites]);
 
@@ -42,7 +59,7 @@ export default function AdminTeamPage() {
       const headers = await adminHeaders();
       const response = await fetch("/api/admin/team", { headers, cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || t("adminTeam.error.load"));
+      if (!response.ok) throw new Error(getAdminTeamApiError(payload, "adminTeam.error.load"));
       setData(payload);
     } catch (loadError) {
       setError(loadError?.message || t("adminTeam.error.load"));
@@ -66,7 +83,7 @@ export default function AdminTeamPage() {
         body: JSON.stringify({ email, locale }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || t("adminTeam.error.send"));
+      if (!response.ok) throw new Error(getAdminTeamApiError(payload, "adminTeam.error.send"));
       setEmail("");
       setMessage(t("adminTeam.inviteSent", { email: payload?.invite?.email || email }));
       await loadTeam();
@@ -90,7 +107,7 @@ export default function AdminTeamPage() {
         body: JSON.stringify({ email: emailToRevoke }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || t("adminTeam.error.revoke"));
+      if (!response.ok) throw new Error(getAdminTeamApiError(payload, "adminTeam.error.revoke"));
       setMessage(t("adminTeam.revoked", { email: emailToRevoke }));
       await loadTeam();
     } catch (revokeError) {

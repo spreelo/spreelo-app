@@ -15,6 +15,23 @@ export default function AdminInvitePage() {
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState("");
 
+  const adminInviteApiErrorKeys = {
+    ADMIN_INVITE_SERVER_CONFIG: "adminInvite.error.serverConfig",
+    ADMIN_INVITE_LOGIN_REQUIRED: "adminInvite.error.loginRequired",
+    ADMIN_INVITE_INVALID_SESSION: "adminInvite.error.invalidSession",
+    ADMIN_INVITE_INVALID: "adminInvite.invalid",
+    ADMIN_INVITE_REVOKED: "adminInvite.error.revoked",
+    ADMIN_INVITE_USED: "adminInvite.error.used",
+    ADMIN_INVITE_EXPIRED: "adminInvite.error.expired",
+    ADMIN_INVITE_EMAIL_MISMATCH: "adminInvite.error.emailMismatch",
+    ADMIN_INVITE_SYNC_FAILED: "adminInvite.error.sync",
+  };
+
+  function getAdminInviteApiError(payload) {
+    const translationKey = adminInviteApiErrorKeys[String(payload?.code || "")];
+    return translationKey ? t(translationKey) : t("adminInvite.error");
+  }
+
   useEffect(() => {
     let cancelled = false;
     async function prepare() {
@@ -51,7 +68,7 @@ export default function AdminInvitePage() {
         body: JSON.stringify({ token }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || t("adminInvite.error"));
+      if (!response.ok) throw new Error(getAdminInviteApiError(payload));
       await supabase.auth.refreshSession().catch(() => null);
       setAccepted(true);
     } catch (acceptError) {

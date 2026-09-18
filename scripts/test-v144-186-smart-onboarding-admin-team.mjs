@@ -13,7 +13,9 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 const automation = read("app/automation/page.jsx");
 const labels = read("lib/i18n/defaultLabels.js");
-const css = read("app/styles/125-v144-186-smart-onboarding-admin-team.css");
+const legacyCss = read("app/styles/125-v144-186-smart-onboarding-admin-team.css");
+const currentOnboardingCss = read("app/styles/130-v144-191-onboarding-variant5.css");
+const currentResponsiveCss = read("app/styles/131-v144-192-onboarding-readability-mobile-fit.css");
 const adminAuth = read("lib/adminAuth.js");
 const billing = read("components/StripeBillingPanel.jsx");
 const teamRoute = read("app/api/admin/team/route.js");
@@ -39,22 +41,22 @@ for (const key of [
   "automation.onboarding.skip",
 ]) assert.ok(labels.includes(`\"${key}\"`), `Missing i18n key ${key}`);
 
-assert.match(automation, /spreelo186-onboarding-modal/);
-assert.match(automation, /automation\.onboardingV187\.recommendedTitle/);
-assert.match(automation, /automation\.onboardingV18(?:7|8)\.title/);
+assert.match(automation, /spreelo191-modal/);
+assert.match(automation, /automation\.onboardingV191\.readyTitle/);
+assert.match(automation, /automation\.onboardingV191\.titleLine1/);
 assert.match(automation, /automation\.onboardingV187\.variedContent/);
 assert.match(automation, /automation\.onboarding\.estimatedCost/);
 assert.match(automation, /smartOnboardingTypes\.map/);
 assert.doesNotMatch(automation, /smartOnboardingTypes\.slice\(0,\s*4\)/);
-assert.match(automation, /varyWeeklyContentTypes \? smartOnboardingTypeSummary/);
 assert.match(automation, /normalizedEmail === SPREELO_INTERNAL_TESTER_EMAIL/);
 assert.match(automation, /hasCampaignHandoff \|\| hasDirectPlan/);
 assert.match(automation, /!isInternalTester && hasCompletedFirstPlan/);
 assert.match(automation, /setHasCompletedFirstPlan\(true\)/);
-assert.match(automation, /\/backgrounds\/spreelo-ai-studio-hero-mobile-v14379\.png/);
-assert.match(css, /width:calc\(100vw - 24px\)/);
-assert.match(css, /max-height:calc\(100dvh - 24px\)/);
-assert.doesNotMatch(css, /\.spreelo186-onboarding-modal\s*\{[^}]*height:\s*100dvh/s);
+assert.match(automation, /\/backgrounds\/spreelo-onboarding-reference-room\.png/);
+assert.match(currentOnboardingCss, /\.spreelo191-modal/);
+assert.match(currentResponsiveCss, /@media \(max-width: 720px\)/);
+assert.doesNotMatch(currentResponsiveCss, /\.spreelo191-modal\s*\{[^}]*height:\s*100dvh/s);
+assert.match(legacyCss, /spreelo186/);
 
 assert.equal(PLAN_ENTITLEMENTS.starter.brands, 1);
 assert.equal(PLAN_ENTITLEMENTS.growth.brands, 1);

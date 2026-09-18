@@ -205,6 +205,22 @@ function inferOfferCurrency(brandProfile, locale = "en") {
   return "EUR";
 }
 
+function compactSmartOnboardingText(value, fallback = "", maxLength = 92) {
+  const normalized = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const source = normalized || String(fallback || "").trim();
+  if (!source || source.length <= maxLength) return source;
+
+  const sentence = source.match(/^(.{24,}?[.!?])(?:\s|$)/)?.[1]?.trim();
+  const candidate = sentence && sentence.length <= maxLength ? sentence : source.slice(0, maxLength + 1);
+  if (candidate.length <= maxLength) return candidate;
+
+  const cut = candidate.slice(0, maxLength).replace(/\s+\S*$/, "").trim();
+  return `${cut || candidate.slice(0, maxLength).trim()}…`;
+}
+
 function formatOfferDiscount({ discountType, discountValue, currency }) {
   const value = String(discountValue || "").trim().replace(",", ".");
   if (!value) return "";
@@ -11348,13 +11364,23 @@ function blockFormatCardClickAfterDrag(event) {
     : smartOnboardingIndustry || smartOnboardingMarket || t("automation.onboarding.marketFallback");
   const smartOnboardingHasProducts = Boolean(currentBrandProfile?.website_product_mode_available);
   const smartOnboardingHasServices = Boolean(currentBrandProfile?.website_service_mode_available);
-  const smartOnboardingOffering = smartOnboardingHasProducts && smartOnboardingHasServices
-    ? t("automation.onboarding.offeringMixed")
+  const smartOnboardingAudienceText = compactSmartOnboardingText(
+    currentBrandProfile?.target_audience,
+    t("automation.onboarding.audienceFallback"),
+    88
+  );
+  const smartOnboardingMarketCompact = compactSmartOnboardingText(
+    smartOnboardingMarket || smartOnboardingIndustry,
+    t("automation.onboardingV199.marketFallback"),
+    58
+  );
+  const smartOnboardingOfferingCompact = smartOnboardingHasProducts && smartOnboardingHasServices
+    ? t("automation.onboardingV199.offeringMixed")
     : smartOnboardingHasProducts
-      ? t("automation.onboarding.offeringProducts")
+      ? t("automation.onboardingV199.offeringProducts")
       : smartOnboardingHasServices
-        ? t("automation.onboarding.offeringServices")
-        : t("automation.onboarding.offeringGeneral");
+        ? t("automation.onboardingV199.offeringServices")
+        : t("automation.onboardingV199.offeringGeneral");
   const smartOnboardingDays = Array.from(new Set(
     [...slots]
       .sort((a, b) => String(a.startDate || "").localeCompare(String(b.startDate || "")))
@@ -11444,6 +11470,11 @@ function blockFormatCardClickAfterDrag(event) {
   const smartOnboardingIntroParts = String(smartOnboardingIntroText).split(String(smartOnboardingBrandName));
   const smartOnboardingCostSummary = t("automation.onboardingV191.costSummary", { credits: plannedCredits });
   const smartOnboardingVariedSummary = t("automation.onboardingV191.variedSummary");
+  const smartOnboardingWhySummary = autoPlanGoal === "sell_more"
+    ? t("automation.onboardingV199.whySell")
+    : autoPlanGoal === "get_followers"
+      ? t("automation.onboardingV199.whyFollowers")
+      : t("automation.onboardingV199.whyTrust");
 
 
   function scrollSmartOnboardingPreview(direction) {
@@ -15068,6 +15099,30 @@ function blockFormatCardClickAfterDrag(event) {
                     <div className="spreelo191-loading"><LoaderCircle className="admin-spin" size={18}/>{t("automation.onboarding.loading")}</div>
                   ) : null}
 
+                  <section className="spreelo199-personal spreelo199-personal-desktop" aria-label={t("automation.onboardingV199.personalizedTitle", { brandName: smartOnboardingBrandName })}>
+                    <div className="spreelo199-personal-heading">
+                      <Sparkles size={16}/>
+                      <strong>{t("automation.onboardingV199.personalizedTitle", { brandName: smartOnboardingBrandName })}</strong>
+                    </div>
+                    <div className="spreelo199-personal-grid">
+                      <article>
+                        <span className="spreelo199-personal-icon audience"><Users size={17}/></span>
+                        <div><strong>{t("automation.onboarding.audience")}</strong><p>{smartOnboardingAudienceText}</p></div>
+                      </article>
+                      <article>
+                        <span className="spreelo199-personal-icon market"><MapPin size={17}/></span>
+                        <div><strong>{t("automation.onboarding.market")}</strong><p>{smartOnboardingMarketCompact}</p></div>
+                      </article>
+                      <article>
+                        <span className="spreelo199-personal-icon offering"><Box size={17}/></span>
+                        <div><strong>{t("automation.onboarding.offering")}</strong><p>{smartOnboardingOfferingCompact}</p></div>
+                      </article>
+                    </div>
+                    <p className="spreelo199-personal-reason">
+                      <strong>{t("automation.onboardingV199.reasonLabel")}</strong> {smartOnboardingWhySummary}
+                    </p>
+                  </section>
+
                   <div className="spreelo191-ready-banner">
                     <span className="spreelo191-ready-check"><CheckCircle2 size={25}/></span>
                     <div>
@@ -15118,6 +15173,50 @@ function blockFormatCardClickAfterDrag(event) {
                         </div>
                       </div>
                     </article>
+                  </section>
+
+                  <div className="spreelo191-mobile-channels">
+                    <strong>{t("automation.onboardingV191.channelsTitle")}</strong>
+                    <div className="spreelo191-social-icons">
+                      {smartOnboardingSocialOptions.map((item) => (
+                        <span key={`mobile-${item.key}`} className="spreelo191-social-icon" title={item.label}>
+                          <img src={item.icon} alt={item.label} />
+                        </span>
+                      ))}
+                      <a
+                        className="spreelo191-social-add"
+                        href="/social-channels"
+                        title={t("automation.onboardingV191.addChannel")}
+                        aria-label={t("automation.onboardingV191.addChannel")}
+                      >
+                        <Plus size={17}/>
+                      </a>
+                    </div>
+                  </div>
+
+                  <section className="spreelo199-personal spreelo199-personal-mobile" aria-label={t("automation.onboardingV199.personalizedMobileTitle")}>
+                    <div className="spreelo199-personal-heading">
+                      <Sparkles size={16}/>
+                      <strong>{t("automation.onboardingV199.personalizedMobileTitle")}</strong>
+                    </div>
+                    <div className="spreelo199-mobile-personal-grid">
+                      <article>
+                        <span className="spreelo199-personal-icon audience"><Users size={17}/></span>
+                        <div><strong>{t("automation.onboarding.audience")}</strong><p>{smartOnboardingAudienceText}</p></div>
+                      </article>
+                      <article>
+                        <span className="spreelo199-personal-icon market"><MapPin size={17}/></span>
+                        <div><strong>{t("automation.onboarding.market")}</strong><p>{smartOnboardingMarketCompact}</p></div>
+                      </article>
+                      <article>
+                        <span className="spreelo199-personal-icon offering"><Box size={17}/></span>
+                        <div><strong>{t("automation.onboarding.offering")}</strong><p>{smartOnboardingOfferingCompact}</p></div>
+                      </article>
+                      <article className="spreelo199-mobile-reason-card">
+                        <span className="spreelo199-personal-icon reason"><Lightbulb size={17}/></span>
+                        <div><strong>{t("automation.onboardingV199.reasonCardTitle")}</strong><p>{smartOnboardingWhySummary}</p></div>
+                      </article>
+                    </div>
                   </section>
 
                   <section className="spreelo191-planned spreelo196-planned">
@@ -15172,25 +15271,6 @@ function blockFormatCardClickAfterDrag(event) {
                       </button>
                     </div>
                   </section>
-
-                  <div className="spreelo191-mobile-channels">
-                    <strong>{t("automation.onboardingV191.channelsTitle")}</strong>
-                    <div className="spreelo191-social-icons">
-                      {smartOnboardingSocialOptions.map((item) => (
-                        <span key={`mobile-${item.key}`} className="spreelo191-social-icon" title={item.label}>
-                          <img src={item.icon} alt={item.label} />
-                        </span>
-                      ))}
-                      <a
-                        className="spreelo191-social-add"
-                        href="/social-channels"
-                        title={t("automation.onboardingV191.addChannel")}
-                        aria-label={t("automation.onboardingV191.addChannel")}
-                      >
-                        <Plus size={17}/>
-                      </a>
-                    </div>
-                  </div>
 
                   <div className="spreelo191-note">
                     <Sparkles size={18}/>

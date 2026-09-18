@@ -217,7 +217,8 @@
     "test:v144.187": "node scripts/test-v144-187-onboarding-reference-match.mjs",
     "test:v144.188": "node scripts/test-v144-188-onboarding-reference-exact.mjs",
     "test:v144.191": "node scripts/test-v144-191-onboarding-variant5.mjs",
-    "test:v144.192": "node scripts/test-v144-192-onboarding-readability-mobile-fit.mjs"
+    "test:v144.192": "node scripts/test-v144-192-onboarding-readability-mobile-fit.mjs",
+    "test:v144.199": "node scripts/test-v144-199-personalized-onboarding-i18n.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

@@ -36,7 +36,7 @@ async function requirePrimaryAdmin(request) {
   if (!context.canManageTeam) {
     return {
       context,
-      response: Response.json({ ok: false, error: "Only the primary Spreelo administrator can manage the admin team." }, { status: 403 }),
+      response: Response.json({ ok: false, code: "ADMIN_TEAM_PRIMARY_ONLY", error: "Only the primary Spreelo administrator can manage the admin team." }, { status: 403 }),
     };
   }
   return { context, response: null };
@@ -87,8 +87,8 @@ export async function GET(request) {
       .limit(100),
   ]);
 
-  if (membersResult.error) return Response.json({ ok: false, error: membersResult.error.message }, { status: 500 });
-  if (invitesResult.error) return Response.json({ ok: false, error: invitesResult.error.message }, { status: 500 });
+  if (membersResult.error) return Response.json({ ok: false, code: "ADMIN_TEAM_LOAD_FAILED", error: "The admin team could not be loaded." }, { status: 500 });
+  if (invitesResult.error) return Response.json({ ok: false, code: "ADMIN_TEAM_LOAD_FAILED", error: "The admin team could not be loaded." }, { status: 500 });
 
   const configured = getConfiguredAdminEmails().map((email) => ({
     email,
@@ -114,9 +114,9 @@ export async function POST(request) {
   const email = normalizeAdminEmail(body?.email);
   const locale = String(body?.locale || "en").trim().toLowerCase().slice(0, 16) || "en";
 
-  if (!isValidEmail(email)) return Response.json({ ok: false, error: "Enter a valid email address." }, { status: 400 });
+  if (!isValidEmail(email)) return Response.json({ ok: false, code: "ADMIN_TEAM_INVALID_EMAIL", error: "Enter a valid email address." }, { status: 400 });
   if (getConfiguredAdminEmails().includes(email)) {
-    return Response.json({ ok: false, error: "This email already has configured administrator access." }, { status: 409 });
+    return Response.json({ ok: false, code: "ADMIN_TEAM_CONFIGURED_ALREADY", error: "This email already has configured administrator access." }, { status: 409 });
   }
 
   const { data: activeMember, error: memberError } = await admin
@@ -125,8 +125,8 @@ export async function POST(request) {
     .eq("email", email)
     .eq("status", "active")
     .maybeSingle();
-  if (memberError) return Response.json({ ok: false, error: memberError.message }, { status: 500 });
-  if (activeMember) return Response.json({ ok: false, error: "This email is already an active administrator." }, { status: 409 });
+  if (memberError) return Response.json({ ok: false, code: "ADMIN_TEAM_REQUEST_FAILED", error: "The administrator request could not be completed." }, { status: 500 });
+  if (activeMember) return Response.json({ ok: false, code: "ADMIN_TEAM_ACTIVE_ALREADY", error: "This email is already an active administrator." }, { status: 409 });
 
   const nowIso = new Date().toISOString();
   await admin
@@ -151,13 +151,13 @@ export async function POST(request) {
     .select("id, email, locale, created_at, expires_at")
     .single();
 
-  if (insertError) return Response.json({ ok: false, error: insertError.message }, { status: 500 });
+  if (insertError) return Response.json({ ok: false, code: "ADMIN_TEAM_INVITE_CREATE_FAILED", error: "The invitation could not be created." }, { status: 500 });
 
   try {
     await sendInviteEmail({ admin, email, locale, token });
   } catch (error) {
     await admin.from("spreelo_admin_team_invites").update({ revoked_at: new Date().toISOString() }).eq("id", invite.id);
-    return Response.json({ ok: false, error: error?.message || "The invitation email could not be sent." }, { status: 502 });
+    return Response.json({ ok: false, code: "ADMIN_TEAM_INVITE_EMAIL_FAILED", error: "The invitation email could not be sent." }, { status: 502 });
   }
 
   return Response.json({ ok: true, invite });
@@ -170,9 +170,9 @@ export async function DELETE(request) {
   const body = await request.json().catch(() => ({}));
   const email = normalizeAdminEmail(body?.email);
 
-  if (!email) return Response.json({ ok: false, error: "Email is required." }, { status: 400 });
+  if (!email) return Response.json({ ok: false, code: "ADMIN_TEAM_EMAIL_REQUIRED", error: "Email is required." }, { status: 400 });
   if (getConfiguredAdminEmails().includes(email)) {
-    return Response.json({ ok: false, error: "Configured administrators cannot be revoked from this screen." }, { status: 409 });
+    return Response.json({ ok: false, code: "ADMIN_TEAM_CONFIGURED_CANNOT_REVOKE", error: "Configured administrators cannot be revoked from this screen." }, { status: 409 });
   }
 
   const { data: member, error: memberError } = await admin
@@ -181,21 +181,21 @@ export async function DELETE(request) {
     .eq("email", email)
     .eq("status", "active")
     .maybeSingle();
-  if (memberError) return Response.json({ ok: false, error: memberError.message }, { status: 500 });
-  if (!member) return Response.json({ ok: false, error: "Active administrator not found." }, { status: 404 });
+  if (memberError) return Response.json({ ok: false, code: "ADMIN_TEAM_REQUEST_FAILED", error: "The administrator request could not be completed." }, { status: 500 });
+  if (!member) return Response.json({ ok: false, code: "ADMIN_TEAM_ACTIVE_NOT_FOUND", error: "Active administrator not found." }, { status: 404 });
 
   // Remove protected app metadata first. Do not silently continue if this fails:
   // otherwise the user could retain the server-side plan-limit bypass.
   if (member.user_id) {
     const { data: userResult, error: getUserError } = await admin.auth.admin.getUserById(member.user_id);
     if (getUserError || !userResult?.user) {
-      return Response.json({ ok: false, error: getUserError?.message || "The administrator account could not be loaded." }, { status: 500 });
+      return Response.json({ ok: false, code: "ADMIN_TEAM_ACCOUNT_LOAD_FAILED", error: "The administrator account could not be loaded." }, { status: 500 });
     }
     const { error: metadataError } = await admin.auth.admin.updateUserById(member.user_id, {
       app_metadata: { ...(userResult.user.app_metadata || {}), spreelo_admin: false },
     });
     if (metadataError) {
-      return Response.json({ ok: false, error: `Admin access could not be revoked safely: ${metadataError.message}` }, { status: 500 });
+      return Response.json({ ok: false, code: "ADMIN_TEAM_REVOKE_SAFETY_FAILED", error: "Admin access could not be revoked safely." }, { status: 500 });
     }
   }
 
@@ -205,7 +205,7 @@ export async function DELETE(request) {
     .update({ status: "revoked", revoked_at: nowIso, updated_at: nowIso })
     .eq("email", email)
     .eq("status", "active");
-  if (revokeError) return Response.json({ ok: false, error: revokeError.message }, { status: 500 });
+  if (revokeError) return Response.json({ ok: false, code: "ADMIN_TEAM_REVOKE_FAILED", error: "Admin access could not be revoked." }, { status: 500 });
 
   await admin
     .from("spreelo_admin_team_invites")

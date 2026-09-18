@@ -20,7 +20,7 @@ assert.match(automation, /\/social-channels/);
 assert.match(automation, /spreelo191-social-add/);
 assert.match(automation, /smartOnboardingPreviewPosts/);
 assert.match(automation, /smartOnboardingSocialOptions/);
-assert.match(automation, /automation\.onboardingV191\.oneTimeNote/);
+assert.match(automation, /automation\.onboardingV198\.untilFirstPlanNote/);
 assert.match(automation, /automation\.onboardingV191\.readyTitle/);
 assert.match(automation, /automation\.onboardingV191\.plannedTitle/);
 assert.doesNotMatch(automation.slice(automation.indexOf("spreelo191-backdrop"), automation.indexOf("<PlanLimitModal")), /ChevronRight/);
@@ -36,7 +36,7 @@ for (const key of [
   "automation.onboardingV191.channelsTitle",
   "automation.onboardingV191.addChannel",
   "automation.onboardingV191.plannedTitle",
-  "automation.onboardingV191.oneTimeNote",
+  "automation.onboardingV198.untilFirstPlanNote",
   "automation.onboardingV191.activate",
 ]) assert.ok(labels.includes(`"${key}"`), `Missing i18n key ${key}`);
 
