@@ -11517,8 +11517,9 @@ function blockFormatCardClickAfterDrag(event) {
         iconKey: getSmartOnboardingPreviewIconKey(slot?.contentTypeId, label),
       };
     });
-  const smartOnboardingIntroText = t("automation.onboardingV191.intro", { brandName: smartOnboardingBrandName });
+  const smartOnboardingIntroText = t("automation.onboardingV203.intro", { brandName: smartOnboardingBrandName, count: autoPlanPostCount });
   const smartOnboardingIntroParts = String(smartOnboardingIntroText).split(String(smartOnboardingBrandName));
+  const smartOnboardingCountBadgeText = t("automation.onboardingV203.postsPerWeekCompact");
   const smartOnboardingCostSummary = t("automation.onboardingV191.costSummary", { credits: plannedCredits });
   const smartOnboardingVariedSummary = t("automation.onboardingV191.variedSummary");
   const smartOnboardingWhySummary = autoPlanGoal === "sell_more"
@@ -15123,12 +15124,9 @@ function blockFormatCardClickAfterDrag(event) {
                     </div>
                   </div>
 
-                  <div className="spreelo191-hero">
-                    <div className="spreelo191-hero-copy">
-                      <h2 id="spreelo191-onboarding-title">
-                        {t("automation.onboardingV191.titleLine1")}
-                        <span>{t("automation.onboardingV191.titleLine2")}</span>
-                      </h2>
+                  <div className="spreelo191-hero spreelo203-hero">
+                    <div className="spreelo191-hero-copy spreelo203-hero-copy">
+                      <h2 id="spreelo191-onboarding-title">{t("automation.onboardingV203.heroTitle")}</h2>
                       <p>{smartOnboardingIntroParts.length > 1 ? (
                         <>
                           {smartOnboardingIntroParts[0]}
@@ -15137,10 +15135,14 @@ function blockFormatCardClickAfterDrag(event) {
                         </>
                       ) : smartOnboardingIntroText}</p>
                     </div>
-                    <div className="spreelo191-hero-art" aria-hidden="true">
-                      <img src="/backgrounds/spreelo-onboarding-reference-room.png" alt="" />
-                      <span className="spreelo191-ready-scribble">{t("automation.onboardingV191.planReady")}</span>
-                      <Sparkles className="spreelo191-art-sparkle" size={20}/>
+                    <div className="spreelo191-hero-art spreelo203-hero-art" aria-hidden="true">
+                      <img src="/onboarding-guide/ai-content-plan-hero-calendar.png" alt="" />
+                      <span className="spreelo203-scribble">{t("automation.onboardingV203.planReadyCompact")}</span>
+                      <div className="spreelo203-count-badge">
+                        <strong>{autoPlanPostCount}</strong>
+                        <span>{smartOnboardingCountBadgeText}</span>
+                      </div>
+                      <span className="spreelo203-check-badge"><CheckCircle2 size={18}/></span>
                     </div>
                   </div>
                 </header>
@@ -15150,34 +15152,69 @@ function blockFormatCardClickAfterDrag(event) {
                     <div className="spreelo191-loading"><LoaderCircle className="admin-spin" size={18}/>{t("automation.onboarding.loading")}</div>
                   ) : null}
 
-                  <section className="spreelo201-explainer" aria-label={t("automation.onboardingV201.sectionAria")}>
-                    <div className="spreelo201-steps" role="list">
-                      <article className="spreelo201-step spreelo201-step-website" role="listitem">
-                        <div className="spreelo201-step-visual" aria-hidden="true">
-                          <img src="/onboarding-explainer/website.webp" alt="" />
+                  <section className="spreelo201-explainer spreelo203-explainer" aria-label={t("automation.onboardingV203.sectionAria")}>
+                    <div className="spreelo203-steps" role="list">
+                      <article className="spreelo203-step spreelo203-step-plan" role="listitem">
+                        <div className="spreelo203-step-head">
+                          <span className="spreelo203-step-number">1</span>
+                          <span className="spreelo203-step-tag">{t("automation.onboardingV203.stepPlanTag")}</span>
                         </div>
-                        <strong>{t("automation.onboardingV201.websiteTitle")}</strong>
-                        <p>{t("automation.onboardingV201.websiteText")}</p>
+                        <div className="spreelo203-step-media" aria-hidden="true">
+                          <img src="/onboarding-guide/ai-content-planning-browser-icon.png" alt="" />
+                        </div>
+                        <div className="spreelo203-step-copy">
+                          <strong>{t("automation.onboardingV203.stepPlanTitle")}</strong>
+                          <p>{t("automation.onboardingV203.stepPlanText")}</p>
+                        </div>
                       </article>
-                      <span className="spreelo201-step-arrow" aria-hidden="true"><ChevronRight size={20}/></span>
-                      <article className="spreelo201-step spreelo201-step-ai" role="listitem">
-                        <div className="spreelo201-step-visual" aria-hidden="true">
-                          <img src="/onboarding-explainer/ai-content.webp" alt="" />
+                      <span className="spreelo203-step-arrow" aria-hidden="true"><ChevronRight size={20}/></span>
+
+                      <article className="spreelo203-step spreelo203-step-create" role="listitem">
+                        <div className="spreelo203-step-head">
+                          <span className="spreelo203-step-number">2</span>
+                          <span className="spreelo203-step-tag">{t("automation.onboardingV203.stepCreateTag")}</span>
                         </div>
-                        <strong>{t("automation.onboardingV201.aiTitle")}</strong>
-                        <p>{t("automation.onboardingV201.aiText")}</p>
+                        <div className="spreelo203-step-media" aria-hidden="true">
+                          <img src="/onboarding-guide/ai-content-creation-robot-icon.png" alt="" />
+                        </div>
+                        <div className="spreelo203-step-copy">
+                          <strong>{t("automation.onboardingV203.stepCreateTitle")}</strong>
+                          <p>{t("automation.onboardingV203.stepCreateText")}</p>
+                        </div>
                       </article>
-                      <span className="spreelo201-step-arrow" aria-hidden="true"><ChevronRight size={20}/></span>
-                      <article className="spreelo201-step spreelo201-step-ready" role="listitem">
-                        <div className="spreelo201-step-visual" aria-hidden="true">
-                          <img src="/onboarding-explainer/ready-posts.webp" alt="" />
+                      <span className="spreelo203-step-arrow" aria-hidden="true"><ChevronRight size={20}/></span>
+
+                      <article className="spreelo203-step spreelo203-step-approve" role="listitem">
+                        <div className="spreelo203-step-head">
+                          <span className="spreelo203-step-number">3</span>
+                          <span className="spreelo203-step-tag">{t("automation.onboardingV203.stepApproveTag")}</span>
                         </div>
-                        <strong>{t("automation.onboardingV201.readyTitle")}</strong>
-                        <p>{t("automation.onboardingV201.readyText")}</p>
+                        <div className="spreelo203-step-media" aria-hidden="true">
+                          <img src="/onboarding-guide/ai-email-approval-envelope-icon.png" alt="" />
+                        </div>
+                        <div className="spreelo203-step-copy">
+                          <strong>{t("automation.onboardingV203.stepApproveTitle")}</strong>
+                          <p>{t("automation.onboardingV203.stepApproveText")}</p>
+                        </div>
+                      </article>
+                      <span className="spreelo203-step-arrow" aria-hidden="true"><ChevronRight size={20}/></span>
+
+                      <article className="spreelo203-step spreelo203-step-publish" role="listitem">
+                        <div className="spreelo203-step-head">
+                          <span className="spreelo203-step-number">4</span>
+                          <span className="spreelo203-step-tag">{t("automation.onboardingV203.stepPublishTag")}</span>
+                        </div>
+                        <div className="spreelo203-step-media" aria-hidden="true">
+                          <img src="/onboarding-guide/ai-social-media-publishing-icon.png" alt="" />
+                        </div>
+                        <div className="spreelo203-step-copy">
+                          <strong>{t("automation.onboardingV203.stepPublishTitle")}</strong>
+                          <p>{t("automation.onboardingV203.stepPublishText")}</p>
+                        </div>
                       </article>
                     </div>
 
-                    <div className="spreelo201-benefits">
+                    <div className="spreelo201-benefits spreelo203-benefits">
                       <article className="spreelo201-benefit spreelo201-benefit-sell">
                         <span aria-hidden="true"><TrendingUp size={22}/></span>
                         <div><strong>{t("automation.onboardingV201.sellTitle")}</strong><p>{t("automation.onboardingV201.sellText")}</p></div>
