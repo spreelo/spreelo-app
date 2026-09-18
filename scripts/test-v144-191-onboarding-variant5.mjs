@@ -23,7 +23,11 @@ assert.match(automation, /smartOnboardingSocialOptions/);
 assert.match(automation, /automation\.onboardingV198\.untilFirstPlanNote/);
 assert.match(automation, /automation\.onboardingV191\.readyTitle/);
 assert.match(automation, /automation\.onboardingV191\.plannedTitle/);
-assert.doesNotMatch(automation.slice(automation.indexOf("spreelo191-backdrop"), automation.indexOf("<PlanLimitModal")), /ChevronRight/);
+const onboardingBeforeExplainer = automation.slice(
+  automation.indexOf("spreelo191-backdrop"),
+  automation.indexOf('<section className="spreelo201-explainer"')
+);
+assert.doesNotMatch(onboardingBeforeExplainer, /ChevronRight/);
 
 for (const key of [
   "automation.onboardingV191.titleLine1",

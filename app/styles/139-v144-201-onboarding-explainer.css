@@ -1,0 +1,229 @@
+/* Spreelo v144.201 — first-run explainer added to the existing onboarding modal.
+   Purely additive: the current onboarding layout and business logic remain unchanged. */
+
+.spreelo201-explainer {
+  margin:0 0 10px;
+}
+
+.spreelo201-steps {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr) 24px minmax(0,1fr);
+  align-items:start;
+  gap:0;
+}
+
+.spreelo201-step {
+  min-width:0;
+  text-align:center;
+}
+
+.spreelo201-step-visual {
+  height:112px;
+  display:grid;
+  place-items:center;
+  padding:8px 12px;
+  border-radius:18px;
+  overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(118,92,207,.04);
+}
+
+.spreelo201-step-website .spreelo201-step-visual {
+  background:linear-gradient(145deg,#f4efff 0%,#eee7ff 100%);
+}
+
+.spreelo201-step-ai .spreelo201-step-visual {
+  background:linear-gradient(145deg,#fff0f2 0%,#fff4ee 100%);
+}
+
+.spreelo201-step-ready .spreelo201-step-visual {
+  background:linear-gradient(145deg,#eefbf5 0%,#e7f8f0 100%);
+}
+
+.spreelo201-step-visual img {
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:contain;
+  filter:drop-shadow(0 8px 12px rgba(69,49,145,.08));
+}
+
+.spreelo201-step > strong {
+  display:block;
+  margin-top:7px;
+  color:#132043;
+  font-size:14.2px;
+  font-weight:850;
+  line-height:1.18;
+  letter-spacing:-.012em;
+}
+
+.spreelo201-step > p {
+  margin:3px auto 0;
+  max-width:168px;
+  color:#64708a;
+  font-size:12.3px;
+  line-height:1.35;
+}
+
+.spreelo201-step-arrow {
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  align-self:start;
+  justify-self:center;
+  margin-top:39px;
+  color:#7355ef;
+  background:#fff;
+  border:1px solid rgba(119,88,229,.14);
+  border-radius:50%;
+  box-shadow:0 7px 16px rgba(78,58,153,.10);
+  z-index:2;
+}
+
+.spreelo201-benefits {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:9px;
+  margin-top:10px;
+}
+
+.spreelo201-benefit {
+  min-width:0;
+  min-height:58px;
+  display:grid;
+  grid-template-columns:38px minmax(0,1fr);
+  align-items:center;
+  gap:9px;
+  padding:9px 11px;
+  border-radius:13px;
+}
+
+.spreelo201-benefit > span {
+  width:36px;
+  height:36px;
+  display:grid;
+  place-items:center;
+  border-radius:11px;
+  background:rgba(255,255,255,.72);
+}
+
+.spreelo201-benefit strong {
+  display:block;
+  color:#142043;
+  font-size:13.4px;
+  font-weight:850;
+  line-height:1.16;
+}
+
+.spreelo201-benefit p {
+  margin:2px 0 0;
+  color:#68738d;
+  font-size:11.7px;
+  line-height:1.28;
+}
+
+.spreelo201-benefit-sell {
+  background:linear-gradient(145deg,#ebfaf3,#f4fcf8);
+}
+.spreelo201-benefit-sell > span { color:#20a56e; }
+
+.spreelo201-benefit-followers {
+  background:linear-gradient(145deg,#f3efff,#faf7ff);
+}
+.spreelo201-benefit-followers > span { color:#7856ef; }
+
+.spreelo201-benefit-time {
+  background:linear-gradient(145deg,#fff6e8,#fffaf1);
+}
+.spreelo201-benefit-time > span { color:#ef980b; }
+
+@media (max-width:720px) {
+  .spreelo201-explainer {
+    margin:0 0 9px;
+    overflow:hidden;
+  }
+
+  .spreelo201-steps {
+    grid-template-columns:minmax(250px,78%) 24px minmax(250px,78%) 24px minmax(250px,78%);
+    overflow-x:auto;
+    overflow-y:hidden;
+    padding:0 2px 5px;
+    scroll-snap-type:x mandatory;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  .spreelo201-steps::-webkit-scrollbar { display:none; }
+
+  .spreelo201-step {
+    scroll-snap-align:center;
+  }
+
+  .spreelo201-step-visual {
+    height:118px;
+  }
+
+  .spreelo201-step > strong {
+    font-size:13.8px;
+  }
+
+  .spreelo201-step > p {
+    max-width:205px;
+    font-size:12px;
+  }
+
+  .spreelo201-step-arrow {
+    margin-top:42px;
+  }
+
+  .spreelo201-benefits {
+    grid-template-columns:repeat(3,minmax(180px,1fr));
+    overflow-x:auto;
+    padding-bottom:2px;
+    scroll-snap-type:x proximity;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  .spreelo201-benefits::-webkit-scrollbar { display:none; }
+  .spreelo201-benefit { scroll-snap-align:start; }
+}
+
+@media (max-width:430px) {
+  .spreelo201-steps {
+    grid-template-columns:minmax(238px,82%) 22px minmax(238px,82%) 22px minmax(238px,82%);
+  }
+
+  .spreelo201-step-visual {
+    height:112px;
+    border-radius:16px;
+  }
+
+  .spreelo201-step-arrow {
+    width:32px;
+    height:32px;
+    margin-top:40px;
+  }
+
+  .spreelo201-benefits {
+    grid-template-columns:repeat(3,minmax(172px,1fr));
+    gap:7px;
+    margin-top:8px;
+  }
+
+  .spreelo201-benefit {
+    min-height:56px;
+    grid-template-columns:34px minmax(0,1fr);
+    gap:8px;
+    padding:8px 9px;
+  }
+
+  .spreelo201-benefit > span {
+    width:33px;
+    height:33px;
+  }
+
+  .spreelo201-benefit strong { font-size:12.8px; }
+  .spreelo201-benefit p { font-size:11.2px; }
+}

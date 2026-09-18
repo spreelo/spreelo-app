@@ -221,6 +221,53 @@ function compactSmartOnboardingText(value, fallback = "", maxLength = 92) {
   return `${cut || candidate.slice(0, maxLength).trim()}…`;
 }
 
+const SMART_ONBOARDING_MARKET_ALIASES = {
+  global: "GLOBAL",
+  international: "GLOBAL",
+  "international / global": "GLOBAL",
+  worldwide: "GLOBAL",
+  sverige: "SE",
+  sweden: "SE",
+  denmark: "DK",
+  danmark: "DK",
+  norway: "NO",
+  norge: "NO",
+  finland: "FI",
+  germany: "DE",
+  deutschland: "DE",
+  netherlands: "NL",
+  holland: "NL",
+  france: "FR",
+  spain: "ES",
+  italy: "IT",
+  canada: "CA",
+  australia: "AU",
+  india: "IN",
+  europe: "EU",
+  "united arab emirates": "AE",
+  other: "OTHER",
+};
+
+function getLocalizedSmartOnboardingMarketLabel(t, marketValue, countryCode) {
+  const normalizedCountryCode = String(countryCode || "").trim().toUpperCase();
+  if (normalizedCountryCode) {
+    const translatedByCode = t(`automation.onboarding.market.${normalizedCountryCode}`);
+    if (translatedByCode && !translatedByCode.startsWith("automation.onboarding.market.")) {
+      return translatedByCode;
+    }
+  }
+
+  const normalizedMarketValue = String(marketValue || "").trim();
+  if (!normalizedMarketValue) return "";
+
+  const translatedByAlias = t(`automation.onboarding.market.${SMART_ONBOARDING_MARKET_ALIASES[normalizedMarketValue.toLowerCase()] || ""}`);
+  if (translatedByAlias && !translatedByAlias.startsWith("automation.onboarding.market.")) {
+    return translatedByAlias;
+  }
+
+  return normalizedMarketValue;
+}
+
 function formatOfferDiscount({ discountType, discountValue, currency }) {
   const value = String(discountValue || "").trim().replace(",", ".");
   if (!value) return "";
@@ -11358,7 +11405,11 @@ function blockFormatCardClickAfterDrag(event) {
 
   const smartOnboardingBrandName = currentBrandProfile?.business_name || t("automation.yourBusiness");
   const smartOnboardingIndustry = String(currentBrandProfile?.industry || "").trim();
-  const smartOnboardingMarket = String(currentBrandProfile?.content_market || currentBrandProfile?.country_code || "").trim();
+  const smartOnboardingMarket = getLocalizedSmartOnboardingMarketLabel(
+    t,
+    currentBrandProfile?.content_market,
+    currentBrandProfile?.country_code
+  ) || String(currentBrandProfile?.content_market || currentBrandProfile?.country_code || "").trim();
   const smartOnboardingMarketText = smartOnboardingIndustry && smartOnboardingMarket
     ? t("automation.onboarding.marketValue", { industry: smartOnboardingIndustry, market: smartOnboardingMarket })
     : smartOnboardingIndustry || smartOnboardingMarket || t("automation.onboarding.marketFallback");
@@ -15098,6 +15149,49 @@ function blockFormatCardClickAfterDrag(event) {
                   {smartOnboardingLoading ? (
                     <div className="spreelo191-loading"><LoaderCircle className="admin-spin" size={18}/>{t("automation.onboarding.loading")}</div>
                   ) : null}
+
+                  <section className="spreelo201-explainer" aria-label={t("automation.onboardingV201.sectionAria")}>
+                    <div className="spreelo201-steps" role="list">
+                      <article className="spreelo201-step spreelo201-step-website" role="listitem">
+                        <div className="spreelo201-step-visual" aria-hidden="true">
+                          <img src="/onboarding-explainer/website.webp" alt="" />
+                        </div>
+                        <strong>{t("automation.onboardingV201.websiteTitle")}</strong>
+                        <p>{t("automation.onboardingV201.websiteText")}</p>
+                      </article>
+                      <span className="spreelo201-step-arrow" aria-hidden="true"><ChevronRight size={20}/></span>
+                      <article className="spreelo201-step spreelo201-step-ai" role="listitem">
+                        <div className="spreelo201-step-visual" aria-hidden="true">
+                          <img src="/onboarding-explainer/ai-content.webp" alt="" />
+                        </div>
+                        <strong>{t("automation.onboardingV201.aiTitle")}</strong>
+                        <p>{t("automation.onboardingV201.aiText")}</p>
+                      </article>
+                      <span className="spreelo201-step-arrow" aria-hidden="true"><ChevronRight size={20}/></span>
+                      <article className="spreelo201-step spreelo201-step-ready" role="listitem">
+                        <div className="spreelo201-step-visual" aria-hidden="true">
+                          <img src="/onboarding-explainer/ready-posts.webp" alt="" />
+                        </div>
+                        <strong>{t("automation.onboardingV201.readyTitle")}</strong>
+                        <p>{t("automation.onboardingV201.readyText")}</p>
+                      </article>
+                    </div>
+
+                    <div className="spreelo201-benefits">
+                      <article className="spreelo201-benefit spreelo201-benefit-sell">
+                        <span aria-hidden="true"><TrendingUp size={22}/></span>
+                        <div><strong>{t("automation.onboardingV201.sellTitle")}</strong><p>{t("automation.onboardingV201.sellText")}</p></div>
+                      </article>
+                      <article className="spreelo201-benefit spreelo201-benefit-followers">
+                        <span aria-hidden="true"><Users size={22}/></span>
+                        <div><strong>{t("automation.onboardingV201.followersTitle")}</strong><p>{t("automation.onboardingV201.followersText")}</p></div>
+                      </article>
+                      <article className="spreelo201-benefit spreelo201-benefit-time">
+                        <span aria-hidden="true"><Clock3 size={22}/></span>
+                        <div><strong>{t("automation.onboardingV201.timeTitle")}</strong><p>{t("automation.onboardingV201.timeText")}</p></div>
+                      </article>
+                    </div>
+                  </section>
 
                   <section className="spreelo199-personal spreelo199-personal-desktop" aria-label={t("automation.onboardingV199.personalizedTitle", { brandName: smartOnboardingBrandName })}>
                     <div className="spreelo199-personal-heading">
