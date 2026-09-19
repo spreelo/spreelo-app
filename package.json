@@ -221,7 +221,8 @@
     "test:v144.199": "node scripts/test-v144-199-personalized-onboarding-i18n.mjs",
     "test:v144.201": "node scripts/test-v144-201-onboarding-explainer.mjs",
     "test:v144.212": "node scripts/test-v144-212-grow-brain-brand-learning.mjs",
-    "test:v144.213": "node scripts/test-v144-213-grow-brain-performance.mjs"
+    "test:v144.213": "node scripts/test-v144-213-grow-brain-performance.mjs",
+    "test:v144.214": "node scripts/test-v144-214-threads-performance.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

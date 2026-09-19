@@ -34,8 +34,9 @@ const targets = extractPostPerformanceTargets({
     threads: { thread_id: "th-7" },
   },
 });
-assert.deepEqual(targets.map((item) => item.platform), ["instagram", "youtube"]);
+assert.deepEqual(targets.map((item) => item.platform), ["instagram", "youtube", "threads"]);
 assert.deepEqual(targets[0].externalIds, ["ig-7"]);
+assert.deepEqual(targets[2].externalIds, ["th-7"]);
 
 const now = new Date("2026-09-19T12:00:00.000Z");
 assert.equal(nextCollectionDelayHours({ publishedAt: "2026-09-19T06:00:00.000Z", now }), 3);
