@@ -1,1047 +1,229 @@
-/* Spreelo v144.201 — reference-match refinement pass.
-   Goal: move much closer to the approved mockup with a roomier layout,
-   clearer hierarchy, and better breakpoints while preserving 201 logic. */
+/* Spreelo v144.201 — first-run explainer added to the existing onboarding modal.
+   Purely additive: the current onboarding layout and business logic remain unchanged. */
 
-html body .spreelo191-backdrop {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 20px 20px 32px;
+.spreelo201-explainer {
+  margin:0 0 10px;
 }
 
-html body .spreelo191-modal {
-  position: relative;
-  width: min(1120px, calc(100vw - 40px));
-  max-height: none;
-  height: auto;
-  overflow: visible;
-  flex: 0 0 auto;
-  margin: 0 auto;
-  border-radius: 30px;
-  border: 1px solid rgba(136, 117, 222, .16);
-  background:
-    radial-gradient(circle at 18% 108%, rgba(255, 189, 216, .18), transparent 14%),
-    radial-gradient(circle at 96% 4%, rgba(216, 197, 255, .20), transparent 24%),
-    linear-gradient(180deg, rgba(255,255,255,.985) 0%, rgba(253,250,255,.995) 100%);
-  box-shadow: 0 28px 82px rgba(23, 31, 70, .18);
+.spreelo201-steps {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr) 24px minmax(0,1fr);
+  align-items:start;
+  gap:0;
 }
 
-html body .spreelo191-modal::before,
-html body .spreelo191-modal::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-  z-index: 0;
+.spreelo201-step {
+  min-width:0;
+  text-align:center;
 }
 
-html body .spreelo191-modal::before {
-  left: -8px;
-  bottom: -8px;
-  width: 126px;
-  height: 126px;
-  background:
-    radial-gradient(circle at 24% 76%, rgba(120, 191, 96, .24) 0 10px, transparent 11px),
-    radial-gradient(circle at 18% 62%, rgba(120, 191, 96, .24) 0 12px, transparent 13px),
-    radial-gradient(circle at 40% 66%, rgba(255, 184, 208, .50) 0 18px, transparent 19px),
-    radial-gradient(circle at 52% 52%, rgba(255, 191, 214, .62) 0 22px, transparent 23px),
-    radial-gradient(circle at 14% 88%, rgba(255, 191, 214, .38) 0 14px, transparent 15px);
-  opacity: .9;
+.spreelo201-step-visual {
+  height:112px;
+  display:grid;
+  place-items:center;
+  padding:8px 12px;
+  border-radius:18px;
+  overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(118,92,207,.04);
 }
 
-html body .spreelo191-modal::after {
-  right: 58px;
-  top: 74px;
-  width: 100px;
-  height: 72px;
-  background:
-    radial-gradient(circle at 20% 62%, rgba(255, 177, 209, .55) 0 11px, transparent 12px),
-    radial-gradient(circle at 36% 44%, rgba(255, 188, 214, .62) 0 14px, transparent 15px),
-    radial-gradient(circle at 56% 56%, rgba(255, 191, 214, .60) 0 13px, transparent 14px),
-    radial-gradient(circle at 72% 34%, rgba(140, 195, 112, .24) 0 10px, transparent 11px),
-    radial-gradient(circle at 86% 20%, rgba(140, 195, 112, .20) 0 9px, transparent 10px);
-  opacity: .95;
+.spreelo201-step-website .spreelo201-step-visual {
+  background:linear-gradient(145deg,#f4efff 0%,#eee7ff 100%);
 }
 
-html body .spreelo191-header {
-  position: relative;
-  z-index: 1;
-  padding: 22px 28px 14px;
+.spreelo201-step-ai .spreelo201-step-visual {
+  background:linear-gradient(145deg,#fff0f2 0%,#fff4ee 100%);
 }
 
-html body .spreelo191-logo {
-  width: 126px;
+.spreelo201-step-ready .spreelo201-step-visual {
+  background:linear-gradient(145deg,#eefbf5 0%,#e7f8f0 100%);
 }
 
-html body .spreelo191-top-actions {
-  gap: 12px;
+.spreelo201-step-visual img {
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:contain;
+  filter:drop-shadow(0 8px 12px rgba(69,49,145,.08));
 }
 
-html body .spreelo191-step-badge {
-  min-height: 34px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  color: #6550e7;
-  background: linear-gradient(180deg, #f7f2ff 0%, #f2ecff 100%);
-  border: 1px solid rgba(121, 96, 232, .12);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.82);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .05em;
-}
-
-html body .spreelo191-close {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-}
-
-html body .spreelo191-body {
-  position: relative;
-  z-index: 1;
-  min-height: auto;
-  flex: 0 0 auto;
-  overflow: visible;
-  overscroll-behavior: auto;
-  scrollbar-width: auto;
-  padding: 0 28px 14px;
-}
-
-html body .spreelo191-actions {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px 28px 24px;
-  background: transparent;
-}
-
-/* Header / hero */
-html body .spreelo203-ready-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  color: #6a58e5;
-  background: linear-gradient(180deg, #f7f2ff 0%, #f4efff 100%);
-  border: 1px solid rgba(128, 101, 234, .12);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-
-html body .spreelo203-ready-pill svg {
-  color: #7c64ef;
-}
-
-html body .spreelo203-hero {
-  grid-template-columns: minmax(0, 1fr) 360px;
-  align-items: center;
-  gap: 26px;
-  margin-top: 14px;
-}
-
-html body .spreelo203-hero-copy h2 {
-  max-width: 560px;
-  font-size: clamp(54px, 5vw, 76px);
-  line-height: .90;
-  letter-spacing: -.068em;
-  font-weight: 900;
-}
-
-html body .spreelo203-hero-burst {
-  margin-left: 14px;
-  font-size: .52em;
-  vertical-align: middle;
-}
-
-html body .spreelo203-hero-copy p {
-  max-width: 600px;
-  margin-top: 16px;
-  color: #5e6a84;
-  font-size: 16px;
-  line-height: 1.56;
-}
-
-html body .spreelo192-brand-highlight {
-  color: #6d5ae9 !important;
-  font-weight: 900 !important;
-}
-
-html body .spreelo203-hero-art {
-  position: relative;
-  width: 360px;
-  height: 186px;
-  justify-self: end;
-  border-radius: 28px;
-  background: radial-gradient(circle at 68% 18%, rgba(230, 214, 255, .95), rgba(247, 241, 255, .92) 42%, rgba(245, 249, 255, .92) 100%);
-  box-shadow: 0 20px 34px rgba(92, 73, 170, .10);
-  overflow: visible;
-}
-
-html body .spreelo203-hero-art > img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-html body .spreelo203-scribble {
-  position: absolute;
-  left: -8px;
-  top: 8px;
-  white-space: pre-line;
-  color: #6a53eb;
-  font-size: 24px;
-  line-height: .92;
-  font-weight: 800;
-  transform: rotate(-11deg);
-}
-
-html body .spreelo203-count-badge {
-  position: absolute;
-  right: 8px;
-  top: 10px;
-  width: 104px;
-  min-height: 124px;
-  padding: 14px 10px;
-  border-radius: 28px;
-  background: rgba(255,255,255,.98);
-  box-shadow: 0 16px 28px rgba(98, 81, 185, .18);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  z-index: 2;
-}
-
-html body .spreelo203-count-badge strong {
-  color: #19285d;
-  font-size: 60px;
-  line-height: .88;
-  font-weight: 900;
-}
-
-html body .spreelo203-count-badge span {
-  margin-top: 4px;
-  white-space: pre-line;
-  color: #614ee2;
-  font-size: 16px;
-  line-height: 1.03;
-  font-weight: 900;
-}
-
-html body .spreelo203-check-badge {
-  position: absolute;
-  right: 4px;
-  bottom: 18px;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: #fff;
-  box-shadow: 0 10px 18px rgba(39, 163, 101, .16);
-  color: #1fc66c;
-  z-index: 2;
-}
-
-html body .spreelo203-check-badge svg {
-  width: 24px;
-  height: 24px;
-  stroke-width: 2.6;
-}
-
-html body .spreelo203-hero-note {
-  position: absolute;
-  right: 42px;
-  bottom: -7px;
-  color: #5e49d8;
-  font-size: 11px;
-  line-height: 1.1;
-  font-weight: 800;
-  transform: rotate(-3deg);
-  white-space: nowrap;
-}
-
-html body .spreelo203-hero-heart {
-  position: absolute;
-  right: 0;
-  bottom: -9px;
-  color: #925ff5;
-  font-size: 20px;
-  line-height: 1;
-  transform: rotate(8deg);
-}
-
-/* Four step explainer */
-html body .spreelo203-explainer {
-  margin: 12px 0 14px;
-}
-
-html body .spreelo203-steps {
-  display: grid;
-  grid-template-columns: minmax(0,1fr) 32px minmax(0,1fr) 32px minmax(0,1fr) 32px minmax(0,1fr);
-  align-items: stretch;
-}
-
-html body .spreelo203-step {
-  min-width: 0;
-  min-height: 286px;
-  display: flex;
-  flex-direction: column;
-  padding: 18px 18px 16px;
-  border-radius: 22px;
-  border: 1px solid rgba(118, 92, 207, .10);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
-}
-
-html body .spreelo203-step-plan { background: linear-gradient(180deg,#f8f5ff 0%, #f5f1ff 100%); }
-html body .spreelo203-step-create { background: linear-gradient(180deg,#fff7f0 0%, #fff4ec 100%); }
-html body .spreelo203-step-approve { background: linear-gradient(180deg,#f0fcf8 0%, #ecfaf6 100%); }
-html body .spreelo203-step-publish { background: linear-gradient(180deg,#faf7ff 0%, #f6f2ff 100%); }
-
-html body .spreelo203-step-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-html body .spreelo203-step-number {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  font-weight: 900;
-  color: #fff;
-  flex: 0 0 38px;
-}
-
-html body .spreelo203-step-plan .spreelo203-step-number,
-html body .spreelo203-step-plan .spreelo203-step-tag { background: #8168f1; }
-html body .spreelo203-step-create .spreelo203-step-number,
-html body .spreelo203-step-create .spreelo203-step-tag { background: #f3a26d; }
-html body .spreelo203-step-approve .spreelo203-step-number,
-html body .spreelo203-step-approve .spreelo203-step-tag { background: #47d1aa; }
-html body .spreelo203-step-publish .spreelo203-step-number,
-html body .spreelo203-step-publish .spreelo203-step-tag { background: #b16aec; }
-
-html body .spreelo203-step-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 31px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 850;
-}
-
-html body .spreelo203-step-media {
-  height: 132px;
-  display: grid;
-  place-items: center;
-  margin-top: 10px;
-}
-
-html body .spreelo203-step-media img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  filter: drop-shadow(0 9px 14px rgba(69,49,145,.10));
-}
-
-html body .spreelo203-step-copy {
-  margin-top: 8px;
-}
-
-html body .spreelo203-step-copy strong {
-  display: block;
-  color: #142043;
-  font-size: 15px;
-  line-height: 1.16;
-  font-weight: 850;
-}
-
-html body .spreelo203-step-copy p {
-  margin: 7px 0 0;
-  color: #5d6b86;
-  font-size: 12px;
-  line-height: 1.42;
-}
-
-html body .spreelo203-step-arrow {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  align-self: center;
-  justify-self: center;
-  color: #7a63ea;
-  background: rgba(255,255,255,.98);
-  border: 1px solid rgba(119,88,229,.13);
-  border-radius: 50%;
-  box-shadow: 0 8px 18px rgba(78,58,153,.12);
-  z-index: 4;
-}
-
-/* Benefits */
-html body .spreelo203-benefits,
-html body .spreelo201-benefits {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap: 12px;
-  margin-top: 12px;
-}
-
-html body .spreelo201-benefit {
-  min-width: 0;
-  min-height: 72px;
-  display: grid;
-  grid-template-columns: 44px minmax(0,1fr);
-  align-items: center;
-  gap: 10px;
-  padding: 11px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(120,108,188,.08);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.78);
-}
-
-html body .spreelo201-benefit > span {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: rgba(255,255,255,.78);
-}
-
-html body .spreelo201-benefit strong {
-  display: block;
-  color: #16224a;
-  font-size: 14px;
-  font-weight: 850;
-  line-height: 1.16;
-}
-
-html body .spreelo201-benefit p {
-  margin: 3px 0 0;
-  color: #63708a;
-  font-size: 12px;
-  line-height: 1.26;
-}
-
-html body .spreelo201-benefit-sell { background: linear-gradient(180deg,#effcf7,#f4fdf9); }
-html body .spreelo201-benefit-sell > span { color:#22a56f; }
-html body .spreelo201-benefit-followers { background: linear-gradient(180deg,#f7f3ff,#faf7ff); }
-html body .spreelo201-benefit-followers > span { color:#7b56ef; }
-html body .spreelo201-benefit-time { background: linear-gradient(180deg,#fff8ec,#fffbf3); }
-html body .spreelo201-benefit-time > span { color:#ef980b; }
-
-/* Section headings */
-html body .spreelo203-section-heading-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-top: 18px;
-  margin-bottom: 10px;
-}
-
-html body .spreelo203-section-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  color: #16224b;
-}
-
-html body .spreelo203-section-title svg { color: #7b5ef3; }
-
-html body .spreelo203-section-title strong {
-  font-size: 18px;
-  line-height: 1.15;
-  font-weight: 900;
-}
-
-html body .spreelo203-section-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 42px;
-  padding: 9px 14px;
-  border-radius: 14px;
-  color: #5341cb;
-  background: linear-gradient(180deg,#fbf9ff 0%, #f7f3ff 100%);
-  border: 1px solid rgba(117, 90, 227, .14);
-  font-size: 13px;
-  font-weight: 850;
-  white-space: nowrap;
-}
-
-/* Plan summary box */
-html body .spreelo199-personal {
-  margin-top: 0;
-  padding: 14px 14px 12px;
-  border-radius: 18px;
-  border: 1px solid rgba(132, 111, 214, .16);
-  background: rgba(255,255,255,.72);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.78);
-}
-
-html body .spreelo199-personal-heading { display: none; }
-
-html body .spreelo199-personal-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap: 12px;
-}
-
-html body .spreelo199-personal-grid > article,
-html body .spreelo199-mobile-personal-grid > article {
-  min-height: 118px;
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  align-items: start;
-  gap: 10px;
-  padding: 14px 13px;
-  border-radius: 14px;
-  border: 1px solid #e8e3f7;
-  background: rgba(255,255,255,.92);
-}
-
-html body .spreelo199-personal-icon {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border-radius: 11px;
-}
-
-html body .spreelo199-personal-grid strong,
-html body .spreelo199-mobile-personal-grid strong {
-  display: block;
-  color:#16224a;
-  font-size: 14px;
-  line-height:1.18;
+.spreelo201-step > strong {
+  display:block;
+  margin-top:7px;
+  color:#132043;
+  font-size:14.2px;
   font-weight:850;
+  line-height:1.18;
+  letter-spacing:-.012em;
 }
 
-html body .spreelo199-personal-grid p,
-html body .spreelo199-mobile-personal-grid p {
-  margin: 5px 0 0;
-  color:#63708a;
-  font-size:12.5px;
-  line-height:1.42;
+.spreelo201-step > p {
+  margin:3px auto 0;
+  max-width:168px;
+  color:#64708a;
+  font-size:12.3px;
+  line-height:1.35;
 }
 
-html body .spreelo199-personal-reason {
-  margin: 10px 0 0;
-  color:#5c6784;
-  font-size:12px;
-  line-height:1.44;
+.spreelo201-step-arrow {
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  align-self:start;
+  justify-self:center;
+  margin-top:39px;
+  color:#7355ef;
+  background:#fff;
+  border:1px solid rgba(119,88,229,.14);
+  border-radius:50%;
+  box-shadow:0 7px 16px rgba(78,58,153,.10);
+  z-index:2;
 }
 
-html body .spreelo199-personal-reason strong { color:#16224a; }
-html body .spreelo199-personal-mobile { display:none; }
-
-/* Plan includes block */
-html body .spreelo191-ready-banner {
-  display: grid;
-  grid-template-columns: 48px minmax(0,1fr);
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 12px 15px;
-  border-radius: 18px;
-  border: 1px solid rgba(141, 112, 225, .14);
-  background: linear-gradient(180deg, #f4edff 0%, #f8f3ff 100%);
+.spreelo201-benefits {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:9px;
+  margin-top:10px;
 }
 
-html body .spreelo191-ready-check {
-  width: 44px;
-  height: 44px;
+.spreelo201-benefit {
+  min-width:0;
+  min-height:58px;
+  display:grid;
+  grid-template-columns:38px minmax(0,1fr);
+  align-items:center;
+  gap:9px;
+  padding:9px 11px;
+  border-radius:13px;
 }
 
-html body .spreelo191-ready-banner strong {
-  color:#22306e;
-  font-size:16px;
+.spreelo201-benefit > span {
+  width:36px;
+  height:36px;
+  display:grid;
+  place-items:center;
+  border-radius:11px;
+  background:rgba(255,255,255,.72);
+}
+
+.spreelo201-benefit strong {
+  display:block;
+  color:#142043;
+  font-size:13.4px;
+  font-weight:850;
   line-height:1.16;
-  font-weight:900;
 }
 
-html body .spreelo191-ready-banner p {
-  margin-top: 3px;
-  color:#6a7490;
-  font-size:13px;
-  line-height:1.38;
+.spreelo201-benefit p {
+  margin:2px 0 0;
+  color:#68738d;
+  font-size:11.7px;
+  line-height:1.28;
 }
 
-html body .spreelo191-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0,1fr));
-  gap: 12px;
+.spreelo201-benefit-sell {
+  background:linear-gradient(145deg,#ebfaf3,#f4fcf8);
+}
+.spreelo201-benefit-sell > span { color:#20a56e; }
+
+.spreelo201-benefit-followers {
+  background:linear-gradient(145deg,#f3efff,#faf7ff);
+}
+.spreelo201-benefit-followers > span { color:#7856ef; }
+
+.spreelo201-benefit-time {
+  background:linear-gradient(145deg,#fff6e8,#fffaf1);
+}
+.spreelo201-benefit-time > span { color:#ef980b; }
+
+@media (max-width:720px) {
+  .spreelo201-explainer {
+    margin:0 0 9px;
+    overflow:hidden;
+  }
+
+  .spreelo201-steps {
+    grid-template-columns:minmax(250px,78%) 24px minmax(250px,78%) 24px minmax(250px,78%);
+    overflow-x:auto;
+    overflow-y:hidden;
+    padding:0 2px 5px;
+    scroll-snap-type:x mandatory;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  .spreelo201-steps::-webkit-scrollbar { display:none; }
+
+  .spreelo201-step {
+    scroll-snap-align:center;
+  }
+
+  .spreelo201-step-visual {
+    height:118px;
+  }
+
+  .spreelo201-step > strong {
+    font-size:13.8px;
+  }
+
+  .spreelo201-step > p {
+    max-width:205px;
+    font-size:12px;
+  }
+
+  .spreelo201-step-arrow {
+    margin-top:42px;
+  }
+
+  .spreelo201-benefits {
+    grid-template-columns:repeat(3,minmax(180px,1fr));
+    overflow-x:auto;
+    padding-bottom:2px;
+    scroll-snap-type:x proximity;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  .spreelo201-benefits::-webkit-scrollbar { display:none; }
+  .spreelo201-benefit { scroll-snap-align:start; }
 }
 
-html body .spreelo191-summary-grid > article {
-  min-height: 92px;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 11px;
-  padding: 14px 14px;
-  border-radius: 16px;
-  border: 1px solid #e9e4f8;
-  background: rgba(255,255,255,.92);
-}
-
-html body .spreelo191-icon {
-  width: 40px;
-  height: 40px;
-}
-
-html body .spreelo191-summary-grid strong {
-  font-size: 14px;
-  line-height: 1.18;
-  font-weight: 850;
-}
-
-html body .spreelo191-summary-grid p {
-  margin-top: 4px;
-  color:#657189;
-  font-size: 12.5px;
-  line-height: 1.38;
-}
-
-html body .spreelo191-social-icons {
-  gap: 8px;
-  margin-top: 7px;
-}
-
-html body .spreelo191-social-icon,
-html body .spreelo191-social-add { width: 34px; height: 34px; }
-html body .spreelo191-social-icon img { width: 34px; height: 34px; }
-html body .spreelo191-mobile-channels { display: none; }
-
-/* Planned section */
-html body .spreelo196-planned {
-  margin-top: 16px;
-  padding: 0;
-  background: transparent;
-  border: 0;
-}
-
-html body .spreelo203-planned-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 10px;
-}
-
-html body .spreelo203-planned-heading > div:first-child,
-html body .spreelo191-section-heading > div:first-child {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-html body .spreelo203-planned-heading strong {
-  font-size: 18px;
-  font-weight: 900;
-}
-
-html body .spreelo203-planned-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 16px;
-  color: #6755e5;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-html body .spreelo203-planned-meta span,
-html body .spreelo203-planned-meta a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-html body .spreelo203-planned-meta a {
-  color: #6e55ea;
-  text-decoration: none;
-}
-
-html body .spreelo196-post-row {
-  gap: 12px;
-  padding: 0 4px;
-}
-
-html body .spreelo196-post-card {
-  width: 180px;
-  min-width: 180px;
-  border-radius: 16px;
-  border: 1px solid #e7e1f4;
-  background: #fff;
-  box-shadow: none;
-}
-
-html body .spreelo196-post-media {
-  border-radius: 14px 14px 0 0;
-}
-
-html body .spreelo196-date-badge {
-  left: 8px;
-  top: 8px;
-  min-width: 46px;
-  border-radius: 10px;
-}
-
-html body .spreelo196-post-footer {
-  min-height: 56px;
-  gap: 10px;
-  padding: 10px 11px;
-  border-radius: 0 0 14px 14px;
-}
-
-html body .spreelo196-post-footer strong {
-  font-size: 12px;
-  line-height: 1.2;
-}
-
-html body .spreelo196-scroll-button { width: 42px; height: 42px; }
-html body .spreelo196-scroll-button.previous { left: -10px !important; }
-html body .spreelo196-scroll-button.next { right: -10px !important; }
-
-/* Note */
-html body .spreelo191-note {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 14px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(143, 113, 225, .14);
-  color: #687292;
-  background: linear-gradient(180deg, #f7f3ff 0%, #f5f1ff 100%);
-  font-size: 12.5px;
-  line-height: 1.46;
-}
-
-html body .spreelo191-note svg { color: #8b60fa; }
-
-/* Buttons */
-html body .spreelo191-actions button {
-  width: 100%;
-  border-radius: 16px;
-  font-size: 16px;
-  font-weight: 850;
-}
-
-html body .spreelo191-actions .spreelo191-primary {
-  min-height: 62px;
-  color: #fff !important;
-  font-size: 16px;
-  background: linear-gradient(90deg, #ff4fb2 0%, #b24df4 58%, #7f58f1 100%);
-  box-shadow: 0 14px 28px rgba(173, 92, 246, .22);
-}
-
-html body .spreelo191-actions .spreelo191-primary span {
-  display: inline-flex;
-  align-items: center;
-}
-
-html body .spreelo191-actions .spreelo191-primary svg,
-html body .spreelo191-actions .spreelo191-primary * { color: #fff !important; }
-
-html body .spreelo203-primary-arrow {
-  font-size: 24px;
-  line-height: 1;
-  margin-left: 4px;
-}
-
-html body .spreelo191-actions .spreelo191-secondary {
-  min-height: 52px;
-  color: #1b2850;
-  background: #fff;
-  border: 2px solid #3451d1;
-  font-size: 15px;
-}
-
-html body .spreelo203-cta-note {
-  align-self: flex-end;
-  margin-top: -2px;
-  margin-right: 4px;
-  color: #6b53e7;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.05;
-  transform: rotate(-8deg);
-}
-
-html body .spreelo203-cta-note::after {
-  content: "↙";
-  display: inline-block;
-  margin-left: 8px;
-  font-size: 28px;
-  line-height: 1;
-  vertical-align: middle;
-}
-
-/* Large-tablet and down */
-@media (max-width: 1180px) {
-  html body .spreelo191-modal {
-    width: min(960px, calc(100vw - 28px));
+@media (max-width:430px) {
+  .spreelo201-steps {
+    grid-template-columns:minmax(238px,82%) 22px minmax(238px,82%) 22px minmax(238px,82%);
   }
 
-  html body .spreelo203-hero {
-    grid-template-columns: minmax(0, 1fr) 320px;
+  .spreelo201-step-visual {
+    height:112px;
+    border-radius:16px;
   }
 
-  html body .spreelo203-hero-copy h2 {
-    font-size: clamp(44px, 6vw, 64px);
+  .spreelo201-step-arrow {
+    width:32px;
+    height:32px;
+    margin-top:40px;
   }
 
-  html body .spreelo203-steps {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+  .spreelo201-benefits {
+    grid-template-columns:repeat(3,minmax(172px,1fr));
+    gap:7px;
+    margin-top:8px;
   }
 
-  html body .spreelo203-step-arrow { display: none; }
-}
-
-@media (max-width: 920px) {
-  html body .spreelo191-modal {
-    width: min(760px, calc(100vw - 20px));
+  .spreelo201-benefit {
+    min-height:56px;
+    grid-template-columns:34px minmax(0,1fr);
+    gap:8px;
+    padding:8px 9px;
   }
 
-  html body .spreelo191-header { padding: 18px 18px 12px; }
-  html body .spreelo191-body { padding: 0 18px 14px; }
-  html body .spreelo191-actions { padding: 12px 18px 20px; }
-
-  html body .spreelo203-hero {
-    grid-template-columns: 1fr;
-    gap: 14px;
+  .spreelo201-benefit > span {
+    width:33px;
+    height:33px;
   }
 
-  html body .spreelo203-hero-art {
-    justify-self: center;
-  }
-
-  html body .spreelo199-personal-grid,
-  html body .spreelo191-summary-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 720px) {
-  html body .spreelo191-backdrop {
-    inset: 106px 0 0 0 !important;
-    width: 100% !important;
-    height: calc(100dvh - 106px) !important;
-    padding: 8px 6px 18px !important;
-  }
-
-  html body .spreelo191-modal {
-    width: calc(100% - 8px) !important;
-    max-width: 430px !important;
-    border-radius: 22px;
-  }
-
-  html body .spreelo191-modal::before {
-    width: 82px;
-    height: 82px;
-    left: -6px;
-    bottom: -2px;
-    opacity: .8;
-  }
-
-  html body .spreelo191-modal::after {
-    right: 18px;
-    top: 70px;
-    width: 62px;
-    height: 44px;
-    opacity: .55;
-  }
-
-  html body .spreelo191-header {
-    padding: 14px 14px 10px !important;
-  }
-
-  html body .spreelo191-logo { width: 114px; }
-
-  html body .spreelo191-step-badge {
-    min-height: 30px;
-    padding: 6px 11px;
-    font-size: 9px;
-  }
-
-  html body .spreelo191-close {
-    width: 36px;
-    height: 36px;
-  }
-
-  html body .spreelo191-body {
-    padding: 0 14px 12px !important;
-  }
-
-  html body .spreelo191-actions {
-    padding: 10px 14px 16px !important;
-  }
-
-  html body .spreelo203-ready-pill {
-    margin-top: 10px;
-    font-size: 10px;
-  }
-
-  html body .spreelo203-hero {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  html body .spreelo203-hero-copy h2 {
-    max-width: none;
-    font-size: 30px;
-    line-height: .98;
-  }
-
-  html body .spreelo203-hero-burst { margin-left: 8px; }
-
-  html body .spreelo203-hero-copy p {
-    max-width: none;
-    font-size: 13px;
-    line-height: 1.48;
-  }
-
-  html body .spreelo203-hero-art {
-    width: 100%;
-    max-width: 296px;
-    height: 160px;
-    justify-self: center;
-  }
-
-  html body .spreelo203-scribble {
-    left: 4px;
-    top: 8px;
-    font-size: 18px;
-  }
-
-  html body .spreelo203-count-badge {
-    width: 86px;
-    min-height: 102px;
-  }
-
-  html body .spreelo203-count-badge strong { font-size: 46px; }
-  html body .spreelo203-count-badge span { font-size: 14px; }
-
-  html body .spreelo203-hero-note,
-  html body .spreelo203-hero-heart { display: none; }
-
-  html body .spreelo203-steps {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  html body .spreelo203-step {
-    min-height: 0;
-    display: grid;
-    grid-template-columns: 100px minmax(0, 1fr);
-    align-items: center;
-    column-gap: 12px;
-    row-gap: 0;
-    padding: 11px 12px;
-  }
-
-  html body .spreelo203-step-head {
-    grid-column: 2;
-    grid-row: 1;
-    margin-bottom: 4px;
-  }
-
-  html body .spreelo203-step-media {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-    height: 86px;
-    margin-top: 0;
-  }
-
-  html body .spreelo203-step-copy {
-    grid-column: 2;
-    grid-row: 2;
-    margin-top: 0;
-  }
-
-  html body .spreelo203-step-copy strong { font-size: 13.4px; }
-  html body .spreelo203-step-copy p { font-size: 11.6px; }
-
-  html body .spreelo203-section-heading-wrap {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  html body .spreelo203-section-chip {
-    width: fit-content;
-    max-width: 100%;
-    white-space: normal;
-  }
-
-  html body .spreelo199-personal-desktop { display: none; }
-  html body .spreelo199-personal-mobile { display: block; margin-top: 0; }
-
-  html body .spreelo199-mobile-personal-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  html body .spreelo199-mobile-personal-grid > article { min-height: 0; }
-
-  html body .spreelo191-summary-grid,
-  html body .spreelo203-benefits,
-  html body .spreelo201-benefits {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  html body .spreelo203-planned-heading {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  html body .spreelo203-planned-meta {
-    justify-content: space-between;
-    gap: 10px;
-    font-size: 12px;
-    flex-wrap: wrap;
-  }
-
-  html body .spreelo196-post-card {
-    width: 146px;
-    min-width: 146px;
-  }
-
-  html body .spreelo191-note {
-    padding: 12px 13px;
-    font-size: 11.7px;
-  }
-
-  html body .spreelo191-actions .spreelo191-primary {
-    min-height: 58px;
-    font-size: 15px;
-  }
-
-  html body .spreelo191-actions .spreelo191-secondary {
-    min-height: 48px;
-    font-size: 14px;
-  }
-
-  html body .spreelo203-cta-note { display: none; }
+  .spreelo201-benefit strong { font-size:12.8px; }
+  .spreelo201-benefit p { font-size:11.2px; }
 }
