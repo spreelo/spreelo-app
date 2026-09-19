@@ -72,6 +72,11 @@ import {
   isStrategicProductContentType,
 } from "../../../../lib/contentPlanningStrategy.js";
 import {
+  formatBrandLearningGenerationGuidance,
+  getBrandLearningContentTypeAdjustment,
+  loadBrandLearningProfile,
+} from "../../../../lib/brandLearning.js";
+import {
   cancelCampaignResearchJobsForOccurrence,
   cancelOtherActiveCampaignResearchJobs,
   cleanupTerminalCampaignResearchJobs,
@@ -1102,6 +1107,7 @@ function selectHistoryBalancedAdaptiveVariant({
   scheduledPublishAtIso,
   historyByOwner = new Map(),
   usedTypesByOwner = new Map(),
+  learningProfilesByOwner = new Map(),
 }) {
   const variants = Array.isArray(config?.variants) ? config.variants : [];
   if (!variants.length) return { variant: null, variantIndex: -1 };
@@ -1112,6 +1118,7 @@ function selectHistoryBalancedAdaptiveVariant({
   const ownerKey = getAdaptiveHistoryKey(rule);
   const history = ownerKey ? historyByOwner.get(ownerKey) || [] : [];
   const usedThisRun = ownerKey ? usedTypesByOwner.get(ownerKey) || new Set() : new Set();
+  const learningProfile = ownerKey ? learningProfilesByOwner.get(ownerKey) || null : null;
   const recentTypes = history
     .map((item) => String(item?.content_type_id || "").trim())
     .filter(Boolean)
@@ -1148,6 +1155,10 @@ function selectHistoryBalancedAdaptiveVariant({
     // Keep recurring variation aligned with the same goal-fit table used by
     // AI Content Studio, while history still prevents repetitive weeks.
     score += (getContentGoalWeight(goalId, contentTypeId, 60) - 60) * 0.35;
+    score += getBrandLearningContentTypeAdjustment(learningProfile, contentTypeId, {
+      minObservations: 3,
+      maxAdjustment: 12,
+    });
 
     if (usedThisRun.has(contentTypeId)) score -= 125;
     if (firstRecentIndex === 0) score -= 115;
@@ -1203,6 +1214,7 @@ function resolveAdaptiveWeeklyRule(rule, scheduledPublishAtIso, options = {}) {
         scheduledPublishAtIso,
         historyByOwner: options.historyByOwner,
         usedTypesByOwner: options.usedTypesByOwner,
+        learningProfilesByOwner: options.learningProfilesByOwner,
       });
     variant = selected?.variant;
     variantIndex = Number.isInteger(selected?.variantIndex)
@@ -1316,6 +1328,32 @@ async function loadAdaptiveWeeklyHistory({ supabase, rules, now }) {
     });
 
   return historyByOwner;
+}
+
+async function loadAdaptiveWeeklyLearningProfiles({ supabase, rules }) {
+  const learningProfilesByOwner = new Map();
+  const uniqueBrands = new Map();
+
+  for (const rule of rules || []) {
+    const brandProfileId = String(rule?.brand_profile_id || "").trim();
+    const userId = String(rule?.user_id || "").trim();
+    if (!brandProfileId || !userId || uniqueBrands.has(brandProfileId)) continue;
+    uniqueBrands.set(brandProfileId, { brandProfileId, userId });
+  }
+
+  await Promise.all(
+    [...uniqueBrands.values()].map(async ({ brandProfileId, userId }) => {
+      const profile = await loadBrandLearningProfile({
+        supabase,
+        brandProfileId,
+        userId,
+      });
+      if (!profile) return;
+      learningProfilesByOwner.set(`brand:${brandProfileId}`, profile);
+    })
+  );
+
+  return learningProfilesByOwner;
 }
 
 function rememberAdaptiveWeeklySelection({
@@ -4153,6 +4191,10 @@ Important:
 `.trim();
   }
 
+  const learningGuidance = formatBrandLearningGenerationGuidance(
+    brandProfile.brand_learning_profile
+  );
+
   return `
 Business name: ${brandProfile.business_name || "Not provided"}
 Website URL: ${brandProfile.website_url || "Not provided"}
@@ -4163,6 +4205,7 @@ Industry / business type: ${brandProfile.industry || "Not provided"}
 Target audience: ${brandProfile.target_audience || "Not provided"}
 Market: ${brandProfile.content_market || brandProfile.country_code || "Not provided"}
 Content language: ${brandProfile.content_language || "Not provided"}
+${learningGuidance ? `\n${learningGuidance}` : ""}
 `.trim();
 }
 
@@ -14183,7 +14226,18 @@ async function getBrandProfileForRule(supabase, rule) {
     return null;
   }
 
-  return data || null;
+  if (!data) return null;
+
+  const learningProfile = await loadBrandLearningProfile({
+    supabase,
+    brandProfileId: rule.brand_profile_id,
+    userId: rule.user_id,
+  });
+
+  return {
+    ...data,
+    brand_learning_profile: learningProfile,
+  };
 }
 
 async function refreshEditorialBrandLogoConfig(supabase, rule, fallbackBrandProfile = null) {
@@ -44956,6 +45010,10 @@ async function runAutomationCron(request, options = {}) {
       rules,
       now,
     });
+    const adaptiveLearningProfilesByOwner = await loadAdaptiveWeeklyLearningProfiles({
+      supabase,
+      rules,
+    });
     const adaptiveTypesUsedThisRun = new Map();
     summary.queue_candidates = rules?.length || 0;
 
@@ -44981,6 +45039,7 @@ async function runAutomationCron(request, options = {}) {
         {
           historyByOwner: adaptiveHistoryByOwner,
           usedTypesByOwner: adaptiveTypesUsedThisRun,
+          learningProfilesByOwner: adaptiveLearningProfilesByOwner,
         }
       );
       const rule = applyScheduleOverrideContent(adaptiveRule, queuedRule);
@@ -48278,6 +48337,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
             {
               historyByOwner: adaptiveHistoryByOwner,
               usedTypesByOwner: adaptiveTypesUsedThisRun,
+              learningProfilesByOwner: adaptiveLearningProfilesByOwner,
             }
           );
           const nextScheduleOverride = await loadScheduleOverrideForBaseRun({

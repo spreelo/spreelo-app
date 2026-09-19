@@ -8,6 +8,10 @@ import {
 } from "../../../lib/platformContentCompatibility";
 import { hasVerifiedServiceEvidence } from "../../../lib/editorialContentStrategy";
 import { CONTENT_GOAL_WEIGHTS, getContentGoalWeight } from "../../../lib/contentPlanningStrategy";
+import {
+  buildBrandLearningPlannerContext,
+  getBrandLearningContentTypeAdjustment,
+} from "../../../lib/brandLearning.js";
 
 export const maxDuration = 60;
 
@@ -242,7 +246,7 @@ function getDefaultMarketingValues(goalId, formatId) {
   };
 }
 
-function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [] }) {
+function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [], learningProfile = null }) {
   const goalWeights = GOAL_WEIGHTS[goalId] || GOAL_WEIGHTS.build_trust;
   const selected = [];
   const selectedCategories = new Map();
@@ -259,12 +263,18 @@ function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory
           contentTypeId: format.id,
           selectedPlatforms,
         });
+        const learningAdjustment = getBrandLearningContentTypeAdjustment(
+          learningProfile,
+          format.id,
+          { minObservations: 3, maxAdjustment: 10 }
+        );
         const score =
           getContentGoalWeight(goalId, format.id, Number(goalWeights[format.id] || 40)) -
           getRecencyPenalty(format.id, recentHistory) -
           categoryPenalty -
           productPenalty +
-          platformCoverage * 5;
+          platformCoverage * 5 +
+          learningAdjustment;
 
         return { format, score };
       })
@@ -346,7 +356,7 @@ function normalizePlanningItem(item, availableFormatMap, goalId, selectedPlatfor
   };
 }
 
-function normalizePlan({ rawPlan, goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [] }) {
+function normalizePlan({ rawPlan, goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [], learningProfile = null }) {
   const availableFormatMap = new Map(availableFormats.map((format) => [format.id, format]));
   const fallbackItems = buildFallbackItems({
     goalId,
@@ -354,6 +364,7 @@ function normalizePlan({ rawPlan, goalId, postCount, availableFormats, recentHis
     availableFormats,
     recentHistory,
     selectedPlatforms,
+    learningProfile,
   });
   const seenPlanTypes = new Set();
   const planItems = [];
@@ -409,7 +420,7 @@ function buildHistorySummary(recentHistory) {
 }
 
 async function loadOptionalPlanningContext(supabase, brandProfileId, userId) {
-  const [historyResult, rulesResult, campaignsResult] = await Promise.all([
+  const [historyResult, rulesResult, campaignsResult, learningResult] = await Promise.all([
     supabase
       .from("automation_run_logs")
       .select("content_type_id, content_format, product_titles, campaign_title, status, started_at, created_at")
@@ -431,6 +442,12 @@ async function loadOptionalPlanningContext(supabase, brandProfileId, userId) {
       .eq("user_id", userId)
       .eq("is_active", true)
       .limit(20),
+    supabase
+      .from("brand_learning_profiles")
+      .select("profile_json, learning_state, source_event_count, approved_count, rejected_count, last_event_at")
+      .eq("brand_profile_id", brandProfileId)
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
 
   return {
@@ -456,6 +473,7 @@ async function loadOptionalPlanningContext(supabase, brandProfileId, userId) {
           }))
           .slice(0, 10)
       : [],
+    learningProfile: learningResult?.error ? null : learningResult?.data || null,
   };
 }
 
@@ -532,6 +550,7 @@ export async function POST(request) {
       availableFormats,
       recentHistory: context.recentHistory,
       selectedPlatforms,
+      learningProfile: context.learningProfile,
     });
 
     if (!process.env.OPENAI_API_KEY) {
@@ -553,6 +572,8 @@ export async function POST(request) {
         return `- ${format.id}: ${format.label}. ${format.purpose}${destinationText}`;
       })
       .join("\n");
+
+    const customerLearning = buildBrandLearningPlannerContext(context.learningProfile);
 
     const response = await openai.responses.create({
       model: contentPlanModel,
@@ -588,6 +609,9 @@ ${JSON.stringify(buildHistorySummary(context.recentHistory))}
 CURRENTLY PLANNED OR ACTIVE FORMATS
 ${JSON.stringify(context.activeRules.slice(0, 25))}
 
+CUSTOMER LEARNING SIGNALS
+${JSON.stringify(customerLearning || { learning_state: "collecting", note: "Not enough customer decisions yet to influence planning." })}
+
 UPCOMING CALENDAR OPPORTUNITIES
 ${JSON.stringify(context.upcomingCampaigns)}
 
@@ -607,6 +631,8 @@ RULES
 - Do not repeat a format in the same week unless there are too few valid formats. Prefer meaningful variety over a fixed sequence.
 - Avoid formats used in the most recent posts when equally strong alternatives exist. Look across roughly the last 8-12 weeks.
 - Also avoid repeating the same product or subject visible in recent history; the later generation system will select exact products, but the plan should create room for variety.
+- Customer learning signals are soft evidence from this specific brand's approval/rejection history. Use them only when there are enough observations and never let them override the selected goal, channel compatibility, verified capabilities, recency or factual safety.
+- Negative customer learning is intentionally conservative because a rejected post may have had an execution problem rather than a bad content type. Do not permanently ban a format from one or two decisions.
 - Judge the balance across a rolling multi-week schedule. Do not force an exact percentage or identical mix into every individual week.
 - For Sell more, make product businesses clearly more product-driven while still combining demand, clarity, trust and conversion with supporting value posts. Do not turn every post into an advertisement.
 - For Get more followers, make the plan primarily engaging, saveable and shareable. Use a smaller share of pure product advertisements and give the audience a reason to follow, save, comment or share.
@@ -653,6 +679,7 @@ Return this exact JSON structure:
       availableFormats,
       recentHistory: context.recentHistory,
       selectedPlatforms,
+      learningProfile: context.learningProfile,
     });
 
     return Response.json({

@@ -14,6 +14,7 @@ import {
   getHealthyTikTokAccessToken,
   getTikTokEnv,
 } from "../../../lib/tiktokOAuth.js";
+import { recordBrandLearningEvent } from "../../../lib/brandLearning.js";
 
 export const dynamic = "force-dynamic";
 
@@ -463,6 +464,15 @@ async function markGeneralPostApproved({ supabase, post }) {
     })
     .eq("post_id", post.id);
 
+  // Grow Brain step 1: record the customer's explicit approval as a brand-level
+  // learning signal. The helper is deliberately fail-open, so a missing/new
+  // learning table can never block the existing approval flow.
+  await recordBrandLearningEvent({
+    supabase,
+    post,
+    eventType: "approved",
+  });
+
   return approvedAt;
 }
 
@@ -683,7 +693,7 @@ export async function GET(request) {
 
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, user_id, status, approval_token, language, brand_profile_id, content_format, platform, content, image_url, video_url, platform_publish_settings, approved_at, published_at")
+      .select("id, user_id, status, approval_token, language, brand_profile_id, automation_rule_id, content_format, platform, tone, post_type, content, image_url, video_url, platform_publish_settings, approved_at, published_at")
       .eq("approval_token", token)
       .single();
 
@@ -846,7 +856,7 @@ export async function POST(request) {
 
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, user_id, brand_profile_id, status, approval_token, language, content_format, platform, content, image_url, video_url, platform_publish_settings, approved_at, published_at")
+      .select("id, user_id, brand_profile_id, automation_rule_id, status, approval_token, language, content_format, platform, tone, post_type, content, image_url, video_url, platform_publish_settings, approved_at, published_at")
       .eq("approval_token", token)
       .single();
     if (postError || !post) throw new Error("approval_link_invalid");

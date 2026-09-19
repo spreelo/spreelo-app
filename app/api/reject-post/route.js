@@ -9,6 +9,7 @@ import {
   resolveUiLocaleFromLanguageName,
 } from "../../../lib/i18n/serverUiText.js";
 import { resolveLocaleFromUserMetadata } from "../../../lib/userAppLocale.js";
+import { recordBrandLearningEvent } from "../../../lib/brandLearning.js";
 
 export const dynamic = "force-dynamic";
 
@@ -87,7 +88,7 @@ async function getContext(request) {
 
   const { data: post, error } = await admin
     .from("posts")
-    .select("id, user_id, brand_profile_id, status, approval_token, language, content, post_type, platform, scheduled_for")
+    .select("id, user_id, brand_profile_id, automation_rule_id, status, approval_token, language, content, post_type, content_format, platform, tone, scheduled_for")
     .eq("approval_token", token)
     .maybeSingle();
   if (error || !post) return { admin, token, error: "not_found" };
@@ -278,6 +279,17 @@ export async function POST(request) {
     needs_review: true,
     updated_at: now,
   }).eq("post_id", context.post.id);
+
+  // Grow Brain step 1: preserve both the structured reason and the customer's
+  // own correction text. The learning write is fail-open and cannot turn a
+  // successful rejection into an error.
+  await recordBrandLearningEvent({
+    supabase: context.admin,
+    post: context.post,
+    eventType: "rejected",
+    rejectionCategory: reasonCategory,
+    rejectionText: reasonText,
+  });
 
   const brandName = context.brand?.business_name || "Spreelo customer";
   const adminHtml = `<h2>Rejected Spreelo post</h2><p><strong>Customer:</strong> ${escapeHtml(customerEmail || "Unknown")}</p><p><strong>Brand:</strong> ${escapeHtml(brandName)}</p><p><strong>Post:</strong> ${escapeHtml(context.post.post_type || "Post")}</p><p><strong>Category:</strong> ${escapeHtml(reasonCategory)}</p><p><strong>Feedback:</strong></p><p>${escapeHtml(reasonText).replace(/\n/g, "<br>")}</p><p>Review this item in the Spreelo admin approval inbox.</p>`;

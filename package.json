@@ -219,7 +219,8 @@
     "test:v144.191": "node scripts/test-v144-191-onboarding-variant5.mjs",
     "test:v144.192": "node scripts/test-v144-192-onboarding-readability-mobile-fit.mjs",
     "test:v144.199": "node scripts/test-v144-199-personalized-onboarding-i18n.mjs",
-    "test:v144.201": "node scripts/test-v144-201-onboarding-explainer.mjs"
+    "test:v144.201": "node scripts/test-v144-201-onboarding-explainer.mjs",
+    "test:v144.212": "node scripts/test-v144-212-grow-brain-brand-learning.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",
