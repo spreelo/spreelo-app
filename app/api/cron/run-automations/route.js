@@ -43770,8 +43770,9 @@ async function publishApprovedSocialPosts({
           throw new Error("No connected Facebook page found for this brand");
         }
 
+        let facebookResult;
         if (normalizedFormat === "animated_video") {
-          await publishVideoPostToFacebook({
+          facebookResult = await publishVideoPostToFacebook({
             pageId: facebookConnection.page_id,
             pageAccessToken: facebookConnection.page_access_token,
             videoUrl: post.video_url,
@@ -43791,33 +43792,41 @@ async function publishApprovedSocialPosts({
             throw new Error("Carousel post is missing render-ready slide images for Facebook publishing.");
           }
 
-          await publishCarouselPostToFacebook({
+          facebookResult = await publishCarouselPostToFacebook({
             pageId: facebookConnection.page_id,
             pageAccessToken: facebookConnection.page_access_token,
             slideImageUrls,
             caption: post.content,
           });
         } else if (post.image_url) {
-          await publishImagePostToFacebook({
+          facebookResult = await publishImagePostToFacebook({
             pageId: facebookConnection.page_id,
             pageAccessToken: facebookConnection.page_access_token,
             imageUrl: post.image_url,
             caption: post.content,
           });
         } else {
-          await publishTextPostToFacebook({
+          facebookResult = await publishTextPostToFacebook({
             pageId: facebookConnection.page_id,
             pageAccessToken: facebookConnection.page_access_token,
             message: post.content,
           });
         }
 
+        const facebookExternalId = facebookResult?.post_id || facebookResult?.id || null;
         await persistPublishedTarget({
           supabase,
           postId: post.id,
           publishedTargetSet,
           publishReceipts,
           target: "facebook",
+          receipt: facebookExternalId
+            ? {
+                post_id: String(facebookExternalId),
+                object_id: facebookResult?.id ? String(facebookResult.id) : null,
+                recorded_at: nowIso,
+              }
+            : { recorded_at: nowIso },
           nowIso,
         });
         summary.facebook_published += 1;
@@ -43859,8 +43868,9 @@ async function publishApprovedSocialPosts({
           throw new Error("No connected Instagram account found for this brand");
         }
 
+        let instagramResult;
         if (normalizedFormat === "animated_video") {
-          await publishVideoPostToInstagram({
+          instagramResult = await publishVideoPostToInstagram({
             instagramUserId: instagramConnection.page_id,
             accessToken: instagramConnection.page_access_token,
             videoUrl: post.video_url,
@@ -43880,14 +43890,14 @@ async function publishApprovedSocialPosts({
             throw new Error("Carousel post is missing render-ready slide images for Instagram publishing.");
           }
 
-          await publishCarouselPostToInstagram({
+          instagramResult = await publishCarouselPostToInstagram({
             instagramUserId: instagramConnection.page_id,
             accessToken: instagramConnection.page_access_token,
             slideImageUrls,
             caption: buildInstagramCaptionFromPostContent(post.content),
           });
         } else {
-          await publishImagePostToInstagram({
+          instagramResult = await publishImagePostToInstagram({
             instagramUserId: instagramConnection.page_id,
             accessToken: instagramConnection.page_access_token,
             imageUrl: post.image_url,
@@ -43901,6 +43911,9 @@ async function publishApprovedSocialPosts({
           publishedTargetSet,
           publishReceipts,
           target: "instagram",
+          receipt: instagramResult?.id
+            ? { media_id: String(instagramResult.id), recorded_at: nowIso }
+            : { recorded_at: nowIso },
           nowIso,
         });
         summary.instagram_published += 1;

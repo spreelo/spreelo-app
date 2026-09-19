@@ -92,6 +92,7 @@ function buildInstagramLoginUrl({ request, userId, brandProfileId }) {
     scope: [
       "instagram_business_basic",
       "instagram_business_content_publish",
+      "instagram_business_manage_insights",
     ].join(","),
   });
 
