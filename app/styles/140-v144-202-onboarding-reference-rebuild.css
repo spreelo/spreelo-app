@@ -1494,3 +1494,80 @@ html body .spreeloRef-date-badge {
     min-height: 56px !important;
   }
 }
+
+/* v144.210 — use the new hero artwork without baked-in count panel,
+   and render the post-count as a real HTML card on top of it. */
+html body .spreeloRef-count {
+  right: 36px !important;
+  top: 14px !important;
+  width: 88px !important;
+  min-height: 90px !important;
+  padding: 10px 8px 10px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 22px !important;
+  border: 1.5px solid rgba(122, 102, 228, 0.08) !important;
+  background: #ffffff !important;
+  box-shadow: 0 16px 30px rgba(65, 56, 132, 0.16) !important;
+  transform: rotate(7deg) !important;
+  transform-origin: 50% 50% !important;
+  text-align: center !important;
+}
+
+html body .spreeloRef-count strong {
+  color: #13204f !important;
+  font-size: 37px !important;
+  line-height: .82 !important;
+  font-weight: 900 !important;
+}
+
+html body .spreeloRef-count span {
+  display: block !important;
+  max-width: 64px !important;
+  margin: 3px auto 0 !important;
+  color: #6a53e6 !important;
+  font-size: 13px !important;
+  line-height: 1.02 !important;
+  font-weight: 900 !important;
+  letter-spacing: -.01em !important;
+  text-align: center !important;
+}
+
+html body .spreeloRef-check {
+  right: 28px !important;
+  top: 88px !important;
+  width: 30px !important;
+  height: 30px !important;
+}
+
+@media (max-width: 720px) {
+  html body .spreeloRef-count {
+    right: 28px !important;
+    top: 14px !important;
+    width: 76px !important;
+    min-height: 78px !important;
+    padding: 9px 6px 8px !important;
+    border-radius: 20px !important;
+  }
+
+  html body .spreeloRef-count strong {
+    font-size: 32px !important;
+  }
+
+  html body .spreeloRef-count span {
+    max-width: 56px !important;
+    margin-top: 2px !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
+  }
+
+  html body .spreeloRef-check {
+    right: 21px !important;
+    top: 76px !important;
+    width: 28px !important;
+    height: 28px !important;
+  }
+}
