@@ -1229,3 +1229,97 @@ html body .spreeloRef-post-row.is-dragging {
 html body .spreeloRef-post-row.is-dragging .spreeloRef-post-card {
   pointer-events: none;
 }
+
+
+/* v144.203 readability pass — keep all customer-facing onboarding copy comfortably readable. */
+html body .spreeloRef-help-pill,
+html body .spreeloRef-ready-pill {
+  font-size: 12px;
+}
+
+html body .spreeloRef-hero-note,
+html body .spreeloRef-loading {
+  font-size: 13px;
+}
+
+html body .spreeloRef-step-label,
+html body .spreeloRef-step h3 {
+  font-size: 15px;
+}
+
+html body .spreeloRef-step p {
+  font-size: 13.5px;
+  line-height: 1.42;
+}
+
+html body .spreeloRef-benefits strong,
+html body .spreeloRef-summary-cards strong,
+html body .spreeloRef-detail-grid strong,
+html body .spreeloRef-ready-banner strong,
+html body .spreeloRef-post-footer strong {
+  font-size: 15px;
+}
+
+html body .spreeloRef-benefits p,
+html body .spreeloRef-tailored,
+html body .spreeloRef-summary-cards p,
+html body .spreeloRef-detail-grid p,
+html body .spreeloRef-why,
+html body .spreeloRef-ready-banner p,
+html body .spreeloRef-planned-meta,
+html body .spreeloRef-note {
+  font-size: 13.5px;
+  line-height: 1.42;
+}
+
+html body .spreeloRef-date-badge span {
+  font-size: 11.5px;
+}
+
+html body .spreeloRef-cta-note::after {
+  content: none;
+  display: none;
+}
+
+@media (max-width: 720px) {
+  html body .spreeloRef-help-pill,
+  html body .spreeloRef-ready-pill {
+    font-size: 11.5px;
+  }
+
+  html body .spreeloRef-step-label,
+  html body .spreeloRef-step h3,
+  html body .spreeloRef-benefits strong,
+  html body .spreeloRef-summary-cards strong,
+  html body .spreeloRef-detail-grid strong,
+  html body .spreeloRef-ready-banner strong,
+  html body .spreeloRef-post-footer strong {
+    font-size: 15px;
+  }
+
+  html body .spreeloRef-step p,
+  html body .spreeloRef-benefits p,
+  html body .spreeloRef-tailored,
+  html body .spreeloRef-summary-cards p,
+  html body .spreeloRef-detail-grid p,
+  html body .spreeloRef-why,
+  html body .spreeloRef-ready-banner p,
+  html body .spreeloRef-planned-meta,
+  html body .spreeloRef-note {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+}
+
+@media (max-width: 720px) {
+  html body .spreeloRef-hero-copy p,
+  html body .spreeloRef-count span,
+  html body .spreeloRef-loading {
+    font-size: 13px;
+  }
+
+  html body .spreeloRef-help-pill,
+  html body .spreeloRef-ready-pill {
+    font-size: 12px;
+  }
+}

@@ -249,21 +249,33 @@ const SMART_ONBOARDING_MARKET_ALIASES = {
 };
 
 function getLocalizedSmartOnboardingMarketLabel(t, marketValue, countryCode) {
-  const normalizedCountryCode = String(countryCode || "").trim().toUpperCase();
-  if (normalizedCountryCode) {
-    const translatedByCode = t(`automation.onboarding.market.${normalizedCountryCode}`);
-    if (translatedByCode && !translatedByCode.startsWith("automation.onboarding.market.")) {
-      return translatedByCode;
+  const resolveMarketCode = (code) => {
+    const normalizedCode = String(code || "").trim().toUpperCase();
+    if (!normalizedCode) return "";
+
+    const keys = [
+      `automation.onboarding.market.${normalizedCode}`,
+      `onboarding.market.${normalizedCode}`,
+      `brand.market.${normalizedCode}`,
+    ];
+
+    for (const key of keys) {
+      const translated = t(key);
+      if (translated && translated !== key) return translated;
     }
-  }
+
+    return "";
+  };
+
+  const translatedCountry = resolveMarketCode(countryCode);
+  if (translatedCountry) return translatedCountry;
 
   const normalizedMarketValue = String(marketValue || "").trim();
   if (!normalizedMarketValue) return "";
 
-  const translatedByAlias = t(`automation.onboarding.market.${SMART_ONBOARDING_MARKET_ALIASES[normalizedMarketValue.toLowerCase()] || ""}`);
-  if (translatedByAlias && !translatedByAlias.startsWith("automation.onboarding.market.")) {
-    return translatedByAlias;
-  }
+  const aliasCode = SMART_ONBOARDING_MARKET_ALIASES[normalizedMarketValue.toLowerCase()] || "";
+  const translatedAlias = resolveMarketCode(aliasCode);
+  if (translatedAlias) return translatedAlias;
 
   return normalizedMarketValue;
 }
