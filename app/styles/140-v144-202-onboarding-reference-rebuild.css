@@ -1354,3 +1354,59 @@ html body .spreeloRef-modal::after {
     font-weight: 600;
   }
 }
+
+
+/* v144.208 — hero count alignment + planned-card label size */
+
+/* Place the dynamic post count inside the white tilted panel that is part of
+   the hero artwork, and rotate the content to match the panel itself. */
+html body .spreeloRef-count {
+  right: 74px !important;
+  top: 22px !important;
+  width: 52px !important;
+  min-height: 58px !important;
+  transform: rotate(7deg);
+  transform-origin: 50% 50%;
+}
+
+html body .spreeloRef-count strong {
+  font-size: 34px !important;
+  line-height: .86 !important;
+}
+
+html body .spreeloRef-count span {
+  margin-top: 2px !important;
+  font-size: 11px !important;
+  line-height: .96 !important;
+}
+
+/* Planned content-type labels below the preview images should be readable
+   without dominating the compact cards. */
+html body .spreeloRef-post-footer strong {
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
+
+@media (max-width: 720px) {
+  html body .spreeloRef-count {
+    right: 59px !important;
+    top: 20px !important;
+    width: 46px !important;
+    min-height: 51px !important;
+    transform: rotate(7deg);
+  }
+
+  html body .spreeloRef-count strong {
+    font-size: 30px !important;
+  }
+
+  html body .spreeloRef-count span {
+    font-size: 10px !important;
+    line-height: .96 !important;
+  }
+
+  html body .spreeloRef-post-footer strong {
+    font-size: 13px !important;
+  }
+}
