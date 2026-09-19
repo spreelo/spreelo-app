@@ -11520,6 +11520,7 @@ function blockFormatCardClickAfterDrag(event) {
   const smartOnboardingIntroText = t("automation.onboardingV203.intro", { brandName: smartOnboardingBrandName, count: autoPlanPostCount });
   const smartOnboardingIntroParts = String(smartOnboardingIntroText).split(String(smartOnboardingBrandName));
   const smartOnboardingCountBadgeText = t("automation.onboardingV203.postsPerWeekCompact");
+  const smartOnboardingPersonalizedLabel = t("automation.onboardingV203.personalizedFor", { brandName: smartOnboardingBrandName });
   const smartOnboardingCostSummary = t("automation.onboardingV191.costSummary", { credits: plannedCredits });
   const smartOnboardingVariedSummary = t("automation.onboardingV191.variedSummary");
   const smartOnboardingWhySummary = autoPlanGoal === "sell_more"
@@ -15124,9 +15125,11 @@ function blockFormatCardClickAfterDrag(event) {
                     </div>
                   </div>
 
+                  <span className="spreelo203-ready-pill"><CheckCircle2 size={14}/>{t("automation.onboardingV203.readyForYou")}</span>
+
                   <div className="spreelo191-hero spreelo203-hero">
                     <div className="spreelo191-hero-copy spreelo203-hero-copy">
-                      <h2 id="spreelo191-onboarding-title">{t("automation.onboardingV203.heroTitle")}</h2>
+                      <h2 id="spreelo191-onboarding-title">{t("automation.onboardingV203.heroTitle")}<span className="spreelo203-hero-burst" aria-hidden="true">🎉</span></h2>
                       <p>{smartOnboardingIntroParts.length > 1 ? (
                         <>
                           {smartOnboardingIntroParts[0]}
@@ -15143,6 +15146,8 @@ function blockFormatCardClickAfterDrag(event) {
                         <span>{smartOnboardingCountBadgeText}</span>
                       </div>
                       <span className="spreelo203-check-badge"><CheckCircle2 size={18}/></span>
+                      <span className="spreelo203-hero-note">{t("automation.onboardingV203.heroNote")}</span>
+                      <span className="spreelo203-hero-heart" aria-hidden="true">♡</span>
                     </div>
                   </div>
                 </header>
@@ -15230,6 +15235,11 @@ function blockFormatCardClickAfterDrag(event) {
                     </div>
                   </section>
 
+                  <section className="spreelo203-section-heading-wrap spreelo203-summary-heading" aria-hidden="true">
+                    <div className="spreelo203-section-title"><Sparkles size={20}/><strong>{t("automation.onboardingV203.planSummaryTitle")}</strong></div>
+                    <div className="spreelo203-section-chip"><LayoutGrid size={16}/><span>{smartOnboardingPersonalizedLabel}</span><ChevronRight size={16}/></div>
+                  </section>
+
                   <section className="spreelo199-personal spreelo199-personal-desktop" aria-label={t("automation.onboardingV199.personalizedTitle", { brandName: smartOnboardingBrandName })}>
                     <div className="spreelo199-personal-heading">
                       <Sparkles size={16}/>
@@ -15252,6 +15262,10 @@ function blockFormatCardClickAfterDrag(event) {
                     <p className="spreelo199-personal-reason">
                       <strong>{t("automation.onboardingV199.reasonLabel")}</strong> {smartOnboardingWhySummary}
                     </p>
+                  </section>
+
+                  <section className="spreelo203-section-heading-wrap spreelo203-includes-heading" aria-hidden="true">
+                    <div className="spreelo203-section-title"><ClipboardList size={20}/><strong>{t("automation.onboardingV203.planIncludesTitle")}</strong></div>
                   </section>
 
                   <div className="spreelo191-ready-banner">
@@ -15351,8 +15365,12 @@ function blockFormatCardClickAfterDrag(event) {
                   </section>
 
                   <section className="spreelo191-planned spreelo196-planned">
-                    <div className="spreelo191-section-heading spreelo196-section-heading">
+                    <div className="spreelo191-section-heading spreelo196-section-heading spreelo203-planned-heading">
                       <div><CalendarDays size={18}/><strong>{t("automation.onboardingV191.plannedTitle")}</strong></div>
+                      <div className="spreelo203-planned-meta">
+                        <span><CalendarDays size={14}/>{t("automation.onboardingV203.postsThisWeek", { count: autoPlanPostCount })}</span>
+                        <a href="/calendar">{t("automation.onboardingV203.viewFullPlan")}<ChevronRight size={14}/></a>
+                      </div>
                     </div>
                     <div className="spreelo196-post-carousel">
                       <button
@@ -15416,12 +15434,14 @@ function blockFormatCardClickAfterDrag(event) {
                     disabled={saving || smartOnboardingLoading || !slots.length}
                     onClick={() => void savePlan()}
                   >
-                    {saving ? <LoaderCircle className="admin-spin" size={18}/> : <Rocket size={18}/>} 
-                    {saving ? t("automation.onboarding.activating") : t("automation.onboardingV191.activate")}
+                    {saving ? <LoaderCircle className="admin-spin" size={18}/> : <Send size={18}/>} 
+                    <span>{saving ? t("automation.onboarding.activating") : t("automation.onboardingV191.activate")}</span>
+                    {!saving ? <span className="spreelo203-primary-arrow" aria-hidden="true">→</span> : null}
                   </button>
                   <button type="button" className="spreelo191-secondary" onClick={dismissSmartOnboarding}>
                     {t("automation.onboardingV198.chooseSettings")}
                   </button>
+                  <span className="spreelo203-cta-note" aria-hidden="true">{t("automation.onboardingV203.ctaNote")}</span>
                 </footer>
               </section>
             </div>,
