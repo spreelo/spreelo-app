@@ -1,0 +1,56 @@
+/* Spreelo v144.222 — Grow Brain data/visual polish
+   Smooth performance curve, fuller chart canvas and refined demo content. */
+
+@media (min-width:761px){
+  html body .grow-v222-chart-wrap{
+    min-height:292px!important;
+    grid-template-columns:42px minmax(0,1fr)!important;
+    padding-top:4px!important;
+  }
+  html body .grow-v222-chart-y{
+    height:250px!important;
+    padding:6px 0 8px!important;
+  }
+  html body .grow-v222-chart-canvas svg{
+    height:250px!important;
+  }
+}
+
+html body .grow-v222-smooth-line{
+  fill:none;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+html body .grow-v215-area{
+  fill:url(#growArea);
+}
+html body .grow-v216-chart-point{
+  filter:drop-shadow(0 2px 4px rgba(105,70,214,.14));
+}
+
+/* Six useful visual cards fit on wide desktop, mirroring the design target. */
+@media (min-width:1380px){
+  html body .grow-v216-top-grid{
+    grid-template-columns:repeat(6,minmax(0,1fr))!important;
+    gap:8px!important;
+  }
+  html body .grow-v216-top-media{
+    aspect-ratio:4/3!important;
+  }
+  html body .grow-v216-top-card .grow-v215-top-copy strong{
+    font-size:10.25px!important;
+  }
+}
+
+@media (max-width:760px){
+  html body .grow-v222-chart-wrap{
+    min-height:214px!important;
+    grid-template-columns:28px minmax(0,1fr)!important;
+  }
+  html body .grow-v222-chart-y{
+    height:176px!important;
+  }
+  html body .grow-v222-chart-canvas svg{
+    height:176px!important;
+  }
+}

@@ -16,7 +16,7 @@ assert.match(page, /tiktok: \{ name:/);
 assert.match(page, /youtube: \{ name:/);
 assert.match(page, /pinterest: \{ name:/);
 assert.match(page, /threads: \{ name:/);
-assert.match(page, /\/onboarding-preview\/post-1\.png/);
+assert.match(page, /\/grow-brain\/demo-top-1\.webp/);
 assert.match(page, /learning_state: "established"/);
 assert.match(page, /source_event_count: 18/);
 assert.match(page, /String\(row\.post_id \|\| ""\)\.startsWith\("demo-"\)/);
