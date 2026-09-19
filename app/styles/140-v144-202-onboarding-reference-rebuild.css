@@ -1410,3 +1410,87 @@ html body .spreeloRef-post-footer strong {
     font-size: 13px !important;
   }
 }
+
+
+/* v144.209 — final onboarding polish: purple section headings, brand emphasis,
+   planned-card badge alignment, and hero count fit */
+
+/* Force the three onboarding section headings to use the Spreelo purple accent. */
+html body .spreeloRef-section-head h3,
+html body .spreeloRef-planned-head h3 {
+  color: #6d5ae9 !important;
+}
+
+/* Make the brand name inside the intro sentence clearly personalized. */
+html body .spreeloRef-hero-copy p strong {
+  display: inline-block !important;
+  color: #6d5ae9 !important;
+  font-size: 15.5px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+}
+
+/* Seat the weekly-post-count fully inside the white tilted panel in the hero art. */
+html body .spreeloRef-count {
+  right: 56px !important;
+  top: 18px !important;
+  width: 56px !important;
+  min-height: 64px !important;
+  padding: 2px 2px 0 !important;
+  transform: rotate(7deg) !important;
+  transform-origin: 50% 50% !important;
+}
+
+html body .spreeloRef-count strong {
+  font-size: 35px !important;
+  line-height: .82 !important;
+}
+
+html body .spreeloRef-count span {
+  display: block !important;
+  max-width: 50px !important;
+  margin: 1px auto 0 !important;
+  font-size: 10px !important;
+  line-height: .94 !important;
+  font-weight: 900 !important;
+  letter-spacing: -.01em !important;
+  text-align: center !important;
+}
+
+/* Align the date badge to the actual top-left corner of each card. */
+html body .spreeloRef-date-badge {
+  left: 0 !important;
+  top: 0 !important;
+  min-width: 46px !important;
+  min-height: 58px !important;
+  border-radius: 14px 0 10px 0 !important;
+  box-shadow: 0 6px 12px rgba(64,47,105,.06) !important;
+}
+
+@media (max-width: 720px) {
+  html body .spreeloRef-count {
+    right: 48px !important;
+    top: 18px !important;
+    width: 50px !important;
+    min-height: 58px !important;
+  }
+
+  html body .spreeloRef-count strong {
+    font-size: 31px !important;
+  }
+
+  html body .spreeloRef-count span {
+    max-width: 44px !important;
+    font-size: 9px !important;
+    line-height: .95 !important;
+  }
+
+  html body .spreeloRef-hero-copy p strong {
+    font-size: 14.5px !important;
+  }
+
+  html body .spreeloRef-date-badge {
+    min-width: 44px !important;
+    min-height: 56px !important;
+  }
+}
