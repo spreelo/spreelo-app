@@ -15155,34 +15155,30 @@ function blockFormatCardClickAfterDrag(event) {
                   <section className="spreeloRef-process" aria-label={t("automation.onboardingV202.processAria")}>
                     <div className="spreeloRef-steps" role="list">
                       <article className="spreeloRef-step is-plan" role="listitem">
-                        <div className="spreeloRef-step-top"><span>1</span><strong>{t("automation.onboardingV202.planTag")}</strong></div>
-                        <div className="spreeloRef-step-art"><img src="/onboarding-guide/ai-content-planning-browser-icon.png" alt="" /></div>
-                        <h3>{t("automation.onboardingV202.planTitle")}</h3>
-                        <p>{t("automation.onboardingV202.planText")}</p>
+                        <div className="spreeloRef-step-top"><span>1</span><div className="spreeloRef-step-label">{t("automation.onboardingV202.planTag")}</div></div>
+                        <div className="spreeloRef-step-art-wrap"><div className="spreeloRef-step-art"><img src="/onboarding-guide/ai-content-planning-browser-icon.png" alt="" /></div></div>
+                        <div className="spreeloRef-step-copy"><h3>{t("automation.onboardingV202.planTitle")}</h3><p>{t("automation.onboardingV202.planText")}</p></div>
                       </article>
                       <span className="spreeloRef-flow-arrow" aria-hidden="true"><ChevronRight size={19}/></span>
 
                       <article className="spreeloRef-step is-create" role="listitem">
-                        <div className="spreeloRef-step-top"><span>2</span><strong>{t("automation.onboardingV202.createTag")}</strong></div>
-                        <div className="spreeloRef-step-art"><img src="/onboarding-guide/ai-content-creation-robot-icon.png" alt="" /></div>
-                        <h3>{t("automation.onboardingV202.createTitle")}</h3>
-                        <p>{t("automation.onboardingV202.createText")}</p>
+                        <div className="spreeloRef-step-top"><span>2</span><div className="spreeloRef-step-label">{t("automation.onboardingV202.createTag")}</div></div>
+                        <div className="spreeloRef-step-art-wrap"><div className="spreeloRef-step-art"><img src="/onboarding-guide/ai-content-creation-robot-icon.png" alt="" /></div></div>
+                        <div className="spreeloRef-step-copy"><h3>{t("automation.onboardingV202.createTitle")}</h3><p>{t("automation.onboardingV202.createText")}</p></div>
                       </article>
                       <span className="spreeloRef-flow-arrow" aria-hidden="true"><ChevronRight size={19}/></span>
 
                       <article className="spreeloRef-step is-review" role="listitem">
-                        <div className="spreeloRef-step-top"><span>3</span><strong>{t("automation.onboardingV202.reviewTag")}</strong></div>
-                        <div className="spreeloRef-step-art"><img src="/onboarding-guide/ai-email-approval-envelope-icon.png" alt="" /></div>
-                        <h3>{t("automation.onboardingV202.reviewTitle")}</h3>
-                        <p>{t("automation.onboardingV202.reviewText")}</p>
+                        <div className="spreeloRef-step-top"><span>3</span><div className="spreeloRef-step-label">{t("automation.onboardingV202.reviewTag")}</div></div>
+                        <div className="spreeloRef-step-art-wrap"><div className="spreeloRef-step-art"><img src="/onboarding-guide/ai-email-approval-envelope-icon.png" alt="" /></div></div>
+                        <div className="spreeloRef-step-copy"><h3>{t("automation.onboardingV202.reviewTitle")}</h3><p>{t("automation.onboardingV202.reviewText")}</p></div>
                       </article>
                       <span className="spreeloRef-flow-arrow" aria-hidden="true"><ChevronRight size={19}/></span>
 
                       <article className="spreeloRef-step is-publish" role="listitem">
-                        <div className="spreeloRef-step-top"><span>4</span><strong>{t("automation.onboardingV202.publishTag")}</strong></div>
-                        <div className="spreeloRef-step-art"><img src="/onboarding-guide/ai-social-media-publishing-icon.png" alt="" /></div>
-                        <h3>{t("automation.onboardingV202.publishTitle")}</h3>
-                        <p>{t("automation.onboardingV202.publishText")}</p>
+                        <div className="spreeloRef-step-top"><span>4</span><div className="spreeloRef-step-label">{t("automation.onboardingV202.publishTag")}</div></div>
+                        <div className="spreeloRef-step-art-wrap"><div className="spreeloRef-step-art"><img src="/onboarding-guide/ai-social-media-publishing-icon.png" alt="" /></div></div>
+                        <div className="spreeloRef-step-copy"><h3>{t("automation.onboardingV202.publishTitle")}</h3><p>{t("automation.onboardingV202.publishText")}</p></div>
                       </article>
                     </div>
 
