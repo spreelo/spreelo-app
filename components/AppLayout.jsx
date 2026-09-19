@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Activity,
   BadgeCheck,
   BriefcaseBusiness,
   CalendarDays,
@@ -86,6 +87,12 @@ const navItems = [
     labelKey: "layout.nav.socialChannels",
     href: "/social-channels",
     Icon: Share2,
+  },
+  {
+    id: "grow-brain",
+    labelKey: "layout.nav.growBrain",
+    href: "/grow-brain",
+    Icon: Activity,
   },
   {
     id: "admin",

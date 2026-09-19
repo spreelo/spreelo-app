@@ -1,0 +1,473 @@
+/* Spreelo v144.215 — professional Grow Brain customer dashboard */
+html body .grow-v215-page{
+  width:min(1480px,100%);
+  margin:0 auto;
+  padding:34px 38px 64px;
+  color:#10213a;
+}
+html body .grow-v215-page *{box-sizing:border-box}
+html body .grow-v215-hero{
+  position:relative;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(330px,430px);
+  gap:24px;
+  align-items:center;
+  overflow:hidden;
+  padding:30px 32px;
+  border:1px solid rgba(73,54,143,.13);
+  border-radius:28px;
+  background:
+    radial-gradient(circle at 87% 18%,rgba(121,88,226,.12),transparent 34%),
+    radial-gradient(circle at 18% 90%,rgba(75,141,242,.08),transparent 34%),
+    linear-gradient(135deg,rgba(255,255,255,.98),rgba(249,248,255,.96));
+  box-shadow:0 22px 54px rgba(31,24,67,.08);
+}
+html body .grow-v215-hero::after{
+  content:"";
+  position:absolute;
+  inset:auto -72px -108px auto;
+  width:260px;
+  height:260px;
+  border:1px solid rgba(111,77,214,.13);
+  border-radius:50%;
+  box-shadow:0 0 0 34px rgba(111,77,214,.035),0 0 0 72px rgba(111,77,214,.025);
+  pointer-events:none;
+}
+html body .grow-v215-hero-copy{position:relative;z-index:1;min-width:0}
+html body .grow-v215-eyebrow,
+html body .grow-v215-section-kicker{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  margin:0 0 8px;
+  color:#6e50c7;
+  font-size:11px;
+  line-height:1.2;
+  font-weight:850;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+}
+html body .grow-v215-hero h1{
+  margin:0;
+  color:#101a2f;
+  font-size:clamp(32px,3.1vw,48px);
+  line-height:1.02;
+  letter-spacing:-.045em;
+  font-weight:790;
+}
+html body .grow-v215-hero-copy>p{
+  max-width:760px;
+  margin:13px 0 0;
+  color:#667287;
+  font-size:15px;
+  line-height:1.65;
+}
+html body .grow-v215-brand-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  margin-top:17px;
+  padding:7px 11px;
+  border:1px solid rgba(75,59,130,.12);
+  border-radius:999px;
+  background:rgba(255,255,255,.74);
+  color:#667287;
+  font-size:12px;
+}
+html body .grow-v215-brand-chip strong{color:#26324a;font-weight:800}
+html body .grow-v215-hero-status{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:15px;
+  align-items:center;
+  padding:17px 18px;
+  border:1px solid rgba(110,80,199,.14);
+  border-radius:21px;
+  background:rgba(255,255,255,.76);
+  box-shadow:0 14px 34px rgba(50,35,105,.07);
+  backdrop-filter:blur(14px);
+}
+html body .grow-v215-brain-orb{
+  display:grid;
+  place-items:center;
+  width:51px;
+  height:51px;
+  border-radius:17px;
+  color:#fff;
+  background:linear-gradient(145deg,#7c5ce0,#5f47b9);
+  box-shadow:0 12px 26px rgba(103,75,195,.25);
+}
+html body .grow-v215-hero-status>div:nth-child(2){display:grid;gap:3px;min-width:0}
+html body .grow-v215-hero-status span{color:#7c8699;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.085em}
+html body .grow-v215-hero-status strong{color:#17233a;font-size:15px;line-height:1.3}
+html body .grow-v215-hero-status small{overflow:hidden;color:#7a8598;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+html body .grow-v215-hero-status>button{
+  display:grid;
+  place-items:center;
+  width:38px;
+  height:38px;
+  border:1px solid #e3e6ed;
+  border-radius:12px;
+  background:#fff;
+  color:#6c7484;
+  cursor:pointer;
+  transition:.18s ease;
+}
+html body .grow-v215-hero-status>button:hover{transform:translateY(-1px);border-color:#cfc7eb;color:#684fc0}
+html body .grow-v215-hero-status>button:disabled{opacity:.55;cursor:default;transform:none}
+html body .grow-v215-spin{animation:grow-v215-spin .9s linear infinite}
+@keyframes grow-v215-spin{to{transform:rotate(360deg)}}
+
+html body .grow-v215-notice{
+  display:flex;
+  align-items:flex-start;
+  gap:9px;
+  margin-top:16px;
+  padding:12px 14px;
+  border-radius:14px;
+  font-size:13px;
+  line-height:1.45;
+}
+html body .grow-v215-notice.error{border:1px solid #f0d2cf;background:#fff7f6;color:#963e36}
+
+html body .grow-v215-controlbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  margin:20px 0 16px;
+}
+html body .grow-v215-range-tabs{
+  display:inline-flex;
+  gap:3px;
+  padding:4px;
+  border:1px solid #e5e7ed;
+  border-radius:13px;
+  background:#fff;
+  box-shadow:0 5px 16px rgba(27,34,53,.035);
+}
+html body .grow-v215-range-tabs button,
+html body .grow-v215-chart-toggle button{
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  color:#697487;
+  font:inherit;
+  font-size:12px;
+  font-weight:760;
+  cursor:pointer;
+}
+html body .grow-v215-range-tabs button{min-width:62px;padding:7px 11px}
+html body .grow-v215-range-tabs button.active,
+html body .grow-v215-chart-toggle button.active{background:#f0ecfb;color:#6348ba;box-shadow:inset 0 0 0 1px rgba(100,72,186,.08)}
+html body .grow-v215-platform-filter{
+  position:relative;
+  display:flex;
+  align-items:center;
+  min-width:180px;
+  gap:9px;
+  padding:7px 10px;
+  border:1px solid #e5e7ed;
+  border-radius:13px;
+  background:#fff;
+}
+html body .grow-v215-platform-filter select{
+  width:100%;
+  appearance:none;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#39465c;
+  font:inherit;
+  font-size:12px;
+  font-weight:760;
+  cursor:pointer;
+}
+html body .grow-v215-platform-filter>svg{position:absolute;right:10px;color:#9299a7;pointer-events:none}
+
+html body .grow-v215-platform-icon{
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  width:31px;
+  height:31px;
+  border:1px solid rgba(35,43,60,.08);
+  border-radius:10px;
+  background:#fff;
+  color:#6d51c7;
+  box-shadow:0 4px 10px rgba(18,28,48,.04);
+}
+html body .grow-v215-platform-icon img{width:18px;height:18px;object-fit:contain}
+html body .grow-v215-platform-filter>.grow-v215-platform-icon{width:25px;height:25px;border-radius:8px}
+html body .grow-v215-platform-filter>.grow-v215-platform-icon img{width:15px;height:15px}
+
+html body .grow-v215-metrics{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:11px;
+  margin-bottom:15px;
+}
+html body .grow-v215-metric-card{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  gap:12px;
+  min-width:0;
+  padding:16px 15px;
+  border:1px solid #e8e9ee;
+  border-radius:17px;
+  background:#fff;
+  box-shadow:0 8px 22px rgba(28,35,52,.035);
+}
+html body .grow-v215-metric-icon{
+  display:grid;
+  place-items:center;
+  width:36px;
+  height:36px;
+  border-radius:11px;
+  background:linear-gradient(145deg,#f5f2ff,#ece7fb);
+  color:#6b50c3;
+}
+html body .grow-v215-metric-card>div{display:grid;min-width:0}
+html body .grow-v215-metric-card>div>span{color:#7b8495;font-size:10px;font-weight:800;letter-spacing:.035em;text-transform:uppercase}
+html body .grow-v215-metric-card>div>strong{margin-top:2px;color:#132038;font-size:23px;line-height:1.1;letter-spacing:-.025em}
+html body .grow-v215-metric-card>div>small{overflow:hidden;margin-top:4px;color:#9098a6;font-size:9px;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
+
+html body .grow-v215-main-grid,
+html body .grow-v215-bottom-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.7fr) minmax(320px,.8fr);
+  gap:15px;
+  margin-bottom:15px;
+}
+html body .grow-v215-panel{
+  min-width:0;
+  border:1px solid #e7e8ed;
+  border-radius:21px;
+  background:rgba(255,255,255,.96);
+  box-shadow:0 10px 28px rgba(28,35,52,.035);
+}
+html body .grow-v215-trend-panel,
+html body .grow-v215-learning-panel,
+html body .grow-v215-top-posts,
+html body .grow-v215-system-card{padding:20px}
+html body .grow-v215-panel-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+  margin-bottom:16px;
+}
+html body .grow-v215-panel-head.compact{margin-bottom:13px}
+html body .grow-v215-panel-head>div:first-child{min-width:0}
+html body .grow-v215-panel-head h2{
+  margin:0;
+  color:#172239;
+  font-size:18px;
+  line-height:1.2;
+  letter-spacing:-.018em;
+}
+html body .grow-v215-panel-head p{
+  max-width:720px;
+  margin:5px 0 0;
+  color:#7a8495;
+  font-size:11px;
+  line-height:1.5;
+}
+html body .grow-v215-section-kicker{margin-bottom:5px;font-size:9px}
+html body .grow-v215-chart-toggle{display:inline-flex;gap:3px;padding:3px;border-radius:10px;background:#f4f4f7}
+html body .grow-v215-chart-toggle button{padding:6px 9px;font-size:10px}
+
+html body .grow-v215-chart-wrap{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;min-height:210px;padding:4px 0 0}
+html body .grow-v215-chart-y{display:flex;flex-direction:column;justify-content:space-between;height:180px;padding:4px 0 7px;color:#99a1af;font-size:9px;text-align:right}
+html body .grow-v215-chart-canvas{min-width:0;color:#7256cb}
+html body .grow-v215-chart-canvas svg{display:block;width:100%;height:180px;overflow:visible}
+html body .grow-v215-gridline{stroke:#edf0f4;stroke-width:1;vector-effect:non-scaling-stroke}
+html body .grow-v215-area{fill:url(#growArea);stroke:none}
+html body .grow-v215-line{fill:none;stroke:currentColor;stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;filter:drop-shadow(0 3px 5px rgba(109,80,195,.15))}
+html body .grow-v215-chart-labels{display:flex;justify-content:space-between;margin-top:5px;color:#99a1af;font-size:9px}
+html body .grow-v215-chart-empty{
+  min-height:207px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  padding:25px;
+  border:1px dashed #dedfe7;
+  border-radius:15px;
+  background:#fafafd;
+  color:#8b93a2;
+  text-align:center;
+}
+html body .grow-v215-chart-empty strong{color:#3b465a;font-size:13px}
+html body .grow-v215-chart-empty span{max-width:480px;font-size:11px;line-height:1.45}
+html body .grow-v215-chart-empty a{display:inline-flex;align-items:center;gap:4px;margin-top:3px;color:#6549bd;font-size:11px;font-weight:800;text-decoration:none}
+
+html body .grow-v215-learning-panel{background:linear-gradient(160deg,#fff 0%,#fbf9ff 100%)}
+html body .grow-v215-learning-state{
+  flex:0 0 auto;
+  padding:5px 8px;
+  border-radius:999px;
+  background:#f0eef6;
+  color:#736a87;
+  font-size:9px;
+  font-weight:850;
+  text-transform:uppercase;
+  letter-spacing:.055em;
+}
+html body .grow-v215-learning-state.early{background:#eee9ff;color:#654bc1}
+html body .grow-v215-learning-state.established{background:#e9f6ee;color:#347653}
+html body .grow-v215-learning-progress{padding:12px;border:1px solid #ece8f6;border-radius:14px;background:rgba(255,255,255,.72)}
+html body .grow-v215-learning-progress>div:first-child{display:flex;align-items:baseline;gap:6px}
+html body .grow-v215-learning-progress>div:first-child strong{color:#5f47b2;font-size:21px}
+html body .grow-v215-learning-progress>div:first-child span{color:#7b8494;font-size:10px;font-weight:700}
+html body .grow-v215-progress-track{height:5px;margin:8px 0 6px;overflow:hidden;border-radius:999px;background:#ece9f4}
+html body .grow-v215-progress-track span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#8164df,#6a4fbd)}
+html body .grow-v215-learning-progress small{color:#8c94a2;font-size:9px;line-height:1.4}
+html body .grow-v215-signal-list{display:grid;gap:7px;margin-top:10px}
+html body .grow-v215-signal-row{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:9px;
+  align-items:center;
+  padding:9px 10px;
+  border-radius:12px;
+  background:#fff;
+  border:1px solid #eeeef3;
+}
+html body .grow-v215-signal-mark{display:grid;place-items:center;width:27px;height:27px;border-radius:9px}
+html body .grow-v215-signal-mark.positive{background:#eaf6ef;color:#3b835c}
+html body .grow-v215-signal-mark.negative{background:#fff0ed;color:#b55a4a}
+html body .grow-v215-signal-row>div{display:grid;gap:1px;min-width:0}
+html body .grow-v215-signal-row>div strong{overflow:hidden;color:#334056;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+html body .grow-v215-signal-row>div small{color:#9299a7;font-size:8.5px}
+html body .grow-v215-signal-score{font-size:11px;font-weight:850}
+html body .grow-v215-signal-score.positive{color:#3b835c}
+html body .grow-v215-signal-score.negative{color:#b55a4a}
+html body .grow-v215-learning-empty{display:flex;align-items:center;gap:8px;margin-top:10px;padding:13px;border:1px dashed #ded8ee;border-radius:13px;color:#75638e;background:#fff}
+html body .grow-v215-learning-empty p{margin:0;font-size:10px;line-height:1.45}
+html body .grow-v215-learning-note{margin:10px 1px 0;color:#9097a5;font-size:8.5px;line-height:1.45}
+
+html body .grow-v215-channels-panel{margin-bottom:15px;padding:20px}
+html body .grow-v215-coverage{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;padding:6px 9px;border-radius:999px;background:#f1f7f3;color:#4c765c;font-size:9px;font-weight:800}
+html body .grow-v215-channel-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+html body .grow-v215-channel-card{padding:13px;border:1px solid #e9eaf0;border-radius:15px;background:#fff;transition:.18s ease}
+html body .grow-v215-channel-card:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(26,33,48,.055)}
+html body .grow-v215-channel-card.pending{border-color:#eee2c5;background:#fffdf7}
+html body .grow-v215-channel-card.warning{border-color:#efd8d3;background:#fffafa}
+html body .grow-v215-channel-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+html body .grow-v215-channel-top>div{display:flex;align-items:center;gap:9px;min-width:0}
+html body .grow-v215-channel-top>div>span:last-child{display:grid;min-width:0}
+html body .grow-v215-channel-top strong{color:#263249;font-size:11px}
+html body .grow-v215-channel-top small{overflow:hidden;max-width:145px;color:#8b94a3;font-size:8.5px;text-overflow:ellipsis;white-space:nowrap}
+html body .grow-v215-status-pill{flex:0 0 auto;padding:4px 6px;border-radius:999px;background:#f1f2f5;color:#757e8d;font-size:7.5px;font-weight:850;text-transform:uppercase;letter-spacing:.03em}
+html body .grow-v215-status-pill.healthy{background:#e9f6ef;color:#347653}
+html body .grow-v215-status-pill.pending{background:#fbf0d8;color:#8b6b2d}
+html body .grow-v215-status-pill.warning{background:#fdebe8;color:#a44f43}
+html body .grow-v215-status-pill.collecting{background:#eeeafd;color:#664ebe}
+html body .grow-v215-channel-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:12px;padding:10px 0;border-top:1px solid #f0f0f3;border-bottom:1px solid #f0f0f3}
+html body .grow-v215-channel-metrics div{display:grid;gap:2px;min-width:0;padding:0 7px;border-right:1px solid #f0f0f3}
+html body .grow-v215-channel-metrics div:first-child{padding-left:0}
+html body .grow-v215-channel-metrics div:last-child{padding-right:0;border-right:0}
+html body .grow-v215-channel-metrics span{color:#959ca9;font-size:7.5px;text-transform:uppercase;font-weight:750}
+html body .grow-v215-channel-metrics strong{color:#344057;font-size:13px}
+html body .grow-v215-channel-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;min-height:14px;color:#9299a6;font-size:8px}
+html body .grow-v215-channel-foot>a{display:inline-flex;align-items:center;gap:3px;color:#6549bd;font-weight:800;text-decoration:none}
+html body .grow-v215-scope-note{color:#9a792f;font-weight:700}
+
+html body .grow-v215-bottom-grid{grid-template-columns:minmax(0,1.55fr) minmax(310px,.65fr);margin-bottom:0}
+html body .grow-v215-top-list{display:grid}
+html body .grow-v215-top-row{
+  display:grid;
+  grid-template-columns:26px auto minmax(0,1fr) 74px 74px auto;
+  gap:9px;
+  align-items:center;
+  min-width:0;
+  padding:10px 3px;
+  border-top:1px solid #f0f0f3;
+  color:inherit;
+  text-decoration:none;
+  transition:.16s ease;
+}
+html body .grow-v215-top-row:first-child{border-top:0}
+html body .grow-v215-top-row:hover{padding-left:7px;padding-right:7px;border-radius:11px;background:#faf9fd}
+html body .grow-v215-rank{display:grid;place-items:center;width:22px;height:22px;border-radius:8px;background:#f2effa;color:#6a51bd;font-size:9px;font-weight:850}
+html body .grow-v215-top-row>.grow-v215-platform-icon{width:29px;height:29px;border-radius:9px}
+html body .grow-v215-top-copy{display:grid;gap:2px;min-width:0}
+html body .grow-v215-top-copy strong{overflow:hidden;color:#354158;font-size:10px;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
+html body .grow-v215-top-copy small{color:#949ca9;font-size:8px}
+html body .grow-v215-top-stat{display:grid;justify-items:end;gap:1px}
+html body .grow-v215-top-stat strong{color:#313d54;font-size:11px}
+html body .grow-v215-top-stat small{color:#a0a6b0;font-size:7px;text-transform:uppercase;font-weight:750}
+html body .grow-v215-top-arrow{color:#a2a7b1}
+html body .grow-v215-list-empty{display:flex;align-items:center;gap:8px;padding:20px;border:1px dashed #e0e2e7;border-radius:13px;color:#8992a2}
+html body .grow-v215-list-empty p{margin:0;font-size:10px}
+
+html body .grow-v215-health-score{display:flex;align-items:center;gap:14px;padding:13px;border-radius:14px;background:linear-gradient(145deg,#f8f7fc,#fff)}
+html body .grow-v215-health-ring{
+  --score:0%;
+  position:relative;
+  display:grid;
+  place-items:center;
+  flex:0 0 auto;
+  width:66px;
+  height:66px;
+  border-radius:50%;
+  background:conic-gradient(#7053c6 var(--score),#e9e7ef 0);
+}
+html body .grow-v215-health-ring::before{content:"";position:absolute;inset:6px;border-radius:50%;background:#fff}
+html body .grow-v215-health-ring strong{position:relative;color:#5e48ac;font-size:14px;z-index:1}
+html body .grow-v215-health-score>div{min-width:0}
+html body .grow-v215-health-score>div strong{color:#37435a;font-size:10px}
+html body .grow-v215-health-score>div p{margin:3px 0 0;color:#8b94a4;font-size:8.5px;line-height:1.45}
+html body .grow-v215-health-list{display:grid;gap:0;margin-top:11px;border:1px solid #eeeef2;border-radius:13px;overflow:hidden}
+html body .grow-v215-health-list>div{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:9px 10px;border-top:1px solid #f0f0f3;color:#6d7788}
+html body .grow-v215-health-list>div:first-child{border-top:0}
+html body .grow-v215-health-list svg{color:#7459c7}
+html body .grow-v215-health-list span{font-size:9px}
+html body .grow-v215-health-list strong{color:#3e495e;font-size:9px;text-align:right}
+html body .grow-v215-system-note{margin:10px 0 0;padding:9px 10px;border-radius:11px;background:#f7f6fa;color:#848d9d;font-size:8px;line-height:1.45}
+
+@media(max-width:1280px){
+  html body .grow-v215-page{padding:28px 28px 54px}
+  html body .grow-v215-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:1020px){
+  html body .grow-v215-hero{grid-template-columns:1fr}
+  html body .grow-v215-main-grid,
+  html body .grow-v215-bottom-grid{grid-template-columns:1fr}
+  html body .grow-v215-channel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  html body .grow-v215-page{padding:18px 14px 40px}
+  html body .grow-v215-hero{padding:22px 18px;border-radius:21px}
+  html body .grow-v215-hero h1{font-size:32px}
+  html body .grow-v215-hero-copy>p{font-size:13px}
+  html body .grow-v215-hero-status{grid-template-columns:auto minmax(0,1fr) auto;padding:13px}
+  html body .grow-v215-brain-orb{width:43px;height:43px;border-radius:14px}
+  html body .grow-v215-controlbar{align-items:stretch;flex-direction:column}
+  html body .grow-v215-range-tabs{display:grid;grid-template-columns:repeat(3,1fr)}
+  html body .grow-v215-range-tabs button{min-width:0}
+  html body .grow-v215-platform-filter{width:100%}
+  html body .grow-v215-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  html body .grow-v215-metric-card{padding:13px 11px;gap:9px}
+  html body .grow-v215-metric-icon{width:32px;height:32px}
+  html body .grow-v215-metric-card>div>strong{font-size:20px}
+  html body .grow-v215-panel-head{align-items:flex-start;flex-direction:column;gap:10px}
+  html body .grow-v215-chart-toggle{width:100%}
+  html body .grow-v215-chart-toggle button{flex:1}
+  html body .grow-v215-chart-wrap{grid-template-columns:34px minmax(0,1fr)}
+  html body .grow-v215-channel-grid{grid-template-columns:1fr}
+  html body .grow-v215-top-row{grid-template-columns:24px auto minmax(0,1fr) auto}
+  html body .grow-v215-top-stat:nth-of-type(n+2){display:none}
+  html body .grow-v215-top-arrow{display:none}
+  html body .grow-v215-coverage{align-self:flex-start}
+}
+@media(max-width:430px){
+  html body .grow-v215-metrics{grid-template-columns:1fr 1fr}
+  html body .grow-v215-metric-card{grid-template-columns:1fr;gap:7px}
+  html body .grow-v215-metric-icon{width:30px;height:30px}
+  html body .grow-v215-channel-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
