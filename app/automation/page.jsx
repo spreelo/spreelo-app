@@ -11553,6 +11553,8 @@ function blockFormatCardClickAfterDrag(event) {
     const scroller = onboardingPreviewScrollRef.current;
     if (!scroller) return;
 
+    // Prevent the browser's native image/text drag from stealing the gesture.
+    event.preventDefault();
     onboardingPreviewDragRef.current = {
       active: true,
       dragging: false,
@@ -11560,6 +11562,9 @@ function blockFormatCardClickAfterDrag(event) {
       startScrollLeft: scroller.scrollLeft,
       pointerId: event.pointerId,
     };
+
+    scroller.classList.add("is-dragging");
+    try { scroller.setPointerCapture?.(event.pointerId); } catch {}
   }
 
   function handleSmartOnboardingPreviewPointerMove(event) {
@@ -11568,10 +11573,8 @@ function blockFormatCardClickAfterDrag(event) {
     if (!scroller || !drag.active || event.pointerType !== "mouse") return;
 
     const delta = event.clientX - drag.startX;
-    if (!drag.dragging && Math.abs(delta) > 5) {
+    if (!drag.dragging && Math.abs(delta) > 3) {
       drag.dragging = true;
-      scroller.classList.add("is-dragging");
-      try { scroller.setPointerCapture?.(event.pointerId); } catch {}
     }
 
     if (!drag.dragging) return;
@@ -15273,6 +15276,8 @@ function blockFormatCardClickAfterDrag(event) {
                         onPointerMove={handleSmartOnboardingPreviewPointerMove}
                         onPointerUp={finishSmartOnboardingPreviewDrag}
                         onPointerCancel={finishSmartOnboardingPreviewDrag}
+                        onLostPointerCapture={finishSmartOnboardingPreviewDrag}
+                        onDragStart={(event) => event.preventDefault()}
                         onWheel={handleSmartOnboardingPreviewWheel}
                       >
                         {smartOnboardingPreviewPosts.map((post) => {

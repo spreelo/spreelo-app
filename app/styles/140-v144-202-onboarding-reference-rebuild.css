@@ -1571,3 +1571,36 @@ html body .spreeloRef-check {
     height: 28px !important;
   }
 }
+
+
+/* v144.211 — planned-post desktop grab-to-scroll polish */
+html body .spreeloRef-post-row {
+  cursor: grab !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+html body .spreeloRef-post-row img {
+  -webkit-user-drag: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+html body .spreeloRef-post-row.is-dragging {
+  cursor: grabbing !important;
+  scroll-behavior: auto !important;
+}
+
+html body .spreeloRef-post-row.is-dragging .spreeloRef-post-card,
+html body .spreeloRef-post-row.is-dragging img {
+  pointer-events: none !important;
+}
+
+@media (hover: none), (pointer: coarse) {
+  html body .spreeloRef-post-row {
+    cursor: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    touch-action: pan-x pan-y !important;
+  }
+}
