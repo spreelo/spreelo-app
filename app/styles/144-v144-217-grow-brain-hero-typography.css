@@ -1,0 +1,134 @@
+/* Spreelo v144.217 — Grow Brain hero asset + readability pass */
+
+/* Use the finished decorative hero artwork as the real hero background. */
+html body .grow-v216-hero{
+  grid-template-columns:minmax(0,1.28fr) minmax(320px,.72fr);
+  min-height:238px;
+  isolation:isolate;
+  background-color:#f8f6ff;
+  background-image:url('/grow-brain/grow-brain-hero-bg.png');
+  background-repeat:no-repeat;
+  background-position:center center;
+  background-size:cover;
+  box-shadow:none;
+}
+html body .grow-v216-hero::before,
+html body .grow-v216-hero::after{display:none!important}
+html body .grow-v216-hero-stage{display:none!important}
+html body .grow-v216-hero .grow-v215-hero-copy,
+html body .grow-v216-hero .grow-v216-hero-status{position:relative;z-index:2}
+html body .grow-v216-hero .grow-v215-hero-copy{max-width:650px}
+html body .grow-v216-hero-status{justify-self:end;width:min(100%,430px)}
+
+/* Page-wide readability baseline. */
+html body .grow-v215-page{font-size:13.5px}
+
+/* Hero typography */
+html body .grow-v216-hero .grow-v215-eyebrow{font-size:12px}
+html body .grow-v216-hero h1{font-size:clamp(40px,3.7vw,56px)}
+html body .grow-v216-hero .grow-v215-hero-copy>p{font-size:13.5px;line-height:1.62}
+html body .grow-v215-brand-chip{font-size:12.5px}
+html body .grow-v216-last-update{font-size:12px}
+html body .grow-v215-hero-status span{font-size:11px}
+html body .grow-v215-hero-status strong{font-size:15.5px}
+html body .grow-v215-hero-status small{font-size:12.5px}
+
+/* Filters */
+html body .grow-v215-range-tabs button,
+html body .grow-v215-platform-filter select{font-size:13.5px}
+
+/* KPI intro + cards */
+html body .grow-v216-kpi-heading h2{font-size:18px}
+html body .grow-v216-kpi-heading p{font-size:13.5px;line-height:1.5}
+html body .grow-v216-metric-card>div>span{font-size:11px}
+html body .grow-v216-metric-card>div>strong{font-size:24px}
+html body .grow-v216-metric-card>div>small{font-size:11px;line-height:1.4;white-space:normal}
+
+/* Shared panels */
+html body .grow-v215-panel-head h2{font-size:15.5px}
+html body .grow-v215-panel-head p{font-size:13.5px;line-height:1.5}
+html body .grow-v215-section-kicker{font-size:10.5px}
+html body .grow-v215-chart-toggle button{font-size:12px}
+html body .grow-v215-chart-y,
+html body .grow-v215-chart-labels{font-size:10.5px}
+html body .grow-v215-chart-empty strong{font-size:15px}
+html body .grow-v215-chart-empty span,
+html body .grow-v215-chart-empty a{font-size:13px}
+
+/* Learning panel */
+html body .grow-v215-learning-state{font-size:10.5px}
+html body .grow-v216-learning-progress>div:first-child strong{font-size:24px}
+html body .grow-v215-learning-progress>div:first-child span{font-size:12px}
+html body .grow-v215-learning-progress small,
+html body .grow-v216-learning-meta small{font-size:11.5px;line-height:1.45}
+html body .grow-v215-signal-row>div strong{font-size:13.5px}
+html body .grow-v215-signal-row>div small{font-size:11.5px}
+html body .grow-v215-signal-score{font-size:13.5px}
+html body .grow-v215-learning-empty p{font-size:13px}
+html body .grow-v215-learning-note{font-size:11.5px}
+
+/* Channel cards */
+html body .grow-v215-coverage{font-size:11.5px}
+html body .grow-v215-channel-top strong{font-size:13.5px}
+html body .grow-v215-channel-top small{font-size:11.5px}
+html body .grow-v215-status-pill{font-size:9.5px;padding:5px 8px}
+html body .grow-v215-channel-metrics span{font-size:9.5px}
+html body .grow-v215-channel-metrics strong{font-size:15px}
+html body .grow-v215-channel-foot{font-size:11.5px}
+
+/* Top content */
+html body .grow-v216-top-card .grow-v215-top-copy strong{font-size:13.5px;line-height:1.35}
+html body .grow-v216-top-card .grow-v215-top-copy small{font-size:11px}
+html body .grow-v216-top-metrics strong{font-size:13px}
+html body .grow-v216-top-metrics small{font-size:9.5px}
+html body .grow-v215-list-empty p{font-size:13px}
+
+/* Data quality */
+html body .grow-v215-health-ring strong{font-size:16px}
+html body .grow-v215-health-score>div strong{font-size:13.5px}
+html body .grow-v215-health-score>div p{font-size:11.5px;line-height:1.5}
+html body .grow-v215-health-list span,
+html body .grow-v215-health-list strong{font-size:12px}
+html body .grow-v215-system-note{font-size:11.5px;line-height:1.5}
+
+@media(max-width:1160px){
+  html body .grow-v216-hero{
+    grid-template-columns:minmax(0,1fr) minmax(290px,.72fr);
+    background-position:58% center;
+  }
+}
+
+@media(max-width:1020px){
+  html body .grow-v216-hero{
+    grid-template-columns:1fr;
+    background-position:66% center;
+  }
+  html body .grow-v216-hero-status{justify-self:start}
+}
+
+@media(max-width:760px){
+  html body .grow-v216-hero{
+    min-height:0;
+    background-position:66% center;
+    background-size:auto 100%;
+  }
+  html body .grow-v216-hero h1{font-size:34px}
+  html body .grow-v216-hero .grow-v215-eyebrow{font-size:11px}
+  html body .grow-v216-hero .grow-v215-hero-copy>p{font-size:13.5px;line-height:1.58}
+  html body .grow-v215-brand-chip{font-size:12px}
+  html body .grow-v215-hero-status strong{font-size:15px}
+  html body .grow-v215-hero-status small{font-size:12px}
+  html body .grow-v216-kpi-heading h2{font-size:17px}
+  html body .grow-v216-kpi-heading p{font-size:13px}
+  html body .grow-v216-metric-card>div>span{font-size:10.5px}
+  html body .grow-v216-metric-card>div>strong{font-size:20px}
+  html body .grow-v216-metric-card>div>small{font-size:10.5px}
+  html body .grow-v215-panel-head h2{font-size:15px}
+  html body .grow-v215-panel-head p{font-size:13px}
+  html body .grow-v215-signal-row>div strong{font-size:13px}
+  html body .grow-v215-signal-row>div small{font-size:11px}
+  html body .grow-v215-channel-top strong{font-size:13px}
+  html body .grow-v215-channel-top small{font-size:11px}
+  html body .grow-v215-channel-metrics strong{font-size:14px}
+  html body .grow-v215-channel-foot{font-size:11px}
+}
