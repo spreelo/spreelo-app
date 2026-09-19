@@ -231,6 +231,149 @@ function PlatformIcon({ platform }) {
   );
 }
 
+function buildGrowBrainDemoData() {
+  const now = new Date();
+  now.setHours(12, 0, 0, 0);
+
+  const platformConfig = {
+    facebook: { name: "Ellos", baseExposure: 18400, baseLikes: 420, growth: 780 },
+    instagram: { name: "@ellos", baseExposure: 23600, baseLikes: 690, growth: 1050 },
+    tiktok: { name: "@ellossverige", baseExposure: 31800, baseLikes: 980, growth: 1420 },
+    youtube: { name: "Ellos Sverige", baseExposure: 12100, baseLikes: 260, growth: 520 },
+    pinterest: { name: "Ellos", baseExposure: 8600, baseLikes: 190, growth: 360 },
+    threads: { name: "@ellos", baseExposure: 6900, baseLikes: 150, growth: 290 },
+  };
+  const contentTypes = ["website_item", "problem_solution", "tips", "animated_website_item", "faq", "website_item_text_ad"];
+  const formats = ["single_image", "single_image", "single_image", "animated_video", "single_image", "single_image"];
+  const demoImages = [
+    "/onboarding-preview/post-1.png",
+    "/onboarding-preview/post-2.png",
+    "/onboarding-preview/post-3.png",
+    "/onboarding-preview/post-4.png",
+    "/onboarding-preview/post-5.png",
+  ];
+  const demoTitles = [
+    "Höstens favoriter är här",
+    "Så stylar du säsongens nyheter",
+    "Tre detaljer som lyfter vardagsstilen",
+    "Bakom kulisserna hos vårt team",
+    "Veckans mest uppskattade produkter",
+    "Så väljer du rätt för hösten",
+  ];
+
+  const performance = [];
+  const postsById = {};
+  let globalIndex = 0;
+
+  PLATFORM_ORDER.forEach((platform, platformIndex) => {
+    const config = platformConfig[platform];
+    for (let itemIndex = 0; itemIndex < 7; itemIndex += 1) {
+      const daysAgo = 2 + itemIndex * 4 + (platformIndex % 3);
+      const published = new Date(now);
+      published.setDate(now.getDate() - daysAgo);
+      const captured = new Date(published);
+      captured.setHours(captured.getHours() + 18);
+
+      const wave = [0.88, 1.06, 0.95, 1.18, 1.03, 1.31, 1.12][itemIndex];
+      const exposure = Math.round((config.baseExposure + config.growth * itemIndex + platformIndex * 420) * wave);
+      const likes = Math.round((config.baseLikes + itemIndex * 31 + platformIndex * 12) * wave);
+      const comments = Math.max(8, Math.round(likes * (0.055 + platformIndex * 0.004)));
+      const shares = Math.max(5, Math.round(likes * (0.072 + itemIndex * 0.003)));
+      const saves = ["instagram", "pinterest"].includes(platform) ? Math.round(likes * 0.12) : Math.round(likes * 0.035);
+      const clicks = ["facebook", "instagram", "pinterest", "threads"].includes(platform) ? Math.round(exposure * (0.006 + itemIndex * 0.0006)) : 0;
+      const postId = `demo-${platform}-${itemIndex + 1}`;
+      const contentType = contentTypes[(globalIndex + platformIndex) % contentTypes.length];
+      const contentFormat = formats[(globalIndex + platformIndex) % formats.length];
+
+      performance.push({
+        post_id: postId,
+        platform,
+        content_type_id: contentType,
+        content_format: contentFormat,
+        published_at: published.toISOString(),
+        captured_at: captured.toISOString(),
+        views: exposure,
+        reach: platform === "facebook" || platform === "instagram" ? Math.round(exposure * 0.82) : null,
+        impressions: platform === "pinterest" || platform === "threads" ? Math.round(exposure * 1.08) : null,
+        likes,
+        comments,
+        shares,
+        saves,
+        clicks,
+        engagements: likes + comments + shares + saves,
+        watch_time_seconds: ["tiktok", "youtube"].includes(platform) ? exposure * (12 + itemIndex) : null,
+        average_watch_time_seconds: ["tiktok", "youtube"].includes(platform) ? 7.4 + itemIndex * 0.45 : null,
+      });
+
+      postsById[postId] = {
+        id: postId,
+        content: demoTitles[globalIndex % demoTitles.length],
+        idea: demoTitles[globalIndex % demoTitles.length],
+        post_type: contentType,
+        content_format: contentFormat,
+        published_at: published.toISOString(),
+        image_url: demoImages[globalIndex % demoImages.length],
+        video_url: null,
+      };
+      globalIndex += 1;
+    }
+  });
+
+  const lastSuccess = new Date(now);
+  lastSuccess.setMinutes(lastSuccess.getMinutes() - 18);
+
+  const connections = PLATFORM_ORDER.map((platform) => ({
+    id: `demo-connection-${platform}`,
+    platform,
+    page_name: platformConfig[platform].name,
+    status: "connected",
+    permissions: [],
+    updated_at: lastSuccess.toISOString(),
+  }));
+
+  const collectionStates = PLATFORM_ORDER.map((platform) => ({
+    post_id: `demo-${platform}-1`,
+    platform,
+    status: "healthy",
+    last_attempt_at: lastSuccess.toISOString(),
+    last_success_at: lastSuccess.toISOString(),
+    next_collect_at: null,
+    last_error: null,
+    updated_at: lastSuccess.toISOString(),
+  }));
+
+  const learningProfile = {
+    brand_profile_id: "demo-brand",
+    learning_state: "established",
+    source_event_count: 18,
+    approved_count: 14,
+    rejected_count: 4,
+    last_event_at: lastSuccess.toISOString(),
+    updated_at: lastSuccess.toISOString(),
+    profile_json: {
+      content_types: {
+        website_item: { score: 58, confidence: 0.78, observations: 11 },
+        problem_solution: { score: 41, confidence: 0.67, observations: 8 },
+        tips: { score: 32, confidence: 0.61, observations: 7 },
+        animated_website_item: { score: -18, confidence: 0.52, observations: 5 },
+      },
+      content_formats: {
+        single_image: { score: 47, confidence: 0.74, observations: 13 },
+        animated_video: { score: 24, confidence: 0.58, observations: 6 },
+      },
+    },
+  };
+
+  return {
+    currentBrand: { id: "demo-brand", business_name: "Ellos", website_url: "https://ellos.se" },
+    connections,
+    performance,
+    collectionStates,
+    learningProfile,
+    postsById,
+  };
+}
+
 export default function GrowBrainPage() {
   const { t, locale } = useUiText(["growBrain", "automation"]);
   const [currentBrand, setCurrentBrand] = useState(null);
@@ -264,6 +407,18 @@ export default function GrowBrainPage() {
     if (quiet) setRefreshing(true); else setLoading(true);
     setErrorMessage("");
     try {
+      const demoPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
+      if (demoPreview) {
+        const demo = buildGrowBrainDemoData();
+        setCurrentBrand(demo.currentBrand);
+        setConnections(demo.connections);
+        setPerformance(demo.performance);
+        setCollectionStates(demo.collectionStates);
+        setLearningProfile(demo.learningProfile);
+        setPostsById(demo.postsById);
+        return;
+      }
+
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       const user = authData?.user;
@@ -436,7 +591,7 @@ export default function GrowBrainPage() {
         </section>
 
         <section className="grow-v215-bottom-grid">
-          <article className="grow-v215-panel grow-v215-top-posts"><div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.content")}</span><h2>{t("growBrain.topContent")}</h2><p>{t("growBrain.topContentHelp")}</p></div></div>{topPosts.length ? <div className="grow-v215-top-list grow-v216-top-grid">{topPosts.slice(0, 5).map((row, index) => { const post = postsById[row.post_id] || {}; const title = truncate(post.idea || post.content || humanize(row.content_type_id || row.content_format) || t("growBrain.publishedPost"), 62); const imageUrl = post.image_url || ""; return <a key={`${row.post_id}-${row.platform}`} href={`/posts/${row.post_id}`} className="grow-v215-top-row grow-v216-top-card"><span className="grow-v215-rank">{index + 1}</span><div className={`grow-v216-top-media ${imageUrl ? "has-image" : ""}`} style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}>{!imageUrl ? <PlatformIcon platform={row.platform} /> : null}</div><span className="grow-v215-top-copy"><strong>{title}</strong><small><PlatformIcon platform={row.platform} /> {PLATFORM_META[row.platform]?.label || humanize(row.platform)} · {formatDate(row.published_at, locale)}</small></span><span className="grow-v216-top-metrics"><span><strong>{formatCompact(getInteractionCount(row), locale)}</strong><small>{t("growBrain.interactions")}</small></span><span><strong>{formatCompact(getExposure(row), locale)}</strong><small>{t("growBrain.exposure")}</small></span></span></a>; })}</div> : <div className="grow-v215-list-empty"><BarChart3 size={21} /><p>{t("growBrain.topContentEmpty")}</p></div>}</article>
+          <article className="grow-v215-panel grow-v215-top-posts"><div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.content")}</span><h2>{t("growBrain.topContent")}</h2><p>{t("growBrain.topContentHelp")}</p></div></div>{topPosts.length ? <div className="grow-v215-top-list grow-v216-top-grid">{topPosts.slice(0, 5).map((row, index) => { const post = postsById[row.post_id] || {}; const title = truncate(post.idea || post.content || humanize(row.content_type_id || row.content_format) || t("growBrain.publishedPost"), 62); const imageUrl = post.image_url || ""; return <a key={`${row.post_id}-${row.platform}`} href={String(row.post_id || "").startsWith("demo-") ? "/grow-brain?demo=1" : `/posts/${row.post_id}`} className="grow-v215-top-row grow-v216-top-card"><span className="grow-v215-rank">{index + 1}</span><div className={`grow-v216-top-media ${imageUrl ? "has-image" : ""}`} style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}>{!imageUrl ? <PlatformIcon platform={row.platform} /> : null}</div><span className="grow-v215-top-copy"><strong>{title}</strong><small><PlatformIcon platform={row.platform} /> {PLATFORM_META[row.platform]?.label || humanize(row.platform)} · {formatDate(row.published_at, locale)}</small></span><span className="grow-v216-top-metrics"><span><strong>{formatCompact(getInteractionCount(row), locale)}</strong><small>{t("growBrain.interactions")}</small></span><span><strong>{formatCompact(getExposure(row), locale)}</strong><small>{t("growBrain.exposure")}</small></span></span></a>; })}</div> : <div className="grow-v215-list-empty"><BarChart3 size={21} /><p>{t("growBrain.topContentEmpty")}</p></div>}</article>
           <aside className="grow-v215-panel grow-v215-system-card"><div className="grow-v215-panel-head compact"><div><span className="grow-v215-section-kicker">{t("growBrain.system")}</span><h2>{t("growBrain.dataHealth")}</h2></div></div><div className="grow-v215-health-score"><span className="grow-v215-health-ring" style={{ "--score": `${connectedPlatforms.length ? Math.round((healthyPlatforms.length / connectedPlatforms.length) * 100) : 0}%` }}><strong>{connectedPlatforms.length ? Math.round((healthyPlatforms.length / connectedPlatforms.length) * 100) : 0}%</strong></span><div><strong>{t("growBrain.measurementCoverage")}</strong><p>{t("growBrain.measurementCoverageText")}</p></div></div><div className="grow-v215-health-list"><div><CheckCircle2 size={16} /><span>{t("growBrain.connectedChannels")}</span><strong>{connectedPlatforms.length}</strong></div><div><Activity size={16} /><span>{t("growBrain.channelsWithData")}</span><strong>{healthyPlatforms.length}</strong></div><div><Clock3 size={16} /><span>{t("growBrain.lastCollection")}</span><strong>{lastSuccess ? formatDateTime(lastSuccess, locale) : "—"}</strong></div></div><p className="grow-v215-system-note">{t("growBrain.observationalNote")}</p></aside>
         </section>
       </div>
