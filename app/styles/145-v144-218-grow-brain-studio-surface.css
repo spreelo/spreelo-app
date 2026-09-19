@@ -1,0 +1,320 @@
+/* Spreelo v144.218 — Grow Brain studio-surface polish
+   Brings Grow Brain into the same visual family as AI Innehållsstudio:
+   magic canvas, translucent glass cards, softer depth, cleaner learning panel,
+   and a hero artwork that reaches the full rounded edge. */
+
+/* Canvas ------------------------------------------------------------------ */
+html body .content.spreelo-content:has(.grow-v215-page){
+  position:relative!important;
+  overflow-x:hidden!important;
+  background-color:#f5f7fb!important;
+  background-image:none!important;
+}
+html body .grow-v215-page{
+  position:relative!important;
+  isolation:isolate!important;
+  background:transparent!important;
+}
+html body .grow-v215-page::before{
+  content:"";
+  position:absolute;
+  z-index:-2;
+  top:-34px;
+  left:50%;
+  width:100vw;
+  min-width:100vw;
+  height:1180px;
+  transform:translateX(-50%);
+  pointer-events:none;
+  background:
+    linear-gradient(180deg,rgba(245,247,251,.02) 0%,rgba(245,247,251,.10) 66%,#f5f7fb 100%),
+    url('/backgrounds/spreelo-background-v97.png') center top / cover no-repeat;
+  opacity:.96;
+}
+html body .grow-v215-page::after{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  top:720px;
+  left:50%;
+  width:100vw;
+  height:780px;
+  transform:translateX(-50%);
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 83% 14%,rgba(129,99,230,.075),transparent 30%),
+    radial-gradient(circle at 14% 34%,rgba(255,143,99,.075),transparent 31%),
+    linear-gradient(180deg,rgba(245,247,251,0),#f5f7fb 72%);
+}
+
+/* Hero -------------------------------------------------------------------- */
+html body .grow-v216-hero{
+  overflow:hidden!important;
+  border:1px solid rgba(190,203,224,.44)!important;
+  border-radius:24px!important;
+  background-color:#f3f0ff!important;
+  background-image:
+    linear-gradient(90deg,rgba(255,255,255,.34) 0%,rgba(255,255,255,.10) 46%,rgba(255,255,255,0) 68%),
+    url('/grow-brain/grow-brain-hero-bg.png')!important;
+  background-repeat:no-repeat,no-repeat!important;
+  background-position:center,center!important;
+  background-size:100% 100%,cover!important;
+  background-origin:border-box!important;
+  background-clip:border-box!important;
+  box-shadow:0 18px 42px rgba(35,50,79,.075),inset 0 1px 0 rgba(255,255,255,.72)!important;
+}
+html body .grow-v216-hero .grow-v215-hero-copy{
+  text-shadow:0 1px 0 rgba(255,255,255,.32);
+}
+html body .grow-v216-hero-status{
+  border:1px solid rgba(255,255,255,.72)!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.78),rgba(255,255,255,.57))!important;
+  -webkit-backdrop-filter:blur(18px) saturate(122%)!important;
+  backdrop-filter:blur(18px) saturate(122%)!important;
+  box-shadow:0 14px 34px rgba(55,47,104,.12),inset 0 1px 0 rgba(255,255,255,.86)!important;
+}
+html body .grow-v215-brand-chip,
+html body .grow-v216-last-update{
+  border-color:rgba(190,203,224,.52)!important;
+  background:rgba(255,255,255,.66)!important;
+  -webkit-backdrop-filter:blur(12px)!important;
+  backdrop-filter:blur(12px)!important;
+}
+
+/* Filters ----------------------------------------------------------------- */
+html body .grow-v215-range-tabs,
+html body .grow-v215-platform-filter{
+  border:1px solid rgba(190,203,224,.50)!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.76),rgba(255,255,255,.54))!important;
+  box-shadow:0 10px 24px rgba(35,50,79,.06),inset 0 1px 0 rgba(255,255,255,.86)!important;
+  -webkit-backdrop-filter:blur(16px) saturate(116%)!important;
+  backdrop-filter:blur(16px) saturate(116%)!important;
+}
+html body .grow-v215-range-tabs button.active,
+html body .grow-v215-chart-toggle button.active{
+  background:linear-gradient(135deg,#8a67ef,#6748d2)!important;
+  color:#fff!important;
+  box-shadow:0 7px 16px rgba(103,72,210,.22)!important;
+}
+
+/* Shared card language ---------------------------------------------------- */
+html body .grow-v215-metric-card,
+html body .grow-v215-panel,
+html body .grow-v215-channel-card,
+html body .grow-v216-top-card{
+  border:1px solid rgba(190,203,224,.48)!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.72),rgba(255,255,255,.48))!important;
+  box-shadow:0 14px 34px rgba(35,50,79,.07),inset 0 1px 0 rgba(255,255,255,.84)!important;
+  -webkit-backdrop-filter:blur(19px) saturate(118%)!important;
+  backdrop-filter:blur(19px) saturate(118%)!important;
+}
+html body .grow-v215-metric-card{
+  min-height:92px;
+  border-radius:20px!important;
+  padding:16px 15px!important;
+}
+html body .grow-v215-metric-icon{
+  width:39px!important;
+  height:39px!important;
+  border-radius:13px!important;
+  border:1px solid rgba(255,255,255,.72)!important;
+  background:linear-gradient(145deg,rgba(245,241,255,.96),rgba(234,226,255,.80))!important;
+  box-shadow:0 7px 18px rgba(103,72,210,.10),inset 0 1px 0 rgba(255,255,255,.92)!important;
+}
+html body .grow-v215-panel{
+  border-radius:22px!important;
+}
+html body .grow-v215-trend-panel,
+html body .grow-v215-learning-panel,
+html body .grow-v215-channels-panel,
+html body .grow-v215-top-posts,
+html body .grow-v215-system-card{
+  background:linear-gradient(145deg,rgba(255,255,255,.76),rgba(255,255,255,.50))!important;
+}
+html body .grow-v215-panel-head h2{
+  color:#111b31!important;
+  font-weight:850!important;
+  letter-spacing:-.015em!important;
+}
+html body .grow-v215-panel-head p{
+  color:#64728a!important;
+}
+html body .grow-v215-section-kicker{
+  color:#6849cf!important;
+  font-weight:900!important;
+}
+
+/* Empty chart feels like part of the dashboard, not a blank admin box. */
+html body .grow-v215-chart-empty{
+  position:relative;
+  overflow:hidden;
+  border:1px dashed rgba(154,133,211,.28)!important;
+  background:
+    radial-gradient(circle at 50% 46%,rgba(117,82,216,.07),transparent 27%),
+    linear-gradient(145deg,rgba(255,255,255,.42),rgba(248,246,255,.34))!important;
+}
+html body .grow-v215-chart-empty::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background-image:linear-gradient(rgba(122,105,170,.045) 1px,transparent 1px);
+  background-size:100% 48px;
+  opacity:.7;
+}
+html body .grow-v215-chart-empty>*{position:relative;z-index:1}
+html body .grow-v215-chart-empty>a{
+  padding:8px 12px;
+  border-radius:999px;
+  background:rgba(239,234,255,.78);
+  box-shadow:inset 0 0 0 1px rgba(104,73,207,.08);
+}
+
+/* Learning panel ---------------------------------------------------------- */
+html body .grow-v215-learning-panel{
+  user-select:none;
+  -webkit-user-select:none;
+}
+html body .grow-v215-learning-panel ::selection{
+  color:inherit;
+  background:rgba(116,82,214,.14);
+}
+html body .grow-v216-learning-progress{
+  padding:14px 15px!important;
+  border:1px solid rgba(199,188,232,.52)!important;
+  border-radius:16px!important;
+  background:linear-gradient(145deg,rgba(248,245,255,.82),rgba(255,255,255,.60))!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.82)!important;
+}
+html body .grow-v215-progress-track{
+  height:8px!important;
+  margin:10px 0 9px!important;
+  border-radius:999px!important;
+  background:rgba(226,219,244,.82)!important;
+  box-shadow:inset 0 1px 2px rgba(73,55,125,.06)!important;
+}
+html body .grow-v215-progress-track span{
+  border-radius:999px!important;
+  background:linear-gradient(90deg,#a482ff 0%,#835fe9 50%,#6746cc 100%)!important;
+  box-shadow:0 4px 12px rgba(103,70,204,.20)!important;
+}
+html body .grow-v216-learning-meta{
+  gap:4px!important;
+}
+html body .grow-v216-learning-meta small{
+  color:#7b8498!important;
+}
+html body .grow-v215-signal-list{gap:8px!important}
+html body .grow-v215-signal-row{
+  position:relative;
+  overflow:hidden;
+  min-height:58px;
+  padding:10px 11px!important;
+  border:1px solid rgba(202,211,226,.58)!important;
+  border-radius:14px!important;
+  background:rgba(255,255,255,.58)!important;
+  box-shadow:0 5px 14px rgba(35,50,79,.035),inset 0 1px 0 rgba(255,255,255,.84)!important;
+}
+html body .grow-v215-signal-row::after{
+  content:"";
+  position:absolute;
+  right:0;
+  bottom:0;
+  left:47px;
+  height:3px;
+  border-radius:999px 0 0 999px;
+  background:linear-gradient(90deg,rgba(139,104,238,.68),rgba(104,73,207,.22));
+}
+html body .grow-v215-signal-mark{
+  width:33px!important;
+  height:33px!important;
+  border-radius:11px!important;
+}
+html body .grow-v215-learning-note{
+  margin-top:12px!important;
+  padding:10px 11px!important;
+  border-radius:12px!important;
+  background:rgba(247,244,255,.68)!important;
+  color:#778197!important;
+}
+
+/* Channels --------------------------------------------------------------- */
+html body .grow-v215-channel-grid{gap:12px!important}
+html body .grow-v215-channel-card{
+  padding:14px 14px 12px!important;
+  border-radius:17px!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.69),rgba(255,255,255,.44))!important;
+}
+html body .grow-v215-channel-card::after{
+  width:92px!important;
+  height:92px!important;
+  right:-38px!important;
+  top:-42px!important;
+  background:radial-gradient(circle,rgba(117,82,216,.07),transparent 68%)!important;
+}
+html body .grow-v215-channel-metrics{
+  margin-top:12px!important;
+  padding:11px 0!important;
+  border-color:rgba(193,204,222,.43)!important;
+}
+html body .grow-v215-channel-metrics div{border-color:rgba(193,204,222,.43)!important}
+html body .grow-v215-status-pill{
+  border:1px solid rgba(197,205,220,.52)!important;
+  background:rgba(245,247,250,.70)!important;
+}
+html body .grow-v215-status-pill.healthy{border-color:rgba(143,201,166,.48)!important;background:rgba(233,248,239,.78)!important}
+html body .grow-v215-status-pill.pending{border-color:rgba(221,193,128,.42)!important;background:rgba(253,246,228,.78)!important}
+html body .grow-v215-status-pill.warning{border-color:rgba(224,156,145,.42)!important;background:rgba(255,239,236,.78)!important}
+html body .grow-v215-status-pill.collecting{border-color:rgba(168,150,223,.48)!important;background:rgba(240,235,255,.78)!important}
+
+/* Bottom section ---------------------------------------------------------- */
+html body .grow-v215-list-empty{
+  min-height:120px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:18px!important;
+  border:1px dashed rgba(154,133,211,.28)!important;
+  border-radius:15px!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.42),rgba(248,246,255,.34))!important;
+}
+html body .grow-v215-health-score{
+  border:1px solid rgba(199,188,232,.52)!important;
+  border-radius:16px!important;
+  background:linear-gradient(145deg,rgba(248,245,255,.82),rgba(255,255,255,.58))!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.82)!important;
+}
+html body .grow-v215-health-list{
+  overflow:hidden;
+  border:1px solid rgba(202,211,226,.55)!important;
+  border-radius:14px!important;
+  background:rgba(255,255,255,.50)!important;
+}
+html body .grow-v215-system-note{
+  border:1px solid rgba(210,204,229,.44)!important;
+  border-radius:12px!important;
+  background:rgba(247,244,255,.66)!important;
+}
+
+/* Small screens ----------------------------------------------------------- */
+@media(max-width:760px){
+  html body .grow-v215-page::before{
+    top:-16px;
+    height:980px;
+    background:
+      linear-gradient(180deg,rgba(245,247,251,.02),rgba(245,247,251,.18) 70%,#f5f7fb 100%),
+      url('/backgrounds/spreelo-background-v97.png') center top / auto 780px no-repeat;
+  }
+  html body .grow-v216-hero{
+    border-radius:20px!important;
+    background-size:auto 100%,cover!important;
+    background-position:center,64% center!important;
+  }
+  html body .grow-v215-metric-card,
+  html body .grow-v215-panel,
+  html body .grow-v215-channel-card,
+  html body .grow-v216-top-card{
+    -webkit-backdrop-filter:blur(14px) saturate(114%)!important;
+    backdrop-filter:blur(14px) saturate(114%)!important;
+  }
+}
