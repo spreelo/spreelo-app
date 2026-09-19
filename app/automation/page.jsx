@@ -15140,9 +15140,9 @@ function blockFormatCardClickAfterDrag(event) {
                       <span className="spreeloRef-ready-pill"><CheckCircle2 size={14}/>{t("automation.onboardingV202.ready")}</span>
                       <h2 id="spreeloRef-title">{t("automation.onboardingV202.heroTitle")}<span aria-hidden="true">🎉</span></h2>
                       <p>
-                        {t("automation.onboardingV202.introPrefix", { count: autoPlanPostCount })}{" "}
-                        <strong>{smartOnboardingBrandName}</strong>{" "}
-                        {t("automation.onboardingV202.introSuffix")}
+                        {t("automation.onboardingV203.firstPlanIntroPrefix")}{" "}
+                        <strong>{smartOnboardingBrandName}</strong>
+                        {t("automation.onboardingV203.firstPlanIntroSuffix")}
                       </p>
                     </div>
                     <div className="spreeloRef-hero-art" aria-hidden="true">
@@ -15261,7 +15261,6 @@ function blockFormatCardClickAfterDrag(event) {
                       <div><CalendarDays size={19}/><h3>{t("automation.onboardingV191.plannedTitle")}</h3></div>
                       <div className="spreeloRef-planned-meta">
                         <span><CalendarDays size={14}/>{t("automation.onboardingV202.postsThisWeek", { count: autoPlanPostCount })}</span>
-                        <a href="/calendar">{t("automation.onboardingV202.viewFullPlan")}<ChevronRight size={14}/></a>
                       </div>
                     </div>
 
@@ -15305,7 +15304,6 @@ function blockFormatCardClickAfterDrag(event) {
                     </button>
                     <button type="button" className="spreeloRef-secondary" onClick={dismissSmartOnboarding}>{t("automation.onboardingV198.chooseSettings")}</button>
                   </div>
-                  <span className="spreeloRef-cta-note">{t("automation.onboardingV202.ctaNote")}</span>
                 </footer>
               </section>
             </div>,

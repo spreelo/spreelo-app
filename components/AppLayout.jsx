@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronRight,
   LayoutDashboard,
+  LockKeyhole,
   LogOut,
   Menu,
   Plus,
@@ -145,6 +146,9 @@ export default function AppLayout({ active, children }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [creditBalance, setCreditBalance] = useState(null);
   const [loadingCredits, setLoadingCredits] = useState(true);
+  const [connectedChannelCount, setConnectedChannelCount] = useState(null);
+  const [loadingChannelGate, setLoadingChannelGate] = useState(true);
+  const [channelGateTarget, setChannelGateTarget] = useState("");
   const avatarInputRef = useRef(null);
 
   const currentBrand = useMemo(() => {
@@ -155,9 +159,60 @@ export default function AppLayout({ active, children }) {
     );
   }, [brandProfiles, currentBrandId]);
 
+  const protectedChannelRoute = active === "automation" || active === "calendar";
+  const protectedChannelHref = active === "calendar" ? "/calendar" : "/automation";
+  const channelGateLocked = !loadingChannelGate && connectedChannelCount === 0;
+  const blockProtectedPage = protectedChannelRoute && channelGateLocked;
+
   useEffect(() => {
     checkUser();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadConnectedChannelGate() {
+      if (!user?.id || !currentBrandId) {
+        if (!cancelled) {
+          setConnectedChannelCount(null);
+          setLoadingChannelGate(true);
+        }
+        return;
+      }
+
+      setLoadingChannelGate(true);
+      try {
+        const { data, error } = await withTimeout(
+          supabase
+            .from("social_connections")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("brand_profile_id", currentBrandId)
+            .eq("status", "connected")
+            .limit(1),
+          WORKSPACE_REQUEST_TIMEOUT_MS
+        );
+
+        if (error) throw error;
+        if (!cancelled) setConnectedChannelCount(Array.isArray(data) ? data.length : 0);
+      } catch (error) {
+        console.error("Could not verify social channel access:", error);
+        // Never lock a customer out because of a temporary database/network error.
+        if (!cancelled) setConnectedChannelCount(null);
+      } finally {
+        if (!cancelled) setLoadingChannelGate(false);
+      }
+    }
+
+    void loadConnectedChannelGate();
+    return () => { cancelled = true; };
+  }, [user?.id, currentBrandId]);
+
+  useEffect(() => {
+    if (blockProtectedPage) {
+      setChannelGateTarget(protectedChannelHref);
+    }
+  }, [blockProtectedPage, protectedChannelHref]);
 
   useEffect(() => {
     function requestAvatarPicker() {
@@ -548,6 +603,31 @@ export default function AppLayout({ active, children }) {
   }
 
 
+  function isChannelProtectedNavItem(item) {
+    return item?.id === "automation" || item?.id === "calendar";
+  }
+
+  function openChannelGate(targetHref) {
+    setChannelGateTarget(targetHref || "/automation");
+    setMobileMenuOpen(false);
+  }
+
+  function closeChannelGate() {
+    if (blockProtectedPage) {
+      window.location.href = "/";
+      return;
+    }
+    setChannelGateTarget("");
+  }
+
+  function continueToSocialChannels() {
+    const target = channelGateTarget || protectedChannelHref || "/automation";
+    try {
+      window.sessionStorage.setItem("spreelo_channel_gate_return_to", target);
+    } catch {}
+    window.location.href = "/social-channels";
+  }
+
   function getNavLabel(item) {
     return t(item.labelKey);
   }
@@ -785,12 +865,23 @@ export default function AppLayout({ active, children }) {
             .map((item) => (
             <a
               key={item.id}
-              className={active === item.id ? "active" : ""}
+              className={`${active === item.id ? "active" : ""}${isChannelProtectedNavItem(item) && channelGateLocked ? " channel-locked" : ""}`}
               href={item.href}
-              onClick={() => setMobileMenuOpen(false)}
+              aria-disabled={isChannelProtectedNavItem(item) && channelGateLocked ? "true" : undefined}
+              onClick={(event) => {
+                if (isChannelProtectedNavItem(item) && channelGateLocked) {
+                  event.preventDefault();
+                  openChannelGate(item.href);
+                  return;
+                }
+                setMobileMenuOpen(false);
+              }}
             >
               <SidebarMenuIcon Icon={item.Icon} />
               <span>{getNavLabel(item)}</span>
+              {isChannelProtectedNavItem(item) && channelGateLocked ? (
+                <LockKeyhole className="spreelo-nav-channel-lock" size={14} strokeWidth={2} aria-hidden="true" />
+              ) : null}
             </a>
           ))}
         </nav>
@@ -953,9 +1044,70 @@ export default function AppLayout({ active, children }) {
 
       <PlanLimitModal details={planLimitDetails} onClose={() => setPlanLimitDetails(null)} />
 
+      {channelGateTarget && channelGateLocked ? (
+        <div
+          className="spreelo-channel-gate-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeChannelGate();
+          }}
+        >
+          <section
+            className="spreelo-channel-gate"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="spreelo-channel-gate-title"
+          >
+            <button
+              type="button"
+              className="spreelo-channel-gate-close"
+              aria-label={t("layout.channelGateClose")}
+              onClick={closeChannelGate}
+            >
+              <X size={20} />
+            </button>
+
+            <div className="spreelo-channel-gate-icon" aria-hidden="true">
+              <Share2 size={28} strokeWidth={2} />
+              <span><LockKeyhole size={14} strokeWidth={2.2} /></span>
+            </div>
+            <p className="spreelo-channel-gate-eyebrow">{t("layout.channelGateEyebrow")}</p>
+            <h2 id="spreelo-channel-gate-title">{t("layout.channelGateTitle")}</h2>
+            <p className="spreelo-channel-gate-copy">{t("layout.channelGateText")}</p>
+
+            <div className="spreelo-channel-gate-flow" aria-hidden="true">
+              <div><span>1</span><strong>{t("layout.channelGateStepConnect")}</strong></div>
+              <ChevronRight size={18} />
+              <div><span>2</span><strong>{t("layout.channelGateStepUnlock")}</strong></div>
+              <ChevronRight size={18} />
+              <div><span>3</span><strong>{t("layout.channelGateStepCreate")}</strong></div>
+            </div>
+
+            <p className="spreelo-channel-gate-note">
+              <BadgeCheck size={17} aria-hidden="true" />
+              <span>{t("layout.channelGateNote")}</span>
+            </p>
+
+            <div className="spreelo-channel-gate-actions">
+              <button type="button" className="primary" onClick={continueToSocialChannels}>
+                <Share2 size={18} aria-hidden="true" />
+                {t("layout.channelGateConnect")}
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+              <button type="button" onClick={closeChannelGate}>{t("layout.channelGateBack")}</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       <section className="content spreelo-content">
         {active !== "settings" && <LanguageSuggestionBanner />}
-        {children}
+        {protectedChannelRoute && loadingChannelGate ? (
+          <div className="spreelo-channel-gate-checking" aria-live="polite">
+            <span className="spreelo-channel-gate-checking-icon"><Share2 size={22} /></span>
+            <strong>{t("layout.channelGateChecking")}</strong>
+          </div>
+        ) : blockProtectedPage ? null : children}
       </section>
     </main>
   );

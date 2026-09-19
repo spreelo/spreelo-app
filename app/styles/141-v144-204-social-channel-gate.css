@@ -1,0 +1,310 @@
+/* v144.204 — Require at least one connected social channel before Studio / AI Calendar. */
+
+html body .spreelo-nav a.channel-locked {
+  position: relative;
+}
+
+html body .spreelo-nav a.channel-locked .spreelo-nav-channel-lock {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: #8a7be3;
+  opacity: .9;
+}
+
+html body .spreelo-channel-gate-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 24, 49, .48);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+html body .spreelo-channel-gate {
+  position: relative;
+  width: min(570px, calc(100vw - 32px));
+  padding: 34px 34px 30px;
+  border-radius: 28px;
+  border: 1px solid rgba(119, 92, 228, .16);
+  background:
+    radial-gradient(circle at 86% 12%, rgba(226, 211, 255, .72), transparent 26%),
+    radial-gradient(circle at 8% 96%, rgba(255, 224, 208, .5), transparent 24%),
+    rgba(255,255,255,.985);
+  box-shadow: 0 32px 90px rgba(24, 31, 68, .26);
+  text-align: center;
+  overflow: hidden;
+}
+
+html body .spreelo-channel-gate::before {
+  content: "";
+  position: absolute;
+  top: -52px;
+  right: -44px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(127, 88, 241, .12), transparent 68%);
+  pointer-events: none;
+}
+
+html body .spreelo-channel-gate-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(69, 78, 117, .12);
+  border-radius: 13px;
+  color: #233052;
+  background: rgba(255,255,255,.88);
+  box-shadow: 0 7px 18px rgba(29, 37, 75, .08);
+  cursor: pointer;
+}
+
+html body .spreelo-channel-gate-icon {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  color: #fff;
+  background: linear-gradient(145deg, #ff5a9f 0%, #8b5df5 64%, #6554e8 100%);
+  box-shadow: 0 18px 32px rgba(120, 83, 235, .24);
+}
+
+html body .spreelo-channel-gate-icon > span {
+  position: absolute;
+  right: -6px;
+  bottom: -5px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #6550e7;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(70, 57, 140, .18);
+}
+
+html body .spreelo-channel-gate-eyebrow {
+  margin: 0 0 8px;
+  color: #7358e8;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+html body .spreelo-channel-gate h2 {
+  margin: 0;
+  color: #111a36;
+  font-size: 32px;
+  line-height: 1.04;
+  letter-spacing: -.035em;
+  font-weight: 900;
+}
+
+html body .spreelo-channel-gate-copy {
+  max-width: 470px;
+  margin: 13px auto 0;
+  color: #626f8b;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+html body .spreelo-channel-gate-flow {
+  display: grid;
+  grid-template-columns: 1fr 22px 1fr 22px 1fr;
+  align-items: center;
+  gap: 6px;
+  margin: 24px 0 16px;
+}
+
+html body .spreelo-channel-gate-flow > div {
+  min-height: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(118, 92, 207, .10);
+  background: rgba(248, 246, 255, .82);
+}
+
+html body .spreelo-channel-gate-flow > div:nth-of-type(2) {
+  background: rgba(239, 252, 247, .9);
+}
+
+html body .spreelo-channel-gate-flow > div:nth-of-type(3) {
+  background: rgba(255, 247, 239, .9);
+}
+
+html body .spreelo-channel-gate-flow span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #745bea;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+html body .spreelo-channel-gate-flow strong {
+  color: #243052;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 850;
+}
+
+html body .spreelo-channel-gate-flow > svg {
+  color: #8b76ec;
+}
+
+html body .spreelo-channel-gate-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 13px;
+  color: #596783;
+  background: linear-gradient(180deg, #f7f3ff 0%, #f4f1ff 100%);
+  text-align: left;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+html body .spreelo-channel-gate-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #7659ed;
+}
+
+html body .spreelo-channel-gate-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 9px;
+  margin-top: 18px;
+}
+
+html body .spreelo-channel-gate-actions button {
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 10px 18px;
+  border-radius: 14px;
+  border: 1px solid #dcd7f3;
+  color: #243052;
+  background: #fff;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+html body .spreelo-channel-gate-actions button.primary {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(90deg, #ff4aa8 0%, #b14ef3 54%, #7659ef 100%);
+  box-shadow: 0 12px 25px rgba(149, 76, 236, .22);
+}
+
+html body .spreelo-channel-gate-checking {
+  min-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #53617d;
+}
+
+html body .spreelo-channel-gate-checking-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 17px;
+  color: #7558ed;
+  background: #f3efff;
+  animation: spreeloChannelGatePulse 1.3s ease-in-out infinite;
+}
+
+html body .spreelo-channel-gate-checking strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+@keyframes spreeloChannelGatePulse {
+  0%,100% { transform: scale(1); opacity: .75; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+@media (max-width: 720px) {
+  html body .spreelo-channel-gate-backdrop {
+    padding: 12px;
+  }
+
+  html body .spreelo-channel-gate {
+    width: min(430px, calc(100vw - 24px));
+    padding: 28px 18px 20px;
+    border-radius: 23px;
+  }
+
+  html body .spreelo-channel-gate-icon {
+    width: 66px;
+    height: 66px;
+    border-radius: 21px;
+  }
+
+  html body .spreelo-channel-gate h2 {
+    max-width: 330px;
+    margin-inline: auto;
+    font-size: 27px;
+  }
+
+  html body .spreelo-channel-gate-copy {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  html body .spreelo-channel-gate-flow {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    margin-top: 20px;
+  }
+
+  html body .spreelo-channel-gate-flow > svg {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  html body .spreelo-channel-gate-flow > div {
+    min-height: 58px;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 10px 13px;
+  }
+
+  html body .spreelo-channel-gate-flow strong {
+    font-size: 13px;
+  }
+
+  html body .spreelo-channel-gate-note {
+    font-size: 12px;
+  }
+}

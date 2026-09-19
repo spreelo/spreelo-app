@@ -144,7 +144,22 @@ function getConnectEndpoint(platformKey) {
 }
 
 const SOCIAL_OAUTH_MESSAGE_TYPE = "spreelo-social-oauth-result";
+const CHANNEL_GATE_RETURN_KEY = "spreelo_channel_gate_return_to";
+const CHANNEL_GATE_RETURN_PATHS = new Set(["/automation", "/calendar"]);
 const FREE_TRIAL_RESTRICTION_ERRORS = new Set(["trial_social_account_used", "trial_account_already_used", "trial_business_already_used"]);
+
+function continueAfterChannelGateConnection() {
+  if (typeof window === "undefined") return;
+  let target = "";
+  try {
+    target = String(window.sessionStorage.getItem(CHANNEL_GATE_RETURN_KEY) || "").trim();
+  } catch {}
+  if (!CHANNEL_GATE_RETURN_PATHS.has(target)) return;
+  try { window.sessionStorage.removeItem(CHANNEL_GATE_RETURN_KEY); } catch {}
+  window.setTimeout(() => {
+    window.location.href = target;
+  }, 850);
+}
 
 function getOAuthPopupFeatures() {
   const width = 620;
@@ -424,6 +439,7 @@ export default function SocialChannelsPage() {
           }));
           setMessageKind("success");
           setConnectionSuccess({ platform, brandName: currentBrandRef.current?.business_name || "" });
+          continueAfterChannelGateConnection();
         }
         return;
       }
@@ -558,7 +574,10 @@ export default function SocialChannelsPage() {
       setMessageKind(urlErrorCode ? "error" : "success");
       if (connectedPlatformKey) {
         const platform = selectedPlatforms.find((item) => item.key === connectedPlatformKey);
-        if (platform) setConnectionSuccess({ platform, brandName: selectedBrand.business_name || "" });
+        if (platform) {
+          setConnectionSuccess({ platform, brandName: selectedBrand.business_name || "" });
+          continueAfterChannelGateConnection();
+        }
       }
       window.history.replaceState({}, "", window.location.pathname);
     }

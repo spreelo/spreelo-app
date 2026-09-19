@@ -34,22 +34,13 @@ html body .spreeloRef-modal {
   box-shadow: 0 28px 78px rgba(23, 31, 70, .24);
 }
 
-html body .spreeloRef-modal::before {
-  content: "";
-  position: absolute;
-  left: -12px;
-  bottom: -6px;
-  width: 96px;
-  height: 110px;
-  pointer-events: none;
-  opacity: .72;
-  background:
-    radial-gradient(ellipse at 22% 84%, rgba(255, 188, 215, .65) 0 14px, transparent 15px),
-    radial-gradient(ellipse at 38% 70%, rgba(255, 170, 205, .62) 0 17px, transparent 18px),
-    radial-gradient(ellipse at 52% 58%, rgba(255, 201, 220, .72) 0 20px, transparent 21px),
-    radial-gradient(ellipse at 18% 62%, rgba(121, 190, 106, .34) 0 10px, transparent 11px),
-    radial-gradient(ellipse at 40% 92%, rgba(121, 190, 106, .25) 0 10px, transparent 11px);
+/* No decorative corner blobs: the previous placeholder spots were not real artwork. */
+html body .spreeloRef-modal::before,
+html body .spreeloRef-modal::after {
+  content: none !important;
+  display: none !important;
 }
+
 
 html body .spreeloRef-header {
   position: relative;
@@ -201,46 +192,48 @@ html body .spreeloRef-scribble {
 
 html body .spreeloRef-count {
   position: absolute;
-  right: 4px;
-  top: 20px;
+  right: 66px;
+  top: 23px;
   z-index: 3;
-  width: 88px;
-  min-height: 104px;
+  width: 70px;
+  min-height: 58px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 8px 8px 10px;
+  padding: 0;
   box-sizing: border-box;
-  border-radius: 23px;
-  background: rgba(255,255,255,.98);
-  box-shadow: 0 14px 28px rgba(96, 77, 189, .18);
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
   text-align: center;
 }
 
 html body .spreeloRef-count strong {
   color: #142052;
-  font-size: 45px;
-  line-height: .9;
+  font-size: 37px;
+  line-height: .86;
   font-weight: 900;
 }
 
 html body .spreeloRef-count span {
-  margin-top: 3px;
+  margin-top: 2px;
   white-space: pre-line;
   color: #654edb;
-  font-size: 13px;
+  font-size: 11px;
   line-height: 1.02;
   font-weight: 900;
 }
 
 html body .spreeloRef-check {
   position: absolute;
-  right: 2px;
-  bottom: 15px;
+  right: 58px;
+  top: 65px;
+  bottom: auto;
   z-index: 4;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -391,8 +384,8 @@ html body .spreeloRef-step p {
 }
 
 html body .spreeloRef-flow-arrow {
-  width: 32px;
-  height: 32px;
+  width: 52px;
+  height: 52px;
   display: grid;
   place-items: center;
   align-self: center;
@@ -400,9 +393,14 @@ html body .spreeloRef-flow-arrow {
   border-radius: 50%;
   color: #745be8;
   background: #fff;
-  border: 1px solid rgba(119,88,229,.13);
-  box-shadow: 0 7px 16px rgba(78,58,153,.10);
+  border: 2px solid rgba(119,88,229,.16);
+  box-shadow: 0 10px 22px rgba(78,58,153,.12);
   z-index: 2;
+}
+
+html body .spreeloRef-flow-arrow svg {
+  width: 22px;
+  height: 22px;
 }
 
 html body .spreeloRef-benefits {
@@ -492,9 +490,9 @@ html body .spreeloRef-planned-head > div:first-child svg {
 html body .spreeloRef-section-head h3,
 html body .spreeloRef-planned-head h3 {
   margin: 0;
-  color: #172248;
-  font-size: 18px;
-  line-height: 1.12;
+  color: #6D5AE9;
+  font-size: 25px;
+  line-height: 1.08;
   font-weight: 900;
 }
 
@@ -716,6 +714,8 @@ html body .spreeloRef-post-card {
   width: 160px;
   min-width: 160px;
   flex: 0 0 160px;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border-radius: 14px;
   border: 1px solid #e6def3;
@@ -766,18 +766,19 @@ html body .spreeloRef-post-card.tone-3 .spreeloRef-date-badge { color:#4e55c5; b
 html body .spreeloRef-date-badge span {
   font-size: 8px;
   line-height: 1;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 html body .spreeloRef-date-badge strong {
   margin: 2px 0;
   font-size: 22px;
   line-height: .9;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 html body .spreeloRef-post-footer {
   min-height: 50px;
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: 34px minmax(0,1fr);
   align-items: center;
@@ -811,7 +812,7 @@ html body .spreeloRef-post-footer strong {
   color: #1c284d;
   font-size: 11px;
   line-height: 1.18;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 html body .spreeloRef-carousel-btn {
@@ -898,26 +899,7 @@ html body .spreeloRef-secondary {
   background: #fff;
 }
 
-html body .spreeloRef-cta-note {
-  position: absolute;
-  right: 30px;
-  bottom: 30px;
-  width: 100px;
-  color: #654de0;
-  font-size: 13px;
-  line-height: 1.08;
-  font-weight: 850;
-  transform: rotate(-8deg);
-  text-align: center;
-}
 
-html body .spreeloRef-cta-note::after {
-  content: "↙";
-  display: block;
-  margin-top: 3px;
-  font-size: 30px;
-  line-height: 1;
-}
 
 /* Tablet */
 @media (max-width: 940px) and (min-width: 721px) {
@@ -967,11 +949,6 @@ html body .spreeloRef-cta-note::after {
     border-radius: 20px;
   }
 
-  html body .spreeloRef-modal::before {
-    width: 72px;
-    height: 82px;
-    opacity: .45;
-  }
 
   html body .spreeloRef-header {
     padding: 13px 13px 8px;
@@ -1032,18 +1009,25 @@ html body .spreeloRef-cta-note::after {
   }
 
   html body .spreeloRef-count {
-    right: 5px;
-    top: 18px;
-    width: 82px;
-    min-height: 96px;
+    right: 48px;
+    top: 22px;
+    width: 62px;
+    min-height: 52px;
   }
 
   html body .spreeloRef-count strong {
-    font-size: 40px;
+    font-size: 33px;
   }
 
   html body .spreeloRef-count span {
-    font-size: 12px;
+    font-size: 10px;
+  }
+
+  html body .spreeloRef-check {
+    right: 42px;
+    top: 59px;
+    width: 26px;
+    height: 26px;
   }
 
   html body .spreeloRef-hero-note,
@@ -1062,6 +1046,8 @@ html body .spreeloRef-cta-note::after {
   }
 
   html body .spreeloRef-step {
+    position: relative;
+    z-index: 1;
     width: 100%;
     min-height: 118px;
     display: grid;
@@ -1119,10 +1105,17 @@ html body .spreeloRef-cta-note::after {
   }
 
   html body .spreeloRef-flow-arrow {
-    width: 30px;
-    height: 30px;
-    margin: -2px auto;
+    width: 40px;
+    height: 40px;
+    margin: -12px auto -10px;
     transform: rotate(90deg);
+    border-width: 2px;
+    box-shadow: 0 9px 20px rgba(78,58,153,.12);
+  }
+
+  html body .spreeloRef-flow-arrow svg {
+    width: 18px;
+    height: 18px;
   }
 
   html body .spreeloRef-benefits {
@@ -1151,7 +1144,8 @@ html body .spreeloRef-cta-note::after {
 
   html body .spreeloRef-section-head h3,
   html body .spreeloRef-planned-head h3 {
-    font-size: 16px;
+    font-size: 20px;
+    line-height: 1.1;
   }
 
   html body .spreeloRef-tailored {
@@ -1215,10 +1209,6 @@ html body .spreeloRef-cta-note::after {
     min-height: 48px;
     font-size: 13.5px;
   }
-
-  html body .spreeloRef-cta-note {
-    display: none;
-  }
 }
 
 html body .spreeloRef-post-row.is-dragging {
@@ -1276,10 +1266,6 @@ html body .spreeloRef-date-badge span {
   font-size: 11.5px;
 }
 
-html body .spreeloRef-cta-note::after {
-  content: none;
-  display: none;
-}
 
 @media (max-width: 720px) {
   html body .spreeloRef-help-pill,
@@ -1321,5 +1307,50 @@ html body .spreeloRef-cta-note::after {
   html body .spreeloRef-help-pill,
   html body .spreeloRef-ready-pill {
     font-size: 12px;
+  }
+}
+
+/* v144.203 final onboarding polish: readability + requested cleanup. */
+html body .spreeloRef-help-pill,
+html body .spreeloRef-ready-pill {
+  font-size: 12.5px;
+}
+
+html body .spreeloRef-count span {
+  font-size: 12.5px;
+}
+
+html body .spreeloRef-date-badge span {
+  font-size: 13px;
+}
+
+html body .spreeloRef-post-footer strong {
+  font-weight: 600;
+}
+
+/* The count is text placed inside the white panel already drawn in the hero asset. */
+html body .spreeloRef-count {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* No placeholder flower/color blobs at the lower-left corner. */
+html body .spreeloRef-modal::before,
+html body .spreeloRef-modal::after {
+  content: none !important;
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  html body .spreeloRef-help-pill,
+  html body .spreeloRef-ready-pill,
+  html body .spreeloRef-count span,
+  html body .spreeloRef-date-badge span {
+    font-size: 13px;
+  }
+
+  html body .spreeloRef-post-footer strong {
+    font-weight: 600;
   }
 }
