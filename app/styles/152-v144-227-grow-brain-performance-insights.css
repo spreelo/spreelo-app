@@ -1,0 +1,198 @@
+/* Spreelo v144.227 — Grow Brain step 3B performance insight presentation */
+
+html body .grow-v227-performance-learning{
+  margin-top:14px;
+  padding:16px;
+  overflow:hidden;
+}
+html body .grow-v227-performance-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+html body .grow-v227-performance-head>div:first-child{min-width:0;max-width:760px}
+html body .grow-v227-performance-head h2{
+  margin:2px 0 4px;
+  color:#171a2e;
+  font-size:15px;
+  line-height:1.2;
+}
+html body .grow-v227-performance-head p{
+  margin:0;
+  color:#667085;
+  font-size:12.5px;
+  line-height:1.48;
+}
+html body .grow-v227-performance-status{
+  display:flex;
+  align-items:flex-end;
+  flex-direction:column;
+  gap:6px;
+  flex:0 0 auto;
+}
+html body .grow-v227-performance-status small{color:#8d93a1;font-size:10.5px}
+html body .grow-v227-learning-state,
+html body .grow-v227-test-badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:23px;
+  padding:0 9px;
+  border-radius:999px;
+  font-size:9.5px;
+  font-weight:900;
+  letter-spacing:.02em;
+  text-transform:uppercase;
+}
+html body .grow-v227-learning-state.established{background:#eaf8ef;color:#207a4c;border:1px solid #d1eedc}
+html body .grow-v227-learning-state.early{background:#f2edff;color:#6847d1;border:1px solid #e4dcff}
+html body .grow-v227-learning-state.collecting{background:#f5f6f8;color:#6d7482;border:1px solid #e5e7eb}
+html body .grow-v227-test-badge{background:#fff5df;color:#95651e;border:1px solid #f3dfb4}
+
+html body .grow-v227-performance-summary{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+  margin-top:13px;
+}
+html body .grow-v227-performance-summary>span{
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  min-width:0;
+  padding:9px 11px;
+  border:1px solid rgba(111,84,205,.12);
+  border-radius:11px;
+  background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(249,247,255,.82));
+  color:#747b89;
+  font-size:10.5px;
+}
+html body .grow-v227-performance-summary strong{color:#31284d;font-size:15px;line-height:1}
+
+html body .grow-v227-insight-groups{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin-top:12px;
+}
+html body .grow-v227-insight-group{
+  min-width:0;
+  padding:11px;
+  border-radius:13px;
+  border:1px solid rgba(105,76,214,.11);
+  background:rgba(255,255,255,.55);
+}
+html body .grow-v227-insight-group.positive{background:linear-gradient(180deg,rgba(243,252,247,.82),rgba(255,255,255,.7))}
+html body .grow-v227-insight-group.negative{background:linear-gradient(180deg,rgba(255,247,247,.78),rgba(255,255,255,.7))}
+html body .grow-v227-group-head{display:flex;align-items:flex-start;gap:9px;margin-bottom:8px}
+html body .grow-v227-group-head h3{margin:1px 0 2px;color:#24283b;font-size:13px;line-height:1.25}
+html body .grow-v227-group-head p{margin:0;color:#7a8190;font-size:10.5px;line-height:1.4}
+html body .grow-v227-group-icon,
+html body .grow-v227-insight-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  border-radius:9px;
+}
+html body .grow-v227-group-icon{width:30px;height:30px}
+html body .grow-v227-group-icon.positive,
+html body .grow-v227-insight-icon.positive{background:#eaf8ef;color:#238557}
+html body .grow-v227-group-icon.negative,
+html body .grow-v227-insight-icon.negative{background:#fff0f0;color:#c64a52}
+html body .grow-v227-insight-list{display:flex;flex-direction:column;gap:7px}
+html body .grow-v227-group-empty{padding:14px;border:1px dashed #d9dce4;border-radius:10px;color:#8a909d;font-size:11px;text-align:center}
+
+html body .grow-v227-insight-card{
+  padding:10px;
+  border:1px solid #e2e4eb;
+  border-radius:11px;
+  background:rgba(255,255,255,.96);
+  box-shadow:0 5px 14px rgba(35,30,68,.035);
+}
+html body .grow-v227-insight-card.positive{border-left:3px solid #76c99c}
+html body .grow-v227-insight-card.negative{border-left:3px solid #e39a9f}
+html body .grow-v227-insight-top{display:flex;align-items:flex-start;gap:8px;min-width:0}
+html body .grow-v227-insight-icon{width:28px;height:28px}
+html body .grow-v227-insight-title{min-width:0;flex:1}
+html body .grow-v227-insight-title>strong{display:block;margin-top:2px;color:#20243a;font-size:12px;line-height:1.25}
+html body .grow-v227-insight-meta{display:flex;align-items:center;gap:4px;color:#858b98;font-size:9.25px;line-height:1.15}
+html body .grow-v227-signal-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:21px;
+  padding:0 7px;
+  border-radius:999px;
+  white-space:nowrap;
+  font-size:8.75px;
+  font-weight:900;
+}
+html body .grow-v227-signal-pill.positive{background:#eaf8ef;color:#238557}
+html body .grow-v227-signal-pill.negative{background:#fff0f0;color:#bd414c}
+html body .grow-v227-insight-evidence{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+html body .grow-v227-insight-evidence>span{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  min-height:23px;
+  padding:0 7px;
+  border-radius:7px;
+  background:#f7f7fa;
+  color:#6e7584;
+  font-size:9.5px;
+}
+html body .grow-v227-insight-evidence>span.positive strong{color:#238557}
+html body .grow-v227-insight-evidence>span.negative strong{color:#c34a53}
+html body .grow-v227-insight-foot{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px 10px;
+  margin-top:8px;
+  padding-top:7px;
+  border-top:1px solid #f0f0f4;
+  color:#9298a5;
+  font-size:9.25px;
+}
+html body .grow-v227-performance-empty{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  margin-top:13px;
+  padding:16px;
+  border:1px dashed #dcd9e9;
+  border-radius:12px;
+  background:rgba(250,249,253,.72);
+  color:#7d8290;
+}
+html body .grow-v227-performance-empty svg{color:#7255d7;flex:0 0 auto}
+html body .grow-v227-performance-empty strong{display:block;color:#3b3e50;font-size:12.5px}
+html body .grow-v227-performance-empty p{margin:3px 0 0;font-size:11px;line-height:1.45}
+html body .grow-v227-observation-note{
+  display:flex;
+  align-items:flex-start;
+  gap:7px;
+  margin-top:10px;
+  padding-top:9px;
+  border-top:1px solid rgba(111,84,205,.09);
+  color:#858b98;
+  font-size:10px;
+  line-height:1.4;
+}
+html body .grow-v227-observation-note svg{flex:0 0 auto;color:#8a73d8}
+
+@media (max-width:900px){
+  html body .grow-v227-performance-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  html body .grow-v227-insight-groups{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  html body .grow-v227-performance-learning{padding:13px}
+  html body .grow-v227-performance-head{flex-direction:column;gap:10px}
+  html body .grow-v227-performance-status{align-items:flex-start;flex-direction:row;flex-wrap:wrap}
+  html body .grow-v227-performance-status small{width:100%}
+  html body .grow-v227-performance-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  html body .grow-v227-performance-summary>span{align-items:flex-start;flex-direction:column;gap:2px}
+  html body .grow-v227-insight-card{padding:9px}
+  html body .grow-v227-insight-top{flex-wrap:wrap}
+  html body .grow-v227-signal-pill{margin-left:36px}
+}

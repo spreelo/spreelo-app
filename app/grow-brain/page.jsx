@@ -18,6 +18,7 @@ import {
   Share2,
   Sparkles,
   ThumbsUp,
+  TrendingDown,
   TrendingUp,
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
@@ -258,6 +259,93 @@ function getLearningSignalLabel(t, signal) {
   return formatLabels[signal.key] || signal.label || humanize(signal.key);
 }
 
+function getPerformanceInsightLabel(t, insight) {
+  const key = insight?.dimension_key;
+  if (!key) return "";
+  if (String(insight?.dimension_type || "").includes("content_type")) {
+    const translated = t(`automation.contentType.${key}.label`);
+    if (translated && translated !== `automation.contentType.${key}.label`) return translated;
+  }
+  const formatLabels = {
+    single_image: t("growBrain.formatSingleImage"),
+    animated_video: t("growBrain.formatAnimatedVideo"),
+    carousel: t("growBrain.formatCarousel"),
+    video: t("growBrain.formatVideo"),
+  };
+  return formatLabels[key] || humanize(key);
+}
+
+function getPerformanceDimensionLabel(t, dimensionType) {
+  return String(dimensionType || "").includes("content_format")
+    ? t("growBrain.performanceInsightFormat")
+    : t("growBrain.performanceInsightContentType");
+}
+
+function getPerformanceSignalLabel(t, signal) {
+  const key = ["strong_positive", "positive", "neutral", "negative", "strong_negative"].includes(signal) ? signal : "neutral";
+  return t(`growBrain.performanceSignal.${key}`);
+}
+
+function relativePercent(value) {
+  const ratio = Number(value);
+  if (!Number.isFinite(ratio) || ratio <= 0) return null;
+  return Math.round((ratio - 1) * 100);
+}
+
+function getInsightHighlights(t, insight) {
+  const metrics = [
+    ["engagement", t("growBrain.performanceMetricEngagement"), insight?.relative_engagement],
+    ["exposure", t("growBrain.performanceMetricExposure"), insight?.relative_exposure],
+    ["click", t("growBrain.performanceMetricClick"), insight?.relative_click],
+    ["share", t("growBrain.performanceMetricShare"), insight?.relative_share],
+    ["save", t("growBrain.performanceMetricSave"), insight?.relative_save],
+  ];
+  return metrics
+    .map(([key, label, ratio]) => ({ key, label, percent: relativePercent(ratio) }))
+    .filter((item) => item.percent !== null)
+    .sort((left, right) => Math.abs(right.percent) - Math.abs(left.percent))
+    .slice(0, 2);
+}
+
+function PerformanceInsightCard({ insight, t }) {
+  const positive = ["positive", "strong_positive"].includes(insight?.signal);
+  const highlights = getInsightHighlights(t, insight);
+  const platform = insight?.platform === "all"
+    ? t("growBrain.performanceInsightAllChannels")
+    : PLATFORM_META[insight?.platform]?.label || humanize(insight?.platform);
+  const confidence = Math.round(clamp(safeNumber(insight?.confidence), 0, 1) * 100);
+  return (
+    <article className={`grow-v227-insight-card ${positive ? "positive" : "negative"}`}>
+      <div className="grow-v227-insight-top">
+        <span className={`grow-v227-insight-icon ${positive ? "positive" : "negative"}`}>
+          {positive ? <TrendingUp size={17} aria-hidden="true" /> : <TrendingDown size={17} aria-hidden="true" />}
+        </span>
+        <div className="grow-v227-insight-title">
+          <div className="grow-v227-insight-meta">
+            <span>{getPerformanceDimensionLabel(t, insight?.dimension_type)}</span>
+            <span>•</span>
+            <span>{platform}</span>
+          </div>
+          <strong>{getPerformanceInsightLabel(t, insight)}</strong>
+        </div>
+        <span className={`grow-v227-signal-pill ${positive ? "positive" : "negative"}`}>
+          {getPerformanceSignalLabel(t, insight?.signal)}
+        </span>
+      </div>
+      <div className="grow-v227-insight-evidence">
+        {highlights.map((item) => <span key={item.key} className={item.percent >= 0 ? "positive" : "negative"}>
+          {item.label} <strong>{item.percent > 0 ? "+" : ""}{item.percent}%</strong>
+        </span>)}
+      </div>
+      <div className="grow-v227-insight-foot">
+        <span>{t("growBrain.performanceInsightObservations", { count: safeNumber(insight?.observation_count) })}</span>
+        <span>{t("growBrain.performanceInsightConfidence", { value: confidence })}</span>
+        <span>{t("growBrain.performanceInsightScore", { value: `${safeNumber(insight?.performance_score) > 0 ? "+" : ""}${safeNumber(insight?.performance_score)}` })}</span>
+      </div>
+    </article>
+  );
+}
+
 function MetricCard({ icon: Icon, label, value, detail, loading }) {
   return (
     <article className="grow-v215-metric-card grow-v216-metric-card">
@@ -438,6 +526,8 @@ export default function GrowBrainPage() {
   const [demoMode, setDemoMode] = useState(false);
   const [engineTestRunning, setEngineTestRunning] = useState(false);
   const [engineTestResult, setEngineTestResult] = useState(null);
+  const [performanceInsights, setPerformanceInsights] = useState([]);
+  const [performanceLearningState, setPerformanceLearningState] = useState(null);
 
   useEffect(() => {
     const isDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
@@ -455,6 +545,27 @@ export default function GrowBrainPage() {
     if (error) throw error;
     if (data?.id && typeof window !== "undefined") localStorage.setItem(getBrandStorageKey(user.id), data.id);
     return data || null;
+  }
+
+  async function loadPerformanceEngineTestSnapshot() {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) return;
+      const response = await fetch("/api/admin/grow-brain-performance-test", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) return;
+      if (payload.has_test_data) {
+        setPerformanceInsights(payload.insights || []);
+        setPerformanceLearningState(payload.state || null);
+        setEngineTestResult(payload);
+      }
+    } catch {
+      // Demo verification is optional; never block the customer dashboard on it.
+    }
   }
 
   async function runPerformanceEngineTest(action = "run") {
@@ -477,6 +588,13 @@ export default function GrowBrainPage() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) throw new Error(payload?.error || t("growBrain.engineTestFailed"));
       setEngineTestResult(payload);
+      if (action === "cleanup") {
+        setPerformanceInsights([]);
+        setPerformanceLearningState(null);
+      } else {
+        setPerformanceInsights(payload.insights || []);
+        setPerformanceLearningState(payload.state || null);
+      }
     } catch (error) {
       setEngineTestResult({ ok: false, passed: false, error: error?.message || t("growBrain.engineTestFailed") });
     } finally {
@@ -497,6 +615,7 @@ export default function GrowBrainPage() {
         setCollectionStates(demo.collectionStates);
         setLearningProfile(demo.learningProfile);
         setPostsById(demo.postsById);
+        await loadPerformanceEngineTestSnapshot();
         return;
       }
 
@@ -508,22 +627,28 @@ export default function GrowBrainPage() {
       setCurrentBrand(brand);
       if (!brand?.id) return;
 
-      const [connectionResult, performanceResult, stateResult, learningResult] = await Promise.all([
+      const [connectionResult, performanceResult, stateResult, learningResult, performanceInsightResult, performanceLearningResult] = await Promise.all([
         supabase.from("social_connections").select("id,platform,page_name,status,permissions,updated_at").eq("user_id", user.id).eq("brand_profile_id", brand.id).in("platform", PLATFORM_ORDER).order("updated_at", { ascending: false }),
         supabase.from("post_performance_latest").select("post_id,platform,content_type_id,content_format,published_at,captured_at,views,reach,impressions,likes,comments,shares,saves,clicks,engagements,watch_time_seconds,average_watch_time_seconds").eq("user_id", user.id).eq("brand_profile_id", brand.id).order("captured_at", { ascending: false }).limit(600),
         supabase.from("post_performance_collection_state").select("post_id,platform,status,last_attempt_at,last_success_at,next_collect_at,last_error,updated_at").eq("user_id", user.id).eq("brand_profile_id", brand.id).order("updated_at", { ascending: false }).limit(600),
         supabase.from("brand_learning_profiles").select("brand_profile_id,learning_state,source_event_count,approved_count,rejected_count,profile_json,last_event_at,updated_at").eq("user_id", user.id).eq("brand_profile_id", brand.id).maybeSingle(),
+        supabase.from("brand_performance_insights").select("dimension_type,platform,dimension_key,observation_count,performance_score,confidence,signal,avg_exposure,avg_interactions,engagement_rate,click_rate,share_rate,save_rate,relative_exposure,relative_engagement,relative_click,relative_share,relative_save,last_post_at,computed_at").eq("user_id", user.id).eq("brand_profile_id", brand.id).order("confidence", { ascending: false }).limit(100),
+        supabase.from("brand_performance_learning_state").select("learning_state,source_post_count,eligible_post_count,insight_count,status,last_source_at,last_analyzed_at,next_analysis_at,last_error,summary_json").eq("user_id", user.id).eq("brand_profile_id", brand.id).maybeSingle(),
       ]);
       if (connectionResult.error) throw connectionResult.error;
       if (performanceResult.error) throw performanceResult.error;
       if (stateResult.error) throw stateResult.error;
       if (learningResult.error && learningResult.error.code !== "PGRST116") throw learningResult.error;
+      if (performanceInsightResult.error) throw performanceInsightResult.error;
+      if (performanceLearningResult.error && performanceLearningResult.error.code !== "PGRST116") throw performanceLearningResult.error;
 
       const perfRows = performanceResult.data || [];
       setConnections(connectionResult.data || []);
       setPerformance(perfRows);
       setCollectionStates(stateResult.data || []);
       setLearningProfile(learningResult.data || null);
+      setPerformanceInsights(performanceInsightResult.data || []);
+      setPerformanceLearningState(performanceLearningResult.data || null);
 
       const postIds = [...new Set(perfRows.map((row) => row.post_id).filter(Boolean))].slice(0, 300);
       if (postIds.length) {
@@ -588,6 +713,24 @@ export default function GrowBrainPage() {
   const learningState = learningProfile?.learning_state || "collecting";
   const learningEventCount = safeNumber(learningProfile?.source_event_count);
   const learningProgressPercent = Math.min(100, Math.max(0, Math.round((learningEventCount / 12) * 100)));
+  const filteredPerformanceInsights = useMemo(() => {
+    const source = platformFilter === "all"
+      ? performanceInsights
+      : performanceInsights.filter((item) => item.platform === platformFilter);
+    return [...source].sort((left, right) => {
+      const leftStrength = Math.abs(safeNumber(left.performance_score)) * (0.55 + 0.45 * safeNumber(left.confidence));
+      const rightStrength = Math.abs(safeNumber(right.performance_score)) * (0.55 + 0.45 * safeNumber(right.confidence));
+      return rightStrength - leftStrength;
+    });
+  }, [performanceInsights, platformFilter]);
+  const positivePerformanceInsights = filteredPerformanceInsights
+    .filter((item) => ["positive", "strong_positive"].includes(item.signal))
+    .slice(0, 3);
+  const negativePerformanceInsights = filteredPerformanceInsights
+    .filter((item) => ["negative", "strong_negative"].includes(item.signal))
+    .slice(0, 3);
+  const performanceLearningStateLabel = performanceLearningState?.learning_state || "collecting";
+  const performanceLearningReady = performanceLearningState?.status === "healthy" && safeNumber(performanceLearningState?.insight_count) > 0;
   const hasPerformance = filteredPerformance.length > 0;
   const coverageLabel = healthyPlatforms.length > 0
     ? t("growBrain.coverage", { healthy: healthyPlatforms.length, connected: connectedPlatforms.length })
@@ -677,6 +820,45 @@ export default function GrowBrainPage() {
             {learningSignals.length ? <div className="grow-v215-signal-list">{learningSignals.map((signal) => <div key={`${signal.kind}-${signal.key}`} className="grow-v215-signal-row"><span className={`grow-v215-signal-mark ${signal.score >= 0 ? "positive" : "negative"}`}>{signal.score >= 0 ? <ThumbsUp size={14} /> : <Activity size={14} />}</span><div><strong>{getLearningSignalLabel(t, signal)}</strong><small>{signal.score >= 0 ? t("growBrain.positivePreference") : t("growBrain.negativePreference")} · {t("growBrain.observations", { count: signal.observations })}</small></div><span className={`grow-v215-signal-score ${signal.score >= 0 ? "positive" : "negative"}`}>{signal.score > 0 ? "+" : ""}{signal.score}</span></div>)}</div> : <div className="grow-v215-learning-empty"><Sparkles size={20} /><p>{t("growBrain.learningEmpty")}</p></div>}
             <p className="grow-v215-learning-note">{t("growBrain.learningSafetyNote")}</p>
           </aside>
+        </section>
+
+        <section className="grow-v215-panel grow-v227-performance-learning">
+          <div className="grow-v227-performance-head">
+            <div>
+              <span className="grow-v215-section-kicker">{t("growBrain.performanceLearningEyebrow")}</span>
+              <h2>{t("growBrain.performanceLearningTitle")}</h2>
+              <p>{t("growBrain.performanceLearningDescription")}</p>
+            </div>
+            <div className="grow-v227-performance-status">
+              {demoMode && performanceLearningReady ? <span className="grow-v227-test-badge">{t("growBrain.performanceLearningTestData")}</span> : null}
+              <span className={`grow-v227-learning-state ${performanceLearningStateLabel}`}>{t(`growBrain.learningState.${performanceLearningStateLabel}`)}</span>
+              {performanceLearningState?.last_analyzed_at ? <small>{t("growBrain.performanceLearningLastAnalyzed", { date: formatDateTime(performanceLearningState.last_analyzed_at, locale) })}</small> : null}
+            </div>
+          </div>
+
+          {performanceLearningReady ? <>
+            <div className="grow-v227-performance-summary">
+              <span><strong>{safeNumber(performanceLearningState?.eligible_post_count)}</strong>{t("growBrain.performanceLearningPosts")}</span>
+              <span><strong>{safeNumber(performanceLearningState?.insight_count)}</strong>{t("growBrain.performanceLearningInsights")}</span>
+              <span><strong>{positivePerformanceInsights.length}</strong>{t("growBrain.performanceLearningPositiveShown")}</span>
+              <span><strong>{negativePerformanceInsights.length}</strong>{t("growBrain.performanceLearningNegativeShown")}</span>
+            </div>
+            <div className="grow-v227-insight-groups">
+              <div className="grow-v227-insight-group positive">
+                <div className="grow-v227-group-head"><span className="grow-v227-group-icon positive"><TrendingUp size={17} /></span><div><h3>{t("growBrain.performanceLearningWorking")}</h3><p>{t("growBrain.performanceLearningWorkingHelp")}</p></div></div>
+                <div className="grow-v227-insight-list">{positivePerformanceInsights.length ? positivePerformanceInsights.map((insight) => <PerformanceInsightCard key={`${insight.dimension_type}-${insight.platform}-${insight.dimension_key}`} insight={insight} t={t} />) : <div className="grow-v227-group-empty">{t("growBrain.performanceLearningNoPositive")}</div>}</div>
+              </div>
+              <div className="grow-v227-insight-group negative">
+                <div className="grow-v227-group-head"><span className="grow-v227-group-icon negative"><TrendingDown size={17} /></span><div><h3>{t("growBrain.performanceLearningImprove")}</h3><p>{t("growBrain.performanceLearningImproveHelp")}</p></div></div>
+                <div className="grow-v227-insight-list">{negativePerformanceInsights.length ? negativePerformanceInsights.map((insight) => <PerformanceInsightCard key={`${insight.dimension_type}-${insight.platform}-${insight.dimension_key}`} insight={insight} t={t} />) : <div className="grow-v227-group-empty">{t("growBrain.performanceLearningNoNegative")}</div>}</div>
+              </div>
+            </div>
+          </> : <div className="grow-v227-performance-empty">
+            <Activity size={22} />
+            <div><strong>{t("growBrain.performanceLearningEmptyTitle")}</strong><p>{t("growBrain.performanceLearningEmptyText")}</p></div>
+          </div>}
+
+          <div className="grow-v227-observation-note"><CircleAlert size={15} /><span>{t("growBrain.performanceLearningObservationOnly")}</span></div>
         </section>
 
         <section className="grow-v215-panel grow-v215-channels-panel">

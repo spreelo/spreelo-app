@@ -114,6 +114,7 @@ function buildSyntheticRows(userId, testBrandId, now = new Date()) {
 }
 
 function compactInsight(row) {
+  const numericOrNull = (value) => value === null || value === undefined ? null : Number(value);
   return {
     dimension_type: row.dimension_type,
     platform: row.platform,
@@ -122,9 +123,77 @@ function compactInsight(row) {
     performance_score: Number(row.performance_score || 0),
     confidence: Number(row.confidence || 0),
     signal: row.signal,
-    relative_exposure: row.relative_exposure === null ? null : Number(row.relative_exposure),
-    relative_engagement: row.relative_engagement === null ? null : Number(row.relative_engagement),
+    avg_exposure: numericOrNull(row.avg_exposure),
+    avg_interactions: numericOrNull(row.avg_interactions),
+    engagement_rate: numericOrNull(row.engagement_rate),
+    click_rate: numericOrNull(row.click_rate),
+    share_rate: numericOrNull(row.share_rate),
+    save_rate: numericOrNull(row.save_rate),
+    relative_exposure: numericOrNull(row.relative_exposure),
+    relative_engagement: numericOrNull(row.relative_engagement),
+    relative_click: numericOrNull(row.relative_click),
+    relative_share: numericOrNull(row.relative_share),
+    relative_save: numericOrNull(row.relative_save),
+    last_post_at: row.last_post_at || null,
+    computed_at: row.computed_at || null,
   };
+}
+
+async function readPersistedTestResult(admin, userId, testBrandId) {
+  const { data: persistedInsights, error: insightError } = await admin
+    .from("brand_performance_insights")
+    .select("dimension_type,platform,dimension_key,observation_count,performance_score,confidence,signal,avg_exposure,avg_interactions,engagement_rate,click_rate,share_rate,save_rate,relative_exposure,relative_engagement,relative_click,relative_share,relative_save,last_post_at,computed_at")
+    .eq("brand_profile_id", testBrandId)
+    .eq("user_id", userId)
+    .order("confidence", { ascending: false });
+  if (insightError) throw insightError;
+
+  const { data: state, error: stateError } = await admin
+    .from("brand_performance_learning_state")
+    .select("learning_state,source_post_count,eligible_post_count,insight_count,status,last_analyzed_at,last_error")
+    .eq("brand_profile_id", testBrandId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (stateError) throw stateError;
+
+  const insights = (persistedInsights || []).map(compactInsight);
+  const positive = insights.filter((item) => ["positive", "strong_positive"].includes(item.signal));
+  const negative = insights.filter((item) => ["negative", "strong_negative"].includes(item.signal));
+  return {
+    insights,
+    state,
+    top_positive: positive.sort((a, b) => b.performance_score - a.performance_score).slice(0, 4),
+    top_negative: negative.sort((a, b) => a.performance_score - b.performance_score).slice(0, 4),
+  };
+}
+
+export async function GET(request) {
+  const context = await getAdminContext(request);
+  if (context.error) return adminContextError(context);
+  const userId = context.user.id;
+  const testBrandId = getTestBrandId(userId);
+  try {
+    const persisted = await readPersistedTestResult(context.admin, userId, testBrandId);
+    const hasTestData = Boolean(persisted.state || persisted.insights.length);
+    const passed = Boolean(
+      hasTestData
+      && persisted.state?.status === "healthy"
+      && persisted.state?.learning_state === "established"
+      && Number(persisted.state?.eligible_post_count || 0) === 36
+      && persisted.top_positive.length > 0
+      && persisted.top_negative.length > 0
+    );
+    return Response.json({
+      ok: true,
+      passed,
+      action: "status",
+      test_brand_id: testBrandId,
+      ...persisted,
+      has_test_data: hasTestData,
+    });
+  } catch (error) {
+    return Response.json({ ok: false, error: error?.message || "Could not load Grow Brain performance test status." }, { status: 500 });
+  }
 }
 
 export async function POST(request) {
@@ -158,23 +227,8 @@ export async function POST(request) {
       now: new Date(),
     });
 
-    const { data: persistedInsights, error: insightError } = await context.admin
-      .from("brand_performance_insights")
-      .select("dimension_type,platform,dimension_key,observation_count,performance_score,confidence,signal,relative_exposure,relative_engagement")
-      .eq("brand_profile_id", testBrandId)
-      .eq("user_id", userId)
-      .order("confidence", { ascending: false });
-    if (insightError) throw insightError;
-
-    const { data: state, error: stateError } = await context.admin
-      .from("brand_performance_learning_state")
-      .select("learning_state,source_post_count,eligible_post_count,insight_count,status,last_analyzed_at,last_error")
-      .eq("brand_profile_id", testBrandId)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (stateError) throw stateError;
-
-    const insights = (persistedInsights || []).map(compactInsight);
+    const persisted = await readPersistedTestResult(context.admin, userId, testBrandId);
+    const { insights, state, top_positive: persistedPositive, top_negative: persistedNegative } = persisted;
     const positive = insights.filter((item) => ["positive", "strong_positive"].includes(item.signal));
     const negative = insights.filter((item) => ["negative", "strong_negative"].includes(item.signal));
     const checks = {
@@ -196,8 +250,9 @@ export async function POST(request) {
       inserted_rows: syntheticRows.length,
       state,
       checks,
-      top_positive: positive.sort((a, b) => b.performance_score - a.performance_score).slice(0, 4),
-      top_negative: negative.sort((a, b) => a.performance_score - b.performance_score).slice(0, 4),
+      insights,
+      top_positive: persistedPositive,
+      top_negative: persistedNegative,
       analysis_summary: analysis?.summary || null,
       cleanup_available: true,
     });
