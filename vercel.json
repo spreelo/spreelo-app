@@ -75,6 +75,10 @@
     {
       "path": "/api/cron/collect-post-performance",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/analyze-brand-performance",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
