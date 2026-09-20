@@ -531,6 +531,8 @@ export default function GrowBrainPage() {
   const [demoMode, setDemoMode] = useState(false);
   const [engineTestRunning, setEngineTestRunning] = useState(false);
   const [engineTestResult, setEngineTestResult] = useState(null);
+  const [step4TestRunning, setStep4TestRunning] = useState(false);
+  const [step4TestResult, setStep4TestResult] = useState(null);
   const [performanceInsights, setPerformanceInsights] = useState([]);
   const [performanceLearningState, setPerformanceLearningState] = useState(null);
 
@@ -604,6 +606,32 @@ export default function GrowBrainPage() {
       setEngineTestResult({ ok: false, passed: false, error: error?.message || t("growBrain.engineTestFailed") });
     } finally {
       setEngineTestRunning(false);
+    }
+  }
+
+  async function runStep4PlanningTest() {
+    setStep4TestRunning(true);
+    setStep4TestResult(null);
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error(t("growBrain.step4TestLoginRequired"));
+      const response = await fetch("/api/admin/grow-brain-step4-test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action: "run" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || t("growBrain.step4TestFailed"));
+      setStep4TestResult(payload);
+    } catch (error) {
+      setStep4TestResult({ ok: false, ready: false, passed: false, error: error?.message || t("growBrain.step4TestFailed") });
+    } finally {
+      setStep4TestRunning(false);
     }
   }
 
@@ -793,6 +821,41 @@ export default function GrowBrainPage() {
             <button type="button" className="primary" disabled={engineTestRunning} onClick={() => runPerformanceEngineTest("run")}>{engineTestRunning ? <LoaderCircle size={16} className="grow-v215-spin" /> : <Activity size={16} />}{t("growBrain.engineTestRun")}</button>
             <button type="button" disabled={engineTestRunning} onClick={() => runPerformanceEngineTest("cleanup")}>{t("growBrain.engineTestCleanup")}</button>
           </div>
+        </section> : null}
+
+        {demoMode ? <section className={`grow-v230-step4-test ${step4TestResult?.passed ? "passed" : step4TestResult?.ok === false ? "failed" : step4TestResult?.ready === false ? "warning" : ""}`}>
+          <div className="grow-v230-step4-test-head">
+            <div>
+              <span className="grow-v215-section-kicker">{t("growBrain.step4TestEyebrow")}</span>
+              <h2>{t("growBrain.step4TestTitle")}</h2>
+              <p>{t("growBrain.step4TestDescription")}</p>
+            </div>
+            <button type="button" disabled={step4TestRunning} onClick={runStep4PlanningTest}>
+              {step4TestRunning ? <LoaderCircle size={16} className="grow-v215-spin" /> : <Activity size={16} />}
+              {t("growBrain.step4TestRun")}
+            </button>
+          </div>
+          {step4TestResult ? <div className="grow-v230-step4-test-body" aria-live="polite">
+            {step4TestResult.ok === false ? <div className="grow-v230-step4-test-message error"><CircleAlert size={17} /><span><strong>{t("growBrain.step4TestFailedTitle")}</strong>{step4TestResult.error}</span></div> : step4TestResult.ready === false ? <div className="grow-v230-step4-test-message warning"><CircleAlert size={17} /><span><strong>{t("growBrain.step4TestNeedsDataTitle")}</strong>{t("growBrain.step4TestNeedsDataText")}</span></div> : <>
+              <div className={`grow-v230-step4-test-message ${step4TestResult.passed ? "success" : "warning"}`}><CheckCircle2 size={17} /><span><strong>{step4TestResult.passed ? t("growBrain.step4TestPassedTitle") : t("growBrain.step4TestWarningTitle")}</strong>{t("growBrain.step4TestSummary", { checks: Object.values(step4TestResult.checks || {}).filter(Boolean).length, total: Object.keys(step4TestResult.checks || {}).length })}</span></div>
+              <div className="grow-v230-step4-checks">
+                {Object.entries(step4TestResult.checks || {}).map(([key, passed]) => <span key={key} className={passed ? "passed" : "failed"}>{passed ? <CheckCircle2 size={14} /> : <CircleAlert size={14} />}{t(`growBrain.step4Check.${key}`)}</span>)}
+              </div>
+              <div className="grow-v230-step4-scenarios">
+                {(step4TestResult.scenarios || []).map((scenario) => <article key={scenario.goal_id}>
+                  <h3>{t(`automation.goal.${scenario.goal_id}.label`)}</h3>
+                  <div className="grow-v230-step4-rows">
+                    {(scenario.rows || []).map((row) => <div key={row.content_type_id} className={`grow-v230-step4-row ${row.direction}`}>
+                      <strong>{getPerformanceInsightLabel(t, { dimension_type: "content_type", dimension_key: row.content_type_id })}</strong>
+                      <span>{t("growBrain.step4TestBeforeAfter", { before: row.base_weight_share, after: row.adjusted_weight_share })}</span>
+                      <em>{row.grow_brain_adjustment > 0 ? "+" : ""}{row.grow_brain_adjustment}</em>
+                    </div>)}
+                  </div>
+                </article>)}
+              </div>
+              <p className="grow-v230-step4-note">{t("growBrain.step4TestInterpretation")}</p>
+            </>}
+          </div> : null}
         </section> : null}
 
         <section className="grow-v215-controlbar" aria-label={t("growBrain.filters")}>

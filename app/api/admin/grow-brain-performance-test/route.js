@@ -29,8 +29,24 @@ async function cleanupTestData(admin, userId, testBrandId) {
 
 function buildSyntheticRows(userId, testBrandId, now = new Date()) {
   const platforms = [
-    { key: "facebook", exposureBase: 48000 },
-    { key: "instagram", exposureBase: 69000 },
+    {
+      key: "facebook",
+      exposureBase: 48000,
+      modifiers: {
+        website_item: { exposure: 0.94, engagement: 0.93, click: 0.96, share: 0.90, save: 0.92 },
+        problem_solution: { exposure: 1.04, engagement: 1.08, click: 1.02, share: 1.10, save: 1.08 },
+        animated_website_item: { exposure: 1.08, engagement: 1.12, click: 1.08, share: 1.10, save: 1.06 },
+      },
+    },
+    {
+      key: "instagram",
+      exposureBase: 69000,
+      modifiers: {
+        website_item: { exposure: 1.12, engagement: 1.15, click: 1.10, share: 1.18, save: 1.16 },
+        problem_solution: { exposure: 0.98, engagement: 1.00, click: 1.00, share: 0.98, save: 1.00 },
+        animated_website_item: { exposure: 0.88, engagement: 0.82, click: 0.86, share: 0.84, save: 0.86 },
+      },
+    },
   ];
   const cohorts = [
     {
@@ -72,13 +88,14 @@ function buildSyntheticRows(userId, testBrandId, now = new Date()) {
       for (let index = 0; index < cohort.count; index += 1) {
         sequence += 1;
         const wobble = 0.92 + ((index * 7 + sequence * 3) % 17) / 100;
-        const exposure = Math.round(platform.exposureBase * cohort.exposureFactor * wobble);
-        const totalInteractions = Math.max(1, Math.round(exposure * cohort.engagementRate * (0.94 + (index % 3) * 0.04)));
-        const shares = Math.max(1, Math.round(exposure * cohort.shareRate));
-        const saves = Math.max(1, Math.round(exposure * cohort.saveRate));
+        const modifier = platform.modifiers?.[cohort.contentType] || { exposure: 1, engagement: 1, click: 1, share: 1, save: 1 };
+        const exposure = Math.round(platform.exposureBase * cohort.exposureFactor * modifier.exposure * wobble);
+        const totalInteractions = Math.max(1, Math.round(exposure * cohort.engagementRate * modifier.engagement * (0.94 + (index % 3) * 0.04)));
+        const shares = Math.max(1, Math.round(exposure * cohort.shareRate * modifier.share));
+        const saves = Math.max(1, Math.round(exposure * cohort.saveRate * modifier.save));
         const comments = Math.max(1, Math.round(totalInteractions * 0.08));
         const likes = Math.max(1, totalInteractions - shares - saves - comments);
-        const clicks = Math.max(1, Math.round(exposure * cohort.clickRate));
+        const clicks = Math.max(1, Math.round(exposure * cohort.clickRate * modifier.click));
         const publishedAt = isoDaysAgo(now, 16 + sequence, index % 4);
         const capturedAt = isoDaysAgo(now, 1, -(sequence % 8));
         rows.push({

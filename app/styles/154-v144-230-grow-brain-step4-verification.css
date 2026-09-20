@@ -1,0 +1,41 @@
+/* Spreelo v144.230 — isolated Step 4 adaptive planning verification */
+html body .grow-v230-step4-test{
+  margin:0 0 14px;padding:14px 16px;border:1px solid rgba(99,76,190,.16);border-radius:16px;
+  background:linear-gradient(135deg,rgba(255,255,255,.92),rgba(248,246,255,.94));box-shadow:0 10px 26px rgba(54,43,91,.05);
+}
+html body .grow-v230-step4-test-head{display:flex;align-items:center;justify-content:space-between;gap:18px}
+html body .grow-v230-step4-test-head>div{min-width:0;max-width:780px}
+html body .grow-v230-step4-test h2{margin:2px 0 4px;color:#171a2e;font-size:15px;line-height:1.2}
+html body .grow-v230-step4-test p{margin:0;color:#667085;font-size:13.5px;line-height:1.5}
+html body .grow-v230-step4-test-head>button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:8px 12px;border:1px solid #7357dc;border-radius:10px;background:#7357dc;color:#fff;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;box-shadow:0 7px 15px rgba(115,87,220,.18);white-space:nowrap}
+html body .grow-v230-step4-test-head>button:disabled{opacity:.55;cursor:not-allowed}
+html body .grow-v230-step4-test-body{display:grid;gap:10px;margin-top:10px}
+html body .grow-v230-step4-test-message{display:flex;align-items:flex-start;gap:8px;padding:9px 10px;border-radius:10px;background:rgba(96,69,191,.07);color:#57516c;font-size:12.5px;line-height:1.45}
+html body .grow-v230-step4-test-message span{display:flex;flex-direction:column;gap:1px}
+html body .grow-v230-step4-test-message strong{color:#30294c;font-size:13px}
+html body .grow-v230-step4-test-message.success{background:rgba(28,149,94,.08);color:#32674f}
+html body .grow-v230-step4-test-message.warning{background:rgba(203,139,34,.09);color:#805a16}
+html body .grow-v230-step4-test-message.error{background:rgba(200,59,59,.07);color:#8e3d3d}
+html body .grow-v230-step4-checks{display:flex;flex-wrap:wrap;gap:6px}
+html body .grow-v230-step4-checks>span{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #e6e3ee;border-radius:999px;background:#fff;color:#5f6678;font-size:11.5px;font-weight:700}
+html body .grow-v230-step4-checks>span.passed{border-color:rgba(28,149,94,.18);background:rgba(28,149,94,.055);color:#26744c}
+html body .grow-v230-step4-checks>span.failed{border-color:rgba(200,59,59,.18);background:rgba(200,59,59,.05);color:#9a4545}
+html body .grow-v230-step4-scenarios{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+html body .grow-v230-step4-scenarios>article{min-width:0;padding:10px;border:1px solid #e7e5ef;border-radius:12px;background:rgba(255,255,255,.86)}
+html body .grow-v230-step4-scenarios h3{margin:0 0 7px;color:#23263b;font-size:13.5px;line-height:1.25}
+html body .grow-v230-step4-rows{display:grid;gap:5px}
+html body .grow-v230-step4-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;padding:7px 8px;border:1px solid #eceaf2;border-radius:9px;background:#fff;min-width:0}
+html body .grow-v230-step4-row strong{min-width:0;color:#303549;font-size:12px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body .grow-v230-step4-row span{color:#70778a;font-size:10.75px;white-space:nowrap}
+html body .grow-v230-step4-row em{min-width:44px;text-align:right;font-style:normal;font-size:12px;font-weight:850;color:#686f80}
+html body .grow-v230-step4-row.boost em{color:#138651}
+html body .grow-v230-step4-row.reduce em{color:#c14f4f}
+html body .grow-v230-step4-note{padding-top:2px!important;font-size:11.75px!important;color:#7b8191!important}
+@media(max-width:1000px){html body .grow-v230-step4-scenarios{grid-template-columns:1fr}}
+@media(max-width:760px){
+  html body .grow-v230-step4-test{padding:13px}
+  html body .grow-v230-step4-test-head{align-items:stretch;flex-direction:column}
+  html body .grow-v230-step4-test-head>button{width:100%}
+  html body .grow-v230-step4-row{grid-template-columns:minmax(0,1fr) auto}
+  html body .grow-v230-step4-row span{grid-column:1/-1;white-space:normal}
+}
