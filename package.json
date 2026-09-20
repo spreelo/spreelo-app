@@ -231,7 +231,8 @@
     "test:v144.230": "node scripts/test-v144-230-grow-brain-step4-verification.mjs",
     "test:v144.231": "node scripts/test-v144-231-grow-brain-web-data-connect.mjs",
     "test:v144.233": "node scripts/test-v144-233-shopify-app-store-onboarding.mjs",
-    "test:v144.234": "node scripts/test-v144-234-shopify-first-time-social-routing.mjs"
+    "test:v144.234": "node scripts/test-v144-234-shopify-first-time-social-routing.mjs",
+    "test:v144.235": "node scripts/test-v144-235-shopify-analysis-summary.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

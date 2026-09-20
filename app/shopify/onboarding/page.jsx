@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, CheckCircle2, LoaderCircle, ShoppingBag, Sparkles, Store, ShieldCheck } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
+import { getValidAnalysisAccessToken } from "../../../lib/analysisSession";
 import styles from "./page.module.css";
 
 function getBrandStorageKey(userId) {
@@ -13,6 +14,51 @@ async function readPayload(response) {
   const text = await response.text();
   try { return text ? JSON.parse(text) : {}; }
   catch { return { error: text || "Unexpected response" }; }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function pollAnalysisStatus({ accessToken, jobId, onStatus }) {
+  let currentAccessToken = accessToken;
+
+  for (let pollCount = 0; pollCount < 720; pollCount += 1) {
+    await sleep(pollCount === 0 ? 1000 : 5000);
+
+    currentAccessToken = await getValidAnalysisAccessToken({
+      supabase,
+      fallbackAccessToken: currentAccessToken,
+    });
+
+    const requestStatus = (token) => fetch(`/api/analyze-brand/status?jobId=${encodeURIComponent(jobId)}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    let response = await requestStatus(currentAccessToken);
+    if (response.status === 401) {
+      currentAccessToken = await getValidAnalysisAccessToken({
+        supabase,
+        fallbackAccessToken: currentAccessToken,
+        forceRefresh: true,
+      });
+      response = await requestStatus(currentAccessToken);
+    }
+
+    const payload = await readPayload(response);
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error || "Could not read analysis status.");
+    }
+
+    if (payload?.job) onStatus?.(payload.job);
+    if (payload?.job?.status === "completed") return payload.job;
+    if (payload?.job?.status === "failed") {
+      throw new Error(payload?.job?.error_message || "Could not analyze this store.");
+    }
+  }
+
+  throw new Error("Brand analysis took too long. Please try again.");
 }
 
 export default function ShopifyOnboardingPage() {
@@ -47,7 +93,7 @@ export default function ShopifyOnboardingPage() {
   }
 
   async function startBrandAnalysis({ session, brand, required, activeShop }) {
-    if (!required || !session?.access_token || !brand?.id) return "skipped";
+    if (!required || !session?.access_token || !brand?.id) return { status: "skipped", jobId: "" };
     try {
       const response = await fetch("/api/analyze-brand/start", {
         method: "POST",
@@ -71,25 +117,59 @@ export default function ShopifyOnboardingPage() {
         }),
       });
       const payload = await readPayload(response);
-      return response.ok && payload?.ok ? "started" : "failed";
+      const jobId = String(payload?.jobId || payload?.job_id || payload?.job?.id || "").trim();
+      if (!response.ok || !payload?.ok || !jobId) {
+        return { status: "failed", jobId: "" };
+      }
+      return { status: "started", jobId };
     } catch (error) {
       console.error("Could not auto-start Shopify brand analysis", error);
-      return "failed";
+      return { status: "failed", jobId: "" };
     }
+  }
+
+  function goToAnalysisSummary(brandId) {
+    window.location.href = `/onboarding/ready?brandId=${encodeURIComponent(brandId)}&source=shopify`;
   }
 
   async function continueAfterConsent({ session, brand, analysisRequired, activeShop, routeToSocialChannels = false }) {
     setPhase("analyzing");
     const analysis = await startBrandAnalysis({ session, brand, required: analysisRequired, activeShop });
+
+    if (routeToSocialChannels) {
+      if (analysis.status === "started" && analysis.jobId) {
+        try {
+          await pollAnalysisStatus({
+            accessToken: session.access_token,
+            jobId: analysis.jobId,
+          });
+          setPhase("done");
+          window.setTimeout(() => goToAnalysisSummary(brand.id), 350);
+          return;
+        } catch (error) {
+          console.error("Shopify first-time analysis did not complete in onboarding", error);
+          setPhase("done");
+          window.setTimeout(() => goToSocialChannels({ analysis: "retry_available" }), 350);
+          return;
+        }
+      }
+
+      if (analysis.status === "skipped") {
+        setPhase("done");
+        window.setTimeout(() => goToAnalysisSummary(brand.id), 350);
+        return;
+      }
+
+      setPhase("done");
+      window.setTimeout(() => goToSocialChannels({ analysis: "retry_available" }), 350);
+      return;
+    }
+
     setPhase("done");
     window.setTimeout(() => {
       const extra = {};
-      if (analysis === "started") extra.analysis = "started";
-      if (analysis === "failed") extra.analysis = "retry_available";
-      if (routeToSocialChannels) {
-        goToSocialChannels(extra);
-        return;
-      }
+      if (analysis.status === "started") extra.analysis = "started";
+      if (analysis.status === "failed") extra.analysis = "retry_available";
       goToGrowBrain(extra);
     }, 550);
   }
@@ -173,12 +253,22 @@ export default function ShopifyOnboardingPage() {
     }
   }
 
-  function skipAiConsent() {
-    if (pending?.routeToSocialChannels) {
-      goToSocialChannels({ ai: "not_enabled" });
-      return;
+  async function skipAiConsent() {
+    try {
+      if (!pending?.brand?.id) throw new Error("The Shopify brand is missing.");
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Your Spreelo session expired. Open Spreelo from Shopify again.");
+      await continueAfterConsent({
+        session,
+        brand: pending.brand,
+        analysisRequired: pending.analysisRequired,
+        activeShop: pending.activeShop,
+        routeToSocialChannels: Boolean(pending.routeToSocialChannels),
+      });
+    } catch (error) {
+      setMessage(error?.message || "Could not continue the Shopify onboarding.");
+      setPhase("consent");
     }
-    goToGrowBrain({ ai: "not_enabled" });
   }
 
   useEffect(() => {
@@ -270,7 +360,7 @@ export default function ShopifyOnboardingPage() {
         : phase === "error"
           ? "No store data was attached to another account. Open Spreelo from Shopify and try again."
           : phase === "analyzing"
-            ? "Spreelo is starting the brand analysis automatically. You can continue while it runs."
+            ? "Spreelo is completing the same brand analysis used in the regular onboarding. Your result will be shown next."
             : "We're using the verified Shopify account that installed the app, so you don't need to type a store address or create another login.";
 
   return (

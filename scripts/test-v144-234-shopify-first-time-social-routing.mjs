@@ -7,7 +7,7 @@ const checks = [
   ['First-time Shopify install routes to Social channels', 'app/shopify/onboarding/page.jsx', /const routeToSocialChannels = Boolean\(payload\?\.first_brand_for_user\)/],
   ['Existing Shopify customers still have Grow Brain route', 'app/shopify/onboarding/page.jsx', /goToGrowBrain\(extra\)/],
   ['AI consent completion preserves first-time routing', 'app/shopify/onboarding/page.jsx', /routeToSocialChannels:\s*Boolean\(pending\.routeToSocialChannels\)/],
-  ['Not-now consent preserves first-time routing', 'app/shopify/onboarding/page.jsx', /if \(pending\?\.routeToSocialChannels\)[\s\S]*goToSocialChannels\(\{ ai: "not_enabled" \}\)/],
+  ['Not-now consent still continues through the shared post-consent routing', 'app/shopify/onboarding/page.jsx', /async function skipAiConsent\(\)[\s\S]*continueAfterConsent\(\{[\s\S]*routeToSocialChannels:\s*Boolean\(pending\.routeToSocialChannels\)/],
   ['Existing users creating another brand are not classified solely by created_brand', 'app/shopify/onboarding/page.jsx', /payload\?\.first_brand_for_user/],
 ];
 
