@@ -1,0 +1,74 @@
+/* Spreelo v144.231 — Grow Brain optional website/business data connection UX */
+
+.grow-v231-web-data-card{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:24px;
+  align-items:center;
+  margin-top:16px;
+  padding:18px 20px;
+  border:1px solid rgba(117,89,210,.18);
+  border-radius:18px;
+  background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(247,244,255,.9));
+  box-shadow:0 12px 32px rgba(50,36,93,.07);
+}
+.grow-v231-web-data-copy h2{margin:2px 0 4px;font-size:15px;line-height:1.25;color:#15172c}
+.grow-v231-web-data-copy>p{margin:0;color:#667085;font-size:13.5px;line-height:1.48;max-width:760px}
+.grow-v231-web-data-statuses{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:14px}
+.grow-v231-web-data-statuses>div{display:flex;gap:9px;align-items:center;min-width:0;padding:10px 11px;border:1px solid rgba(111,93,167,.14);border-radius:12px;background:rgba(255,255,255,.72)}
+.grow-v231-web-data-statuses>div>span{display:grid;place-items:center;width:29px;height:29px;flex:0 0 29px;border-radius:9px;background:#f1edff;color:#7854e8}
+.grow-v231-web-data-statuses>div.connected>span{background:#eaf8ef;color:#218957}
+.grow-v231-web-data-statuses>div.prepared>span{background:#f2edff;color:#6c4ce7}
+.grow-v231-web-data-statuses strong{display:block;color:#1d2135;font-size:13.5px;line-height:1.25}
+.grow-v231-web-data-statuses small{display:block;margin-top:2px;color:#7a8191;font-size:12px;line-height:1.28}
+.grow-v231-web-data-action{display:flex;flex-direction:column;align-items:flex-end;gap:7px;min-width:168px}
+.grow-v231-web-data-action button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 15px;border-radius:10px;border:1px solid rgba(111,79,225,.22);font-weight:800;font-size:13px;cursor:pointer}
+.grow-v231-web-data-action button.primary{color:white;border-color:transparent;background:linear-gradient(135deg,#7c54ef,#6846df);box-shadow:0 7px 18px rgba(105,70,220,.2)}
+.grow-v231-web-data-action button.secondary{color:#5d43ca;background:#f3efff}
+.grow-v231-web-data-action>small{font-size:11.5px;color:#858b9a;text-align:right;max-width:190px;line-height:1.35}
+.grow-v231-provider-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;background:#f4f0ff;color:#6647d2;font-size:11.5px;font-weight:800}
+
+.grow-v231-connect-backdrop{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:22px;background:rgba(11,15,28,.48);backdrop-filter:blur(6px)}
+.grow-v231-connect-modal{position:relative;width:min(560px,100%);max-height:calc(100vh - 44px);overflow:auto;padding:28px;border:1px solid rgba(116,88,209,.2);border-radius:22px;background:linear-gradient(155deg,#fff 0%,#fbfaff 68%,#f1edff 100%);box-shadow:0 24px 70px rgba(21,16,47,.28);color:#171a2f}
+.grow-v231-connect-close{position:absolute;top:14px;right:14px;display:grid;place-items:center;width:36px;height:36px;border:1px solid rgba(88,70,142,.14);border-radius:10px;background:rgba(255,255,255,.88);color:#6f7481;cursor:pointer}
+.grow-v231-connect-icon,.grow-v231-connect-orb{display:grid;place-items:center;width:52px;height:52px;margin-bottom:14px;border-radius:15px;background:linear-gradient(135deg,#7a50ec,#5e40da);color:white;box-shadow:0 12px 24px rgba(102,69,214,.22)}
+.grow-v231-connect-icon.success{background:linear-gradient(135deg,#25a56a,#1d8957)}
+.grow-v231-connect-modal h2{margin:4px 42px 7px 0;font-size:22px;line-height:1.18;letter-spacing:-.02em}
+.grow-v231-connect-modal>p,.grow-v231-connect-loading p{margin:0;color:#687085;font-size:13.5px;line-height:1.55}
+.grow-v231-connect-benefits{display:grid;gap:8px;margin:18px 0}
+.grow-v231-connect-benefits>div{display:flex;align-items:center;gap:11px;padding:11px 12px;border:1px solid rgba(111,88,173,.13);border-radius:12px;background:rgba(255,255,255,.74)}
+.grow-v231-connect-benefits>div>svg{color:#704de2;flex:0 0 auto}
+.grow-v231-connect-benefits strong{display:block;font-size:13.5px;color:#202338}
+.grow-v231-connect-benefits small{display:block;margin-top:2px;font-size:12.5px;line-height:1.35;color:#777e8e}
+.grow-v231-known-site,.grow-v231-connect-soft-note{display:flex;gap:8px;align-items:flex-start;margin:13px 0;padding:9px 11px;border-radius:10px;background:#f5f2ff;color:#625879;font-size:12.5px;line-height:1.4;overflow-wrap:anywhere}
+.grow-v231-connect-soft-note svg,.grow-v231-known-site svg{flex:0 0 auto;margin-top:1px;color:#7250df}
+.grow-v231-connect-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:19px}
+.grow-v231-connect-actions button,.grow-v231-connect-actions a{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:0 15px;border:1px solid rgba(99,78,160,.16);border-radius:11px;background:white;color:#34384a;text-decoration:none;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.grow-v231-connect-actions .primary{border-color:transparent;background:linear-gradient(135deg,#7a50ec,#6241db);color:white;box-shadow:0 8px 18px rgba(99,67,215,.2)}
+.grow-v231-connect-optional{margin-top:12px!important;font-size:11.8px!important;color:#8b90a0!important}
+.grow-v231-connect-error{margin:12px 0 0!important;padding:9px 11px;border-radius:10px;background:#fff0f0;color:#a13f49!important;font-size:12.5px!important}
+.grow-v231-connect-loading{text-align:center;padding:26px 10px 18px}
+.grow-v231-connect-loading .grow-v231-connect-orb{margin:0 auto 15px}
+.grow-v231-connect-loading h2{margin:4px auto 7px}
+.grow-v231-tech-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.grow-v231-tech-list span{padding:5px 8px;border-radius:999px;background:#f1edff;color:#6547cd;font-size:11.5px;font-weight:800}
+.grow-v231-recommendation{display:grid;gap:3px;margin-top:16px;padding:13px 14px;border:1px solid rgba(111,80,215,.19);border-radius:13px;background:rgba(245,242,255,.8)}
+.grow-v231-recommendation>span{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:#7662c7;font-weight:900}
+.grow-v231-recommendation>strong{font-size:15px;color:#24203a}
+.grow-v231-recommendation>small{font-size:12px;line-height:1.4;color:#747b8c}
+
+@media(max-width:900px){
+  .grow-v231-web-data-card{grid-template-columns:1fr;align-items:stretch}
+  .grow-v231-web-data-action{align-items:flex-start;min-width:0}
+  .grow-v231-web-data-action>small{text-align:left;max-width:none}
+}
+@media(max-width:680px){
+  .grow-v231-web-data-card{padding:15px;border-radius:16px}
+  .grow-v231-web-data-statuses{grid-template-columns:1fr}
+  .grow-v231-web-data-action button{width:100%}
+  .grow-v231-connect-backdrop{padding:10px;align-items:end}
+  .grow-v231-connect-modal{width:100%;max-height:calc(100vh - 20px);padding:22px 17px 18px;border-radius:20px}
+  .grow-v231-connect-modal h2{font-size:20px}
+  .grow-v231-connect-actions{display:grid;grid-template-columns:1fr}
+  .grow-v231-connect-actions button,.grow-v231-connect-actions a{width:100%}
+}

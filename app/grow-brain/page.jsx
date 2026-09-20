@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ArrowRight,
@@ -11,15 +11,19 @@ import {
   Clock3,
   Eye,
   Gauge,
+  Globe2,
   Heart,
   LoaderCircle,
   MousePointerClick,
   RefreshCw,
+  ShoppingBag,
   Share2,
   Sparkles,
   ThumbsUp,
   TrendingDown,
   TrendingUp,
+  X,
+  Database,
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
@@ -237,6 +241,23 @@ function getConnectionForPlatform(connections, platform) {
   return (connections || []).find((connection) => connection.platform === platform && connection.status === "connected")
     || (connections || []).find((connection) => connection.platform === platform)
     || null;
+}
+
+const WEB_PROVIDER_META = {
+  shopify: { label: "Shopify", icon: ShoppingBag, descriptionKey: "growBrain.webConnectProviderShopify" },
+  woocommerce: { label: "WooCommerce", icon: ShoppingBag, descriptionKey: "growBrain.webConnectProviderWooCommerce" },
+  google_analytics: { label: "Google Analytics", icon: BarChart3, descriptionKey: "growBrain.webConnectProviderGa" },
+  google_tag_manager: { label: "Google Tag Manager", icon: Database, descriptionKey: "growBrain.webConnectProviderGtm" },
+  wordpress: { label: "WordPress", icon: Globe2, descriptionKey: "growBrain.webConnectProviderWordPress" },
+  universal: { label: "Website", icon: Globe2, descriptionKey: "growBrain.webConnectProviderUniversal" },
+};
+
+function getWebProviderMeta(provider) {
+  return WEB_PROVIDER_META[provider] || WEB_PROVIDER_META.universal;
+}
+
+function getWebIntroStorageKey(brandId) {
+  return `spreelo_grow_brain_web_intro_dismissed_${brandId || "unknown"}`;
 }
 
 function getPlatformCollectionStatus(states, platform, connection, stats) {
@@ -535,6 +556,15 @@ export default function GrowBrainPage() {
   const [step4TestResult, setStep4TestResult] = useState(null);
   const [performanceInsights, setPerformanceInsights] = useState([]);
   const [performanceLearningState, setPerformanceLearningState] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [websiteConnection, setWebsiteConnection] = useState(null);
+  const [websiteConnectionLoaded, setWebsiteConnectionLoaded] = useState(false);
+  const [websiteConnectOpen, setWebsiteConnectOpen] = useState(false);
+  const [websiteConnectView, setWebsiteConnectView] = useState("intro");
+  const [websiteDiscovery, setWebsiteDiscovery] = useState(null);
+  const [websiteDiscovering, setWebsiteDiscovering] = useState(false);
+  const [websiteConnectError, setWebsiteConnectError] = useState("");
+  const webIntroCheckedRef = useRef("");
 
   useEffect(() => {
     const isDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
@@ -642,12 +672,15 @@ export default function GrowBrainPage() {
       const demoPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
       if (demoPreview) {
         const demo = buildGrowBrainDemoData();
+        setCurrentUserId("demo-user");
         setCurrentBrand(demo.currentBrand);
         setConnections(demo.connections);
         setPerformance(demo.performance);
         setCollectionStates(demo.collectionStates);
         setLearningProfile(demo.learningProfile);
         setPostsById(demo.postsById);
+        setWebsiteConnection(null);
+        setWebsiteConnectionLoaded(true);
         await loadPerformanceEngineTestSnapshot();
         return;
       }
@@ -656,17 +689,19 @@ export default function GrowBrainPage() {
       if (authError) throw authError;
       const user = authData?.user;
       if (!user) { window.location.href = "/login"; return; }
+      setCurrentUserId(user.id);
       const brand = await resolveBrand(user);
       setCurrentBrand(brand);
-      if (!brand?.id) return;
+      if (!brand?.id) { setWebsiteConnectionLoaded(true); return; }
 
-      const [connectionResult, performanceResult, stateResult, learningResult, performanceInsightResult, performanceLearningResult] = await Promise.all([
+      const [connectionResult, performanceResult, stateResult, learningResult, performanceInsightResult, performanceLearningResult, websiteConnectionResult] = await Promise.all([
         supabase.from("social_connections").select("id,platform,page_name,status,permissions,updated_at").eq("user_id", user.id).eq("brand_profile_id", brand.id).in("platform", PLATFORM_ORDER).order("updated_at", { ascending: false }),
         supabase.from("post_performance_latest").select("post_id,platform,content_type_id,content_format,published_at,captured_at,views,reach,impressions,likes,comments,shares,saves,clicks,engagements,watch_time_seconds,average_watch_time_seconds").eq("user_id", user.id).eq("brand_profile_id", brand.id).order("captured_at", { ascending: false }).limit(600),
         supabase.from("post_performance_collection_state").select("post_id,platform,status,last_attempt_at,last_success_at,next_collect_at,last_error,updated_at").eq("user_id", user.id).eq("brand_profile_id", brand.id).order("updated_at", { ascending: false }).limit(600),
         supabase.from("brand_learning_profiles").select("brand_profile_id,learning_state,source_event_count,approved_count,rejected_count,profile_json,last_event_at,updated_at").eq("user_id", user.id).eq("brand_profile_id", brand.id).maybeSingle(),
         supabase.from("brand_performance_insights").select("dimension_type,platform,dimension_key,observation_count,performance_score,confidence,signal,avg_exposure,avg_interactions,engagement_rate,click_rate,share_rate,save_rate,relative_exposure,relative_engagement,relative_click,relative_share,relative_save,last_post_at,computed_at").eq("user_id", user.id).eq("brand_profile_id", brand.id).order("confidence", { ascending: false }).limit(100),
         supabase.from("brand_performance_learning_state").select("learning_state,source_post_count,eligible_post_count,insight_count,status,last_source_at,last_analyzed_at,next_analysis_at,last_error,summary_json").eq("user_id", user.id).eq("brand_profile_id", brand.id).maybeSingle(),
+        supabase.from("brand_web_data_connections").select("brand_profile_id,user_id,status,provider,website_url,detected_platform,detected_signals,intro_dismissed_at,discovered_at,connected_at,last_error,updated_at").eq("user_id", user.id).eq("brand_profile_id", brand.id).maybeSingle(),
       ]);
       if (connectionResult.error) throw connectionResult.error;
       if (performanceResult.error) throw performanceResult.error;
@@ -674,6 +709,7 @@ export default function GrowBrainPage() {
       if (learningResult.error && learningResult.error.code !== "PGRST116") throw learningResult.error;
       if (performanceInsightResult.error) throw performanceInsightResult.error;
       if (performanceLearningResult.error && performanceLearningResult.error.code !== "PGRST116") throw performanceLearningResult.error;
+      if (websiteConnectionResult.error && !["PGRST116", "PGRST205", "42P01"].includes(websiteConnectionResult.error.code)) throw websiteConnectionResult.error;
 
       const perfRows = performanceResult.data || [];
       setConnections(connectionResult.data || []);
@@ -682,6 +718,8 @@ export default function GrowBrainPage() {
       setLearningProfile(learningResult.data || null);
       setPerformanceInsights(performanceInsightResult.data || []);
       setPerformanceLearningState(performanceLearningResult.data || null);
+      setWebsiteConnection(websiteConnectionResult.data || null);
+      setWebsiteConnectionLoaded(true);
 
       const postIds = [...new Set(perfRows.map((row) => row.post_id).filter(Boolean))].slice(0, 300);
       if (postIds.length) {
@@ -691,9 +729,148 @@ export default function GrowBrainPage() {
     } catch (error) {
       console.error("Could not load Grow Brain dashboard", error);
       setErrorMessage(error?.message || t("growBrain.loadError"));
+      setWebsiteConnectionLoaded(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!websiteConnectionLoaded || loading || !currentBrand?.id) return;
+    if (websiteConnection?.status === "connected") return;
+    if (webIntroCheckedRef.current === currentBrand.id) return;
+    webIntroCheckedRef.current = currentBrand.id;
+    const locallyDismissed = typeof window !== "undefined" && localStorage.getItem(getWebIntroStorageKey(currentBrand.id)) === "1";
+    if (websiteConnection?.intro_dismissed_at || locallyDismissed) return;
+    setWebsiteConnectView("intro");
+    setWebsiteConnectOpen(true);
+  }, [websiteConnectionLoaded, loading, currentBrand?.id, websiteConnection?.status, websiteConnection?.intro_dismissed_at]);
+
+  async function dismissWebsiteConnectIntro() {
+    const dismissedAt = new Date().toISOString();
+    if (typeof window !== "undefined" && currentBrand?.id) {
+      localStorage.setItem(getWebIntroStorageKey(currentBrand.id), "1");
+    }
+    setWebsiteConnectOpen(false);
+    if (!currentBrand?.id) return;
+    if (demoMode || currentUserId === "demo-user") {
+      setWebsiteConnection((current) => ({ ...(current || {}), status: current?.status || "not_connected", intro_dismissed_at: dismissedAt }));
+      return;
+    }
+    try {
+      if (websiteConnection?.brand_profile_id) {
+        const { data, error } = await supabase
+          .from("brand_web_data_connections")
+          .update({ intro_dismissed_at: dismissedAt, updated_at: dismissedAt })
+          .eq("brand_profile_id", currentBrand.id)
+          .eq("user_id", currentUserId)
+          .select("*")
+          .single();
+        if (error) throw error;
+        setWebsiteConnection(data);
+      } else {
+        const { data, error } = await supabase
+          .from("brand_web_data_connections")
+          .insert({
+            brand_profile_id: currentBrand.id,
+            user_id: currentUserId,
+            status: "not_connected",
+            website_url: currentBrand.website_url || null,
+            intro_dismissed_at: dismissedAt,
+            updated_at: dismissedAt,
+          })
+          .select("*")
+          .single();
+        if (error) throw error;
+        setWebsiteConnection(data);
+      }
+    } catch (error) {
+      console.warn("Could not persist Grow Brain website intro dismissal", error);
+    }
+  }
+
+  function openWebsiteConnect() {
+    setWebsiteConnectError("");
+    setWebsiteConnectView(websiteDiscovery ? "recommendation" : "intro");
+    setWebsiteConnectOpen(true);
+  }
+
+  async function discoverWebsiteConnection() {
+    setWebsiteDiscovering(true);
+    setWebsiteConnectError("");
+    setWebsiteConnectView("discovering");
+    try {
+      if (demoMode || currentUserId === "demo-user") {
+        const demoDiscovery = {
+          ok: true,
+          website_url: currentBrand?.website_url || "",
+          provider: "universal",
+          technologies: [],
+          could_read_website: true,
+          demo: true,
+        };
+        setWebsiteDiscovery(demoDiscovery);
+        setWebsiteConnection((current) => ({
+          ...(current || {}),
+          status: "discovered",
+          provider: demoDiscovery.provider,
+          website_url: demoDiscovery.website_url,
+          detected_platform: demoDiscovery.provider,
+          detected_signals: { technologies: [], demo: true },
+          discovered_at: new Date().toISOString(),
+        }));
+        setWebsiteConnectView("recommendation");
+        return;
+      }
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error(t("growBrain.webConnectLoginRequired"));
+      const response = await fetch("/api/grow-brain/web-data/discover", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ brand_profile_id: currentBrand?.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || t("growBrain.webConnectDiscoveryFailed"));
+      setWebsiteDiscovery(payload);
+      if (payload.connection) setWebsiteConnection(payload.connection);
+      setWebsiteConnectView("recommendation");
+    } catch (error) {
+      setWebsiteConnectError(error?.message || t("growBrain.webConnectDiscoveryFailed"));
+      setWebsiteConnectView("intro");
+    } finally {
+      setWebsiteDiscovering(false);
+    }
+  }
+
+  async function prepareWebsiteProvider() {
+    const provider = websiteDiscovery?.provider || websiteConnection?.provider || "universal";
+    const updatedAt = new Date().toISOString();
+    if (typeof window !== "undefined" && currentBrand?.id) localStorage.setItem(getWebIntroStorageKey(currentBrand.id), "1");
+    setWebsiteConnectError("");
+    try {
+      if (demoMode || currentUserId === "demo-user") {
+        setWebsiteConnection((current) => ({ ...(current || {}), status: "setup_pending", provider, intro_dismissed_at: updatedAt, updated_at: updatedAt }));
+        setWebsiteConnectView("prepared");
+        return;
+      }
+      const { data, error } = await supabase
+        .from("brand_web_data_connections")
+        .update({ status: "setup_pending", provider, intro_dismissed_at: updatedAt, updated_at: updatedAt })
+        .eq("brand_profile_id", currentBrand?.id)
+        .eq("user_id", currentUserId)
+        .select("*")
+        .single();
+      if (error) throw error;
+      setWebsiteConnection(data);
+      setWebsiteConnectView("prepared");
+    } catch (error) {
+      setWebsiteConnectError(error?.message || t("growBrain.webConnectPrepareFailed"));
     }
   }
 
@@ -765,6 +942,12 @@ export default function GrowBrainPage() {
   const performanceLearningStateLabel = performanceLearningState?.learning_state || "collecting";
   const performanceLearningReady = performanceLearningState?.status === "healthy" && safeNumber(performanceLearningState?.insight_count) > 0;
   const hasPerformance = filteredPerformance.length > 0;
+  const websiteDataConnected = websiteConnection?.status === "connected";
+  const websiteSetupPending = websiteConnection?.status === "setup_pending";
+  const webProvider = websiteDiscovery?.provider || websiteConnection?.provider || "universal";
+  const webProviderMeta = getWebProviderMeta(webProvider);
+  const WebProviderIcon = webProviderMeta.icon;
+  const commerceDataConnected = websiteDataConnected && ["shopify", "woocommerce"].includes(webProvider);
   const coverageLabel = healthyPlatforms.length > 0
     ? t("growBrain.coverage", { healthy: healthyPlatforms.length, connected: connectedPlatforms.length })
     : connectedPlatforms.length > 0
@@ -929,6 +1112,36 @@ export default function GrowBrainPage() {
           <div className="grow-v227-observation-note grow-v229-planning-active"><CircleAlert size={15} /><span>{t("growBrain.performanceLearningPlanningActive")}</span></div>
         </section>
 
+        <section className="grow-v231-web-data-card">
+          <div className="grow-v231-web-data-copy">
+            <span className="grow-v215-section-kicker">{t("growBrain.webDataEyebrow")}</span>
+            <h2>{t("growBrain.webDataTitle")}</h2>
+            <p>{t("growBrain.webDataDescription")}</p>
+            <div className="grow-v231-web-data-statuses">
+              <div className={connectedPlatforms.length ? "connected" : "pending"}>
+                <span><CheckCircle2 size={16} /></span>
+                <div><strong>{t("growBrain.webDataSocial")}</strong><small>{connectedPlatforms.length ? t("growBrain.webDataSocialConnected", { count: connectedPlatforms.length }) : t("growBrain.webDataSocialPending")}</small></div>
+              </div>
+              <div className={websiteDataConnected ? "connected" : websiteSetupPending ? "prepared" : "pending"}>
+                <span><Globe2 size={16} /></span>
+                <div><strong>{t("growBrain.webDataWebsite")}</strong><small>{websiteDataConnected ? t("growBrain.webDataConnected") : websiteSetupPending ? t("growBrain.webDataPrepared", { provider: webProviderMeta.label }) : t("growBrain.webDataNotConnected")}</small></div>
+              </div>
+              <div className={commerceDataConnected ? "connected" : "pending"}>
+                <span><ShoppingBag size={16} /></span>
+                <div><strong>{t("growBrain.webDataSales")}</strong><small>{commerceDataConnected ? t("growBrain.webDataSalesConnected") : t("growBrain.webDataSalesOptional")}</small></div>
+              </div>
+            </div>
+          </div>
+          <div className="grow-v231-web-data-action">
+            {websiteConnection?.provider && websiteConnection?.status !== "not_connected" ? <span className="grow-v231-provider-chip"><WebProviderIcon size={15} />{webProviderMeta.label}</span> : null}
+            <button type="button" onClick={openWebsiteConnect} className={websiteDataConnected ? "secondary" : "primary"}>
+              <Globe2 size={17} />
+              {websiteDataConnected ? t("growBrain.webConnectManage") : t("growBrain.webConnectButton")}
+            </button>
+            <small>{t("growBrain.webDataOptional")}</small>
+          </div>
+        </section>
+
         <section className="grow-v215-panel grow-v215-channels-panel">
           <div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.channels")}</span><h2>{t("growBrain.channelPerformance")}</h2><p>{t("growBrain.channelPerformanceHelp")}</p></div><span className="grow-v215-coverage"><CheckCircle2 size={15} /> {coverageLabel}</span></div>
           <div className="grow-v215-channel-grid">{PLATFORM_ORDER.map((platform) => {
@@ -944,6 +1157,59 @@ export default function GrowBrainPage() {
           <article className="grow-v215-panel grow-v215-top-posts"><div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.content")}</span><h2>{t("growBrain.topContent")}</h2><p>{t("growBrain.topContentHelp")}</p></div></div>{topPosts.length ? <div className="grow-v215-top-list grow-v216-top-grid">{topPosts.slice(0, 6).map((row, index) => { const post = postsById[row.post_id] || {}; const title = truncate(post.idea || post.content || humanize(row.content_type_id || row.content_format) || t("growBrain.publishedPost"), 62); const imageUrl = post.image_url || ""; return <a key={`${row.post_id}-${row.platform}`} href={String(row.post_id || "").startsWith("demo-") ? "/grow-brain?demo=1" : `/posts/${row.post_id}`} className="grow-v215-top-row grow-v216-top-card"><span className="grow-v215-rank">{index + 1}</span><div className={`grow-v216-top-media ${imageUrl ? "has-image" : ""}`} style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}>{!imageUrl ? <PlatformIcon platform={row.platform} /> : null}</div><span className="grow-v215-top-copy"><strong>{title}</strong><small><PlatformIcon platform={row.platform} /> {PLATFORM_META[row.platform]?.label || humanize(row.platform)} · {formatDate(row.published_at, locale)}</small></span><span className="grow-v216-top-metrics"><span><strong>{formatCompact(getInteractionCount(row), locale)}</strong><small>{t("growBrain.interactions")}</small></span><span><strong>{formatCompact(getExposure(row), locale)}</strong><small>{t("growBrain.exposure")}</small></span></span></a>; })}</div> : <div className="grow-v215-list-empty"><BarChart3 size={21} /><p>{t("growBrain.topContentEmpty")}</p></div>}</article>
           <aside className="grow-v215-panel grow-v215-system-card"><div className="grow-v215-panel-head compact"><div><span className="grow-v215-section-kicker">{t("growBrain.system")}</span><h2>{t("growBrain.dataHealth")}</h2></div></div><div className="grow-v215-health-score"><span className="grow-v215-health-ring" style={{ "--score": `${connectedPlatforms.length ? Math.round((healthyPlatforms.length / connectedPlatforms.length) * 100) : 0}%` }}><strong>{connectedPlatforms.length ? Math.round((healthyPlatforms.length / connectedPlatforms.length) * 100) : 0}%</strong></span><div><strong>{t("growBrain.measurementCoverage")}</strong><p>{t("growBrain.measurementCoverageText")}</p></div></div><div className="grow-v215-health-list"><div><CheckCircle2 size={16} /><span>{t("growBrain.connectedChannels")}</span><strong>{connectedPlatforms.length}</strong></div><div><Activity size={16} /><span>{t("growBrain.channelsWithData")}</span><strong>{healthyPlatforms.length}</strong></div><div><Clock3 size={16} /><span>{t("growBrain.lastCollection")}</span><strong>{lastSuccess ? formatDateTime(lastSuccess, locale) : "—"}</strong></div></div><p className="grow-v215-system-note">{t("growBrain.observationalNote")}</p></aside>
         </section>
+
+        {websiteConnectOpen ? <div className="grow-v231-connect-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setWebsiteConnectOpen(false); }}>
+          <section className="grow-v231-connect-modal" role="dialog" aria-modal="true" aria-labelledby="grow-web-connect-title">
+            <button type="button" className="grow-v231-connect-close" onClick={() => setWebsiteConnectOpen(false)} aria-label={t("growBrain.webConnectClose")}><X size={19} /></button>
+            {websiteConnectView === "discovering" ? <div className="grow-v231-connect-loading">
+              <span className="grow-v231-connect-orb"><LoaderCircle size={28} className="grow-v215-spin" /></span>
+              <span className="grow-v215-section-kicker">{t("growBrain.webConnectEyebrow")}</span>
+              <h2 id="grow-web-connect-title">{t("growBrain.webConnectScanningTitle")}</h2>
+              <p>{t("growBrain.webConnectScanningText")}</p>
+            </div> : websiteConnectView === "recommendation" ? <>
+              <div className="grow-v231-connect-icon"><WebProviderIcon size={27} /></div>
+              <span className="grow-v215-section-kicker">{t("growBrain.webConnectEyebrow")}</span>
+              <h2 id="grow-web-connect-title">{websiteDiscovery?.needs_website_url ? t("growBrain.webConnectNeedWebsiteTitle") : t("growBrain.webConnectFoundTitle", { provider: webProviderMeta.label })}</h2>
+              <p>{websiteDiscovery?.needs_website_url ? t("growBrain.webConnectNeedWebsiteText") : t(webProviderMeta.descriptionKey)}</p>
+              {websiteDiscovery?.technologies?.length ? <div className="grow-v231-tech-list">{websiteDiscovery.technologies.map((technology) => <span key={technology.id}>{technology.label}</span>)}</div> : null}
+              {websiteDiscovery?.fetch_error ? <div className="grow-v231-connect-soft-note"><CircleAlert size={15} /><span>{t("growBrain.webConnectPartialDetection")}</span></div> : null}
+              <div className="grow-v231-recommendation">
+                <span>{t("growBrain.webConnectRecommended")}</span>
+                <strong>{webProviderMeta.label}</strong>
+                <small>{t("growBrain.webConnectRecommendedHelp")}</small>
+              </div>
+              {websiteConnectError ? <p className="grow-v231-connect-error" role="alert">{websiteConnectError}</p> : null}
+              <div className="grow-v231-connect-actions">
+                {websiteDiscovery?.needs_website_url ? <a className="primary" href="/brand">{t("growBrain.webConnectAddWebsite")} <ArrowRight size={16} /></a> : <button type="button" className="primary" onClick={prepareWebsiteProvider}>{t("growBrain.webConnectChoosePath")} <ArrowRight size={16} /></button>}
+                <button type="button" onClick={() => setWebsiteConnectOpen(false)}>{t("growBrain.webConnectClose")}</button>
+              </div>
+            </> : websiteConnectView === "prepared" ? <>
+              <div className="grow-v231-connect-icon success"><CheckCircle2 size={29} /></div>
+              <span className="grow-v215-section-kicker">{t("growBrain.webConnectEyebrow")}</span>
+              <h2 id="grow-web-connect-title">{t("growBrain.webConnectPreparedTitle")}</h2>
+              <p>{t("growBrain.webConnectPreparedText", { provider: webProviderMeta.label })}</p>
+              <div className="grow-v231-connect-soft-note"><Sparkles size={15} /><span>{t("growBrain.webConnectPreparedSafety")}</span></div>
+              <div className="grow-v231-connect-actions"><button type="button" className="primary" onClick={() => setWebsiteConnectOpen(false)}>{t("growBrain.webConnectDone")}</button></div>
+            </> : <>
+              <div className="grow-v231-connect-icon"><Globe2 size={28} /></div>
+              <span className="grow-v215-section-kicker">{t("growBrain.webConnectEyebrow")}</span>
+              <h2 id="grow-web-connect-title">{t("growBrain.webConnectIntroTitle")}</h2>
+              <p>{t("growBrain.webConnectIntroText")}</p>
+              <div className="grow-v231-connect-benefits">
+                <div><MousePointerClick size={17} /><span><strong>{t("growBrain.webConnectBenefitTraffic")}</strong><small>{t("growBrain.webConnectBenefitTrafficText")}</small></span></div>
+                <div><ShoppingBag size={17} /><span><strong>{t("growBrain.webConnectBenefitSales")}</strong><small>{t("growBrain.webConnectBenefitSalesText")}</small></span></div>
+                <div><Sparkles size={17} /><span><strong>{t("growBrain.webConnectBenefitLearning")}</strong><small>{t("growBrain.webConnectBenefitLearningText")}</small></span></div>
+              </div>
+              {currentBrand?.website_url ? <div className="grow-v231-known-site"><Globe2 size={15} /><span>{t("growBrain.webConnectKnownWebsite")} <strong>{currentBrand.website_url}</strong></span></div> : null}
+              {websiteConnectError ? <p className="grow-v231-connect-error" role="alert">{websiteConnectError}</p> : null}
+              <div className="grow-v231-connect-actions">
+                <button type="button" className="primary" disabled={websiteDiscovering} onClick={discoverWebsiteConnection}><Globe2 size={16} />{t("growBrain.webConnectButton")}</button>
+                <button type="button" onClick={dismissWebsiteConnectIntro}>{t("growBrain.webConnectNotNow")}</button>
+              </div>
+              <p className="grow-v231-connect-optional">{t("growBrain.webConnectOptionalText")}</p>
+            </>}
+          </section>
+        </div> : null}
       </div>
     </AppLayout>
   );
