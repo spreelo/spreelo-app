@@ -10,7 +10,7 @@ const planner = fs.readFileSync(new URL("../app/api/plan-content/route.js", impo
 assert.match(page, /brand_performance_insights/);
 assert.match(page, /brand_performance_learning_state/);
 assert.match(page, /PerformanceInsightCard/);
-assert.match(page, /performanceLearningObservationOnly/);
+assert.match(page, /performanceLearningPlanningActive/);
 assert.match(page, /relative_engagement/);
 assert.match(page, /relative_exposure/);
 assert.match(route, /export async function GET/);

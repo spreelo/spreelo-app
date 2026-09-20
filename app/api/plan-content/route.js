@@ -12,6 +12,11 @@ import {
   buildBrandLearningPlannerContext,
   getBrandLearningContentTypeAdjustment,
 } from "../../../lib/brandLearning.js";
+import {
+  buildPerformanceLearningPlannerContext,
+  getPerformanceLearningContentTypeAdjustment,
+  loadBrandPerformancePlanningContext,
+} from "../../../lib/performanceLearning.js";
 
 export const maxDuration = 60;
 
@@ -246,7 +251,7 @@ function getDefaultMarketingValues(goalId, formatId) {
   };
 }
 
-function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [], learningProfile = null }) {
+function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [], learningProfile = null, performanceLearning = null }) {
   const goalWeights = GOAL_WEIGHTS[goalId] || GOAL_WEIGHTS.build_trust;
   const selected = [];
   const selectedCategories = new Map();
@@ -268,13 +273,26 @@ function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory
           format.id,
           { minObservations: 3, maxAdjustment: 10 }
         );
+        const performanceAdjustment = getPerformanceLearningContentTypeAdjustment(
+          performanceLearning?.insights || [],
+          format.id,
+          {
+            goalId,
+            selectedPlatforms,
+            learningState: performanceLearning?.learningState || "collecting",
+            minObservations: 4,
+            minConfidence: 0.35,
+            maxAdjustment: 14,
+          }
+        );
         const score =
           getContentGoalWeight(goalId, format.id, Number(goalWeights[format.id] || 40)) -
           getRecencyPenalty(format.id, recentHistory) -
           categoryPenalty -
           productPenalty +
           platformCoverage * 5 +
-          learningAdjustment;
+          learningAdjustment +
+          performanceAdjustment;
 
         return { format, score };
       })
@@ -356,7 +374,7 @@ function normalizePlanningItem(item, availableFormatMap, goalId, selectedPlatfor
   };
 }
 
-function normalizePlan({ rawPlan, goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [], learningProfile = null }) {
+function normalizePlan({ rawPlan, goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [], learningProfile = null, performanceLearning = null }) {
   const availableFormatMap = new Map(availableFormats.map((format) => [format.id, format]));
   const fallbackItems = buildFallbackItems({
     goalId,
@@ -365,6 +383,7 @@ function normalizePlan({ rawPlan, goalId, postCount, availableFormats, recentHis
     recentHistory,
     selectedPlatforms,
     learningProfile,
+    performanceLearning,
   });
   const seenPlanTypes = new Set();
   const planItems = [];
@@ -542,6 +561,11 @@ export async function POST(request) {
       : brandFormats;
     const availableFormats = compatibleFormats.length ? compatibleFormats : brandFormats;
     const context = await loadOptionalPlanningContext(supabase, brandProfileId, user.id);
+    const performanceLearning = await loadBrandPerformancePlanningContext({
+      supabase,
+      brandProfileId,
+      userId: user.id,
+    });
 
     const fallbackPlan = normalizePlan({
       rawPlan: null,
@@ -551,6 +575,7 @@ export async function POST(request) {
       recentHistory: context.recentHistory,
       selectedPlatforms,
       learningProfile: context.learningProfile,
+      performanceLearning,
     });
 
     if (!process.env.OPENAI_API_KEY) {
@@ -574,6 +599,15 @@ export async function POST(request) {
       .join("\n");
 
     const customerLearning = buildBrandLearningPlannerContext(context.learningProfile);
+    const performancePlanning = buildPerformanceLearningPlannerContext(
+      performanceLearning?.insights || [],
+      {
+        goalId,
+        selectedPlatforms,
+        learningState: performanceLearning?.learningState || "collecting",
+        maxSignals: 6,
+      }
+    );
 
     const response = await openai.responses.create({
       model: contentPlanModel,
@@ -612,6 +646,9 @@ ${JSON.stringify(context.activeRules.slice(0, 25))}
 CUSTOMER LEARNING SIGNALS
 ${JSON.stringify(customerLearning || { learning_state: "collecting", note: "Not enough customer decisions yet to influence planning." })}
 
+GROW BRAIN PERFORMANCE SIGNALS
+${JSON.stringify(performancePlanning)}
+
 UPCOMING CALENDAR OPPORTUNITIES
 ${JSON.stringify(context.upcomingCampaigns)}
 
@@ -633,6 +670,9 @@ RULES
 - Also avoid repeating the same product or subject visible in recent history; the later generation system will select exact products, but the plan should create room for variety.
 - Customer learning signals are soft evidence from this specific brand's approval/rejection history. Use them only when there are enough observations and never let them override the selected goal, channel compatibility, verified capabilities, recency or factual safety.
 - Negative customer learning is intentionally conservative because a rejected post may have had an execution problem rather than a bad content type. Do not permanently ban a format from one or two decisions.
+- Grow Brain performance signals are normalized against each channel's own baseline. Use established signals as soft evidence to favor formats that repeatedly perform well for this brand and gently reduce formats that repeatedly underperform.
+- For Sell more, give more weight to click/save evidence; for Get more followers, give more weight to exposure/engagement/share evidence; for Build trust, give more weight to save/share/engagement evidence.
+- Never hard-ban a format from performance learning. Preserve exploration and variety so the system can discover changing audience behavior. Goal fit, channel compatibility, factual safety, verified capabilities and recency remain stronger constraints than Grow Brain.
 - Judge the balance across a rolling multi-week schedule. Do not force an exact percentage or identical mix into every individual week.
 - For Sell more, make product businesses clearly more product-driven while still combining demand, clarity, trust and conversion with supporting value posts. Do not turn every post into an advertisement.
 - For Get more followers, make the plan primarily engaging, saveable and shareable. Use a smaller share of pure product advertisements and give the audience a reason to follow, save, comment or share.
@@ -680,6 +720,7 @@ Return this exact JSON structure:
       recentHistory: context.recentHistory,
       selectedPlatforms,
       learningProfile: context.learningProfile,
+      performanceLearning,
     });
 
     return Response.json({

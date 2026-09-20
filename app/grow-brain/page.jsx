@@ -863,7 +863,7 @@ export default function GrowBrainPage() {
             <div><strong>{t("growBrain.performanceLearningEmptyTitle")}</strong><p>{t("growBrain.performanceLearningEmptyText")}</p></div>
           </div>}
 
-          <div className="grow-v227-observation-note"><CircleAlert size={15} /><span>{t("growBrain.performanceLearningObservationOnly")}</span></div>
+          <div className="grow-v227-observation-note grow-v229-planning-active"><CircleAlert size={15} /><span>{t("growBrain.performanceLearningPlanningActive")}</span></div>
         </section>
 
         <section className="grow-v215-panel grow-v215-channels-panel">

@@ -10832,6 +10832,7 @@ ${slot.campaignSummary}`
                 enabled: true,
                 selectionMode: "history_balanced",
                 goalId: autoPlanGoal || "stay_visible",
+                selectedPlatforms: slotDestinationKeys,
                 slotIndex,
                 slotCount: slots.length,
                 baseStartDate: slot.startDate || planStartDate,

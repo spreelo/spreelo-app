@@ -77,6 +77,10 @@ import {
   loadBrandLearningProfile,
 } from "../../../../lib/brandLearning.js";
 import {
+  getPerformanceLearningContentTypeAdjustment,
+  loadBrandPerformancePlanningContext,
+} from "../../../../lib/performanceLearning.js";
+import {
   cancelCampaignResearchJobsForOccurrence,
   cancelOtherActiveCampaignResearchJobs,
   cleanupTerminalCampaignResearchJobs,
@@ -1108,6 +1112,7 @@ function selectHistoryBalancedAdaptiveVariant({
   historyByOwner = new Map(),
   usedTypesByOwner = new Map(),
   learningProfilesByOwner = new Map(),
+  performanceLearningByOwner = new Map(),
 }) {
   const variants = Array.isArray(config?.variants) ? config.variants : [];
   if (!variants.length) return { variant: null, variantIndex: -1 };
@@ -1119,6 +1124,7 @@ function selectHistoryBalancedAdaptiveVariant({
   const history = ownerKey ? historyByOwner.get(ownerKey) || [] : [];
   const usedThisRun = ownerKey ? usedTypesByOwner.get(ownerKey) || new Set() : new Set();
   const learningProfile = ownerKey ? learningProfilesByOwner.get(ownerKey) || null : null;
+  const performanceLearning = ownerKey ? performanceLearningByOwner.get(ownerKey) || null : null;
   const recentTypes = history
     .map((item) => String(item?.content_type_id || "").trim())
     .filter(Boolean)
@@ -1159,6 +1165,18 @@ function selectHistoryBalancedAdaptiveVariant({
       minObservations: 3,
       maxAdjustment: 12,
     });
+    score += getPerformanceLearningContentTypeAdjustment(
+      performanceLearning?.insights || [],
+      contentTypeId,
+      {
+        goalId,
+        selectedPlatforms: Array.isArray(config?.selectedPlatforms) ? config.selectedPlatforms : [],
+        learningState: performanceLearning?.learningState || "collecting",
+        minObservations: 4,
+        minConfidence: 0.35,
+        maxAdjustment: 14,
+      }
+    );
 
     if (usedThisRun.has(contentTypeId)) score -= 125;
     if (firstRecentIndex === 0) score -= 115;
@@ -1215,6 +1233,7 @@ function resolveAdaptiveWeeklyRule(rule, scheduledPublishAtIso, options = {}) {
         historyByOwner: options.historyByOwner,
         usedTypesByOwner: options.usedTypesByOwner,
         learningProfilesByOwner: options.learningProfilesByOwner,
+        performanceLearningByOwner: options.performanceLearningByOwner,
       });
     variant = selected?.variant;
     variantIndex = Number.isInteger(selected?.variantIndex)
@@ -1354,6 +1373,32 @@ async function loadAdaptiveWeeklyLearningProfiles({ supabase, rules }) {
   );
 
   return learningProfilesByOwner;
+}
+
+async function loadAdaptiveWeeklyPerformanceLearning({ supabase, rules }) {
+  const performanceLearningByOwner = new Map();
+  const uniqueBrands = new Map();
+
+  for (const rule of rules || []) {
+    const brandProfileId = String(rule?.brand_profile_id || "").trim();
+    const userId = String(rule?.user_id || "").trim();
+    if (!brandProfileId || !userId || uniqueBrands.has(brandProfileId)) continue;
+    uniqueBrands.set(brandProfileId, { brandProfileId, userId });
+  }
+
+  await Promise.all(
+    [...uniqueBrands.values()].map(async ({ brandProfileId, userId }) => {
+      const context = await loadBrandPerformancePlanningContext({
+        supabase,
+        brandProfileId,
+        userId,
+      });
+      if (!context) return;
+      performanceLearningByOwner.set(`brand:${brandProfileId}`, context);
+    })
+  );
+
+  return performanceLearningByOwner;
 }
 
 function rememberAdaptiveWeeklySelection({
@@ -45027,6 +45072,10 @@ async function runAutomationCron(request, options = {}) {
       supabase,
       rules,
     });
+    const adaptivePerformanceLearningByOwner = await loadAdaptiveWeeklyPerformanceLearning({
+      supabase,
+      rules,
+    });
     const adaptiveTypesUsedThisRun = new Map();
     summary.queue_candidates = rules?.length || 0;
 
@@ -45053,6 +45102,7 @@ async function runAutomationCron(request, options = {}) {
           historyByOwner: adaptiveHistoryByOwner,
           usedTypesByOwner: adaptiveTypesUsedThisRun,
           learningProfilesByOwner: adaptiveLearningProfilesByOwner,
+          performanceLearningByOwner: adaptivePerformanceLearningByOwner,
         }
       );
       const rule = applyScheduleOverrideContent(adaptiveRule, queuedRule);
@@ -48351,6 +48401,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
               historyByOwner: adaptiveHistoryByOwner,
               usedTypesByOwner: adaptiveTypesUsedThisRun,
               learningProfilesByOwner: adaptiveLearningProfilesByOwner,
+              performanceLearningByOwner: adaptivePerformanceLearningByOwner,
             }
           );
           const nextScheduleOverride = await loadScheduleOverrideForBaseRun({
