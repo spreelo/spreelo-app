@@ -7,6 +7,8 @@ import {
   normalizeShopifyShop,
 } from "../../../../lib/shopifyOAuth.js";
 
+export const dynamic = "force-dynamic";
+
 function getUserClient(authorizationHeader) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -14,11 +16,59 @@ function getUserClient(authorizationHeader) {
   return createClient(url, anon, { global: { headers: { Authorization: authorizationHeader } } });
 }
 
-export async function GET(request) {
-  const origin = new URL(request.url).origin;
-  return NextResponse.redirect(`${origin}/grow-brain?shopify=connect`);
+function setOauthStateCookie(response, state) {
+  response.cookies.set("spreelo_shopify_oauth_state", state, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 10 * 60,
+  });
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
 
+// Shopify opens the configured App URL after an App Store/dev-store install.
+// For that path we must authenticate with Shopify before showing any Spreelo UI.
+export async function GET(request) {
+  try {
+    const requestUrl = new URL(request.url);
+    const shop = normalizeShopifyShop(requestUrl.searchParams.get("shop"));
+    const env = getShopifyEnv();
+
+    if (!shop) {
+      return NextResponse.redirect(new URL("/shopify/onboarding?error=missing_shop", requestUrl.origin));
+    }
+    if (!env.clientId || !env.clientSecret || !env.redirectUri || env.scopes.length === 0) {
+      return NextResponse.redirect(new URL("/shopify/onboarding?error=missing_configuration", requestUrl.origin));
+    }
+
+    // First pass: an online token is used only to identify the verified Shopify
+    // staff member so self-service App Store installs don't need a second Spreelo login.
+    const state = createSignedShopifyState({
+      flow: "app_store_identity",
+      shop,
+      redirectUri: env.redirectUri,
+      secret: env.clientSecret,
+    });
+    const authorizationUrl = buildShopifyAuthorizationUrl({
+      shop,
+      clientId: env.clientId,
+      scopes: env.scopes,
+      redirectUri: env.redirectUri,
+      state,
+      online: true,
+    });
+
+    return setOauthStateCookie(NextResponse.redirect(authorizationUrl), state);
+  } catch (error) {
+    console.error("Shopify App Store OAuth start failed", error);
+    const origin = new URL(request.url).origin;
+    return NextResponse.redirect(new URL("/shopify/onboarding?error=oauth_start_failed", origin));
+  }
+}
+
+// Existing Spreelo customers can still connect Shopify from Grow Brain.
 export async function POST(request) {
   try {
     const authorizationHeader = request.headers.get("authorization") || "";
@@ -29,6 +79,7 @@ export async function POST(request) {
 
     const body = await request.json().catch(() => ({}));
     const brandProfileId = String(body?.brand_profile_id || "").trim();
+    const aiConsent = body?.ai_consent === true;
     if (!brandProfileId) return NextResponse.json({ ok: false, error: "Missing brand" }, { status: 400 });
 
     const { data: brand, error: brandError } = await supabase
@@ -64,8 +115,10 @@ export async function POST(request) {
     }
 
     const state = createSignedShopifyState({
+      flow: "brand_connect",
       userId: user.id,
       brandProfileId,
+      aiConsent,
       shop,
       redirectUri: env.redirectUri,
       secret: env.clientSecret,
@@ -85,14 +138,7 @@ export async function POST(request) {
       .eq("user_id", user.id);
 
     const response = NextResponse.json({ ok: true, url, shop });
-    response.cookies.set("spreelo_shopify_oauth_state", state, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 10 * 60,
-    });
-    return response;
+    return setOauthStateCookie(response, state);
   } catch (error) {
     console.error("Shopify OAuth start failed", error);
     return NextResponse.json({ ok: false, error: error?.message || "Could not start Shopify connection." }, { status: 500 });

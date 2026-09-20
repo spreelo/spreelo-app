@@ -229,7 +229,8 @@
     "test:v144.226": "node scripts/test-v144-226-grow-brain-performance-test-harness.mjs",
     "test:v144.229": "node scripts/test-v144-229-grow-brain-step4-planning-ui.mjs",
     "test:v144.230": "node scripts/test-v144-230-grow-brain-step4-verification.mjs",
-    "test:v144.231": "node scripts/test-v144-231-grow-brain-web-data-connect.mjs"
+    "test:v144.231": "node scripts/test-v144-231-grow-brain-web-data-connect.mjs",
+    "test:v144.233": "node scripts/test-v144-233-shopify-app-store-onboarding.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

@@ -875,6 +875,7 @@ export default function GrowBrainPage() {
           body: JSON.stringify({
             brand_profile_id: currentBrand?.id,
             shop: websiteDiscovery?.shop_domain || websiteConnection?.detected_signals?.shop_domain || "",
+            ai_consent: true,
           }),
         });
         const payload = await response.json().catch(() => ({}));
@@ -1227,9 +1228,10 @@ export default function GrowBrainPage() {
                 <strong>{webProviderMeta.label}</strong>
                 <small>{t("growBrain.webConnectRecommendedHelp")}</small>
               </div>
+              {webProvider === "shopify" && !websiteDiscovery?.needs_website_url ? <div className="grow-v231-connect-soft-note"><CircleAlert size={15} /><span>{t("growBrain.shopifyAiConsent")}</span></div> : null}
               {websiteConnectError ? <p className="grow-v231-connect-error" role="alert">{websiteConnectError}</p> : null}
               <div className="grow-v231-connect-actions">
-                {websiteDiscovery?.needs_website_url ? <a className="primary" href="/brand">{t("growBrain.webConnectAddWebsite")} <ArrowRight size={16} /></a> : <button type="button" className="primary" onClick={prepareWebsiteProvider}>{t("growBrain.webConnectChoosePath")} <ArrowRight size={16} /></button>}
+                {websiteDiscovery?.needs_website_url ? <a className="primary" href="/brand">{t("growBrain.webConnectAddWebsite")} <ArrowRight size={16} /></a> : <button type="button" className="primary" onClick={prepareWebsiteProvider}>{webProvider === "shopify" ? t("growBrain.shopifyAiConsentAction") : t("growBrain.webConnectChoosePath")} <ArrowRight size={16} /></button>}
                 <button type="button" onClick={() => setWebsiteConnectOpen(false)}>{t("growBrain.webConnectClose")}</button>
               </div>
             </> : websiteConnectView === "connected" ? <>
