@@ -1,0 +1,9 @@
+/* Spreelo v144.224 — Grow Brain single-metric chart */
+html body .grow-v224-line{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:2.9;vector-effect:non-scaling-stroke;filter:drop-shadow(0 4px 8px rgba(104,73,243,.16))}
+html body .grow-v224-line.interactions{stroke:#6849f3}
+html body .grow-v224-line.exposure{stroke:#9382f7}
+html body .grow-v224-area{fill:url(#growActiveArea);stroke:none;pointer-events:none}
+html body .grow-v224-chart-point{stroke:#fff;stroke-width:1.5;vector-effect:non-scaling-stroke;filter:drop-shadow(0 2px 5px rgba(105,70,214,.14))}
+html body .grow-v224-chart-point.interactions{fill:#6849f3}
+html body .grow-v224-chart-point.exposure{fill:#9382f7}
+@media (min-width:1081px){html body .grow-v215-main-grid{align-items:start!important}html body .grow-v215-trend-panel{align-self:start!important}}
