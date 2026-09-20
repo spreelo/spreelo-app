@@ -225,7 +225,8 @@
     "test:v144.214": "node scripts/test-v144-214-threads-performance.mjs",
     "test:v144.215": "node scripts/test-v144-215-grow-brain-dashboard.mjs",
     "test:v144.221": "node scripts/test-v144-221-grow-brain-demo-preview.mjs",
-    "test:v144.225": "node scripts/test-v144-225-grow-brain-performance-learning.mjs"
+    "test:v144.225": "node scripts/test-v144-225-grow-brain-performance-learning.mjs",
+    "test:v144.226": "node scripts/test-v144-226-grow-brain-performance-test-harness.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

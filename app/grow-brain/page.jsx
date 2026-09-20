@@ -435,8 +435,15 @@ export default function GrowBrainPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [demoMode, setDemoMode] = useState(false);
+  const [engineTestRunning, setEngineTestRunning] = useState(false);
+  const [engineTestResult, setEngineTestResult] = useState(null);
 
-  useEffect(() => { void loadDashboard(); }, []);
+  useEffect(() => {
+    const isDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
+    setDemoMode(isDemo);
+    void loadDashboard();
+  }, []);
 
   async function resolveBrand(user) {
     const savedBrandId = typeof window !== "undefined" ? localStorage.getItem(getBrandStorageKey(user.id)) : "";
@@ -448,6 +455,33 @@ export default function GrowBrainPage() {
     if (error) throw error;
     if (data?.id && typeof window !== "undefined") localStorage.setItem(getBrandStorageKey(user.id), data.id);
     return data || null;
+  }
+
+  async function runPerformanceEngineTest(action = "run") {
+    setEngineTestRunning(true);
+    if (action === "run") setEngineTestResult(null);
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error(t("growBrain.engineTestLoginRequired"));
+
+      const response = await fetch("/api/admin/grow-brain-performance-test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || t("growBrain.engineTestFailed"));
+      setEngineTestResult(payload);
+    } catch (error) {
+      setEngineTestResult({ ok: false, passed: false, error: error?.message || t("growBrain.engineTestFailed") });
+    } finally {
+      setEngineTestRunning(false);
+    }
   }
 
   async function loadDashboard({ quiet = false } = {}) {
@@ -597,6 +631,21 @@ export default function GrowBrainPage() {
         </header>
 
         {errorMessage ? <div className="grow-v215-notice error" role="alert"><CircleAlert size={18} /><span>{errorMessage}</span></div> : null}
+
+        {demoMode ? <section className={`grow-v226-engine-test ${engineTestResult?.passed ? "passed" : engineTestResult?.ok === false ? "failed" : ""}`}>
+          <div className="grow-v226-engine-test-copy">
+            <span className="grow-v215-section-kicker">{t("growBrain.engineTestEyebrow")}</span>
+            <h2>{t("growBrain.engineTestTitle")}</h2>
+            <p>{t("growBrain.engineTestDescription")}</p>
+            {engineTestResult ? <div className="grow-v226-engine-test-result" aria-live="polite">
+              {engineTestResult.ok === false ? <><CircleAlert size={17} /><span><strong>{t("growBrain.engineTestFailedTitle")}</strong>{engineTestResult.error}</span></> : engineTestResult.action === "cleanup" ? <><CheckCircle2 size={17} /><span><strong>{t("growBrain.engineTestCleanedTitle")}</strong>{t("growBrain.engineTestCleanedText")}</span></> : <><CheckCircle2 size={17} /><span><strong>{engineTestResult.passed ? t("growBrain.engineTestPassedTitle") : t("growBrain.engineTestWarningTitle")}</strong>{t("growBrain.engineTestSummary", { posts: engineTestResult.state?.eligible_post_count || 0, insights: engineTestResult.state?.insight_count || 0, positive: engineTestResult.top_positive?.length || 0, negative: engineTestResult.top_negative?.length || 0 })}</span></>}
+            </div> : null}
+          </div>
+          <div className="grow-v226-engine-test-actions">
+            <button type="button" className="primary" disabled={engineTestRunning} onClick={() => runPerformanceEngineTest("run")}>{engineTestRunning ? <LoaderCircle size={16} className="grow-v215-spin" /> : <Activity size={16} />}{t("growBrain.engineTestRun")}</button>
+            <button type="button" disabled={engineTestRunning} onClick={() => runPerformanceEngineTest("cleanup")}>{t("growBrain.engineTestCleanup")}</button>
+          </div>
+        </section> : null}
 
         <section className="grow-v215-controlbar" aria-label={t("growBrain.filters")}>
           <div className="grow-v215-range-tabs">{RANGE_OPTIONS.map((days) => <button key={days} type="button" className={rangeDays === days ? "active" : ""} onClick={() => setRangeDays(days)}>{t("growBrain.days", { count: days })}</button>)}</div>

@@ -1,0 +1,36 @@
+/* Spreelo v144.226 — isolated Grow Brain Step 3A verification harness */
+html body .grow-v226-engine-test{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin:0 0 14px;
+  padding:14px 16px;
+  border:1px solid rgba(117,87,212,.16);
+  border-radius:16px;
+  background:linear-gradient(135deg,rgba(255,255,255,.9),rgba(247,244,255,.92));
+  box-shadow:0 10px 26px rgba(54,43,91,.06);
+}
+html body .grow-v226-engine-test-copy{min-width:0;max-width:760px}
+html body .grow-v226-engine-test h2{margin:2px 0 4px;color:#171a2e;font-size:15px;line-height:1.2}
+html body .grow-v226-engine-test p{margin:0;color:#667085;font-size:12.5px;line-height:1.45}
+html body .grow-v226-engine-test-actions{display:flex;gap:8px;flex:0 0 auto}
+html body .grow-v226-engine-test-actions button{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:38px;padding:8px 12px;border:1px solid #e0dced;border-radius:10px;
+  background:#fff;color:#45415a;font:inherit;font-size:12px;font-weight:800;cursor:pointer;
+}
+html body .grow-v226-engine-test-actions button.primary{border-color:#7357dc;background:#7357dc;color:#fff;box-shadow:0 7px 15px rgba(115,87,220,.2)}
+html body .grow-v226-engine-test-actions button:disabled{opacity:.55;cursor:not-allowed}
+html body .grow-v226-engine-test-result{display:flex;align-items:flex-start;gap:8px;margin-top:9px;padding:9px 10px;border-radius:10px;background:rgba(96,69,191,.07);color:#57516c;font-size:11.5px;line-height:1.4}
+html body .grow-v226-engine-test-result span{display:flex;flex-direction:column;gap:1px}
+html body .grow-v226-engine-test-result strong{color:#30294c;font-size:12px}
+html body .grow-v226-engine-test.passed{border-color:rgba(28,149,94,.22)}
+html body .grow-v226-engine-test.passed .grow-v226-engine-test-result{background:rgba(28,149,94,.08);color:#32674f}
+html body .grow-v226-engine-test.failed{border-color:rgba(200,59,59,.22)}
+html body .grow-v226-engine-test.failed .grow-v226-engine-test-result{background:rgba(200,59,59,.07);color:#8e3d3d}
+@media(max-width:760px){
+  html body .grow-v226-engine-test{align-items:stretch;flex-direction:column;padding:13px}
+  html body .grow-v226-engine-test-actions{width:100%}
+  html body .grow-v226-engine-test-actions button{flex:1}
+}
