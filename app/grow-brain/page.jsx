@@ -45,6 +45,11 @@ function safeNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function clamp(value, min, max) {
+  const numeric = safeNumber(value);
+  return Math.min(max, Math.max(min, numeric));
+}
+
 function hasNumber(value) {
   return value !== null && value !== undefined && Number.isFinite(Number(value));
 }
