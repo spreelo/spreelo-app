@@ -41,6 +41,11 @@ export default function ShopifyOnboardingPage() {
     window.location.href = `/grow-brain?${params.toString()}`;
   }
 
+  function goToSocialChannels(extra = {}) {
+    const params = new URLSearchParams({ onboarding: "shopify", shopify: "connected", ...extra });
+    window.location.href = `/social-channels?${params.toString()}`;
+  }
+
   async function startBrandAnalysis({ session, brand, required, activeShop }) {
     if (!required || !session?.access_token || !brand?.id) return "skipped";
     try {
@@ -73,7 +78,7 @@ export default function ShopifyOnboardingPage() {
     }
   }
 
-  async function continueAfterConsent({ session, brand, analysisRequired, activeShop }) {
+  async function continueAfterConsent({ session, brand, analysisRequired, activeShop, routeToSocialChannels = false }) {
     setPhase("analyzing");
     const analysis = await startBrandAnalysis({ session, brand, required: analysisRequired, activeShop });
     setPhase("done");
@@ -81,6 +86,10 @@ export default function ShopifyOnboardingPage() {
       const extra = {};
       if (analysis === "started") extra.analysis = "started";
       if (analysis === "failed") extra.analysis = "retry_available";
+      if (routeToSocialChannels) {
+        goToSocialChannels(extra);
+        return;
+      }
       goToGrowBrain(extra);
     }, 550);
   }
@@ -114,8 +123,15 @@ export default function ShopifyOnboardingPage() {
     const { data: { user } } = await supabase.auth.getUser();
     rememberBrand(user?.id, payload.brand.id);
 
+    const routeToSocialChannels = Boolean(payload?.first_brand_for_user);
+
     if (payload?.ai_consent_required) {
-      setPending({ brand: payload.brand, analysisRequired: Boolean(payload.analysis_required), activeShop });
+      setPending({
+        brand: payload.brand,
+        analysisRequired: Boolean(payload.analysis_required),
+        activeShop,
+        routeToSocialChannels,
+      });
       setPhase("consent");
       setWorkingBrandId("");
       return;
@@ -126,6 +142,7 @@ export default function ShopifyOnboardingPage() {
       brand: payload.brand,
       analysisRequired: Boolean(payload.analysis_required),
       activeShop,
+      routeToSocialChannels,
     });
   }
 
@@ -148,6 +165,7 @@ export default function ShopifyOnboardingPage() {
         brand: pending.brand,
         analysisRequired: pending.analysisRequired,
         activeShop: pending.activeShop,
+        routeToSocialChannels: Boolean(pending.routeToSocialChannels),
       });
     } catch (error) {
       setMessage(error?.message || "Could not save your choice.");
@@ -156,6 +174,10 @@ export default function ShopifyOnboardingPage() {
   }
 
   function skipAiConsent() {
+    if (pending?.routeToSocialChannels) {
+      goToSocialChannels({ ai: "not_enabled" });
+      return;
+    }
     goToGrowBrain({ ai: "not_enabled" });
   }
 

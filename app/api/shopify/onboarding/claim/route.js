@@ -94,6 +94,10 @@ export async function POST(request) {
       .order("created_at", { ascending: true });
     if (brandError) throw brandError;
     const brandRows = brands || [];
+    // A Shopify install should only enter Spreelo's first-time social onboarding
+    // when this account had no brand workspace before this install. Existing
+    // Spreelo customers keep their normal flow even if they create a new brand.
+    const firstBrandForUser = brandRows.length === 0;
 
     const { data: existingConnection } = await admin
       .from("shopify_connections")
@@ -250,6 +254,7 @@ export async function POST(request) {
       ok: true,
       connected: true,
       created_brand: createdBrand,
+      first_brand_for_user: firstBrandForUser,
       analysis_required: createdBrand || !selectedBrand.campaign_calendar_generated_at,
       ai_consent_required: !savedConnection?.ai_store_data_consent_at,
       brand: publicBrand(selectedBrand),
