@@ -174,15 +174,40 @@ function buildDailySeries(rows, rangeDays) {
   return buckets;
 }
 
-function buildLinePath(values, width = 760, height = 250, padding = 14) {
-  if (!values.length) return "";
-  const max = Math.max(1, ...values);
-  const step = values.length > 1 ? (width - padding * 2) / (values.length - 1) : 0;
+function getNiceChartMax(value) {
+  const numeric = safeNumber(value);
+  if (numeric <= 0) return 0;
+  const magnitude = 10 ** Math.floor(Math.log10(numeric));
+  const normalized = numeric / magnitude;
+  if (normalized <= 1.5) return 1.5 * magnitude;
+  if (normalized <= 2) return 2 * magnitude;
+  if (normalized <= 3) return 3 * magnitude;
+  if (normalized <= 5) return 5 * magnitude;
+  return 10 * magnitude;
+}
+
+function buildLineGeometry(values, {
+  width = 760,
+  height = 210,
+  paddingX = 14,
+  paddingTop = 14,
+  paddingBottom = 14,
+  maxValue = 1,
+} = {}) {
+  if (!values.length) return { path: "", areaPath: "", points: [], baselineY: height - paddingBottom };
+  const safeMax = Math.max(1, safeNumber(maxValue));
+  const baselineY = height - paddingBottom;
+  const usableHeight = Math.max(1, height - paddingTop - paddingBottom);
+  const step = values.length > 1 ? (width - paddingX * 2) / (values.length - 1) : 0;
   const points = values.map((value, index) => ({
-    x: padding + index * step,
-    y: height - padding - (safeNumber(value) / max) * (height - padding * 2),
+    x: paddingX + index * step,
+    y: baselineY - (safeNumber(value) / safeMax) * usableHeight,
   }));
-  if (points.length === 1) return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+  if (points.length === 1) {
+    const onlyPointPath = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+    const onlyPointArea = `${onlyPointPath} L${points[0].x.toFixed(1)},${baselineY.toFixed(1)} Z`;
+    return { path: onlyPointPath, areaPath: onlyPointArea, points, baselineY };
+  }
 
   let path = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
   for (let index = 0; index < points.length - 1; index += 1) {
@@ -196,7 +221,10 @@ function buildLinePath(values, width = 760, height = 250, padding = 14) {
     const c2y = p2.y - (p3.y - p1.y) / 6;
     path += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
   }
-  return path;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const areaPath = `${path} L${last.x.toFixed(1)},${baselineY.toFixed(1)} L${first.x.toFixed(1)},${baselineY.toFixed(1)} Z`;
+  return { path, areaPath, points, baselineY };
 }
 
 function getConnectionForPlatform(connections, platform) {
@@ -509,9 +537,12 @@ export default function GrowBrainPage() {
     while (lastMeasuredIndex > 0 && safeNumber(rawDailySeries[lastMeasuredIndex]?.posts) === 0) lastMeasuredIndex -= 1;
     return rawDailySeries.slice(0, lastMeasuredIndex + 1);
   }, [rawDailySeries]);
-  const chartValues = dailySeries.map((bucket) => chartMetric === "exposure" ? bucket.exposure : bucket.interactions);
-  const chartPath = buildLinePath(chartValues);
-  const chartMax = Math.max(0, ...chartValues);
+  const exposureSeries = dailySeries.map((bucket) => bucket.exposure);
+  const interactionSeries = dailySeries.map((bucket) => bucket.interactions);
+  const chartMax = useMemo(() => getNiceChartMax(Math.max(0, ...exposureSeries, ...interactionSeries)), [exposureSeries, interactionSeries]);
+  const exposureGeometry = useMemo(() => buildLineGeometry(exposureSeries, { maxValue: chartMax || 1 }), [exposureSeries, chartMax]);
+  const interactionGeometry = useMemo(() => buildLineGeometry(interactionSeries, { maxValue: chartMax || 1 }), [interactionSeries, chartMax]);
+  const activeGeometry = chartMetric === "exposure" ? exposureGeometry : interactionGeometry;
 
   const connectedPlatforms = PLATFORM_ORDER.filter((platform) => getConnectionForPlatform(connections, platform)?.status === "connected");
   const healthyPlatforms = PLATFORM_ORDER.filter((platform) => getPlatformCollectionStatus(collectionStates, platform, getConnectionForPlatform(connections, platform), allPlatformStats[platform]) === "healthy");
@@ -527,7 +558,6 @@ export default function GrowBrainPage() {
   const learningEventCount = safeNumber(learningProfile?.source_event_count);
   const learningProgressPercent = Math.min(100, Math.max(0, Math.round((learningEventCount / 12) * 100)));
   const hasPerformance = filteredPerformance.length > 0;
-  const maxPostsPerBucket = Math.max(1, ...dailySeries.map((bucket) => safeNumber(bucket.posts)));
   const coverageLabel = healthyPlatforms.length > 0
     ? t("growBrain.coverage", { healthy: healthyPlatforms.length, connected: connectedPlatforms.length })
     : connectedPlatforms.length > 0
@@ -591,7 +621,7 @@ export default function GrowBrainPage() {
           <article className="grow-v215-panel grow-v215-trend-panel">
             <div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.performance")}</span><h2>{t("growBrain.performanceByPublishDate")}</h2><p>{t("growBrain.performanceByPublishDateHelp")}</p></div><div className="grow-v215-chart-toggle"><button type="button" className={chartMetric === "interactions" ? "active" : ""} onClick={() => setChartMetric("interactions")}>{t("growBrain.interactions")}</button><button type="button" className={chartMetric === "exposure" ? "active" : ""} onClick={() => setChartMetric("exposure")}>{t("growBrain.exposure")}</button></div></div>
             {loading ? <div className="grow-v215-chart-empty"><LoaderCircle className="grow-v215-spin" /><span>{t("growBrain.loading")}</span></div> : hasPerformance ? (
-              <div className="grow-v215-chart-wrap grow-v222-chart-wrap"><div className="grow-v215-chart-y grow-v222-chart-y"><span>{formatCompact(chartMax, locale)}</span><span>{formatCompact(chartMax * .75, locale)}</span><span>{formatCompact(chartMax / 2, locale)}</span><span>{formatCompact(chartMax * .25, locale)}</span><span>0</span></div><div className="grow-v215-chart-canvas grow-v222-chart-canvas"><svg viewBox="0 0 760 250" preserveAspectRatio="none" role="img" aria-label={t("growBrain.performanceChartLabel")}><defs><linearGradient id="growArea" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="currentColor" stopOpacity=".20" /><stop offset="100%" stopColor="currentColor" stopOpacity="0" /></linearGradient><linearGradient id="growBars" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#9a84e7" stopOpacity=".34" /><stop offset="100%" stopColor="#9a84e7" stopOpacity=".07" /></linearGradient></defs><line x1="14" x2="746" y1="14" y2="14" className="grow-v215-gridline" /><line x1="14" x2="746" y1="69.5" y2="69.5" className="grow-v215-gridline" /><line x1="14" x2="746" y1="125" y2="125" className="grow-v215-gridline" /><line x1="14" x2="746" y1="180.5" y2="180.5" className="grow-v215-gridline" /><line x1="14" x2="746" y1="236" y2="236" className="grow-v215-gridline" />{dailySeries.map((bucket, index) => { const span = 732 / Math.max(1, dailySeries.length); const barWidth = Math.max(5, span * .48); const x = 14 + index * span + (span - barWidth) / 2; const barHeight = Math.max(3, (safeNumber(bucket.posts) / maxPostsPerBucket) * 68); return <rect key={`bar-${index}`} x={x} y={236 - barHeight} width={barWidth} height={barHeight} rx="2.5" fill="url(#growBars)" />; })}{chartPath ? <path d={`${chartPath} L746,236 L14,236 Z`} className="grow-v215-area" /> : null}{chartPath ? <path d={chartPath} className="grow-v215-line grow-v222-smooth-line" /> : null}{chartValues.map((value, index) => { const step = chartValues.length > 1 ? 732 / (chartValues.length - 1) : 0; const x = 14 + index * step; const y = 236 - (safeNumber(value) / Math.max(1, chartMax)) * 222; return <circle key={`point-${index}`} cx={x} cy={y} r="2.8" className="grow-v216-chart-point" />; })}</svg><div className="grow-v215-chart-labels"><span>{formatDate(dailySeries[0]?.start, locale)}</span><span>{formatDate(dailySeries[Math.floor(dailySeries.length / 2)]?.start, locale)}</span><span>{formatDate(dailySeries.at(-1)?.end, locale)}</span></div></div></div>
+              <div className="grow-v215-chart-wrap grow-v222-chart-wrap"><div className="grow-v215-chart-y grow-v222-chart-y"><span>{formatCompact(chartMax, locale)}</span><span>{formatCompact(chartMax * .75, locale)}</span><span>{formatCompact(chartMax / 2, locale)}</span><span>{formatCompact(chartMax * .25, locale)}</span><span>0</span></div><div className="grow-v215-chart-canvas grow-v222-chart-canvas"><svg viewBox="0 0 760 210" preserveAspectRatio="none" role="img" aria-label={t("growBrain.performanceChartLabel")}><defs><linearGradient id="growAreaExposure" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#9f8fff" stopOpacity=".18" /><stop offset="100%" stopColor="#9f8fff" stopOpacity="0" /></linearGradient><linearGradient id="growAreaInteractions" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#6a4cf2" stopOpacity=".16" /><stop offset="100%" stopColor="#6a4cf2" stopOpacity="0" /></linearGradient></defs><line x1="14" x2="746" y1="14" y2="14" className="grow-v215-gridline" /><line x1="14" x2="746" y1="60" y2="60" className="grow-v215-gridline" /><line x1="14" x2="746" y1="105" y2="105" className="grow-v215-gridline" /><line x1="14" x2="746" y1="150" y2="150" className="grow-v215-gridline" /><line x1="14" x2="746" y1="196" y2="196" className="grow-v215-gridline" />{chartMetric === "exposure" && exposureGeometry.areaPath ? <path d={exposureGeometry.areaPath} className="grow-v223-area exposure" /> : null}{chartMetric === "interactions" && interactionGeometry.areaPath ? <path d={interactionGeometry.areaPath} className="grow-v223-area interactions" /> : null}{exposureGeometry.path ? <path d={exposureGeometry.path} className={`grow-v223-line exposure ${chartMetric === "exposure" ? "active" : "muted"}`} /> : null}{interactionGeometry.path ? <path d={interactionGeometry.path} className={`grow-v223-line interactions ${chartMetric === "interactions" ? "active" : "muted"}`} /> : null}{activeGeometry.points.map((point, index) => <circle key={`point-${chartMetric}-${index}`} cx={point.x} cy={point.y} r="3.2" className={`grow-v223-chart-point ${chartMetric}`} />)}</svg><div className="grow-v215-chart-labels"><span>{formatDate(dailySeries[0]?.start, locale)}</span><span>{formatDate(dailySeries[Math.floor(dailySeries.length / 2)]?.start, locale)}</span><span>{formatDate(dailySeries.at(-1)?.end, locale)}</span></div></div></div>
             ) : <div className="grow-v215-chart-empty"><TrendingUp size={25} /><strong>{t("growBrain.noPerformanceTitle")}</strong><span>{t("growBrain.noPerformanceText")}</span><a href="/social-channels">{t("growBrain.openSocialChannels")} <ArrowRight size={15} /></a></div>}
           </article>
 

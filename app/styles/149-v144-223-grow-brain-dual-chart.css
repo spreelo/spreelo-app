@@ -1,0 +1,64 @@
+/* Spreelo v144.223 — Grow Brain dual-line chart refinement
+   Removes post bars, adds two comparable curves, and tightens the chart canvas. */
+
+@media (min-width:761px){
+  html body .grow-v222-chart-wrap{
+    min-height:244px!important;
+    grid-template-columns:42px minmax(0,1fr)!important;
+    padding-top:2px!important;
+  }
+  html body .grow-v222-chart-y{
+    height:210px!important;
+    padding:4px 0 4px!important;
+  }
+  html body .grow-v222-chart-canvas svg{
+    height:210px!important;
+  }
+}
+
+html body .grow-v223-line{
+  fill:none;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  vector-effect:non-scaling-stroke;
+  transition:opacity .18s ease, stroke-width .18s ease;
+}
+html body .grow-v223-line.exposure{stroke:#9c8dff}
+html body .grow-v223-line.interactions{stroke:#6849f3}
+html body .grow-v223-line.active{
+  stroke-width:2.9;
+  opacity:1;
+  filter:drop-shadow(0 4px 8px rgba(104,73,243,.16));
+}
+html body .grow-v223-line.muted{
+  stroke-width:2.2;
+  opacity:.72;
+}
+html body .grow-v223-area{
+  stroke:none;
+  pointer-events:none;
+}
+html body .grow-v223-area.exposure{fill:url(#growAreaExposure)}
+html body .grow-v223-area.interactions{fill:url(#growAreaInteractions)}
+html body .grow-v223-chart-point{
+  stroke:#fff;
+  stroke-width:1.5;
+  vector-effect:non-scaling-stroke;
+  filter:drop-shadow(0 2px 5px rgba(105,70,214,.14));
+}
+html body .grow-v223-chart-point.exposure{fill:#9c8dff}
+html body .grow-v223-chart-point.interactions{fill:#6849f3}
+
+@media (max-width:760px){
+  html body .grow-v222-chart-wrap{
+    min-height:192px!important;
+    grid-template-columns:28px minmax(0,1fr)!important;
+  }
+  html body .grow-v222-chart-y{
+    height:156px!important;
+    padding:4px 0!important;
+  }
+  html body .grow-v222-chart-canvas svg{
+    height:156px!important;
+  }
+}
