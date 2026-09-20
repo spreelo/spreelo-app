@@ -55,6 +55,17 @@ async function fetchPublicHtml(rawUrl) {
   throw new Error("Website could not be read.");
 }
 
+
+function extractShopifyShopDomain(websiteUrl, html = "") {
+  const source = `${websiteUrl}\n${html}`;
+  const matches = source.match(/[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com/gi) || [];
+  for (const match of matches) {
+    const normalized = String(match || "").toLowerCase();
+    if (/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(normalized)) return normalized;
+  }
+  return null;
+}
+
 function detectWebsiteStack(websiteUrl, html = "") {
   const source = `${websiteUrl}\n${html}`.toLowerCase();
   const technologies = [];
@@ -128,6 +139,7 @@ export async function POST(request) {
     }
 
     const detection = detectWebsiteStack(finalUrl, html);
+    const shopDomain = detection.provider === "shopify" ? extractShopifyShopDomain(finalUrl, html) : null;
     const now = new Date().toISOString();
     const payload = {
       brand_profile_id: brand.id,
@@ -140,6 +152,7 @@ export async function POST(request) {
         technologies: detection.technologies,
         could_read_website: Boolean(html),
         fetch_error: fetchError || null,
+        shop_domain: shopDomain,
       },
       discovered_at: now,
       last_error: fetchError || null,
@@ -159,6 +172,7 @@ export async function POST(request) {
       technologies: detection.technologies,
       could_read_website: Boolean(html),
       fetch_error: fetchError || null,
+      shop_domain: shopDomain,
       connection,
     });
   } catch (error) {

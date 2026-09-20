@@ -792,7 +792,11 @@ export default function GrowBrainPage() {
 
   function openWebsiteConnect() {
     setWebsiteConnectError("");
-    setWebsiteConnectView(websiteDiscovery ? "recommendation" : "intro");
+    if (websiteConnection?.status === "connected" && websiteConnection?.provider === "shopify") {
+      setWebsiteConnectView("connected");
+    } else {
+      setWebsiteConnectView(websiteDiscovery ? "recommendation" : "intro");
+    }
     setWebsiteConnectOpen(true);
   }
 
@@ -859,6 +863,30 @@ export default function GrowBrainPage() {
         setWebsiteConnectView("prepared");
         return;
       }
+
+      if (provider === "shopify") {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        const accessToken = sessionData?.session?.access_token;
+        if (!accessToken) throw new Error(t("growBrain.webConnectLoginRequired"));
+        const response = await fetch("/api/shopify/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({
+            brand_profile_id: currentBrand?.id,
+            shop: websiteDiscovery?.shop_domain || websiteConnection?.detected_signals?.shop_domain || "",
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload?.ok === false) {
+          if (payload?.error === "SHOP_DOMAIN_REQUIRED") throw new Error(t("growBrain.shopifyDomainRequired"));
+          throw new Error(payload?.message || payload?.error || t("growBrain.webConnectPrepareFailed"));
+        }
+        if (!payload?.url) throw new Error(t("growBrain.webConnectPrepareFailed"));
+        window.location.assign(payload.url);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("brand_web_data_connections")
         .update({ status: "setup_pending", provider, intro_dismissed_at: updatedAt, updated_at: updatedAt })
@@ -871,6 +899,27 @@ export default function GrowBrainPage() {
       setWebsiteConnectView("prepared");
     } catch (error) {
       setWebsiteConnectError(error?.message || t("growBrain.webConnectPrepareFailed"));
+    }
+  }
+
+  async function disconnectShopify() {
+    setWebsiteConnectError("");
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error(t("growBrain.webConnectLoginRequired"));
+      const response = await fetch("/api/shopify/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ brand_profile_id: currentBrand?.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || t("growBrain.shopifyDisconnectFailed"));
+      setWebsiteConnection((current) => ({ ...(current || {}), status: "discovered", connected_at: null }));
+      setWebsiteConnectView("recommendation");
+    } catch (error) {
+      setWebsiteConnectError(error?.message || t("growBrain.shopifyDisconnectFailed"));
     }
   }
 
@@ -1182,6 +1231,17 @@ export default function GrowBrainPage() {
               <div className="grow-v231-connect-actions">
                 {websiteDiscovery?.needs_website_url ? <a className="primary" href="/brand">{t("growBrain.webConnectAddWebsite")} <ArrowRight size={16} /></a> : <button type="button" className="primary" onClick={prepareWebsiteProvider}>{t("growBrain.webConnectChoosePath")} <ArrowRight size={16} /></button>}
                 <button type="button" onClick={() => setWebsiteConnectOpen(false)}>{t("growBrain.webConnectClose")}</button>
+              </div>
+            </> : websiteConnectView === "connected" ? <>
+              <div className="grow-v231-connect-icon success"><CheckCircle2 size={29} /></div>
+              <span className="grow-v215-section-kicker">{t("growBrain.webConnectEyebrow")}</span>
+              <h2 id="grow-web-connect-title">{t("growBrain.shopifyConnectedTitle")}</h2>
+              <p>{t("growBrain.shopifyConnectedText")}</p>
+              <div className="grow-v231-connect-soft-note"><ShoppingBag size={15} /><span>{websiteConnection?.detected_signals?.shop_domain || t("growBrain.shopifyConnectedStore")}</span></div>
+              {websiteConnectError ? <p className="grow-v231-connect-error" role="alert">{websiteConnectError}</p> : null}
+              <div className="grow-v231-connect-actions">
+                <button type="button" className="primary" onClick={() => setWebsiteConnectOpen(false)}>{t("growBrain.webConnectDone")}</button>
+                <button type="button" onClick={disconnectShopify}>{t("growBrain.shopifyDisconnect")}</button>
               </div>
             </> : websiteConnectView === "prepared" ? <>
               <div className="grow-v231-connect-icon success"><CheckCircle2 size={29} /></div>
