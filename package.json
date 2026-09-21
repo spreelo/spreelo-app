@@ -236,7 +236,8 @@
     "test:v144.237": "node scripts/test-v144-237-shopify-progress-i18n.mjs",
     "test:v144.240": "node scripts/test-v144-240-shopify-entry-parity.mjs",
     "test:v144.241": "node scripts/test-v144-241-shopify-analysis-limit-copy.mjs",
-    "test:v144.242": "node scripts/test-v144-242-shopify-hardening-sidebar.mjs"
+    "test:v144.242": "node scripts/test-v144-242-shopify-hardening-sidebar.mjs",
+    "test:v144.243": "node scripts/test-v144-243-shopify-product-engine.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

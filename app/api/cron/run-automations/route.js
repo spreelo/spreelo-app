@@ -140,6 +140,7 @@ import {
   escapeProductSvg,
   layoutProductTitle,
 } from "../../../../lib/globalProductTypography.js";
+import { fetchShopifyProductEngineCatalog } from "../../../../lib/shopifyProductCatalog.js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -627,6 +628,27 @@ function isAuthoritativePublicCommerceFeedLockedProduct(item) {
       item?.product_image_page_bound === true &&
       item?.image_url &&
       item?.url &&
+      isFreshProductStockVerification(item)
+  );
+}
+
+function isShopifyAdminApiLockedProduct(item) {
+  return Boolean(
+    item?.shopify_admin_api_verified === true &&
+      item?.product_identity_locked === true &&
+      item?.technical_identity_same_page_verified === true &&
+      item?.product_image_page_bound === true &&
+      item?.product_image_identity_verified === true &&
+      item?.image_url &&
+      item?.url &&
+      isFreshProductStockVerification(item)
+  );
+}
+
+function removeStaleShopifyApiCatalogItems(items = []) {
+  return (Array.isArray(items) ? items : []).filter(
+    (item) =>
+      item?.shopify_admin_api_verified !== true ||
       isFreshProductStockVerification(item)
   );
 }
@@ -8265,11 +8287,29 @@ async function prepareCarouselProductsForRule({
     throw new Error("Website carousel requires a website URL in Brand profile");
   }
 
-  const websiteAccessState = await getWebsiteDomainFetchState(websiteUrl).catch(
-    () => null
-  );
+  // v144.243: whole-store Shopify carousels get an API-first verified catalog.
+  // The storefront crawler remains a fallback only when the connected Shopify
+  // catalog cannot satisfy the carousel/campaign requirements.
+  const shopifyCatalogSync =
+    contentSourceScope === "whole_website"
+      ? await syncShopifyCatalogForProductEngine({
+          supabase,
+          rule,
+          brandProfile,
+          websiteUrl,
+          maxProducts: 120,
+        })
+      : { connected: false, items: [], diagnostics: { reason: "scope_not_eligible" } };
+  const shopifyCatalogItems = Array.isArray(shopifyCatalogSync?.items)
+    ? shopifyCatalogSync.items
+    : [];
+  const hasShopifyPrimaryCatalog = shopifyCatalogItems.length > 0;
+
+  const websiteAccessState = hasShopifyPrimaryCatalog
+    ? null
+    : await getWebsiteDomainFetchState(websiteUrl).catch(() => null);
   const websiteAccessProtected =
-    isWebsiteAccessProtectedState(websiteAccessState);
+    !hasShopifyPrimaryCatalog && isWebsiteAccessProtectedState(websiteAccessState);
   // v144.22: security-protected retailers must not block a deliverable
   // five-product carousel solely because a sixth reserve product could not be
   // verified. Five exact, in-stock, image-verified products are the delivery
@@ -8289,6 +8329,26 @@ async function prepareCarouselProductsForRule({
     }),
     rule
   );
+  catalogItems = removeStaleShopifyApiCatalogItems(catalogItems);
+
+  if (shopifyCatalogItems.length) {
+    catalogItems = filterWebsiteCatalogItemsForRule(
+      dedupeWebsiteItemsByUrlTitleAndImage([
+        ...shopifyCatalogItems,
+        ...catalogItems,
+      ]),
+      rule
+    );
+    console.log("Carousel Product Engine is using Shopify Admin API as the primary catalog", {
+      ruleId: rule.id,
+      brandProfileId: rule.brand_profile_id,
+      websiteUrl,
+      shopifyProductCount: shopifyCatalogItems.length,
+      mergedCatalogCount: catalogItems.length,
+      productDiscoveryPath: "shopify_admin_api_primary",
+      websiteDiscoveryReservedAsFallback: true,
+    });
+  }
 
   // v144.169: ordinary whole-site carousels must see the same brand-wide
   // verified product catalog that single-product posts already use. Previously
@@ -8301,28 +8361,32 @@ async function prepareCarouselProductsForRule({
     !isCampaignRule &&
     (contentSourceScope === "product_category" || contentSourceScope === "focus_page");
   if (isCampaignRule || contentSourceScope === "whole_website") {
-    brandWideCatalogItems = filterWebsiteCatalogItemsForRule(
-      await getWebsiteProductCatalogItems({
-        supabase,
-        userId: rule.user_id,
-        brandProfileId: rule.brand_profile_id,
-        sourceUrl: "",
-        limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
-      }),
-      rule
+    brandWideCatalogItems = removeStaleShopifyApiCatalogItems(
+      filterWebsiteCatalogItemsForRule(
+        await getWebsiteProductCatalogItems({
+          supabase,
+          userId: rule.user_id,
+          brandProfileId: rule.brand_profile_id,
+          sourceUrl: "",
+          limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
+        }),
+        rule
+      )
     );
   }
 
   if (isFocusedOrdinaryCarousel) {
-    brandWideCatalogItems = filterWebsiteCatalogItemsForRule(
-      await getWebsiteProductCatalogItems({
-        supabase,
-        userId: rule.user_id,
-        brandProfileId: rule.brand_profile_id,
-        sourceUrl: "",
-        limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
-      }),
-      rule
+    brandWideCatalogItems = removeStaleShopifyApiCatalogItems(
+      filterWebsiteCatalogItemsForRule(
+        await getWebsiteProductCatalogItems({
+          supabase,
+          userId: rule.user_id,
+          brandProfileId: rule.brand_profile_id,
+          sourceUrl: "",
+          limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
+        }),
+        rule
+      )
     );
   }
 
@@ -8449,6 +8513,48 @@ async function prepareCarouselProductsForRule({
     contentType,
     limit: WEBSITE_PRODUCT_REUSE_LIMIT,
   });
+
+  if (
+    isCampaignRule &&
+    shopifyCatalogItems.length &&
+    hasProductPreparationBudget(45_000)
+  ) {
+    try {
+      const reviewedShopifyItems = await applyAiCampaignFitScores({
+        openai,
+        rule,
+        brandProfile,
+        items: shopifyCatalogItems,
+        maxItems: Math.min(18, shopifyCatalogItems.length),
+        model: PRODUCT_RESEARCH_FAST_MODEL,
+        escalateWhenUncertain: false,
+        escalationModel: PRODUCT_RESEARCH_MODEL,
+        escalationMaxItems: 8,
+        minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
+      });
+      catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
+        ...reviewedShopifyItems.map((item) => ({
+          ...item,
+          selection_priority: Math.max(Number(item?.selection_priority || 0), 500),
+          campaign_fit_source: item?.campaign_fit_source || "shopify_admin_api",
+        })),
+        ...catalogItems,
+      ]);
+      console.log("Shopify campaign catalog received product-level AI relevance review before public-web discovery", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        reviewedCount: reviewedShopifyItems.length,
+        approvedCount: getReviewedOrDirectCampaignProductCandidates(reviewedShopifyItems, rule).length,
+        productDiscoveryPath: "shopify_admin_api_primary",
+      });
+    } catch (error) {
+      console.warn("Shopify campaign catalog relevance review failed; verified Shopify products remain available and website fallback stays enabled", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        message: error?.message || String(error),
+      });
+    }
+  }
 
   // v144.173: every ordinary carousel may first use its already-verified
   // catalog pool. Whole-site rules have the brand-wide pool merged above;
@@ -17759,6 +17865,12 @@ function normalizeWebsiteCatalogItem(row) {
       row.verification_metadata?.stock_verification_evidence || "",
     authoritative_public_commerce_feed:
       row.verification_metadata?.authoritative_public_commerce_feed === true,
+    shopify_admin_api_verified:
+      row.verification_metadata?.shopify_admin_api_verified === true,
+    shopify_product_id:
+      row.verification_metadata?.shopify_product_id || null,
+    shopify_variant_id:
+      row.verification_metadata?.shopify_variant_id || null,
     indexed_security_fallback_verified:
       row.verification_metadata?.indexed_security_fallback_verified === true,
     product_identity_locked:
@@ -17771,6 +17883,34 @@ function normalizeWebsiteCatalogItem(row) {
       row.verification_metadata?.product_image_page_bound_source || null,
     product_image_source_page_url:
       row.verification_metadata?.product_image_source_page_url || null,
+    product_image_identity_verified:
+      row.verification_metadata?.product_image_identity_verified === true,
+    product_image_identity_unresolved:
+      row.verification_metadata?.product_image_identity_unresolved === true,
+    product_image_identity_method:
+      row.verification_metadata?.product_image_identity_method || null,
+    locked_product_page_object:
+      row.verification_metadata?.locked_product_page_object === true,
+    exact_page_verified:
+      row.verification_metadata?.exact_page_verified === true,
+    locked_product_source:
+      row.verification_metadata?.locked_product_source || null,
+    product_brand:
+      row.verification_metadata?.product_brand || null,
+    locked_product_brand:
+      row.verification_metadata?.locked_product_brand || null,
+    product_display_type:
+      row.verification_metadata?.product_display_type || null,
+    locked_product_category:
+      row.verification_metadata?.locked_product_category || null,
+    product_identifier:
+      row.verification_metadata?.product_identifier || null,
+    locked_product_identifier:
+      row.verification_metadata?.locked_product_identifier || null,
+    product_color:
+      row.verification_metadata?.product_color || null,
+    locked_product_color:
+      row.verification_metadata?.locked_product_color || null,
     locked_product_availability:
       row.verification_metadata?.locked_product_availability || row.availability || "",
     locked_product_availability_evidence:
@@ -18104,6 +18244,12 @@ async function upsertWebsiteProductCatalogItems({
             "",
           authoritative_public_commerce_feed:
             rawItem?.authoritative_public_commerce_feed === true,
+          shopify_admin_api_verified:
+            rawItem?.shopify_admin_api_verified === true,
+          shopify_product_id:
+            rawItem?.shopify_product_id || null,
+          shopify_variant_id:
+            rawItem?.shopify_variant_id || null,
           indexed_security_fallback_verified:
             rawItem?.indexed_security_fallback_verified === true,
           product_identity_locked:
@@ -18116,6 +18262,34 @@ async function upsertWebsiteProductCatalogItems({
             rawItem?.product_image_page_bound_source || null,
           product_image_source_page_url:
             rawItem?.product_image_source_page_url || rawItem?.url || null,
+          product_image_identity_verified:
+            rawItem?.product_image_identity_verified === true,
+          product_image_identity_unresolved:
+            rawItem?.product_image_identity_unresolved === true,
+          product_image_identity_method:
+            rawItem?.product_image_identity_method || null,
+          locked_product_page_object:
+            rawItem?.locked_product_page_object === true,
+          exact_page_verified:
+            rawItem?.exact_page_verified === true,
+          locked_product_source:
+            rawItem?.locked_product_source || null,
+          product_brand:
+            rawItem?.product_brand || rawItem?.brand || null,
+          locked_product_brand:
+            rawItem?.locked_product_brand || rawItem?.product_brand || rawItem?.brand || null,
+          product_display_type:
+            rawItem?.product_display_type || rawItem?.category || null,
+          locked_product_category:
+            rawItem?.locked_product_category || rawItem?.product_display_type || rawItem?.category || null,
+          product_identifier:
+            rawItem?.product_identifier || null,
+          locked_product_identifier:
+            rawItem?.locked_product_identifier || rawItem?.product_identifier || null,
+          product_color:
+            rawItem?.product_color || null,
+          locked_product_color:
+            rawItem?.locked_product_color || rawItem?.product_color || null,
           locked_product_availability:
             rawItem?.locked_product_availability || rawItem?.availability || null,
           locked_product_availability_evidence:
@@ -18274,6 +18448,80 @@ async function upsertWebsiteProductCatalogItems({
         code: insertError.code,
       });
     }
+  }
+}
+
+async function syncShopifyCatalogForProductEngine({
+  supabase,
+  rule,
+  brandProfile,
+  websiteUrl,
+  maxProducts = 120,
+}) {
+  const brandProfileId = rule?.brand_profile_id || brandProfile?.id || null;
+  if (!supabase || !brandProfileId || !websiteUrl) {
+    return { connected: false, items: [], diagnostics: { reason: "missing_context" } };
+  }
+
+  try {
+    const result = await fetchShopifyProductEngineCatalog({
+      supabaseAdmin: supabase,
+      brandProfileId,
+      maxProducts,
+    });
+
+    const items = Array.isArray(result?.items)
+      ? result.items.map((item) => ({
+          ...item,
+          source_url: websiteUrl,
+          selection_priority: Math.max(Number(item?.selection_priority || 0), 500),
+          campaign_fit_source: item?.campaign_fit_source || "shopify_admin_api",
+        }))
+      : [];
+
+    if (result?.connected && items.length) {
+      await upsertWebsiteProductCatalogItems({
+        supabase,
+        userId: rule?.user_id,
+        brandProfileId,
+        sourceUrl: websiteUrl,
+        items,
+        discoverySource: "shopify_admin_api",
+      });
+
+      console.log("Shopify Product Engine catalog refreshed from Admin API", {
+        ruleId: rule?.id || null,
+        brandProfileId,
+        websiteUrl,
+        shopDomain: result?.shopDomain || null,
+        productCount: items.length,
+        fetchedProductCount: result?.diagnostics?.fetchedProductCount || 0,
+        pageCount: result?.diagnostics?.pageCount || 0,
+        productDiscoveryPath: "shopify_admin_api_primary",
+      });
+    }
+
+    return {
+      ...result,
+      items,
+    };
+  } catch (error) {
+    console.warn("Shopify Product Engine catalog refresh failed; website discovery remains available as fallback", {
+      ruleId: rule?.id || null,
+      brandProfileId,
+      websiteUrl,
+      message: error?.message || String(error),
+      requiresReconnect: error?.requiresReconnect === true,
+      productDiscoveryPath: "website_fallback",
+    });
+    return {
+      connected: true,
+      items: [],
+      diagnostics: {
+        reason: error?.requiresReconnect ? "reconnect_required" : "shopify_api_error",
+        message: error?.message || String(error),
+      },
+    };
   }
 }
 
@@ -29758,7 +30006,8 @@ async function ensureLockedProductPoolForUse({
         item?.url
       ) ||
       isIndexedSecurityFallbackLockedProduct(item) ||
-      isAuthoritativePublicCommerceFeedLockedProduct(item)
+      isAuthoritativePublicCommerceFeedLockedProduct(item) ||
+      isShopifyAdminApiLockedProduct(item)
     ) {
       // v144.11 indexed fallback items are already locked to the same official
       // product page + exact main image. The mandatory semantic image gate in
@@ -32321,7 +32570,8 @@ async function prepareWebsiteContentForRule({
         item?.image_url
       ) ||
       isIndexedSecurityFallbackLockedProduct(item) ||
-      isAuthoritativePublicCommerceFeedLockedProduct(item)
+      isAuthoritativePublicCommerceFeedLockedProduct(item) ||
+      isShopifyAdminApiLockedProduct(item)
       ? item
       : await resolveLockedProductUrlForUse({
           supabase,
@@ -32349,11 +32599,31 @@ async function prepareWebsiteContentForRule({
     throw new Error("This automation requires a website URL in Brand profile");
   }
 
-  const websiteAccessState = await getWebsiteDomainFetchState(websiteUrl).catch(
-    () => null
-  );
+  // v144.243: when Shopify is connected, Product Engine reads the merchant's
+  // real catalog from the Admin API before attempting any public-web product
+  // discovery. Explicit customer-selected product/category URLs keep their
+  // existing focused behavior; whole-store product content gets the API-first path.
+  const shopifyCatalogSync =
+    contentSourceScope === "whole_website" &&
+    (productIntentScoped || isProductContentTypeRule(rule))
+      ? await syncShopifyCatalogForProductEngine({
+          supabase,
+          rule,
+          brandProfile,
+          websiteUrl,
+          maxProducts: 120,
+        })
+      : { connected: false, items: [], diagnostics: { reason: "scope_not_eligible" } };
+  const shopifyCatalogItems = Array.isArray(shopifyCatalogSync?.items)
+    ? shopifyCatalogSync.items
+    : [];
+  const hasShopifyPrimaryCatalog = shopifyCatalogItems.length > 0;
+
+  const websiteAccessState = hasShopifyPrimaryCatalog
+    ? null
+    : await getWebsiteDomainFetchState(websiteUrl).catch(() => null);
   let websiteAccessProtected =
-    isWebsiteAccessProtectedState(websiteAccessState);
+    !hasShopifyPrimaryCatalog && isWebsiteAccessProtectedState(websiteAccessState);
 
   if (contentSourceScope === "exact_product") {
     let exactProduct = null;
@@ -32639,16 +32909,38 @@ async function prepareWebsiteContentForRule({
     }),
     rule
   );
+  catalogItems = removeStaleShopifyApiCatalogItems(catalogItems);
 
-  const brandWideSingleProductCatalog = filterWebsiteCatalogItemsForRule(
-    await getWebsiteProductCatalogItems({
-      supabase,
-      userId: rule.user_id,
+  if (shopifyCatalogItems.length) {
+    catalogItems = filterWebsiteCatalogItemsForRule(
+      dedupeWebsiteItemsByUrlTitleAndImage([
+        ...shopifyCatalogItems,
+        ...catalogItems,
+      ]),
+      rule
+    );
+    console.log("Single-product Product Engine is using Shopify Admin API as the primary catalog", {
+      ruleId: rule.id,
       brandProfileId: rule.brand_profile_id,
-      sourceUrl: "",
-      limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
-    }),
-    rule
+      websiteUrl,
+      shopifyProductCount: shopifyCatalogItems.length,
+      mergedCatalogCount: catalogItems.length,
+      productDiscoveryPath: "shopify_admin_api_primary",
+      websiteDiscoveryReservedAsFallback: true,
+    });
+  }
+
+  const brandWideSingleProductCatalog = removeStaleShopifyApiCatalogItems(
+    filterWebsiteCatalogItemsForRule(
+      await getWebsiteProductCatalogItems({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        sourceUrl: "",
+        limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
+      }),
+      rule
+    )
   );
   if (brandWideSingleProductCatalog.length) {
     catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
