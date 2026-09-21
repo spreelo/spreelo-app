@@ -132,11 +132,11 @@ export default function ShopifyOnboardingPage() {
     window.location.href = `/onboarding/ready?brandId=${encodeURIComponent(brandId)}&source=shopify`;
   }
 
-  async function continueAfterConsent({ session, brand, analysisRequired, activeShop, routeToSocialChannels = false }) {
+  async function continueAfterConsent({ session, brand, analysisRequired, activeShop, routeToAnalysisSummary = false }) {
     setPhase("analyzing");
     const analysis = await startBrandAnalysis({ session, brand, required: analysisRequired, activeShop });
 
-    if (routeToSocialChannels) {
+    if (routeToAnalysisSummary) {
       if (analysis.status === "started" && analysis.jobId) {
         try {
           await pollAnalysisStatus({
@@ -203,14 +203,14 @@ export default function ShopifyOnboardingPage() {
     const { data: { user } } = await supabase.auth.getUser();
     rememberBrand(user?.id, payload.brand.id);
 
-    const routeToSocialChannels = Boolean(payload?.first_brand_for_user);
+    const routeToAnalysisSummary = Boolean(payload?.analysis_required);
 
     if (payload?.ai_consent_required) {
       setPending({
         brand: payload.brand,
         analysisRequired: Boolean(payload.analysis_required),
         activeShop,
-        routeToSocialChannels,
+        routeToAnalysisSummary,
       });
       setPhase("consent");
       setWorkingBrandId("");
@@ -222,7 +222,7 @@ export default function ShopifyOnboardingPage() {
       brand: payload.brand,
       analysisRequired: Boolean(payload.analysis_required),
       activeShop,
-      routeToSocialChannels,
+      routeToAnalysisSummary,
     });
   }
 
@@ -245,7 +245,7 @@ export default function ShopifyOnboardingPage() {
         brand: pending.brand,
         analysisRequired: pending.analysisRequired,
         activeShop: pending.activeShop,
-        routeToSocialChannels: Boolean(pending.routeToSocialChannels),
+        routeToAnalysisSummary: Boolean(pending.routeToAnalysisSummary),
       });
     } catch (error) {
       setMessage(error?.message || "Could not save your choice.");
@@ -263,7 +263,7 @@ export default function ShopifyOnboardingPage() {
         brand: pending.brand,
         analysisRequired: pending.analysisRequired,
         activeShop: pending.activeShop,
-        routeToSocialChannels: Boolean(pending.routeToSocialChannels),
+        routeToAnalysisSummary: Boolean(pending.routeToAnalysisSummary),
       });
     } catch (error) {
       setMessage(error?.message || "Could not continue the Shopify onboarding.");
