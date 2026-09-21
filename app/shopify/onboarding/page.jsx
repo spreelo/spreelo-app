@@ -19,7 +19,12 @@ import {
 import { supabase } from "../../../lib/supabaseClient";
 import { getValidAnalysisAccessToken } from "../../../lib/analysisSession";
 import { ANALYSIS_VISUAL_MAX_PROGRESS, getSmoothAnalysisProgress } from "../../../lib/analysisProgress";
-import { useUiText } from "../../../lib/i18n/useUiText";
+import {
+  APP_LANGUAGE_SOURCE_STORAGE_KEY,
+  APP_LANGUAGE_STORAGE_KEY,
+  getBrowserMatchedOfficialLocale,
+  useUiText,
+} from "../../../lib/i18n/useUiText";
 import styles from "./page.module.css";
 
 const analysisProgressStages = [
@@ -73,6 +78,34 @@ function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function primeShopifyOnboardingLocale() {
+  if (typeof window === "undefined") return;
+
+  const savedLocale = String(localStorage.getItem(APP_LANGUAGE_STORAGE_KEY) || "").trim();
+  const savedSource = String(localStorage.getItem(APP_LANGUAGE_SOURCE_STORAGE_KEY) || "").trim();
+  const browserLocale = getBrowserMatchedOfficialLocale();
+
+  // A deliberate Spreelo language choice always wins. App Store/bootstrap language
+  // hints must never overwrite a language the customer explicitly selected.
+  if (savedLocale && ["manual", "suggestion"].includes(savedSource)) return;
+
+  // For seamless Shopify installs, the browser language is a better customer-facing
+  // default than the Shopify Admin UI language. A merchant can run Shopify Admin in
+  // English while their browser/customer language is Swedish, German, French, etc.
+  if (browserLocale) {
+    localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, browserLocale);
+    localStorage.setItem(APP_LANGUAGE_SOURCE_STORAGE_KEY, "browser");
+  }
+}
+
+function shouldApplyShopifyLocaleFallback() {
+  if (typeof window === "undefined") return false;
+  const savedLocale = String(localStorage.getItem(APP_LANGUAGE_STORAGE_KEY) || "").trim();
+  const savedSource = String(localStorage.getItem(APP_LANGUAGE_SOURCE_STORAGE_KEY) || "").trim();
+  if (savedLocale && ["manual", "suggestion", "browser"].includes(savedSource)) return false;
+  return !getBrowserMatchedOfficialLocale();
+}
+
 async function pollAnalysisStatus({ accessToken, jobId, onStatus }) {
   let currentAccessToken = accessToken;
 
@@ -115,7 +148,13 @@ async function pollAnalysisStatus({ accessToken, jobId, onStatus }) {
 }
 
 export default function ShopifyOnboardingPage() {
-  const { t, locale, setLocale } = useUiText(["shopifyOnboarding", "onboarding"]);
+  // Prime locale synchronously before useUiText reads localStorage so the very first
+  // visible Shopify onboarding frame can use the customer's browser language.
+  useState(() => {
+    primeShopifyOnboardingLocale();
+    return true;
+  });
+  const { t, locale, setLocale, loading: translationsLoading } = useUiText(["shopifyOnboarding", "onboarding"]);
   const [phase, setPhase] = useState("starting");
   const [shop, setShop] = useState(null);
   const [brands, setBrands] = useState([]);
@@ -380,7 +419,11 @@ export default function ShopifyOnboardingPage() {
           throw new Error(bootstrap?.error || t("shopifyOnboarding.error.prepare"));
         }
         setShop(bootstrap.shop || null);
-        if (bootstrap?.locale) setLocale(bootstrap.locale, "shopify");
+        // Shopify's associated-user locale describes the Admin UI language. Use it
+        // only as a fallback when Spreelo has no explicit/browser language signal.
+        if (bootstrap?.locale && shouldApplyShopifyLocaleFallback()) {
+          setLocale(bootstrap.locale, "shopify");
+        }
 
         const { data: authData, error: authError } = await supabase.auth.verifyOtp({
           token_hash: bootstrap.token_hash,
@@ -456,6 +499,19 @@ export default function ShopifyOnboardingPage() {
   const currentAnalysisStageIndex = analysisProgressStages.findIndex((stage) => stage.titleKey === currentAnalysisStage.titleKey);
   const displayProgress = Math.min(99, Math.floor(analysisProgress));
 
+  // Never flash English source labels while a non-English persistent translation
+  // pack is being loaded/generated for the first Shopify onboarding visit.
+  if (translationsLoading && String(locale || "en").toLowerCase() !== "en") {
+    return (
+      <main className={styles.page}>
+        <section className={styles.shell} aria-busy="true">
+          <div className={styles.brand}><img src="/brand/spreelologo.png" alt="Spreelo" /></div>
+          <div className={styles.iconWrap}><LoaderCircle className={styles.spin} size={34} /></div>
+          <div className={styles.languageLoadingDots} aria-hidden="true"><span /><span /><span /></div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className={styles.page}>
