@@ -6655,6 +6655,7 @@ const [currentBrandProfile, setCurrentBrandProfile] = useState(null);
 const [campaignOpportunity, setCampaignOpportunity] = useState(null);
 const [campaignDebugInfo, setCampaignDebugInfo] = useState(null);
 const [currentUserEmail, setCurrentUserEmail] = useState("");
+const [isSpreeloAdmin, setIsSpreeloAdmin] = useState(false);
 const [showFocusSourcePanel, setShowFocusSourcePanel] = useState(false);
 const [focusSourceInput, setFocusSourceInput] = useState("");
 const [focusSource, setFocusSource] = useState(null);
@@ -6807,7 +6808,9 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
   const [length, setLength] = useState("Medium");
   const [ctaType, setCtaType] = useState("Learn more");
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
-  const canManuallyEditCampaignPlan = String(currentUserEmail || "").trim().toLowerCase() === SPREELO_INTERNAL_TESTER_EMAIL;
+  const canManuallyEditCampaignPlan =
+    isSpreeloAdmin ||
+    String(currentUserEmail || "").trim().toLowerCase() === SPREELO_INTERNAL_TESTER_EMAIL;
   const minimumSelectablePlanningDate = canManuallyEditCampaignPlan
     ? null
     : getDateInputValueInTimeZone(new Date(), timeZone);
@@ -6824,6 +6827,48 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
       setGuideExpanded(false);
     }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSpreeloAdminAccess() {
+      if (!currentUserEmail) {
+        if (!cancelled) setIsSpreeloAdmin(false);
+        return;
+      }
+
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          if (!cancelled) setIsSpreeloAdmin(false);
+          return;
+        }
+
+        const response = await fetch("/api/admin/me", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          cache: "no-store",
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!cancelled) {
+          setIsSpreeloAdmin(Boolean(response.ok && payload?.isAdmin));
+        }
+      } catch (error) {
+        console.warn("Could not verify Spreelo admin planning access", error);
+        if (!cancelled) setIsSpreeloAdmin(false);
+      }
+    }
+
+    void loadSpreeloAdminAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserEmail]);
+
   const [guideInitialized, setGuideInitialized] = useState(false);
   const [showGuideInfoModal, setShowGuideInfoModal] = useState(false);
   const [showVariationInfoModal, setShowVariationInfoModal] = useState(false);

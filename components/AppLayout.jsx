@@ -157,6 +157,7 @@ export default function AppLayout({ active, children }) {
   const [loadingChannelGate, setLoadingChannelGate] = useState(true);
   const [channelGateTarget, setChannelGateTarget] = useState("");
   const avatarInputRef = useRef(null);
+  const refreshedCreditsAfterSocialConnectRef = useRef(false);
 
   const currentBrand = useMemo(() => {
     return (
@@ -214,6 +215,26 @@ export default function AppLayout({ active, children }) {
     void loadConnectedChannelGate();
     return () => { cancelled = true; };
   }, [user?.id, currentBrandId]);
+
+  useEffect(() => {
+    refreshedCreditsAfterSocialConnectRef.current = false;
+  }, [user?.id, currentBrandId]);
+
+  useEffect(() => {
+    if (
+      !user?.id ||
+      !creditBalance ||
+      connectedChannelCount == null ||
+      connectedChannelCount < 1 ||
+      !isLockedFreeTrial() ||
+      refreshedCreditsAfterSocialConnectRef.current
+    ) {
+      return;
+    }
+
+    refreshedCreditsAfterSocialConnectRef.current = true;
+    void loadCreditBalance(user);
+  }, [user?.id, currentBrandId, connectedChannelCount, creditBalance?.free_trial_status]);
 
   useEffect(() => {
     if (blockProtectedPage) {
@@ -923,11 +944,13 @@ export default function AppLayout({ active, children }) {
                     }}
                   />
                 </div>
-                <small>{isLockedFreeTrial()
-                  ? t("layout.freeTrialCreditsLocked")
-                  : isActiveFreeTrial()
-                    ? t("layout.freeTrialEnds", { date: getCreditResetLabel() })
-                    : t("layout.creditsReset", { date: getCreditResetLabel() })}</small>
+                {!(isLockedFreeTrial() && Number(connectedChannelCount || 0) > 0) ? (
+                  <small>{isLockedFreeTrial()
+                    ? t("layout.freeTrialCreditsLocked")
+                    : isActiveFreeTrial()
+                      ? t("layout.freeTrialEnds", { date: getCreditResetLabel() })
+                      : t("layout.creditsReset", { date: getCreditResetLabel() })}</small>
+                ) : null}
               </>
             ) : (
               <p className="sidebar-credit-loading">{t("layout.creditsUnavailable")}</p>
