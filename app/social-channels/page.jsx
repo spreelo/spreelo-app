@@ -465,6 +465,26 @@ export default function SocialChannelsPage() {
   }, []);
 
   async function getCurrentBrandForUser(user) {
+    const requestedBrandId = typeof window !== "undefined"
+      ? String(new URLSearchParams(window.location.search).get("brandId") || "").trim()
+      : "";
+
+    if (requestedBrandId) {
+      const { data: requestedBrand, error: requestedBrandError } = await supabase
+        .from("brand_profiles")
+        .select("id, business_name")
+        .eq("id", requestedBrandId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!requestedBrandError && requestedBrand?.id) {
+        localStorage.setItem(getBrandStorageKey(user.id), requestedBrand.id);
+        localStorage.setItem("spreelo_current_brand_id", requestedBrand.id);
+        localStorage.setItem("spreelo_selected_brand_id", requestedBrand.id);
+        return requestedBrand;
+      }
+    }
+
     const savedBrandId = typeof window !== "undefined"
       ? localStorage.getItem(getBrandStorageKey(user.id))
       : "";

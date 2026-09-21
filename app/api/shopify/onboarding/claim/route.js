@@ -43,6 +43,53 @@ function noStoreJson(payload, init = {}) {
   return response;
 }
 
+async function ensureStandardSpreeloAccountState(admin, userId) {
+  const selectColumns = "user_id,credits_remaining,monthly_credit_limit,plan_name,subscription_status,subscription_plan,purchased_credits_remaining,free_trial_status,free_trial_credit_amount";
+  const { data: existing, error: existingError } = await admin
+    .from("user_credit_balances")
+    .select(selectColumns)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing?.user_id) return { created: false, balance: existing };
+
+  // Match the ordinary Spreelo account lifecycle: a new Free workspace has the
+  // same 100-credit offer, locked until an eligible social account is verified.
+  const { data: created, error: createError } = await admin
+    .from("user_credit_balances")
+    .insert({
+      user_id: userId,
+      credits_remaining: 0,
+      monthly_credit_limit: 0,
+      plan_name: "Free",
+      subscription_plan: "free",
+      subscription_status: "free",
+      purchased_credits_remaining: 0,
+      cancel_at_period_end: false,
+      free_trial_status: "locked",
+      free_trial_credit_amount: 100,
+    })
+    .select(selectColumns)
+    .single();
+
+  if (createError) {
+    // A parallel request may have initialized the same user between the SELECT
+    // and INSERT. Re-read instead of ever overwriting an existing paid balance.
+    if (String(createError.code || "") === "23505") {
+      const { data: raced, error: racedError } = await admin
+        .from("user_credit_balances")
+        .select(selectColumns)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (racedError) throw racedError;
+      if (raced?.user_id) return { created: false, balance: raced };
+    }
+    throw createError;
+  }
+
+  return { created: true, balance: created };
+}
+
 export async function POST(request) {
   try {
     const authorizationHeader = request.headers.get("authorization") || "";
@@ -58,6 +105,11 @@ export async function POST(request) {
     const requestedBrandId = String(body?.brand_profile_id || "").trim();
     const createNew = Boolean(body?.create_new);
     const admin = createSupabaseAdminClient();
+
+    // Shopify must not create a second-class Spreelo account. Ensure the same
+    // Free-plan/credit state that ordinary Spreelo sign-up relies on before we
+    // create or link the merchant's first brand workspace.
+    const accountState = await ensureStandardSpreeloAccountState(admin, user.id);
 
     const { data: onboarding, error: onboardingError } = await admin
       .from("shopify_onboarding_sessions")
@@ -257,6 +309,9 @@ export async function POST(request) {
       first_brand_for_user: firstBrandForUser,
       analysis_required: createdBrand || !selectedBrand.campaign_calendar_generated_at,
       ai_consent_required: !savedConnection?.ai_store_data_consent_at,
+      account_initialized: true,
+      free_trial_status: String(accountState?.balance?.free_trial_status || "locked"),
+      free_trial_credit_amount: Number(accountState?.balance?.free_trial_credit_amount || 100),
       brand: publicBrand(selectedBrand),
       shop: {
         domain: onboarding.shop_domain,

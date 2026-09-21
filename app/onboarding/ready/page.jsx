@@ -264,7 +264,7 @@ export default function OnboardingReadyPage() {
           </h1>
           <p>{t("onboardingReady.description")}</p>
           <div className="onboarding-ready-actions">
-            <a className="is-primary" href="/social-channels">
+            <a className="is-primary" href={`/social-channels?brandId=${encodeURIComponent(brand.id)}`}>
               {t("onboardingReady.connectChannels")}
               <ArrowRight size={19} aria-hidden="true" />
             </a>
@@ -400,7 +400,7 @@ export default function OnboardingReadyPage() {
           ))}
         </div>
 
-        <a href="/social-channels">
+        <a href={`/social-channels?brandId=${encodeURIComponent(brand.id)}`}>
           {t("onboardingReady.connectChannels")}
           <ArrowRight size={19} />
         </a>
@@ -414,7 +414,7 @@ export default function OnboardingReadyPage() {
             <p>{t("onboardingReady.automationText")}</p>
           </div>
         </div>
-        <a href="/social-channels">
+        <a href={`/social-channels?brandId=${encodeURIComponent(brand.id)}`}>
           {t("onboardingReady.continue")}
           <ArrowRight size={19} />
         </a>

@@ -233,7 +233,8 @@
     "test:v144.233": "node scripts/test-v144-233-shopify-app-store-onboarding.mjs",
     "test:v144.234": "node scripts/test-v144-234-shopify-first-time-social-routing.mjs",
     "test:v144.235": "node scripts/test-v144-235-shopify-analysis-summary.mjs",
-    "test:v144.237": "node scripts/test-v144-237-shopify-progress-i18n.mjs"
+    "test:v144.237": "node scripts/test-v144-237-shopify-progress-i18n.mjs",
+    "test:v144.240": "node scripts/test-v144-240-shopify-entry-parity.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

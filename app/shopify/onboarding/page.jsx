@@ -162,6 +162,8 @@ export default function ShopifyOnboardingPage() {
   const [workingBrandId, setWorkingBrandId] = useState("");
   const [pending, setPending] = useState(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [analysisFailure, setAnalysisFailure] = useState(null);
+  const [analysisRetryContext, setAnalysisRetryContext] = useState(null);
   const analysisStartedAtRef = useRef(0);
   const startedRef = useRef(false);
 
@@ -186,14 +188,31 @@ export default function ShopifyOnboardingPage() {
     localStorage.setItem("spreelo_selected_brand_id", brandId);
   }
 
-  function goToGrowBrain(extra = {}) {
+  function goToGrowBrain(brandId = "", extra = {}) {
     const params = new URLSearchParams({ shopify: "connected", ...extra });
+    if (brandId) params.set("brandId", brandId);
     window.location.href = `/grow-brain?${params.toString()}`;
   }
 
-  function goToSocialChannels(extra = {}) {
+  function goToSocialChannels(brandId = "", extra = {}) {
     const params = new URLSearchParams({ onboarding: "shopify", shopify: "connected", ...extra });
+    if (brandId) params.set("brandId", brandId);
     window.location.href = `/social-channels?${params.toString()}`;
+  }
+
+  function requestWelcomeEmail(accessToken) {
+    if (!accessToken) return;
+    fetch("/api/account/welcome-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ locale: locale || "en" }),
+      keepalive: true,
+    }).catch((error) => {
+      console.error("Could not request Shopify welcome email", error);
+    });
   }
 
   async function startBrandAnalysis({ session, brand, required, activeShop }) {
@@ -223,12 +242,24 @@ export default function ShopifyOnboardingPage() {
       const payload = await readPayload(response);
       const jobId = String(payload?.jobId || payload?.job_id || payload?.job?.id || "").trim();
       if (!response.ok || !payload?.ok || !jobId) {
-        return { status: "failed", jobId: "" };
+        return {
+          status: "failed",
+          jobId: "",
+          errorCode: String(payload?.error || "analysis_start_failed"),
+          errorMessage: String(payload?.message || payload?.error || "").trim(),
+          analysisLimit: payload?.analysisLimit || null,
+        };
       }
       return { status: "started", jobId };
     } catch (error) {
       console.error("Could not auto-start Shopify brand analysis", error);
-      return { status: "failed", jobId: "" };
+      return {
+        status: "failed",
+        jobId: "",
+        errorCode: "analysis_start_failed",
+        errorMessage: String(error?.message || "").trim(),
+        analysisLimit: null,
+      };
     }
   }
 
@@ -236,13 +267,35 @@ export default function ShopifyOnboardingPage() {
     window.location.href = `/onboarding/ready?brandId=${encodeURIComponent(brandId)}&source=shopify`;
   }
 
+  function describeAnalysisFailure(failure) {
+    const reason = String(failure?.analysisLimit?.reason || "").trim();
+    const code = String(failure?.errorCode || "").trim();
+    if (code === "analysis_usage_limit" && reason === "cooldown") {
+      return t("shopifyOnboarding.analysisError.cooldown");
+    }
+    if (code === "analysis_usage_limit") {
+      return t("shopifyOnboarding.analysisError.quota");
+    }
+    if (failure?.errorMessage) return failure.errorMessage;
+    return t("shopifyOnboarding.analysisError.generic");
+  }
+
+  function stopOnAnalysisFailure({ failure, brand, activeShop, routeToAnalysisSummary }) {
+    analysisStartedAtRef.current = 0;
+    setAnalysisFailure(failure || { errorCode: "analysis_failed" });
+    setAnalysisRetryContext({ brand, activeShop, routeToAnalysisSummary: Boolean(routeToAnalysisSummary) });
+    setPhase("analysis_error");
+  }
+
   async function continueAfterConsent({ session, brand, analysisRequired, activeShop, routeToAnalysisSummary = false }) {
     if (!analysisRequired && !routeToAnalysisSummary) {
       setPhase("done");
-      window.setTimeout(() => goToGrowBrain(), 350);
+      window.setTimeout(() => goToGrowBrain(brand?.id || ""), 350);
       return;
     }
 
+    setAnalysisFailure(null);
+    setAnalysisRetryContext({ brand, activeShop, routeToAnalysisSummary: Boolean(routeToAnalysisSummary) });
     analysisStartedAtRef.current = Date.now();
     setAnalysisProgress(5);
     setPhase("analyzing");
@@ -268,24 +321,22 @@ export default function ShopifyOnboardingPage() {
           return;
         } catch (error) {
           console.error("Shopify first-time analysis did not complete in onboarding", error);
-          analysisStartedAtRef.current = 0;
-          setPhase("done");
-          window.setTimeout(() => goToSocialChannels({ analysis: "retry_available" }), 350);
+          stopOnAnalysisFailure({
+            failure: { errorCode: "analysis_job_failed", errorMessage: String(error?.message || "").trim() },
+            brand,
+            activeShop,
+            routeToAnalysisSummary,
+          });
           return;
         }
       }
 
-      if (analysis.status === "skipped") {
-        setAnalysisProgress(100);
-        analysisStartedAtRef.current = 0;
-        setPhase("done");
-        window.setTimeout(() => goToAnalysisSummary(brand.id), 350);
-        return;
-      }
+      stopOnAnalysisFailure({ failure: analysis, brand, activeShop, routeToAnalysisSummary });
+      return;
+    }
 
-      analysisStartedAtRef.current = 0;
-      setPhase("done");
-      window.setTimeout(() => goToSocialChannels({ analysis: "retry_available" }), 350);
+    if (analysis.status === "failed") {
+      stopOnAnalysisFailure({ failure: analysis, brand, activeShop, routeToAnalysisSummary });
       return;
     }
 
@@ -295,9 +346,26 @@ export default function ShopifyOnboardingPage() {
     window.setTimeout(() => {
       const extra = {};
       if (analysis.status === "started") extra.analysis = "started";
-      if (analysis.status === "failed") extra.analysis = "retry_available";
-      goToGrowBrain(extra);
+      goToGrowBrain(brand?.id || "", extra);
     }, 550);
+  }
+
+  async function retryAnalysis() {
+    if (!analysisRetryContext?.brand?.id) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error(t("shopifyOnboarding.error.sessionExpired"));
+      await continueAfterConsent({
+        session,
+        brand: analysisRetryContext.brand,
+        analysisRequired: true,
+        activeShop: analysisRetryContext.activeShop,
+        routeToAnalysisSummary: analysisRetryContext.routeToAnalysisSummary,
+      });
+    } catch (error) {
+      setAnalysisFailure({ errorCode: "analysis_retry_failed", errorMessage: String(error?.message || "").trim() });
+      setPhase("analysis_error");
+    }
   }
 
   async function finishConnection({ session, brandProfileId = "", createNew = false }) {
@@ -330,6 +398,14 @@ export default function ShopifyOnboardingPage() {
     rememberBrand(user?.id, payload.brand.id);
 
     const routeToAnalysisSummary = Boolean(payload?.analysis_required);
+
+    // Shopify is only an acquisition/authentication bridge. Once the merchant
+    // has a Spreelo session, initialize the same account lifecycle as the
+    // ordinary Spreelo sign-up path (welcome lifecycle mail is deduplicated
+    // server-side, so this is safe for existing accounts too).
+    if (payload?.first_brand_for_user) {
+      requestWelcomeEmail(session.access_token);
+    }
 
     if (payload?.ai_consent_required) {
       setPending({
@@ -479,9 +555,11 @@ export default function ShopifyOnboardingPage() {
         ? t("shopifyOnboarding.done.title")
         : phase === "error"
           ? t("shopifyOnboarding.error.title")
-          : phase === "analyzing"
-            ? t("shopifyOnboarding.analysis.title")
-            : t("shopifyOnboarding.connecting.title");
+          : phase === "analysis_error"
+            ? t("shopifyOnboarding.analysisError.title")
+            : phase === "analyzing"
+              ? t("shopifyOnboarding.analysis.title")
+              : t("shopifyOnboarding.connecting.title");
 
   const text = phase === "select_brand"
     ? t("shopifyOnboarding.selectBrand.text")
@@ -491,9 +569,11 @@ export default function ShopifyOnboardingPage() {
         ? t("shopifyOnboarding.done.text")
         : phase === "error"
           ? t("shopifyOnboarding.error.text")
-          : phase === "analyzing"
-            ? t("shopifyOnboarding.analysis.text")
-            : t("shopifyOnboarding.connecting.text");
+          : phase === "analysis_error"
+            ? t("shopifyOnboarding.analysisError.text")
+            : phase === "analyzing"
+              ? t("shopifyOnboarding.analysis.text")
+              : t("shopifyOnboarding.connecting.text");
 
   const currentAnalysisStage = getCurrentAnalysisStage(analysisProgress);
   const currentAnalysisStageIndex = analysisProgressStages.findIndex((stage) => stage.titleKey === currentAnalysisStage.titleKey);
@@ -518,7 +598,7 @@ export default function ShopifyOnboardingPage() {
       <section className={styles.shell}>
         <div className={styles.brand}><img src="/brand/spreelologo.png" alt="Spreelo" /></div>
         <div className={styles.iconWrap}>
-          {phase === "done" ? <CheckCircle2 size={34} /> : phase === "consent" || phase === "saving_consent" ? <ShieldCheck size={34} /> : phase === "select_brand" ? <Store size={34} /> : <ShoppingBag size={34} />}
+          {phase === "done" ? <CheckCircle2 size={34} /> : phase === "consent" || phase === "saving_consent" ? <ShieldCheck size={34} /> : phase === "analysis_error" ? <ShieldCheck size={34} /> : phase === "select_brand" ? <Store size={34} /> : <ShoppingBag size={34} />}
         </div>
         <div className={styles.kicker}><Sparkles size={15} /> {t("shopifyOnboarding.kicker")}</div>
         <h1>{title}</h1>
@@ -585,6 +665,24 @@ export default function ShopifyOnboardingPage() {
                   </article>
                 );
               })}
+            </div>
+          </div>
+        ) : phase === "analysis_error" ? (
+          <div className={styles.analysisError} role="alert">
+            <ShieldCheck size={24} aria-hidden="true" />
+            <div>
+              <strong>{t("shopifyOnboarding.analysisError.problemTitle")}</strong>
+              <p>{describeAnalysisFailure(analysisFailure)}</p>
+            </div>
+            <div className={styles.analysisErrorActions}>
+              <button type="button" onClick={retryAnalysis}>
+                <LoaderCircle size={17} aria-hidden="true" />
+                {t("shopifyOnboarding.analysisError.retry")}
+              </button>
+              <button type="button" className={styles.analysisErrorSecondary} onClick={() => goToSocialChannels(analysisRetryContext?.brand?.id || "", { analysis: "retry_available" })}>
+                {t("shopifyOnboarding.analysisError.continue")}
+                <ArrowRight size={17} aria-hidden="true" />
+              </button>
             </div>
           </div>
         ) : phase !== "error" && phase !== "done" ? (
