@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { authorizeSocialConnectionForTrial, getTrialRestrictionCode, preflightSocialConnectionForTrial } from "../../../../lib/freeTrial.js";
+import { parsePlanLimitDatabaseError } from "../../../../lib/planEntitlements.js";
 
 function createSupabaseAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -365,6 +366,19 @@ export async function POST(request) {
     if (trialCode) {
       return NextResponse.json({ error: trialCode, code: trialCode, trialRestriction: true }, { status: 409 });
     }
+
+    const planLimit = parsePlanLimitDatabaseError(error);
+    if (planLimit) {
+      return NextResponse.json(
+        {
+          error: "plan_limit_reached",
+          code: "plan_limit_reached",
+          planLimit,
+        },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Could not save selected Facebook page" },
       { status: 500 }

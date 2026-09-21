@@ -105,6 +105,16 @@ export default function SelectFacebookPage() {
         window.location.href = `/social-channels/oauth-complete?error=${encodeURIComponent(data.code)}`;
         return;
       }
+      if (data?.code === "plan_limit_reached" && data?.planLimit?.resource === "socialAccounts") {
+        setMessage(
+          t("social.socialAccountPlanLimit", {
+            planName: data?.planLimit?.planName || "Free",
+            limit: Number(data?.planLimit?.limit || 0),
+          })
+        );
+        setSavingPageId("");
+        return;
+      }
       setMessage(data?.error || t("social.errorConnectSelectedPage"));
       setSavingPageId("");
       return;
