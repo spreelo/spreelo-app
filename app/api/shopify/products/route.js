@@ -3,8 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   createSupabaseAdminClient,
   getShopifyEnv,
-  getValidShopifyAccessToken,
-  shopifyGraphql,
+  shopifyGraphqlForBrand,
 } from "../../../../lib/shopifyOAuth.js";
 
 function getUserClient(authorizationHeader) {
@@ -52,13 +51,12 @@ export async function GET(request) {
     if (!brand?.id) return NextResponse.json({ ok: false, error: "Invalid brand" }, { status: 403 });
 
     const admin = createSupabaseAdminClient();
-    const { accessToken, connection } = await getValidShopifyAccessToken({ supabaseAdmin: admin, brandProfileId });
     const env = getShopifyEnv();
     const first = Math.min(100, Math.max(1, Number(url.searchParams.get("first") || 50)));
     const after = url.searchParams.get("after") || null;
-    const data = await shopifyGraphql({
-      shop: connection.shop_domain,
-      accessToken,
+    const { data, connection } = await shopifyGraphqlForBrand({
+      supabaseAdmin: admin,
+      brandProfileId,
       apiVersion: env.apiVersion,
       query: PRODUCTS_QUERY,
       variables: { first, after },

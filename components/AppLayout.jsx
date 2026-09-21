@@ -956,7 +956,13 @@ export default function AppLayout({ active, children }) {
 
             <div className="spreelo-user-profile-copy">
               <strong>{t("layout.account")}</strong>
-              <span>{user?.email || ""}</span>
+              <span
+                style={{
+                  "--spreelo-account-email-size": `${Math.max(10.5, Math.min(13.5, 335 / Math.max(1, String(user?.email || "").length)))}px`,
+                }}
+              >
+                {user?.email || ""}
+              </span>
             </div>
 
             <ChevronDown className="spreelo-user-profile-chevron" size={16} aria-hidden="true" />

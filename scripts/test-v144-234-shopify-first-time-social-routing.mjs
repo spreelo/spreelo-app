@@ -1,14 +1,14 @@
 import fs from 'node:fs';
 
 const checks = [
-  ['Claim detects whether this is the first brand for the Spreelo account', 'app/api/shopify/onboarding/claim/route.js', /const firstBrandForUser = brandRows\.length === 0/],
-  ['Claim exposes first-brand onboarding decision to client', 'app/api/shopify/onboarding/claim/route.js', /first_brand_for_user:\s*firstBrandForUser/],
-  ['Shopify onboarding has a Social channels destination', 'app/shopify/onboarding/page.jsx', /window\.location\.href = `\/social-channels\?\$\{params\.toString\(\)\}`/],
-  ['First-time Shopify install routes to Social channels', 'app/shopify/onboarding/page.jsx', /const routeToSocialChannels = Boolean\(payload\?\.first_brand_for_user\)/],
-  ['Existing Shopify customers still have Grow Brain route', 'app/shopify/onboarding/page.jsx', /goToGrowBrain\(extra\)/],
-  ['AI consent completion preserves first-time routing', 'app/shopify/onboarding/page.jsx', /routeToSocialChannels:\s*Boolean\(pending\.routeToSocialChannels\)/],
-  ['Not-now consent still continues through the shared post-consent routing', 'app/shopify/onboarding/page.jsx', /async function skipAiConsent\(\)[\s\S]*continueAfterConsent\(\{[\s\S]*routeToSocialChannels:\s*Boolean\(pending\.routeToSocialChannels\)/],
-  ['Existing users creating another brand are not classified solely by created_brand', 'app/shopify/onboarding/page.jsx', /payload\?\.first_brand_for_user/],
+  ['Claim still knows whether this is the first brand for account lifecycle setup', 'app/api/shopify/onboarding/claim/route.js', /const firstBrandForUser = brandRows\.length === 0/],
+  ['Claim exposes first-brand lifecycle decision to client', 'app/api/shopify/onboarding/claim/route.js', /first_brand_for_user:\s*firstBrandForUser/],
+  ['Shopify onboarding has a Social channels destination with explicit brand id', 'app/shopify/onboarding/page.jsx', /function goToSocialChannels\(brandId[\s\S]*params\.set\("brandId", brandId\)[\s\S]*\/social-channels\?/],
+  ['New or unanalyzed Shopify brands route through the shared analysis summary first', 'app/shopify/onboarding/page.jsx', /const routeToAnalysisSummary = Boolean\(payload\?\.analysis_required\)/],
+  ['Shared analysis summary continues to Social channels with the selected brand', 'app/onboarding/ready/page.jsx', /className="is-primary" href=\{`\/social-channels\?brandId=\$\{encodeURIComponent\(brand\.id\)\}`\}/],
+  ['Already analyzed Shopify customers retain a Grow Brain route with explicit brand id', 'app/shopify/onboarding/page.jsx', /goToGrowBrain\(brand\?\.id \|\| ""\)/],
+  ['AI consent completion preserves analysis-summary routing', 'app/shopify/onboarding/page.jsx', /routeToAnalysisSummary:\s*Boolean\(pending\.routeToAnalysisSummary\)/],
+  ['First-brand signal is now lifecycle-only rather than the navigation decision', 'app/shopify/onboarding/page.jsx', /if \(payload\?\.first_brand_for_user\)\s*\{\s*requestWelcomeEmail/],
 ];
 
 let passed = 0;
@@ -18,4 +18,4 @@ for (const [label, file, pattern] of checks) {
   console.log(`✓ ${label}`);
   passed += 1;
 }
-console.log(`v144.234 Shopify first-time social routing checks passed (${passed}/${checks.length}).`);
+console.log(`v144.234 Shopify first-time routing regression checks passed (${passed}/${checks.length}).`);

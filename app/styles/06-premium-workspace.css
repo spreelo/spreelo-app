@@ -913,7 +913,7 @@ select:focus,
   border: 1px solid rgba(241, 90, 60, 0.16) !important;
   background: var(--spreelo-accent-soft) !important;
   color: var(--spreelo-accent-deep) !important;
-  font-size: 13px !important;
+  font-size: 13.5px !important;
   font-weight: 850 !important;
 }
 
@@ -3651,7 +3651,7 @@ html body .dashboard-plan-hub-section .saved-header {
   justify-content: space-between !important;
   gap: 10px !important;
   color: #ff8a67 !important;
-  font-size: 13px !important;
+  font-size: 13.5px !important;
   font-weight: 850 !important;
 }
 
@@ -3671,7 +3671,7 @@ html body .dashboard-plan-hub-section .saved-header {
 
 .sidebar-credit-count span {
   color: rgba(255,255,255,.82) !important;
-  font-size: 10px !important;
+  font-size: 13.5px !important;
   font-weight: 650 !important;
 }
 
@@ -3696,7 +3696,7 @@ html body .dashboard-plan-hub-section .saved-header {
   display: block !important;
   margin: 9px 0 0 !important;
   color: rgba(255,255,255,.64) !important;
-  font-size: 10px !important;
+  font-size: 13.5px !important;
   line-height: 1.35 !important;
 }
 
@@ -3760,14 +3760,15 @@ html body .dashboard-plan-hub-section .saved-header {
 
 .spreelo-user-profile-copy strong {
   color: rgba(255,255,255,.92) !important;
-  font-size: 11.5px !important;
+  font-size: 13.5px !important;
   font-weight: 750 !important;
 }
 
 .spreelo-user-profile-copy span {
   margin-top: 2px !important;
   color: rgba(255,255,255,.68) !important;
-  font-size: 10px !important;
+  font-size: var(--spreelo-account-email-size, 13.5px) !important;
+  line-height: 1.25 !important;
 }
 
 /* v91 — cleaner account avatar: full person glyph, no cropped decorative shapes */

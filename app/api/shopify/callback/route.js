@@ -83,7 +83,7 @@ export async function GET(request) {
   const fail = (reason) => {
     const destination = isAppStoreFlow
       ? onboardingUrl(origin, { error: reason })
-      : growBrainUrl(origin, { shopify: "error", reason });
+      : growBrainUrl(origin, { shopify: "error", reason, brandId: decoded?.brandProfileId || undefined });
     return clearOauthState(NextResponse.redirect(destination));
   };
 
@@ -271,7 +271,7 @@ export async function GET(request) {
         updated_at: new Date().toISOString(),
       }, { onConflict: "brand_profile_id" });
 
-    return clearOauthState(NextResponse.redirect(growBrainUrl(origin, { shopify: "connected" })));
+    return clearOauthState(NextResponse.redirect(growBrainUrl(origin, { shopify: "connected", brandId: decoded.brandProfileId })));
   } catch (error) {
     console.error(`Shopify OAuth callback failed at ${stage}`, error);
     if (decoded?.flow === "app_store_offline" && decoded?.onboardingSessionId) {
