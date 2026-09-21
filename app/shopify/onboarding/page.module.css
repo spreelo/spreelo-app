@@ -25,3 +25,6 @@
 }
 
 .analysisError{margin:24px auto 0;max-width:590px;padding:18px;border:1px solid #eadff8;border-radius:20px;background:#fbf9ff;text-align:left;display:grid;grid-template-columns:auto 1fr;gap:13px;color:#5f4bd1}.analysisError>div:first-of-type{display:grid;gap:5px}.analysisError strong{color:#242a43;font-size:14px}.analysisError p{margin:0;color:#697185;font-size:12px;line-height:1.55}.analysisErrorActions{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap}.analysisErrorActions button{border:0;border-radius:12px;padding:10px 13px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:7px;background:#6652e8;color:#fff}.analysisErrorActions .analysisErrorSecondary{background:#fff;color:#5142c2;border:1px solid #ddd7f8}@media(max-width:620px){.analysisError{grid-template-columns:1fr}.analysisErrorActions{grid-column:1}.analysisErrorActions button{width:100%;justify-content:center}}
+
+/* v144.241: explicit quota/cooldown explanation in Shopify onboarding. */
+.analysisErrorMeta{display:block;margin-top:8px;color:#4f46b8;font-size:11px;font-weight:850;text-transform:capitalize}.analysisErrorNote{display:block;margin-top:5px;color:#7a8192;font-size:11px;line-height:1.45}

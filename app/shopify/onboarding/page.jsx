@@ -267,15 +267,65 @@ export default function ShopifyOnboardingPage() {
     window.location.href = `/onboarding/ready?brandId=${encodeURIComponent(brandId)}&source=shopify`;
   }
 
-  function describeAnalysisFailure(failure) {
-    const reason = String(failure?.analysisLimit?.reason || "").trim();
+  function formatAnalysisLimitDate(value, timezone) {
+    if (!value) return "";
+    try {
+      return new Intl.DateTimeFormat(locale || "en", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
+      }).format(new Date(value));
+    } catch {
+      try { return new Date(value).toLocaleString(locale || undefined); }
+      catch { return String(value); }
+    }
+  }
+
+  function getAnalysisLimitDetails(failure) {
+    const limit = failure?.analysisLimit || null;
+    const reason = String(limit?.reason || "").trim();
     const code = String(failure?.errorCode || "").trim();
-    if (code === "analysis_usage_limit" && reason === "cooldown") {
-      return t("shopifyOnboarding.analysisError.cooldown");
+    if (code !== "analysis_usage_limit") return null;
+
+    const timezone = String(limit?.timezone || "").trim();
+    const plan = String(limit?.plan || "free").trim();
+    if (reason === "daily_limit") {
+      return {
+        title: t("shopifyOnboarding.analysisError.dailyTitle"),
+        text: t("shopifyOnboarding.analysisError.dailyText", {
+          count: Number(limit?.dailyCount || 0),
+          limit: Number(limit?.dailyLimit || 0),
+          date: formatAnalysisLimitDate(limit?.dailyResetAt, timezone),
+        }),
+        meta: t("shopifyOnboarding.analysisError.planMeta", { plan }),
+      };
     }
-    if (code === "analysis_usage_limit") {
-      return t("shopifyOnboarding.analysisError.quota");
+    if (reason === "monthly_limit") {
+      return {
+        title: t("shopifyOnboarding.analysisError.monthlyTitle"),
+        text: t("shopifyOnboarding.analysisError.monthlyText", {
+          count: Number(limit?.monthlyCount || 0),
+          limit: Number(limit?.monthlyLimit || 0),
+          date: formatAnalysisLimitDate(limit?.monthlyResetAt, timezone),
+        }),
+        meta: t("shopifyOnboarding.analysisError.planMeta", { plan }),
+      };
     }
+    if (reason === "cooldown") {
+      return {
+        title: t("shopifyOnboarding.analysisError.cooldownTitle"),
+        text: t("shopifyOnboarding.analysisError.cooldownText", {
+          date: formatAnalysisLimitDate(limit?.retryAt, timezone),
+        }),
+        meta: t("shopifyOnboarding.analysisError.planMeta", { plan }),
+      };
+    }
+    return null;
+  }
+
+  function describeAnalysisFailure(failure) {
+    const details = getAnalysisLimitDetails(failure);
+    if (details?.text) return details.text;
     if (failure?.errorMessage) return failure.errorMessage;
     return t("shopifyOnboarding.analysisError.generic");
   }
@@ -578,6 +628,7 @@ export default function ShopifyOnboardingPage() {
   const currentAnalysisStage = getCurrentAnalysisStage(analysisProgress);
   const currentAnalysisStageIndex = analysisProgressStages.findIndex((stage) => stage.titleKey === currentAnalysisStage.titleKey);
   const displayProgress = Math.min(99, Math.floor(analysisProgress));
+  const analysisLimitDetails = phase === "analysis_error" ? getAnalysisLimitDetails(analysisFailure) : null;
 
   // Never flash English source labels while a non-English persistent translation
   // pack is being loaded/generated for the first Shopify onboarding visit.
@@ -671,8 +722,10 @@ export default function ShopifyOnboardingPage() {
           <div className={styles.analysisError} role="alert">
             <ShieldCheck size={24} aria-hidden="true" />
             <div>
-              <strong>{t("shopifyOnboarding.analysisError.problemTitle")}</strong>
+              <strong>{analysisLimitDetails?.title || t("shopifyOnboarding.analysisError.problemTitle")}</strong>
               <p>{describeAnalysisFailure(analysisFailure)}</p>
+              {analysisLimitDetails?.meta ? <small className={styles.analysisErrorMeta}>{analysisLimitDetails.meta}</small> : null}
+              {analysisLimitDetails ? <small className={styles.analysisErrorNote}>{t("shopifyOnboarding.analysisError.connectedSafe")}</small> : null}
             </div>
             <div className={styles.analysisErrorActions}>
               <button type="button" onClick={retryAnalysis}>
