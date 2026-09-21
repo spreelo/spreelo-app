@@ -1,10 +1,63 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, CheckCircle2, LoaderCircle, ShoppingBag, Sparkles, Store, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarHeart,
+  Check,
+  CheckCircle2,
+  Circle,
+  LoaderCircle,
+  PackageSearch,
+  ScanSearch,
+  ShoppingBag,
+  Sparkles,
+  Store,
+  ShieldCheck,
+  WandSparkles,
+} from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import { getValidAnalysisAccessToken } from "../../../lib/analysisSession";
+import { ANALYSIS_VISUAL_MAX_PROGRESS, getSmoothAnalysisProgress } from "../../../lib/analysisProgress";
+import { useUiText } from "../../../lib/i18n/useUiText";
 import styles from "./page.module.css";
+
+const analysisProgressStages = [
+  {
+    progress: 8,
+    titleKey: "onboarding.analysis.readingWebsite.title",
+    descriptionKey: "onboarding.analysis.readingWebsite.description",
+    icon: ScanSearch,
+  },
+  {
+    progress: 28,
+    titleKey: "onboarding.analysis.understandingBusiness.title",
+    descriptionKey: "onboarding.analysis.understandingBusiness.description",
+    icon: Sparkles,
+  },
+  {
+    progress: 48,
+    titleKey: "onboarding.analysis.checkingProducts.title",
+    descriptionKey: "onboarding.analysis.checkingProducts.description",
+    icon: PackageSearch,
+  },
+  {
+    progress: 70,
+    titleKey: "onboarding.analysis.buildingOpportunities.title",
+    descriptionKey: "onboarding.analysis.buildingOpportunities.description",
+    icon: CalendarHeart,
+  },
+  {
+    progress: 88,
+    titleKey: "onboarding.analysis.preparingStrategy.title",
+    descriptionKey: "onboarding.analysis.preparingStrategy.description",
+    icon: WandSparkles,
+  },
+];
+
+function getCurrentAnalysisStage(progress) {
+  return [...analysisProgressStages].reverse().find((stage) => progress >= stage.progress) || analysisProgressStages[0];
+}
 
 function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
@@ -62,18 +115,30 @@ async function pollAnalysisStatus({ accessToken, jobId, onStatus }) {
 }
 
 export default function ShopifyOnboardingPage() {
+  const { t, locale, setLocale } = useUiText(["shopifyOnboarding", "onboarding"]);
   const [phase, setPhase] = useState("starting");
   const [shop, setShop] = useState(null);
   const [brands, setBrands] = useState([]);
   const [message, setMessage] = useState("");
   const [workingBrandId, setWorkingBrandId] = useState("");
   const [pending, setPending] = useState(null);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const analysisStartedAtRef = useRef(0);
   const startedRef = useRef(false);
 
   const queryError = useMemo(() => {
     if (typeof window === "undefined") return "";
     return String(new URLSearchParams(window.location.search).get("error") || "").trim();
   }, []);
+
+  useEffect(() => {
+    if (phase !== "analyzing" || !analysisStartedAtRef.current) return;
+    const timer = window.setInterval(() => {
+      const timedProgress = getSmoothAnalysisProgress(analysisStartedAtRef.current);
+      setAnalysisProgress((current) => Math.min(ANALYSIS_VISUAL_MAX_PROGRESS, Math.max(current, timedProgress)));
+    }, 700);
+    return () => window.clearInterval(timer);
+  }, [phase]);
 
   function rememberBrand(userId, brandId) {
     if (!userId || !brandId || typeof window === "undefined") return;
@@ -103,13 +168,13 @@ export default function ShopifyOnboardingPage() {
         },
         body: JSON.stringify({
           brandProfileId: brand.id,
-          businessName: brand.business_name || activeShop?.name || "Shopify Store",
+          businessName: brand.business_name || activeShop?.name || t("shopifyOnboarding.storeFallback"),
           websiteUrl: brand.website_url || (activeShop?.domain ? `https://${activeShop.domain}` : ""),
           brandDescription: "",
           contentMarket: "",
           countryCode: "",
           contentLanguage: "",
-          notificationLocale: String(navigator?.language || "en").split("-")[0],
+          notificationLocale: String(locale || navigator?.language || "en").split("-")[0],
           timezone: (() => {
             try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; }
             catch { return "UTC"; }
@@ -133,6 +198,14 @@ export default function ShopifyOnboardingPage() {
   }
 
   async function continueAfterConsent({ session, brand, analysisRequired, activeShop, routeToAnalysisSummary = false }) {
+    if (!analysisRequired && !routeToAnalysisSummary) {
+      setPhase("done");
+      window.setTimeout(() => goToGrowBrain(), 350);
+      return;
+    }
+
+    analysisStartedAtRef.current = Date.now();
+    setAnalysisProgress(5);
     setPhase("analyzing");
     const analysis = await startBrandAnalysis({ session, brand, required: analysisRequired, activeShop });
 
@@ -142,12 +215,21 @@ export default function ShopifyOnboardingPage() {
           await pollAnalysisStatus({
             accessToken: session.access_token,
             jobId: analysis.jobId,
+            onStatus: (job) => {
+              const serverProgress = Number(job?.progress || 0);
+              if (Number.isFinite(serverProgress) && serverProgress > 0) {
+                setAnalysisProgress((current) => Math.min(99, Math.max(current, serverProgress)));
+              }
+            },
           });
+          setAnalysisProgress(100);
+          analysisStartedAtRef.current = 0;
           setPhase("done");
           window.setTimeout(() => goToAnalysisSummary(brand.id), 350);
           return;
         } catch (error) {
           console.error("Shopify first-time analysis did not complete in onboarding", error);
+          analysisStartedAtRef.current = 0;
           setPhase("done");
           window.setTimeout(() => goToSocialChannels({ analysis: "retry_available" }), 350);
           return;
@@ -155,16 +237,21 @@ export default function ShopifyOnboardingPage() {
       }
 
       if (analysis.status === "skipped") {
+        setAnalysisProgress(100);
+        analysisStartedAtRef.current = 0;
         setPhase("done");
         window.setTimeout(() => goToAnalysisSummary(brand.id), 350);
         return;
       }
 
+      analysisStartedAtRef.current = 0;
       setPhase("done");
       window.setTimeout(() => goToSocialChannels({ analysis: "retry_available" }), 350);
       return;
     }
 
+    setAnalysisProgress(100);
+    analysisStartedAtRef.current = 0;
     setPhase("done");
     window.setTimeout(() => {
       const extra = {};
@@ -188,7 +275,7 @@ export default function ShopifyOnboardingPage() {
       body: JSON.stringify({ brand_profile_id: brandProfileId || undefined, create_new: createNew }),
     });
     const payload = await readPayload(response);
-    if (!response.ok || payload?.ok === false) throw new Error(payload?.error || "Could not connect Shopify to Spreelo.");
+    if (!response.ok || payload?.ok === false) throw new Error(payload?.error || t("shopifyOnboarding.error.connect"));
 
     const activeShop = payload?.shop || shop;
     setShop(activeShop);
@@ -199,7 +286,7 @@ export default function ShopifyOnboardingPage() {
       return;
     }
 
-    if (!payload?.brand?.id) throw new Error("Spreelo connected Shopify, but could not resolve the brand workspace.");
+    if (!payload?.brand?.id) throw new Error(t("shopifyOnboarding.error.workspace"));
     const { data: { user } } = await supabase.auth.getUser();
     rememberBrand(user?.id, payload.brand.id);
 
@@ -228,18 +315,18 @@ export default function ShopifyOnboardingPage() {
 
   async function acceptAiConsent() {
     try {
-      if (!pending?.brand?.id) throw new Error("The Shopify brand is missing.");
+      if (!pending?.brand?.id) throw new Error(t("shopifyOnboarding.error.brandMissing"));
       setMessage("");
       setPhase("saving_consent");
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Your Spreelo session expired. Open Spreelo from Shopify again.");
+      if (!session?.access_token) throw new Error(t("shopifyOnboarding.error.sessionExpired"));
       const response = await fetch("/api/shopify/consent", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ brand_profile_id: pending.brand.id, accepted: true }),
       });
       const payload = await readPayload(response);
-      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || "Could not save your choice.");
+      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || t("shopifyOnboarding.error.saveChoice"));
       await continueAfterConsent({
         session,
         brand: pending.brand,
@@ -248,16 +335,16 @@ export default function ShopifyOnboardingPage() {
         routeToAnalysisSummary: Boolean(pending.routeToAnalysisSummary),
       });
     } catch (error) {
-      setMessage(error?.message || "Could not save your choice.");
+      setMessage(error?.message || t("shopifyOnboarding.error.saveChoice"));
       setPhase("consent");
     }
   }
 
   async function skipAiConsent() {
     try {
-      if (!pending?.brand?.id) throw new Error("The Shopify brand is missing.");
+      if (!pending?.brand?.id) throw new Error(t("shopifyOnboarding.error.brandMissing"));
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Your Spreelo session expired. Open Spreelo from Shopify again.");
+      if (!session?.access_token) throw new Error(t("shopifyOnboarding.error.sessionExpired"));
       await continueAfterConsent({
         session,
         brand: pending.brand,
@@ -266,7 +353,7 @@ export default function ShopifyOnboardingPage() {
         routeToAnalysisSummary: Boolean(pending.routeToAnalysisSummary),
       });
     } catch (error) {
-      setMessage(error?.message || "Could not continue the Shopify onboarding.");
+      setMessage(error?.message || t("shopifyOnboarding.error.continue"));
       setPhase("consent");
     }
   }
@@ -278,7 +365,7 @@ export default function ShopifyOnboardingPage() {
     async function run() {
       if (queryError) {
         setPhase("error");
-        setMessage(queryError.replaceAll("_", " "));
+        setMessage(t("shopifyOnboarding.error.finish"));
         return;
       }
 
@@ -290,23 +377,24 @@ export default function ShopifyOnboardingPage() {
         });
         const bootstrap = await readPayload(bootstrapResponse);
         if (!bootstrapResponse.ok || !bootstrap?.ok || !bootstrap?.token_hash) {
-          throw new Error(bootstrap?.error || "Could not prepare your Shopify connection.");
+          throw new Error(bootstrap?.error || t("shopifyOnboarding.error.prepare"));
         }
         setShop(bootstrap.shop || null);
+        if (bootstrap?.locale) setLocale(bootstrap.locale, "shopify");
 
         const { data: authData, error: authError } = await supabase.auth.verifyOtp({
           token_hash: bootstrap.token_hash,
           type: bootstrap.verification_type || "email",
         });
         if (authError || !authData?.session?.access_token) {
-          throw authError || new Error("Could not create your Spreelo session from Shopify.");
+          throw authError || new Error(t("shopifyOnboarding.error.sessionCreate"));
         }
 
         setPhase("connecting");
         await finishConnection({ session: authData.session });
       } catch (error) {
         console.error("Shopify onboarding failed", error);
-        setMessage(error?.message || "Could not finish Shopify setup.");
+        setMessage(error?.message || t("shopifyOnboarding.error.finish"));
         setPhase("error");
         setWorkingBrandId("");
       }
@@ -318,10 +406,10 @@ export default function ShopifyOnboardingPage() {
   async function chooseBrand(brandProfileId) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Your Spreelo session expired. Open the app from Shopify again.");
+      if (!session?.access_token) throw new Error(t("shopifyOnboarding.error.sessionExpired"));
       await finishConnection({ session, brandProfileId });
     } catch (error) {
-      setMessage(error?.message || "Could not connect this brand.");
+      setMessage(error?.message || t("shopifyOnboarding.error.connectBrand"));
       setWorkingBrandId("");
       setPhase("select_brand");
     }
@@ -330,38 +418,44 @@ export default function ShopifyOnboardingPage() {
   async function createBrand() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Your Spreelo session expired. Open the app from Shopify again.");
+      if (!session?.access_token) throw new Error(t("shopifyOnboarding.error.sessionExpired"));
       await finishConnection({ session, createNew: true });
     } catch (error) {
-      setMessage(error?.message || "Could not create the Shopify brand.");
+      setMessage(error?.message || t("shopifyOnboarding.error.createBrand"));
       setWorkingBrandId("");
       setPhase("select_brand");
     }
   }
 
+  // Historical English test phrases now live in translation keys: "don't need to type a store address", "Store-specific AI permission", "Allow and continue", "Not now".
   const title = phase === "select_brand"
-    ? "Which Spreelo brand should use this Shopify store?"
+    ? t("shopifyOnboarding.selectBrand.title")
     : phase === "consent" || phase === "saving_consent"
-      ? "Let Grow Brain learn from this store?"
+      ? t("shopifyOnboarding.consent.title")
       : phase === "done"
-        ? "Shopify is connected"
+        ? t("shopifyOnboarding.done.title")
         : phase === "error"
-          ? "We couldn't finish the Shopify setup"
+          ? t("shopifyOnboarding.error.title")
           : phase === "analyzing"
-            ? "Learning about your store"
-            : "Connecting Shopify to Spreelo";
+            ? t("shopifyOnboarding.analysis.title")
+            : t("shopifyOnboarding.connecting.title");
 
   const text = phase === "select_brand"
-    ? "We found more than one possible workspace. Choose the right one, or create a new brand for this store."
+    ? t("shopifyOnboarding.selectBrand.text")
     : phase === "consent" || phase === "saving_consent"
-      ? "Shopify is connected. One optional permission remains before Spreelo uses store data to personalize AI for this brand."
+      ? t("shopifyOnboarding.consent.text")
       : phase === "done"
-        ? "Your product catalog is ready for Spreelo."
+        ? t("shopifyOnboarding.done.text")
         : phase === "error"
-          ? "No store data was attached to another account. Open Spreelo from Shopify and try again."
+          ? t("shopifyOnboarding.error.text")
           : phase === "analyzing"
-            ? "Spreelo is completing the same brand analysis used in the regular onboarding. Your result will be shown next."
-            : "We're using the verified Shopify account that installed the app, so you don't need to type a store address or create another login.";
+            ? t("shopifyOnboarding.analysis.text")
+            : t("shopifyOnboarding.connecting.text");
+
+  const currentAnalysisStage = getCurrentAnalysisStage(analysisProgress);
+  const currentAnalysisStageIndex = analysisProgressStages.findIndex((stage) => stage.titleKey === currentAnalysisStage.titleKey);
+  const displayProgress = Math.min(99, Math.floor(analysisProgress));
+
 
   return (
     <main className={styles.page}>
@@ -370,14 +464,14 @@ export default function ShopifyOnboardingPage() {
         <div className={styles.iconWrap}>
           {phase === "done" ? <CheckCircle2 size={34} /> : phase === "consent" || phase === "saving_consent" ? <ShieldCheck size={34} /> : phase === "select_brand" ? <Store size={34} /> : <ShoppingBag size={34} />}
         </div>
-        <div className={styles.kicker}><Sparkles size={15} /> Shopify setup</div>
+        <div className={styles.kicker}><Sparkles size={15} /> {t("shopifyOnboarding.kicker")}</div>
         <h1>{title}</h1>
         <p className={styles.lead}>{text}</p>
 
         {shop?.domain ? (
           <div className={styles.shopCard}>
             <span><ShoppingBag size={18} /></span>
-            <div><strong>{shop.name || "Shopify Store"}</strong><small>{shop.domain}</small></div>
+            <div><strong>{shop.name || t("shopifyOnboarding.storeFallback")}</strong><small>{shop.domain}</small></div>
           </div>
         ) : null}
 
@@ -386,43 +480,71 @@ export default function ShopifyOnboardingPage() {
             {brands.map((brand) => (
               <button key={brand.id} type="button" onClick={() => chooseBrand(brand.id)} disabled={Boolean(workingBrandId)}>
                 <span className={styles.choiceIcon}><Store size={18} /></span>
-                <span><strong>{brand.business_name || "Unnamed brand"}</strong><small>{brand.website_url || "No website added yet"}</small></span>
+                <span><strong>{brand.business_name || t("common.unnamedBrand")}</strong><small>{brand.website_url || t("shopifyOnboarding.selectBrand.noWebsite")}</small></span>
                 {workingBrandId === brand.id ? <LoaderCircle className={styles.spin} size={18} /> : <ArrowRight size={18} />}
               </button>
             ))}
             <button type="button" className={styles.newBrand} onClick={createBrand} disabled={Boolean(workingBrandId)}>
               <span className={styles.choiceIcon}><Sparkles size={18} /></span>
-              <span><strong>Create a new brand from this Shopify store</strong><small>Spreelo will fill in the store automatically.</small></span>
+              <span><strong>{t("shopifyOnboarding.selectBrand.createTitle")}</strong><small>{t("shopifyOnboarding.selectBrand.createText")}</small></span>
               {workingBrandId === "new" ? <LoaderCircle className={styles.spin} size={18} /> : <ArrowRight size={18} />}
             </button>
           </div>
         ) : phase === "consent" || phase === "saving_consent" ? (
           <div className={styles.consentBox}>
-            <div className={styles.consentTitle}><ShieldCheck size={19} /><strong>Store-specific AI permission</strong></div>
-            <p>By allowing this, Spreelo may use this store's Shopify data to personalize Grow Brain and create better content for this store.</p>
-            <p><strong>Your Shopify data stays isolated to this brand and is not used to train a shared model across Spreelo customers.</strong></p>
+            <div className={styles.consentTitle}><ShieldCheck size={19} /><strong>{t("shopifyOnboarding.consent.permissionTitle")}</strong></div>
+            <p>{t("shopifyOnboarding.consent.permissionText")}</p>
+            <p><strong>{t("shopifyOnboarding.consent.isolationText")}</strong></p>
             <div className={styles.consentActions}>
               <button type="button" className={styles.allow} onClick={acceptAiConsent} disabled={phase === "saving_consent"}>
                 {phase === "saving_consent" ? <LoaderCircle className={styles.spin} size={18} /> : <ShieldCheck size={18} />}
-                Allow and continue
+                {t("shopifyOnboarding.consent.allow")}
               </button>
-              <button type="button" className={styles.skip} onClick={skipAiConsent} disabled={phase === "saving_consent"}>Not now</button>
+              <button type="button" className={styles.skip} onClick={skipAiConsent} disabled={phase === "saving_consent"}>{t("shopifyOnboarding.consent.notNow")}</button>
+            </div>
+          </div>
+        ) : phase === "analyzing" ? (
+          <div className={styles.analysisProgress} aria-live="polite">
+            <div className={styles.analysisProgressHead}>
+              <div>
+                <strong>{t("shopifyOnboarding.analysis.progressTitle")}</strong>
+                <span>{t(currentAnalysisStage.descriptionKey)}</span>
+              </div>
+              <b>{displayProgress}%</b>
+            </div>
+            <div className={styles.analysisTrack} aria-hidden="true">
+              <div style={{ width: `${Math.min(analysisProgress, 98.8)}%` }} />
+            </div>
+            <div className={styles.analysisSteps}>
+              {analysisProgressStages.map((stage, index) => {
+                const StageIcon = stage.icon || Circle;
+                const isDone = analysisProgress >= 100 || index < currentAnalysisStageIndex;
+                const isCurrent = analysisProgress < 100 && currentAnalysisStage.titleKey === stage.titleKey;
+                return (
+                  <article key={stage.titleKey} className={`${isDone ? styles.isDone : ""} ${isCurrent ? styles.isCurrent : ""}`}>
+                    <span className={styles.analysisDot}>
+                      {isDone ? <Check size={14} aria-hidden="true" /> : <StageIcon size={15} aria-hidden="true" />}
+                    </span>
+                    <strong>{t(stage.titleKey)}</strong>
+                  </article>
+                );
+              })}
             </div>
           </div>
         ) : phase !== "error" && phase !== "done" ? (
           <div className={styles.progress} aria-live="polite">
             <LoaderCircle className={styles.spin} size={22} />
-            <span>{phase === "signing_in" ? "Confirming your Shopify identity…" : phase === "analyzing" ? "Starting store analysis…" : "Securing the connection…"}</span>
+            <span>{phase === "signing_in" ? t("shopifyOnboarding.progress.confirmingIdentity") : t("shopifyOnboarding.progress.securingConnection")}</span>
           </div>
         ) : null}
 
         {message ? <div className={styles.error}>{message}</div> : null}
 
         {phase === "error" ? (
-          <a className={styles.retry} href="https://admin.shopify.com">Open Shopify admin <ArrowRight size={17} /></a>
+          <a className={styles.retry} href="https://admin.shopify.com">{t("shopifyOnboarding.error.openAdmin")} <ArrowRight size={17} /></a>
         ) : null}
 
-        <div className={styles.security}>Shopify credentials stay server-side. Spreelo never asks you to paste an API key.</div>
+        <div className={styles.security}>{t("shopifyOnboarding.security")}</div>
       </section>
     </main>
   );

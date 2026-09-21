@@ -208,7 +208,7 @@ export async function GET(request) {
         .eq("id", onboardingSession.id);
       if (updateError) throw updateError;
 
-      let response = NextResponse.redirect(onboardingUrl(origin));
+      let response = NextResponse.redirect(onboardingUrl(origin, { lang: onboardingSession.installer_locale || undefined }));
       response = setOnboardingSession(response, onboardingSession.id);
       return clearOauthState(response);
     }

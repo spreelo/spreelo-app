@@ -18,7 +18,7 @@ export async function POST(request) {
     const admin = createSupabaseAdminClient();
     const { data: onboarding, error } = await admin
       .from("shopify_onboarding_sessions")
-      .select("id,shop_domain,shop_name,installer_email,installer_email_verified,status,expires_at")
+      .select("id,shop_domain,shop_name,installer_email,installer_email_verified,installer_locale,status,expires_at")
       .eq("id", sessionId)
       .maybeSingle();
     if (error) throw error;
@@ -72,6 +72,7 @@ export async function POST(request) {
         domain: onboarding.shop_domain,
         name: onboarding.shop_name || "Shopify Store",
       },
+      locale: String(onboarding.installer_locale || "").trim(),
     });
   } catch (error) {
     console.error("Shopify onboarding bootstrap failed", error);
