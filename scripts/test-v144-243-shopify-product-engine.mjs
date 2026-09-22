@@ -9,7 +9,7 @@ const checks = [
   ['Shopify catalog is bounded and paginated instead of downloading an unlimited store', /SHOPIFY_PRODUCT_ENGINE_MAX_PRODUCTS = 120/.test(helper) && /pageCount < 7/.test(helper)],
   ['Only active products are mapped', /String\(product\.status \|\| ""\)\.toUpperCase\(\) !== "ACTIVE"/.test(helper)],
   ['Only published Online Store URLs are mapped', /onlineStoreUrl/.test(helper) && helper.includes('if (!/^https?:') && helper.includes('.test(productUrl)) return null;')],
-  ['Only products with an available-for-sale variant are mapped', /variants\.find\(\(variant\) => variant\?\.availableForSale === true\)/.test(helper)],
+  ['Only Shopify-confirmed sellable or stocked variants are mapped', /getShopifyVariantAvailability/.test(helper) && /sellableOnlineQuantity/.test(helper) && /inventoryQuantity/.test(helper) && /inventoryPolicy/.test(helper)],
   ['Shopify products become exact locked product objects', /shopify_admin_api_verified: true/.test(helper) && /product_identity_locked: true/.test(helper) && /product_image_page_bound: true/.test(helper) && /product_image_identity_verified: true/.test(helper)],
   ['Shopify products carry current purchasability proof', /availability: "in_stock"/.test(helper) && /stock_verification_source: "shopify_admin_api"/.test(helper)],
   ['Shopify product metadata includes vendor/type/SKU without prices', /product_brand: vendor/.test(helper) && /product_display_type: productType/.test(helper) && /product_identifier: sku/.test(helper) && !/priceRange|price\s*:/.test(helper)],

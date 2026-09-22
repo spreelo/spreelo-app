@@ -17,7 +17,7 @@ const onboardingPlan = read("app/api/onboarding-plan/route.js");
 
 const checks = [
   ["activation reuses the real Shopify Product Engine catalog", helper.includes("fetchShopifyProductEngineCatalog")],
-  ["Shopify eligibility itself remains strict", /status \|\| ""\)\.toUpperCase\(\) !== "ACTIVE"/.test(shopifyCatalog) && /availableForSale === true/.test(shopifyCatalog) && /if \(!image\?\.url\) return null/.test(shopifyCatalog)],
+  ["Shopify eligibility remains isolated and verified", /status \|\| ""\)\.toUpperCase\(\) !== "ACTIVE"/.test(shopifyCatalog) && /getShopifyVariantAvailability/.test(shopifyCatalog) && /if \(!image\?\.url\) return null/.test(shopifyCatalog)],
   ["verification probe is bounded", helper.includes("SHOPIFY_PRODUCT_MODE_PROBE_LIMIT = 40")],
   ["at least one eligible connected Shopify product is required", helper.includes("catalog?.connected === true && items.length > 0")],
   ["positive Shopify verification persists product mode", helper.includes("website_product_mode_available: true")],
