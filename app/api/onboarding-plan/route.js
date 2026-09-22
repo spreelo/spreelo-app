@@ -7,6 +7,7 @@ import {
   normalizeSmartOnboardingGoal,
   normalizeSmartOnboardingPostCount,
 } from "../../../lib/smartOnboardingPlan";
+import { enrichBrandProfileWithEffectiveProductMode } from "../../../lib/effectiveProductMode.js";
 
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
@@ -52,6 +53,14 @@ export async function POST(request) {
     .maybeSingle();
   if (brandError) return Response.json({ ok: false, error: brandError.message }, { status: 500 });
   if (!brandProfile) return Response.json({ ok: false, error: "Brand profile not found." }, { status: 404 });
+
+  const { brandProfile: effectiveBrandProfile } = await enrichBrandProfileWithEffectiveProductMode({
+    brandProfile,
+    brandProfileId,
+    userId: user.id,
+    persist: true,
+  });
+  if (effectiveBrandProfile) Object.assign(brandProfile, effectiveBrandProfile);
 
   const { count: connectedPlatformCount } = await supabase
     .from("social_connections")

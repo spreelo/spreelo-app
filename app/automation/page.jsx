@@ -8739,6 +8739,49 @@ async function loadConnectedPlatformsForBrand(userId, brandProfileId) {
   return uniquePlatforms;
 }
 
+async function resolveProductModeForBrand(brandProfileId, brandProfile) {
+  if (!brandProfileId || !brandProfile || brandProfile.website_product_mode_available === true) {
+    return brandProfile;
+  }
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) return brandProfile;
+
+    const response = await fetch(
+      `/api/shopify/product-mode?brand_profile_id=${encodeURIComponent(brandProfileId)}`,
+      {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      }
+    );
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || payload?.available !== true) return brandProfile;
+
+    return {
+      ...brandProfile,
+      website_product_mode_available: true,
+      website_product_mode_reason:
+        payload?.reason ||
+        brandProfile.website_product_mode_reason ||
+        "Verified from the connected Shopify catalog.",
+      website_product_source_url:
+        payload?.sourceUrl ||
+        brandProfile.website_product_source_url ||
+        brandProfile.website_url ||
+        "",
+      shopify_product_mode_source: payload?.source || "shopify_admin_api",
+    };
+  } catch (error) {
+    console.warn("Could not verify Shopify-backed product mode in AI Content Studio", error);
+    return brandProfile;
+  }
+}
+
 async function loadRules() {
     setLoading(true);
 
@@ -8842,13 +8885,17 @@ if (brandProfileError) {
   setMessage(brandProfileError.message);
   setCurrentBrandProfile(null);
 } else {
-  setCurrentBrandProfile(brandProfileData || null);
-  const brandDefaultPostLanguage = brandProfileData?.content_language
-    ? normalizeSingleContentLanguage(brandProfileData.content_language, "English")
+  const effectiveBrandProfileData = await resolveProductModeForBrand(
+    selectedBrandId,
+    brandProfileData || null
+  );
+  setCurrentBrandProfile(effectiveBrandProfileData || null);
+  const brandDefaultPostLanguage = effectiveBrandProfileData?.content_language
+    ? normalizeSingleContentLanguage(effectiveBrandProfileData.content_language, "English")
     : "English";
   setLanguage(brandDefaultPostLanguage);
   setLanguageExplicitlyChosen(false);
-  setOfferCurrency(inferOfferCurrency(brandProfileData, locale));
+  setOfferCurrency(inferOfferCurrency(effectiveBrandProfileData, locale));
   setFocusSource(null);
   setFocusSourceInput("");
   setFocusSourceError("");
@@ -8862,13 +8909,13 @@ if (brandProfileError) {
 
       return {
         ...slot,
-        includeLogo: Boolean(brandProfileData?.logo_url) && brandProfileData?.logo_enabled_by_default !== false,
+        includeLogo: Boolean(effectiveBrandProfileData?.logo_url) && effectiveBrandProfileData?.logo_enabled_by_default !== false,
       };
     })
   );
 
   const brandAllowsWebsiteProductMode = Boolean(
-    brandProfileData?.website_product_mode_available
+    effectiveBrandProfileData?.website_product_mode_available
   );
 
   if (!brandAllowsWebsiteProductMode) {

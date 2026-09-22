@@ -17,6 +17,7 @@ import {
   getPerformanceLearningContentTypeAdjustment,
   loadBrandPerformancePlanningContext,
 } from "../../../lib/performanceLearning.js";
+import { enrichBrandProfileWithEffectiveProductMode } from "../../../lib/effectiveProductMode.js";
 
 export const maxDuration = 60;
 
@@ -546,6 +547,14 @@ export async function POST(request) {
     if (brandError || !brandProfile) {
       return Response.json({ error: brandError?.message || "Brand not found." }, { status: 404 });
     }
+
+    const { brandProfile: effectiveBrandProfile } = await enrichBrandProfileWithEffectiveProductMode({
+      brandProfile,
+      brandProfileId,
+      userId: user.id,
+      persist: true,
+    });
+    if (effectiveBrandProfile) Object.assign(brandProfile, effectiveBrandProfile);
 
     const selectedPlatforms = normalizeSpreeloPlatformList(
       Array.isArray(platforms) && platforms.length ? platforms : platform
