@@ -140,7 +140,11 @@ import {
   escapeProductSvg,
   layoutProductTitle,
 } from "../../../../lib/globalProductTypography.js";
-import { fetchShopifyProductEngineCatalog } from "../../../../lib/shopifyProductCatalog.js";
+import {
+  ensureShopifyFullCatalogSync,
+  fetchShopifyProductEngineCatalog,
+  markShopifyFullCatalogSyncIngested,
+} from "../../../../lib/shopifyProductCatalog.js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18472,11 +18476,15 @@ async function syncShopifyCatalogForProductEngine({
   maxProducts = 120,
 }) {
   const brandProfileId = rule?.brand_profile_id || brandProfile?.id || null;
+  const catalogUserId = rule?.user_id || brandProfile?.user_id || null;
   if (!supabase || !brandProfileId || !websiteUrl) {
     return { connected: false, items: [], diagnostics: { reason: "missing_context" } };
   }
 
   try {
+    // Keep the exact pre-v144.251 fast probe first. Non-Shopify brands stop here
+    // with the same behavior as before; the full-catalog branch below is entered
+    // only after this existing helper confirms an active Shopify connection.
     const result = await fetchShopifyProductEngineCatalog({
       supabaseAdmin: supabase,
       brandProfileId,
@@ -18492,10 +18500,120 @@ async function syncShopifyCatalogForProductEngine({
         }))
       : [];
 
+    let fullCatalogSync = null;
+
+    // v144.251: Shopify keeps the 120-item synchronous window as a fast/current
+    // bootstrap, but it is no longer the merchant's catalog ceiling. Shopify's
+    // Bulk Operations API asynchronously indexes the full active + published
+    // catalog into Spreelo's existing product catalog. This runs only after the
+    // existing Shopify probe has confirmed a connected Shopify merchant.
+    if (result?.connected === true) {
+      try {
+        fullCatalogSync = await ensureShopifyFullCatalogSync({
+          supabaseAdmin: supabase,
+          brandProfileId,
+          startIfNeeded: true,
+          pollExisting: true,
+        });
+
+        const fullCatalogItems = Array.isArray(fullCatalogSync?.items)
+          ? fullCatalogSync.items.map((item) => ({
+              ...item,
+              source_url: websiteUrl,
+              selection_priority: Math.max(Number(item?.selection_priority || 0), 500),
+              campaign_fit_source: item?.campaign_fit_source || "shopify_admin_api",
+            }))
+          : [];
+
+        if (
+          fullCatalogSync?.status === "downloaded" &&
+          fullCatalogSync?.operationId &&
+          catalogUserId
+        ) {
+          const batchSize = 150;
+          for (let offset = 0; offset < fullCatalogItems.length; offset += batchSize) {
+            await upsertWebsiteProductCatalogItems({
+              supabase,
+              userId: catalogUserId,
+              brandProfileId,
+              sourceUrl: websiteUrl,
+              items: fullCatalogItems.slice(offset, offset + batchSize),
+              discoverySource: "shopify_admin_api",
+            });
+          }
+
+          const syncStartedAt = fullCatalogSync?.startedAt || null;
+          if (syncStartedAt) {
+            let verificationQuery = supabase
+              .from("website_product_catalog")
+              .select("id", { count: "exact", head: true })
+              .eq("brand_profile_id", brandProfileId)
+              .eq("discovery_source", "shopify_admin_api")
+              .gte("last_seen_at", syncStartedAt);
+            if (catalogUserId) verificationQuery = verificationQuery.eq("user_id", catalogUserId);
+            const { count: ingestedCount, error: verificationError } = await verificationQuery;
+            if (verificationError || Number(ingestedCount || 0) < fullCatalogItems.length) {
+              throw new Error(
+                verificationError?.message ||
+                `Shopify full catalog ingestion verification failed (${Number(ingestedCount || 0)}/${fullCatalogItems.length})`
+              );
+            }
+          }
+
+          // Because the bulk query is a complete snapshot of active products that
+          // Shopify says are published to Online Store, old Shopify-only catalog
+          // rows not seen in this snapshot can safely be retired after ingestion.
+          if (syncStartedAt) {
+            let staleQuery = supabase
+              .from("website_product_catalog")
+              .update({ is_active: false, updated_at: new Date().toISOString() })
+              .eq("brand_profile_id", brandProfileId)
+              .eq("discovery_source", "shopify_admin_api")
+              .or(`last_seen_at.lt.${syncStartedAt},last_seen_at.is.null`);
+            if (catalogUserId) staleQuery = staleQuery.eq("user_id", catalogUserId);
+            const { error: staleError } = await staleQuery;
+            if (staleError) {
+              console.warn("Could not retire stale Shopify catalog rows after full sync", {
+                brandProfileId,
+                message: staleError.message,
+                code: staleError.code,
+              });
+            }
+          }
+
+          await markShopifyFullCatalogSyncIngested({
+            supabaseAdmin: supabase,
+            brandProfileId,
+            operationId: fullCatalogSync.operationId,
+            productCount: fullCatalogItems.length,
+          });
+
+          console.log("Shopify full product catalog indexed from Admin Bulk API", {
+            ruleId: rule?.id || null,
+            brandProfileId,
+            websiteUrl,
+            shopDomain: fullCatalogSync?.shopDomain || null,
+            productCount: fullCatalogItems.length,
+            rootProductCount: fullCatalogSync?.diagnostics?.rootProductCount || 0,
+            variantObjectCount: fullCatalogSync?.diagnostics?.variantObjectCount || 0,
+            productDiscoveryPath: "shopify_admin_bulk_api_full_catalog",
+          });
+        }
+      } catch (fullCatalogError) {
+        console.warn("Shopify full catalog indexing unavailable; fast Shopify catalog path remains active", {
+          ruleId: rule?.id || null,
+          brandProfileId,
+          websiteUrl,
+          message: fullCatalogError?.message || String(fullCatalogError),
+          productDiscoveryPath: "shopify_admin_api_fast_window",
+        });
+      }
+    }
+
     if (result?.connected && items.length) {
       await upsertWebsiteProductCatalogItems({
         supabase,
-        userId: rule?.user_id,
+        userId: catalogUserId,
         brandProfileId,
         sourceUrl: websiteUrl,
         items,
@@ -18510,6 +18628,11 @@ async function syncShopifyCatalogForProductEngine({
         productCount: items.length,
         fetchedProductCount: result?.diagnostics?.fetchedProductCount || 0,
         pageCount: result?.diagnostics?.pageCount || 0,
+        fullCatalogSyncStatus: fullCatalogSync?.status || null,
+        fullCatalogIndexedCount:
+          Number(fullCatalogSync?.diagnostics?.productCount || 0) ||
+          Number(fullCatalogSync?.diagnostics?.eligibleProductCount || 0) ||
+          null,
         productDiscoveryPath: "shopify_admin_api_primary",
       });
     }
@@ -18517,6 +18640,16 @@ async function syncShopifyCatalogForProductEngine({
     return {
       ...result,
       items,
+      fullCatalogSync: fullCatalogSync
+        ? {
+            status: fullCatalogSync.status || null,
+            supported: fullCatalogSync.supported !== false,
+            productCount:
+              Number(fullCatalogSync?.diagnostics?.productCount || 0) ||
+              Number(fullCatalogSync?.diagnostics?.eligibleProductCount || 0) ||
+              null,
+          }
+        : null,
     };
   } catch (error) {
     console.warn("Shopify Product Engine catalog refresh failed; website discovery remains available as fallback", {
