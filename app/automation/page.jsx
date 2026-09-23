@@ -12833,7 +12833,7 @@ function blockFormatCardClickAfterDrag(event) {
                     <button
                       type="button"
                       onClick={savePlan}
-                      disabled={saving || !hasEnoughCredits || !slots.length}
+                      disabled={saving || !slots.length}
                     >
                       {saving ? <LoaderCircle size={17} className="spreelo-saving-spinner" aria-hidden="true" /> : <Rocket size={17} />}
                       <span>{saving ? t("automation.savingWorkingV14458") : t("automation.startActivatePlan")}</span>
@@ -12865,7 +12865,7 @@ function blockFormatCardClickAfterDrag(event) {
                       {savedPlanSummary ? (
                         <a className="campaign-v14335-primary" href="/calendar"><CheckCircle2 /> {t("automation.planSaved")}</a>
                       ) : (
-                        <button type="button" className="campaign-v14335-primary" onClick={savePlan} disabled={saving || !hasEnoughCredits || !executableSlots.length}>
+                        <button type="button" className="campaign-v14335-primary" onClick={savePlan} disabled={saving || !executableSlots.length}>
                           {saving ? <LoaderCircle className="spreelo-saving-spinner" aria-hidden="true" /> : <Sparkles />} <span>{saving ? t("automation.savingWorkingV14458") : t("automation.campaignExperience.activate")}</span>{saving ? <span className="spreelo-saving-dots" aria-hidden="true"><i /><i /><i /></span> : null}
                         </button>
                       )}
@@ -13070,7 +13070,7 @@ function blockFormatCardClickAfterDrag(event) {
 
                 <section className="campaign-v14335-activate">
                   <div><h2>{savedPlanSummary ? t("automation.planSaved") : t("automation.campaignExperience.readyTitle")}</h2><p>{savedPlanSummary ? t("automation.automationPlanReady") : t("automation.campaignExperience.readyText")}</p></div>
-                  {savedPlanSummary ? <a href="/calendar"><CheckCircle2 /> {t("automation.viewContentPlans")}</a> : <button type="button" onClick={savePlan} disabled={saving || !hasEnoughCredits || !executableSlots.length}>{saving ? <LoaderCircle className="spreelo-saving-spinner" aria-hidden="true" /> : <Sparkles />} <span>{saving ? t("automation.savingWorkingV14458") : t("automation.campaignExperience.activateNow")}</span>{saving ? <span className="spreelo-saving-dots" aria-hidden="true"><i /><i /><i /></span> : null}</button>}
+                  {savedPlanSummary ? <a href="/calendar"><CheckCircle2 /> {t("automation.viewContentPlans")}</a> : <button type="button" onClick={savePlan} disabled={saving || !executableSlots.length}>{saving ? <LoaderCircle className="spreelo-saving-spinner" aria-hidden="true" /> : <Sparkles />} <span>{saving ? t("automation.savingWorkingV14458") : t("automation.campaignExperience.activateNow")}</span>{saving ? <span className="spreelo-saving-dots" aria-hidden="true"><i /><i /><i /></span> : null}</button>}
                   {message ? <p className="campaign-v14335-message">{message}</p> : null}
                 </section>
 
@@ -14300,7 +14300,7 @@ function blockFormatCardClickAfterDrag(event) {
         type="button"
         className="planner-save-button"
         onClick={savePlan}
-        disabled={saving || !hasEnoughCredits}
+        disabled={saving}
       >
         {saving ? <LoaderCircle size={17} className="spreelo-saving-spinner" aria-hidden="true" /> : null}
         <span>{saving ? t("automation.savingWorkingV14458") : t("automation.startActivatePlan")}</span>

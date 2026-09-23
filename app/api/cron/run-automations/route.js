@@ -20543,7 +20543,9 @@ function stripDefaultWebsiteTextPromptNoise(value) {
     .replace(/the caption should work together with a product-specific ad image\.?/gi, " ")
     .replace(/create a full ad-style image around the selected website item\.?/gi, " ")
     .replace(/use the real website item image as the basis when possible, and design a unique social media ad that fits that exact product\.?/gi, " ")
-    .replace(/include short readable marketing text in the image, but do not include price, discounts or ratings\.?/gi, " ")
+    .replace(/include short readable marketing text in the image(?:, but do not include price, discounts or ratings)?\.?/gi, " ")
+    .replace(/do not include price, ratings or invented discounts\.?/gi, " ")
+    .replace(/but never invent price, rating or discount\.?/gi, " ")
     .replace(/use only information that clearly appears on the website\.?/gi, " ")
     .replace(/do not invent prices, discounts, guarantees, opening hours, features or availability\.?/gi, " ")
     .replace(/use a relevant image connected to the selected website item if one can be found\.?/gi, " ")
@@ -33178,6 +33180,7 @@ async function prepareWebsiteContentForRule({
   let storeMapSingleProductResult = null;
   if (
     STORE_MAP_PRODUCT_AGENT_ENABLED &&
+    !hasShopifyPrimaryCatalog &&
     !websiteAccessProtected &&
     (productIntentScoped || isProductContentTypeRule(rule))
   ) {
@@ -33444,6 +33447,61 @@ async function prepareWebsiteContentForRule({
         fallbackReason: productResearchFallbackReason,
         message: error?.message || String(error),
       });
+    }
+  }
+
+
+  // v144.253: Shopify Admin API products are already identity-, image- and
+  // stock-verified. If the best campaign-fit Shopify product was used recently,
+  // prefer a controlled rotation reuse instead of abandoning the authoritative
+  // catalog and crawling a password-protected/public storefront. This remains
+  // campaign-fit gated, so an unrelated Shopify product is never forced in.
+  if (hasShopifyPrimaryCatalog && productIntentScoped && !websiteAccessProtected) {
+    const acceptableShopifyCampaignItems = sortedCatalogItems.filter(
+      (item) =>
+        isShopifyAdminApiLockedProduct(item) &&
+        isAcceptableWebsiteTextProductSelection(item, rule)
+    );
+
+    if (acceptableShopifyCampaignItems.length) {
+      const shopifyRotationSelection = await chooseUnusedWebsiteItem({
+        supabase,
+        userId: rule.user_id,
+        brandProfileId: rule.brand_profile_id,
+        sourceUrl: websiteUrl,
+        contentType,
+        items: acceptableShopifyCampaignItems,
+        rule,
+        usedWebsiteImageUrlsThisRun,
+        recentUsedItems,
+        allowReuseWhenExhausted: true,
+      });
+
+      if (shopifyRotationSelection?.item) {
+        const preparedShopifyItem = await finalizePreparedWebsiteItem(
+          shopifyRotationSelection.item,
+          shopifyRotationSelection.cycleNumber,
+          { allowAiRepair: false }
+        );
+
+        console.log("Shopify Product Engine reused a verified campaign-fit product after recent-history exhaustion", {
+          ruleId: rule.id,
+          brandProfileId: rule.brand_profile_id,
+          websiteUrl,
+          productDiscoveryPath: "shopify_admin_api_rotation_reuse",
+          fallbackReason: null,
+          paidWebResearchUsed: false,
+          productUrl: preparedShopifyItem?.websiteItem?.url || shopifyRotationSelection.item.url,
+          title: preparedShopifyItem?.websiteItem?.title || shopifyRotationSelection.item.title,
+          catalogCount: acceptableShopifyCampaignItems.length,
+          recentUsedCount: recentUsedItems.length,
+          startedNewCycle: shopifyRotationSelection.startedNewCycle === true,
+        });
+
+        summary.website_items_found += 1;
+        summary.website_content_success += 1;
+        return preparedShopifyItem;
+      }
     }
   }
 
