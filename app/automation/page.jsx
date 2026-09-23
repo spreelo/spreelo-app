@@ -9833,8 +9833,12 @@ async function applyDynamicAutoPlan({ goalId, postCount }) {
   });
 
   const platformSignature = activePlatformKeys.join("-") || "no-platform";
+  // Product/service availability changes the set of formats the planner may use.
+  // Keep that capability state in the cache identity so a brand that becomes
+  // verified never reuses a recommendation created before those formats existed.
+  const capabilitySignature = `products-${websiteProductModeAvailable ? 1 : 0}_services-${verifiedServiceModeAvailable ? 1 : 0}`;
   const cacheKey = currentBrandId && goalId
-    ? `spreelo_plan_recommendation_${currentBrandId}_${goalId}_${safePostCount}_${platformSignature}`
+    ? `spreelo_plan_recommendation_${currentBrandId}_${goalId}_${safePostCount}_${platformSignature}_${capabilitySignature}`
     : "";
   let instantSlots = fallbackSlots;
 
