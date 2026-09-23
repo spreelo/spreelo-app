@@ -4287,13 +4287,26 @@ function getRuleContentSourceUrl(rule) {
   return normalizeWebsiteUrl(rule?.content_source_url || "");
 }
 
+function isAiProductVideoRule(rule) {
+  return String(rule?.content_type_id || "").trim() === "ai_product_video";
+}
+
 function isProductContentTypeRule(rule) {
-  return [
+  const contentTypeId = String(rule?.content_type_id || "").trim();
+  if ([
     "website_item",
     "website_item_text_ad",
     "animated_website_item",
     "carousel_website_item",
-  ].includes(String(rule?.content_type_id || "").trim());
+  ].includes(contentTypeId)) {
+    return true;
+  }
+
+  // v144.250: AI Product Video keeps its pre-v144.249 behavior for every
+  // non-Shopify brand. It is promoted into the Product Engine path only after
+  // this exact rule has been confirmed against an active Shopify app
+  // connection. This keeps the Shopify fix isolated from ordinary websites.
+  return contentTypeId === "ai_product_video" && rule?.shopify_product_engine_connected === true;
 }
 
 function getWebsiteProductSourceUrl(brandProfile, rule = null) {
@@ -32603,9 +32616,11 @@ async function prepareWebsiteContentForRule({
   // real catalog from the Admin API before attempting any public-web product
   // discovery. Explicit customer-selected product/category URLs keep their
   // existing focused behavior; whole-store product content gets the API-first path.
+  const shouldProbeShopifyForAiProductVideo =
+    contentSourceScope === "whole_website" && isAiProductVideoRule(rule);
   const shopifyCatalogSync =
     contentSourceScope === "whole_website" &&
-    (productIntentScoped || isProductContentTypeRule(rule))
+    (productIntentScoped || isProductContentTypeRule(rule) || shouldProbeShopifyForAiProductVideo)
       ? await syncShopifyCatalogForProductEngine({
           supabase,
           rule,
@@ -32614,6 +32629,16 @@ async function prepareWebsiteContentForRule({
           maxProducts: 120,
         })
       : { connected: false, items: [], diagnostics: { reason: "scope_not_eligible" } };
+
+  // The connection lookup above is the only extra probe required to
+  // distinguish an app-connected Shopify brand from an ordinary website. Once
+  // confirmed, downstream Product Engine gates may treat AI Product Video as a
+  // product format. A non-Shopify brand never gets this marker and therefore
+  // follows exactly the pre-v144.249 execution path.
+  if (isAiProductVideoRule(rule) && shopifyCatalogSync?.connected === true) {
+    rule.shopify_product_engine_connected = true;
+  }
+
   const shopifyCatalogItems = Array.isArray(shopifyCatalogSync?.items)
     ? shopifyCatalogSync.items
     : [];
