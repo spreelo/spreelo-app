@@ -1,0 +1,13 @@
+# Copy these webhook sections into the linked Shopify CLI project's shopify.app.toml.
+# Keep the existing client_id, application_url, redirect_urls, scopes and embedded settings.
+
+[webhooks]
+api_version = "2026-07"
+
+[[webhooks.subscriptions]]
+topics = ["app/uninstalled"]
+uri = "https://app.spreelo.com/api/shopify/webhooks"
+
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+uri = "https://app.spreelo.com/api/shopify/webhooks"
