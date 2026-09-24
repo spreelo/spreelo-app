@@ -14,6 +14,7 @@ import {
   getBearerToken,
   verifyShopifyIdToken,
 } from "../../../../../lib/shopifyEmbeddedAuth.js";
+import { selectExactShopifyBrand } from "../../../../../lib/shopifyBrandIsolation.js";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,31 @@ async function loadSupabaseUserEmail(admin, userId) {
   return normalizeEmail(data?.user?.email);
 }
 
+async function loadExactShopifyBrandForUser(admin, { userId, shopDomain, preferredBrandProfileId = "" }) {
+  const { data: brands, error: brandError } = await admin
+    .from("brand_profiles")
+    .select("id,business_name,website_url,is_default,created_at,campaign_calendar_generated_at")
+    .eq("user_id", userId);
+  if (brandError) throw brandError;
+  const brandRows = brands || [];
+
+  const { data: webRows, error: webError } = brandRows.length
+    ? await admin
+        .from("brand_web_data_connections")
+        .select("brand_profile_id,website_url,detected_signals")
+        .eq("user_id", userId)
+        .in("brand_profile_id", brandRows.map((brand) => brand.id))
+    : { data: [], error: null };
+  if (webError) throw webError;
+
+  return selectExactShopifyBrand({
+    brands: brandRows,
+    webConnections: webRows || [],
+    shopDomain,
+    preferredBrandProfileId,
+  });
+}
+
 export async function POST(request) {
   const env = getShopifyEnv();
   if (!env.clientId || !env.clientSecret || env.scopes.length === 0) {
@@ -138,7 +164,7 @@ export async function POST(request) {
       .maybeSingle();
     if (connectionError) throw connectionError;
 
-    if (existingConnection?.id && existingConnection?.user_id && existingConnection?.brand_profile_id) {
+    if (existingConnection?.id && existingConnection?.user_id) {
       const spreeloEmail = await loadSupabaseUserEmail(admin, existingConnection.user_id);
       // A Shopify store must never silently grant a different staff identity access
       // to the owner's complete Spreelo account. Team/staff delegation can be added
@@ -151,30 +177,57 @@ export async function POST(request) {
         }, { status: 403 });
       }
 
-      await saveShopifyConnection({
-        supabaseAdmin: admin,
+      const exactBrandSelection = await loadExactShopifyBrandForUser(admin, {
         userId: existingConnection.user_id,
-        brandProfileId: existingConnection.brand_profile_id,
-        shop: identity.shop,
-        token: offlineToken,
-      });
-      const tokenHash = await generateSupabaseTokenHash(admin, {
-        email: spreeloEmail,
-        signupSource: existingConnection.install_source || "shopify_embedded",
-        shop: identity.shop,
+        shopDomain: identity.shop,
+        preferredBrandProfileId: existingConnection.brand_profile_id || "",
       });
 
-      return noStoreJson({
-        ok: true,
-        mode: "existing",
-        token_hash: tokenHash,
-        verification_type: "email",
-        brand_profile_id: existingConnection.brand_profile_id,
-        shop: {
-          domain: identity.shop,
-          name: String(shopDetails?.name || identity.shop.split(".")[0] || "Shopify Store").trim(),
-          primary_domain: String(shopDetails?.primaryDomain?.url || "").trim(),
-        },
+      if (exactBrandSelection.match?.id) {
+        const resolvedBrandProfileId = exactBrandSelection.match.id;
+        if (resolvedBrandProfileId !== existingConnection.brand_profile_id) {
+          console.warn("Shopify embedded shop-to-brand mapping repaired", {
+            shopDomain: identity.shop,
+            previousBrandProfileId: existingConnection.brand_profile_id || null,
+            resolvedBrandProfileId,
+          });
+        }
+
+        await saveShopifyConnection({
+          supabaseAdmin: admin,
+          userId: existingConnection.user_id,
+          brandProfileId: resolvedBrandProfileId,
+          shop: identity.shop,
+          token: offlineToken,
+        });
+        const tokenHash = await generateSupabaseTokenHash(admin, {
+          email: spreeloEmail,
+          signupSource: existingConnection.install_source || "shopify_embedded",
+          shop: identity.shop,
+        });
+
+        return noStoreJson({
+          ok: true,
+          mode: "existing",
+          token_hash: tokenHash,
+          verification_type: "email",
+          brand_profile_id: resolvedBrandProfileId,
+          shop: {
+            domain: identity.shop,
+            name: String(shopDetails?.name || identity.shop.split(".")[0] || "Shopify Store").trim(),
+            primary_domain: String(shopDetails?.primaryDomain?.url || "").trim(),
+          },
+        });
+      }
+
+      // A legacy/stale connection can point at a brand owned by the same Spreelo
+      // account but belonging to another Shopify shop. Do not auto-login to it.
+      // Continue through isolated onboarding, which will reuse only an exact
+      // myshopify match or create a dedicated brand for this shop.
+      console.warn("Shopify embedded shop-to-brand mismatch detected; isolated onboarding required", {
+        shopDomain: identity.shop,
+        previousBrandProfileId: existingConnection.brand_profile_id || null,
+        exactMatchCount: exactBrandSelection.matches.length,
       });
     }
 

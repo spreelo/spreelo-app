@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   createSupabaseAdminClient,
-  normalizeHostname,
   saveShopifyConnection,
 } from "../../../../../lib/shopifyOAuth.js";
+import {
+  brandMatchesExactShopifyShop,
+  selectExactShopifyBrand,
+} from "../../../../../lib/shopifyBrandIsolation.js";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +44,33 @@ function noStoreJson(payload, init = {}) {
   const response = NextResponse.json(payload, init);
   response.headers.set("Cache-Control", "no-store");
   return response;
+}
+
+async function clearLegacyAppStoreWebBinding(admin, { userId, brandProfileId, shopDomain }) {
+  const staleBrandId = String(brandProfileId || "").trim();
+  const normalizedShop = String(shopDomain || "").trim().toLowerCase();
+  if (!staleBrandId || !normalizedShop) return false;
+
+  const { data: row, error } = await admin
+    .from("brand_web_data_connections")
+    .select("brand_profile_id,detected_signals")
+    .eq("user_id", userId)
+    .eq("brand_profile_id", staleBrandId)
+    .maybeSingle();
+  if (error) throw error;
+
+  const signals = row?.detected_signals || {};
+  const signalShop = String(signals?.shop_domain || "").trim().toLowerCase();
+  const appStoreDerived = String(signals?.install_source || "").trim() === "shopify_app_store";
+  if (!row?.brand_profile_id || !appStoreDerived || signalShop !== normalizedShop) return false;
+
+  const { error: deleteError } = await admin
+    .from("brand_web_data_connections")
+    .delete()
+    .eq("user_id", userId)
+    .eq("brand_profile_id", staleBrandId);
+  if (deleteError) throw deleteError;
+  return true;
 }
 
 async function ensureStandardSpreeloAccountState(admin, userId) {
@@ -170,29 +200,51 @@ export async function POST(request) {
           .in("brand_profile_id", brandRows.map((brand) => brand.id))
       : { data: [] };
 
-    const targetHosts = new Set([
-      normalizeHostname(onboarding.shop_domain),
-      normalizeHostname(onboarding.primary_domain),
-    ].filter(Boolean));
-    const webByBrand = new Map((webRows || []).map((row) => [row.brand_profile_id, row]));
-    const exactMatches = brandRows.filter((brand) => {
-      const web = webByBrand.get(brand.id);
-      const candidates = [
-        normalizeHostname(brand.website_url),
-        normalizeHostname(web?.website_url),
-        normalizeHostname(web?.detected_signals?.shop_domain),
-      ].filter(Boolean);
-      return candidates.some((host) => targetHosts.has(host));
+    const webByBrand = new Map((webRows || []).map((row) => [String(row.brand_profile_id), row]));
+    const exactBrandSelection = selectExactShopifyBrand({
+      brands: brandRows,
+      webConnections: webRows || [],
+      shopDomain: onboarding.shop_domain,
+      preferredBrandProfileId: existingConnection?.brand_profile_id || "",
     });
+    const exactMatches = exactBrandSelection.matches;
 
     let selectedBrand = null;
     let createdBrand = false;
 
     if (requestedBrandId) {
-      selectedBrand = brandRows.find((brand) => brand.id === requestedBrandId) || null;
-      if (!selectedBrand) return noStoreJson({ ok: false, error: "INVALID_BRAND_SELECTION" }, { status: 403 });
-    } else if (createNew || brandRows.length === 0) {
-      const websiteUrl = asWebsiteUrl(onboarding.primary_domain, onboarding.shop_domain);
+      const requestedBrand = brandRows.find((brand) => brand.id === requestedBrandId) || null;
+      if (!requestedBrand) return noStoreJson({ ok: false, error: "INVALID_BRAND_SELECTION" }, { status: 403 });
+      const requestedWeb = webByBrand.get(String(requestedBrand.id)) || null;
+      if (!brandMatchesExactShopifyShop({
+        brand: requestedBrand,
+        webConnection: requestedWeb,
+        shopDomain: onboarding.shop_domain,
+      })) {
+        return noStoreJson({ ok: false, error: "SHOPIFY_BRAND_DOMAIN_MISMATCH" }, { status: 409 });
+      }
+      selectedBrand = requestedBrand;
+    } else if (exactBrandSelection.match) {
+      selectedBrand = exactBrandSelection.match;
+    } else if (exactMatches.length > 1) {
+      // Legacy duplicate brands may both carry the same exact myshopify identity.
+      // Never guess between them; only expose exact-shop matches for explicit choice.
+      return noStoreJson({
+        ok: true,
+        needs_brand_selection: true,
+        shop: {
+          domain: onboarding.shop_domain,
+          name: onboarding.shop_name || "Shopify Store",
+          primary_domain: onboarding.primary_domain || "",
+        },
+        brands: exactMatches.map(publicBrand),
+        allow_create_new: false,
+      });
+    } else {
+      // App Store installs are isolated by the immutable myshopify domain. A new
+      // Shopify shop must never inherit an arbitrary existing Spreelo brand just
+      // because the same user owns both. If no exact identity exists, create one.
+      const websiteUrl = `https://${onboarding.shop_domain}`;
       const { data: newBrand, error: createError } = await admin
         .from("brand_profiles")
         .insert({
@@ -213,25 +265,6 @@ export async function POST(request) {
       if (createError) throw createError;
       selectedBrand = newBrand;
       createdBrand = true;
-    } else if (existingConnection?.brand_profile_id) {
-      selectedBrand = brandRows.find((brand) => brand.id === existingConnection.brand_profile_id) || null;
-    } else if (exactMatches.length === 1) {
-      selectedBrand = exactMatches[0];
-    } else if (brandRows.length === 1 && !String(brandRows[0].website_url || "").trim()) {
-      selectedBrand = brandRows[0];
-    }
-
-    if (!selectedBrand) {
-      return noStoreJson({
-        ok: true,
-        needs_brand_selection: true,
-        shop: {
-          domain: onboarding.shop_domain,
-          name: onboarding.shop_name || "Shopify Store",
-          primary_domain: onboarding.primary_domain || "",
-        },
-        brands: brandRows.map(publicBrand),
-      });
     }
 
     const websiteUrl = asWebsiteUrl(onboarding.primary_domain, onboarding.shop_domain);
@@ -247,6 +280,7 @@ export async function POST(request) {
       selectedBrand = updatedBrand;
     }
 
+    const previousBrandProfileId = String(existingConnection?.brand_profile_id || "").trim();
     await saveShopifyConnection({
       supabaseAdmin: admin,
       userId: user.id,
@@ -260,6 +294,14 @@ export async function POST(request) {
         scopes: onboarding.scopes || [],
       },
     });
+
+    if (previousBrandProfileId && previousBrandProfileId !== selectedBrand.id) {
+      await clearLegacyAppStoreWebBinding(admin, {
+        userId: user.id,
+        brandProfileId: previousBrandProfileId,
+        shopDomain: onboarding.shop_domain,
+      });
+    }
 
     const { data: savedConnection, error: installUpdateError } = await admin.from("shopify_connections").update({
       install_source: "shopify_app_store",

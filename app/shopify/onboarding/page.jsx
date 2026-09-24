@@ -160,6 +160,7 @@ export default function ShopifyOnboardingPage() {
   const [phase, setPhase] = useState("starting");
   const [shop, setShop] = useState(null);
   const [brands, setBrands] = useState([]);
+  const [allowCreateNewBrand, setAllowCreateNewBrand] = useState(true);
   const [message, setMessage] = useState("");
   const [workingBrandId, setWorkingBrandId] = useState("");
   const [pending, setPending] = useState(null);
@@ -451,6 +452,7 @@ export default function ShopifyOnboardingPage() {
     setShop(activeShop);
     if (payload?.needs_brand_selection) {
       setBrands(payload?.brands || []);
+      setAllowCreateNewBrand(payload?.allow_create_new !== false);
       setPhase("select_brand");
       setWorkingBrandId("");
       return;
@@ -697,11 +699,13 @@ export default function ShopifyOnboardingPage() {
                 {workingBrandId === brand.id ? <LoaderCircle className={styles.spin} size={18} /> : <ArrowRight size={18} />}
               </button>
             ))}
-            <button type="button" className={styles.newBrand} onClick={createBrand} disabled={Boolean(workingBrandId)}>
-              <span className={styles.choiceIcon}><Sparkles size={18} /></span>
-              <span><strong>{t("shopifyOnboarding.selectBrand.createTitle")}</strong><small>{t("shopifyOnboarding.selectBrand.createText")}</small></span>
-              {workingBrandId === "new" ? <LoaderCircle className={styles.spin} size={18} /> : <ArrowRight size={18} />}
-            </button>
+            {allowCreateNewBrand ? (
+              <button type="button" className={styles.newBrand} onClick={createBrand} disabled={Boolean(workingBrandId)}>
+                <span className={styles.choiceIcon}><Sparkles size={18} /></span>
+                <span><strong>{t("shopifyOnboarding.selectBrand.createTitle")}</strong><small>{t("shopifyOnboarding.selectBrand.createText")}</small></span>
+                {workingBrandId === "new" ? <LoaderCircle className={styles.spin} size={18} /> : <ArrowRight size={18} />}
+              </button>
+            ) : null}
           </div>
         ) : phase === "consent" || phase === "saving_consent" ? (
           <div className={styles.consentBox}>
