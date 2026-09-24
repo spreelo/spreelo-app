@@ -60,6 +60,8 @@ const analysisProgressStages = [
   },
 ];
 
+const EMBEDDED_SESSION_KEY = "spreelo_shopify_embedded_onboarding_session";
+
 function getCurrentAnalysisStage(progress) {
   return [...analysisProgressStages].reverse().find((stage) => progress >= stage.progress) || analysisProgressStages[0];
 }
@@ -170,6 +172,10 @@ export default function ShopifyOnboardingPage() {
   const queryError = useMemo(() => {
     if (typeof window === "undefined") return "";
     return String(new URLSearchParams(window.location.search).get("error") || "").trim();
+  }, []);
+  const embeddedMode = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("embedded") === "1";
   }, []);
 
   useEffect(() => {
@@ -423,13 +429,20 @@ export default function ShopifyOnboardingPage() {
     setPhase((current) => current === "select_brand" ? "select_brand" : "connecting");
     setMessage("");
 
+    const embeddedSessionId = typeof window !== "undefined"
+      ? String(sessionStorage.getItem(EMBEDDED_SESSION_KEY) || "").trim()
+      : "";
     const response = await fetch("/api/shopify/onboarding/claim", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ brand_profile_id: brandProfileId || undefined, create_new: createNew }),
+      body: JSON.stringify({
+        brand_profile_id: brandProfileId || undefined,
+        create_new: createNew,
+        shopify_onboarding_session_id: embeddedSessionId || undefined,
+      }),
     });
     const payload = await readPayload(response);
     if (!response.ok || payload?.ok === false) throw new Error(payload?.error || t("shopifyOnboarding.error.connect"));
@@ -444,6 +457,9 @@ export default function ShopifyOnboardingPage() {
     }
 
     if (!payload?.brand?.id) throw new Error(t("shopifyOnboarding.error.workspace"));
+    if (typeof window !== "undefined" && embeddedSessionId) {
+      sessionStorage.removeItem(EMBEDDED_SESSION_KEY);
+    }
     const { data: { user } } = await supabase.auth.getUser();
     rememberBrand(user?.id, payload.brand.id);
 
@@ -535,6 +551,16 @@ export default function ShopifyOnboardingPage() {
       }
 
       try {
+        if (embeddedMode) {
+          setPhase("connecting");
+          const embeddedSessionId = String(sessionStorage.getItem(EMBEDDED_SESSION_KEY) || "").trim();
+          if (!embeddedSessionId) throw new Error(t("shopifyOnboarding.error.prepare"));
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) throw new Error(t("shopifyOnboarding.error.sessionExpired"));
+          await finishConnection({ session });
+          return;
+        }
+
         setPhase("signing_in");
         const bootstrapResponse = await fetch("/api/shopify/onboarding/bootstrap", {
           method: "POST",
@@ -570,7 +596,7 @@ export default function ShopifyOnboardingPage() {
     }
 
     run();
-  }, [queryError]);
+  }, [queryError, embeddedMode]);
 
   async function chooseBrand(brandProfileId) {
     try {

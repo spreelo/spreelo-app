@@ -239,7 +239,8 @@
     "test:v144.242": "node scripts/test-v144-242-shopify-hardening-sidebar.mjs",
     "test:v144.243": "node scripts/test-v144-243-shopify-product-engine.mjs",
     "test:v144.244": "node scripts/test-v144-244-free-social-entitlement.mjs",
-    "test:v144.245": "node scripts/test-v144-245-admin-scheduling-trial-ui.mjs"
+    "test:v144.245": "node scripts/test-v144-245-admin-scheduling-trial-ui.mjs",
+    "test:v144.254": "node scripts/test-v144-254-shopify-embedded-app-bridge.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

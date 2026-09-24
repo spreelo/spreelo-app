@@ -98,10 +98,14 @@ export async function POST(request) {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user?.id) return noStoreJson({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    const sessionId = String(request.cookies.get("spreelo_shopify_onboarding")?.value || "").trim();
+    const body = await request.json().catch(() => ({}));
+    const sessionId = String(
+      body?.shopify_onboarding_session_id ||
+      request.cookies.get("spreelo_shopify_onboarding")?.value ||
+      ""
+    ).trim();
     if (!sessionId) return noStoreJson({ ok: false, error: "SHOPIFY_ONBOARDING_SESSION_MISSING" }, { status: 401 });
 
-    const body = await request.json().catch(() => ({}));
     const requestedBrandId = String(body?.brand_profile_id || "").trim();
     const createNew = Boolean(body?.create_new);
     const admin = createSupabaseAdminClient();
