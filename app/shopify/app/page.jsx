@@ -55,6 +55,25 @@ async function bootstrapEmbeddedShopify() {
   throw new Error(lastPayload?.message || lastPayload?.error || "Could not authenticate Shopify session.");
 }
 
+async function syncReturnedShopifyPlan(session, planHandle) {
+  const normalized = String(planHandle || "").trim();
+  if (!normalized || !session?.access_token) return null;
+  const response = await fetch("/api/shopify/billing/sync", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ planHandle: normalized }),
+    cache: "no-store",
+  });
+  const payload = await readPayload(response);
+  if (!response.ok || !payload?.ok) {
+    throw new Error(payload?.error || "Shopify confirmed the plan, but Spreelo could not synchronize billing.");
+  }
+  return payload?.shopify || null;
+}
+
 export default function ShopifyEmbeddedAppPage() {
   const { t } = useUiText(["shopifyOnboarding"]);
   const [message, setMessage] = useState("");
@@ -66,6 +85,7 @@ export default function ShopifyEmbeddedAppPage() {
 
     async function run() {
       try {
+        const planHandle = new URLSearchParams(window.location.search).get("plan_handle") || "";
         const bootstrap = await bootstrapEmbeddedShopify();
         if (!bootstrap?.token_hash) throw new Error(t("shopifyOnboarding.error.sessionCreate"));
 
@@ -83,7 +103,12 @@ export default function ShopifyEmbeddedAppPage() {
           localStorage.setItem("spreelo_current_brand_id", bootstrap.brand_profile_id);
           localStorage.setItem("spreelo_selected_brand_id", bootstrap.brand_profile_id);
           sessionStorage.removeItem(EMBEDDED_SESSION_KEY);
-          window.location.replace("/?shopify=embedded");
+          if (planHandle) {
+            await syncReturnedShopifyPlan(authData.session, planHandle);
+            window.location.replace("/settings?tab=billing&shopify=pricing-updated");
+          } else {
+            window.location.replace("/?shopify=embedded");
+          }
           return;
         }
 

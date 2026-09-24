@@ -1,0 +1,9 @@
+html body .settings-reference-page .stripe-trial-banner .shopify-billing-manage-button {
+  margin-left:auto; flex:0 0 auto; align-self:center; border:1px solid #b9dcca; background:#fff; color:#246a4b;
+  border-radius:10px; padding:8px 11px; font-size:11px; font-weight:800; cursor:pointer;
+}
+html body .settings-reference-page .stripe-trial-banner .shopify-billing-manage-button:hover { background:#f2fbf6; }
+@media(max-width:640px){
+  html body .settings-reference-page .stripe-trial-banner { flex-wrap:wrap; }
+  html body .settings-reference-page .stripe-trial-banner .shopify-billing-manage-button { width:100%; margin-left:0; justify-content:center; }
+}

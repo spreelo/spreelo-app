@@ -13,10 +13,20 @@ function isAuthorizedCron(request) {
 export async function GET(request) {
   if (!isAuthorizedCron(request)) return Response.json({ ok: false, error: "Unauthorized." }, { status: 401 });
   const admin = getServerSupabase();
-  const { data, error } = await admin.rpc("refresh_due_annual_subscription_credits", { p_limit: 500 });
+  const [stripeResult, shopifyResult] = await Promise.all([
+    admin.rpc("refresh_due_annual_subscription_credits", { p_limit: 500 }),
+    admin.rpc("refresh_due_shopify_annual_subscription_credits", { p_limit: 500 }),
+  ]);
+  const error = stripeResult.error || shopifyResult.error;
   if (error) {
     console.error("Annual subscription credit refresh failed", { message: error.message });
     return Response.json({ ok: false, error: error.message }, { status: 500 });
   }
-  return Response.json({ ok: true, ...(data || {}) });
+  return Response.json({
+    ok: true,
+    stripe: stripeResult.data || {},
+    shopify: shopifyResult.data || {},
+    refreshed_accounts: Number(stripeResult.data?.refreshed_accounts || 0) + Number(shopifyResult.data?.refreshed_accounts || 0),
+    credits_granted: Number(stripeResult.data?.credits_granted || 0) + Number(shopifyResult.data?.credits_granted || 0),
+  });
 }

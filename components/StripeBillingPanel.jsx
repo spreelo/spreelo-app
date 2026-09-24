@@ -71,6 +71,7 @@ function formatDate(value, locale = "en") {
 export default function StripeBillingPanel({ initialBalance = null, onBalanceChange }) {
   const { t, locale } = useUiText(["settings"]);
   const [billing, setBilling] = useState(initialBalance);
+  const [billingMeta, setBillingMeta] = useState({ provider: initialBalance?.payment_provider || "", shopify: null });
   const [freeTrialInfo, setFreeTrialInfo] = useState(null);
   const [interval, setInterval] = useState("month");
   const [intervalTouched, setIntervalTouched] = useState(false);
@@ -95,6 +96,20 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
     stripeSubscriptionStatus === "active"
   );
   const canChangePlan = stripeSubscriptionStatus === "active" && hasStripeSubscription;
+  const isShopifyBilling = billingMeta?.provider === "shopify";
+  const shopifyProviderConflict = Boolean(billingMeta?.shopify?.providerConflict);
+  const shopifyPricingUnavailable = Boolean(
+    isShopifyBilling &&
+    (billingMeta?.shopify?.configured === false || billingMeta?.shopify?.available === false)
+  );
+  const hasShopifySubscription = Boolean(
+    isShopifyBilling &&
+    billing?.payment_provider === "shopify" &&
+    currentPlan !== "free" &&
+    ["active", "trialing"].includes(stripeSubscriptionStatus)
+  );
+  const hasPaidSubscription = isShopifyBilling ? hasShopifySubscription : hasStripeSubscription;
+  const shopifyPlanUrl = String(billingMeta?.shopify?.selectionUrl || "").trim();
   const cancelScheduled = Boolean(billing?.cancel_at_period_end);
 
   async function getToken() {
@@ -106,13 +121,14 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
     try {
       const token = await getToken();
       if (!token) return;
-      const response = await fetch("/api/stripe/status", { headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch("/api/billing/status", { headers: { Authorization: `Bearer ${token}` } });
       const payload = await response.json().catch(() => ({}));
       if (response.ok) {
         if (payload?.billing) {
           setBilling(payload.billing);
           onBalanceChange?.(payload.billing);
         }
+        setBillingMeta({ provider: payload?.provider || payload?.billing?.payment_provider || "", shopify: payload?.shopify || null });
         setFreeTrialInfo(payload?.freeTrial || null);
       }
     } finally {
@@ -129,6 +145,24 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
     const savedInterval = String(billing?.subscription_interval || "").toLowerCase();
     if (!intervalTouched && ["month", "year"].includes(savedInterval)) setInterval(savedInterval);
   }, [billing?.subscription_interval, intervalTouched]);
+
+
+  function openShopifyPlans() {
+    setMessage("");
+    if (shopifyProviderConflict) {
+      setMessage(billingMeta?.shopify?.message || t("billing.shopifyProviderConflict"));
+      return;
+    }
+    if (shopifyPricingUnavailable) {
+      setMessage(billingMeta?.shopify?.message || t("billing.shopifyPricingNotReady"));
+      return;
+    }
+    if (!shopifyPlanUrl) {
+      setMessage(billingMeta?.shopify?.message || t("billing.shopifyPricingNotReady"));
+      return;
+    }
+    window.open(shopifyPlanUrl, "_top");
+  }
 
   async function startCheckout(lookupKey) {
     if (busyLookup || busyAction) return;
@@ -302,29 +336,39 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
           </button>
         </div>
       ) : null}
-      {!hasStripeSubscription && freeTrialInfo?.status === "locked" ? (
+      {!hasPaidSubscription && !shopifyProviderConflict && freeTrialInfo?.status === "locked" ? (
         <div className="stripe-trial-banner">
           <Sparkles size={18} />
           <div><strong>{t("billing.freeTrialLockedTitle")}</strong><span>{t("billing.freeTrialLockedText", { credits: freeTrialInfo.credits || 100, days: freeTrialInfo.days || 14 })}</span></div>
         </div>
       ) : null}
-      {!hasStripeSubscription && freeTrialInfo?.status === "active" ? (
+      {!hasPaidSubscription && !shopifyProviderConflict && freeTrialInfo?.status === "active" ? (
         <div className="stripe-trial-banner active">
           <CalendarClock size={18} />
           <div><strong>{t("billing.freeTrialActiveTitle")}</strong><span>{t("billing.freeTrialActiveText", { date: formatDate(freeTrialInfo.endsAt, locale) || "—" })}</span></div>
         </div>
       ) : null}
-      {!hasStripeSubscription && ["expired", "used"].includes(String(freeTrialInfo?.status || "")) ? (
+      {!hasPaidSubscription && !shopifyProviderConflict && ["expired", "used"].includes(String(freeTrialInfo?.status || "")) ? (
         <div className="stripe-trial-banner muted">
           <ShieldCheck size={18} />
           <div><strong>{t("billing.freeTrialUsedTitle")}</strong><span>{t("billing.freeTrialUsedText")}</span></div>
+        </div>
+      ) : null}
+      {isShopifyBilling ? (
+        <div className="stripe-trial-banner active">
+          <ShieldCheck size={18} />
+          <div>
+            <strong>{shopifyProviderConflict ? t("billing.shopifyProviderConflictTitle") : t("billing.shopifyManagedTitle")}</strong>
+            <span>{shopifyProviderConflict ? (billingMeta?.shopify?.message || t("billing.shopifyProviderConflict")) : billingMeta?.shopify?.configured === false || billingMeta?.shopify?.available === false ? t("billing.shopifyPricingNotReady") : t("billing.shopifyManagedText")}</span>
+          </div>
+          <button type="button" className="shopify-billing-manage-button" disabled={shopifyProviderConflict || shopifyPricingUnavailable || !shopifyPlanUrl} onClick={openShopifyPlans}>{t("billing.managePlansShopify")}</button>
         </div>
       ) : null}
       <div className="stripe-reference-layout">
         <div className="stripe-reference-table">
           {PLANS.map((plan) => {
             const currentInterval = String(billing?.subscription_interval || "").toLowerCase();
-            const activePlan = currentPlan === plan.key && hasStripeSubscription;
+            const activePlan = currentPlan === plan.key && hasPaidSubscription;
             const selected = activePlan && currentInterval === interval;
             const lookup = interval === "month" ? plan.monthLookup : plan.yearLookup;
             const price = interval === "month" ? plan.month : plan.year;
@@ -334,8 +378,8 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
             const pendingPlanKey = cleanPlanName(billing?.pending_subscription_plan);
             const hasPendingPlanChange = Boolean(pendingPlanKey);
             const pendingTarget = pendingPlanKey === plan.key;
-            const disabled = busyLookup === lookup || (selected && hasStripeSubscription) || (hasPendingPlanChange && !selected);
-            let buttonLabel = selected && hasStripeSubscription ? t("billing.currentPlan") : t("billing.choosePlan", { plan: plan.name });
+            const disabled = busyLookup === lookup || shopifyProviderConflict || shopifyPricingUnavailable || (selected && hasPaidSubscription) || (!isShopifyBilling && hasPendingPlanChange && !selected);
+            let buttonLabel = selected && hasPaidSubscription ? t("billing.currentPlan") : isShopifyBilling ? t("billing.managePlansShopify") : t("billing.choosePlan", { plan: plan.name });
             if (pendingTarget) buttonLabel = t("billing.planScheduledFor", { date: formatDate(billing?.pending_subscription_effective_at, locale) || "—" });
             else if (!selected && activePlan) buttonLabel = interval === "year" ? t("billing.switchYearly") : t("billing.switchMonthly");
             else if (!selected && isUpgrade) buttonLabel = t("billing.upgradeTo", { plan: plan.name });
@@ -372,7 +416,7 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
                   <div className="plan-feature recurring"><Check />{plan.recurringPlans === 1 ? t("billing.recurringPlanLimitOne") : t("billing.recurringPlanLimit", { count: plan.recurringPlans })}</div>
                 </div>
                 <div className="fit">{fitText}</div>
-                <div className="action"><button type="button" disabled={disabled} onClick={() => selected ? null : hasStripeSubscription ? changeSubscription(lookup, isImmediatePaidChange) : startCheckout(lookup)}>{busyLookup === lookup ? <LoaderCircle className="billing-spin" /> : null}{buttonLabel}</button></div>
+                <div className="action"><button type="button" disabled={disabled} onClick={() => selected ? null : isShopifyBilling ? openShopifyPlans() : hasStripeSubscription ? changeSubscription(lookup, isImmediatePaidChange) : startCheckout(lookup)}>{busyLookup === lookup ? <LoaderCircle className="billing-spin" /> : null}{buttonLabel}</button></div>
               </article>
             );
           })}
@@ -380,9 +424,9 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
         </div>
         <aside className="stripe-reference-packs">
           <h2>{t("billing.extraCreditsTitle")}</h2>
-          <p>{t("billing.extraCreditsText")}</p>
-          <div>{CREDIT_PACKS.map((pack) => <article key={pack.lookup}><span>+&nbsp; {pack.credits} {t("billing.credits")}</span><strong>{pack.price} kr</strong><button type="button" disabled={Boolean(busyLookup) || Boolean(busyAction) || !canBuyExtraCredits} onClick={() => startCheckout(pack.lookup)}>{busyLookup === pack.lookup ? <LoaderCircle className="billing-spin" /> : t("billing.buy")}</button></article>)}</div>
-          <small>{t("billing.pricesIncludeVat")}</small>
+          <p>{isShopifyBilling ? t("billing.shopifyExtraCreditsNotAvailable") : t("billing.extraCreditsText")}</p>
+          {!isShopifyBilling ? <div>{CREDIT_PACKS.map((pack) => <article key={pack.lookup}><span>+&nbsp; {pack.credits} {t("billing.credits")}</span><strong>{pack.price} kr</strong><button type="button" disabled={Boolean(busyLookup) || Boolean(busyAction) || !canBuyExtraCredits} onClick={() => startCheckout(pack.lookup)}>{busyLookup === pack.lookup ? <LoaderCircle className="billing-spin" /> : t("billing.buy")}</button></article>)}</div> : null}
+          {!isShopifyBilling ? <small>{t("billing.pricesIncludeVat")}</small> : null}
           <a href="#spreelo-credit-info">{t("billing.learnMoreCredits")} →</a>
         </aside>
       </div>
@@ -404,13 +448,20 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
       </section>
       <div className="stripe-reference-footer-row">
         <p className="stripe-reference-footnote">{interval === "year" ? t("billing.plansRenewYearly") : t("billing.plansRenewMonthly")}</p>
-        {hasStripeSubscription ? (
+        {hasPaidSubscription ? (
           <div className="stripe-reference-account-actions">
-            <span className="stripe-reference-status"><i className={hasStripeSubscription ? "active" : ""} /><small>{t("billing.subscriptionStatus")}</small><strong>{loading ? t("billing.loading") : statusLabel}</strong></span>
-            <button type="button" className="stripe-reference-cancel" disabled={Boolean(busyAction)} onClick={() => toggleCancellation(cancelScheduled)}>
-              {busyAction ? <LoaderCircle className="billing-spin" size={14} /> : cancelScheduled ? <ShieldCheck size={14} /> : <XCircle size={14} />}
-              {cancelScheduled ? t("billing.keepSubscription") : t("billing.cancelSubscription")}
-            </button>
+            <span className="stripe-reference-status"><i className={hasPaidSubscription ? "active" : ""} /><small>{t("billing.subscriptionStatus")}</small><strong>{loading ? t("billing.loading") : statusLabel}</strong></span>
+            {isShopifyBilling ? (
+              <button type="button" className="stripe-reference-cancel" onClick={openShopifyPlans}>
+                <ExternalLink size={14} />
+                {t("billing.manageSubscriptionShopify")}
+              </button>
+            ) : (
+              <button type="button" className="stripe-reference-cancel" disabled={Boolean(busyAction)} onClick={() => toggleCancellation(cancelScheduled)}>
+                {busyAction ? <LoaderCircle className="billing-spin" size={14} /> : cancelScheduled ? <ShieldCheck size={14} /> : <XCircle size={14} />}
+                {cancelScheduled ? t("billing.keepSubscription") : t("billing.cancelSubscription")}
+              </button>
+            )}
           </div>
         ) : null}
       </div>
