@@ -463,7 +463,7 @@ export default function Settings() {
   }
 
   return (
-    <AppLayout active="settings">
+    <AppLayout active={activeTab === "billing" ? "billing" : "settings"}>
       <div className="settings-reference-page">
         <header className="settings-reference-header">
           <h1>{settingsTabTitle}</h1>
