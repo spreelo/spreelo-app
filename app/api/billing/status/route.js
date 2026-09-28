@@ -1,4 +1,5 @@
 import { getAuthenticatedBillingUser } from "../../../../lib/stripeBilling.js";
+import { normalizeBillingCurrency, resolveCurrencyFromCountry } from "../../../../lib/billingPriceCatalog.js";
 import { refreshFreeTrialStateForUser, SPREELO_FREE_TRIAL_CREDITS, SPREELO_FREE_TRIAL_DAYS } from "../../../../lib/freeTrial.js";
 import { findAppStoreShopifyConnection, getShopifyAppPricingEnv, buildShopifyPlanSelectionUrl, syncShopifyBillingForConnection } from "../../../../lib/shopifyBilling.js";
 
@@ -66,9 +67,28 @@ export async function GET(request) {
   const provider = hasShopifyAppStoreConnection
     ? "shopify"
     : (data?.payment_provider || "stripe");
+  const requestCountry = String(
+    request.headers.get("x-vercel-ip-country") ||
+    request.headers.get("cf-ipcountry") ||
+    ""
+  ).trim().toUpperCase();
+  const localCurrency = provider === "shopify" ? "USD" : resolveCurrencyFromCountry(requestCountry);
+  const fixedLocalCurrency = normalizeBillingCurrency(localCurrency);
+  const subscriptionCurrency = normalizeBillingCurrency(data?.subscription_currency);
+  const displayCurrency = provider === "shopify"
+    ? "USD"
+    : (subscriptionCurrency || fixedLocalCurrency || "SEK");
+  const pricingMode = provider === "shopify"
+    ? "shopify"
+    : (localCurrency && !fixedLocalCurrency ? "adaptive" : fixedLocalCurrency ? "fixed" : "base");
+
   return Response.json({
     ok: true,
     provider,
+    requestCountry: requestCountry || null,
+    localCurrency: localCurrency || null,
+    displayCurrency,
+    pricingMode,
     billing: data || null,
     freeTrial: freeTrialPayload(data),
     shopify: shopifyBilling,

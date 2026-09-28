@@ -24,6 +24,13 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useUiText } from "../lib/i18n/useUiText";
+import {
+  formatBillingMoney,
+  getCreditPackPrice,
+  getPlanPrice,
+  normalizeBillingCurrency,
+  resolveDirectDisplayCurrency,
+} from "../lib/billingPriceCatalog";
 
 const COMMON_FEATURE_KEYS = [
   "billing.allContentTypes",
@@ -35,26 +42,26 @@ const COMMON_FEATURE_KEYS = [
 
 const PLANS = [
   {
-    key: "starter", name: "Starter", credits: 150, month: 299, year: 2990,
+    key: "starter", name: "Starter", credits: 150,
     monthLookup: "spreelo_starter_monthly", yearLookup: "spreelo_starter_yearly", rank: 1,
     audienceKey: "billing.planAudienceStarter", brands: 1, socialAccounts: 1, recurringPlans: 1,
   },
   {
-    key: "growth", name: "Growth", credits: 450, month: 599, year: 5990,
+    key: "growth", name: "Growth", credits: 450,
     monthLookup: "spreelo_growth_monthly", yearLookup: "spreelo_growth_yearly", featured: true, rank: 2,
     audienceKey: "billing.planAudienceGrowth", brands: 1, socialAccounts: 5, recurringPlans: 3,
   },
   {
-    key: "pro", name: "Pro", credits: 1000, month: 999, year: 9990,
+    key: "pro", name: "Pro", credits: 1000,
     monthLookup: "spreelo_pro_monthly", yearLookup: "spreelo_pro_yearly", rank: 3,
     audienceKey: "billing.planAudiencePro", brands: 1, socialAccounts: null, recurringPlans: 5,
   },
 ];
 
 const CREDIT_PACKS = [
-  { lookup: "spreelo_credits_100", credits: 100, price: 199 },
-  { lookup: "spreelo_credits_250", credits: 250, price: 399, featured: true },
-  { lookup: "spreelo_credits_500", credits: 500, price: 699 },
+  { lookup: "spreelo_credits_100", credits: 100 },
+  { lookup: "spreelo_credits_250", credits: 250, featured: true },
+  { lookup: "spreelo_credits_500", credits: 500 },
 ];
 
 function cleanPlanName(value) {
@@ -71,7 +78,7 @@ function formatDate(value, locale = "en") {
 export default function StripeBillingPanel({ initialBalance = null, onBalanceChange }) {
   const { t, locale } = useUiText(["settings"]);
   const [billing, setBilling] = useState(initialBalance);
-  const [billingMeta, setBillingMeta] = useState({ provider: initialBalance?.payment_provider || "", shopify: null });
+  const [billingMeta, setBillingMeta] = useState({ provider: initialBalance?.payment_provider || "", shopify: null, displayCurrency: "", localCurrency: "", pricingMode: "" });
   const [freeTrialInfo, setFreeTrialInfo] = useState(null);
   const [interval, setInterval] = useState("month");
   const [intervalTouched, setIntervalTouched] = useState(false);
@@ -111,6 +118,17 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
   const hasPaidSubscription = isShopifyBilling ? hasShopifySubscription : hasStripeSubscription;
   const shopifyPlanUrl = String(billingMeta?.shopify?.selectionUrl || "").trim();
   const cancelScheduled = Boolean(billing?.cancel_at_period_end);
+  const directDisplayCurrency =
+    normalizeBillingCurrency(billingMeta?.displayCurrency) ||
+    resolveDirectDisplayCurrency({
+      subscriptionCurrency: hasStripeSubscription ? billing?.subscription_currency : "",
+      fallback: "SEK",
+    });
+  const usesAdaptiveLongTailPricing = Boolean(
+    !isShopifyBilling &&
+    billingMeta?.pricingMode === "adaptive" &&
+    billingMeta?.localCurrency
+  );
 
   async function getToken() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -128,7 +146,7 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
           setBilling(payload.billing);
           onBalanceChange?.(payload.billing);
         }
-        setBillingMeta({ provider: payload?.provider || payload?.billing?.payment_provider || "", shopify: payload?.shopify || null });
+        setBillingMeta({ provider: payload?.provider || payload?.billing?.payment_provider || "", shopify: payload?.shopify || null, displayCurrency: payload?.displayCurrency || "", localCurrency: payload?.localCurrency || "", pricingMode: payload?.pricingMode || "" });
         setFreeTrialInfo(payload?.freeTrial || null);
       }
     } finally {
@@ -354,6 +372,15 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
           <div><strong>{t("billing.freeTrialUsedTitle")}</strong><span>{t("billing.freeTrialUsedText")}</span></div>
         </div>
       ) : null}
+      {usesAdaptiveLongTailPricing ? (
+        <div className="stripe-trial-banner muted">
+          <CreditCard size={18} />
+          <div>
+            <strong>{t("billing.localCurrencyCheckoutTitle")}</strong>
+            <span>{t("billing.localCurrencyCheckoutText", { currency: billingMeta.localCurrency })}</span>
+          </div>
+        </div>
+      ) : null}
       {isShopifyBilling ? (
         <div className="stripe-trial-banner active">
           <ShieldCheck size={18} />
@@ -371,7 +398,12 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
             const activePlan = currentPlan === plan.key && hasPaidSubscription;
             const selected = activePlan && currentInterval === interval;
             const lookup = interval === "month" ? plan.monthLookup : plan.yearLookup;
-            const price = interval === "month" ? plan.month : plan.year;
+            const displayPrice = getPlanPrice({
+              planKey: plan.key,
+              interval,
+              currency: directDisplayCurrency,
+              shopify: isShopifyBilling,
+            });
             const isUpgrade = canChangePlan && plan.rank > currentRank;
             const isDowngrade = canChangePlan && plan.rank < currentRank;
             const isImmediatePaidChange = Boolean(canChangePlan && (plan.rank > currentRank || (plan.rank === currentRank && currentInterval === "month" && interval === "year")));
@@ -408,7 +440,7 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
                     </div>
                   </div>
                 </header>
-                <div className="price"><strong>{price.toLocaleString(locale || "en")} kr</strong><small>/{interval === "month" ? t("billing.monthShort") : t("billing.yearShort")}</small><em>{interval === "year" ? t("billing.priceBilledYearly") : t("billing.priceBilledMonthly")}</em></div>
+                <div className="price"><strong>{formatBillingMoney(displayPrice?.amount, displayPrice?.currency, locale)}</strong><small>/{interval === "month" ? t("billing.monthShort") : t("billing.yearShort")}</small><em>{interval === "year" ? t("billing.priceBilledYearly") : t("billing.priceBilledMonthly")}</em></div>
                 <div className="stripe-reference-features">
                   <div className="plan-feature credits"><Check />{t("billing.creditsPerMonth", { count: plan.credits })}</div>
                   <div className="plan-feature brands"><Check />{plan.brands === 1 ? t("billing.businessOne") : t("billing.businesses", { count: plan.brands })}</div>
@@ -425,7 +457,7 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
         <aside className="stripe-reference-packs">
           <h2>{t("billing.extraCreditsTitle")}</h2>
           <p>{isShopifyBilling ? t("billing.shopifyExtraCreditsNotAvailable") : t("billing.extraCreditsText")}</p>
-          {!isShopifyBilling ? <div>{CREDIT_PACKS.map((pack) => <article key={pack.lookup}><span>+&nbsp; {pack.credits} {t("billing.credits")}</span><strong>{pack.price} kr</strong><button type="button" disabled={Boolean(busyLookup) || Boolean(busyAction) || !canBuyExtraCredits} onClick={() => startCheckout(pack.lookup)}>{busyLookup === pack.lookup ? <LoaderCircle className="billing-spin" /> : t("billing.buy")}</button></article>)}</div> : null}
+          {!isShopifyBilling ? <div>{CREDIT_PACKS.map((pack) => { const packPrice = getCreditPackPrice({ lookupKey: pack.lookup, currency: directDisplayCurrency }); return <article key={pack.lookup}><span>+&nbsp; {pack.credits} {t("billing.credits")}</span><strong>{formatBillingMoney(packPrice?.amount, packPrice?.currency, locale)}</strong><button type="button" disabled={Boolean(busyLookup) || Boolean(busyAction) || !canBuyExtraCredits} onClick={() => startCheckout(pack.lookup)}>{busyLookup === pack.lookup ? <LoaderCircle className="billing-spin" /> : t("billing.buy")}</button></article>; })}</div> : null}
           {!isShopifyBilling ? <small>{t("billing.pricesIncludeVat")}</small> : null}
           <a href="#spreelo-credit-info">{t("billing.learnMoreCredits")} →</a>
         </aside>

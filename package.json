@@ -242,7 +242,12 @@
     "test:v144.245": "node scripts/test-v144-245-admin-scheduling-trial-ui.mjs",
     "test:v144.254": "node scripts/test-v144-254-shopify-embedded-app-bridge.mjs",
     "test:v144.255": "node scripts/test-v144-255-shopify-shop-brand-isolation.mjs",
-    "test:v144.256": "node scripts/test-v144-256-shopify-compliance-webhooks.mjs"
+    "test:v144.256": "node scripts/test-v144-256-shopify-compliance-webhooks.mjs",
+    "stripe:prices:preview": "node scripts/sync-stripe-local-prices.mjs",
+    "stripe:prices:sync": "node scripts/sync-stripe-local-prices.mjs --apply",
+    "test:v144.258": "node scripts/test-v144-258-international-pricing.mjs",
+    "test:v144.259": "node scripts/test-v144-259-polished-credit-pricing.mjs",
+    "test:v144.260": "node scripts/test-v144-260-country-first-currency-fallback.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

@@ -51,6 +51,7 @@ export async function POST(request) {
     const customerId = await getOrCreateStripeCustomer(context);
     const origin = getCheckoutOrigin(request);
     const managedPaymentsEnabled = String(process.env.STRIPE_MANAGED_PAYMENTS_ENABLED || "true").toLowerCase() !== "false";
+    const adaptivePricingEnabled = String(process.env.STRIPE_ADAPTIVE_PRICING_ENABLED || "true").toLowerCase() !== "false";
 
     const params = {
       mode: lookup.kind === "subscription" ? "subscription" : "payment",
@@ -66,6 +67,7 @@ export async function POST(request) {
     };
 
     if (managedPaymentsEnabled) params["managed_payments[enabled]"] = true;
+    if (adaptivePricingEnabled) params["adaptive_pricing[enabled]"] = true;
     if (lookup.kind === "subscription") {
       params["subscription_data[metadata][spreelo_user_id]"] = context.user.id;
       params["subscription_data[metadata][spreelo_lookup_key]"] = lookup.lookupKey;

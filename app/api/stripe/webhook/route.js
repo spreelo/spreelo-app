@@ -62,6 +62,9 @@ async function applySubscription(admin, userId, subscription, { grantCredits = f
   const trialEnd = unixToIso(subscription?.trial_end);
   const status = String(subscription.status || "active").toLowerCase();
   const activeLike = ["active", "trialing"].includes(status);
+  const subscriptionCurrency = String(subscription?.currency || primaryItem?.price?.currency || "sek").toLowerCase();
+  const selectedCurrencyOption = primaryItem?.price?.currency_options?.[subscriptionCurrency] || null;
+  const selectedUnitAmount = Number(selectedCurrencyOption?.unit_amount ?? primaryItem?.price?.unit_amount ?? 0);
   // v144.180 no longer creates Stripe trials. Any legacy/unexpected Stripe
   // trialing state is synchronized without granting promotional credits.
   const isTrial = false;
@@ -89,8 +92,8 @@ async function applySubscription(admin, userId, subscription, { grantCredits = f
     p_current_period_start: currentStart,
     p_current_period_end: currentEnd,
     p_cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
-    p_price_amount: Number(primaryItem?.price?.unit_amount || 0),
-    p_currency: String(primaryItem?.price?.currency || "sek").toUpperCase(),
+    p_price_amount: selectedUnitAmount,
+    p_currency: subscriptionCurrency.toUpperCase(),
     p_grant_credits: Boolean(grantCredits && activeLike && status === "active"),
     p_source_id: sourceId,
     p_next_credit_refresh_at: plan.interval === "year" && status === "active" ? addUtcMonths(new Date().toISOString(), 1) : currentEnd,

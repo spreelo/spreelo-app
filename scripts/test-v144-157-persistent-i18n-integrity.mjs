@@ -86,7 +86,7 @@ for (const [file, forbidden] of Object.entries(forbiddenByFile)) {
   for (const phrase of forbidden) assert.ok(!text.includes(phrase), `${file} still contains raw translated UI copy: ${phrase}`);
 }
 
-assert.ok(read("components/StripeBillingPanel.jsx").includes('price.toLocaleString(locale || "en")'), "Billing prices must format with the selected app locale");
+assert.ok(read("components/StripeBillingPanel.jsx").includes("formatBillingMoney(displayPrice?.amount, displayPrice?.currency, locale)"), "Billing prices must format with the selected app locale");
 assert.ok(read("app/automation/page.jsx").includes('data-label={t("automation.dateColumn")}'), "Responsive DATE pseudo-label must come from i18n");
 assert.ok(read("app/automation/page.jsx").includes('data-label={t("automation.timeColumn")}'), "Responsive TIME pseudo-label must come from i18n");
 
