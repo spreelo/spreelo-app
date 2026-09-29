@@ -391,6 +391,7 @@ export default function SocialChannelsPage() {
   const [connectionSuccess, setConnectionSuccess] = useState(null);
   const [planLimitDetails, setPlanLimitDetails] = useState(null);
   const [trialRestrictionCode, setTrialRestrictionCode] = useState("");
+  const [trialNotice, setTrialNotice] = useState(null);
   const [oauthFlow, setOauthFlow] = useState(null);
   const oauthPopupRef = useRef(null);
   const oauthPollRef = useRef(null);
@@ -438,7 +439,14 @@ export default function SocialChannelsPage() {
             pinterestTestPin: String(event.data?.pinterestTestPin || ""),
           }));
           setMessageKind("success");
-          setConnectionSuccess({ platform, brandName: currentBrandRef.current?.business_name || "" });
+          const trialNoticeCode = String(event.data?.trialNotice || "").trim();
+          if (FREE_TRIAL_RESTRICTION_ERRORS.has(trialNoticeCode)) {
+            setConnectionSuccess(null);
+            setTrialNotice({ code: trialNoticeCode, platform, brandName: currentBrandRef.current?.business_name || "" });
+          } else {
+            setTrialNotice(null);
+            setConnectionSuccess({ platform, brandName: currentBrandRef.current?.business_name || "" });
+          }
           continueAfterChannelGateConnection();
         }
         return;
@@ -584,6 +592,7 @@ export default function SocialChannelsPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const connectedPlatformKey = urlParams.get("connected");
     const urlErrorCode = String(urlParams.get("error") || "").trim();
+    const urlTrialNoticeCode = String(urlParams.get("trial_notice") || "").trim();
     const urlMessage = getSocialUrlMessage({ t });
     if (FREE_TRIAL_RESTRICTION_ERRORS.has(urlErrorCode)) {
       setTrialRestrictionCode(urlErrorCode);
@@ -595,7 +604,13 @@ export default function SocialChannelsPage() {
       if (connectedPlatformKey) {
         const platform = selectedPlatforms.find((item) => item.key === connectedPlatformKey);
         if (platform) {
-          setConnectionSuccess({ platform, brandName: selectedBrand.business_name || "" });
+          if (FREE_TRIAL_RESTRICTION_ERRORS.has(urlTrialNoticeCode)) {
+            setConnectionSuccess(null);
+            setTrialNotice({ code: urlTrialNoticeCode, platform, brandName: selectedBrand.business_name || "" });
+          } else {
+            setTrialNotice(null);
+            setConnectionSuccess({ platform, brandName: selectedBrand.business_name || "" });
+          }
           continueAfterChannelGateConnection();
         }
       }
@@ -835,6 +850,26 @@ export default function SocialChannelsPage() {
                 <button type="button" className="primary" onClick={continueOAuthFlow}>
                   {t("social.oauthContinue")}
                 </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+        {trialNotice ? (
+          <div className="social-trial-restriction-backdrop" role="presentation">
+            <section className="social-trial-restriction-modal" role="dialog" aria-modal="true" aria-label={t("social.trialNoticeTitle", { platform: t(trialNotice.platform.eyebrowKey) })}>
+              <span className="social-trial-restriction-icon"><ShieldCheck size={24} aria-hidden="true" /></span>
+              <p className="social-v74-eyebrow">{t("social.trialNoticeEyebrow")}</p>
+              <h2>{t("social.trialNoticeTitle", { platform: t(trialNotice.platform.eyebrowKey) })}</h2>
+              <p>{t(
+                trialNotice.code === "trial_business_already_used"
+                  ? "social.trialNoticeBusinessUsedText"
+                  : trialNotice.code === "trial_account_already_used"
+                    ? "social.trialNoticeAccountUsedText"
+                    : "social.trialNoticeSocialUsedText"
+              )}</p>
+              <div className="social-trial-restriction-actions">
+                <button type="button" onClick={() => setTrialNotice(null)}>{t("common.close")}</button>
+                <button type="button" className="primary" onClick={() => { window.location.href = "/settings#spreelo-plans"; }}>{t("social.trialRestrictionPlans")}</button>
               </div>
             </section>
           </div>

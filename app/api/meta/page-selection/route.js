@@ -354,7 +354,7 @@ export async function POST(request) {
 
     console.info("[meta-page-selection] save_connection:ok", { userId: diagnosticUserId, brandProfileId: diagnosticBrandId, pageId: diagnosticPageId });
     diagnosticStage = "trial_authorize";
-    await authorizeSocialConnectionForTrial({
+    const trialResult = await authorizeSocialConnectionForTrial({
       supabaseAdmin,
       userId: user.id,
       brandProfileId: selectionSession.brand_profile_id,
@@ -379,6 +379,7 @@ export async function POST(request) {
         id: selectedPage.id,
         name: selectedPage.name || "Facebook Page",
       },
+      trialNotice: trialResult?.trialRestricted ? String(trialResult.reason || "trial_account_already_used") : "",
     });
   } catch (error) {
     console.error("Meta page selection POST error:", {

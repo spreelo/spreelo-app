@@ -145,7 +145,7 @@ export async function GET(request) {
       profile,
     });
 
-    await authorizeSocialConnectionForTrial({
+    const trialResult = await authorizeSocialConnectionForTrial({
       supabaseAdmin,
       userId: decodedState.userId,
       brandProfileId: decodedState.brandProfileId,
@@ -154,7 +154,7 @@ export async function GET(request) {
     });
 
     const response = NextResponse.redirect(
-      buildSocialOAuthResultUrl(baseUrl, { connected: "instagram" })
+      buildSocialOAuthResultUrl(baseUrl, { connected: "instagram", trialNotice: trialResult?.trialRestricted ? String(trialResult.reason || "trial_account_already_used") : "" })
     );
 
     response.cookies.delete("spreelo_instagram_oauth_state");

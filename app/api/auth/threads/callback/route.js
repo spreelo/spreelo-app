@@ -83,12 +83,12 @@ export async function GET(request) {
     });
 
     callbackStage = "trial";
-    await authorizeSocialConnectionForTrial({
+    const trialResult = await authorizeSocialConnectionForTrial({
       supabaseAdmin, userId: decoded.userId, brandProfileId: decoded.brandProfileId,
       platform: "threads", externalAccountId: threadsUserId,
     });
 
-    const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { connected: "threads" }));
+    const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { connected: "threads", trialNotice: trialResult?.trialRestricted ? String(trialResult.reason || "trial_account_already_used") : "" }));
     response.cookies.delete("spreelo_threads_oauth_state");
     return response;
   } catch (error) {

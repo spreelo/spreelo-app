@@ -76,7 +76,8 @@ export default function SelectPinterestBoard() {
       return;
     }
 
-    window.location.href = "/social-channels/oauth-complete?connected=pinterest&pinterest_test_pin=1";
+    const trialNotice = String(data?.trialNotice || "").trim();
+    window.location.href = `/social-channels/oauth-complete?connected=pinterest&pinterest_test_pin=1${trialNotice ? `&trial_notice=${encodeURIComponent(trialNotice)}` : ""}`;
   }
 
   async function selectBoard(boardId) {
@@ -100,7 +101,8 @@ export default function SelectPinterestBoard() {
       setSavingId("");
       return;
     }
-    window.location.href = "/social-channels/oauth-complete?connected=pinterest";
+    const trialNotice = String(data?.trialNotice || "").trim();
+    window.location.href = `/social-channels/oauth-complete?connected=pinterest${trialNotice ? `&trial_notice=${encodeURIComponent(trialNotice)}` : ""}`;
   }
 
   return (

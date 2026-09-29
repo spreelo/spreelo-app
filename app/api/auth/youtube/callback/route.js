@@ -84,12 +84,12 @@ export async function GET(request) {
     });
 
     callbackStage = "trial";
-    await authorizeSocialConnectionForTrial({
+    const trialResult = await authorizeSocialConnectionForTrial({
       supabaseAdmin, userId: decoded.userId, brandProfileId: decoded.brandProfileId,
       platform: "youtube", externalAccountId: channel.id,
     });
 
-    const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { connected: "youtube" }));
+    const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { connected: "youtube", trialNotice: trialResult?.trialRestricted ? String(trialResult.reason || "trial_account_already_used") : "" }));
     response.cookies.delete("spreelo_youtube_oauth_state");
     return response;
   } catch (error) {

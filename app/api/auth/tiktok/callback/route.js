@@ -89,7 +89,7 @@ export async function GET(request) {
       permissions: grantedScopes,
     });
 
-    await authorizeSocialConnectionForTrial({
+    const trialResult = await authorizeSocialConnectionForTrial({
       supabaseAdmin,
       userId: decodedState.userId,
       brandProfileId: decodedState.brandProfileId,
@@ -97,7 +97,7 @@ export async function GET(request) {
       externalAccountId: token.open_id,
     });
 
-    const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { connected: "tiktok" }));
+    const response = NextResponse.redirect(buildSocialOAuthResultUrl(baseUrl, { connected: "tiktok", trialNotice: trialResult?.trialRestricted ? String(trialResult.reason || "trial_account_already_used") : "" }));
     response.cookies.delete("spreelo_tiktok_oauth_state");
     return response;
   } catch (error) {

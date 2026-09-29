@@ -14,6 +14,7 @@ export default function SocialOAuthCompletePage() {
     const connected = params.get("connected") || "";
     const error = params.get("error") || "";
     const pinterestTestPin = params.get("pinterest_test_pin") || "";
+    const trialNotice = params.get("trial_notice") || "";
     const platform = connected || inferPlatformFromError(error);
     const success = Boolean(connected && !error);
 
@@ -24,6 +25,7 @@ export default function SocialOAuthCompletePage() {
       connected,
       error,
       pinterestTestPin,
+      trialNotice,
     };
 
     if (window.opener && !window.opener.closed) {
@@ -41,6 +43,7 @@ export default function SocialOAuthCompletePage() {
     if (connected) fallback.searchParams.set("connected", connected);
     if (error) fallback.searchParams.set("error", error);
     if (pinterestTestPin) fallback.searchParams.set("pinterest_test_pin", pinterestTestPin);
+    if (trialNotice) fallback.searchParams.set("trial_notice", trialNotice);
     window.location.replace(fallback.toString());
   }, []);
 

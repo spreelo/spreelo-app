@@ -120,7 +120,8 @@ export default function SelectFacebookPage() {
       return;
     }
 
-    window.location.href = "/social-channels/oauth-complete?connected=facebook";
+    const trialNotice = String(data?.trialNotice || "").trim();
+    window.location.href = `/social-channels/oauth-complete?connected=facebook${trialNotice ? `&trial_notice=${encodeURIComponent(trialNotice)}` : ""}`;
   }
 
   return (

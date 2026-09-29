@@ -239,7 +239,7 @@ export async function POST(request) {
         selected,
       });
 
-      await authorizeSocialConnectionForTrial({
+      const trialResult = await authorizeSocialConnectionForTrial({
         supabaseAdmin,
         userId: user.id,
         brandProfileId: connection.brand_profile_id,
@@ -276,6 +276,7 @@ export async function POST(request) {
         test_pin: { id: String(testPin.id) },
         connected: true,
         api_environment: "sandbox",
+        trialNotice: trialResult?.trialRestricted ? String(trialResult.reason || "trial_account_already_used") : "",
       });
     }
 
@@ -300,7 +301,7 @@ export async function POST(request) {
       selected,
     });
 
-    await authorizeSocialConnectionForTrial({
+    const trialResult = await authorizeSocialConnectionForTrial({
       supabaseAdmin,
       userId: user.id,
       brandProfileId: connection.brand_profile_id,
