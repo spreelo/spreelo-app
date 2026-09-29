@@ -200,6 +200,8 @@ export async function GET(request) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    diagnosticUserId = user.id;
+    diagnosticStage = "authenticated";
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("session_id");
@@ -223,6 +225,9 @@ export async function GET(request) {
         { status: 404 }
       );
     }
+
+    diagnosticBrandId = selectionSession.brand_profile_id || "";
+    diagnosticStage = "selection_session_loaded";
 
     if (!selectionSession.brand_profile_id) {
       return NextResponse.json(
@@ -259,6 +264,11 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  let diagnosticStage = "request_start";
+  let diagnosticUserId = "";
+  let diagnosticBrandId = "";
+  let diagnosticPageId = "";
+
   try {
     const supabaseAdmin = createSupabaseAdminClient();
     const user = await getAuthenticatedUser({ supabaseAdmin, request });
@@ -270,6 +280,7 @@ export async function POST(request) {
     const body = await request.json();
     const sessionId = body?.session_id;
     const pageId = body?.page_id;
+    diagnosticPageId = String(pageId || "");
 
     if (!sessionId || !pageId) {
       return NextResponse.json(
@@ -322,6 +333,8 @@ export async function POST(request) {
       );
     }
 
+    diagnosticStage = "trial_preflight";
+    console.info("[meta-page-selection] trial_preflight:start", { userId: diagnosticUserId, brandProfileId: diagnosticBrandId, pageId: diagnosticPageId });
     await preflightSocialConnectionForTrial({
       supabaseAdmin,
       userId: user.id,
@@ -330,6 +343,8 @@ export async function POST(request) {
       externalAccountId: selectedPage.id,
     });
 
+    console.info("[meta-page-selection] trial_preflight:ok", { userId: diagnosticUserId, brandProfileId: diagnosticBrandId, pageId: diagnosticPageId });
+    diagnosticStage = "save_connection";
     await saveFacebookConnection({
       supabaseAdmin,
       userId: user.id,
@@ -337,6 +352,8 @@ export async function POST(request) {
       page: selectedPage,
     });
 
+    console.info("[meta-page-selection] save_connection:ok", { userId: diagnosticUserId, brandProfileId: diagnosticBrandId, pageId: diagnosticPageId });
+    diagnosticStage = "trial_authorize";
     await authorizeSocialConnectionForTrial({
       supabaseAdmin,
       userId: user.id,
@@ -345,12 +362,16 @@ export async function POST(request) {
       externalAccountId: selectedPage.id,
     });
 
+    console.info("[meta-page-selection] trial_authorize:ok", { userId: diagnosticUserId, brandProfileId: diagnosticBrandId, pageId: diagnosticPageId });
+    diagnosticStage = "cleanup_selection_session";
     await supabaseAdmin
       .from("meta_page_selection_sessions")
       .delete()
       .eq("id", sessionId)
       .eq("user_id", user.id);
 
+    diagnosticStage = "complete";
+    console.info("[meta-page-selection] complete", { userId: diagnosticUserId, brandProfileId: diagnosticBrandId, pageId: diagnosticPageId });
     return NextResponse.json({
       success: true,
       brand,
@@ -360,7 +381,15 @@ export async function POST(request) {
       },
     });
   } catch (error) {
-    console.error("Meta page selection POST error:", error);
+    console.error("Meta page selection POST error:", {
+      stage: diagnosticStage,
+      userId: diagnosticUserId,
+      brandProfileId: diagnosticBrandId,
+      pageId: diagnosticPageId,
+      code: error?.code || "",
+      message: error?.message || String(error),
+      error,
+    });
 
     const trialCode = getTrialRestrictionCode(error);
     if (trialCode) {

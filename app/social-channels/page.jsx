@@ -395,7 +395,6 @@ export default function SocialChannelsPage() {
   const oauthPopupRef = useRef(null);
   const oauthPollRef = useRef(null);
   const oauthResultReceivedRef = useRef(false);
-  const oauthReconcileTokenRef = useRef(0);
   const loadConnectionsRef = useRef(null);
   const tRef = useRef(t);
   const currentBrandRef = useRef(currentBrand);
@@ -423,7 +422,6 @@ export default function SocialChannelsPage() {
       if (!platformKey) return;
 
       oauthResultReceivedRef.current = true;
-      oauthReconcileTokenRef.current += 1;
       clearPopupPoll();
       try { oauthPopupRef.current?.close(); } catch {}
       oauthPopupRef.current = null;
@@ -609,73 +607,12 @@ export default function SocialChannelsPage() {
   loadConnectionsRef.current = loadConnections;
 
   function closeOAuthPopup() {
-    oauthReconcileTokenRef.current += 1;
     if (oauthPollRef.current) {
       window.clearInterval(oauthPollRef.current);
       oauthPollRef.current = null;
     }
     try { oauthPopupRef.current?.close(); } catch {}
     oauthPopupRef.current = null;
-  }
-
-  async function reconcileClosedOAuth(platform) {
-    if (!platform?.key || !currentUser?.id || !currentBrand?.id) return false;
-
-    const reconcileToken = oauthReconcileTokenRef.current + 1;
-    oauthReconcileTokenRef.current = reconcileToken;
-    setOauthFlow((current) => current?.platformKey === platform.key
-      ? { ...current, popupClosed: false, reconciling: true }
-      : current);
-
-    const startedAt = Date.now();
-    const timeoutMs = 5000;
-
-    while (Date.now() - startedAt < timeoutMs) {
-      if (oauthReconcileTokenRef.current !== reconcileToken || oauthResultReceivedRef.current) {
-        return false;
-      }
-
-      const { data: connectedRow } = await supabase
-        .from("social_connections")
-        .select("id, platform, status, updated_at")
-        .eq("user_id", currentUser.id)
-        .eq("brand_profile_id", currentBrand.id)
-        .eq("platform", platform.key)
-        .eq("status", "connected")
-        .order("updated_at", { ascending: false, nullsFirst: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (connectedRow?.id) {
-        oauthResultReceivedRef.current = true;
-        oauthReconcileTokenRef.current += 1;
-        setConnectingPlatform("");
-        setOauthFlow(null);
-        await loadConnectionsRef.current?.();
-        setMessage(getSocialUrlMessageFromValues({
-          t: tRef.current,
-          connected: platform.key,
-        }));
-        setMessageKind("success");
-        setConnectionSuccess({
-          platform,
-          brandName: currentBrandRef.current?.business_name || "",
-        });
-        continueAfterChannelGateConnection();
-        return true;
-      }
-
-      await new Promise((resolve) => window.setTimeout(resolve, 500));
-    }
-
-    if (oauthReconcileTokenRef.current === reconcileToken && !oauthResultReceivedRef.current) {
-      setConnectingPlatform("");
-      setOauthFlow((current) => current?.platformKey === platform.key
-        ? { ...current, popupClosed: true, reconciling: false }
-        : current);
-    }
-
-    return false;
   }
 
   async function startOAuthInPopup(platform, { reusePopup = false } = {}) {
@@ -748,7 +685,10 @@ export default function SocialChannelsPage() {
           oauthPollRef.current = null;
           oauthPopupRef.current = null;
           if (!oauthResultReceivedRef.current) {
-            void reconcileClosedOAuth(platform);
+            setConnectingPlatform("");
+            setOauthFlow((current) => current?.platformKey === platform.key
+              ? { ...current, popupClosed: true }
+              : current);
           }
         }
       }, 500);
@@ -880,12 +820,10 @@ export default function SocialChannelsPage() {
               </span>
               <p className="social-v74-eyebrow">{t("social.oauthPopupEyebrow")}</p>
               <h2>{t("social.oauthPopupTitle")}</h2>
-              <p>{oauthFlow.reconciling
-                ? t("social.oauthCompleting")
-                : t(
-                    oauthFlow.popupClosed ? "social.oauthPopupClosedText" : "social.oauthPopupText",
-                    { platform: t(selectedPlatforms.find((item) => item.key === oauthFlow.platformKey)?.eyebrowKey || "social.instagramEyebrow") }
-                  )}</p>
+              <p>{t(
+                oauthFlow.popupClosed ? "social.oauthPopupClosedText" : "social.oauthPopupText",
+                { platform: t(selectedPlatforms.find((item) => item.key === oauthFlow.platformKey)?.eyebrowKey || "social.instagramEyebrow") }
+              )}</p>
               {oauthFlow.platformKey === "instagram" ? (
                 <div className="social-oauth-helper-tip">
                   <strong>{t("social.oauthInstagramFirstLoginTitle")}</strong>
@@ -894,8 +832,8 @@ export default function SocialChannelsPage() {
               ) : null}
               <div className="social-oauth-helper-actions">
                 <button type="button" onClick={cancelOAuthFlow}>{t("social.oauthCancel")}</button>
-                <button type="button" className="primary" onClick={continueOAuthFlow} disabled={Boolean(oauthFlow.reconciling)}>
-                  {oauthFlow.reconciling ? t("social.oauthCompleting") : t("social.oauthContinue")}
+                <button type="button" className="primary" onClick={continueOAuthFlow}>
+                  {t("social.oauthContinue")}
                 </button>
               </div>
             </section>
