@@ -200,9 +200,6 @@ export async function GET(request) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    diagnosticUserId = user.id;
-    diagnosticStage = "authenticated";
-
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("session_id");
 
@@ -225,9 +222,6 @@ export async function GET(request) {
         { status: 404 }
       );
     }
-
-    diagnosticBrandId = selectionSession.brand_profile_id || "";
-    diagnosticStage = "selection_session_loaded";
 
     if (!selectionSession.brand_profile_id) {
       return NextResponse.json(
@@ -277,6 +271,9 @@ export async function POST(request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    diagnosticUserId = user.id;
+    diagnosticStage = "authenticated";
+
     const body = await request.json();
     const sessionId = body?.session_id;
     const pageId = body?.page_id;
@@ -308,6 +305,9 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    diagnosticBrandId = selectionSession.brand_profile_id;
+    diagnosticStage = "selection_session_loaded";
 
     const brand = await getBrandForSession({
       supabaseAdmin,
