@@ -419,9 +419,16 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
             const isImmediatePaidChange = Boolean(canChangePlan && (plan.rank > currentRank || (plan.rank === currentRank && currentInterval === "month" && interval === "year")));
             const pendingPlanKey = cleanPlanName(billing?.pending_subscription_plan);
             const hasPendingPlanChange = Boolean(pendingPlanKey);
-            const pendingTarget = pendingPlanKey === plan.key;
-            const disabled = busyLookup === lookup || shopifyProviderConflict || shopifyPricingUnavailable || (selected && hasPaidSubscription) || (!isShopifyBilling && hasPendingPlanChange && !selected);
-            let buttonLabel = selected && hasPaidSubscription ? t("billing.currentPlan") : isShopifyBilling ? t("billing.managePlansShopify") : t("billing.choosePlan", { plan: plan.name });
+            const pendingTarget = pendingPlanKey === plan.key && String(billing?.pending_subscription_lookup_key || "") === lookup;
+            // A scheduled downgrade must not freeze the rest of billing. The customer
+            // can keep the current plan, switch to yearly billing, upgrade immediately,
+            // or replace the scheduled downgrade with another future plan change.
+            const disabled = busyLookup === lookup || shopifyProviderConflict || shopifyPricingUnavailable || pendingTarget || (selected && hasPaidSubscription && !hasPendingPlanChange);
+            let buttonLabel = selected && hasPaidSubscription
+              ? (hasPendingPlanChange ? t("billing.cancelScheduledPlanChange") : t("billing.currentPlan"))
+              : isShopifyBilling
+                ? t("billing.managePlansShopify")
+                : t("billing.choosePlan", { plan: plan.name });
             if (pendingTarget) buttonLabel = t("billing.planScheduledFor", { date: formatDate(billing?.pending_subscription_effective_at, locale) || "—" });
             else if (!selected && activePlan) buttonLabel = interval === "year" ? t("billing.switchYearly") : t("billing.switchMonthly");
             else if (!selected && isUpgrade) buttonLabel = t("billing.upgradeTo", { plan: plan.name });
@@ -458,7 +465,7 @@ export default function StripeBillingPanel({ initialBalance = null, onBalanceCha
                   <div className="plan-feature recurring"><Check />{plan.recurringPlans === 1 ? t("billing.recurringPlanLimitOne") : t("billing.recurringPlanLimit", { count: plan.recurringPlans })}</div>
                 </div>
                 <div className="fit">{fitText}</div>
-                <div className="action"><button type="button" disabled={disabled} onClick={() => selected ? null : isShopifyBilling ? openShopifyPlans() : hasStripeSubscription ? changeSubscription(lookup, isImmediatePaidChange) : startCheckout(lookup)}>{busyLookup === lookup ? <LoaderCircle className="billing-spin" /> : null}{buttonLabel}</button></div>
+                <div className="action"><button type="button" disabled={disabled} onClick={() => selected && hasPendingPlanChange ? cancelScheduledPlanChange() : selected ? null : isShopifyBilling ? openShopifyPlans() : hasStripeSubscription ? changeSubscription(lookup, isImmediatePaidChange) : startCheckout(lookup)}>{busyLookup === lookup ? <LoaderCircle className="billing-spin" /> : null}{buttonLabel}</button></div>
               </article>
             );
           })}

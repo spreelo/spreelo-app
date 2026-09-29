@@ -26,6 +26,54 @@ function remainingFraction(subscription) {
   return Math.max(0, Math.min(1, (end - now) / (end - start)));
 }
 
+function getScheduleId(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return String(value?.id || "");
+}
+
+async function releaseScheduledPlanChange(context, billing, subscription) {
+  const scheduleId = getScheduleId(subscription?.schedule) || getScheduleId(billing?.provider_subscription_schedule_id);
+  if (!scheduleId) return subscription;
+
+  try {
+    await stripeRequest(`/v1/subscription_schedules/${encodeURIComponent(scheduleId)}/release`, { method: "POST" });
+  } catch (error) {
+    const message = String(error?.message || "");
+    const alreadyInactive = /no such subscription schedule|already released|already canceled|already cancelled/i.test(message);
+    if (!alreadyInactive) throw error;
+  }
+
+  const nowIso = new Date().toISOString();
+  const { error: clearError } = await context.admin
+    .from("user_credit_balances")
+    .update({
+      pending_subscription_plan: null,
+      pending_subscription_lookup_key: null,
+      pending_subscription_effective_at: null,
+      provider_subscription_schedule_id: null,
+      updated_at: nowIso,
+    })
+    .eq("user_id", context.user.id);
+  if (clearError) throw new Error(`Could not clear previous scheduled plan change: ${clearError.message}`);
+
+  const { error: auditError } = await context.admin
+    .from("stripe_plan_changes")
+    .update({ status: "canceled", updated_at: nowIso })
+    .eq("user_id", context.user.id)
+    .eq("status", "scheduled")
+    .eq("schedule_id", scheduleId);
+  if (auditError) {
+    console.warn("Previous scheduled plan change was released but its audit row could not be updated", {
+      userId: context.user.id,
+      scheduleId,
+      message: auditError.message,
+    });
+  }
+
+  return fetchSubscription(subscription.id);
+}
+
 export async function POST(request) {
   try {
     const context = await getAuthenticatedBillingUser(request);
@@ -36,7 +84,7 @@ export async function POST(request) {
 
     const { data: billing, error: billingError } = await context.admin
       .from("user_credit_balances")
-      .select("provider_subscription_id, subscription_status, subscription_price_lookup_key, subscription_plan, subscription_interval, provider_subscription_schedule_id")
+      .select("provider_subscription_id, subscription_status, subscription_price_lookup_key, subscription_plan, subscription_interval, provider_subscription_schedule_id, pending_subscription_plan, pending_subscription_lookup_key, pending_subscription_effective_at")
       .eq("user_id", context.user.id)
       .maybeSingle();
     if (billingError) throw new Error(billingError.message);
@@ -46,9 +94,14 @@ export async function POST(request) {
 
     const current = getPlanByLookupKey(billing.subscription_price_lookup_key);
     if (!current) return Response.json({ ok: false, error: "Current Stripe plan could not be identified." }, { status: 409 });
-    if (current.key === targetLookup.plan.key && current.interval === targetLookup.plan.interval) return Response.json({ ok: true, unchanged: true });
 
     let subscription = await fetchSubscription(billing.provider_subscription_id);
+    const hasScheduledChange = Boolean(subscription?.schedule || billing?.provider_subscription_schedule_id);
+    if (current.key === targetLookup.plan.key && current.interval === targetLookup.plan.interval) {
+      if (!hasScheduledChange) return Response.json({ ok: true, unchanged: true });
+      await releaseScheduledPlanChange(context, billing, subscription);
+      return Response.json({ ok: true, unchanged: true, canceledScheduledChange: true });
+    }
     const currentItem = subscription?.items?.data?.[0];
     if (!currentItem?.id) throw new Error("Stripe subscription item is missing.");
     const targetPrice = await findStripePriceByLookupKey(targetLookup.lookupKey);
@@ -57,15 +110,17 @@ export async function POST(request) {
 
     if (scheduleAtEnd) {
       if (subscription?.schedule || billing?.provider_subscription_schedule_id) {
-        return Response.json({ ok: false, error: "A future subscription change is already scheduled. Cancel that scheduled change before choosing another one." }, { status: 409 });
+        subscription = await releaseScheduledPlanChange(context, billing, subscription);
       }
+      const refreshedCurrentItem = subscription?.items?.data?.[0];
+      if (!refreshedCurrentItem?.id) throw new Error("Stripe subscription item is missing after releasing the previous schedule.");
       const schedule = await stripeRequest("/v1/subscription_schedules", {
         method: "POST",
         params: { from_subscription: subscription.id },
       });
       const currentPhase = schedule?.phases?.[0];
-      const currentStart = Number(currentPhase?.start_date || currentItem.current_period_start || subscription.current_period_start);
-      const currentEnd = Number(currentPhase?.end_date || currentItem.current_period_end || subscription.current_period_end);
+      const currentStart = Number(currentPhase?.start_date || refreshedCurrentItem.current_period_start || subscription.current_period_start);
+      const currentEnd = Number(currentPhase?.end_date || refreshedCurrentItem.current_period_end || subscription.current_period_end);
       if (!currentStart || !currentEnd) throw new Error("Could not determine the current billing period for the downgrade.");
 
       const updatedSchedule = await stripeRequest(`/v1/subscription_schedules/${encodeURIComponent(schedule.id)}`, {
@@ -74,7 +129,7 @@ export async function POST(request) {
           end_behavior: "release",
           "phases[0][start_date]": currentStart,
           "phases[0][end_date]": currentEnd,
-          "phases[0][items][0][price]": currentItem.price?.id,
+          "phases[0][items][0][price]": refreshedCurrentItem.price?.id,
           "phases[0][items][0][quantity]": 1,
           "phases[0][proration_behavior]": "none",
           "phases[1][start_date]": currentEnd,
@@ -114,9 +169,8 @@ export async function POST(request) {
       return Response.json({ ok: true, scheduled: true, effectiveAt, changeId: change.id });
     }
 
-    if (subscription?.schedule) {
-      await stripeRequest(`/v1/subscription_schedules/${encodeURIComponent(typeof subscription.schedule === "string" ? subscription.schedule : subscription.schedule.id)}/release`, { method: "POST" });
-      subscription = await fetchSubscription(subscription.id);
+    if (subscription?.schedule || billing?.provider_subscription_schedule_id) {
+      subscription = await releaseScheduledPlanChange(context, billing, subscription);
     }
 
     const sameInterval = current.interval === targetLookup.plan.interval;
