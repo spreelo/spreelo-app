@@ -109,7 +109,7 @@ export async function GET(request, { params }) {
     const warnings = [];
     const user = authData.user;
 
-    const [balance, brands, rules, posts, occurrences, reservationEvents, creditTransactions, adjustments, notifications, runLogs] = await Promise.all([
+    const [balance, brands, rules, posts, occurrences, reservationEvents, creditTransactions, adjustments, notifications, runLogs, growthAgentSetting, growthAgentShadowRuns, growthAgentProfiles, growthAgentExperiments, growthAgentOpportunities, growthAgentCommerceProfiles, growthAgentClosedLoopCycles] = await Promise.all([
       safeSingle(
         "credit balance",
         context.admin
@@ -222,6 +222,41 @@ export async function GET(request, { params }) {
           .limit(1000),
         warnings
       ),
+      safeSingle(
+        "growth agent setting",
+        context.admin.from("growth_agent_settings").select("mode, updated_at, updated_by_user_id").eq("user_id", userId).maybeSingle(),
+        warnings
+      ),
+      safeRows(
+        "growth agent shadow runs",
+        context.admin.from("growth_agent_shadow_runs").select("id, brand_profile_id, goal_id, selected_platforms, baseline_plan, growth_plan, growth_context, baseline_source, growth_source, model, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(20),
+        warnings
+      ),
+      safeRows(
+        "growth agent profiles",
+        context.admin.from("growth_agent_profiles").select("brand_profile_id, profile_version, learning_state, data_quality, observation_count, evidence_count, average_confidence, profile_json, updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(50),
+        warnings
+      ),
+      safeRows(
+        "growth agent experiments",
+        context.admin.from("growth_agent_experiments").select("id, brand_profile_id, experiment_version, experiment_key, kind, content_type_id, goal_id, hypothesis, max_plan_share, status, baseline_observations, baseline_score, baseline_confidence, latest_observations, latest_score, latest_confidence, outcome, activated_at, completed_at, updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(100),
+        warnings
+      ),
+      safeRows(
+        "growth agent opportunities",
+        context.admin.from("growth_agent_opportunities").select("id, brand_profile_id, opportunity_version, opportunity_key, kind, priority, title, reason, content_type_id, product_title, product_url, campaign_title, campaign_goal, status, details, last_detected_at, updated_at").eq("user_id", userId).eq("status", "open").order("priority", { ascending: false }).order("updated_at", { ascending: false }).limit(100),
+        warnings
+      ),
+      safeRows(
+        "growth agent commerce profiles",
+        context.admin.from("growth_agent_commerce_profiles").select("brand_profile_id, commerce_version, learning_state, data_quality, provider, commerce_event_count, attributed_event_count, purchase_like_event_count, total_revenue, average_attribution_confidence, profile_json, updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(50),
+        warnings
+      ),
+      safeRows(
+        "growth agent closed loop cycles",
+        context.admin.from("growth_agent_closed_loop_cycles").select("id, brand_profile_id, closed_loop_version, mode, goal_id, selected_platforms, plan_source, selected_content_type_ids, selected_product_focus, decision_snapshot, baseline_snapshot, status, feedback_observation_gain, feedback_commerce_event_gain, feedback_snapshot, planned_at, feedback_at, updated_at").eq("user_id", userId).order("planned_at", { ascending: false }).limit(100),
+        warnings
+      ),
     ]);
 
     const creditLedger = [
@@ -303,6 +338,7 @@ export async function GET(request, { params }) {
       creditLedger,
       notifications,
       runLogs,
+      growthAgent: { mode: growthAgentSetting?.mode || "off", updatedAt: growthAgentSetting?.updated_at || null, updatedByUserId: growthAgentSetting?.updated_by_user_id || null, shadowRuns: growthAgentShadowRuns || [], profiles: growthAgentProfiles || [], experiments: growthAgentExperiments || [], opportunities: growthAgentOpportunities || [], commerceProfiles: growthAgentCommerceProfiles || [], closedLoopCycles: growthAgentClosedLoopCycles || [] },
       technical: {
         modelsUsed: Array.from(models).sort(),
         totalRunDurationMs: runLogs.reduce((sum, row) => sum + Math.max(0, Number(row.duration_ms || 0)), 0),
@@ -326,6 +362,15 @@ export async function PATCH(request, { params }) {
     const { id } = await params;
     const userId = String(id || "").trim();
     const body = await request.json().catch(() => ({}));
+
+    if (body?.action === "set_growth_agent_mode") {
+      const mode = String(body?.mode || "").trim().toLowerCase();
+      if (!["off", "shadow", "active"].includes(mode)) return Response.json({ ok: false, error: "Invalid Growth Agent mode." }, { status: 400 });
+      const { data, error } = await context.admin.from("growth_agent_settings").upsert({ user_id: userId, mode, updated_by_user_id: context.user?.id || null, updated_at: new Date().toISOString() }, { onConflict: "user_id" }).select("mode, updated_at, updated_by_user_id").single();
+      if (error) throw error;
+      return Response.json({ ok: true, growthAgent: data });
+    }
+
     if (body?.action !== "set_brand_429_rescue") {
       return Response.json({ ok: false, error: "Unsupported customer action." }, { status: 400 });
     }

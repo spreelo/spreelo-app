@@ -18,6 +18,25 @@ import {
   loadBrandPerformancePlanningContext,
 } from "../../../lib/performanceLearning.js";
 import { enrichBrandProfileWithEffectiveProductMode } from "../../../lib/effectiveProductMode.js";
+import {
+  activateSelectedGrowthAgentExperiments,
+  buildGrowthAgentCommerceProfile,
+  buildGrowthAgentExperiments,
+  buildGrowthAgentOpportunities,
+  buildGrowthAgentPlanningContext,
+  buildGrowthAgentProfile,
+  describeGrowthAgentDecision,
+  getGrowthAgentFormatAdjustment,
+  isGrowthAgentActiveMode,
+  isGrowthAgentShadowMode,
+  loadGrowthAgentMode,
+  saveGrowthAgentCommerceProfile,
+  saveGrowthAgentClosedLoopCycle,
+  saveGrowthAgentProfile,
+  syncGrowthAgentExperiments,
+  syncGrowthAgentOpportunities,
+  reconcileGrowthAgentClosedLoopCycles,
+} from "../../../lib/growthAgent.js";
 
 export const maxDuration = 60;
 
@@ -27,6 +46,7 @@ const openai = new OpenAI({
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const contentPlanModel = process.env.CONTENT_PLAN_MODEL || "gpt-5.5";
 
 const allowedGoals = new Set(["sell_more", "get_followers", "build_trust"]);
@@ -155,6 +175,32 @@ function safeJsonParse(value) {
   }
 }
 
+function getGrowthAgentAdminClient() {
+  if (!supabaseUrl || !supabaseServiceRoleKey) return null;
+  return createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+async function saveGrowthAgentShadowRun({ admin, userId, brandProfileId, goalId, selectedPlatforms, baselinePlan, growthPlan, growthContext, baselineSource, model }) {
+  if (!admin) return;
+  try {
+    const { error } = await admin.from("growth_agent_shadow_runs").insert({
+      user_id: userId,
+      brand_profile_id: brandProfileId,
+      goal_id: goalId || null,
+      selected_platforms: selectedPlatforms || [],
+      baseline_plan: baselinePlan || {},
+      growth_plan: growthPlan || {},
+      growth_context: growthContext || {},
+      baseline_source: baselineSource || null,
+      growth_source: "deterministic_candidate_v7_closed_loop",
+      model: model || null,
+    });
+    if (error) throw error;
+  } catch (error) {
+    console.warn("[growth-agent] shadow log skipped", error?.message || error);
+  }
+}
+
 function normalizeShortText(value, maxLength = 700) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   return text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text;
@@ -252,7 +298,7 @@ function getDefaultMarketingValues(goalId, formatId) {
   };
 }
 
-function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [], learningProfile = null, performanceLearning = null }) {
+function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [], learningProfile = null, performanceLearning = null, growthAgent = null }) {
   const goalWeights = GOAL_WEIGHTS[goalId] || GOAL_WEIGHTS.build_trust;
   const selected = [];
   const selectedCategories = new Map();
@@ -293,7 +339,8 @@ function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory
           productPenalty +
           platformCoverage * 5 +
           learningAdjustment +
-          performanceAdjustment;
+          performanceAdjustment +
+          getGrowthAgentFormatAdjustment(growthAgent, format.id);
 
         return { format, score };
       })
@@ -317,6 +364,8 @@ function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory
       }),
       role,
       strategic_reason: strategicReason,
+      growth_reason: describeGrowthAgentDecision(growthAgent, format.id),
+      decision_mode: growthAgent?.enabled ? "growth_agent_v1" : "standard_planner",
       ...marketingValues,
     });
     selectedCategories.set(format.category, (selectedCategories.get(format.category) || 0) + 1);
@@ -325,7 +374,7 @@ function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory
   return selected;
 }
 
-function normalizePlanningItem(item, availableFormatMap, goalId, selectedPlatforms = []) {
+function normalizePlanningItem(item, availableFormatMap, goalId, selectedPlatforms = [], growthAgent = null) {
   const contentTypeId = String(
     item?.content_type_id || item?.contentTypeId || item?.format || ""
   )
@@ -372,10 +421,16 @@ function normalizePlanningItem(item, availableFormatMap, goalId, selectedPlatfor
       allowedCtaStrengths,
       defaults.cta_strength
     ),
+    growth_reason: normalizeShortText(
+      item?.growth_reason || item?.growthReason || describeGrowthAgentDecision(growthAgent, contentTypeId),
+      500
+    ),
+    product_focus: normalizeShortText(item?.product_focus || item?.productFocus || "", 300),
+    decision_mode: growthAgent?.enabled ? "growth_agent_v1" : "standard_planner",
   };
 }
 
-function normalizePlan({ rawPlan, goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [], learningProfile = null, performanceLearning = null }) {
+function normalizePlan({ rawPlan, goalId, postCount, availableFormats, recentHistory, selectedPlatforms = [], learningProfile = null, performanceLearning = null, growthAgent = null }) {
   const availableFormatMap = new Map(availableFormats.map((format) => [format.id, format]));
   const fallbackItems = buildFallbackItems({
     goalId,
@@ -385,12 +440,13 @@ function normalizePlan({ rawPlan, goalId, postCount, availableFormats, recentHis
     selectedPlatforms,
     learningProfile,
     performanceLearning,
+    growthAgent,
   });
   const seenPlanTypes = new Set();
   const planItems = [];
 
   for (const rawItem of Array.isArray(rawPlan?.posts) ? rawPlan.posts : []) {
-    const normalizedItem = normalizePlanningItem(rawItem, availableFormatMap, goalId, selectedPlatforms);
+    const normalizedItem = normalizePlanningItem(rawItem, availableFormatMap, goalId, selectedPlatforms, growthAgent);
     if (!normalizedItem || seenPlanTypes.has(normalizedItem.content_type_id)) continue;
     seenPlanTypes.add(normalizedItem.content_type_id);
     planItems.push(normalizedItem);
@@ -411,7 +467,7 @@ function normalizePlan({ rawPlan, goalId, postCount, availableFormats, recentHis
     : [];
 
   for (const rawItem of [...rawRotation, ...planItems, ...fallbackItems]) {
-    const normalizedItem = normalizePlanningItem(rawItem, availableFormatMap, goalId, selectedPlatforms);
+    const normalizedItem = normalizePlanningItem(rawItem, availableFormatMap, goalId, selectedPlatforms, growthAgent);
     if (!normalizedItem || seenRotationTypes.has(normalizedItem.content_type_id)) continue;
     seenRotationTypes.add(normalizedItem.content_type_id);
     rotationItems.push(normalizedItem);
@@ -440,7 +496,7 @@ function buildHistorySummary(recentHistory) {
 }
 
 async function loadOptionalPlanningContext(supabase, brandProfileId, userId) {
-  const [historyResult, rulesResult, campaignsResult, learningResult] = await Promise.all([
+  const [historyResult, rulesResult, campaignsResult, learningResult, productCatalogResult] = await Promise.all([
     supabase
       .from("automation_run_logs")
       .select("content_type_id, content_format, product_titles, campaign_title, status, started_at, created_at")
@@ -468,6 +524,13 @@ async function loadOptionalPlanningContext(supabase, brandProfileId, userId) {
       .eq("brand_profile_id", brandProfileId)
       .eq("user_id", userId)
       .maybeSingle(),
+    supabase
+      .from("website_product_catalog")
+      .select("product_url,title,is_active,last_seen_at,last_used_at,times_used,discovery_source")
+      .eq("brand_profile_id", brandProfileId)
+      .eq("user_id", userId)
+      .order("last_seen_at", { ascending: false, nullsFirst: false })
+      .limit(300),
   ]);
 
   return {
@@ -494,6 +557,7 @@ async function loadOptionalPlanningContext(supabase, brandProfileId, userId) {
           .slice(0, 10)
       : [],
     learningProfile: learningResult?.error ? null : learningResult?.data || null,
+    productCatalog: productCatalogResult?.error ? [] : (Array.isArray(productCatalogResult?.data) ? productCatalogResult.data : []),
   };
 }
 
@@ -529,6 +593,7 @@ export async function POST(request) {
       timeZone = "UTC",
       platform = "",
       platforms = [],
+      planningEventId = null,
     } = await request.json();
 
     if (!brandProfileId || !allowedGoals.has(String(goalId || ""))) {
@@ -576,6 +641,153 @@ export async function POST(request) {
       userId: user.id,
     });
 
+    const customerLearning = buildBrandLearningPlannerContext(context.learningProfile);
+    const performancePlanning = buildPerformanceLearningPlannerContext(
+      performanceLearning?.insights || [],
+      {
+        goalId,
+        selectedPlatforms,
+        learningState: performanceLearning?.learningState || "collecting",
+        maxSignals: 6,
+      }
+    );
+    const growthAgentAdmin = getGrowthAgentAdminClient();
+    const growthAgentMode = await loadGrowthAgentMode({ admin: growthAgentAdmin, userId: user.id });
+    const growthAgentActive = isGrowthAgentActiveMode(growthAgentMode);
+    const growthAgentShadow = isGrowthAgentShadowMode(growthAgentMode);
+    const growthProfile = buildGrowthAgentProfile({
+      performancePlanning,
+      recentHistory: context.recentHistory,
+      selectedPlatforms,
+      customerLearning,
+    });
+    if ((growthAgentActive || growthAgentShadow) && growthAgentAdmin) {
+      try {
+        await saveGrowthAgentProfile({ admin: growthAgentAdmin, userId: user.id, brandProfileId, profile: growthProfile });
+      } catch (error) {
+        console.warn("[growth-agent] profile save skipped", error?.message || error);
+      }
+    }
+    const growthExperiments = buildGrowthAgentExperiments({
+      growthProfile,
+      availableFormats,
+      recentHistory: context.recentHistory,
+      goalId,
+    });
+    if ((growthAgentActive || growthAgentShadow) && growthAgentAdmin) {
+      try {
+        await syncGrowthAgentExperiments({
+          admin: growthAgentAdmin,
+          userId: user.id,
+          brandProfileId,
+          experiments: growthExperiments,
+          growthProfile,
+        });
+      } catch (error) {
+        console.warn("[growth-agent] experiment sync skipped", error?.message || error);
+      }
+    }
+    const growthOpportunities = buildGrowthAgentOpportunities({
+      productCatalog: context.productCatalog,
+      upcomingCampaigns: context.upcomingCampaigns,
+      growthProfile,
+      availableFormats,
+    });
+    let commerceEvents = [];
+    let webDataConnection = null;
+    if ((growthAgentActive || growthAgentShadow) && growthAgentAdmin) {
+      try {
+        const commerceSince = new Date(Date.now() - 180 * 86400000).toISOString();
+        const [{ data: eventRows, error: commerceEventError }, { data: webRow, error: webDataError }] = await Promise.all([
+          growthAgentAdmin.from("growth_agent_commerce_events")
+            .select("event_type, occurred_at, content_type_id, post_id, product_title, product_url, amount, currency, attribution_confidence, source_provider, created_at")
+            .eq("user_id", user.id)
+            .eq("brand_profile_id", brandProfileId)
+            .gte("occurred_at", commerceSince)
+            .order("occurred_at", { ascending: false })
+            .limit(1000),
+          growthAgentAdmin.from("brand_web_data_connections")
+            .select("status, provider, detected_platform, detected_signals, updated_at")
+            .eq("user_id", user.id)
+            .eq("brand_profile_id", brandProfileId)
+            .maybeSingle(),
+        ]);
+        if (commerceEventError) throw commerceEventError;
+        if (webDataError) console.warn("[growth-agent] web commerce connection read skipped", webDataError.message || webDataError);
+        commerceEvents = eventRows || [];
+        webDataConnection = webRow || null;
+      } catch (error) {
+        console.warn("[growth-agent] commerce evidence read skipped", error?.message || error);
+      }
+    }
+    const growthCommerceProfile = buildGrowthAgentCommerceProfile({
+      commerceEvents,
+      performancePlanning,
+      webDataConnection,
+    });
+    if ((growthAgentActive || growthAgentShadow) && growthAgentAdmin) {
+      try {
+        await saveGrowthAgentCommerceProfile({ admin: growthAgentAdmin, userId: user.id, brandProfileId, profile: growthCommerceProfile });
+      } catch (error) {
+        console.warn("[growth-agent] commerce profile save skipped", error?.message || error);
+      }
+    }
+    if ((growthAgentActive || growthAgentShadow) && growthAgentAdmin) {
+      try {
+        await reconcileGrowthAgentClosedLoopCycles({
+          admin: growthAgentAdmin,
+          userId: user.id,
+          brandProfileId,
+          growthProfile,
+          commerceProfile: growthCommerceProfile,
+        });
+      } catch (error) {
+        console.warn("[growth-agent] closed-loop reconciliation skipped", error?.message || error);
+      }
+    }
+    if ((growthAgentActive || growthAgentShadow) && growthAgentAdmin) {
+      try {
+        await syncGrowthAgentOpportunities({
+          admin: growthAgentAdmin,
+          userId: user.id,
+          brandProfileId,
+          opportunities: growthOpportunities,
+        });
+      } catch (error) {
+        console.warn("[growth-agent] opportunity sync skipped", error?.message || error);
+      }
+    }
+    const growthAgent = buildGrowthAgentPlanningContext({
+      enabled: growthAgentActive,
+      goalId,
+      selectedPlatforms,
+      availableFormats,
+      recentHistory: context.recentHistory,
+      activeRules: context.activeRules,
+      upcomingCampaigns: context.upcomingCampaigns,
+      performancePlanning,
+      customerLearning,
+      growthProfile,
+      experiments: growthExperiments,
+      opportunities: growthOpportunities,
+      commerceProfile: growthCommerceProfile,
+    });
+    const shadowGrowthAgent = growthAgentShadow ? buildGrowthAgentPlanningContext({
+      enabled: true,
+      goalId,
+      selectedPlatforms,
+      availableFormats,
+      recentHistory: context.recentHistory,
+      activeRules: context.activeRules,
+      upcomingCampaigns: context.upcomingCampaigns,
+      performancePlanning,
+      customerLearning,
+      growthProfile,
+      experiments: growthExperiments,
+      opportunities: growthOpportunities,
+      commerceProfile: growthCommerceProfile,
+    }) : null;
+
     const fallbackPlan = normalizePlan({
       rawPlan: null,
       goalId,
@@ -585,12 +797,62 @@ export async function POST(request) {
       selectedPlatforms,
       learningProfile: context.learningProfile,
       performanceLearning,
+      growthAgent,
     });
+    const shadowCandidatePlan = shadowGrowthAgent ? normalizePlan({
+      rawPlan: null,
+      goalId,
+      postCount,
+      availableFormats,
+      recentHistory: context.recentHistory,
+      selectedPlatforms,
+      learningProfile: context.learningProfile,
+      performanceLearning,
+      growthAgent: shadowGrowthAgent,
+    }) : null;
 
     if (!process.env.OPENAI_API_KEY) {
+      if (growthAgentShadow && shadowCandidatePlan) {
+        await saveGrowthAgentShadowRun({ admin: growthAgentAdmin, userId: user.id, brandProfileId, goalId, selectedPlatforms, baselinePlan: fallbackPlan, growthPlan: shadowCandidatePlan, growthContext: shadowGrowthAgent, baselineSource: "fallback", model: null });
+      }
+      if (growthAgentActive && growthAgentAdmin) {
+        try {
+          await activateSelectedGrowthAgentExperiments({
+            admin: growthAgentAdmin,
+            brandProfileId,
+            experiments: growthExperiments,
+            selectedContentTypeIds: (fallbackPlan?.posts || []).map((item) => item?.content_type_id),
+          });
+        } catch (error) {
+          console.warn("[growth-agent] fallback experiment activation skipped", error?.message || error);
+        }
+      }
+      if ((growthAgentActive || growthAgentShadow) && growthAgentAdmin) {
+        try {
+          await saveGrowthAgentClosedLoopCycle({
+            admin: growthAgentAdmin,
+            userId: user.id,
+            brandProfileId,
+            mode: growthAgentMode,
+            goalId,
+            selectedPlatforms,
+            planSource: growthAgentShadow ? "shadow_fallback_candidate" : "fallback",
+            plan: growthAgentShadow ? shadowCandidatePlan : fallbackPlan,
+            baselinePlan: growthAgentShadow ? fallbackPlan : null,
+            growthContext: growthAgentShadow ? shadowGrowthAgent : growthAgent,
+            growthProfile,
+            commerceProfile: growthCommerceProfile,
+            planningEventId,
+          });
+        } catch (error) {
+          console.warn("[growth-agent] fallback closed-loop record skipped", error?.message || error);
+        }
+      }
       return Response.json({
         ...fallbackPlan,
         source: "fallback",
+        growth_agent: growthAgent,
+        growth_agent_mode: growthAgentMode,
       });
     }
 
@@ -606,17 +868,6 @@ export async function POST(request) {
         return `- ${format.id}: ${format.label}. ${format.purpose}${destinationText}`;
       })
       .join("\n");
-
-    const customerLearning = buildBrandLearningPlannerContext(context.learningProfile);
-    const performancePlanning = buildPerformanceLearningPlannerContext(
-      performanceLearning?.insights || [],
-      {
-        goalId,
-        selectedPlatforms,
-        learningState: performanceLearning?.learningState || "collecting",
-        maxSignals: 6,
-      }
-    );
 
     const response = await openai.responses.create({
       model: contentPlanModel,
@@ -658,6 +909,9 @@ ${JSON.stringify(customerLearning || { learning_state: "collecting", note: "Not 
 GROW BRAIN PERFORMANCE SIGNALS
 ${JSON.stringify(performancePlanning)}
 
+GROWTH AGENT V7 + GROWTH PROFILE + EXPERIMENTS + OPPORTUNITIES + COMMERCE LEARNING + CLOSED LOOP
+${JSON.stringify(growthAgent)}
+
 UPCOMING CALENDAR OPPORTUNITIES
 ${JSON.stringify(context.upcomingCampaigns)}
 
@@ -680,6 +934,14 @@ RULES
 - Customer learning signals are soft evidence from this specific brand's approval/rejection history. Use them only when there are enough observations and never let them override the selected goal, channel compatibility, verified capabilities, recency or factual safety.
 - Negative customer learning is intentionally conservative because a rejected post may have had an execution problem rather than a bad content type. Do not permanently ban a format from one or two decisions.
 - Grow Brain performance signals are normalized against each channel's own baseline. Use established signals as soft evidence to favor formats that repeatedly perform well for this brand and gently reduce formats that repeatedly underperform.
+- When Growth Agent V7 is enabled, act as one integrated strategist rather than multiple debating agents. Weigh the selected goal, performance evidence, customer learning, recent repetition, channel fit and upcoming opportunities in one decision.
+- Growth Agent V7 uses a soft 60/20/20 principle across time: roughly 60% exploit established strengths, 20% explore new safe ideas/formats and 20% strategic brand/trust/value content. Do not force exact percentages into a single week.
+- Growth Agent must not replace, reinterpret or bypass existing product discovery, Shopify import, rescue, brand analysis or content generation.
+- Growth Agent V7 experiments are controlled exploration nudges only. Never let experiments exceed roughly 20% of the rolling plan, never force a weak format, and never rewrite an already active calendar. It only decides what the existing engines should do next.
+- Growth Agent V7 opportunities are verified soft signals from existing Spreelo data. Prefer genuinely new/unused products, timely campaign windows and underexplored safe formats when they fit the selected goal. Never invent products, never force an opportunity, and never rewrite an already active calendar.
+- Growth Agent V7 commerce learning may use only explicitly normalized commerce events with attribution confidence. Clicks, saves and website traffic are useful proxies but are never treated as purchases or revenue. Commerce evidence is a bounded soft signal, never proof that a social post caused a sale, and it may influence planning only after minimum attributed evidence exists.
+- Growth Agent V7 closed loop records planning decisions and later compares them with newly observed Grow Brain/commerce evidence. Treat later evidence as feedback, never as proof that a plan caused the result. Closed-loop learning may influence only future planning and must never rewrite already active or approved calendar entries.
+- Avoid repeatedly selecting the same product visible in recent history. For product formats, set product_focus to a short instruction such as "prefer a relevant product not used recently", "introduce a new/recently added product if available", or a campaign/category focus supported by the supplied context. Never invent a product.
 - For Sell more, give more weight to click/save evidence; for Get more followers, give more weight to exposure/engagement/share evidence; for Build trust, give more weight to save/share/engagement evidence.
 - Never hard-ban a format from performance learning. Preserve exploration and variety so the system can discover changing audience behavior. Goal fit, channel compatibility, factual safety, verified capabilities and recency remain stronger constraints than Grow Brain.
 - Judge the balance across a rolling multi-week schedule. Do not force an exact percentage or identical mix into every individual week.
@@ -702,7 +964,9 @@ Return this exact JSON structure:
       "strategic_reason": "Why this post belongs in this week's sequence",
       "marketing_angle": "awareness | engagement | education | guide | trust | product_discovery | product_push | conversion",
       "customer_stage": "cold | warm | ready_to_buy",
-      "cta_strength": "soft | medium | strong"
+      "cta_strength": "soft | medium | strong",
+      "growth_reason": "Short explanation of the Growth Agent trade-off behind this choice, or empty if disabled",
+      "product_focus": "Short product/category freshness guidance for later existing product selection, or empty when not relevant"
     }
   ],
   "rotation_pool": [
@@ -713,7 +977,9 @@ Return this exact JSON structure:
       "strategic_reason": "How it should support future weeks without becoming repetitive",
       "marketing_angle": "awareness | engagement | education | guide | trust | product_discovery | product_push | conversion",
       "customer_stage": "cold | warm | ready_to_buy",
-      "cta_strength": "soft | medium | strong"
+      "cta_strength": "soft | medium | strong",
+      "growth_reason": "Short explanation of the Growth Agent trade-off behind this choice, or empty if disabled",
+      "product_focus": "Short product/category freshness guidance for later existing product selection, or empty when not relevant"
     }
   ]
 }
@@ -730,12 +996,52 @@ Return this exact JSON structure:
       selectedPlatforms,
       learningProfile: context.learningProfile,
       performanceLearning,
+      growthAgent,
     });
+
+    if (growthAgentShadow && shadowCandidatePlan) {
+      await saveGrowthAgentShadowRun({ admin: growthAgentAdmin, userId: user.id, brandProfileId, goalId, selectedPlatforms, baselinePlan: normalizedPlan, growthPlan: shadowCandidatePlan, growthContext: shadowGrowthAgent, baselineSource: rawPlan ? "openai" : "fallback", model: rawPlan ? contentPlanModel : null });
+    }
+    if (growthAgentActive && growthAgentAdmin) {
+      try {
+        await activateSelectedGrowthAgentExperiments({
+          admin: growthAgentAdmin,
+          brandProfileId,
+          experiments: growthExperiments,
+          selectedContentTypeIds: (normalizedPlan?.posts || []).map((item) => item?.content_type_id),
+        });
+      } catch (error) {
+        console.warn("[growth-agent] experiment activation skipped", error?.message || error);
+      }
+    }
+    if ((growthAgentActive || growthAgentShadow) && growthAgentAdmin) {
+      try {
+        await saveGrowthAgentClosedLoopCycle({
+          admin: growthAgentAdmin,
+          userId: user.id,
+          brandProfileId,
+          mode: growthAgentMode,
+          goalId,
+          selectedPlatforms,
+          planSource: growthAgentShadow ? "shadow_candidate" : (rawPlan ? "openai" : "fallback"),
+          plan: growthAgentShadow ? shadowCandidatePlan : normalizedPlan,
+          baselinePlan: growthAgentShadow ? normalizedPlan : null,
+          growthContext: growthAgentShadow ? shadowGrowthAgent : growthAgent,
+          growthProfile,
+          commerceProfile: growthCommerceProfile,
+          planningEventId,
+        });
+      } catch (error) {
+        console.warn("[growth-agent] closed-loop record skipped", error?.message || error);
+      }
+    }
 
     return Response.json({
       ...normalizedPlan,
       source: rawPlan ? "openai" : "fallback",
       model: rawPlan ? contentPlanModel : null,
+      growth_agent: growthAgent,
+      growth_agent_mode: growthAgentMode,
     });
   } catch (error) {
     return Response.json(

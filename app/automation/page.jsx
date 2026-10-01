@@ -1278,6 +1278,8 @@ function buildGoalSlotPrompt(type, step, goalId) {
     step?.marketingAngle ? `Marketing angle: ${step.marketingAngle}.` : "",
     step?.customerStage ? `Customer stage: ${step.customerStage}.` : "",
     step?.ctaStrength ? `CTA strength: ${step.ctaStrength}.` : "",
+    step?.growthReason ? `Growth Agent reasoning: ${step.growthReason}` : "",
+    step?.productFocus ? `Product selection focus: ${step.productFocus}` : "",
     "Make this post clearly different from the other posts in the plan. Do not just create a generic mixed post.",
     "If website products are used, choose products that fit this exact role and audience need, not random products from the website.",
   ]
@@ -2953,6 +2955,9 @@ function normalizeDynamicPlanningStep(
     marketingAngle: String(rawStep?.marketing_angle || rawStep?.marketingAngle || "").trim(),
     customerStage: String(rawStep?.customer_stage || rawStep?.customerStage || "").trim(),
     ctaStrength: String(rawStep?.cta_strength || rawStep?.ctaStrength || "").trim(),
+    growthReason: String(rawStep?.growth_reason || rawStep?.growthReason || "").trim(),
+    productFocus: String(rawStep?.product_focus || rawStep?.productFocus || "").trim(),
+    decisionMode: String(rawStep?.decision_mode || rawStep?.decisionMode || "").trim(),
     goalId,
   };
 }
@@ -3039,6 +3044,9 @@ function buildAdaptiveVariantFromPlanningStep(slot, planningStep, goalId) {
     marketingAngle: planningStep?.marketingAngle || "",
     customerStage: planningStep?.customerStage || "",
     ctaStrength: planningStep?.ctaStrength || "",
+    growthReason: planningStep?.growthReason || "",
+    productFocus: planningStep?.productFocus || "",
+    decisionMode: planningStep?.decisionMode || "",
     creditCost: getCreditCostForContent(draftSlot),
   };
 }
@@ -3096,7 +3104,11 @@ function createDynamicRecommendedSlots(options = {}) {
       marketingAngle: planningStep.marketingAngle || "",
       customerStage: planningStep.customerStage || "",
       ctaStrength: planningStep.ctaStrength || "",
-      strategyNotes: planningStep.description || options.plan?.strategy_summary || "",
+      strategyNotes: [
+        planningStep.description || options.plan?.strategy_summary || "",
+        planningStep.growthReason || "",
+        planningStep.productFocus ? `Product focus: ${planningStep.productFocus}` : "",
+      ].filter(Boolean).join("\n"),
       timeZone,
     });
 
@@ -6889,6 +6901,7 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
   });
   const formatStripRef = useRef(null);
   const autoPlanRequestIdRef = useRef(0);
+  const growthPlanEventRef = useRef({ signature: "", eventId: "", createdAt: 0 });
   const formatDragRef = useRef({
     active: false,
     dragging: false,
@@ -9882,6 +9895,24 @@ async function applyDynamicAutoPlan({ goalId, postCount }) {
     const accessToken = sessionData?.session?.access_token;
     if (!accessToken) return;
 
+    const planningSignature = JSON.stringify({
+      brandProfileId: currentBrandId,
+      goalId,
+      postCount: safePostCount,
+      startDate: planStartDate,
+      timeZone,
+      platforms: [...activePlatformKeys].sort(),
+    });
+    const eventNow = Date.now();
+    const recentEvent = growthPlanEventRef.current;
+    const reuseRecentEvent = recentEvent.signature === planningSignature && (eventNow - Number(recentEvent.createdAt || 0)) < 3000;
+    const planningEventId = reuseRecentEvent
+      ? recentEvent.eventId
+      : (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `${eventNow}-${requestId}-${Math.random().toString(36).slice(2)}`);
+    growthPlanEventRef.current = { signature: planningSignature, eventId: planningEventId, createdAt: eventNow };
+
     const response = await fetch("/api/plan-content", {
       method: "POST",
       headers: {
@@ -9896,6 +9927,7 @@ async function applyDynamicAutoPlan({ goalId, postCount }) {
         timeZone,
         platform: formatPlatformSelectionFromKeys(activePlatformKeys, connectedPlatformOptions) || platform,
         platforms: activePlatformKeys,
+        planningEventId,
       }),
     });
     const payload = await response.json().catch(() => ({}));

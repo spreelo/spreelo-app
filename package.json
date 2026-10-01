@@ -248,7 +248,15 @@
     "stripe:prices:sync": "node scripts/sync-stripe-local-prices.mjs --apply",
     "test:v144.258": "node scripts/test-v144-258-international-pricing.mjs",
     "test:v144.259": "node scripts/test-v144-259-polished-credit-pricing.mjs",
-    "test:v144.260": "node scripts/test-v144-260-country-first-currency-fallback.mjs"
+    "test:v144.260": "node scripts/test-v144-260-country-first-currency-fallback.mjs",
+    "test:v144.270": "node scripts/test-v144-270-growth-agent-v1.mjs",
+    "test:v144.271": "node scripts/test-v144-271-growth-agent-v2-admin-shadow.mjs",
+    "test:v144.272": "node scripts/test-v144-272-growth-agent-v3-profile.mjs",
+    "test:v144.273": "node scripts/test-v144-273-growth-agent-v4-experiments.mjs",
+    "test:v144.274": "node scripts/test-v144-274-growth-agent-v5-opportunities.mjs",
+    "test:v144.275": "node scripts/test-v144-275-growth-agent-v6-commerce-learning.mjs",
+    "test:v144.276": "node scripts/test-v144-276-growth-agent-v7-closed-loop.mjs",
+    "test:v144-277": "node scripts/test-v144-277-growth-agent-v7-idempotency.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

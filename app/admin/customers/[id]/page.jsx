@@ -87,6 +87,7 @@ export default function AdminCustomerCardPage({ params }) {
   const [error, setError] = useState("");
   const [savingReviewPolicyId, setSavingReviewPolicyId] = useState("");
   const [saving429RescueId, setSaving429RescueId] = useState("");
+  const [savingGrowthAgent, setSavingGrowthAgent] = useState(false);
   const tabs = [["overview", t("admin.customer.tab.overview")], ["brands", t("admin.customer.tab.brands")], ["posts", t("admin.customer.tab.posts")], ["credits", t("admin.customer.tab.credits")], ["failures", t("admin.customer.tab.failures")], ["technical", t("admin.customer.tab.technical")]];
 
   useEffect(() => {
@@ -170,6 +171,22 @@ export default function AdminCustomerCardPage({ params }) {
     }
   }
 
+  async function setGrowthAgentMode(mode) {
+    setSavingGrowthAgent(true);
+    setError("");
+    try {
+      const headers = { ...(await getAdminHeaders()), "Content-Type": "application/json" };
+      const response = await fetch(`/api/admin/customers/${encodeURIComponent(customerId)}`, { method: "PATCH", headers, body: JSON.stringify({ action: "set_growth_agent_mode", mode }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.growthAgent) throw new Error(result?.error || t("admin.customer.growthAgentSaveError"));
+      setPayload((current) => current ? { ...current, growthAgent: { ...(current.growthAgent || {}), mode: result.growthAgent.mode, updatedAt: result.growthAgent.updated_at, updatedByUserId: result.growthAgent.updated_by_user_id } } : current);
+    } catch (saveError) {
+      setError(saveError.message || t("admin.customer.growthAgentSaveError"));
+    } finally {
+      setSavingGrowthAgent(false);
+    }
+  }
+
   const brandById = useMemo(() => new Map((payload?.brands || []).map((brand) => [brand.id, brand])), [payload?.brands]);
   const ruleById = useMemo(() => new Map((payload?.rules || []).map((rule) => [rule.id, rule])), [payload?.rules]);
   const summary = payload?.summary || {};
@@ -233,6 +250,22 @@ export default function AdminCustomerCardPage({ params }) {
 
             {tab === "overview" ? (
               <div className="admin-v140-two-column">
+                <section className="admin-panel admin-v271-growth-agent-panel admin-v140-wide-panel">
+                  <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.growthAgentKicker")}</span><h2>{t("admin.customer.growthAgentTitle")}</h2></div><Status value={payload.growthAgent?.mode || "off"} /></div>
+                  <p className="admin-v271-growth-agent-copy">{t("admin.customer.growthAgentDescription")}</p>
+                  <div className="admin-v271-growth-agent-modes">
+                    {[["off", t("admin.customer.growthAgentOff"), t("admin.customer.growthAgentOffHelp")], ["shadow", t("admin.customer.growthAgentShadow"), t("admin.customer.growthAgentShadowHelp")], ["active", t("admin.customer.growthAgentActive"), t("admin.customer.growthAgentActiveHelp")]].map(([modeValue,label,help]) => (
+                      <button key={modeValue} type="button" disabled={savingGrowthAgent} className={(payload.growthAgent?.mode || "off") === modeValue ? "active" : ""} onClick={() => setGrowthAgentMode(modeValue)}><strong>{label}</strong><span>{help}</span></button>
+                    ))}
+                  </div>
+                  <div className="admin-v271-growth-agent-summary"><span>{t("admin.customer.growthAgentShadowRuns", { count: (payload.growthAgent?.shadowRuns || []).length })}</span><span>{payload.growthAgent?.updatedAt ? t("admin.customer.growthAgentUpdated", { date: formatDate(payload.growthAgent.updatedAt, locale) }) : t("admin.customer.growthAgentNotConfigured")}</span></div>
+                  {(payload.growthAgent?.profiles || []).length ? <div className="admin-table-wrap admin-v271-shadow-table"><table className="admin-table"><thead><tr><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.growthAgentLearningState")}</th><th>{t("admin.customer.growthAgentDataQuality")}</th><th>{t("admin.customer.growthAgentEvidence")}</th><th>{t("admin.customer.growthAgentStrengths")}</th></tr></thead><tbody>{payload.growthAgent.profiles.slice(0,8).map((profile) => <tr key={profile.brand_profile_id}><td>{brandById.get(profile.brand_profile_id)?.business_name || "—"}</td><td>{profile.learning_state || "collecting"}</td><td>{profile.data_quality || "limited"}</td><td>{t("admin.customer.growthAgentEvidenceCount", { count: profile.evidence_count || 0, observations: profile.observation_count || 0 })}</td><td>{(profile.profile_json?.strengths || []).slice(0,3).map((item) => item.content_type_id).filter(Boolean).join(", ") || "—"}</td></tr>)}</tbody></table></div> : null}
+                  {(payload.growthAgent?.experiments || []).length ? <div className="admin-table-wrap admin-v271-shadow-table"><table className="admin-table"><thead><tr><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.growthAgentExperiments")}</th><th>{t("admin.customer.growthAgentExperimentStatus")}</th><th>{t("admin.customer.growthAgentExperimentHypothesis")}</th><th>{t("admin.customer.growthAgentExperimentOutcome")}</th></tr></thead><tbody>{payload.growthAgent.experiments.slice(0,8).map((experiment) => <tr key={experiment.id}><td>{brandById.get(experiment.brand_profile_id)?.business_name || "—"}</td><td>{experiment.content_type_id || experiment.kind || "—"}</td><td>{experiment.status || "proposed"}</td><td>{experiment.hypothesis || "—"}</td><td>{experiment.outcome || "—"}</td></tr>)}</tbody></table></div> : null}
+                  {(payload.growthAgent?.opportunities || []).length ? <div className="admin-table-wrap admin-v271-shadow-table"><table className="admin-table"><thead><tr><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.growthAgentOpportunity")}</th><th>{t("admin.customer.growthAgentOpportunityType")}</th><th>{t("admin.customer.growthAgentOpportunityPriority")}</th><th>{t("admin.customer.growthAgentOpportunityReason")}</th></tr></thead><tbody>{payload.growthAgent.opportunities.slice(0,10).map((opportunity) => <tr key={opportunity.id}><td>{brandById.get(opportunity.brand_profile_id)?.business_name || "—"}</td><td>{opportunity.product_title || opportunity.campaign_title || opportunity.title || opportunity.content_type_id || "—"}</td><td>{opportunity.kind || "—"}</td><td>{Math.round(Number(opportunity.priority || 0))}</td><td>{opportunity.reason || "—"}</td></tr>)}</tbody></table></div> : null}
+                  {(payload.growthAgent?.commerceProfiles || []).length ? <div className="admin-table-wrap admin-v271-shadow-table"><table className="admin-table"><thead><tr><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.growthAgentCommerceState")}</th><th>{t("admin.customer.growthAgentCommerceProvider")}</th><th>{t("admin.customer.growthAgentCommerceEvidence")}</th><th>{t("admin.customer.growthAgentCommerceAttribution")}</th></tr></thead><tbody>{payload.growthAgent.commerceProfiles.slice(0,8).map((profile) => <tr key={profile.brand_profile_id}><td>{brandById.get(profile.brand_profile_id)?.business_name || "—"}</td><td>{profile.learning_state || "collecting"}</td><td>{profile.provider || "none"}</td><td>{t("admin.customer.growthAgentCommerceEvidenceValue", { events: profile.commerce_event_count || 0, attributed: profile.attributed_event_count || 0, conversions: profile.purchase_like_event_count || 0 })}</td><td>{`${Math.round(Number(profile.average_attribution_confidence || 0) * 100)} %`}</td></tr>)}</tbody></table></div> : null}
+                  {(payload.growthAgent?.closedLoopCycles || []).length ? <div className="admin-table-wrap admin-v271-shadow-table"><table className="admin-table"><thead><tr><th>{t("admin.customer.date")}</th><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.growthAgentClosedLoopMode")}</th><th>{t("admin.customer.growthAgentClosedLoopDecision")}</th><th>{t("admin.customer.growthAgentClosedLoopStatus")}</th><th>{t("admin.customer.growthAgentClosedLoopFeedback")}</th></tr></thead><tbody>{payload.growthAgent.closedLoopCycles.slice(0,10).map((cycle) => <tr key={cycle.id}><td>{formatDate(cycle.planned_at, locale)}</td><td>{brandById.get(cycle.brand_profile_id)?.business_name || "—"}</td><td>{cycle.mode || "—"}</td><td>{(cycle.selected_content_type_ids || []).join(", ") || "—"}</td><td>{cycle.status || "waiting"}</td><td>{cycle.status === "feedback_observed" ? t("admin.customer.growthAgentClosedLoopFeedbackValue", { observations: cycle.feedback_observation_gain || 0, commerce: cycle.feedback_commerce_event_gain || 0 }) : t("admin.customer.growthAgentClosedLoopWaiting")}</td></tr>)}</tbody></table></div> : null}
+                  {(payload.growthAgent?.shadowRuns || []).length ? <div className="admin-table-wrap admin-v271-shadow-table"><table className="admin-table"><thead><tr><th>{t("admin.customer.date")}</th><th>{t("admin.customer.brand")}</th><th>{t("admin.customer.growthAgentBaseline")}</th><th>{t("admin.customer.growthAgentCandidate")}</th></tr></thead><tbody>{payload.growthAgent.shadowRuns.slice(0,5).map((run) => <tr key={run.id}><td>{formatDate(run.created_at, locale)}</td><td>{brandById.get(run.brand_profile_id)?.business_name || "—"}</td><td>{(run.baseline_plan?.posts || []).map((post) => post.content_type_id).filter(Boolean).join(", ") || "—"}</td><td>{(run.growth_plan?.posts || []).map((post) => post.content_type_id).filter(Boolean).join(", ") || "—"}</td></tr>)}</tbody></table></div> : null}
+                </section>
                 <section className="admin-panel">
                   <div className="admin-panel-heading"><div><span className="admin-card-kicker">{t("admin.customer.resultsKicker")}</span><h2>{t("admin.customer.creationPublishing")}</h2></div></div>
                   <dl className="admin-v140-metric-list">
