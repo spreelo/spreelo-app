@@ -40891,8 +40891,24 @@ function hasHardSemanticModelConflict(review) {
 
 function hasHardSemanticVariantConflict(review) {
   const reason = String(review?.reason || "").toLowerCase();
+  if (!reason) return false;
+
+  // v144.283: semantic reviewers sometimes phrase a *negative* finding as
+  // "no conflicting ... product variant is visible". The old regex matched
+  // the "conflict" substring inside "conflicting" and incorrectly turned
+  // that explicit all-clear into a hard variant stop. Honour clear negations
+  // before evaluating positive mismatch language.
+  const explicitNoVariantConflict = [
+    /\bno\s+(?:visible\s+|clear\s+|obvious\s+)?(?:conflict(?:ing)?|mismatch(?:ed)?|different|wrong|inconsistent)\b[^.!]{0,140}\b(?:colou?r|variant|design|size|weight|volume|capacity|pack(?:age)? size|pack count|quantity|count)\b/i,
+    /\b(?:colou?r|variant|design|size|weight|volume|capacity|pack(?:age)? size|pack count|quantity|count)\b[^.!]{0,140}\b(?:shows?\s+no|has\s+no|with\s+no|without|no)\s+(?:visible\s+|clear\s+|obvious\s+)?(?:conflict|mismatch|difference|discrepancy)\b/i,
+    /\b(?:no|without)\s+(?:visible\s+|clear\s+|obvious\s+)?(?:product\s+)?variant\s+(?:conflict|mismatch|difference|discrepancy)\b/i,
+  ].some((pattern) => pattern.test(reason));
+  if (explicitNoVariantConflict) return false;
+
   const variantDimension = "(?:colou?r|variant|design|size|weight|volume|capacity|pack(?:age)? size|pack count|quantity|count)";
-  const conflictWord = "(?:does not match|doesn't match|do not match|conflict|mismatch|different|wrong|not matching|inconsistent|discrepancy)";
+  // Use word boundaries for single-word markers so "conflict" cannot match
+  // inside "conflicting".
+  const conflictWord = "(?:does not match|doesn\'t match|do not match|conflict(?!ing)|mismatch|different|wrong|not matching|inconsistent|discrepancy)";
   return (
     new RegExp(`${variantDimension}[^.!]{0,140}${conflictWord}`, "i").test(reason) ||
     new RegExp(`${conflictWord}[^.!]{0,140}${variantDimension}`, "i").test(reason) ||

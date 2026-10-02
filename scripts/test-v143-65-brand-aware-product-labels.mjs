@@ -45,6 +45,11 @@ assert.equal(
   true,
   "a real variant conflict must remain a hard stop"
 );
+assert.equal(
+  brandHelpers.hasHardSemanticVariantConflict({ reason: "The visible design style and branding elements are consistent with the expected brand. No conflicting brand or product variant is visible." }),
+  false,
+  "an explicit no-conflict review must not be misread as a hard variant conflict"
+);
 
 const presentationStart = route.indexOf("function stripBrandPrefixFromProductTitle");
 const presentationEnd = route.indexOf("async function deriveLocalPackshotLabelAnalysis", presentationStart);
