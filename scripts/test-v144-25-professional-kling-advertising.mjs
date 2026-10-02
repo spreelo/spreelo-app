@@ -16,7 +16,7 @@ must(route, 'Decorative particles alone are not a concept', 'Particle-only anima
 must(route, 'never zoom out to complete it', 'Cropped references must not be expanded beyond verified pixels.');
 must(route, 'Spreelo adds professional typography after the video is generated', 'Kling itself must not hallucinate readable ad text.');
 must(finalizer, 'kling-text-overlay.png', 'Kling must create a durable transparent typography asset after the finished video exists.');
-must(finalizer, 'gpt-image-2-finished-video-transparent-typography', 'Kling must use GPT-Image-2 transparent finished-video typography.');
+must(finalizer, 'gpt-image-2.5-flare-finished-video-shared-overlay', 'Kling must use GPT-Image-2.5 Flare transparent finished-video typography.');
 must(route, 'mode: "kling_professional_advertising_postprocess"', 'Kling posts must persist professional post-process metadata.');
 must(route, 'text_overlay_status: "waiting_for_finished_video"', 'The typography generation must wait for the finished video.');
 must(route, '? ANIMATED_OVERLAY_IMAGE_MODEL', 'Kling post metadata must report the GPT-Image-2 overlay model.');

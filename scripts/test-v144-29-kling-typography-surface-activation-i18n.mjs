@@ -23,9 +23,9 @@ assert(finalizer.includes('size: "1024x1536"'));
 assert(finalizer.includes("real frames from the FINISHED video"));
 assert(finalizer.includes("EXACT VISIBLE TEXT"));
 assert(finalizer.includes("text_overlay_generation_attempts: 1"));
-assert(finalizer.includes("will not submit a second paid GPT-Image-2 typography generation"));
-assert(finalizer.includes("gpt-image-2-finished-video-transparent-typography"));
-assert(finalizer.includes("TRUE alpha transparency"));
+assert(finalizer.includes("one allowed GPT-Image-2.5 Flare typography generation"));
+assert(finalizer.includes("gpt-image-2.5-flare-finished-video-shared-overlay"));
+assert(finalizer.includes("fully transparent with alpha = 0"));
 
 // Product view/surface is fail-closed through the entire finished video.
 assert(worker.includes("analyzeKlingVerifiedViewLock"));

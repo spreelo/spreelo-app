@@ -41,7 +41,7 @@ assert.match(
 );
 assert.match(
   finalizer,
-  /cta_overlay_provider: "gpt-image-2-shared-overlay-split"/,
+  /cta_overlay_provider: "gpt-image-2.5-flare-shared-overlay-split"/,
   "The CTA must still come from the shared GPT-Image-2 render rather than a second image generation."
 );
 

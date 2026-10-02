@@ -30,7 +30,7 @@ export const maxDuration = 300;
 
 const POST_VIDEOS_BUCKET = "post-videos";
 const POST_IMAGES_BUCKET = "post-images";
-const KLING_TYPOGRAPHY_MODEL = "gpt-image-2";
+const KLING_TYPOGRAPHY_MODEL = "gpt-image-2.5-flare";
 const KLING_PRODUCT_IDENTITY_AUDIT_MODEL = "gpt-4.1-mini";
 const KLING_CLOSING_HERO_HOLD_SECONDS = 0.9;
 const DEFAULT_MAX_PENDING_HOURS = 6;
@@ -779,7 +779,7 @@ function throwKlingTypographyValidationError(message, buffer, analysis) {
 }
 
 async function normalizeFinishedKlingTypography(buffer) {
-  // GPT-Image-2 currently returns a portrait canvas that is not exactly 9:16.
+  // GPT-Image-2.5 Flare currently returns a portrait canvas that is not exactly 9:16.
   // Preserve the artwork's geometry and place it on a transparent 1080x1920
   // canvas instead of stretching the lettering/decorations with fit: "fill".
   const normalized = await sharp(buffer)
@@ -842,22 +842,22 @@ async function normalizeFinishedKlingTypography(buffer) {
   };
 
   if (visibleRatio < 0.0025 || strongRatio < 0.0009) {
-    throwKlingTypographyValidationError("GPT-Image-2 Kling typography was visually empty", normalized, analysis);
+    throwKlingTypographyValidationError("GPT-Image-2.5 Flare Kling typography was visually empty", normalized, analysis);
   }
   // A transparent overlay may legitimately contain a headline plus a compact
   // underline/brush/flourish. Do not reject that just because it crosses the
   // old 22% occupancy threshold. Reject only clear background-like output.
   if (visibleRatio > 0.42) {
-    throwKlingTypographyValidationError("GPT-Image-2 Kling typography contained a background-sized opaque area", normalized, analysis);
+    throwKlingTypographyValidationError("GPT-Image-2.5 Flare Kling typography contained a background-sized opaque area", normalized, analysis);
   }
   if (bboxAreaRatio > 0.18 && bboxFillRatio > 0.72) {
-    throwKlingTypographyValidationError("GPT-Image-2 Kling typography contained a large opaque panel-like area", normalized, analysis);
+    throwKlingTypographyValidationError("GPT-Image-2.5 Flare Kling typography contained a large opaque panel-like area", normalized, analysis);
   }
   if (lowAlphaRatio > 0.18) {
-    throwKlingTypographyValidationError("GPT-Image-2 Kling typography contained excessive translucent haze", normalized, analysis);
+    throwKlingTypographyValidationError("GPT-Image-2.5 Flare Kling typography contained excessive translucent haze", normalized, analysis);
   }
   if (edgeRatio > 0.12) {
-    throwKlingTypographyValidationError("GPT-Image-2 Kling typography touched the canvas edge", normalized, analysis);
+    throwKlingTypographyValidationError("GPT-Image-2.5 Flare Kling typography touched the canvas edge", normalized, analysis);
   }
   return { buffer: normalized, ...analysis };
 }
@@ -1002,7 +1002,7 @@ async function createKlingCtaOverlay({ supabase, post, selection, creativePlan, 
       ...selection,
       cta_overlay_url: uploaded.imageUrl,
       cta_overlay_storage_path: uploaded.storagePath,
-      cta_overlay_provider: "gpt-image-2-shared-overlay-split",
+      cta_overlay_provider: "gpt-image-2.5-flare-shared-overlay-split",
       cta_overlay_copy: cta,
       cta_overlay_placement: placement,
       cta_overlay_created_at: new Date().toISOString(),
@@ -1200,7 +1200,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       supabase,
       post,
       selection,
-      reason: "The original GPT-Image-2 typography claim became stale before completion.",
+      reason: "The original GPT-Image-2.5 Flare typography claim became stale before completion.",
     });
   }
   if (status === "failed") {
@@ -1208,7 +1208,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       supabase,
       post,
       selection,
-      reason: selection?.text_overlay_error || "The one allowed GPT-Image-2 typography generation previously failed.",
+      reason: selection?.text_overlay_error || "The one allowed GPT-Image-2.5 Flare typography generation previously failed.",
     });
   }
   const copy = selection?.text_overlay_copy || {};
@@ -1228,7 +1228,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     .update({ video_background_selection: claimedSelection, updated_at: new Date().toISOString() })
     .eq("id", post.id)
     .eq("video_provider", "kling");
-  if (claimError) throw new Error(`Could not claim the single GPT-Image-2 typography generation: ${claimError.message}`);
+  if (claimError) throw new Error(`Could not claim the single GPT-Image-2.5 Flare typography generation: ${claimError.message}`);
 
   try {
     const durationSeconds = normalizeVideoDurationSeconds(task.durationSeconds, post.video_duration_seconds, 6);
@@ -1355,7 +1355,7 @@ OUTPUT RULES:
       output_format: "png",
     }, { timeout: 75_000, maxRetries: 0 });
     const base64 = response?.data?.[0]?.b64_json;
-    if (!base64) throw new Error("GPT-Image-2 returned no transparent Kling typography image");
+    if (!base64) throw new Error("GPT-Image-2.5 Flare returned no transparent Kling typography image");
     const combinedOverlay = await normalizeFinishedKlingTypography(
       Buffer.from(base64, "base64")
     );
@@ -1369,7 +1369,7 @@ OUTPUT RULES:
       ...workingSelection,
       text_overlay_url: uploaded.imageUrl,
       text_overlay_storage_path: uploaded.storagePath,
-      text_overlay_provider: "gpt-image-2-finished-video-shared-overlay",
+      text_overlay_provider: "gpt-image-2.5-flare-finished-video-shared-overlay",
       text_overlay_prompt: prompt,
       text_overlay_status: "ready",
       text_overlay_generated_at: new Date().toISOString(),
@@ -1399,7 +1399,7 @@ OUTPUT RULES:
       .eq("id", post.id)
       .eq("video_provider", "kling");
     if (persistError) throw new Error(`Could not persist finished Kling typography: ${persistError.message}`);
-    console.info("GPT-Image-2 finished-video transparent typography created in one generation", {
+    console.info("GPT-Image-2.5 Flare finished-video transparent typography created in one generation", {
       postId: post.id,
       headline,
       hasSubheadline: Boolean(subheadline),
@@ -1409,7 +1409,7 @@ OUTPUT RULES:
       placementConfidence: creativePlan.placement_confidence,
       referenceFrames: frames.length,
       provider: completedSelection.text_overlay_provider,
-      sharedOverlay: completedSelection.cta_overlay_provider === "gpt-image-2-shared-overlay-split",
+      sharedOverlay: completedSelection.cta_overlay_provider === "gpt-image-2.5-flare-shared-overlay-split",
     });
     return completedSelection;
   } catch (error) {
