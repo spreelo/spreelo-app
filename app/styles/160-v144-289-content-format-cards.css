@@ -1,0 +1,132 @@
+/* v144.289 — the preview and Spreelo's explanation are separate surfaces.
+   Existing/admin artwork and format selection behavior remain in use. */
+html body .automation-page.plan-v70-active .plan-v72-format-card.plan-v289-format-card {
+  --format-accent:#28b98d;
+  --format-tint:#ddf7ee;
+  display:flex !important;
+  flex-direction:column !important;
+  gap:10px !important;
+  height:auto !important;
+  min-height:0 !important;
+  padding:0 !important;
+  overflow:visible !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  text-align:start;
+  font-family:Inter,Arial,Helvetica,sans-serif !important;
+  align-self:stretch;
+}
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-tone="1"] {--format-accent:#3583f7;--format-tint:#e2efff;}
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-tone="2"] {--format-accent:#8551ed;--format-tint:#eee5ff;}
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-tone="3"] {--format-accent:#f98b35;--format-tint:#fff0df;}
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-tone="4"] {--format-accent:#ed53a1;--format-tint:#ffe5f1;}
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-tone="5"] {--format-accent:#13b8bd;--format-tint:#dcf6f5;}
+/* These key formats keep their accent when a filtered view changes the order. */
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-format="website_item"] {--format-accent:#28b98d;--format-tint:#ddf7ee;}
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-format="website_item_text_ad"] {--format-accent:#3583f7;--format-tint:#e2efff;}
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-format="animated_website_item"] {--format-accent:#8551ed;--format-tint:#eee5ff;}
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-format="ai_product_video"] {--format-accent:#f98b35;--format-tint:#fff0df;}
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-format="carousel_website_item"] {--format-accent:#ed53a1;--format-tint:#ffe5f1;}
+html body .automation-page.plan-v70-active .plan-v289-format-card[data-format="problem_solution"] {--format-accent:#13b8bd;--format-tint:#dcf6f5;}
+html body .automation-page.plan-v70-active .plan-v289-format-preview {
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  overflow:hidden;
+  border:1px solid #e2e9f2;
+  border-top:4px solid var(--format-accent);
+  border-radius:11px;
+  background:#fff;
+  box-shadow:0 3px 10px #233e6d06;
+}
+html body .automation-page.plan-v70-active .plan-v289-format-heading {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:78px;
+  padding:10px 12px;
+}
+html body .automation-page.plan-v70-active .plan-v289-format-heading > strong {
+  display:block;
+  min-width:0;
+  margin:0 !important;
+  color:#142642 !important;
+  font-size:13px !important;
+  line-height:1.35 !important;
+  font-weight:700 !important;
+  font-family:inherit !important;
+  overflow-wrap:anywhere;
+}
+html body .automation-page.plan-v70-active .plan-v289-format-icon {
+  display:grid;
+  place-items:center;
+  flex:0 0 34px;
+  width:34px;
+  height:34px;
+  border-radius:9px;
+  color:var(--format-accent);
+  background:var(--format-tint);
+}
+html body .automation-page.plan-v70-active .plan-v289-format-preview > .plan-v72-format-art {
+  width:calc(100% - 16px) !important;
+  height:auto !important;
+  min-height:0 !important;
+  aspect-ratio:4 / 5;
+  flex-shrink:0;
+  margin:0 8px 8px;
+  padding:14px !important;
+  border-radius:7px;
+}
+html body .automation-page.plan-v70-active .plan-v289-format-card > .plan-v72-format-card-copy {
+  display:flex !important;
+  flex:1;
+  flex-direction:column;
+  gap:8px !important;
+  width:100%;
+  min-height:128px !important;
+  padding:12px 13px 14px !important;
+  border:1px solid #e2e9f2;
+  border-left:5px solid var(--format-accent);
+  border-radius:10px;
+  background:#fff;
+  box-shadow:0 3px 10px #233e6d06;
+}
+html body .automation-page.plan-v70-active .plan-v289-format-explanation-label {
+  display:flex;
+  align-items:flex-start;
+  gap:6px;
+  margin:0 !important;
+  color:#647b9e !important;
+  font-size:9px !important;
+  line-height:1.4 !important;
+  font-weight:700;
+  letter-spacing:.025em;
+  text-transform:uppercase;
+}
+html body .automation-page.plan-v70-active .plan-v289-format-explanation-label > svg {flex:0 0 14px;margin-top:-1px;}
+html body .automation-page.plan-v70-active .plan-v289-format-card > .plan-v72-format-card-copy > small {
+  display:block !important;
+  margin:0 !important;
+  color:#536583 !important;
+  font-size:12px !important;
+  line-height:1.5 !important;
+  font-weight:400;
+  overflow:visible !important;
+  -webkit-line-clamp:unset !important;
+  overflow-wrap:anywhere;
+}
+html body .automation-page.plan-v70-active .plan-v289-format-card > .plan-v72-format-card-action {display:none !important;}
+html body .automation-page.plan-v70-active .plan-v289-format-card:hover {transform:none;box-shadow:none !important;}
+html body .automation-page.plan-v70-active .plan-v289-format-card:hover .plan-v289-format-preview {border-color:var(--format-accent);}
+html body .automation-page.plan-v70-active .plan-v289-format-card:focus-visible {outline:3px solid #3583f7;outline-offset:4px;border-radius:11px !important;}
+html body .automation-page.plan-v70-active .plan-v72-all-formats-grid.grid {align-items:stretch !important;}
+/* The list view also uses the same vertically separated explanation. */
+html body .automation-page.plan-v70-active .plan-v289-format-card.list {width:100% !important;min-width:0 !important;max-width:none !important;}
+html body .automation-page.plan-v70-active .plan-v289-format-card.list .plan-v289-format-preview > .plan-v72-format-art {aspect-ratio:auto;height:180px !important;}
+@media (max-width:760px) {
+  html body .automation-page.plan-v70-active .plan-v289-format-heading {gap:8px;padding:10px;min-height:78px;}
+  html body .automation-page.plan-v70-active .plan-v289-format-heading > strong {font-size:12.5px !important;}
+  html body .automation-page.plan-v70-active .plan-v289-format-card > .plan-v72-format-card-copy {padding:11px 10px 13px !important;}
+}

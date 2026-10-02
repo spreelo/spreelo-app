@@ -857,17 +857,25 @@ function ContentFormatArtwork({ item, index = 0, large = false }) {
   );
 }
 
-function ContentFormatCard({ item, index = 0, view = "grid", onClick, disabled = false }) {
+function ContentFormatCard({ item, index = 0, view = "grid", onClick, disabled = false, explanationLabel }) {
   return (
     <button
       type="button"
-      className={`plan-v72-format-card ${view === "list" ? "list" : "grid"}${disabled ? " disabled" : ""}`}
+      className={`plan-v72-format-card plan-v289-format-card ${view === "list" ? "list" : "grid"}${disabled ? " disabled" : ""}`}
+      data-format={item?.id}
+      data-tone={index % 6}
       onClick={onClick}
       aria-disabled={disabled}
     >
-      <ContentFormatArtwork item={item} index={index} />
+      <span className="plan-v289-format-preview">
+        <span className="plan-v289-format-heading">
+          <span className="plan-v289-format-icon"><ContentFormatIconVisual item={item} size={21} /></span>
+          <strong>{item?.label}</strong>
+        </span>
+        <ContentFormatArtwork item={item} index={index} />
+      </span>
       <span className="plan-v72-format-card-copy">
-        <strong>{item?.label}</strong>
+        <span className="plan-v289-format-explanation-label"><Info size={14} aria-hidden="true" /><span>{explanationLabel}</span></span>
         <small>{item?.description}</small>
       </span>
       <span className="plan-v72-format-card-action" aria-hidden="true">→</span>
@@ -12250,6 +12258,7 @@ function blockFormatCardClickAfterDrag(event) {
                 >
                   {mainExploreFormatItems.filter((item) => planCreationMode !== "campaign" || item.kind === "content_type").map((item, index) => (
                     <ContentFormatCard
+                      explanationLabel={t("automation.format.aboutPostType")}
                       item={item}
                       index={index}
                       view="grid"
@@ -14956,6 +14965,7 @@ function blockFormatCardClickAfterDrag(event) {
                       <div className="plan-v72-all-formats-grid grid">
                         {group.items.map((item, index) => (
                           <ContentFormatCard
+                            explanationLabel={t("automation.format.aboutPostType")}
                             item={item}
                             index={index}
                             view="grid"
