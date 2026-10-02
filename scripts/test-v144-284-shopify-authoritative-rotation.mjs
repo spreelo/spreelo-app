@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 const cron = fs.readFileSync(new URL('../app/api/cron/run-automations/route.js', import.meta.url), 'utf8');
 
 assert.ok(
-  /if \(hasShopifyPrimaryCatalog && productIntentScoped\) \{[\s\S]*?acceptableShopifyCampaignItems[\s\S]*?isShopifyAdminApiLockedProduct\(item\)[\s\S]*?isAcceptableWebsiteTextProductSelection\(item, rule\)[\s\S]*?allowReuseWhenExhausted: true/.test(cron),
-  'Shopify authoritative rotation reuse must run regardless of storefront protection while remaining campaign-fit gated'
+  /if \(hasShopifyPrimaryCatalog && productIntentScoped\) \{[\s\S]*?acceptableShopifyCampaignItems[\s\S]*?isAcceptableShopifyAdminProductSelection\(item, rule\)[\s\S]*?allowReuseWhenExhausted: true/.test(cron),
+  'Shopify authoritative rotation reuse must run regardless of storefront protection while remaining explicit-conflict gated'
 );
 
 assert.ok(

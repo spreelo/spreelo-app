@@ -24025,6 +24025,20 @@ function isAcceptableWebsiteTextProductSelection(item, rule) {
   );
 }
 
+// v144.285: Shopify Admin API is the authoritative product source for connected
+// Shopify stores. A concrete, active, identity-locked Shopify product must not
+// be discarded merely because the soft text/campaign-fit heuristic scored it
+// below the generic website threshold. Only an explicit campaign rejection may
+// veto an otherwise valid Shopify product. This keeps Shopify product/video
+// automation deterministic and prevents needless storefront/web-rescue passes.
+function isAcceptableShopifyAdminProductSelection(item, rule) {
+  return Boolean(
+    isShopifyAdminApiLockedProduct(item) &&
+      isProductEligibleForPromotion(item) &&
+      !isCampaignFitRejectedForRule(item, rule)
+  );
+}
+
 async function chooseUnusedWebsiteItem({
   supabase,
   userId,
@@ -33397,6 +33411,61 @@ async function prepareWebsiteContentForRule({
     return finalizePreparedWebsiteItem(catalogSelection.item, catalogSelection.cycleNumber);
   }
 
+  // v144.285: for a connected Shopify store, accept the ranked Admin API
+  // product before any storefront-specific gate. Shopify already supplied the
+  // concrete product identity, active stock state and exact product image. The
+  // generic website text-fit threshold is intentionally not used here because
+  // it is a soft ranking heuristic and previously sent valid Shopify products
+  // into password-protected web research/rescue.
+  if (
+    catalogSelection?.item &&
+    productIntentScoped &&
+    hasShopifyPrimaryCatalog &&
+    isAcceptableShopifyAdminProductSelection(catalogSelection.item, rule)
+  ) {
+    try {
+      const preparedShopifyCatalogItem = await finalizePreparedWebsiteItem(
+        catalogSelection.item,
+        catalogSelection.cycleNumber,
+        { allowAiRepair: false }
+      );
+
+      console.log("Shopify Product Engine selected authoritative Admin API product before storefront fallbacks", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        productDiscoveryPath: "shopify_admin_api_authoritative",
+        fallbackReason: null,
+        paidWebResearchUsed: false,
+        productUrl:
+          preparedShopifyCatalogItem?.websiteItem?.url || catalogSelection.item.url,
+        title:
+          preparedShopifyCatalogItem?.websiteItem?.title || catalogSelection.item.title,
+        catalogCount: catalogItems.length,
+        recentUsedCount: recentUsedItems.length,
+      });
+
+      summary.website_items_found += 1;
+      summary.website_content_success += 1;
+      return preparedShopifyCatalogItem;
+    } catch (error) {
+      if (isWebsiteRateLimitError(error)) {
+        productResearchFallbackReason = "rate_limited";
+      } else {
+        productResearchFallbackReason ||= "shopify_authoritative_lock_failed";
+      }
+      console.warn("Authoritative Shopify Admin API product could not be prepared; trying remaining Shopify catalog before any web fallback", {
+        ruleId: rule.id,
+        brandProfileId: rule.brand_profile_id,
+        websiteUrl,
+        productUrl: catalogSelection.item?.url || null,
+        title: catalogSelection.item?.title || null,
+        fallbackReason: productResearchFallbackReason,
+        message: error?.message || String(error),
+      });
+    }
+  }
+
   if (
     catalogSelection?.item &&
     productIntentScoped &&
@@ -33461,8 +33530,7 @@ async function prepareWebsiteContentForRule({
   if (hasShopifyPrimaryCatalog && productIntentScoped) {
     const acceptableShopifyCampaignItems = sortedCatalogItems.filter(
       (item) =>
-        isShopifyAdminApiLockedProduct(item) &&
-        isAcceptableWebsiteTextProductSelection(item, rule)
+        isAcceptableShopifyAdminProductSelection(item, rule)
     );
 
     if (acceptableShopifyCampaignItems.length) {
