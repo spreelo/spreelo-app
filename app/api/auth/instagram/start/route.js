@@ -6,6 +6,7 @@ import {
 } from "../../../../../lib/instagramOAuth";
 import { hasAdminPlanLimitBypass } from "../../../../../lib/adminAuth";
 import { checkSocialConnectionCapacity } from "../../../../../lib/planEntitlements";
+import { buildFirstPartyOAuthBootstrapUrl } from "../../../../../lib/socialOAuthBootstrap";
 
 function getSupabaseClient(authorizationHeader) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -138,9 +139,12 @@ export async function POST(request) {
       brandProfileId,
     });
 
-    const response = NextResponse.json({ ok: true, url });
-    setStateCookie(response, state);
-    return response;
+    const bootstrapUrl = buildFirstPartyOAuthBootstrapUrl(request, {
+      provider: "instagram",
+      state,
+      targetUrl: url,
+    });
+    return NextResponse.json({ ok: true, url: bootstrapUrl });
   } catch (error) {
     console.error("Instagram OAuth start failed", error);
     return NextResponse.json(

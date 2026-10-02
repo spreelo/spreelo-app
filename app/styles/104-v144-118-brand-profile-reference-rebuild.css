@@ -919,3 +919,46 @@ html body .brand-v144118-readonly-active .brand-v14495-danger .danger-zone-actio
     font-size: 12.5px !important;
   }
 }
+
+/* v144.280 — restore reanalysis action and align placement preview */
+html body .brand-v144118-readonly-active .brand-v144280-hero-actions {
+  position: absolute !important;
+  top: 30px !important;
+  right: 24px !important;
+  z-index: 3 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+html body .brand-v144118-readonly-active .brand-v144280-hero-actions .brand-v144118-hero-edit {
+  position: static !important;
+  margin: 0 !important;
+}
+
+html body .brand-v144118-readonly-active .brand-v144280-reanalyze {
+  background: rgba(255,255,255,.78) !important;
+  color: #31415a !important;
+  border-color: rgba(203,213,230,.92) !important;
+}
+
+html body .brand-v144118-readonly-active .brand-v144280-reanalyze:disabled {
+  opacity: .56 !important;
+  cursor: not-allowed !important;
+}
+
+html body .brand-v144118-readonly-active .brand-v144118-preview {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 760px) {
+  html body .brand-v144118-readonly-active .brand-v144280-hero-actions {
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    margin-top: 12px !important;
+  }
+}

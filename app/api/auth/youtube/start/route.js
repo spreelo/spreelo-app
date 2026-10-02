@@ -7,6 +7,7 @@ import {
 } from "../../../../../lib/youtubeOAuth.js";
 import { hasAdminPlanLimitBypass } from "../../../../../lib/adminAuth.js";
 import { checkSocialConnectionCapacity } from "../../../../../lib/planEntitlements.js";
+import { buildFirstPartyOAuthBootstrapUrl } from "../../../../../lib/socialOAuthBootstrap.js";
 
 function getSupabaseClient(authorizationHeader) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -68,15 +69,12 @@ export async function POST(request) {
       secret: clientSecret,
     });
     const url = buildYouTubeAuthorizationUrl({ clientId, redirectUri, state });
-    const response = NextResponse.json({ ok: true, url });
-    response.cookies.set("spreelo_youtube_oauth_state", state, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 10 * 60,
+    const bootstrapUrl = buildFirstPartyOAuthBootstrapUrl(request, {
+      provider: "youtube",
+      state,
+      targetUrl: url,
     });
-    return response;
+    return NextResponse.json({ ok: true, url: bootstrapUrl });
   } catch (error) {
     console.error("YouTube OAuth start failed", error);
     return NextResponse.json(

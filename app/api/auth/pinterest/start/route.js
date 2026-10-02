@@ -7,6 +7,7 @@ import {
 } from "../../../../../lib/pinterestOAuth";
 import { hasAdminPlanLimitBypass } from "../../../../../lib/adminAuth";
 import { checkSocialConnectionCapacity } from "../../../../../lib/planEntitlements";
+import { buildFirstPartyOAuthBootstrapUrl } from "../../../../../lib/socialOAuthBootstrap";
 
 function getSupabaseClient(authorizationHeader) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -66,15 +67,12 @@ export async function POST(request) {
       secret: appSecret,
     });
     const url = buildPinterestAuthorizationUrl({ appId, redirectUri, state });
-    const response = NextResponse.json({ ok: true, url });
-    response.cookies.set("spreelo_pinterest_oauth_state", state, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 10 * 60,
+    const bootstrapUrl = buildFirstPartyOAuthBootstrapUrl(request, {
+      provider: "pinterest",
+      state,
+      targetUrl: url,
     });
-    return response;
+    return NextResponse.json({ ok: true, url: bootstrapUrl });
   } catch (error) {
     console.error("Pinterest OAuth start failed", error);
     return NextResponse.json({ ok: false, error: error.message || "Could not start Pinterest connection." }, { status: 500 });

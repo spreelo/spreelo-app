@@ -1564,17 +1564,28 @@ export default function BrandProfile() {
             <span>{isReadOnlyBrandView ? t("brand.heroText") : t("brand.heroText")}</span>
           </div>
           {isReadOnlyBrandView ? (
-            <button
-              type="button"
-              className="brand-profile-edit-button brand-v144118-hero-edit"
-              onClick={() => {
-                setIsEditing(true);
-                setMessage("");
-              }}
-            >
-              <Pencil size={16} />
-              {t("brand.editButton")}
-            </button>
+            <div className="brand-v144280-hero-actions">
+              <button
+                type="button"
+                className="brand-profile-edit-button brand-v144118-hero-edit brand-v144280-reanalyze"
+                onClick={analyzeBrand}
+                disabled={!brandProfileId || analyzing}
+              >
+                <Sparkles size={16} />
+                {t("brand.analysisRetry")}
+              </button>
+              <button
+                type="button"
+                className="brand-profile-edit-button brand-v144118-hero-edit"
+                onClick={() => {
+                  setIsEditing(true);
+                  setMessage("");
+                }}
+              >
+                <Pencil size={16} />
+                {t("brand.editButton")}
+              </button>
+            </div>
           ) : null}
           <div className="brand-v14495-hero-art brand-v144118-hero-art" aria-hidden="true" />
         </header>

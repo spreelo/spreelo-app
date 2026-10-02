@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { hasAdminPlanLimitBypass } from "../../../../lib/adminAuth";
 import { checkSocialConnectionCapacity } from "../../../../lib/planEntitlements";
+import { buildFirstPartyOAuthBootstrapUrl } from "../../../../lib/socialOAuthBootstrap";
 
 function base64UrlEncode(value) {
   return Buffer.from(value).toString("base64url");
@@ -159,9 +160,12 @@ export async function POST(request) {
       brandProfileId,
     });
 
-    const response = NextResponse.json({ ok: true, url });
-    setStateCookie(response, state);
-    return response;
+    const bootstrapUrl = buildFirstPartyOAuthBootstrapUrl(request, {
+      provider: "facebook",
+      state,
+      targetUrl: url,
+    });
+    return NextResponse.json({ ok: true, url: bootstrapUrl });
   } catch (error) {
     console.error("Meta OAuth start failed", error);
     return NextResponse.json(
