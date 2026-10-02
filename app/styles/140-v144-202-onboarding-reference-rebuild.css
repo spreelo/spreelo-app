@@ -5,9 +5,11 @@
 /* v144.287 — measured 1122 × 1402 reference. Scoped to the first-plan dialog.
    Artwork uses CSS windows on the supplied master so its original illustration
    pixels are preserved. All text, counts, dates, images and actions remain live. */
+/* The portal locks the page only while the dialog is mounted. */
+html:has(body > .spreeloRef-backdrop),html body:has(> .spreeloRef-backdrop) {overflow:hidden !important;}
 html body .spreeloRef-backdrop {
   position:fixed; inset:0; z-index:2147483600; display:flex; align-items:flex-start;
-  justify-content:center; overflow:auto; padding:11px 20px 20px;
+  justify-content:center; overflow:auto; overscroll-behavior:contain; padding:11px 20px 20px;
   box-sizing:border-box; background:rgba(238,244,251,.94); backdrop-filter:blur(7px);
 }
 html body .spreeloRef-modal {
@@ -73,10 +75,10 @@ html body .spreeloRef-summary-cards article {display:grid; grid-template-columns
 html body .spreeloRef-summary-cards article:first-child {padding-left:0;}
 html body .spreeloRef-summary-cards article:last-child {border:0; padding-right:0;}
 html body .spreeloRef-icon {display:grid; place-items:center; width:36px; height:36px; border-radius:6px;}
-html body .spreeloRef-summary-cards .spreeloRef-icon {background:#dfebff;}
-html body .spreeloRef-summary-cards article:nth-child(2) .spreeloRef-icon {background:#e1faf1;}
-html body .spreeloRef-summary-cards article:nth-child(3) .spreeloRef-icon {background:#ece3ff;}
-html body .spreeloRef-summary-cards .spreeloRef-icon svg {display:none;}
+html body .spreeloRef-summary-cards .spreeloRef-icon {background:#dfebff; color:#0061ff;}
+html body .spreeloRef-summary-cards article:nth-child(2) .spreeloRef-icon {background:#e1faf1; color:#007c72;}
+html body .spreeloRef-summary-cards article:nth-child(3) .spreeloRef-icon {background:#ece3ff; color:#7000ff;}
+html body .spreeloRef-summary-cards .spreeloRef-icon svg {display:block; width:20px; height:20px;}
 html body .spreeloRef-summary-cards strong,html body .spreeloRef-detail-grid strong {display:block; margin:0; color:#0b1020; font-size:16px; line-height:20px; font-weight:700;}
 html body .spreeloRef-summary-cards p,html body .spreeloRef-detail-grid p {margin:3px 0 0; color:#6b7695; font-size:14px; line-height:19px;}
 html body .spreeloRef-ready-banner {display:grid; grid-template-columns:44px minmax(0,1fr); align-items:center; gap:18px; min-height:62px; padding:9px 16px; border:1px solid #fff; border-radius:15px; background:#e7f2ff;}
@@ -84,17 +86,17 @@ html body .spreeloRef-ready-banner > span {display:grid; place-items:center; wid
 html body .spreeloRef-ready-banner strong {display:block; font-size:16px; line-height:20px; color:#0b1020;}
 html body .spreeloRef-ready-banner p {margin:4px 0 0; font-size:14px; line-height:19px; color:#6b7695;}
 html body .spreeloRef-includes-panel {background:#fef8ee;}
-html body .spreeloRef-detail-grid {position:relative; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 42px; padding:1px 16px; border-radius:15px; background:white;}
+html body .spreeloRef-detail-grid {position:relative; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:1fr; gap:0 42px; padding:1px 16px; border-radius:15px; background:white;}
 html body .spreeloRef-detail-grid::after {content:''; position:absolute; top:6px; bottom:6px; left:50%; width:1px; background:#e0e5ee;}
 html body .spreeloRef-detail-grid article {display:grid; grid-template-columns:43px minmax(0,1fr); gap:24px; align-items:center; min-width:0; min-height:56px; padding:2px 0; border:0; border-radius:0; background:none;}
 html body .spreeloRef-detail-grid article:nth-child(-n+4) {border-bottom:1px solid #edf0f5;}
 html body .spreeloRef-detail-grid .spreeloRef-icon {width:42px; height:42px; border-radius:14px; color:#ff5900; background:#fff7ea;}
 html body .spreeloRef-detail-grid strong {font-size:14px; line-height:18px;}
-html body .spreeloRef-channel-actions {display:flex; align-items:center; gap:5px; margin-top:3px;}
-html body .spreeloRef-channel-actions > span {display:none;}
-html body .spreeloRef-channel-actions > a {display:inline-grid; place-items:center; width:22px; height:22px; color:#ff5900; border:1px solid #f5dcc5; border-radius:6px;}
-html body .spreeloRef-channels {position:relative; padding-right:26px;}
-html body .spreeloRef-channel-actions {position:absolute; right:0; top:10px;}
+html body .spreeloRef-channel-actions {display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin-top:5px;}
+html body .spreeloRef-channel-actions > span {display:inline-flex; width:24px; height:24px;}
+html body .spreeloRef-channel-actions img {display:block; width:100%; height:100%; object-fit:contain;}
+html body .spreeloRef-channel-actions > a {display:inline-grid; place-items:center; width:24px; height:24px; color:#ff5900; border:1px solid #f5dcc5; border-radius:6px;}
+html body .spreeloRef-channels {min-width:0;}
 html body .spreeloRef-planned {margin-top:6px; padding:9px 14px 0; border-radius:15px 15px 0 0; background:#f1f8fe;}
 html body .spreeloRef-planned-head {margin:0 8px 6px;}
 html body .spreeloRef-planned-head h3 {font-size:28px; line-height:32px;}
@@ -120,7 +122,7 @@ html body .spreeloRef-carousel-btn.previous {left:-17px;}
 html body .spreeloRef-carousel-btn.next {right:-17px;}
 html body .spreeloRef-note {display:flex; align-items:center; gap:16px; padding:8px 2px 0; font-size:12.5px; line-height:16px; color:#8190af; border:0; background:none;}
 html body .spreeloRef-info-icon {display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; border-radius:50%; background:#dfeaff; color:#005cff; font-size:20px; font-weight:700; font-family:Arial,sans-serif;}
-html body .spreeloRef-actions {margin:0 17px 4px; padding:0 12px 1px; border-radius:0 0 15px 15px; background:#f1f8fe;}
+html body .spreeloRef-actions {margin:0 17px 10px; padding:18px 12px; border-radius:0 0 15px 15px; background:#f1f8fe;}
 html body .spreeloRef-actions-inner {display:flex; gap:11px; width:min(788px,100%); margin:0 auto;}
 html body .spreeloRef-actions button {display:flex; align-items:center; justify-content:center; gap:14px; width:50%; min-height:39px; padding:7px 16px; border-radius:9px; font-family:inherit; font-weight:700; cursor:pointer;}
 html body .spreeloRef-primary {color:white; border:1px solid white; background:linear-gradient(100deg,#ff741c,#ff6018); font-size:18px; box-shadow:0 2px 5px #ff6a1815;}
@@ -194,7 +196,7 @@ html body .spreeloRef-post-row.is-dragging .spreeloRef-post-card {pointer-events
  html body .spreeloRef-carousel-btn.previous {left:-10px;}
  html body .spreeloRef-carousel-btn.next {right:-10px;}
  html body .spreeloRef-note {align-items:flex-start; gap:10px; padding:12px 0; font-size:12px; line-height:17px;}
- html body .spreeloRef-actions {margin:0 10px 10px; padding:0 10px 12px;}
+ html body .spreeloRef-actions {margin:0 10px 10px; padding:14px 10px 18px;}
  html body .spreeloRef-actions-inner {flex-direction:column; gap:9px;}
  html body .spreeloRef-actions button {width:100%; min-height:46px; font-size:15px;}
 }

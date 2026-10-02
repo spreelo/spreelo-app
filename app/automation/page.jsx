@@ -15374,7 +15374,6 @@ function blockFormatCardClickAfterDrag(event) {
                         <span className="spreeloRef-icon is-purple"><Share2 size={20}/></span>
                         <div className="spreeloRef-channels">
                           <strong>{t("automation.onboardingV191.channelsTitle")}</strong>
-                          <p className="spreeloRef-channel-names">{smartOnboardingSocialOptions.map((item) => item.label).join(", ") || "—"}</p>
                           <div className="spreeloRef-channel-actions">
                             {smartOnboardingSocialOptions.map((item) => (
                               <span key={item.key} title={item.label}><img src={item.icon} alt={item.label}/></span>
