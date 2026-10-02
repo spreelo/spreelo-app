@@ -1,0 +1,15 @@
+/* Keep the picker compact and let its original artwork and copy fit naturally.
+   The separated example layout is deliberately excluded from this dialog. */
+html body .automation-page.plan-v70-active .add-post-modal .plan-v72-format-card {
+  height:auto !important;
+  min-height:238px !important;
+}
+html body .automation-page.plan-v70-active .add-post-modal .plan-v72-format-card > .plan-v72-format-art {
+  flex-shrink:0 !important;
+}
+html body .automation-page.plan-v70-active .add-post-modal .plan-v72-format-card > .plan-v72-format-card-copy {
+  flex:1;
+}
+@media (max-width:760px) {
+  html body .automation-page.plan-v70-active .add-post-modal .plan-v72-format-card {min-height:210px !important;}
+}

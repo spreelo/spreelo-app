@@ -35,10 +35,10 @@ html body .automation-page.plan-v70-active .plan-v289-format-preview {
   flex-direction:column;
   width:100%;
   overflow:hidden;
-  border:1px solid #e2e9f2;
-  border-top:4px solid var(--format-accent);
-  border-radius:11px;
-  background:#fff;
+  border:1px solid #e2e9f2 !important;
+  border-top:4px solid var(--format-accent) !important;
+  border-radius:11px !important;
+  background:#fff !important;
   box-shadow:0 3px 10px #233e6d06;
 }
 html body .automation-page.plan-v70-active .plan-v289-format-heading {
@@ -87,10 +87,10 @@ html body .automation-page.plan-v70-active .plan-v289-format-card > .plan-v72-fo
   width:100%;
   min-height:128px !important;
   padding:12px 13px 14px !important;
-  border:1px solid #e2e9f2;
-  border-left:5px solid var(--format-accent);
-  border-radius:10px;
-  background:#fff;
+  border:1px solid #e2e9f2 !important;
+  border-left:5px solid var(--format-accent) !important;
+  border-radius:10px !important;
+  background:#fff !important;
   box-shadow:0 3px 10px #233e6d06;
 }
 html body .automation-page.plan-v70-active .plan-v289-format-explanation-label {
@@ -121,10 +121,6 @@ html body .automation-page.plan-v70-active .plan-v289-format-card > .plan-v72-fo
 html body .automation-page.plan-v70-active .plan-v289-format-card:hover {transform:none;box-shadow:none !important;}
 html body .automation-page.plan-v70-active .plan-v289-format-card:hover .plan-v289-format-preview {border-color:var(--format-accent);}
 html body .automation-page.plan-v70-active .plan-v289-format-card:focus-visible {outline:3px solid #3583f7;outline-offset:4px;border-radius:11px !important;}
-html body .automation-page.plan-v70-active .plan-v72-all-formats-grid.grid {align-items:stretch !important;}
-/* The list view also uses the same vertically separated explanation. */
-html body .automation-page.plan-v70-active .plan-v289-format-card.list {width:100% !important;min-width:0 !important;max-width:none !important;}
-html body .automation-page.plan-v70-active .plan-v289-format-card.list .plan-v289-format-preview > .plan-v72-format-art {aspect-ratio:auto;height:180px !important;}
 @media (max-width:760px) {
   html body .automation-page.plan-v70-active .plan-v289-format-heading {gap:8px;padding:10px;min-height:78px;}
   html body .automation-page.plan-v70-active .plan-v289-format-heading > strong {font-size:12.5px !important;}

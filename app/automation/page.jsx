@@ -857,7 +857,18 @@ function ContentFormatArtwork({ item, index = 0, large = false }) {
   );
 }
 
-function ContentFormatCard({ item, index = 0, view = "grid", onClick, disabled = false, explanationLabel }) {
+function ContentFormatCard({ item, index = 0, view = "grid", onClick, disabled = false, explanationLabel, separatedPreview = false }) {
+  // The format picker keeps its compact layout; only the example rail uses
+  // the tall preview with a separate explanation.
+  if (!separatedPreview) {
+    return (
+      <button type="button" className={`plan-v72-format-card ${view === "list" ? "list" : "grid"}${disabled ? " disabled" : ""}`} onClick={onClick} aria-disabled={disabled}>
+        <ContentFormatArtwork item={item} index={index} />
+        <span className="plan-v72-format-card-copy"><strong>{item?.label}</strong><small>{item?.description}</small></span>
+        <span className="plan-v72-format-card-action" aria-hidden="true">→</span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -12258,6 +12269,7 @@ function blockFormatCardClickAfterDrag(event) {
                 >
                   {mainExploreFormatItems.filter((item) => planCreationMode !== "campaign" || item.kind === "content_type").map((item, index) => (
                     <ContentFormatCard
+                      separatedPreview
                       explanationLabel={t("automation.format.aboutPostType")}
                       item={item}
                       index={index}
