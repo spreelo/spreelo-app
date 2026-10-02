@@ -226,6 +226,28 @@ export default function AppLayout({ active, children }) {
     refreshedCreditsAfterSocialConnectRef.current = false;
   }, [user?.id, currentBrandId]);
 
+  // v144.282 — Social Channels can connect/disconnect inside this mounted
+  // layout without changing user or brand. Sync the gate immediately so the
+  // sidebar locks disappear (or return) without requiring a manual reload.
+  useEffect(() => {
+    function syncSocialConnectionGate(event) {
+      const detail = event?.detail || {};
+      const eventBrandId = String(detail.brandProfileId || "").trim();
+      if (!eventBrandId || eventBrandId !== String(currentBrandId || "")) return;
+
+      const nextCount = Number(detail.connectedChannelCount);
+      if (!Number.isFinite(nextCount) || nextCount < 0) return;
+
+      setConnectedChannelCount(nextCount);
+      setLoadingChannelGate(false);
+    }
+
+    window.addEventListener("spreelo-social-connections-changed", syncSocialConnectionGate);
+    return () => {
+      window.removeEventListener("spreelo-social-connections-changed", syncSocialConnectionGate);
+    };
+  }, [currentBrandId]);
+
   useEffect(() => {
     if (
       !user?.id ||

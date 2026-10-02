@@ -589,6 +589,25 @@ export default function SocialChannelsPage() {
     }
 
     setConnectionsByPlatform(getLatestConnectionsByPlatform(connections || []));
+
+    // v144.282 — keep the shared AppLayout channel gate in sync immediately.
+    // AppLayout is mounted outside this page and previously only re-queried when
+    // user/brand changed, which meant the first successful social connection
+    // stayed visually locked until a full page reload.
+    try {
+      const connectedCountForBrand = (connections || []).filter(
+        (connection) => connection?.status === "connected"
+      ).length;
+      window.dispatchEvent(
+        new CustomEvent("spreelo-social-connections-changed", {
+          detail: {
+            brandProfileId: selectedBrand.id,
+            connectedChannelCount: connectedCountForBrand,
+          },
+        })
+      );
+    } catch {}
+
     const urlParams = new URLSearchParams(window.location.search);
     const connectedPlatformKey = urlParams.get("connected");
     const urlErrorCode = String(urlParams.get("error") || "").trim();
