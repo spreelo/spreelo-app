@@ -33451,12 +33451,14 @@ async function prepareWebsiteContentForRule({
   }
 
 
-  // v144.253: Shopify Admin API products are already identity-, image- and
+  // v144.284: Shopify Admin API products are already identity-, image- and
   // stock-verified. If the best campaign-fit Shopify product was used recently,
   // prefer a controlled rotation reuse instead of abandoning the authoritative
-  // catalog and crawling a password-protected/public storefront. This remains
-  // campaign-fit gated, so an unrelated Shopify product is never forced in.
-  if (hasShopifyPrimaryCatalog && productIntentScoped && !websiteAccessProtected) {
+  // catalog and crawling the storefront. This must work even when the Shopify
+  // storefront is password-protected; protection is exactly when the Admin API
+  // catalog should remain authoritative. The reuse remains campaign-fit gated,
+  // so an unrelated Shopify product is never forced in.
+  if (hasShopifyPrimaryCatalog && productIntentScoped) {
     const acceptableShopifyCampaignItems = sortedCatalogItems.filter(
       (item) =>
         isShopifyAdminApiLockedProduct(item) &&
