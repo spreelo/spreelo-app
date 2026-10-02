@@ -35,6 +35,13 @@ function verifyAndDecodeState(state, secret) {
   }
 }
 
+
+function signSelectionHandoff(payload, secret) {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = crypto.createHmac("sha256", secret).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
 function createSupabaseAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -226,8 +233,15 @@ export async function GET(request) {
       throw sessionError;
     }
 
+    const handoff = signSelectionHandoff({
+      sessionId: sessionData.id,
+      userId: decodedState.userId,
+      brandProfileId: decodedState.brandProfileId,
+      createdAt: Date.now(),
+    }, appSecret);
+
     const response = NextResponse.redirect(
-      `${baseUrl}/social-channels/facebook/select?session_id=${sessionData.id}`
+      `${baseUrl}/social-channels/facebook/select?session_id=${encodeURIComponent(sessionData.id)}&handoff=${encodeURIComponent(handoff)}`
     );
 
     response.cookies.delete("spreelo_meta_oauth_state");

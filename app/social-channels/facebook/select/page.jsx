@@ -11,6 +11,7 @@ export default function SelectFacebookPage() {
   const [pages, setPages] = useState([]);
   const [selectedBrand, setSelectedBrand] = useState(null);
   const [sessionId, setSessionId] = useState("");
+  const [handoff, setHandoff] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingPageId, setSavingPageId] = useState("");
   const [message, setMessage] = useState("");
@@ -18,8 +19,10 @@ export default function SelectFacebookPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const currentSessionId = params.get("session_id") || "";
+    const currentHandoff = params.get("handoff") || "";
 
     setSessionId(currentSessionId);
+    setHandoff(currentHandoff);
 
     if (!currentSessionId) {
       setMessage(t("social.errorMissingSelectionSession"));
@@ -27,7 +30,7 @@ export default function SelectFacebookPage() {
       return;
     }
 
-    loadPages(currentSessionId);
+    loadPages(currentSessionId, currentHandoff);
   }, []);
 
   async function getAccessToken() {
@@ -38,25 +41,23 @@ export default function SelectFacebookPage() {
     return session?.access_token || "";
   }
 
-  async function loadPages(currentSessionId) {
+  async function loadPages(currentSessionId, currentHandoff = "") {
     setLoading(true);
     setMessage("");
 
-    const accessToken = await getAccessToken();
+    const accessToken = currentHandoff ? "" : await getAccessToken();
 
-    if (!accessToken) {
+    if (!currentHandoff && !accessToken) {
       window.location.href = "/login";
       return;
     }
 
-    const response = await fetch(
-      `/api/meta/page-selection?session_id=${currentSessionId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
+    const query = new URLSearchParams({ session_id: currentSessionId });
+    if (currentHandoff) query.set("handoff", currentHandoff);
+
+    const response = await fetch(`/api/meta/page-selection?${query.toString()}`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    });
 
     const data = await response.json();
 
@@ -79,9 +80,9 @@ export default function SelectFacebookPage() {
     setSavingPageId(pageId);
     setMessage("");
 
-    const accessToken = await getAccessToken();
+    const accessToken = handoff ? "" : await getAccessToken();
 
-    if (!accessToken) {
+    if (!handoff && !accessToken) {
       window.location.href = "/login";
       return;
     }
@@ -89,12 +90,13 @@ export default function SelectFacebookPage() {
     const response = await fetch("/api/meta/page-selection", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         session_id: sessionId,
         page_id: pageId,
+        handoff,
       }),
     });
 

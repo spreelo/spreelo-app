@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { authorizeSocialConnectionForTrial, getTrialRestrictionCode, preflightSocialConnectionForTrial } from "../../../../lib/freeTrial.js";
@@ -46,6 +47,42 @@ async function getAuthenticatedUser({ supabaseAdmin, request }) {
   }
 
   return user;
+}
+
+
+function verifySelectionHandoff(token, secret) {
+  if (!token || !secret || !token.includes(".")) return null;
+  const [payload, signature] = token.split(".");
+  const expected = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
+  const a = Buffer.from(signature || "");
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString());
+    if (!decoded?.sessionId || !decoded?.userId || !decoded?.brandProfileId || !decoded?.createdAt) return null;
+    if (Date.now() - Number(decoded.createdAt) > 15 * 60 * 1000) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveSelectionActor({ supabaseAdmin, request, sessionId, handoff }) {
+  const metaSecret = process.env.META_APP_SECRET || "";
+  const decodedHandoff = verifySelectionHandoff(handoff, metaSecret);
+
+  if (decodedHandoff) {
+    if (decodedHandoff.sessionId !== sessionId) return null;
+    return {
+      userId: decodedHandoff.userId,
+      brandProfileId: decodedHandoff.brandProfileId,
+      source: "handoff",
+    };
+  }
+
+  const user = await getAuthenticatedUser({ supabaseAdmin, request });
+  if (!user) return null;
+  return { userId: user.id, brandProfileId: null, source: "bearer" };
 }
 
 function sanitizePagesForClient(pages) {
@@ -195,13 +232,9 @@ async function saveFacebookConnection({
 export async function GET(request) {
   try {
     const supabaseAdmin = createSupabaseAdminClient();
-    const user = await getAuthenticatedUser({ supabaseAdmin, request });
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("session_id");
+    const handoff = searchParams.get("handoff") || "";
 
     if (!sessionId) {
       return NextResponse.json(
@@ -210,10 +243,15 @@ export async function GET(request) {
       );
     }
 
+    const actor = await resolveSelectionActor({ supabaseAdmin, request, sessionId, handoff });
+    if (!actor) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const selectionSession = await getSelectionSession({
       supabaseAdmin,
       sessionId,
-      userId: user.id,
+      userId: actor.userId,
     });
 
     if (!selectionSession) {
@@ -221,6 +259,10 @@ export async function GET(request) {
         { error: "Selection session not found or expired" },
         { status: 404 }
       );
+    }
+
+    if (actor.brandProfileId && actor.brandProfileId !== selectionSession.brand_profile_id) {
+      return NextResponse.json({ error: "Invalid selection handoff" }, { status: 403 });
     }
 
     if (!selectionSession.brand_profile_id) {
@@ -232,7 +274,7 @@ export async function GET(request) {
 
     const brand = await getBrandForSession({
       supabaseAdmin,
-      userId: user.id,
+      userId: actor.userId,
       brandProfileId: selectionSession.brand_profile_id,
     });
 
@@ -265,18 +307,10 @@ export async function POST(request) {
 
   try {
     const supabaseAdmin = createSupabaseAdminClient();
-    const user = await getAuthenticatedUser({ supabaseAdmin, request });
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    diagnosticUserId = user.id;
-    diagnosticStage = "authenticated";
-
     const body = await request.json();
     const sessionId = body?.session_id;
     const pageId = body?.page_id;
+    const handoff = body?.handoff || "";
     diagnosticPageId = String(pageId || "");
 
     if (!sessionId || !pageId) {
@@ -286,10 +320,18 @@ export async function POST(request) {
       );
     }
 
+    const actor = await resolveSelectionActor({ supabaseAdmin, request, sessionId, handoff });
+    if (!actor) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    diagnosticUserId = actor.userId;
+    diagnosticStage = actor.source === "handoff" ? "handoff_authenticated" : "authenticated";
+
     const selectionSession = await getSelectionSession({
       supabaseAdmin,
       sessionId,
-      userId: user.id,
+      userId: actor.userId,
     });
 
     if (!selectionSession) {
@@ -297,6 +339,10 @@ export async function POST(request) {
         { error: "Selection session not found or expired" },
         { status: 404 }
       );
+    }
+
+    if (actor.brandProfileId && actor.brandProfileId !== selectionSession.brand_profile_id) {
+      return NextResponse.json({ error: "Invalid selection handoff" }, { status: 403 });
     }
 
     if (!selectionSession.brand_profile_id) {
@@ -311,7 +357,7 @@ export async function POST(request) {
 
     const brand = await getBrandForSession({
       supabaseAdmin,
-      userId: user.id,
+      userId: actor.userId,
       brandProfileId: selectionSession.brand_profile_id,
     });
 
@@ -337,7 +383,7 @@ export async function POST(request) {
     console.info("[meta-page-selection] trial_preflight:start", { userId: diagnosticUserId, brandProfileId: diagnosticBrandId, pageId: diagnosticPageId });
     await preflightSocialConnectionForTrial({
       supabaseAdmin,
-      userId: user.id,
+      userId: actor.userId,
       brandProfileId: selectionSession.brand_profile_id,
       platform: "facebook",
       externalAccountId: selectedPage.id,
@@ -347,7 +393,7 @@ export async function POST(request) {
     diagnosticStage = "save_connection";
     await saveFacebookConnection({
       supabaseAdmin,
-      userId: user.id,
+      userId: actor.userId,
       brandProfileId: selectionSession.brand_profile_id,
       page: selectedPage,
     });
@@ -356,7 +402,7 @@ export async function POST(request) {
     diagnosticStage = "trial_authorize";
     const trialResult = await authorizeSocialConnectionForTrial({
       supabaseAdmin,
-      userId: user.id,
+      userId: actor.userId,
       brandProfileId: selectionSession.brand_profile_id,
       platform: "facebook",
       externalAccountId: selectedPage.id,
@@ -368,7 +414,7 @@ export async function POST(request) {
       .from("meta_page_selection_sessions")
       .delete()
       .eq("id", sessionId)
-      .eq("user_id", user.id);
+      .eq("user_id", actor.userId);
 
     diagnosticStage = "complete";
     console.info("[meta-page-selection] complete", { userId: diagnosticUserId, brandProfileId: diagnosticBrandId, pageId: diagnosticPageId });
