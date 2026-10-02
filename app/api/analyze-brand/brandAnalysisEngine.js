@@ -14,6 +14,7 @@ import {
   scoreCalendarVisualAsset,
 } from "../../../lib/calendarVisualThemes.js";
 import { isBrand429RescueActive } from "../../../lib/brandWebsiteRescue.js";
+import { fetchShopifyBrandAnalysisContext } from "../../../lib/shopifyProductCatalog.js";
 
 export const WEBSITE_FETCH_TIMEOUT_MS = 12000;
 export const WEBSITE_MAX_TEXT_CHARS = 8000;
@@ -2761,6 +2762,31 @@ export async function replaceBrandCampaignOpportunities({
   return data || [];
 }
 
+function mergeShopifyAnalysisHtml(websiteHtml, shopifyHtml) {
+  const website = String(websiteHtml || "").trim();
+  const shopify = String(shopifyHtml || "").trim();
+  if (!shopify) return website;
+  if (!website) return shopify;
+  // Put verified Shopify data first so the bounded website prompt always keeps
+  // the structured store/product evidence, even when a password page is noisy.
+  return `${shopify}\n<!-- Public storefront context follows -->\n${website}`;
+}
+
+function mergeProductSourceCandidates(websiteCandidates, shopifyCandidates) {
+  const merged = [];
+  const seen = new Set();
+  for (const candidate of [
+    ...(Array.isArray(shopifyCandidates) ? shopifyCandidates : []),
+    ...(Array.isArray(websiteCandidates) ? websiteCandidates : []),
+  ]) {
+    const key = `${String(candidate?.url || "").trim().toLowerCase()}|${String(candidate?.title || "").trim().toLowerCase()}`;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(candidate);
+  }
+  return merged.slice(0, WEBSITE_MAX_PRODUCT_SOURCE_PAGES + 40);
+}
+
 export async function runBrandAnalysisJob({
   supabase,
   userId,
@@ -2842,6 +2868,31 @@ export async function runBrandAnalysisJob({
   let finalWebsiteUrl = websiteUrl;
   let detectedWebsiteContentLanguage = "";
   let detectedWebsiteMarketSetup = null;
+  let shopifyAnalysisContext = null;
+
+  try {
+    shopifyAnalysisContext = await fetchShopifyBrandAnalysisContext({
+      supabaseAdmin: supabase,
+      brandProfileId: job.brand_profile_id,
+      maxProducts: 40,
+    });
+    if (shopifyAnalysisContext?.connected) {
+      console.info("Brand analysis loaded Shopify Admin API context", {
+        jobId: job.id,
+        brandProfileId: job.brand_profile_id,
+        productCount: Number(shopifyAnalysisContext?.diagnostics?.productCount || 0),
+      });
+    }
+  } catch (error) {
+    // Shopify enrichment is additive. A transient Shopify API problem must not
+    // break the existing analysis path or non-Shopify customers.
+    console.warn("Brand analysis Shopify context unavailable; continuing with website analysis", {
+      jobId: job.id,
+      brandProfileId: job.brand_profile_id,
+      message: error?.message,
+    });
+    shopifyAnalysisContext = null;
+  }
 
   if (websiteUrl) {
     let website;
@@ -2857,11 +2908,18 @@ export async function runBrandAnalysisJob({
 
       website = {
         url: websiteUrl,
-        html: `<html><head><title>${businessName || websiteUrl}</title><meta name="description" content="Official-domain web research evidence"></head><body><main>${webResearchEvidence
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")}</main></body></html>`,
+        html: mergeShopifyAnalysisHtml(
+          `<html><head><title>${businessName || websiteUrl}</title><meta name="description" content="Official-domain web research evidence"></head><body><main>${webResearchEvidence
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")}</main></body></html>`,
+          shopifyAnalysisContext?.html
+        ),
       };
+      productSourceCandidates = mergeProductSourceCandidates(
+        [],
+        shopifyAnalysisContext?.productSourceCandidates
+      );
       finalWebsiteUrl = websiteUrl;
       detectedWebsiteMarketSetup = inferMarketSetupFromWebsiteSignals(
         website.url,
@@ -2877,12 +2935,30 @@ export async function runBrandAnalysisJob({
         progress: 15,
       });
 
-      website = await runTimedPhase("website_homepage", () =>
-        fetchWebsiteHtml(websiteUrl, {
-          resolutionCache,
-          onResolutionTiming,
-        })
-      );
+      try {
+        website = await runTimedPhase("website_homepage", () =>
+          fetchWebsiteHtml(websiteUrl, {
+            resolutionCache,
+            onResolutionTiming,
+          })
+        );
+      } catch (error) {
+        if (!shopifyAnalysisContext?.connected || !shopifyAnalysisContext?.html) throw error;
+        console.info("Brand analysis storefront unavailable; using verified Shopify Admin API context", {
+          jobId: job.id,
+          brandProfileId: job.brand_profile_id,
+          message: error?.message,
+        });
+        website = {
+          url: shopifyAnalysisContext.primaryUrl || websiteUrl,
+          html: shopifyAnalysisContext.html,
+        };
+      }
+
+      website = {
+        ...website,
+        html: mergeShopifyAnalysisHtml(website?.html, shopifyAnalysisContext?.html),
+      };
       finalWebsiteUrl = website.url;
       detectedWebsiteMarketSetup = inferMarketSetupFromWebsiteSignals(
         website.url,
@@ -2908,16 +2984,33 @@ export async function runBrandAnalysisJob({
         progress: 35,
       });
 
-      productSourceCandidates = await runTimedPhase(
-        "website_context_pages",
-        () =>
-          fetchProductSourceCandidates({
-            openai,
-            websiteUrl: website.url,
-            html: website.html,
-            resolutionCache,
-            onResolutionTiming,
-          })
+      let websiteProductSourceCandidates = [];
+      // When Shopify Admin API data exists, context-page crawling becomes an
+      // enhancement rather than a hard dependency. This keeps password-protected
+      // Shopify stores analyzable without changing the normal website path.
+      try {
+        websiteProductSourceCandidates = await runTimedPhase(
+          "website_context_pages",
+          () =>
+            fetchProductSourceCandidates({
+              openai,
+              websiteUrl: website.url,
+              html: website.html,
+              resolutionCache,
+              onResolutionTiming,
+            })
+        );
+      } catch (error) {
+        if (!shopifyAnalysisContext?.connected) throw error;
+        console.info("Brand analysis skipped blocked Shopify storefront context pages", {
+          jobId: job.id,
+          brandProfileId: job.brand_profile_id,
+          message: error?.message,
+        });
+      }
+      productSourceCandidates = mergeProductSourceCandidates(
+        websiteProductSourceCandidates,
+        shopifyAnalysisContext?.productSourceCandidates
       );
     }
 
