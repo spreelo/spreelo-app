@@ -4,7 +4,7 @@
 
 1. Deploy the full v144.257 project to Vercel.
 2. Run `spreelo-v144.257-SQL.sql` in Supabase.
-3. In Partner Dashboard create a Partner API client with **Manage apps** permission.
+3. In Partner Dashboard create a Partner API client with both **Manage apps** and **View financials** permissions.
 4. Add Vercel env vars:
    - `SHOPIFY_PARTNER_ORG_ID`
    - `SHOPIFY_PARTNER_API_ACCESS_TOKEN`

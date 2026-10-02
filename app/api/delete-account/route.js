@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { stripeRequest } from "../../../lib/stripeBilling";
+import { cancelShopifyAppPricingSubscriptionForConnection, findAppStoreShopifyConnection } from "../../../lib/shopifyBilling.js";
 
 export const dynamic = "force-dynamic";
 
@@ -547,7 +548,7 @@ export async function POST(request) {
     const creditBalanceRows = await selectRowsByColumn(
       supabaseAdmin,
       "user_credit_balances",
-      "subscription_status, subscription_plan, plan_name, provider_subscription_id",
+      "subscription_status, subscription_plan, plan_name, payment_provider, provider_subscription_id",
       "user_id",
       userId,
       { optional: true }
@@ -559,9 +560,33 @@ export async function POST(request) {
       creditBalanceRows.find((row) => row.plan_name)?.plan_name ||
       null;
 
-    const providerSubscriptionId = creditBalanceRows.find((row) => row.provider_subscription_id)?.provider_subscription_id || null;
+    const billingRow = creditBalanceRows[0] || null;
+    const paymentProvider = String(billingRow?.payment_provider || "").trim().toLowerCase();
+    const providerSubscriptionId = billingRow?.provider_subscription_id || null;
     const normalizedPlanStatus = String(planStatus || "").toLowerCase();
-    if (providerSubscriptionId && !["canceled", "cancelled", "expired", "incomplete_expired"].includes(normalizedPlanStatus)) {
+    const subscriptionIsInactive = ["canceled", "cancelled", "expired", "incomplete_expired"].includes(normalizedPlanStatus);
+
+    if (!subscriptionIsInactive && paymentProvider === "shopify") {
+      let shopifyConnection = null;
+      try {
+        shopifyConnection = await findAppStoreShopifyConnection(supabaseAdmin, userId, { connectedOnly: false });
+      } catch (connectionError) {
+        throw new Error(`Shopify subscription could not be identified before account deletion: ${connectionError?.message || "Unknown Shopify connection error"}`);
+      }
+      if (!shopifyConnection?.id) {
+        throw new Error("Shopify subscription could not be canceled before account deletion because the Shopify installation could not be identified.");
+      }
+      try {
+        await cancelShopifyAppPricingSubscriptionForConnection(supabaseAdmin, {
+          connection: shopifyConnection,
+          deferCancellation: false,
+          prorate: false,
+          skipFinalUsageCharge: false,
+        });
+      } catch (shopifyError) {
+        throw new Error(`Shopify subscription could not be canceled before account deletion: ${shopifyError?.message || "Unknown Shopify error"}`);
+      }
+    } else if (!subscriptionIsInactive && paymentProvider === "stripe" && providerSubscriptionId) {
       try {
         await stripeRequest(`/v1/subscriptions/${encodeURIComponent(providerSubscriptionId)}`, { method: "DELETE" });
       } catch (stripeError) {

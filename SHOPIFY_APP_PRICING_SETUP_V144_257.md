@@ -24,7 +24,7 @@ The app ID and app handle are discovered automatically from the authenticated Sh
 - `SHOPIFY_PARTNER_APP_ID`
 - `SHOPIFY_APP_HANDLE`
 
-The Partner API client must have **Manage apps** permission.
+The Partner API client must have both **Manage apps** permission (for activeSubscription) and **View financials** permission (for appSubscriptionCancel during account deletion).
 
 ## Recommended Shopify App Pricing plan handles
 

@@ -7,9 +7,7 @@ const assert = (condition, message) => {
 
 const pureSource = source
   .replace(/^import[^\n]+\n/, "")
-  .replace(/export const SHOPIFY_PRODUCT_ENGINE_QUERY/, "const SHOPIFY_PRODUCT_ENGINE_QUERY")
-  .replace(/export function getShopifyVariantAvailability/, "function getShopifyVariantAvailability")
-  .replace(/export function mapShopifyProductNodeToCatalogItem/, "function mapShopifyProductNodeToCatalogItem")
+  .replace(/\bexport\s+/g, "")
   .split("export async function fetchShopifyProductEngineCatalog")[0];
 
 const helpers = new Function(`${pureSource}\nreturn { mapShopifyProductNodeToCatalogItem };`)();
