@@ -481,11 +481,13 @@ const IMAGE_MODEL = "gpt-image-2";
 const configuredAnimatedOverlayImageModel = String(
   process.env.ANIMATED_OVERLAY_IMAGE_MODEL || ""
 ).trim();
-const ANIMATED_OVERLAY_IMAGE_MODEL = configuredAnimatedOverlayImageModel.startsWith(
-  "gpt-image-2"
+// Transparent typography requires Flare; legacy GPT Image 2 overrides must
+// never send an unsupported transparent-background request.
+const ANIMATED_OVERLAY_IMAGE_MODEL = /^gpt-image-2\.5-flare(?:-\d{4}-\d{2}-\d{2})?$/.test(
+  configuredAnimatedOverlayImageModel
 )
   ? configuredAnimatedOverlayImageModel
-  : "gpt-image-2";
+  : "gpt-image-2.5-flare";
 const INSTAGRAM_GRAPH_API_VERSION =
   process.env.INSTAGRAM_GRAPH_API_VERSION || "v21.0";
 const FACEBOOK_GRAPH_API_VERSION =
@@ -2624,7 +2626,7 @@ async function createTransparentProductTypographyOverlay({
   return {
     ...normalized,
     prompt,
-    provider: "gpt-image-2-transparent-typography",
+    provider: `${ANIMATED_OVERLAY_IMAGE_MODEL}-transparent-typography`,
   };
 }
 
@@ -39800,11 +39802,12 @@ async function createAnimatedTextOverlay({
     return {
       textOverlayBuffer: normalizedPanel.textOverlayBuffer,
       prompt,
-      provider: "gpt-image-2-transparent-typography",
+      provider: `${ANIMATED_OVERLAY_IMAGE_MODEL}-transparent-typography`,
     };
   } catch (error) {
     console.warn("GPT Image transparent Reel typography was unusable; using emergency text-only fallback", {
       ruleId: rule?.id || null,
+      model: ANIMATED_OVERLAY_IMAGE_MODEL,
       message: error?.message,
     });
 
@@ -39937,16 +39940,6 @@ async function createAnimatedLogoOverlay({ brandProfile, includeLogo }) {
       })
       .png()
       .toBuffer();
-    const metadata = await sharp(logoPng).metadata();
-    const logoWidth = Number(metadata.width || 220);
-    const logoHeight = Number(metadata.height || 100);
-    const plateWidth = Math.max(logoWidth + 48, 150);
-    const plateHeight = Math.max(logoHeight + 34, 74);
-    const plate = Buffer.from(`
-      <svg width="${plateWidth}" height="${plateHeight}" xmlns="http://www.w3.org/2000/svg">
-        <rect width="${plateWidth}" height="${plateHeight}" rx="24" fill="#ffffff" opacity="0.82"/>
-      </svg>
-    `);
     return sharp({
       create: {
         width: 1080,
@@ -39956,7 +39949,6 @@ async function createAnimatedLogoOverlay({ brandProfile, includeLogo }) {
       },
     })
       .composite([
-        { input: plate, left: 54, top: 190 },
         { input: logoPng, left: 78, top: 207 },
       ])
       .png()
