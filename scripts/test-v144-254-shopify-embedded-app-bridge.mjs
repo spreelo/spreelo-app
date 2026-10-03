@@ -17,7 +17,7 @@ const claimRoute = read("app/api/shopify/onboarding/claim/route.js");
 const onboardingPage = read("app/shopify/onboarding/page.jsx");
 const legacyConnect = read("app/api/shopify/connect/route.js");
 
-assert(layout.includes('name="shopify-api-key"') && layout.includes("https://cdn.shopify.com/shopifycloud/app-bridge.js"), "latest Shopify App Bridge CDN script and API key meta are present in the document head");
+assert(layout.includes('name="shopify-api-key"') && embeddedPage.includes("https://cdn.shopify.com/shopifycloud/app-bridge.js"), "Shopify entry loads the latest App Bridge CDN script with the API key meta in the document head");
 assert(layout.includes('shopify-disabled-features') && layout.includes('fetch, auto-redirect'), "App Bridge cannot overwrite Spreelo Supabase Authorization headers or redirect standalone customers");
 assert(embeddedPage.includes("window.shopify?.idToken") && embeddedPage.includes('Authorization: `Bearer ${idToken}`'), "embedded App Home requests a fresh Shopify ID token and sends it to Spreelo backend");
 assert(embeddedRoute.includes("verifyShopifyIdToken") && embeddedRoute.includes('tokenType: "online"') && embeddedRoute.includes('tokenType: "offline"'), "backend validates Shopify identity and exchanges it for online identity plus offline background access");

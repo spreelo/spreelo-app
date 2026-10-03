@@ -45,7 +45,7 @@ html body .automation-page.plan-v70-active .plan-v289-format-heading {
   display:flex;
   align-items:center;
   gap:10px;
-  min-height:78px;
+  min-height:68px;
   padding:10px 12px;
 }
 html body .automation-page.plan-v70-active .plan-v289-format-heading > strong {
@@ -122,7 +122,7 @@ html body .automation-page.plan-v70-active .plan-v289-format-card:hover {transfo
 html body .automation-page.plan-v70-active .plan-v289-format-card:hover .plan-v289-format-preview {border-color:var(--format-accent);}
 html body .automation-page.plan-v70-active .plan-v289-format-card:focus-visible {outline:3px solid #3583f7;outline-offset:4px;border-radius:11px !important;}
 @media (max-width:760px) {
-  html body .automation-page.plan-v70-active .plan-v289-format-heading {gap:8px;padding:10px;min-height:78px;}
+  html body .automation-page.plan-v70-active .plan-v289-format-heading {gap:8px;padding:10px;min-height:68px;}
   html body .automation-page.plan-v70-active .plan-v289-format-heading > strong {font-size:12.5px !important;}
   html body .automation-page.plan-v70-active .plan-v289-format-card > .plan-v72-format-card-copy {padding:11px 10px 13px !important;}
 }

@@ -16,7 +16,44 @@ function getBrandStorageKey(userId) {
   return `spreelo_current_brand_id_${userId}`;
 }
 
+let appBridgeLoadPromise = null;
+
+function loadAppBridge() {
+  if (typeof window.shopify?.idToken === "function") return Promise.resolve();
+  if (appBridgeLoadPromise) return appBridgeLoadPromise;
+
+  const shop = new URLSearchParams(window.location.search).get("shop") || "";
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i.test(shop)) {
+    return Promise.reject(new Error("Open Spreelo from your Shopify admin to connect this store."));
+  }
+  if (!document.querySelector('meta[name="shopify-api-key"]')?.content) {
+    return Promise.reject(new Error("Shopify App Bridge API key is not configured."));
+  }
+
+  appBridgeLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
+    script.async = true;
+    const timer = setTimeout(() => {
+      script.remove();
+      reject(new Error("Shopify App Bridge could not be loaded."));
+    }, APP_BRIDGE_WAIT_MS);
+    script.onload = () => { clearTimeout(timer); resolve(); };
+    script.onerror = () => {
+      clearTimeout(timer);
+      script.remove();
+      reject(new Error("Shopify App Bridge could not be loaded."));
+    };
+    document.head.appendChild(script);
+  }).catch((error) => {
+    appBridgeLoadPromise = null;
+    throw error;
+  });
+  return appBridgeLoadPromise;
+}
+
 async function waitForAppBridge() {
+  await loadAppBridge();
   const startedAt = Date.now();
   while (Date.now() - startedAt < APP_BRIDGE_WAIT_MS) {
     if (typeof window !== "undefined" && typeof window.shopify?.idToken === "function") return window.shopify;

@@ -21,7 +21,6 @@ export default function RootLayout({ children }) {
               /shopify/app requests a fresh Shopify ID token explicitly instead.
             */}
             <meta name="shopify-disabled-features" content="fetch, auto-redirect" />
-            <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
           </>
         ) : null}
       </head>
