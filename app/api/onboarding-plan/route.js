@@ -76,11 +76,11 @@ export async function POST(request) {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await openai.responses.create({
       model,
-      instructions: "You are Spreelo's onboarding strategist. Choose only the best primary social-media objective and a sustainable weekly posting frequency for this verified business. Return valid JSON only. Do not invent business facts and do not write customer-facing copy.",
-      input: `Choose one onboarding recommendation.\n\nBUSINESS\nName: ${brandProfile.business_name || ""}\nIndustry: ${brandProfile.industry || ""}\nDescription: ${brandProfile.brand_description || ""}\nAudience: ${brandProfile.target_audience || ""}\nMarket: ${brandProfile.content_market || brandProfile.country_code || ""}\nVerified product catalog: ${Boolean(brandProfile.website_product_mode_available)}\nVerified services: ${Boolean(brandProfile.website_service_mode_available)}\nConnected social channels: ${Number(connectedPlatformCount || 0)}\n\nAllowed goal_id values: ${SMART_ONBOARDING_GOALS.join(", ")}\nAllowed post_count values: ${SMART_ONBOARDING_POST_COUNTS.join(", ")}\n\nReturn exactly: {"goal_id":"...","post_count":5}`,
+      instructions: "You are Spreelo's onboarding strategist. Use Sell more as the default primary objective and choose a sustainable weekly posting frequency for this verified business. Return valid JSON only. Do not invent business facts and do not write customer-facing copy.",
+      input: `Choose one onboarding recommendation.\n\nBUSINESS\nName: ${brandProfile.business_name || ""}\nIndustry: ${brandProfile.industry || ""}\nDescription: ${brandProfile.brand_description || ""}\nAudience: ${brandProfile.target_audience || ""}\nMarket: ${brandProfile.content_market || brandProfile.country_code || ""}\nVerified product catalog: ${Boolean(brandProfile.website_product_mode_available)}\nVerified services: ${Boolean(brandProfile.website_service_mode_available)}\nConnected social channels: ${Number(connectedPlatformCount || 0)}\n\nRequired goal_id value: sell_more\nAllowed post_count values: ${SMART_ONBOARDING_POST_COUNTS.join(", ")}\n\nReturn exactly: {"goal_id":"...","post_count":5}`,
     });
     const parsed = safeJson(response.output_text || "");
-    const goalId = normalizeSmartOnboardingGoal(parsed?.goal_id, fallback.goalId);
+    const goalId = "sell_more";
     const postCount = normalizeSmartOnboardingPostCount(parsed?.post_count, fallback.postCount);
     return Response.json({ ok: true, goalId, postCount, source: "ai" });
   } catch (error) {

@@ -1134,8 +1134,9 @@ export default function Calendar() {
               {t("calendar.personalEyebrow")}
             </p>
             <h2>
-              {t("calendar.personalTitle", { brandName })}
+              {t("calendar.themeTitle.v296")}
             </h2>
+            {brandName ? <p className="spreelo-theme-calendar-brand">{t("calendar.themeBrand.v296", { brandName })}</p> : null}
             <span className="campaign-calendar-v134-hero-subtitle">
               {t("calendar.personalIntro", { brandName })}
             </span>
@@ -1176,7 +1177,7 @@ export default function Calendar() {
                   {t("calendar.personalCardTitle", { brandName })}
                 </strong>
                 <p>
-                  {t("calendar.personalCardText")}
+                  {t("calendar.personalCardText.v296")}
                 </p>
               </div>
               <div className="campaign-calendar-v133-personal-count">
@@ -1354,7 +1355,7 @@ export default function Calendar() {
                               </div>
                               <div className="campaign-calendar-v143-summary-action">
                                 <span><CalendarRange size={20} aria-hidden="true" /></span>
-                                <div><strong>{t("calendar.actualPlanTitle")}</strong><p>{t("calendar.actualPlanText")}</p></div>
+                                <div><strong>{t("calendar.actualPlanTitle")}</strong><p>{t("calendar.actualPlanText.v296")}</p></div>
                                 <button type="button" className="primary" onClick={() => handleCreateCampaign(campaign)}>{t("calendar.createCampaignPlan")}</button>
                               </div>
                             </section>

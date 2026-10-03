@@ -1051,14 +1051,14 @@ const autoPlanStrategies = {
 
 const goalMarketingSequences = {
   sell_more: [
+    { contentTypeId: "website_item_text_ad", label: "Strong product ad", description: "Use one concrete product in a visually strong AI-designed advertisement.", marketingAngle: "product_push", customerStage: "warm", ctaStrength: "medium" },
     { contentTypeId: "problem_solution", label: "Need hook", description: "Create buying interest by showing a clear need, problem or desirable outcome before selling.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
+    { contentTypeId: "website_item", label: "Clear product recommendation", description: "Recommend one concrete product and explain why it is a good choice now.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "strong" },
+    { contentTypeId: "ai_product_video", label: "Premium product video", description: "Showcase a verified product with AI video when motion supports the sales idea and selected channels.", marketingAngle: "product_push", customerStage: "ready_to_buy", ctaStrength: "strong" },
+    { contentTypeId: "faq", label: "Remove buying doubt", description: "Answer a useful question that can reduce hesitation before purchase or contact.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "medium" },
     { contentTypeId: "service_focus", label: "Verified service solution", description: "Use a real verified service when it directly solves the customer need and is relevant to the sales goal.", marketingAngle: "conversion", customerStage: "warm", ctaStrength: "medium" },
     { contentTypeId: "carousel_website_item", label: "Product guide", description: "Show a curated set of relevant products with one shared buying theme.", marketingAngle: "product_discovery", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "website_item_text_ad", label: "Strong product ad", description: "Use one concrete product in a visually strong AI-designed advertisement.", marketingAngle: "product_push", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "faq", label: "Remove buying doubt", description: "Answer a useful question that can reduce hesitation before purchase or contact.", marketingAngle: "trust", customerStage: "warm", ctaStrength: "medium" },
-    { contentTypeId: "website_item", label: "Clear product recommendation", description: "Recommend one concrete product and explain why it is a good choice now.", marketingAngle: "conversion", customerStage: "ready_to_buy", ctaStrength: "strong" },
     { contentTypeId: "animated_website_item", label: "Product Reel", description: "Use movement to give a strong product an attention-grabbing sales moment.", marketingAngle: "product_push", customerStage: "ready_to_buy", ctaStrength: "strong" },
-    { contentTypeId: "ai_product_video", label: "Premium product video", description: "Use a verified product image for AI video only when motion adds enough value to justify the higher production cost.", marketingAngle: "product_push", customerStage: "ready_to_buy", ctaStrength: "strong" },
   ],
   get_followers: [
     { contentTypeId: "engagement_humor", label: "Engagement hook", description: "Start with a relatable idea that gives people a natural reason to react, comment or share.", marketingAngle: "awareness", customerStage: "cold", ctaStrength: "soft" },
@@ -6696,7 +6696,7 @@ const [focusSourceError, setFocusSourceError] = useState("");
   const [defaultPublishTime, setDefaultPublishTime] = useState(
     initialRecommendedTime
   );
-const [autoPlanGoal, setAutoPlanGoal] = useState("");
+const [autoPlanGoal, setAutoPlanGoal] = useState("sell_more");
 const [autoPlanPostCount, setAutoPlanPostCount] = useState(
   DEFAULT_AUTO_PLAN_POST_COUNT
 );
@@ -7145,12 +7145,12 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
       connectedPlatformCount: connectedPlatforms.length,
     });
     const profileVersion = String(currentBrandProfile?.updated_at || "profile").replace(/[^a-zA-Z0-9]/g, "").slice(0, 32);
-    const cacheKey = `spreelo_smart_onboarding_${currentBrandId}_${profileVersion}`;
+    const cacheKey = `spreelo_smart_onboarding_v296_${currentBrandId}_${profileVersion}`;
     let recommendation = fallback;
     try {
       const cached = JSON.parse(window.localStorage.getItem(cacheKey) || "null");
       if (["sell_more", "get_followers", "build_trust"].includes(cached?.goalId) && [3, 5, 7].includes(Number(cached?.postCount))) {
-        recommendation = { goalId: cached.goalId, postCount: Number(cached.postCount) };
+        recommendation = { goalId: "sell_more", postCount: Number(cached.postCount) };
       }
     } catch {
       window.localStorage.removeItem(cacheKey);
@@ -7178,7 +7178,7 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
         if (!response.ok) return;
         if (!["sell_more", "get_followers", "build_trust"].includes(payload?.goalId)) return;
         if (![3, 5, 7].includes(Number(payload?.postCount))) return;
-        window.localStorage.setItem(cacheKey, JSON.stringify({ goalId: payload.goalId, postCount: Number(payload.postCount) }));
+        window.localStorage.setItem(cacheKey, JSON.stringify({ goalId: "sell_more", postCount: Number(payload.postCount) }));
       } catch (error) {
         console.warn("Could not refine smart onboarding recommendation", error);
       }
@@ -9869,7 +9869,7 @@ async function applyDynamicAutoPlan({ goalId, postCount }) {
   // verified never reuses a recommendation created before those formats existed.
   const capabilitySignature = `products-${websiteProductModeAvailable ? 1 : 0}_services-${verifiedServiceModeAvailable ? 1 : 0}`;
   const cacheKey = currentBrandId && goalId
-    ? `spreelo_plan_recommendation_${currentBrandId}_${goalId}_${safePostCount}_${platformSignature}_${capabilitySignature}`
+    ? `spreelo_plan_recommendation_v296_${currentBrandId}_${goalId}_${safePostCount}_${platformSignature}_${capabilitySignature}`
     : "";
   let instantSlots = fallbackSlots;
 
@@ -13218,7 +13218,7 @@ function blockFormatCardClickAfterDrag(event) {
         <p style={{ margin: "0 0 4px", fontSize: "12px", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#92400e" }}>
           {t("automation.debug.campaignLabel")}
         </p>
-        <h3 style={{ margin: 0, fontSize: "18px" }}>{t("automation.calendarHandoffTitle")}</h3>
+        <h3 style={{ margin: 0, fontSize: "18px" }}>{t("automation.calendarHandoffTitle.v296")}</h3>
         <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#475569" }}>
           {t("automation.debug.campaignHelp")}
         </p>
@@ -15293,12 +15293,10 @@ function blockFormatCardClickAfterDrag(event) {
 
                   <div className="spreeloRef-hero">
                     <div className="spreeloRef-hero-copy">
-                      <span className="spreeloRef-ready-pill"><X size={14}/>{t("automation.onboardingV202.ready")}</span>
-                      <h2 id="spreeloRef-title">{t("automation.onboardingV202.heroTitle")}<span className="spreeloRef-celebration" aria-hidden="true">🎉</span></h2>
+                      <span className="spreeloRef-ready-pill"><X size={14}/>{t("automation.onboardingV296.welcomeBadge")}</span>
+                      <h2 id="spreeloRef-title">{t("automation.onboardingV296.welcomeTitle")}<span className="spreeloRef-celebration" aria-hidden="true">🎉</span></h2>
                       <p>
-                        {t("automation.onboardingV203.firstPlanIntroPrefix")}{" "}
-                        <strong>{smartOnboardingBrandName}</strong>
-                        {t("automation.onboardingV203.firstPlanIntroSuffix")}
+                        {t("automation.onboardingV296.welcomeIntro", { brandName: smartOnboardingBrandName })}
                       </p>
                     </div>
                     <div className="spreeloRef-hero-art" aria-hidden="true">
@@ -15446,7 +15444,7 @@ function blockFormatCardClickAfterDrag(event) {
                       </div>
                       <button type="button" className="spreeloRef-carousel-btn next" onClick={() => scrollSmartOnboardingPreview(1)} aria-label={t("automation.onboardingV196.nextPosts")}><ChevronRight size={20}/></button>
                     </div>
-                  <div className="spreeloRef-note"><span className="spreeloRef-info-icon" aria-hidden="true">i</span><span>{t("automation.onboardingV198.untilFirstPlanNote")}</span></div>
+                  <div className="spreeloRef-note"><span className="spreeloRef-info-icon" aria-hidden="true">i</span><span>{t("automation.onboardingV198.untilFirstPlanNote.v296")}</span></div>
                   </section>
                 </main>
 

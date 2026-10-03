@@ -29,7 +29,7 @@ for (const needle of ["source_fingerprints", "claimServerTranslationPack", "ui_t
 
 const hook = read("lib/i18n/useUiText.js");
 for (const needle of [
-  'TRANSLATION_CACHE_VERSION = "v27"',
+  'TRANSLATION_CACHE_VERSION = "v28"',
   "validatedNamespacesByLocale",
   "areNamespacesValidatedForSession",
   "markNamespacesValidatedForSession",

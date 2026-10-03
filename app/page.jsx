@@ -348,7 +348,7 @@ function getReviewContext(post, rules, t) {
       rule?.queue_source === "campaign"
         ? t("dashboard.reviewSourceCampaign")
         : rule?.queue_source === "content_studio"
-          ? t("dashboard.reviewSourceStudio")
+          ? t("dashboard.reviewSourceStudio.v296")
           : rule
             ? t("dashboard.reviewSourcePlan")
             : post?.source === "automation"
@@ -1518,7 +1518,7 @@ export default function Home() {
                       <h2>{t("dashboard.calendarCampaignsBox")}</h2>
                       <details className="home-v14371-help">
                         <summary aria-label={t("dashboard.sectionHelp")}><HelpCircle /></summary>
-                        <div>{t("dashboard.calendarCampaignsHelp")}</div>
+                        <div>{t("dashboard.calendarCampaignsHelp.v296")}</div>
                       </details>
                     </div>
                     <span>{t("dashboard.calendarCampaignsBoxText")}</span>

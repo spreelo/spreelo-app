@@ -250,3 +250,9 @@ html body .spreeloRef-post-card.tone-3 .spreeloRef-post-footer > span {color:#70
 /* v144.295: show the entire configured Facebook example in the planned row. */
 html body .spreeloRef-post-media {height:auto; aspect-ratio:4 / 5;}
 html body .spreeloRef-post-media > img {object-fit:contain;}
+
+/* v144.296: identify the current brand beneath the theme calendar label. */
+html body .spreelo-nav-label-group {display:flex; flex-direction:column; min-width:0; gap:3px;}
+html body .spreelo-nav-brand-name {font-size:11.5px; line-height:1.3; font-weight:400; color:#667a99; overflow-wrap:anywhere;}
+html body .sidebar a.active .spreelo-nav-brand-name {color:#365fa6;}
+html body .spreelo-theme-calendar-brand {margin:4px 0 10px; color:#667a99; font-size:14px; line-height:1.4;}

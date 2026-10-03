@@ -1,0 +1,30 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import {getFallbackSmartOnboardingRecommendation} from '../lib/smartOnboardingPlan.js';
+import {CONTENT_GOAL_WEIGHTS,getContentGoalWeight} from '../lib/contentPlanningStrategy.js';
+import {ALL_UI_NAMESPACES,DEFAULT_UI_LOCALE,getDefaultLabelsForNamespaces,interpolateUiText} from '../lib/i18n/defaultLabels.js';
+const labels=getDefaultLabelsForNamespaces(ALL_UI_NAMESPACES);
+assert.equal(DEFAULT_UI_LOCALE,'en');
+for(const profile of [{},{website_service_mode_available:true},{website_product_mode_available:true}]) assert.equal(getFallbackSmartOnboardingRecommendation({brandProfile:profile}).goalId,'sell_more');
+const route=fs.readFileSync('app/api/plan-content/route.js','utf8');
+const fn=route.slice(route.indexOf('function buildFallbackItems('),route.indexOf('function normalizePlanningItem('));
+const context={GOAL_WEIGHTS:CONTENT_GOAL_WEIGHTS,getContentGoalWeight,DEFAULT_ROLE_BY_FORMAT:{},getRecencyPenalty:()=>0,getContentTypeCoverageScore:()=>0,getBrandLearningContentTypeAdjustment:()=>0,getPerformanceLearningContentTypeAdjustment:()=>0,getGrowthAgentFormatAdjustment:()=>0,getContentTypeDestinationPlatforms:()=>['facebook'],describeGrowthAgentDecision:()=>'',getDefaultMarketingValues:()=>({})};
+vm.createContext(context);vm.runInContext(fn,context);
+const products=['website_item','website_item_text_ad','animated_website_item','ai_product_video','carousel_website_item'].map(id=>({id,category:'product'}));
+const editorial=[{id:'problem_solution',category:'education'},{id:'faq',category:'trust'},{id:'tips',category:'education'}];
+const choose=availableFormats=>context.buildFallbackItems({goalId:'sell_more',postCount:5,availableFormats,recentHistory:[]}).map(x=>x.content_type_id);
+const selected=choose([...products,...editorial]);
+for(const id of ['website_item','website_item_text_ad','ai_product_video'])assert.ok(selected.includes(id),selected.join(','));
+assert.ok(selected.some(id=>editorial.some(x=>x.id===id)), 'Retain supporting editorial content');
+assert.ok(choose(editorial).every(id=>editorial.some(x=>x.id===id)),'No forced product formats when unavailable');
+assert.equal(labels['layout.nav.aiContentStudio.v296'],'AI Content Creator');
+assert.equal(labels['calendar.themeTitle.v296'],'AI Theme Calendar');
+for(const file of ['components/AppLayout.jsx','app/calendar/page.jsx','app/automation/page.jsx']) {
+ const src=fs.readFileSync(file,'utf8');
+ for(const match of src.matchAll(/t\("([^"]*v296[^"]*)"/g))assert.ok(labels[match[1]],`Missing translation key ${match[1]}`);
+}
+assert.equal(interpolateUiText(labels['layout.nav.calendarBrand.v296'],{brandName:'North Peak'}),'(North Peak)');
+assert.ok(labels['automation.onboardingV296.welcomeIntro'].includes('{brandName}'));
+assert.ok(!Object.values(labels).some(x=>/AI Content Studio|Your AI Calendar/.test(x)),'Old English names removed');
+console.log('v144.296: welcome keys, brand interpolation, Sell more default, balanced sales priority and non-product fallback passed.');

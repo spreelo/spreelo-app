@@ -90,7 +90,7 @@ const FORMAT_DEFINITIONS = [
     label: "AI product video",
     category: "product",
     requiresProducts: true,
-    purpose: "Turn one verified product image into a short AI product video when motion adds enough strategic value to justify the higher production cost.",
+    purpose: "Showcase one verified product with a short AI product video when motion supports the sales idea and selected channels.",
   },
   {
     id: "carousel_website_item",
@@ -150,7 +150,7 @@ const DEFAULT_ROLE_BY_FORMAT = {
   website_item: ["Product recommendation", "Present one relevant product and explain why it fits the current customer need."],
   website_item_text_ad: ["Strong product ad", "Create a visually strong sales moment around one relevant verified product."],
   animated_website_item: ["Attention-driving product Reel", "Use motion to make one relevant product stand out and drive the next step."],
-  ai_product_video: ["AI product video", "Use a verified product image for a short AI video only when motion clearly strengthens the idea."],
+  ai_product_video: ["AI product video", "Showcase a verified product with a short AI video when motion supports the sales idea."],
   carousel_website_item: ["Curated product collection", "Help the audience discover several relevant products around one clear theme."],
   problem_solution: ["Problem & solution", "Create recognition around a real customer problem and connect it to a genuinely relevant solution."],
   tips: ["Useful knowledge", "Give practical value through the strongest fitting tip, fact or insight without forcing a sale."],
@@ -308,7 +308,7 @@ function buildFallbackItems({ goalId, postCount, availableFormats, recentHistory
       .filter((format) => !selected.some((item) => item.content_type_id === format.id))
       .map((format) => {
         const categoryCount = selectedCategories.get(format.category) || 0;
-        const categoryPenalty = categoryCount * 18;
+        const categoryPenalty = categoryCount * (goalId === "sell_more" && format.category === "product" ? 8 : 18);
         const productPenalty =
           goalId !== "sell_more" && format.category === "product" ? 14 : 0;
         const platformCoverage = getContentTypeCoverageScore({
@@ -925,7 +925,8 @@ RULES
 - Spreelo creates one master content idea and uses platform adapters where listed. Do not invent separate creative concepts for each channel.
 - Do not select Custom post/manual_prompt, discount campaigns, focused-page input, customer cases, local-angle posts, comparisons or behind-the-scenes posts.
 - Do not select product formats unless verified product mode is available.
-- Treat ai_product_video as a premium motion format. Select it only when motion clearly adds strategic value; prefer a lower-cost product format when a static or lighter-motion format can do the job equally well.
+- Give product posts, text + ad and product video stronger consideration for verified product businesses. For Sell more, aim to include a clear product post, a text + ad and a motion format in a five-or-more-post plan when each is relevant and supported by the selected channels. Balance them with useful editorial content, vary the mix over time and respect recent history and learning signals.
+- Treat ai_product_video as a premium motion format that deserves regular consideration when motion can showcase a verified product well. Do not exclude it solely because static posts are cheaper; still choose formats according to the idea, channel fit and the displayed credit cost. Never force unsupported video.
 - Select service_focus only when there is credible service evidence.
 - Seasonality is a context layer, not a format. Use timely or seasonal framing only when it genuinely improves one of the available editorial ideas.
 - Do not repeat a format in the same week unless there are too few valid formats. Prefer meaningful variety over a fixed sequence.

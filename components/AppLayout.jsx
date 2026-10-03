@@ -64,15 +64,15 @@ const navItems = [
   },
   {
     id: "automation",
-    label: "AI Content Studio",
-    labelKey: "layout.nav.aiContentStudio",
+    label: "AI Content Creator",
+    labelKey: "layout.nav.aiContentStudio.v296",
     href: "/automation",
     Icon: WandSparkles,
   },
   {
     id: "calendar",
-    label: "Your AI Calendar",
-    labelKey: "layout.nav.yourAiCalendar",
+    label: "AI Theme Calendar",
+    labelKey: "layout.nav.yourAiCalendar.v296",
     href: "/calendar",
     Icon: CalendarDays,
   },
@@ -934,7 +934,12 @@ export default function AppLayout({ active, children }) {
               }}
             >
               <SidebarMenuIcon Icon={item.Icon} />
-              <span>{getNavLabel(item)}</span>
+              <span className="spreelo-nav-label-group">
+                <span>{getNavLabel(item)}</span>
+                {item.id === "calendar" && currentBrand?.business_name ? (
+                  <small className="spreelo-nav-brand-name">{t("layout.nav.calendarBrand.v296", { brandName: currentBrand.business_name })}</small>
+                ) : null}
+              </span>
               {isChannelProtectedNavItem(item) && channelGateLocked ? (
                 <LockKeyhole className="spreelo-nav-channel-lock" size={14} strokeWidth={2} aria-hidden="true" />
               ) : null}
@@ -1137,7 +1142,7 @@ export default function AppLayout({ active, children }) {
             </div>
             <p className="spreelo-channel-gate-eyebrow">{t("layout.channelGateEyebrow")}</p>
             <h2 id="spreelo-channel-gate-title">{t("layout.channelGateTitle")}</h2>
-            <p className="spreelo-channel-gate-copy">{t("layout.channelGateText")}</p>
+            <p className="spreelo-channel-gate-copy">{t("layout.channelGateText.v296")}</p>
 
             <div className="spreelo-channel-gate-flow" aria-hidden="true">
               <div><span>1</span><strong>{t("layout.channelGateStepConnect")}</strong></div>
@@ -1149,7 +1154,7 @@ export default function AppLayout({ active, children }) {
 
             <p className="spreelo-channel-gate-note">
               <BadgeCheck size={17} aria-hidden="true" />
-              <span>{t("layout.channelGateNote")}</span>
+              <span>{t("layout.channelGateNote.v296")}</span>
             </p>
 
             <div className="spreelo-channel-gate-actions">

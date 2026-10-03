@@ -197,9 +197,9 @@ export default function AdminContentFormatsPage() {
       <div className="admin-page admin-format-library-page">
         <header className="admin-hero admin-format-library-hero">
           <div>
-            <span className="admin-eyebrow">{t("admin.formats.kicker")}</span>
+            <span className="admin-eyebrow">{t("admin.formats.kicker.v296")}</span>
             <h1>{t("admin.formats.title")}</h1>
-            <p>{t("admin.formats.description")}</p>
+            <p>{t("admin.formats.description.v296")}</p>
           </div>
           <div className="admin-format-library-count">
             <strong>{featuredCount}</strong>
