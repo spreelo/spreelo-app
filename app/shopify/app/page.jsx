@@ -33,7 +33,9 @@ function loadAppBridge() {
   appBridgeLoadPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
-    script.async = true;
+    // App Bridge rejects async/defer scripts during its own startup checks.
+    // Dynamic classic scripts are async by default, so explicitly disable it.
+    script.async = false;
     const timer = setTimeout(() => {
       script.remove();
       reject(new Error("Shopify App Bridge could not be loaded."));

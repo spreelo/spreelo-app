@@ -19,6 +19,8 @@ const legacyConnect = read("app/api/shopify/connect/route.js");
 
 assert(layout.includes('name="shopify-api-key"') && embeddedPage.includes("https://cdn.shopify.com/shopifycloud/app-bridge.js"), "Shopify entry loads the latest App Bridge CDN script with the API key meta in the document head");
 assert(layout.includes('shopify-disabled-features') && layout.includes('fetch, auto-redirect'), "App Bridge cannot overwrite Spreelo Supabase Authorization headers or redirect standalone customers");
+assert(embeddedPage.includes("script.async = false;") && !embeddedPage.includes("script.async = true;"), "App Bridge loads as a classic script without async, which Shopify rejects");
+assert(!layout.includes('<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"'), "standalone app pages do not load Shopify App Bridge");
 assert(embeddedPage.includes("window.shopify?.idToken") && embeddedPage.includes('Authorization: `Bearer ${idToken}`'), "embedded App Home requests a fresh Shopify ID token and sends it to Spreelo backend");
 assert(embeddedRoute.includes("verifyShopifyIdToken") && embeddedRoute.includes('tokenType: "online"') && embeddedRoute.includes('tokenType: "offline"'), "backend validates Shopify identity and exchanges it for online identity plus offline background access");
 assert(embeddedRoute.includes("SHOPIFY_USER_NOT_LINKED_TO_SPRELO_ACCOUNT"), "embedded auto-login refuses to map a different Shopify staff email onto an existing Spreelo owner account");
