@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { buildVideoBackgroundProfile, chooseVideoBackground } from '../lib/videoBackgroundSelection.js';
+const profile = { season:'all', campaigns:['product'], industries:['fashion'], moods:['premium','calm'], productBrightness:'dark', productColor:'blue' };
+const scene = (id, extra={}) => ({id, public_url:`https://example.com/${id}.mp4`, active:true, crop_safe_916:true, season:'all', campaigns:['product'], industries:['fashion'], moods:['premium','calm'], brightness:'light', family:id, ...extra});
+const pick = (assets,recentUsage=[],p=profile) => chooseVideoBackground({assets,profile:p,recentUsage});
+assert.equal(pick([scene('christmas',{season:'christmas',priority:1000}),scene('neutral')]).asset.id,'neutral');
+assert.equal(pick([scene('christmas',{season:'christmas'}),scene('neutral')],[],{...profile,season:'christmas',campaigns:['product','christmas']}).asset.id,'christmas');
+assert.equal(pick([scene('a'),scene('b')],[{video_background_asset_id:'a'}]).asset.id,'b');
+assert.equal(pick([scene('a'),scene('bad',{brightness:'dark'})],[{video_background_asset_id:'a'}]).asset.id,'a');
+assert.equal(pick([scene('a')],[{video_background_asset_id:'a'}]).asset.id,'a');
+assert.equal(pick([scene('a'),scene('new')],[{video_background_asset_id:'a'}]).asset.id,'new');
+assert.equal(pick([scene('inactive',{active:false}),scene('crop',{crop_safe_916:false}),scene('good')]).asset.id,'good');
+assert.equal(pick([scene('wrong-season',{season:'christmas'})]),null);
+const inferred=buildVideoBackgroundProfile({rule:{website_item:{title:'T-shirt',description:'Jules collection for skilled divers'}},dominantColor:{r:10,g:30,b:70},productBrightness:'dark'});
+assert.equal(inferred.season,'all');
+assert(!inferred.industries.includes('kids'));
+console.log('v144.302: seasonal eligibility, contrast before rotation, variety, new assets and word boundaries passed.');
