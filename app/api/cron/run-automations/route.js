@@ -40930,60 +40930,24 @@ function areEquivalentProductBrands(leftValue, rightValue) {
   return shorter.length > 0 && shorter.every((token) => longer.has(token));
 }
 
+// v144.294: reason is explanatory text only. Decision flags come from the
+// same strict-schema vision response, without another model call or text regex.
 function hasHardSemanticBrandConflict(review, expectedBrand) {
   const observedBrand = String(review?.observed_brand || "").trim();
   const expectedNormalized = normalizeProductBrandIdentity(expectedBrand);
   const observedNormalized = normalizeProductBrandIdentity(observedBrand);
-
-  // The exact product page is authoritative. A visual verifier may describe a
-  // parent/co-brand more fully than the retailer metadata (for example a
-  // sub-brand plus its parent mark). If all expected brand tokens are present,
-  // that is compatible branding rather than a reason to discard the locked
-  // product object.
   if (expectedNormalized && observedNormalized) {
-    if (areEquivalentProductBrands(expectedBrand, observedBrand)) return false;
-    return true;
+    return !areEquivalentProductBrands(expectedBrand, observedBrand);
   }
-
-  const reason = String(review?.reason || "").toLowerCase();
-  return /(?:brand|logo)[^.!]{0,90}(?:does not match|doesn't match|do not match|conflict|mismatch|different brand|wrong brand|not the named|not matching)/i.test(
-    reason
-  );
+  return review?.brand_conflict !== false;
 }
 
 function hasHardSemanticModelConflict(review) {
-  if (review?.brand_or_model_conflict !== true) return false;
-  const reason = String(review?.reason || "").toLowerCase();
-  return /(?:model|design|variant|style|product)[^.!]{0,120}(?:does not match|doesn't match|do not match|conflict|mismatch|different|wrong|not the named|not matching)/i.test(
-    reason
-  );
+  return review?.model_conflict !== false;
 }
 
 function hasHardSemanticVariantConflict(review) {
-  const reason = String(review?.reason || "").toLowerCase();
-  if (!reason) return false;
-
-  // v144.283: semantic reviewers sometimes phrase a *negative* finding as
-  // "no conflicting ... product variant is visible". The old regex matched
-  // the "conflict" substring inside "conflicting" and incorrectly turned
-  // that explicit all-clear into a hard variant stop. Honour clear negations
-  // before evaluating positive mismatch language.
-  const explicitNoVariantConflict = [
-    /\bno\s+(?:visible\s+|clear\s+|obvious\s+)?(?:conflict(?:ing)?|mismatch(?:ed)?|different|wrong|inconsistent)\b[^.!]{0,140}\b(?:colou?r|variant|design|size|weight|volume|capacity|pack(?:age)? size|pack count|quantity|count)\b/i,
-    /\b(?:colou?r|variant|design|size|weight|volume|capacity|pack(?:age)? size|pack count|quantity|count)\b[^.!]{0,140}\b(?:shows?\s+no|has\s+no|with\s+no|without|no)\s+(?:visible\s+|clear\s+|obvious\s+)?(?:conflict|mismatch|difference|discrepancy)\b/i,
-    /\b(?:no|without)\s+(?:visible\s+|clear\s+|obvious\s+)?(?:product\s+)?variant\s+(?:conflict|mismatch|difference|discrepancy)\b/i,
-  ].some((pattern) => pattern.test(reason));
-  if (explicitNoVariantConflict) return false;
-
-  const variantDimension = "(?:colou?r|variant|design|size|weight|volume|capacity|pack(?:age)? size|pack count|quantity|count)";
-  // Use word boundaries for single-word markers so "conflict" cannot match
-  // inside "conflicting".
-  const conflictWord = "(?:does not match|doesn\'t match|do not match|conflict(?!ing)|mismatch|different|wrong|not matching|inconsistent|discrepancy)";
-  return (
-    new RegExp(`${variantDimension}[^.!]{0,140}${conflictWord}`, "i").test(reason) ||
-    new RegExp(`${conflictWord}[^.!]{0,140}${variantDimension}`, "i").test(reason) ||
-    /\b\d+(?:[.,]\d+)?\s*(?:ml|cl|dl|l|g|kg|oz|lb|lbs|fl\s*oz)\b[^.!]{0,120}\b(?:while|but|whereas|instead of|vs\.?|versus)\b[^.!]{0,120}\b\d+(?:[.,]\d+)?\s*(?:ml|cl|dl|l|g|kg|oz|lb|lbs|fl\s*oz)\b/i.test(reason)
-  );
+  return review?.variant_conflict !== false;
 }
 
 function isCompatibleObservedBrandFamily(review, expectedBrand) {
@@ -40993,6 +40957,32 @@ function isCompatibleObservedBrandFamily(review, expectedBrand) {
       normalizeProductBrandIdentity(observedBrand) &&
       areEquivalentProductBrands(expectedBrand, observedBrand)
   );
+}
+
+function isStructuredProductImageReviewAccepted(review, option) {
+  const decisionFields = [
+    "matches_product", "product_type_match", "brand_or_model_conflict",
+    "brand_conflict", "model_conflict", "variant_conflict",
+  ];
+  if (!decisionFields.every((field) => typeof review?.[field] === "boolean")) return false;
+  if (typeof review.confidence !== "number" || !Number.isFinite(review.confidence) ||
+      review.confidence < 0.9 || review.confidence > 1) return false;
+
+  const hardBrandConflict = hasHardSemanticBrandConflict(review, option.expectedBrand);
+  const hardModelConflict = hasHardSemanticModelConflict(review);
+  const hardVariantConflict = hasHardSemanticVariantConflict(review);
+  const compatibleBrandFamily = isCompatibleObservedBrandFamily(review, option.expectedBrand);
+  // Preserve the established parent/sub-brand exception, but never override a
+  // model, variant or product-type conflict just because branding is compatible.
+  const lockedBrandFamilyFalseNegative = Boolean(
+    option.lockedSource && review.matches_product === false &&
+    review.product_type_match === true && review.brand_or_model_conflict === true &&
+    !hardBrandConflict && !hardModelConflict && !hardVariantConflict && compatibleBrandFamily
+  );
+  const combinedConflictResolved = !review.brand_or_model_conflict || compatibleBrandFamily;
+  return (review.matches_product || lockedBrandFamilyFalseNegative) &&
+    review.product_type_match && combinedConflictResolved &&
+    !hardBrandConflict && !hardModelConflict && !hardVariantConflict;
 }
 
 async function reviewResolvedProductImageIdentity({
@@ -41223,6 +41213,7 @@ async function reviewResolvedProductImageIdentity({
         "A different product category or conflicting visible brand/model must be rejected (for example sneakers vs a clothing set, or one brand/model of backpack vs a different one). " +
         "If an expected brand is supplied and a genuinely different visible logo/brand is present, observed_brand must name the visible brand and brand_or_model_conflict MUST be true. Parent-brand, sub-brand or co-brand wording is compatible when the observed brand contains the expected brand identity rather than contradicting it; extra compatible brand words alone are not a mismatch. Never call genuinely unrelated brands consistent. " +
         "When the locked product page explicitly names a colour/variant, a clearly conflicting colour/design is evidence that the image is not the locked item. A visible conflict in named size, weight, volume, capacity, quantity or pack count is also a hard variant mismatch (for example 591 ml shown for a locked 473 ml product) and must be rejected rather than accepted as close enough. People or animals are allowed if they are genuinely showing the named product. " +
+        "Return explicit booleans brand_conflict, model_conflict and variant_conflict for those three independent checks. Set each to true only for a concrete observed contradiction; otherwise set it to false. brand_or_model_conflict must equal brand_conflict OR model_conflict. A model conflict concerns the product model or design, not extra compatible parent-brand words. Any true conflict flag requires matches_product=false. Describe evidence briefly in reason; reason is explanatory text only and is never parsed to decide acceptance. " +
         "Also return display_product_type: a short customer-facing product type in the language used by the product title. Base it on the locked title/page facts and what is visibly marketed. For a set, describe the main marketed item plus the included item when clear (for example a backpack with pencil case), rather than blindly repeating a misleading retailer taxonomy label. Do not include brand, model name or colour in display_product_type. " +
         "The same-page lock is the primary source of truth; this visual check is only a final safety belt. Reject an obvious product-type/model/variant conflict rather than trying to repair it with a different image.",
     },
@@ -41276,6 +41267,9 @@ async function reviewResolvedProductImageIdentity({
                       matches_product: { type: "boolean" },
                       product_type_match: { type: "boolean" },
                       brand_or_model_conflict: { type: "boolean" },
+                      brand_conflict: { type: "boolean" },
+                      model_conflict: { type: "boolean" },
+                      variant_conflict: { type: "boolean" },
                       observed_brand: { type: "string" },
                       display_product_type: { type: "string" },
                       confidence: { type: "number", minimum: 0, maximum: 1 },
@@ -41286,6 +41280,9 @@ async function reviewResolvedProductImageIdentity({
                       "matches_product",
                       "product_type_match",
                       "brand_or_model_conflict",
+                      "brand_conflict",
+                      "model_conflict",
+                      "variant_conflict",
                       "observed_brand",
                       "display_product_type",
                       "confidence",
@@ -41326,32 +41323,7 @@ async function reviewResolvedProductImageIdentity({
         .filter(({ review }) => Boolean(review));
 
       const accepted = reviewedOptions
-        .filter(({ option, review }) => {
-          const hardBrandConflict = hasHardSemanticBrandConflict(
-            review,
-            option.expectedBrand
-          );
-          const hardModelConflict = hasHardSemanticModelConflict(review);
-          const hardVariantConflict = hasHardSemanticVariantConflict(review);
-          const lockedBrandFamilyFalseNegative = Boolean(
-            option.lockedSource &&
-              review.matches_product !== true &&
-              review.product_type_match === true &&
-              review.brand_or_model_conflict === true &&
-              hardBrandConflict === false &&
-              hardModelConflict === false &&
-              hardVariantConflict === false &&
-              isCompatibleObservedBrandFamily(review, option.expectedBrand)
-          );
-          return (
-            (review.matches_product === true || lockedBrandFamilyFalseNegative) &&
-            review.product_type_match === true &&
-            hardBrandConflict === false &&
-            hardModelConflict === false &&
-            hardVariantConflict === false &&
-            Number(review.confidence || 0) >= 0.9
-          );
-        })
+        .filter(({ option, review }) => isStructuredProductImageReviewAccepted(review, option))
         .sort(
           (left, right) =>
             Number(right.review?.confidence || 0) -
@@ -41369,6 +41341,12 @@ async function reviewResolvedProductImageIdentity({
           reviews: reviewedOptions.slice(0, 4).map(({ option, review }) => ({
             expectedBrand: option.expectedBrand || null,
             observedBrand: review?.observed_brand || null,
+            matchesProduct: review?.matches_product ?? null,
+            productTypeMatch: review?.product_type_match ?? null,
+            confidence: review?.confidence ?? null,
+            brandConflict: review?.brand_conflict ?? null,
+            modelConflict: review?.model_conflict ?? null,
+            variantConflict: review?.variant_conflict ?? null,
             hardBrandConflict: hasHardSemanticBrandConflict(
               review,
               option.expectedBrand

@@ -36,17 +36,17 @@ assert.equal(
   "genuinely unrelated brands must still fail closed"
 );
 assert.equal(
-  brandHelpers.hasHardSemanticModelConflict({ brand_or_model_conflict: true, reason: "The prominent Nike and Jordan logos conflict with Jordan only." }),
+  brandHelpers.hasHardSemanticModelConflict({ model_conflict: false, brand_or_model_conflict: true, reason: "The prominent Nike and Jordan logos conflict with Jordan only." }),
   false,
   "a brand-family wording issue alone must not be promoted to a model mismatch"
 );
 assert.equal(
-  brandHelpers.hasHardSemanticVariantConflict({ reason: "The colour is clearly different from the locked variant." }),
+  brandHelpers.hasHardSemanticVariantConflict({ variant_conflict: true, reason: "The colour is clearly different from the locked variant." }),
   true,
   "a real variant conflict must remain a hard stop"
 );
 assert.equal(
-  brandHelpers.hasHardSemanticVariantConflict({ reason: "The visible design style and branding elements are consistent with the expected brand. No conflicting brand or product variant is visible." }),
+  brandHelpers.hasHardSemanticVariantConflict({ variant_conflict: false, reason: "The visible design style and branding elements are consistent with the expected brand. No conflicting brand or product variant is visible." }),
   false,
   "an explicit no-conflict review must not be misread as a hard variant conflict"
 );
