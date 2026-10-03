@@ -45,6 +45,7 @@ import {
   queueShotstackRender,
   waitForShotstackRender,
 } from "../../../../lib/shotstack.js";
+import { prepareAnimatedProductLayout } from "../../../../lib/animatedProductLayout.js";
 import { submitKlingImageToVideo } from "../../../../lib/kling.js";
 import { selectBestVideoMusic } from "../../../../lib/videoMusicLibrary.js";
 import { createGenerationCostTracker, ensureOpenAIResponseCostTracked, wrapOpenAIForCostTracking } from "../../../../lib/generationCostTracking.js";
@@ -38365,6 +38366,7 @@ function buildAnimatedTextPanelPrompt({
   dominantColor,
   hasBackgroundReference,
   hasProductReference,
+  animationLayout = null,
 }) {
   const websiteItem = rule?.website_item || {};
   const brand = rule?.brand_profile || {};
@@ -38413,7 +38415,7 @@ function buildAnimatedTextPanelPrompt({
 
   return `
 Create ONLY a transparent typography asset for a premium 9:16 product Reel.
-This is not the final video and not a card. Spreelo will place this transparent text layer over the real moving video and below/around the real product.
+This is not the final video and not a card. Spreelo will place this transparent text layer in the reserved text area over the real moving video, separately from the real product.
 
 Visual references:
 ${referenceGuidance}
@@ -38427,19 +38429,24 @@ Transparent output contract:
 - Do not simulate transparency with white, checkerboard or chroma colors.
 - A subtle text shadow, outline, highlight, underline, tiny linework or restrained flourish is allowed only when attached to the typography and useful for readability.
 
-Exact visible text:
-${productBrand ? `- Product brand eyebrow, exact spelling: "${productBrand}"` : "- No product brand eyebrow is required."}
-- Main product/model name, exact spelling and all words preserved: "${mainTitle}"
-${secondaryLineContent ? `- Optional descriptor line, exact spelling: "${secondaryLineContent}"` : "- No descriptor line is required."}
-- Use only the supplied identity text. Do not add slogans, captions, claims, prices, discounts, calls to action, microcopy or decorative fake words.
-- Do not translate, rename, abbreviate, omit or replace product-name words.
-- Balanced capitalization and line breaks are allowed, but spelling must remain exact.
+Advertising message:
+- Write one concise advertising headline in ${contentLanguage}, normally 3–7 words and no more than two strong lines.
+- Give a relevant reason to care about this product, using the verified product identity and the supplied post/campaign context.
+- Do not simply duplicate wording already printed prominently on the product. The product name is context, not a mandatory headline.
+- Verified product name: "${mainTitle}". ${productBrand ? `Verified brand: "${productBrand}".` : ""}
+- Verified descriptor: "${secondaryLineContent || "none supplied"}".
+- Supplied post copy (context only): ${truncateText(stripDetectedPrices(String(postContent || "")), 900)}
+- Never invent material, quality, comfort, sustainability, availability, performance, endorsements, discounts, prices or other product claims.
+- Use a subjective invitation or theme when no factual benefit is verified. Do not infer product features from appearance.
+- The product name may appear as a smaller secondary line ONLY if it adds useful information and does not repeat the headline or product print.
+- Do not add hashtags, URLs, tiny captions, buttons or extra decorative words. At most a headline and one optional short product-name line.
 
 Mobile readability:
 - The main product name is the visual focus and must be immediately readable on a phone.
 - Use one or two strong balanced lines when possible.
 - Keep generous transparent outer margins so no letter is clipped.
-- Avoid tiny text, thin hairlines, pixel fonts, fake glyphs or overdecorated lettering.
+- Avoid tiny text, thin hairlines, pixel fonts, fake glyphs or overdecorated lettering. Keep secondary text large enough to read on a phone.
+- This asset will occupy ${animationLayout?.text?.width || ANIMATED_TEXT_PANEL_WIDTH} x ${animationLayout?.text?.height || ANIMATED_TEXT_PANEL_HEIGHT} pixels in the final 1080 x 1920 video, ${animationLayout?.kind === "wide" ? "ABOVE a wide product" : "BELOW the product"}. Design for this final readable size, not the larger source canvas.
 
 Art direction:
 - Match the actual product, moving-video palette and campaign/theme so the typography feels specifically art-directed for this post.
@@ -38815,12 +38822,14 @@ async function getAnimatedOverlayBackgroundReference(backgroundAsset) {
 
 async function getAnimatedOverlayBackgroundLuminance(
   backgroundReferenceBuffer,
-  backgroundAsset
+  backgroundAsset,
+  animationLayout = null
 ) {
   if (backgroundReferenceBuffer) {
-    const stats = await sharp(backgroundReferenceBuffer)
-      .extract({ left: 108, top: 1248, width: 864, height: 360 })
-      .stats();
+    const textRegionBuffer = await sharp(backgroundReferenceBuffer)
+      .extract(animationLayout?.text || { left: 108, top: 1248, width: 864, height: 360 })
+      .toBuffer();
+    const stats = await sharp(textRegionBuffer).stats();
     const red = Number(stats?.channels?.[0]?.mean || 0);
     const green = Number(stats?.channels?.[1]?.mean || 0);
     const blue = Number(stats?.channels?.[2]?.mean || 0);
@@ -39332,7 +39341,8 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer, chromaKey)
   }
 }
 
-async function normalizeGeneratedAnimatedTextPanel(generatedBuffer) {
+async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, animationLayout = null, { trustedFallback = false } = {}) {
+  const textBox = animationLayout?.text || { left: ANIMATED_TEXT_PANEL_LEFT, top: ANIMATED_TEXT_PANEL_TOP, width: ANIMATED_TEXT_PANEL_WIDTH, height: ANIMATED_TEXT_PANEL_HEIGHT };
   const normalized = await sharp(generatedBuffer)
     .rotate()
     .resize({
@@ -39370,20 +39380,20 @@ async function normalizeGeneratedAnimatedTextPanel(generatedBuffer) {
   const visibleRatio = visible / pixelCount;
   const strongRatio = strong / pixelCount;
   const edgeRatio = edgeVisible / Math.max(1, visible);
-  if (visibleRatio < 0.018 || strongRatio < 0.006) {
+  if (!trustedFallback && (visibleRatio < 0.018 || strongRatio < 0.006)) {
     throw new Error("Generated transparent Reel typography was visually blank");
   }
-  if (visibleRatio > 0.38) {
+  if (!trustedFallback && visibleRatio > 0.38) {
     throw new Error("Generated Reel typography contained an opaque card or excessive background area");
   }
-  if (edgeRatio > 0.14) {
+  if (!trustedFallback && edgeRatio > 0.14) {
     throw new Error("Generated Reel typography touched the outer canvas edges");
   }
 
   const resizedTypography = await sharp(normalized)
     .resize({
-      width: ANIMATED_TEXT_PANEL_WIDTH,
-      height: ANIMATED_TEXT_PANEL_HEIGHT,
+      width: textBox.width,
+      height: textBox.height,
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 },
       kernel: sharp.kernel.lanczos3,
@@ -39402,8 +39412,8 @@ async function normalizeGeneratedAnimatedTextPanel(generatedBuffer) {
     .composite([
       {
         input: resizedTypography,
-        left: ANIMATED_TEXT_PANEL_LEFT,
-        top: ANIMATED_TEXT_PANEL_TOP,
+        left: textBox.left,
+        top: textBox.top,
       },
     ])
     .png({ compressionLevel: 9 })
@@ -39716,12 +39726,14 @@ async function createAnimatedTextOverlay({
   backgroundAsset,
   dominantColor,
   productReferenceBuffer,
+  animationLayout = null,
 }) {
   const backgroundReferenceBuffer =
     await getAnimatedOverlayBackgroundReference(backgroundAsset);
   const backgroundLuminance = await getAnimatedOverlayBackgroundLuminance(
     backgroundReferenceBuffer,
-    backgroundAsset
+    backgroundAsset,
+    animationLayout
   );
   const backgroundBrightness =
     getAnimatedOverlayBrightnessLabel(backgroundLuminance);
@@ -39733,6 +39745,7 @@ async function createAnimatedTextOverlay({
     dominantColor,
     hasBackgroundReference: Boolean(backgroundReferenceBuffer),
     hasProductReference: Boolean(productReferenceBuffer),
+    animationLayout,
   });
 
   try {
@@ -39789,7 +39802,7 @@ async function createAnimatedTextOverlay({
     }
 
     const normalizedPanel = await normalizeGeneratedAnimatedTextPanel(
-      Buffer.from(imageBase64, "base64")
+      Buffer.from(imageBase64, "base64"), animationLayout
     );
 
     console.info("OpenAI context-aware transparent Reel typography created", {
@@ -39811,35 +39824,38 @@ async function createAnimatedTextOverlay({
       message: error?.message,
     });
 
+    const fallback = await createProfessionalFallbackAnimatedTextOverlay({
+      rule, backgroundAsset, backgroundBrightness, dominantColor,
+    });
+    const fallbackPanel = await sharp(fallback).extract({
+      left: ANIMATED_TEXT_PANEL_LEFT, top: ANIMATED_TEXT_PANEL_TOP,
+      width: ANIMATED_TEXT_PANEL_WIDTH, height: ANIMATED_TEXT_PANEL_HEIGHT,
+    }).png().toBuffer();
+    const positionedFallback = await normalizeGeneratedAnimatedTextPanel(fallbackPanel, animationLayout, { trustedFallback: true });
     return {
-      textOverlayBuffer: await createProfessionalFallbackAnimatedTextOverlay({
-        rule,
-        backgroundAsset,
-        backgroundBrightness,
-        dominantColor,
-      }),
+      textOverlayBuffer: positionedFallback.textOverlayBuffer,
       prompt,
       provider: "fallback_text_only_typography",
     };
   }
 }
 
-async function createAnimatedProductLayer({ sourceImageBuffer, preparedCutoutBuffer = null }) {
+async function createAnimatedProductLayer({ sourceImageBuffer, preparedCutoutBuffer = null, animationLayout = null }) {
   const cutoutBuffer = preparedCutoutBuffer || (await extractAnimatedProductCutout(sourceImageBuffer));
   const resizedProduct = await sharp(cutoutBuffer)
     .resize({
-      width: 920,
-      height: 920,
+      width: animationLayout?.product?.width || 920,
+      height: animationLayout?.product?.height || 920,
       fit: "inside",
-      withoutEnlargement: true,
+      withoutEnlargement: false,
     })
     .png({ compressionLevel: 9 })
     .toBuffer();
   const metadata = await sharp(resizedProduct).metadata();
   const productWidth = Number(metadata.width || 760);
   const productHeight = Number(metadata.height || 760);
-  const productLeft = Math.round((1080 - productWidth) / 2);
-  const productTop = 255;
+  const productLeft = animationLayout?.product?.left ?? Math.round((1080 - productWidth) / 2);
+  const productTop = animationLayout?.product?.top ?? 255;
   const shadowWidth = Math.max(220, Math.round(productWidth * 0.56));
   const shadowHeight = Math.max(38, Math.round(productWidth * 0.09));
   const shadowSvg = `
@@ -39923,7 +39939,7 @@ async function createAnimatedProductLayer({ sourceImageBuffer, preparedCutoutBuf
   };
 }
 
-async function createAnimatedLogoOverlay({ brandProfile, includeLogo }) {
+async function createAnimatedLogoOverlay({ brandProfile, includeLogo, animationLayout = null }) {
   if (!includeLogo || !brandProfile?.logo_url) return null;
 
   try {
@@ -39932,8 +39948,8 @@ async function createAnimatedLogoOverlay({ brandProfile, includeLogo }) {
       .rotate()
       .trim({ threshold: 10 })
       .resize({
-        width: 220,
-        height: 100,
+        width: animationLayout?.logo?.width || 220,
+        height: animationLayout?.logo?.height || 100,
         fit: "inside",
         withoutEnlargement: true,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
@@ -39949,7 +39965,7 @@ async function createAnimatedLogoOverlay({ brandProfile, includeLogo }) {
       },
     })
       .composite([
-        { input: logoPng, left: 78, top: 207 },
+        { input: logoPng, left: animationLayout?.logo?.left ?? 78, top: animationLayout?.logo?.top ?? 207 },
       ])
       .png()
       .toBuffer();
@@ -40022,6 +40038,10 @@ async function createAnimatedProductVideoAssets({
       ruleId: rule?.id || null,
     }));
   const sourceImageBuffer = selectedProductImage.sourceImageBuffer;
+  const preparedLayout = await prepareAnimatedProductLayout(selectedProductImage.cutoutBuffer);
+  const animationLayout = preparedLayout.layout;
+  console.info("Animated product layout selected", { ruleId: rule?.id || null,
+    ...animationLayout, sourceBounds: preparedLayout.sourceBounds });
   const dominantColor = await getProductAccentColor(selectedProductImage.cutoutBuffer);
   const selection = await selectAnimatedVideoBackground({
     supabase,
@@ -40036,13 +40056,15 @@ async function createAnimatedProductVideoAssets({
       postContent,
       backgroundAsset: selection.asset,
       dominantColor,
-      productReferenceBuffer: selectedProductImage.cutoutBuffer,
+      productReferenceBuffer: preparedLayout.cutoutBuffer,
+      animationLayout,
     }),
     createAnimatedProductLayer({
       sourceImageBuffer,
-      preparedCutoutBuffer: selectedProductImage.cutoutBuffer,
+      preparedCutoutBuffer: preparedLayout.cutoutBuffer,
+      animationLayout,
     }),
-    createAnimatedLogoOverlay({ brandProfile, includeLogo }),
+    createAnimatedLogoOverlay({ brandProfile, includeLogo, animationLayout }),
   ]);
   const { textOverlayBuffer, prompt, provider: textOverlayProvider } = textOverlay;
   const posterBuffer = await createAnimatedPoster({
@@ -40114,6 +40136,7 @@ async function createAnimatedProductVideoAssets({
   }
 
   return {
+    animationLayout,
     backgroundVideoUrl: selection.asset.public_url,
     productUrl: productMotionUpload.imageUrl,
     productDataUri: productLayer.productDataUri,
@@ -40132,6 +40155,7 @@ async function createAnimatedProductVideoAssets({
       used_fallback: selection.usedFallback,
       reasons: selection.reasons,
       top_candidates: selection.topCandidates,
+      animation_layout: animationLayout,
       product_image_presentation: selectedProductImage.analysis || null,
     },
   };
@@ -40226,6 +40250,7 @@ export async function generateAnimatedProductVideo({
   });
 
   const edit = buildProductPushEdit({
+    animationLayout: assets.animationLayout,
     backgroundVideoUrl: assets.backgroundVideoUrl,
     productDataUri: assets.productDataUri,
     productWidth: assets.productWidth,

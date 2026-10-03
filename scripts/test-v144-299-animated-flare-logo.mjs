@@ -24,13 +24,14 @@ let request, fallbackCalls=0;
 Object.assign(ctx,{
   ANIMATED_OVERLAY_IMAGE_MODEL:model('gpt-image-2'),
   ANIMATED_TEXT_PANEL_SOURCE_WIDTH:1408, ANIMATED_TEXT_PANEL_SOURCE_HEIGHT:480,
+  ANIMATED_TEXT_PANEL_LEFT:128, ANIMATED_TEXT_PANEL_TOP:1280, ANIMATED_TEXT_PANEL_WIDTH:824, ANIMATED_TEXT_PANEL_HEIGHT:281,
   getAnimatedOverlayBackgroundReference:async()=>null,
   getAnimatedOverlayBackgroundLuminance:async()=>0.7,
   getAnimatedOverlayBrightnessLabel:()=> 'light',
   buildAnimatedTextPanelPrompt:()=> 'Typography only',
   toFile:async buffer=>buffer,
   normalizeGeneratedAnimatedTextPanel:async()=>({textOverlayBuffer:Buffer.from('overlay'),analysis:{}}),
-  createProfessionalFallbackAnimatedTextOverlay:async()=>{fallbackCalls++; return Buffer.from('fallback');}
+  createProfessionalFallbackAnimatedTextOverlay:async()=>{fallbackCalls++; return sharp({create:{width:1080,height:1920,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).png().toBuffer();}
 });
 vm.runInContext(extract('async function createAnimatedTextOverlay','async function createAnimatedProductLayer'),ctx);
 const args={rule:{id:'test'},productReferenceBuffer:transparentLogo,openai:{images:{edit:async r=>{request=r; return {data:[{b64_json:transparentLogo.toString('base64')}]};}}}};
