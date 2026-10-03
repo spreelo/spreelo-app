@@ -6174,8 +6174,7 @@ const platformIconSources = {
   threads: "/social-icons/threads.svg",
 };
 
-// v144.191: these five preview images are intentionally centralized so they can
-// be swapped later without touching the onboarding layout or business logic.
+// Fallbacks used only until an example image is configured for the post type.
 const SMART_ONBOARDING_PREVIEW_IMAGES = [
   "/onboarding-preview/post-1.png",
   "/onboarding-preview/post-2.png",
@@ -11672,7 +11671,9 @@ function blockFormatCardClickAfterDrag(event) {
         date: formatSmartOnboardingPreviewDate(slot?.startDate, locale),
         dateParts: formatSmartOnboardingPreviewDateParts(slot?.startDate, locale),
         label,
-        image: SMART_ONBOARDING_PREVIEW_IMAGES[index % SMART_ONBOARDING_PREVIEW_IMAGES.length],
+        // Use the same configured example as the content-type cards and library modal.
+        image: String(contentFormatLibrary.find((format) => format.content_type_id === slot?.contentTypeId)?.image_url || "").trim()
+          || SMART_ONBOARDING_PREVIEW_IMAGES[index % SMART_ONBOARDING_PREVIEW_IMAGES.length],
         tone: index % 5,
         iconKey: getSmartOnboardingPreviewIconKey(slot?.contentTypeId, label),
       };

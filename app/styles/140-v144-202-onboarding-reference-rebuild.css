@@ -246,3 +246,7 @@ html body .spreeloRef-post-card.tone-3 .spreeloRef-post-footer > span {color:#70
 @media (min-width:721px) {
  html body .spreeloRef-modal:not([lang^="sv"]) .spreeloRef-hero-copy h2 {width:100%; max-width:100%; font-size:31px; line-height:1.13;}
 }
+
+/* v144.295: show the entire configured Facebook example in the planned row. */
+html body .spreeloRef-post-media {height:auto; aspect-ratio:4 / 5;}
+html body .spreeloRef-post-media > img {object-fit:contain;}
