@@ -1,0 +1,27 @@
+/* Keep creation tools together without changing navigation or active states. */
+html body .sidebar.spreelo-sidebar .nav.spreelo-nav .spreelo-nav-create-heading {
+  margin: 14px 0 6px !important;
+  padding: 0 12px !important;
+  color: #ada0d2 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1.5 !important;
+  letter-spacing: 1.4px !important;
+  text-transform: uppercase;
+}
+html body .sidebar.spreelo-sidebar .nav.spreelo-nav .spreelo-nav-create-divider {
+  height: 1px !important;
+  min-height: 1px !important;
+  margin: 10px 12px 8px !important;
+  background: rgba(191, 180, 218, .16) !important;
+}
+html body .sidebar.spreelo-sidebar .nav.spreelo-nav a.spreelo-nav-create-tool .sidebar-menu-icon-wrap {
+  border-color: rgba(159, 126, 255, .24) !important;
+  background: rgba(129, 92, 245, .15) !important;
+  color: #c5a7ff !important;
+  box-shadow: none !important;
+}
+html body .sidebar.spreelo-sidebar .nav.spreelo-nav a.spreelo-nav-create-tool .sidebar-menu-icon-wrap svg {
+  color: #c5a7ff !important;
+  stroke: currentColor !important;
+}

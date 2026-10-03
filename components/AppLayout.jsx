@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   BadgeCheck,
@@ -919,9 +919,13 @@ export default function AppLayout({ active, children }) {
           {navItems
             .filter((item) => !item.adminOnly || isAdmin)
             .map((item) => (
+            <Fragment key={item.id}>
+            {item.id === "automation" ? (
+              <div className="spreelo-nav-create-heading">{t("layout.nav.createContent.v301")}</div>
+            ) : null}
+            {item.id === "brand" ? <div className="spreelo-nav-create-divider" aria-hidden="true" /> : null}
             <a
-              key={item.id}
-              className={`${active === item.id ? "active" : ""}${isChannelProtectedNavItem(item) && channelGateLocked ? " channel-locked" : ""}`}
+              className={`${active === item.id ? "active" : ""}${isChannelProtectedNavItem(item) && channelGateLocked ? " channel-locked" : ""}${item.id === "automation" || item.id === "calendar" ? " spreelo-nav-create-tool" : ""}`}
               href={item.href}
               aria-disabled={isChannelProtectedNavItem(item) && channelGateLocked ? "true" : undefined}
               onClick={(event) => {
@@ -944,6 +948,7 @@ export default function AppLayout({ active, children }) {
                 <LockKeyhole className="spreelo-nav-channel-lock" size={14} strokeWidth={2} aria-hidden="true" />
               ) : null}
             </a>
+            </Fragment>
           ))}
         </nav>
 
