@@ -56,7 +56,10 @@ assert.match(settings, /app_language:\s*nextLocale/);
 assert.match(lifecycle, /resolveLocaleFromUserMetadata/);
 assert.match(rejection, /resolveLocaleFromUserMetadata/);
 assert.match(planMail, /resolveLocaleFromUserMetadata/);
-assert.match(stripe, /resolveLocaleFromUserMetadata/);
+// The current Stripe webhook delegates billing and does not send emails itself.
+// Locale handling belongs to the actual customer-email senders checked above.
+assert.match(stripe, /verifyStripeWebhookSignature/);
+assert.match(stripe, /claim_stripe_webhook_event/);
 
 assert.match(serverText, /ui_translation_packs/);
 assert.match(serverText, /translateMissingLabels/);

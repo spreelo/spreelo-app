@@ -1,3 +1,4 @@
+import { recordOpenAiRuntimeResult } from "../../../lib/openAiRuntimeHealth.js";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -985,8 +986,12 @@ Return this exact JSON structure:
   ]
 }
       `,
+    }).catch(async (error) => {
+      await recordOpenAiRuntimeResult({ admin: growthAgentAdmin, error, operation: "planning" });
+      throw error;
     });
 
+    await recordOpenAiRuntimeResult({ admin: growthAgentAdmin, operation: "planning" });
     const rawPlan = safeJsonParse(response.output_text);
     const normalizedPlan = normalizePlan({
       rawPlan,

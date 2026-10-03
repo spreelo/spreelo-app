@@ -156,6 +156,13 @@ function systemHealthLabel(system, t) {
 function systemHealthMessage(system, t) {
   const key = String(system?.key || system?.system_key || "");
   const status = String(system?.status || system?.latest_status || "");
+  if (key === "openai" && system?.details?.generationState) {
+    if (system.details.generationState === "unverified") return t("adminCommand.system.message.openaiUnverified.v297");
+    if (system.details.generationState === "verified") return t("adminCommand.system.message.openaiVerified.v297");
+    if (system.details.issue === "insufficient_quota") return t("adminCommand.system.message.openaiQuota.v297");
+    if (system.details.issue === "rate_limit") return t("adminCommand.system.message.openaiRateLimit.v297");
+    return t("adminCommand.system.message.openaiFailed.v297");
+  }
   if (status === "unconfigured") return t("adminCommand.system.message.notConfigured");
   if (key === "vercel_cron" && status === "up") return t("adminCommand.system.message.vercelRunning");
   if (key === "supabase_database" && status === "up") return t("adminCommand.system.message.databaseHealthy");
@@ -427,7 +434,7 @@ export default function AdminDashboardPage() {
 
               <article className="admin156-section admin156-system-panel" id="systemstatus">
                 <div className="admin156-section-head compact"><div><h2>{t("adminCommand.system.title")}</h2><p>{health.migrationRequired ? t("adminCommand.system.migrationRequired") : t("adminCommand.system.history")}</p></div><button type="button" onClick={loadAdminData}>{t("adminCommand.refresh")}</button></div>
-                <div className="admin156-system-list">{(health.systems || []).map((system) => <div key={system.key}><StatusDot status={system.status}/><span><strong>{systemHealthLabel(system, t)}</strong><small>{systemHealthMessage(system, t)}</small></span><em>{system.status === "up" ? t("adminCommand.system.online") : system.status === "unconfigured" ? t("adminCommand.system.unconfigured") : system.status === "degraded" ? t("adminCommand.system.degraded") : t("adminCommand.system.down")}</em><b>{Number(system.uptime30d ?? 100).toFixed(system.uptime30d < 99.95 ? 2 : 1)}%</b></div>)}</div>
+                <div className="admin156-system-list">{(health.systems || []).map((system) => <div key={system.key}><StatusDot status={system.status}/><span><strong>{systemHealthLabel(system, t)}</strong><small>{systemHealthMessage(system, t)}</small></span><em>{system.status === "up" ? t("adminCommand.system.online") : system.status === "unconfigured" ? t(system.key === "openai" && system.details?.generationState === "unverified" ? "adminCommand.system.unverified.v297" : "adminCommand.system.unconfigured") : system.status === "degraded" ? t("adminCommand.system.degraded") : t("adminCommand.system.down")}</em><b>{Number(system.uptime30d ?? 100).toFixed(system.uptime30d < 99.95 ? 2 : 1)}%</b></div>)}</div>
                 <div className="admin156-incidents"><h3>{t("adminCommand.system.recentHistory")}</h3>{(health.incidents || []).length ? health.incidents.slice(0, 5).map((incident) => <div key={incident.id}><span className={`admin156-incident-icon ${incident.resolved_at ? "resolved" : "open"}`}>{incident.resolved_at ? <CheckCircle2 size={15}/> : <XCircle size={15}/>}</span><span><strong>{systemHealthLabel(incident, t)}</strong><small>{formatDateTime(incident.started_at, true, locale)}{incident.resolved_at ? ` → ${formatDateTime(incident.resolved_at, true, locale)}` : ` · ${t("adminCommand.system.ongoing")}`}</small></span></div>) : <p>{t("adminCommand.system.noIncidents")}</p>}</div>
               </article>
             </section>

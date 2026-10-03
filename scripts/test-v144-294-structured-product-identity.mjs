@@ -7,6 +7,8 @@ const end=route.indexOf('async function reviewCarouselProductOnlyImages',start);
 assert.ok(start>=0&&end>start);
 const context=vm.createContext({
  console:{info(){},warn(){}},
+ recordOpenAiRuntimeResult:async()=>{},
+ classifyOpenAiServiceError:()=>null,
  normalizeComparableValue:v=>String(v||'').toLowerCase().trim(),
  getDeterministicProductImageVariantConflict:()=>null,
  getProductImageResolverPageUrl:item=>item.product_url,

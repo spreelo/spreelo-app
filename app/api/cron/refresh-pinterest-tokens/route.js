@@ -4,7 +4,6 @@ import {
   fetchPinterestUserAccount,
   getHealthyPinterestAccessToken,
   isPinterestAuthError,
-  shouldRefreshPinterestConnection,
 } from "../../../../lib/pinterestOAuth";
 import { markConnectionExpiredAndAlert } from "../../../../lib/socialConnectionAlerts";
 
@@ -14,17 +13,25 @@ function isAuthorized(request) {
   return (request.headers.get("authorization") || "") === `Bearer ${cronSecret}`;
 }
 
-async function recordHealthyCheck(supabaseAdmin, connectionId) {
+async function recordHealthyCheck(supabaseAdmin, connection) {
   const nowIso = new Date().toISOString();
-  await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("social_connections")
     .update({
+      status: "connected",
       last_connection_check_at: nowIso,
       last_connection_error: null,
       reauth_required_at: null,
       updated_at: nowIso,
     })
-    .eq("id", connectionId);
+    .eq("id", connection.id)
+    .eq("status", connection.status)
+    .eq("refresh_token", connection.refresh_token)
+    .eq("page_id", connection.page_id)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
 }
 
 async function recordTransientFailure(supabaseAdmin, connectionId, error) {
@@ -48,6 +55,8 @@ export async function GET(request) {
     healthy: 0,
     reconnectRequired: 0,
     transientFailures: 0,
+    recovered: 0,
+    skipped: 0,
   };
 
   try {
@@ -56,23 +65,32 @@ export async function GET(request) {
       .from("social_connections")
       .select("id, user_id, brand_profile_id, platform, page_id, page_name, page_access_token, token_expires_at, refresh_token, refresh_token_expires_at, permissions, status, last_connection_check_at")
       .eq("platform", "pinterest")
-      .eq("status", "connected")
+      .in("status", ["connected", "expired", "needs_reconnect"])
       .limit(1000);
 
     if (error) throw error;
 
     for (const originalConnection of connections || []) {
+      const recovering = originalConnection.status !== "connected";
+      // Disconnected rows are excluded by the query. Recovery also requires
+      // the original selected board and a refresh grant that is not known expired.
+      if (recovering && (!originalConnection.page_id || !originalConnection.refresh_token ||
+          (originalConnection.refresh_token_expires_at &&
+           new Date(originalConnection.refresh_token_expires_at).getTime() <= Date.now()))) {
+        summary.skipped += 1;
+        continue;
+      }
       summary.checked += 1;
       let connection = originalConnection;
 
       try {
-        const wasDueForRefresh = shouldRefreshPinterestConnection(connection);
         let healthy = await getHealthyPinterestAccessToken({
           supabaseAdmin,
           connection,
+          forceRefresh: recovering,
         });
         connection = healthy.connection;
-        if (healthy.connection?.refreshed || wasDueForRefresh) summary.refreshed += 1;
+        if (healthy.connection?.refreshed) summary.refreshed += 1;
 
         try {
           await fetchPinterestUserAccount(healthy.accessToken);
@@ -89,9 +107,17 @@ export async function GET(request) {
           summary.refreshed += 1;
         }
 
-        await recordHealthyCheck(supabaseAdmin, connection.id);
+        if (!await recordHealthyCheck(supabaseAdmin, connection)) {
+          summary.skipped += 1;
+          continue;
+        }
         summary.healthy += 1;
+        if (recovering) summary.recovered += 1;
       } catch (connectionError) {
+        if (connectionError?.code === "PINTEREST_CONNECTION_CHANGED") {
+          summary.skipped += 1;
+          continue;
+        }
         const requiresReconnect = Boolean(
           connectionError?.requiresReconnect || isPinterestAuthError(connectionError)
         );
@@ -129,6 +155,7 @@ export async function GET(request) {
       }
     }
 
+    console.info("Pinterest connection renewal completed", summary);
     return NextResponse.json({ ok: true, summary });
   } catch (error) {
     console.error("Pinterest token refresh cron failed", error);

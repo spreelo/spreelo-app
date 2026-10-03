@@ -1,3 +1,4 @@
+import { classifyOpenAiServiceError, recordOpenAiRuntimeResult } from "../../../../lib/openAiRuntimeHealth.js";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI, { toFile } from "openai";
 import crypto from "crypto";
@@ -13047,6 +13048,10 @@ function classifyAutomationCreationFailure(errorOrMessage, stage = "unhandled") 
   const message = String(errorOrMessage?.message || errorOrMessage || "Unknown automation error");
   const normalized = message.toLowerCase();
   const normalizedStage = String(stage || "unhandled").toLowerCase();
+  if (errorOrMessage?.code === "AI_SERVICE_UNAVAILABLE" || classifyOpenAiServiceError(errorOrMessage)) {
+    return { code: "ai_service_unavailable", customerMessage: "The AI service could not complete this planned post. Please check the AI service status before trying again." };
+  }
+
 
   if (["WEBSITE_RATE_LIMITED", "WEBSITE_429_RESCUE_ACTIVE"].includes(String(errorOrMessage?.code || ""))) {
     return {
@@ -41241,6 +41246,7 @@ async function reviewResolvedProductImageIdentity({
     });
   }
 
+  let openAiRequestFailed = false;
   try {
     const response = await openai.responses.create(
       {
@@ -41297,8 +41303,13 @@ async function reviewResolvedProductImageIdentity({
         },
       },
       { timeout: 35_000, maxRetries: 0 }
-    );
+    ).catch(async (error) => {
+      openAiRequestFailed = true;
+      await recordOpenAiRuntimeResult({ error, operation: "product_image_verification" });
+      throw error;
+    });
 
+    await recordOpenAiRuntimeResult({ operation: "product_image_verification" });
     const parsed = safeJsonParse(getOpenAiResponseOutputText(response));
     const reviews = new Map(
       (Array.isArray(parsed?.images) ? parsed.images : []).map((review) => [
@@ -41401,6 +41412,11 @@ async function reviewResolvedProductImageIdentity({
       };
     });
   } catch (error) {
+    if (failClosed && openAiRequestFailed && classifyOpenAiServiceError(error, true) && resolvedItems.some((item, index) => !finalVerifiedIndexes.has(index))) {
+      const serviceError = new Error("AI service unavailable during product image verification. The image has not been rejected; verification could not be completed.");
+      serviceError.code = "AI_SERVICE_UNAVAILABLE";
+      throw serviceError;
+    }
     console.warn("Product image semantic identity gate unavailable", {
       ruleId,
       imageOptionCount: visionImageOptions.length,

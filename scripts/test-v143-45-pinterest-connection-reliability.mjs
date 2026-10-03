@@ -11,7 +11,7 @@ const pinterest = read('lib/pinterestOAuth.js');
 const callback = read('app/api/auth/pinterest/callback/route.js');
 const boards = read('app/api/pinterest/boards/route.js');
 const social = read('app/social-channels/page.jsx');
-const labelsSv = read('lib/i18n/builtInLocaleLabels.js');
+const labels = read('lib/i18n/defaultLabels.js');
 const alerts = read('lib/socialConnectionAlerts.js');
 const vercel = read('vercel.json');
 const migration = read('supabase/v143_45_pinterest_connection_reliability.sql');
@@ -34,8 +34,8 @@ check('Pinterest health cron is scheduled', vercel.includes('/api/cron/refresh-p
 check('Broken auth marks reconnect and alerts admin', cron.includes('markConnectionExpiredAndAlert') && cron.includes('reauth_required_at'));
 check('Transient provider errors do not immediately disconnect customers', cron.includes('recordTransientFailure') && cron.includes('transientFailures'));
 check('Pinterest is named in social connection alerts', alerts.includes('normalized === "pinterest"') && alerts.includes('return "Pinterest"'));
-check('Schema migration failure has actionable UI message', callback.includes('pinterest_schema_missing') && social.includes('social.errorPinterestSchemaMissing') && labelsSv.includes('v143_45_pinterest_connection_reliability.sql'));
-check('Connected Pinterest UI promises automatic renewal', social.includes('social.pinterestAutoRefreshActive') && labelsSv.includes('Automatisk förnyelse är aktiv'));
+check('Schema migration failure has actionable UI message', callback.includes('pinterest_schema_missing') && social.includes('social.errorPinterestSchemaMissing') && labels.includes('v143_45_pinterest_connection_reliability.sql'));
+check('Connected Pinterest UI promises automatic renewal', social.includes('social.pinterestAutoRefreshActive') && labels.includes('social.pinterestAutoRefreshActive'));
 
 const failed = checks.filter((item) => !item.ok);
 for (const item of checks) console.log(`${item.ok ? '✓' : '✗'} ${item.name}`);
