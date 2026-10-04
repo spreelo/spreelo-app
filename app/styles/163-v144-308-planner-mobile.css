@@ -1,0 +1,96 @@
+/* Match the grid's rail span to the actual rendered rows; percentage rail
+   heights otherwise retain the expanded height on mobile browsers. */
+html body .automation-page.plan-v70-active .plan-v70-planned-card .plan-v70-planned-row {
+  height:auto !important;
+  grid-template-rows:auto auto auto !important;
+  align-content:start !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-planned-card .plan-v70-planned-row .plan-v86-planned-visual {
+  height:auto !important;
+  min-height:0 !important;
+  grid-row:1 / 4 !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-planned-card .plan-v70-planned-row.expanded {
+  grid-template-rows:auto auto auto auto !important;
+}
+html body .automation-page.plan-v70-active .plan-v70-planned-card .plan-v70-planned-row.expanded .plan-v86-planned-visual {
+  grid-row:1 / 5 !important;
+}
+html body .automation-page.plan-v70-active .plan-v289-format-card > .plan-v72-format-card-copy {
+  min-height:0 !important;
+  flex:0 0 auto !important;
+  padding:11px 12px 12px !important;
+}
+html body .automation-page.plan-v70-active .plan-v289-format-card > .plan-v72-format-card-copy > small {
+  font-size:11.5px !important;
+  line-height:1.45 !important;
+}
+/* Portal leaves ancestor overflow and stacking contexts behind. */
+html body .plan-v308-calendar-layer {
+  position:fixed;inset:0;z-index:200000;
+  background:transparent;
+  font-family:Inter,Arial,Helvetica,sans-serif;
+}
+html body .plan-v308-calendar-layer .custom-calendar-popover {
+  position:absolute !important;
+  width:min(330px,calc(100vw - 32px)) !important;
+  max-height:calc(100dvh - 32px) !important;
+  overflow-y:auto !important;overscroll-behavior:contain;
+  margin:0 !important;padding:16px !important;box-sizing:border-box;
+  border:1px solid #d9e1ed;border-radius:18px;background:#fff;
+  box-shadow:0 16px 50px #16274230;transform:none !important;
+  color:#142642;
+}
+html body .plan-v308-calendar-layer .custom-calendar-header {
+  display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;
+}
+html body .plan-v308-calendar-layer .custom-calendar-header button {
+  display:grid;place-items:center;width:36px;height:36px;padding:0;
+  border:1px solid #d9e1ed;border-radius:10px;background:#f8faff;color:#34465f;
+}
+html body .plan-v308-calendar-layer .custom-calendar-weekdays,
+html body .plan-v308-calendar-layer .custom-calendar-grid {
+  display:grid !important;grid-template-columns:repeat(7,minmax(0,1fr)) !important;gap:4px;
+}
+html body .plan-v308-calendar-layer .custom-calendar-weekdays {margin-bottom:6px;}
+html body .plan-v308-calendar-layer .custom-calendar-weekdays span {text-align:center;font-size:10px;font-weight:700;color:#7e8b9e;}
+html body .plan-v308-calendar-layer .custom-calendar-day {
+  display:grid;place-items:center;width:100%;min-width:0;height:36px;
+  padding:0;border:1px solid transparent;border-radius:10px;background:transparent;
+  color:#17273d;font:600 13px Inter,Arial,sans-serif;
+}
+html body .plan-v308-calendar-layer .custom-calendar-day.muted {color:#b6bdc9;}
+html body .plan-v308-calendar-layer .custom-calendar-day.today {border-color:#eeac9b;}
+html body .plan-v308-calendar-layer .custom-calendar-day.selected {background:#ed6948;color:#fff;}
+html body .plan-v308-calendar-layer .custom-calendar-day:disabled {opacity:.4;cursor:not-allowed;}
+html body .plan-v308-calendar-layer button:focus-visible {outline:2px solid #7654ed;outline-offset:2px;}
+@media(max-width:760px) {
+  html body .plan-v308-calendar-layer {background:#14264230;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;}
+  html body .plan-v308-calendar-layer .custom-calendar-popover {position:relative !important;left:auto !important;top:auto !important;max-height:calc(100dvh - 48px) !important;}
+}
+/* Only the bundled media assets use this native Facebook frame. Admin
+   uploads remain complete previews and keep their existing rendering. */
+html body .automation-page.plan-v70-active .plan-v72-format-art.plan-v308-social-example {
+  display:block !important;height:auto !important;min-height:0 !important;
+  aspect-ratio:auto !important;padding:0 !important;background:#fff !important;
+  container-type:inline-size;overflow:hidden !important;
+}
+.plan-v308-social-post {display:block;background:#fff;color:#20242a;font-family:Arial,Helvetica,sans-serif;text-align:left;font-size:3.1cqw;line-height:1.25;}
+.plan-v308-social-header {display:flex;align-items:center;gap:2cqw;padding:3cqw 3cqw 1.5cqw;}
+.plan-v308-social-avatar {width:9cqw;height:9cqw;flex-shrink:0;}
+.plan-v308-social-header b,.plan-v308-social-header small {display:block;}
+.plan-v308-social-header b {font-size:3.4cqw;}
+.plan-v308-social-header small {font-size:2.6cqw;color:#747a83;margin-top:.5cqw;}
+.plan-v308-social-dots {margin-left:auto;letter-spacing:.5cqw;}
+.plan-v308-social-caption {display:block;padding:1cqw 3cqw 2cqw;font-size:3.1cqw;}
+.plan-v308-social-caption b {color:#2162b0;}
+html body .automation-page.plan-v70-active .plan-v308-social-media {display:block;position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;}
+html body .automation-page.plan-v70-active .plan-v308-social-media > img {display:block !important;position:absolute !important;inset:0 !important;width:100% !important;height:100% !important;max-height:none !important;object-fit:cover !important;border-radius:0 !important;}
+.plan-v308-product-headline {position:absolute;bottom:0;left:0;width:100%;padding:10cqw 3cqw 4cqw;box-sizing:border-box;color:white;background:linear-gradient(transparent,#102136d9);text-align:center;font:bold 6cqw Georgia,serif;}
+.plan-v308-product-headline small {display:block;font:3cqw Arial,sans-serif;margin-top:1cqw;}
+.plan-v308-social-link {display:flex;align-items:center;justify-content:space-between;gap:2cqw;background:#f0f1f3;padding:2.5cqw 3cqw;}
+.plan-v308-social-link small,.plan-v308-social-link b {display:block;}
+.plan-v308-social-link small {font-size:2.4cqw;color:#666c75;}
+.plan-v308-social-link b {font-size:3.1cqw;margin-top:.5cqw;}
+.plan-v308-social-link strong {font-size:2.6cqw;background:#e0e2e6;border-radius:1cqw;padding:2cqw;white-space:nowrap;}
+.plan-v308-social-actions {display:flex;justify-content:space-around;padding:3cqw 1cqw;border-top:1px solid #e2e4e7;font-size:2.8cqw;color:#59606c;}

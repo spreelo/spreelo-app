@@ -834,8 +834,27 @@ function ContentFormatIconVisual({ item, size = 23, className = "" }) {
   return <ContentFormatGlyph name={item?.icon_name} size={size} />;
 }
 
-function ContentFormatArtwork({ item, index = 0, large = false }) {
+function ContentFormatArtwork({ item, index = 0, large = false, socialPreview = false }) {
   const imageUrl = String(item?.image_url || "").trim();
+  const portraitExample = /^\/content-format-examples\/v308\/(product|ad)\.png$/.test(imageUrl);
+
+  if (portraitExample && (large || socialPreview)) {
+    const isAd = imageUrl.endsWith("/ad.png");
+    return (
+      <span className={`plan-v72-format-art plan-v308-social-example${large ? " large" : ""}`}>
+        <span className="plan-v308-social-post">
+          <span className="plan-v308-social-header">
+            <svg className="plan-v308-social-avatar" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="24" fill="#12334b"/><path d="m8 26 10-13 7 9 5-6 10 13M15 20l3-7 4 5" fill="none" stroke="#fff" strokeWidth="1.4"/><text x="24" y="36" textAnchor="middle" fill="#fff" fontSize="5.5" letterSpacing=".4">NORTH PEAK</text></svg>
+            <span><b>North Peak</b><small>Just now · 🌐</small></span><span className="plan-v308-social-dots">•••</span>
+          </span>
+          <span className="plan-v308-social-caption">{isAd ? "One board. Endless adventures." : "Fresh snow. Endless possibilities."}<br/>Find your next snowboard at <b>northpeak.club.</b></span>
+          <span className="plan-v308-social-media"><img src={imageUrl} alt="" loading="lazy"/>{!isAd && <span className="plan-v308-product-headline">Make every run count.<small>All-mountain snowboard</small></span>}</span>
+          <span className="plan-v308-social-link"><span><small>NORTHPEAK.CLUB</small><b>Find your next snowboard</b></span><strong>Shop Now</strong></span>
+          <span className="plan-v308-social-actions"><span>♡ Like</span><span>▢ Comment</span><span>↗ Share</span></span>
+        </span>
+      </span>
+    );
+  }
 
   return (
     <span className={`plan-v72-format-art tone-${(index % 5) + 1}${large ? " large" : ""}`}>
@@ -883,11 +902,11 @@ function ContentFormatCard({ item, index = 0, view = "grid", onClick, disabled =
           <span className="plan-v289-format-icon"><ContentFormatIconVisual item={item} size={21} /></span>
           <strong>{item?.label}</strong>
         </span>
-        <ContentFormatArtwork item={item} index={index} />
+        <ContentFormatArtwork item={item} index={index} socialPreview />
       </span>
       <span className="plan-v72-format-card-copy">
         <span className="plan-v289-format-explanation-label"><Info size={14} aria-hidden="true" /><span>{explanationLabel}</span></span>
-        <small>{item?.description}</small>
+        <small>{item?.shortDescription || item?.description}</small>
       </span>
       <span className="plan-v72-format-card-action" aria-hidden="true">→</span>
     </button>
@@ -3691,6 +3710,9 @@ function DatePickerField({
   minDate = null,
   disabled = false,
 }) {
+  const anchorRef = useRef(null);
+  const calendarRef = useRef(null);
+  const [calendarPosition, setCalendarPosition] = useState({left:16, top:120});
   const [visibleMonth, setVisibleMonth] = useState(() =>
     getMonthStartDateString(value)
   );
@@ -3700,6 +3722,45 @@ function DatePickerField({
   }, [value]);
 
   const isOpen = openPickerId === pickerId;
+  useEffect(() => {
+    if (!isOpen) return;
+    const position = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const width = Math.min(330, window.innerWidth - 32);
+      const height = 360;
+      const top = rect.bottom + height + 8 <= window.innerHeight
+        ? rect.bottom + 8 : Math.max(16, rect.top - height - 8);
+      setCalendarPosition({left:Math.max(16, Math.min(rect.left, window.innerWidth-width-16)), top});
+    };
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = requestAnimationFrame(() => calendarRef.current?.querySelector("button:not(:disabled)")?.focus({preventScroll:true}));
+    const keydown = (event) => {
+      if (event.key === "Escape") setOpenPickerId(null);
+      if (event.key !== "Tab") return;
+      const buttons = calendarRef.current?.querySelectorAll("button:not(:disabled)");
+      if (!buttons?.length) return;
+      const first = buttons[0], last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    position();
+    window.addEventListener("resize", position);
+    window.visualViewport?.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    document.addEventListener("keydown", keydown);
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus({preventScroll:true});
+      window.removeEventListener("resize", position);
+      window.visualViewport?.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      document.removeEventListener("keydown", keydown);
+    };
+  }, [isOpen, setOpenPickerId]);
   const calendarDays = buildCalendarDays(visibleMonth);
   const todayDateString = getDateInputValueInTimeZone(new Date(), timeZone);
 
@@ -3707,11 +3768,13 @@ function DatePickerField({
     <div className={`custom-picker-field ${compact ? "compact" : ""}`}>
       {label && <label>{label}</label>}
 
-      <div className="custom-picker-anchor">
+      <div className="custom-picker-anchor" ref={anchorRef}>
         <button
           type="button"
           className="custom-picker-button"
           aria-label={ariaLabel || label || undefined}
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
           onClick={() => { if (!disabled) setOpenPickerId(isOpen ? null : pickerId); }}
           disabled={disabled}
         >
@@ -3719,8 +3782,9 @@ function DatePickerField({
           <strong aria-hidden="true"><CalendarDays size={16} /></strong>
         </button>
 
-        {isOpen && (
-          <div className="custom-calendar-popover">
+        {isOpen && typeof document !== "undefined" && createPortal(
+          <div className="plan-v308-calendar-layer" onClick={() => setOpenPickerId(null)}>
+          <div ref={calendarRef} className="custom-calendar-popover" role="dialog" aria-modal="true" aria-label={ariaLabel || label || getMonthLabel(visibleMonth, locale)} style={calendarPosition} onClick={(event) => event.stopPropagation()}>
             <div className="custom-calendar-header">
               <button
                 type="button"
@@ -3778,6 +3842,7 @@ function DatePickerField({
               })}
             </div>
           </div>
+          </div>, document.body
         )}
       </div>
     </div>
@@ -7281,8 +7346,9 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
         };
       })
       .filter(Boolean)
+      .map((item) => ({ ...item, shortDescription: getSafeText(`automation.formatCard.${item.id}.summaryV308`, item.description) }))
       .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
-  }, [contentFormatLibrary, visibleContentTypes, locale, currentPlanKey]);
+  }, [contentFormatLibrary, visibleContentTypes, locale, currentPlanKey, t]);
 
   const groupedExploreFormatItems = useMemo(() => {
     const eligibleItems = exploreFormatItems.filter(
@@ -12722,8 +12788,10 @@ function blockFormatCardClickAfterDrag(event) {
                             type="button"
                             className="plan-v70-row-menu"
                             aria-label={t("automation.redesign.editPlannedPost")}
+                            aria-expanded={rowExpanded && !isPastCampaignSlot}
                             disabled={isPastCampaignSlot}
                             onClick={() => {
+                              if (rowExpanded) setOpenPickerId(null);
                               setExpandedInstructionSlotIds((current) =>
                                 current.includes(slot.id)
                                   ? current.filter((id) => id !== slot.id)

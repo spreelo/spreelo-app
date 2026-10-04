@@ -16,7 +16,7 @@ assert.match(automation, /never end during a hand movement, product movement, ca
 assert.doesNotMatch(automation, /deliver a satisfying visual payoff by the final second/, "Old last-second payoff direction must be removed.");
 
 assert.match(finalizer, /KLING_CLOSING_HERO_HOLD_SECONDS = 0\.9/, "Post-process must add the agreed 0.9 second hero hold.");
-assert.match(finalizer, /fractions: \[0\.28, 0\.72, 0\.975\]/, "Typography sampling should also capture a late closing frame without another normal Chromium pass.");
+assert.match(finalizer, /fractions: getKlingTextFrameFractions\(durationSeconds, selection\)/, "Typography must sample the actual display interval.");
 assert.match(finalizer, /closing_hero_frame_url/, "Closing hero frame must be persisted for retry-safe finalization.");
 assert.match(finalizer, /finalVideo\.durationSeconds/, "Final stored duration must reflect the post-processed video, not only the paid Kling source.");
 assert.match(shotstackSource, /closingFrameUrl = null/, "Shotstack compositor must accept an optional closing hero frame.");

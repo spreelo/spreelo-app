@@ -32,6 +32,19 @@ await completeShotstackDelivery(direct.options);assert.equal(direct.counts.mail,
 const interrupted=setup({failMail:true});assert((await completeShotstackDelivery(interrupted.options)).deliveryPending);assert.equal(interrupted.post.video_status,'ready');assert.equal(interrupted.post.admin_review_status,'pending');assert.equal(interrupted.delivery.status,'pending');
 assert((await completeShotstackDelivery(interrupted.options)).completed);assert.equal(interrupted.counts.history,1);assert.equal(interrupted.counts.credits,1);
 const released=setup({review:true,released:true});assert((await completeShotstackDelivery(released.options)).completed);assert.equal(released.counts.mail,0);assert.equal(released.post.admin_review_status,'released');
+// Kling settlement happened at task submission: delivery must not repeat it.
+for(const settings of [{}, {review:true}, {test:true}, {failMail:true}]){
+ const t=setup(settings);t.options.submissionAlreadySettled=true;t.post.video_provider='kling';
+ t.post.video_background_selection={};
+ const first=await completeShotstackDelivery(t.options);
+ if(settings.failMail){assert(first.deliveryPending);assert((await completeShotstackDelivery(t.options)).completed);}
+ else assert(first.completed);
+ assert.equal(t.counts.history,0);assert.equal(t.counts.credits,0);
+ assert.equal(t.delivery.history_done,true);assert.equal(t.delivery.credits_done,true);
+ assert(t.writes.some(w=>w.table==='admin_review_cases'&&w.values.status===(settings.review||settings.test?'awaiting_spreelo':'sent_directly')));
+ await completeShotstackDelivery(t.options);
+ assert.equal(t.counts.mail,settings.review||settings.test?0:settings.failMail?2:1);
+}
 // Exercise the actual email implementation, including stable payload and provider key.
 const source=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const begin=source.indexOf('export async function sendApprovalEmail');const emailCode=source.slice(begin,source.indexOf('async function publishTextPostToFacebook',begin)).replace('export async','async');

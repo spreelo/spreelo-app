@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import { normalizeKlingLayout, klingTypographyGeometry, getKlingTextFrameFractions } from '../lib/klingLayout.js';
+import { buildVideoOverlayEdit } from '../lib/shotstack.js';
+const fallback={left:64,top:190,width:440,height:300};
+const safe=normalizeKlingLayout(null,fallback);
+assert.equal(safe.preferredScale,.74);assert.equal(safe.top,340);
+const invalid=normalizeKlingLayout({left:-500,top:1900,width:9000,height:9000,preferredScale:8,alignment:'bad'},fallback,.95);
+assert(invalid.left>=64&&invalid.left+invalid.width<=940);assert(invalid.top>=340&&invalid.top+invalid.height<=1536);assert.equal(invalid.preferredScale,.9);
+assert.deepEqual(normalizeKlingLayout({left:800,top:1200,width:300,height:180},fallback,.2),safe);
+for(const alignment of ['left','center','right']){
+ const box=normalizeKlingLayout({left:80,top:600,width:400,height:240,preferredScale:.7,alignment},fallback,.9);
+ const p=klingTypographyGeometry(box,200,100);assert.equal(p.left,alignment==='left'?80:alignment==='center'?180:280);assert.equal(p.top,670);
+}
+const fractions=getKlingTextFrameFractions(10,{scene_trim_start_seconds:1.9,overlay_start_seconds:2});
+assert.equal(fractions.length,5);assert.equal(fractions[0],.39);assert.equal(fractions[4],.998);
+for(let i=1;i<5;i++)assert(fractions[i]>fractions[i-1]);
+const edit=buildVideoOverlayEdit({videoUrl:'video',textOverlayUrl:'text',ctaOverlayUrl:'cta',logoOverlayUrl:'logo',closingFrameUrl:'hero',durationSeconds:10,trimStartSeconds:1.9,closingHoldSeconds:.9});
+const logo=edit.timeline.tracks[0].clips[0];assert.equal(logo.asset.src,'logo');assert.equal(logo.start,0);assert.equal(logo.length,9);
+assert.equal(buildVideoOverlayEdit({videoUrl:'video',textOverlayUrl:'text'}).timeline.tracks.length,2);
+const sharp=(await import(process.env.SHARP_MODULE || 'sharp')).default;
+const source=fs.readFileSync('app/api/cron/finalize-kling-videos/route.js','utf8');
+const start=source.indexOf('async function placeFinishedKlingTypographyInSafeArea');
+const code=source.slice(start,source.indexOf('async function extractVisibleTypographyBand',start));
+const context=vm.createContext({sharp,Math,Number,normalizeKlingLayout,klingTypographyGeometry,getKlingPlacementBox:()=>fallback,normalizeFinishedKlingTypography:async buffer=>({buffer})});
+vm.runInContext(code,context);
+const small=await sharp({create:{width:100,height:50,channels:4,background:'#ffffff'}}).png().toBuffer();
+const result=await context.placeFinishedKlingTypographyInSafeArea(small,'top_left');
+const {data,info}=await sharp(result.buffer).raw().toBuffer({resolveWithObject:true});
+let minX=1080,maxX=-1,minY=1920,maxY=-1;
+for(let y=0;y<info.height;y++)for(let x=0;x<info.width;x++)if(data[(y*info.width+x)*4+3]>0){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}
+assert.equal(maxX-minX+1,100);assert.equal(maxY-minY+1,50);assert.equal(minX,64);assert(minY>=340);
+console.log('v144.309 layout and compositor behavior passed, including pixel placement and no enlargement.');
+// Exercise the real logo builder and the existing per-post logo policy.
+const automations=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
+const policyStart=automations.indexOf('export function shouldUseLogoForRule');
+const policyCode=automations.slice(policyStart,automations.indexOf('async function fetchPublicImageForResolution',policyStart)).replace('export function','function');
+const logoStart=source.indexOf('async function ensureKlingLogoOverlay');
+const logoCode=source.slice(logoStart,source.indexOf('async function planFinishedKlingAdvertisingCreative',logoStart));
+let uploads=0, fetched=0, uploadedBuffer;
+const logoSupabase={from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:{logo_storage_path:'brand/logo.png',logo_enabled_by_default:true}})})}),update:()=>({eq:async()=>({error:null})})}),storage:{from:()=>({upload:async(path,buffer)=>{uploads++;uploadedBuffer=buffer;return {error:null};},getPublicUrl:()=>({data:{publicUrl:'https://example.com/logo.png'}})})}};
+const logoContext=vm.createContext({sharp,Error,POST_IMAGES_BUCKET:'post-images',fetchBrandLogoBufferForOverlay:async()=>{fetched++;return small;}});
+vm.runInContext(policyCode+logoCode,logoContext);
+const post={id:'post',user_id:'user',brand_profile_id:'brand',include_logo:false};
+await logoContext.ensureKlingLogoOverlay({supabase:logoSupabase,post,selection:{}});assert.equal(uploads,0);assert.equal(fetched,0);
+post.include_logo=true;
+const withLogo=await logoContext.ensureKlingLogoOverlay({supabase:logoSupabase,post,selection:{}});assert.equal(uploads,1);assert.equal(fetched,1);assert.equal(withLogo.logo_overlay_url,'https://example.com/logo.png');
+const dimensions=await sharp(uploadedBuffer).metadata();assert.equal(dimensions.width,1080);assert.equal(dimensions.height,1920);
+await logoContext.ensureKlingLogoOverlay({supabase:logoSupabase,post,selection:withLogo});assert.equal(uploads,1);
+console.log('v144.309 logo: stored brand asset, enabled/disabled policy, full-size transparent layer and retry cache passed.');

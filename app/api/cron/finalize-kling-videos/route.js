@@ -1,3 +1,5 @@
+import { completeShotstackDeliveryForPost, fetchBrandLogoBufferForOverlay, shouldUseLogoForRule } from "../run-automations/route.js";
+import { normalizeKlingLayout, klingTypographyGeometry, getKlingTextFrameFractions } from "../../../../lib/klingLayout.js";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI, { toFile } from "openai";
 import sharp from "sharp";
@@ -251,7 +253,7 @@ async function setReviewCaseFailure(supabase, postId, stage, message, failureCod
     .update({
       status: "failed",
       failure_stage: stage,
-      failure_message: safeMessage,
+      failure_message: truncate(message, 2000),
       updated_at: nowIso,
     })
     .eq("post_id", postId)
@@ -260,47 +262,6 @@ async function setReviewCaseFailure(supabase, postId, stage, message, failureCod
     console.warn("Kling finalizer could not update durable admin work-item failure", {
       postId,
       stage,
-      message: workItemError.message,
-    });
-  }
-}
-
-async function setReviewCaseReady(supabase, postId) {
-  const nowIso = new Date().toISOString();
-  const { error } = await supabase
-    .from("admin_review_cases")
-    .update({
-      status: "awaiting_spreelo",
-      needs_review: true,
-      failure_code: null,
-      failure_stage: null,
-      failure_message: null,
-      updated_at: nowIso,
-    })
-    .eq("post_id", postId);
-
-  if (error) {
-    console.warn("Kling finalizer could not mark admin review ready", {
-      postId,
-      message: error.message,
-    });
-  }
-
-  const { error: workItemError } = await supabase
-    .from("admin_generation_work_items")
-    .update({
-      status: "approval",
-      rescue_status: "used",
-      failure_code: null,
-      failure_stage: null,
-      failure_message: null,
-      updated_at: nowIso,
-    })
-    .eq("post_id", postId)
-    .eq("status", "running");
-  if (workItemError) {
-    console.warn("Kling finalizer could not mark durable admin work item ready", {
-      postId,
       message: workItemError.message,
     });
   }
@@ -407,6 +368,37 @@ function getOpenAiTextOutput(response) {
     .trim();
 }
 
+function klingLayoutSchema() {
+  return { type: "object", additionalProperties: false,
+    properties: { left: { type: "number" }, top: { type: "number" },
+      width: { type: "number" }, height: { type: "number" },
+      preferredScale: { type: "number" }, alignment: { type: "string", enum: ["left", "center", "right"] } },
+    required: ["left", "top", "width", "height", "preferredScale", "alignment"] };
+}
+
+async function ensureKlingLogoOverlay({ supabase, post, selection }) {
+  if (selection.logo_overlay_url) return selection;
+  const { data: brand, error } = await supabase.from("brand_profiles").select("*").eq("id", post.brand_profile_id).maybeSingle();
+  if (error) throw error;
+  if (!brand || !shouldUseLogoForRule(post, brand)) return selection;
+  const logo = await sharp(await fetchBrandLogoBufferForOverlay(supabase, brand))
+    .rotate().trim({ threshold: 10 })
+    .resize({ width: 220, height: 100, fit: "inside", withoutEnlargement: true }).png().toBuffer();
+  const overlay = await sharp({ create: { width: 1080, height: 1920, channels: 4,
+    background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: logo, left: 78, top: 207 }]).png().toBuffer();
+  const storagePath = `${post.user_id}/${post.id}-kling-logo-overlay.png`;
+  const { error: uploadError } = await supabase.storage.from(POST_IMAGES_BUCKET).upload(storagePath, overlay, { contentType: "image/png", upsert: true });
+  if (uploadError) throw uploadError;
+  const { data } = supabase.storage.from(POST_IMAGES_BUCKET).getPublicUrl(storagePath);
+  if (!data?.publicUrl) throw new Error("Could not resolve Kling logo overlay URL");
+  const next = { ...selection, logo_overlay_url: data.publicUrl, logo_overlay_storage_path: storagePath };
+  const { error: saveError } = await supabase.from("posts").update({ video_background_selection: next }).eq("id", post.id);
+  if (saveError) throw saveError;
+  post.video_background_selection = next;
+  return next;
+}
+
 async function planFinishedKlingAdvertisingCreative({ openai, post, selection, frames }) {
   const fallbackCopy = selection?.text_overlay_copy || {};
   const fallbackHeadline =
@@ -445,6 +437,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       "Choose the CTA from the actual purpose of THIS post, the verified product or service type, the campaign goal, the CTA setting and the intended next user action. The CTA must be 1-4 words, max 24 characters, natural in the same language and specifically useful for what the viewer should do next. " +
       "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
       "Choose main_placement from top_left, top_right, middle_left, middle_right, lower_left, lower_right so the headline avoids the advertised product and especially its print/design, plus faces, hands and the main action ACROSS ALL supplied frames. " +
+      "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.55-0.9) and alignment (left, center, right). Choose compact negative space across the entire text display interval; never cover faces, hands or product print. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose main width 260-660, height 140-300; CTA width 260-500, height 140-240. preferredScale controls the intended size INSIDE that box; do not fill all available space. " +
       "Choose cta_placement independently for the final frame, and prefer a different safe region from the main placement whenever possible. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
   }];
   for (const frame of frames) {
@@ -458,7 +451,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
     const response = await openai.responses.create({
       model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
       input: [{ role: "user", content }],
-      max_output_tokens: 500,
+      max_output_tokens: 900,
       text: {
         format: {
           type: "json_schema",
@@ -475,11 +468,13 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
               cta_placement: { type: "string", enum: Object.keys(KLING_FINISHED_TYPOGRAPHY_PLACEMENTS) },
               main_text_tone: { type: "string", enum: ["light", "dark"] },
               cta_text_tone: { type: "string", enum: ["light", "dark"] },
+              main_layout: klingLayoutSchema(),
+              cta_layout: klingLayoutSchema(),
               placement_confidence: { type: "number", minimum: 0, maximum: 1 },
             },
             required: [
               "headline", "subheadline", "cta", "main_placement", "cta_placement",
-              "main_text_tone", "cta_text_tone", "placement_confidence"
+              "main_text_tone", "cta_text_tone", "placement_confidence", "main_layout", "cta_layout"
             ],
           },
         },
@@ -498,6 +493,8 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       main_text_tone: parsed?.main_text_tone === "dark" ? "dark" : "light",
       cta_text_tone: parsed?.cta_text_tone === "dark" ? "dark" : "light",
       placement_confidence: Math.max(0, Math.min(1, Number(parsed?.placement_confidence) || 0)),
+      main_layout: normalizeKlingLayout(parsed?.main_layout, getKlingPlacementBox(parsed?.main_placement), parsed?.placement_confidence),
+      cta_layout: normalizeKlingLayout(parsed?.cta_layout, getKlingPlacementBox(parsed?.cta_placement, "lower_left"), parsed?.placement_confidence, true),
       source: "gpt-4.1-mini-finished-video-creative-plan",
     };
   } catch (error) {
@@ -863,8 +860,8 @@ async function normalizeFinishedKlingTypography(buffer) {
 }
 
 
-async function placeFinishedKlingTypographyInSafeArea(buffer, placement) {
-  const box = getKlingPlacementBox(placement);
+async function placeFinishedKlingTypographyInSafeArea(buffer, placement, layout = null) {
+  const box = layout || normalizeKlingLayout(null, getKlingPlacementBox(placement));
   const trimmed = await sharp(buffer)
     .rotate()
     .ensureAlpha()
@@ -873,10 +870,10 @@ async function placeFinishedKlingTypographyInSafeArea(buffer, placement) {
     .toBuffer();
   const artwork = await sharp(trimmed)
     .resize({
-      width: Math.max(120, Math.round(box.width * 0.92)),
-      height: Math.max(100, Math.round(box.height * 0.88)),
+      width: Math.max(120, Math.round(box.width * box.preferredScale)),
+      height: Math.max(100, Math.round(box.height * box.preferredScale)),
       fit: "inside",
-      withoutEnlargement: false,
+      withoutEnlargement: true,
       kernel: sharp.kernel.lanczos3,
     })
     .ensureAlpha()
@@ -885,8 +882,7 @@ async function placeFinishedKlingTypographyInSafeArea(buffer, placement) {
   const metadata = await sharp(artwork).metadata();
   const width = Number(metadata.width || 1);
   const height = Number(metadata.height || 1);
-  const left = Math.max(0, Math.round(box.left + (box.width - width) / 2));
-  const top = Math.max(0, Math.round(box.top + (box.height - height) / 2));
+  const { left, top } = klingTypographyGeometry(box, width, height);
   const canvas = await sharp({
     create: {
       width: 1080,
@@ -993,10 +989,10 @@ async function createKlingCtaOverlay({ supabase, post, selection, creativePlan, 
     normalizeKlingCreativeLine(getFallbackKlingCta(post), { maxWords: 4, maxChars: 28 });
   if (!cta) return selection;
   const placement = creativePlan?.cta_placement || "lower_left";
-  const box = getKlingPlacementBox(placement, "lower_left");
+  const box = creativePlan?.cta_layout || normalizeKlingLayout(null, getKlingPlacementBox(placement, "lower_left"), 0, true);
 
   if (sourceBuffer) {
-    const normalized = await placeFinishedKlingTypographyInSafeArea(sourceBuffer, placement);
+    const normalized = await placeFinishedKlingTypographyInSafeArea(sourceBuffer, placement, box);
     const uploaded = await uploadKlingCtaOverlay({ supabase, post, buffer: normalized.buffer });
     return {
       ...selection,
@@ -1148,7 +1144,8 @@ async function createDeterministicKlingTypographyFallback({ supabase, post, sele
   };
   const normalized = await placeFinishedKlingTypographyInSafeArea(
     rendered,
-    creativePlan.main_placement
+    creativePlan.main_placement,
+    creativePlan.main_layout
   );
   const uploaded = await uploadKlingTypographyOverlay({ supabase, post, buffer: normalized.buffer });
   let completedSelection = {
@@ -1235,9 +1232,8 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     const frames = await sampleRemoteVideoFrames({
       videoUrl: task.videoUrl,
       durationSeconds,
-      // Two representative frames art-direct the typography. The closing hero
-      // frame is sampled separately from the exact delivered end of motion.
-      fractions: [0.28, 0.72],
+      // Five frames cover the actual headline display interval after trim.
+      fractions: getKlingTextFrameFractions(durationSeconds, selection),
     });
     const closingFrames = await sampleRemoteVideoFrames({
       videoUrl: task.videoUrl,
@@ -1362,7 +1358,8 @@ OUTPUT RULES:
     const splitOverlay = await splitCombinedKlingTypographyOverlay(combinedOverlay.buffer);
     const normalized = await placeFinishedKlingTypographyInSafeArea(
       splitOverlay.headline,
-      creativePlan.main_placement
+      creativePlan.main_placement,
+      creativePlan.main_layout
     );
     const uploaded = await uploadKlingTypographyOverlay({ supabase, post, buffer: normalized.buffer });
     let completedSelection = {
@@ -1590,10 +1587,12 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       excludePostId: post.id,
       selectionSeed: post.id,
     });
+    postprocess = await ensureKlingLogoOverlay({ supabase, post, selection: postprocess });
     const edit = buildVideoOverlayEdit({
       videoUrl: task.videoUrl,
       textOverlayUrl: postprocess.text_overlay_url,
       ctaOverlayUrl: postprocess.cta_overlay_url || null,
+      logoOverlayUrl: postprocess.logo_overlay_url || null,
       closingFrameUrl: postprocess.closing_hero_frame_url,
       durationSeconds,
       overlayStartSeconds,
@@ -1771,7 +1770,10 @@ async function finalizeReadyTask(
     .eq("kling_task_id", post.kling_task_id);
 
   if (updateError) throw updateError;
-  await setReviewCaseReady(supabase, post.id);
+  const delivery = await completeShotstackDeliveryForPost({ supabase, postId: post.id });
+  console.info("Kling completed-video delivery", { postId: post.id, ...delivery });
+  // A ready video stays ready on delivery errors. The durable delivery cron
+  // retries only delivery; it never orders another Kling or Shotstack render.
   return publicUrl;
 }
 
@@ -1800,7 +1802,7 @@ export async function GET(request) {
     const { data: posts, error } = await supabase
       .from("posts")
       .select(
-        "id, user_id, brand_profile_id, status, content, cta_type, language, website_url, video_provider, video_status, video_duration_seconds, video_error, video_background_selection, kling_generation_count, kling_task_id, kling_task_status, kling_submitted_at, kling_last_polled_at, kling_model, kling_resolution, kling_audio, updated_at"
+        "id, user_id, brand_profile_id, automation_rule_id, include_logo, logo_url, status, content, cta_type, language, website_url, video_provider, video_status, video_duration_seconds, video_error, video_background_selection, kling_generation_count, kling_task_id, kling_task_status, kling_submitted_at, kling_last_polled_at, kling_model, kling_resolution, kling_audio, updated_at"
       )
       .eq("video_provider", "kling")
       .in("video_status", pendingStatuses)

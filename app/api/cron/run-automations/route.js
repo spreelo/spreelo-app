@@ -41566,7 +41566,7 @@ async function persistTikTokCleanSingleImageOverride({
   }
 }
 
-async function fetchBrandLogoBufferForOverlay(supabase, brandProfile, resolvedLogoUrl = null) {
+export async function fetchBrandLogoBufferForOverlay(supabase, brandProfile, resolvedLogoUrl = null) {
   const storagePath = String(brandProfile?.logo_storage_path || "").trim();
 
   if (storagePath && supabase?.storage) {
@@ -41928,7 +41928,9 @@ export async function completeShotstackDeliveryForPost({supabase,postId}) {
   const fullRule={...(rule||{}),id:post.automation_rule_id,user_id:post.user_id,brand_profile_id:post.brand_profile_id,
     content_format:post.content_format,language:post.language||rule?.language,brand_profile:brand};
   return completeShotstackDelivery({supabase,post,rule:fullRule,
-    reviewRequired:await getAdminPostReviewGate(supabase,post.brand_profile_id),
+    reviewRequired:!rule||await getAdminPostReviewGate(supabase,post.brand_profile_id),
+    // Kling history and credits are settled when its provider task is submitted.
+    submissionAlreadySettled:post.video_provider === "kling",
     isAdminTest:Boolean(post.is_admin_test),getRecipient:userId=>getUserAuthProfile(supabase,userId),
     saveHistory:async({post,rule,context})=>{
       const raw=context.website_item||post.admin_product_items?.[0];
