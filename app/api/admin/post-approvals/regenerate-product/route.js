@@ -311,6 +311,10 @@ export async function POST(request) {
       product_content_contract: buildProductContentContract([lockedProduct], []),
     };
 
+    if(String(enhancedRule.content_format||"").toLowerCase()==="animated_video") {
+      const {error}=await context.admin.rpc("shotstack_delivery_preflight");
+      if(error)throw new Error(`Run the v144.304 and v144.305 SQL migrations before creating an animation: ${error.message}`);
+    }
     const generatedContent = await generateLockedProductPostContentForUse(openai, enhancedRule);
     if (!generatedContent) throw new Error("Spreelo could not regenerate the post copy for this product.");
 

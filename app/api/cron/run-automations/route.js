@@ -45,6 +45,7 @@ import {
   queueShotstackRender,
   waitForShotstackRender,
 } from "../../../../lib/shotstack.js";
+import { completeShotstackDelivery } from "../../../../lib/shotstackDelivery.js";
 import { hasShotstackCheckpoint, finishSavedShotstackPost, shotstackContinuationError } from "../../../../lib/shotstackContinuation.js";
 import { inspectTypographyShape, ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
 import { sampleRemoteVideoFrames } from "../../../../lib/videoFrameSampler.js";
@@ -13207,7 +13208,7 @@ function isTransientAutomationError(errorOrMessage) {
   // Retrying the same product-research chain only repeats paid web/AI work, so
   // hand it to Admin Rescue immediately instead of treating it as transient.
   if (isProtectedProductResearchRetryError(errorOrMessage)) return false;
-  if (["ANIMATED_AI_TYPOGRAPHY_FAILED","SHOTSTACK_SUBMISSION_UNKNOWN","SHOTSTACK_RENDER_FAILED","SHOTSTACK_CHECKPOINT_SAVE_FAILED","SHOTSTACK_CONTINUATION_SAVE_FAILED","SHOTSTACK_OCCURRENCE_MISMATCH"].includes(errorOrMessage?.code)) return false;
+  if (["ANIMATED_AI_TYPOGRAPHY_FAILED","SHOTSTACK_SUBMISSION_UNKNOWN","SHOTSTACK_RENDER_FAILED","SHOTSTACK_CHECKPOINT_SAVE_FAILED","SHOTSTACK_CONTINUATION_SAVE_FAILED","SHOTSTACK_OCCURRENCE_MISMATCH","SHOTSTACK_DELIVERY_SETUP_REQUIRED"].includes(errorOrMessage?.code)) return false;
   const message = String(errorOrMessage?.message || errorOrMessage || "").toLowerCase();
   const code = String(errorOrMessage?.code || "").toLowerCase();
   const status = Number(
@@ -40077,7 +40078,10 @@ export async function generateAnimatedProductVideo({
   postId,
   costTracker = null,
   occurrenceId = null,
+  deliveryContext = null,
 }) {
+  const {error:setupError}=await supabase.rpc("shotstack_delivery_preflight");
+  if(setupError)throw Object.assign(new Error(`Shotstack delivery database setup is missing: ${setupError.message}`),{code:"SHOTSTACK_DELIVERY_SETUP_REQUIRED"});
   const assets = await createAnimatedProductVideoAssets({
     openai,
     supabase,
@@ -40134,11 +40138,11 @@ export async function generateAnimatedProductVideo({
   // Persist assets before POST. A crash during submission is an uncertain outcome,
   // never permission to repeat a potentially billable provider request.
   let checkpoint={occurrence_id:occurrenceId,origin:occurrenceId?"automation":"admin",phase:"submitting",submitted_at:new Date().toISOString(),
-    poster_url:assets.posterUrl,poster_storage_path:assets.posterStoragePath};
+    poster_url:assets.posterUrl,poster_storage_path:assets.posterStoragePath,delivery_context:deliveryContext};
   const selection={...assets.backgroundSelection,shotstack_checkpoint:checkpoint,
     music_applied:Boolean(musicSelection),music_asset_id:musicSelection?.id||null,music_asset_name:musicSelection?.name||null};
   const saved=await supabase.from("posts").update({content:postContent,image_url:assets.posterUrl,image_storage_path:assets.posterStoragePath,
-    image_status:"ready",status:"generating",video_provider:"shotstack",video_render_id:null,video_url:null,video_storage_path:null,video_status:"rendering",video_background_asset_id:assets.backgroundAsset.id,
+    image_status:"ready",image_prompt:assets.foregroundPrompt||null,admin_product_items:rule?.website_item?[rule.website_item]:undefined,status:"generating",video_provider:"shotstack",video_render_id:null,video_url:null,video_storage_path:null,video_status:"rendering",video_background_asset_id:assets.backgroundAsset.id,
     video_background_family:assets.backgroundAsset.family,video_background_selection:selection,
     updated_at:new Date().toISOString()}).eq("id",postId);
   if(saved.error)throw Object.assign(new Error(`Could not save Shotstack assets before submission: ${saved.error.message}`),{code:"SHOTSTACK_CHECKPOINT_SAVE_FAILED"});
@@ -40153,8 +40157,6 @@ export async function generateAnimatedProductVideo({
     const ready=await finishSavedShotstackPost({supabase,post:{id:postId,user_id:userId,video_render_id:renderId,
       image_url:assets.posterUrl,image_storage_path:assets.posterStoragePath,video_background_selection:{...selection,shotstack_checkpoint:checkpoint}},
       waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker});
-    await supabase.from("video_background_assets").update({times_used:Number(assets.backgroundAsset.times_used||0)+1,
-      last_used_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",assets.backgroundAsset.id);
     return {...assets,backgroundSelection:ready.video_background_selection,videoUrl:ready.video_url,videoStoragePath:ready.video_storage_path,renderId};
   } catch(error){throw shotstackContinuationError(error,renderId);}
 }
@@ -41900,6 +41902,41 @@ async function getUpcomingPlanUrlForFinalWeeklyRule({ supabase, rule, locale }) 
   }
 }
 
+export async function completeShotstackDeliveryForPost({supabase,postId}) {
+  try {
+  const {data:post,error}=await supabase.from("posts").select("*").eq("id",postId).single();
+  if(error||!post)throw new Error(error?.message||"Saved Shotstack post not found");
+  const {data:rule, error:ruleError}=post.automation_rule_id?await supabase.from("automation_rules").select("*").eq("id",post.automation_rule_id).maybeSingle():{data:null};
+  if(ruleError)throw ruleError;
+  const {data:brand,error:brandError}=post.brand_profile_id?await supabase.from("brand_profiles").select("*").eq("id",post.brand_profile_id).maybeSingle():{data:null};
+  if(brandError)throw brandError;
+  const fullRule={...(rule||{}),id:post.automation_rule_id,user_id:post.user_id,brand_profile_id:post.brand_profile_id,
+    content_format:post.content_format,language:post.language||rule?.language,brand_profile:brand};
+  return completeShotstackDelivery({supabase,post,rule:fullRule,
+    reviewRequired:await getAdminPostReviewGate(supabase,post.brand_profile_id),
+    isAdminTest:Boolean(post.is_admin_test),getRecipient:userId=>getUserAuthProfile(supabase,userId),
+    saveHistory:async({post,rule,context})=>{
+      const raw=context.website_item||post.admin_product_items?.[0];
+      const item=raw?{...raw,url:raw.url||raw.product_url,item_key:raw.item_key||createItemKey({...raw,url:raw.url||raw.product_url}),history_content_type:context.content_type_id||rule.content_type_id}:null;
+      const {error}=await supabase.rpc("save_shotstack_delivery_history",{p_post_id:post.id,p_item:item,
+        p_source_url:context.source_url||brand?.website_product_source_url||brand?.website_url||post.website_url||item?.url||null,
+        p_cycle:Number(context.cycle_number||1)});
+      if(error)throw error;
+    },
+    sendEmail:async({post,rule,recipient,delivery})=>{
+      const resendApiKey=process.env.RESEND_API_KEY;
+      if(!resendApiKey)throw new Error("RESEND_API_KEY is not configured");
+      if(!post.approval_token)throw new Error("Saved approval token is missing");
+      await sendApprovalEmail({supabase,resendApiKey,to:recipient.email,rule,
+        postContent:post.content,approvalToken:post.approval_token,imageUrl:post.image_url,
+        userAppLanguage:recipient.appLanguage,postId:post.id,contentFormat:post.content_format,durableDelivery:delivery});
+    }});
+  }catch(error){
+    console.error("Saved video delivery needs another check",{postId,message:error.message});
+    return {completed:false,deliveryPending:true,error:error.message};
+  }
+}
+
 export async function sendApprovalEmail({
   supabase,
   resendApiKey,
@@ -41911,6 +41948,7 @@ export async function sendApprovalEmail({
   userAppLanguage,
   postId,
   contentFormat,
+  durableDelivery = null,
 }) {
   const detectedPostLocale = detectLikelyUiLocaleFromText(postContent);
   const userLocale = resolveUiLocaleFromLanguageName(userAppLanguage);
@@ -41962,13 +42000,7 @@ export async function sendApprovalEmail({
     }
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  let emailPayload=durableDelivery?.email_payload||{
       from: RESEND_FROM_EMAIL,
       to,
       subject: isCarouselDraft ? t("emails.approval.carouselSubject") : t("emails.approval.subject"),
@@ -41999,7 +42031,24 @@ export async function sendApprovalEmail({
         nextRule,
         upcomingPlanUrl,
       }),
-    }),
+    };
+  if(durableDelivery) {
+    if(durableDelivery.email_first_attempt_at && Date.now()-new Date(durableDelivery.email_first_attempt_at).getTime()>23*60*60_000) {
+      throw Object.assign(new Error("Previous email outcome requires reconciliation; automatic resend is blocked after the provider deduplication window"),{code:"EMAIL_RECONCILIATION_REQUIRED"});
+    }
+    if(!durableDelivery.email_payload){
+      const startedAt=new Date().toISOString();
+      const {data,error}=await supabase.from("shotstack_post_deliveries").update({email_payload:emailPayload,email_first_attempt_at:startedAt})
+        .eq("post_id",postId).eq("lease_token",durableDelivery.lease_token).select("post_id");
+      if(error||!data?.length)throw new Error(error?.message||"Could not save approval email before sending");
+      durableDelivery.email_payload=emailPayload;durableDelivery.email_first_attempt_at=startedAt;
+    }
+  }
+  const response = await fetch("https://api.resend.com/emails", {
+    method:"POST",signal:AbortSignal.timeout(25_000),
+    headers:{Authorization:`Bearer ${resendApiKey}`,"Content-Type":"application/json",
+      ...(durableDelivery?{"Idempotency-Key":`shotstack-approval/${postId}`}:{})},
+    body:JSON.stringify(emailPayload),
   });
 
   if (!response.ok) {
@@ -42007,6 +42056,14 @@ export async function sendApprovalEmail({
     throw new Error(errorText || "Resend email request failed");
   }
 
+  const emailResult=await response.json();
+  if(durableDelivery){
+    const sentAt=new Date().toISOString();
+    const {data,error}=await supabase.from("shotstack_post_deliveries").update({mail_sent_at:sentAt,provider_email_id:emailResult.id||null})
+      .eq("post_id",postId).eq("lease_token",durableDelivery.lease_token).select("post_id");
+    if(error||!data?.length)throw new Error(error?.message||"Could not record sent approval email");
+    durableDelivery.mail_sent_at=sentAt;
+  }
   if (postId) {
     await supabase
       .from("posts")
@@ -42017,7 +42074,7 @@ export async function sendApprovalEmail({
       .eq("id", postId);
   }
 
-  return response.json();
+  return emailResult;
 }
 
 async function publishTextPostToFacebook({ pageId, pageAccessToken, message }) {
@@ -46201,6 +46258,10 @@ async function runAutomationCron(request, options = {}) {
           },
         });
 
+        if (isShotstackAnimatedVideoRule(rule)) {
+          const {error:deliverySetupError}=await supabase.rpc("shotstack_delivery_preflight");
+          if(deliverySetupError)throw Object.assign(new Error(`Run v144_304_shotstack_continuation.sql and v144_305_shotstack_delivery.sql before creating an animation: ${deliverySetupError.message}`),{code:"SHOTSTACK_DELIVERY_SETUP_REQUIRED"});
+        }
         activeGenerationCostTracker = createGenerationCostTracker({
           supabase,
           occurrenceId: automationOccurrenceId,
@@ -46243,9 +46304,6 @@ async function runAutomationCron(request, options = {}) {
             const finished=await finishSavedShotstackPost({supabase,post:savedShotstackDraft,
               waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker:activeGenerationCostTracker});
             automationDrafts=automationDrafts.map(post=>post.id===finished.id?finished:post);
-            await upsertAdminReviewCase(supabase,{occurrence_id:automationOccurrenceId,post_id:finished.id,
-              user_id:rule.user_id,brand_profile_id:rule.brand_profile_id,automation_rule_id:rule.id,
-              status:"awaiting_spreelo",needs_review:true});
           } catch (resumeError) {
             if(resumeError?.code === "SHOTSTACK_RENDER_PENDING") {
               await deferCurrentShotstackJob(savedShotstackDraft.id,savedShotstackDraft.video_render_id,resumeError.lastStatus);
@@ -46433,6 +46491,7 @@ async function runAutomationCron(request, options = {}) {
 
           if (
             !isAdminTestRun &&
+            !hasShotstackCheckpoint(existingCompleteDraft) &&
             rule.credit_reservation_status === "reserved" &&
             Number(rule.credit_reserved_amount || 0) >= Number(rule.credit_cost || 1)
           ) {
@@ -46449,6 +46508,14 @@ async function runAutomationCron(request, options = {}) {
             }
           }
 
+          let recoveredDelivery=null;
+          if(hasShotstackCheckpoint(existingCompleteDraft)) {
+            const delivery=await completeShotstackDeliveryForPost({supabase,postId:existingCompleteDraft.id});
+            recoveredDelivery=delivery;
+            summary.pending_approval+=1;
+            if(delivery.deliveryPending)summary.warnings+=1;
+            console.info("Saved Shotstack post delivery checked",{postId:existingCompleteDraft.id,...delivery});
+          }
           automationCurrentStage = "occurrence_complete";
         await completeAutomationOccurrence({
             supabase,
@@ -46461,6 +46528,8 @@ async function runAutomationCron(request, options = {}) {
             stage: "recovered_existing_completed_draft",
             occurrence_id: automationOccurrenceId,
             recovered: Boolean(recovered),
+            delivery_completed:recoveredDelivery?.completed??null,delivery_pending:recoveredDelivery?.deliveryPending??false,
+            customer_email_sent:recoveredDelivery?.emailed??false,
           });
           summary.recovered_completed_drafts += recovered ? 1 : 0;
           summary.generated += 1;
@@ -47947,6 +48016,9 @@ product_research_model_used: websitePreparedRule.uses_website_content
                 postId: post.id,
                 costTracker: activeGenerationCostTracker,
                 occurrenceId: automationOccurrenceId,
+                deliveryContext: {version:305,credit_cost:creditCost,has_reserved_credits:hasReservedCredits,
+                  is_admin_test:isAdminTestRun,content_type_id:attemptRule.content_type_id,source_url:websiteSourceUrl,cycle_number:websiteCycleNumber,
+                  website_item:candidate.item},
               });
 
               imageUrl = animatedVideo.posterUrl;
@@ -48763,7 +48835,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
 
             summary.warnings += 1;
           }
-        } else if (websitePreparedRule.uses_website_content && websiteItem) {
+        } else if (!isShotstackAnimatedVideoRule(websitePreparedRule) && websitePreparedRule.uses_website_content && websiteItem) {
           try {
             await saveWebsiteContentHistory({
               supabase,
@@ -48787,6 +48859,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
         let sentDirectlyToCustomer = false;
         if (
           !isAdminTestRun &&
+          !isShotstackAnimatedVideoRule(websitePreparedRule) &&
           effectivePostStatus === "pending_approval" &&
           !adminPostReviewRequired
         ) {
@@ -48824,7 +48897,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
           }
         }
 
-        if (!isAdminTestRun && !hasReservedCredits) {
+        if (!isShotstackAnimatedVideoRule(websitePreparedRule) && !isAdminTestRun && !hasReservedCredits) {
           const newCreditsRemaining = creditsRemaining - creditCost;
 
           const { error: creditUpdateError } = await supabase
@@ -48943,7 +49016,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
         }
 
         let reservedCreditResult = null;
-        if (!isAdminTestRun && hasReservedCredits) {
+        if (!isShotstackAnimatedVideoRule(websitePreparedRule) && !isAdminTestRun && hasReservedCredits) {
           const { data: consumedReservation, error: consumeReservationError } =
             await supabase.rpc("consume_reserved_automation_credit", {
               p_rule_id: rule.id,
@@ -48985,10 +49058,17 @@ product_research_model_used: websitePreparedRule.uses_website_content
           },
         });
 
+        let shotstackDeliveryResult=null;
+        if(isShotstackAnimatedVideoRule(websitePreparedRule)) {
+          shotstackDeliveryResult=await completeShotstackDeliveryForPost({supabase,postId:post.id});
+          sentDirectlyToCustomer=Boolean(shotstackDeliveryResult.emailed);
+          if(shotstackDeliveryResult.deliveryPending)summary.warnings+=1;
+          console.info("Shotstack post delivery checked",{postId:post.id,...shotstackDeliveryResult});
+        }
         const asyncKlingPending =
           isKlingAiVideoRule(websitePreparedRule) && effectivePostStatus === "generating";
 
-        await upsertAdminReviewCase(supabase, {
+        if(!isShotstackAnimatedVideoRule(websitePreparedRule)) await upsertAdminReviewCase(supabase, {
           occurrence_id: automationOccurrenceId,
           post_id: post.id,
           user_id: rule.user_id,
@@ -49013,6 +49093,8 @@ product_research_model_used: websitePreparedRule.uses_website_content
           stage: "completed",
           occurrence_id: automationOccurrenceId,
           effective_post_status: effectivePostStatus,
+          delivery_completed:shotstackDeliveryResult?.completed??null,delivery_pending:shotstackDeliveryResult?.deliveryPending??false,
+          customer_email_sent:sentDirectlyToCustomer,
           email_expected:
             effectivePostStatus === "pending_approval" && !adminPostReviewRequired,
           admin_review_required: adminPostReviewRequired,

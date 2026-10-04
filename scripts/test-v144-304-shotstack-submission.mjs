@@ -6,7 +6,7 @@ const source=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const begin=source.indexOf('export async function generateAnimatedProductVideo');
 const code=source.slice(begin,source.indexOf('async function resolveBrandLogoPublicUrl',begin)).replace('export async','async');
 let ai=0,submissions=0,updates=[],post={id:'post',user_id:'user',video_render_id:'previous-render'},stage='queued';
-const supabase={from(table){return {update(values){
+const supabase={rpc:async()=>({data:true,error:null}),from(table){return {update(values){
   const query={eq(){return query;},then(resolve,reject){
     if(table==='posts'){updates.push(values);post={...post,...values};}
     return Promise.resolve({error:null}).then(resolve,reject);
@@ -29,4 +29,8 @@ ctx.queueShotstackRender=async()=>{submissions++;throw new Error('connection int
 await assert.rejects(ctx.generateAnimatedProductVideo(args),e=>e.code==='SHOTSTACK_SUBMISSION_UNKNOWN');
 assert.equal(post.video_render_id,null);assert.equal(post.video_background_selection.shotstack_checkpoint.phase,'submitting');
 await assert.rejects(finishSavedShotstackPost({supabase,post,waitForRender}),e=>e.code==='SHOTSTACK_SUBMISSION_UNKNOWN');assert.equal(submissions,2);
-console.log('v144.304: assets/caption saved before submission, old ID cleared, queued render continued with one AI and one POST, ambiguous submission blocked.');
+const beforeAi=ai,beforeSubmissions=submissions;
+supabase.rpc=async()=>({error:{message:'migration missing'}});
+await assert.rejects(ctx.generateAnimatedProductVideo(args),e=>e.code==='SHOTSTACK_DELIVERY_SETUP_REQUIRED');
+assert.equal(ai,beforeAi);assert.equal(submissions,beforeSubmissions);
+console.log('v144.304/305: assets/caption saved before submission, old ID cleared, queued render continued with one AI and one POST, ambiguous submission blocked.');
