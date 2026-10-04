@@ -25,6 +25,8 @@ Object.assign(ctx,{
   ANIMATED_OVERLAY_IMAGE_MODEL:model('gpt-image-2'),
   ANIMATED_TEXT_PANEL_SOURCE_WIDTH:1408, ANIMATED_TEXT_PANEL_SOURCE_HEIGHT:480,
   ANIMATED_TEXT_PANEL_LEFT:128, ANIMATED_TEXT_PANEL_TOP:1280, ANIMATED_TEXT_PANEL_WIDTH:824, ANIMATED_TEXT_PANEL_HEIGHT:281,
+  ANIMATED_VIDEO_DURATION_SECONDS:5, sampleRemoteVideoFrames:async()=>[],
+  ensureTypographyContrast:async({overlayBuffer})=>({buffer:overlayBuffer,analysis:{}}),
   getAnimatedOverlayBackgroundReference:async()=>null,
   getAnimatedOverlayBackgroundLuminance:async()=>0.7,
   getAnimatedOverlayBrightnessLabel:()=> 'light',
@@ -39,6 +41,6 @@ const result=await ctx.createAnimatedTextOverlay(args);
 assert.equal(request.model,'gpt-image-2.5-flare'); assert.equal(request.background,'transparent'); assert.equal(request.output_format,'png'); assert.equal(request.quality,'medium');
 assert.equal(result.provider,'gpt-image-2.5-flare-transparent-typography'); assert.equal(fallbackCalls,0);
 args.openai.images.edit=async()=>{throw new Error('provider unavailable');};
-const fallback=await ctx.createAnimatedTextOverlay(args);
-assert.equal(fallback.provider,'fallback_text_only_typography'); assert.equal(fallbackCalls,1);
-console.log('v144.299 model selection, image request and transparent logo checks passed');
+await assert.rejects(ctx.createAnimatedTextOverlay(args), error => error.code === 'ANIMATED_AI_TYPOGRAPHY_FAILED');
+assert.equal(fallbackCalls,0);
+console.log('v144.299 model selection, image request and transparent logo checks passed (AI-only text policy).');

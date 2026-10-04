@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import sharp from 'sharp';
+import {inspectTypographyShape,ensureTypographyContrast} from '../lib/animatedTypographyQuality.js';
+import {finishSavedShotstackPost,hasShotstackCheckpoint,shotstackContinuationError} from '../lib/shotstackContinuation.js';
+const png=async(w,h,bg)=>sharp({create:{width:w,height:h,channels:4,background:bg}}).png().toBuffer();
+await assert.rejects(inspectTypographyShape(await png(352,120,{r:0,g:0,b:0,alpha:0})),/blank/);
+await assert.rejects(inspectTypographyShape(await png(352,120,'white')),/opaque/);
+// High ink coverage made of separate glyph-like shapes must pass.
+const glyphs=await sharp(await png(352,120,{r:0,g:0,b:0,alpha:0})).composite(Array.from({length:12},(_,i)=>({input:Buffer.from('<svg width="20" height="105"><rect width="20" height="105" fill="#654321"/></svg>'),left:5+i*28,top:7}))).png().toBuffer();
+const inspected=await inspectTypographyShape(glyphs);assert(inspected.analysis.visibleRatio>.38);assert(inspected.analysis.trimmedBounds.width<352);
+const card=await sharp(await png(352,120,{r:0,g:0,b:0,alpha:0})).composite([{input:await png(230,80,'white'),left:60,top:20}]).png().toBuffer();
+await assert.rejects(inspectTypographyShape(card),/opaque card/);
+const box={left:80,top:1380,width:920,height:250};
+const overlay=await sharp(await png(1080,1920,{r:0,g:0,b:0,alpha:0})).composite([{input:glyphs,left:100,top:1420}]).png().toBuffer();
+const brown=await png(1080,1920,'#654321');
+const corrected=await ensureTypographyContrast({overlayBuffer:overlay,backgroundBuffers:[brown],textBox:box});
+assert.equal(corrected.analysis.contrastCorrected,true);assert.equal(corrected.analysis.textColor,'white');assert(corrected.analysis.colorCoverage>.99);
+const {data,info}=await sharp(corrected.buffer).raw().toBuffer({resolveWithObject:true});
+assert.equal(info.width,1080);assert.equal(info.height,1920);
+assert.equal(data[3],0);const index=((1427+10)*1080+105+10)*4;assert.equal(data[index],255);assert.equal(data[index+3],255);
+const unchanged=await ensureTypographyContrast({overlayBuffer:overlay,backgroundBuffers:[await png(1080,1920,'white')],textBox:box});
+assert.equal(unchanged.analysis.contrastCorrected,false);assert.equal(unchanged.buffer,overlay);
+const moving=await ensureTypographyContrast({overlayBuffer:overlay,backgroundBuffers:[brown,await png(1080,1920,'white')],textBox:box});
+assert.equal(moving.analysis.backgroundSamples,2);assert.equal(moving.analysis.contrastCorrected,true);assert(moving.analysis.outlineColor);
+await assert.rejects(ensureTypographyContrast({overlayBuffer:overlay}),/No background/);
+const post={id:'same-post',user_id:'user',video_provider:'shotstack',video_render_id:'same-render',video_status:'rendering',video_background_selection:{shotstack_checkpoint:{origin:'automation',poster_url:'poster'}}};
+assert(hasShotstackCheckpoint(post));assert(!hasShotstackCheckpoint({...post,video_provider:'kling'}));assert(!hasShotstackCheckpoint({...post,video_provider:'another'}));
+let polls=0,uploads=0,updates=[];
+const db={from(table){
+  assert.equal(table,'posts');
+  return {update(values){
+    updates.push(values);
+    return {eq(column,value){
+      assert.equal(column,'id');assert.equal(value,'same-post');
+      return {eq(column,value){
+        assert.equal(column,'video_render_id');assert.equal(value,'same-render');
+        return Promise.resolve({error:null});
+      }};
+    }};
+  }};
+}};
+const options={supabase:db,post,waitForRender:async args=>{polls++;assert.equal(args.renderId,'same-render');assert.equal(args.maxAttempts,5);throw shotstackContinuationError(new Error('queued'),'same-render','queued');},uploadVideo:async args=>{uploads++;assert.equal(args.postId,'same-post');return {videoUrl:'stored',videoStoragePath:'user/same-post.mp4'};}};
+await assert.rejects(finishSavedShotstackPost(options),e=>e.code==='SHOTSTACK_RENDER_PENDING'&&e.renderId==='same-render');assert.equal(uploads,0);assert.equal(updates.length,0);
+options.waitForRender=async args=>{polls++;assert.equal(args.renderId,'same-render');return {url:'rendered',billableSeconds:5};};
+options.costTracker={recordShotstack:async()=>{throw new Error('tracking unavailable');}};
+const ready=await finishSavedShotstackPost(options);assert.equal(polls,2);assert.equal(uploads,1);assert.equal(ready.video_status,'ready');assert.equal(ready.id,post.id);assert.equal(ready.video_background_selection.shotstack_checkpoint.phase,'ready');assert.equal(ready.image_url,'poster');
+options.uploadVideo=async()=>{throw new Error('storage interrupted');};
+await assert.rejects(finishSavedShotstackPost(options),e=>e.code==='SHOTSTACK_RENDER_PENDING'&&e.renderId==='same-render'&&e.lastStatus==='done');
+options.waitForRender=async()=>{throw Object.assign(new Error('provider failed'),{code:'SHOTSTACK_RENDER_FAILED'});};
+await assert.rejects(finishSavedShotstackPost(options),e=>e.code==='SHOTSTACK_RENDER_FAILED');
+await assert.rejects(finishSavedShotstackPost({...options,post:{...post,video_render_id:null}}),e=>e.code==='SHOTSTACK_SUBMISSION_UNKNOWN');
+const route=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
+assert(route.indexOf('const savedShotstackDraft =')<route.indexOf('const staleIncompleteAnimatedVideoDrafts ='));
+assert(route.includes('!hasShotstackCheckpoint(post)'));
+assert(route.includes('if (videoRenderId && videoError?.code !== "SHOTSTACK_RENDER_FAILED")'));
+assert(route.indexOf('phase:"submitting"')<route.indexOf('renderId=await queueShotstackRender(edit)'));
+const sql=fs.readFileSync('supabase/v144_304_shotstack_continuation.sql','utf8');
+assert(sql.includes("p.video_render_id=p_render_id"));assert(sql.includes("interval '15 minutes'"));
+assert(!sql.slice(0,sql.indexOf('-- Recover')).includes('retry_count ='));
+const finalizer=fs.readFileSync('app/api/cron/finalize-shotstack-videos/route.js','utf8');assert(!finalizer.includes('queueShotstackRender'));assert(!finalizer.includes('images.edit'));assert(finalizer.includes(".eq('updated_at',post.updated_at)"));
+console.log('v144.304: shape validation, brown contrast, video samples, same render continuation, storage interruption and no new submission passed.');

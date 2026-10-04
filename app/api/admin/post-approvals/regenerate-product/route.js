@@ -166,6 +166,18 @@ export async function POST(request) {
     );
   }
 
+  // A repeated repair click must not submit a second paid render while this
+  // post already owns a Shotstack job or an unconfirmed submission.
+  const shotstackCheckpoint = post?.video_background_selection?.shotstack_checkpoint;
+  if (String(post?.video_provider || "").toLowerCase() === "shotstack" && shotstackCheckpoint) {
+    if (!post.video_render_id && shotstackCheckpoint.phase === "submitting") {
+      return Response.json({ok:false,code:"SHOTSTACK_SUBMISSION_UNKNOWN",error:"The previous Shotstack submission must be checked before another render can be submitted."},{status:409});
+    }
+    if (post.video_render_id && ["rendering","finalizing"].includes(post.video_status)) {
+      return Response.json({ok:true,pending:true,post_id:post.id,render_id:post.video_render_id,video_status:post.video_status},{status:202});
+    }
+  }
+
   const brandProfileId = post?.brand_profile_id || occurrence?.brand_profile_id || reviewCase?.brand_profile_id || workItem?.brand_profile_id || rule?.brand_profile_id || null;
   const { data: brandProfile } = brandProfileId
     ? await context.admin.from("brand_profiles").select("*").eq("id", brandProfileId).maybeSingle()
@@ -705,6 +717,11 @@ export async function POST(request) {
       format: isAnimated ? "animated_product_reel" : isAiProductAd ? "ai_product_ad" : "product_post",
     });
   } catch (error) {
+    if(error?.code === "SHOTSTACK_RENDER_PENDING" && post?.id) {
+      await context.admin.from("posts").update({status:"generating",video_status:"rendering",video_error:null,updated_at:new Date().toISOString()}).eq("id",post.id);
+      if(workItemId)await context.admin.from("admin_generation_work_items").update({status:"running",post_id:post.id,updated_at:new Date().toISOString()}).eq("id",workItemId);
+      return Response.json({ok:true,pending:true,post_id:post.id,render_id:error.renderId,video_status:"rendering"},{status:202});
+    }
     const failedAt = new Date().toISOString();
     if (post?.id) {
       await context.admin.from("posts").update({

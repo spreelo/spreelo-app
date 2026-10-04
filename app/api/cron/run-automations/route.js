@@ -45,6 +45,9 @@ import {
   queueShotstackRender,
   waitForShotstackRender,
 } from "../../../../lib/shotstack.js";
+import { hasShotstackCheckpoint, finishSavedShotstackPost, shotstackContinuationError } from "../../../../lib/shotstackContinuation.js";
+import { inspectTypographyShape, ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
+import { sampleRemoteVideoFrames } from "../../../../lib/videoFrameSampler.js";
 import { prepareAnimatedProductLayout } from "../../../../lib/animatedProductLayout.js";
 import { submitKlingImageToVideo } from "../../../../lib/kling.js";
 import { selectBestVideoMusic } from "../../../../lib/videoMusicLibrary.js";
@@ -3781,7 +3784,7 @@ async function findAutomationDraftsForRule({ supabase, ruleId }) {
   const { data, error } = await supabase
     .from("posts")
     .select(
-      "id, user_id, status, created_at, updated_at, content_format, image_storage_path, video_storage_path, video_status, video_render_id, video_provider, slide_count, slide_generation_status, slide_render_status"
+      "id, user_id, status, created_at, updated_at, content_format, image_storage_path, video_storage_path, video_status, video_render_id, video_provider, video_background_selection, image_url, video_url, scheduled_for, slide_count, slide_generation_status, slide_render_status"
     )
     .eq("automation_rule_id", ruleId)
     .in("status", ["pending_approval", "generating"])
@@ -3817,6 +3820,7 @@ function isRecentAutomationDraft(post, now, hours = RECENT_AUTOMATION_DRAFT_BLOC
 }
 
 function isCompleteAutomationDraft(post) {
+  if (hasShotstackCheckpoint(post) && post?.video_status === "ready" && post?.video_storage_path) return true;
   if (normalizeContentFormat(post?.content_format) !== "carousel") {
     return post?.status === "pending_approval";
   }
@@ -3862,7 +3866,7 @@ function isStaleIncompleteAnimatedVideoDraft(post, now) {
   // Kling is asynchronous and can legitimately sit in the provider queue well
   // beyond the old 20-minute Shotstack draft grace period. Its dedicated
   // finalizer owns timeout/failure handling and must never trigger a re-submit.
-  if (String(post?.video_provider || "").trim().toLowerCase() === "kling") {
+  if (hasShotstackCheckpoint(post) || String(post?.video_provider || "").trim().toLowerCase() === "kling") {
     return false;
   }
 
@@ -3880,7 +3884,7 @@ function isStaleIncompleteAnimatedVideoDraft(post, now) {
 }
 
 async function deleteIncompleteAnimatedVideoDrafts({ supabase, posts }) {
-  const drafts = (posts || []).filter(isIncompleteAnimatedVideoDraftPost);
+  const drafts = (posts || []).filter(post => isIncompleteAnimatedVideoDraftPost(post) && !hasShotstackCheckpoint(post));
   const postIds = drafts.map((post) => post.id).filter(Boolean);
 
   if (!postIds.length) {
@@ -13203,6 +13207,7 @@ function isTransientAutomationError(errorOrMessage) {
   // Retrying the same product-research chain only repeats paid web/AI work, so
   // hand it to Admin Rescue immediately instead of treating it as transient.
   if (isProtectedProductResearchRetryError(errorOrMessage)) return false;
+  if (["ANIMATED_AI_TYPOGRAPHY_FAILED","SHOTSTACK_SUBMISSION_UNKNOWN","SHOTSTACK_RENDER_FAILED","SHOTSTACK_CHECKPOINT_SAVE_FAILED","SHOTSTACK_CONTINUATION_SAVE_FAILED","SHOTSTACK_OCCURRENCE_MISMATCH"].includes(errorOrMessage?.code)) return false;
   const message = String(errorOrMessage?.message || errorOrMessage || "").toLowerCase();
   const code = String(errorOrMessage?.code || "").toLowerCase();
   const status = Number(
@@ -38423,7 +38428,7 @@ ${referenceGuidance}
 
 Transparent output contract:
 - Wide horizontal ${ANIMATED_TEXT_PANEL_SOURCE_WIDTH} x ${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT} RGBA canvas.
-- Every pixel outside the typography and tiny typography-supporting accents must be fully transparent alpha.
+- Every pixel outside the typography must be fully transparent alpha. Keep at least 5% transparent margin on every edge. Use large, bold, readable lettering; no tiny secondary captions.
 - No card, panel, badge, sticker, banner, rectangle, capsule, paper block, colored plate or opaque background of any kind.
 - No product image, person, photo, scene, logo mark, button, watermark, mockup or fake interface.
 - Do not simulate transparency with white, checkerboard or chroma colors.
@@ -38725,72 +38730,6 @@ async function createFallbackAnimatedTextOverlay({
       <g filter="url(#shadow)">
         ${decoration}
         ${titleMarkup}
-      </g>
-    </svg>
-  `;
-
-  return sharp(Buffer.from(svg)).png().toBuffer();
-}
-
-async function createProfessionalFallbackAnimatedTextOverlay({
-  rule,
-  backgroundAsset,
-  backgroundBrightness,
-  dominantColor,
-}) {
-  const websiteItem = rule?.website_item || {};
-  const presentation = getCarouselProductLabelPresentation(
-    websiteItem,
-    websiteItem?.title || rule?.content_type_label || "Featured product"
-  );
-  const title = sanitizeProductTitleForCard(
-    presentation?.title || websiteItem?.title || rule?.content_type_label || "Featured product"
-  ) || "Featured product";
-  const brandLine = String(presentation?.brand || "").trim();
-  const descriptorLine = String(presentation?.descriptor || "").trim();
-  const titleLines = splitAnimatedOverlayTitle(title);
-  const style = getPremiumFallbackTextStyle({
-    rule,
-    dominantColor,
-    backgroundAsset,
-    backgroundBrightness,
-  });
-  const maxCharacters = Math.max(1, ...titleLines.map((line) => Array.from(line).length));
-  const baseFontSize = titleLines.length >= 3 ? 46 : titleLines.length === 2 ? 60 : 76;
-  const fittedFontSize = Math.floor(
-    (ANIMATED_TEXT_PANEL_WIDTH - 112) / Math.max(1, maxCharacters * 0.58)
-  );
-  const titleFontSize = Math.max(36, Math.min(baseFontSize, fittedFontSize));
-  const titleLineHeight = Math.round(titleFontSize * 1.06);
-  const optionalTop = brandLine ? 46 : 0;
-  const optionalBottom = descriptorLine ? 42 : 0;
-  const textBlockHeight = titleLines.length * titleLineHeight;
-  const usableTop = ANIMATED_TEXT_PANEL_TOP + optionalTop;
-  const usableHeight = ANIMATED_TEXT_PANEL_HEIGHT - optionalTop - optionalBottom;
-  const firstBaseline = Math.round(
-    usableTop + (usableHeight - textBlockHeight) / 2 + titleFontSize * 0.82
-  );
-  const titleMarkup = titleLines
-    .map((line, index) => `<text x="540" y="${firstBaseline + index * titleLineHeight}" text-anchor="middle" font-family="${style.font}" font-size="${titleFontSize}" font-style="${style.fontStyle}" font-weight="${style.weight}" letter-spacing="1.2" fill="${style.mainColor}" stroke="${style.shadowColor}" stroke-width="3" paint-order="stroke">${escapeSvgText(line)}</text>`)
-    .join("");
-  const brandMarkup = brandLine
-    ? `<text x="540" y="${ANIMATED_TEXT_PANEL_TOP + 42}" text-anchor="middle" font-family="Trebuchet MS, sans-serif" font-size="24" font-weight="800" letter-spacing="3" fill="${style.accentColor}">${escapeSvgText(brandLine.toUpperCase())}</text>`
-    : "";
-  const descriptorMarkup = descriptorLine
-    ? `<text x="540" y="${ANIMATED_TEXT_PANEL_TOP + ANIMATED_TEXT_PANEL_HEIGHT - 22}" text-anchor="middle" font-family="Trebuchet MS, sans-serif" font-size="23" font-weight="700" letter-spacing="0.6" fill="${style.mainColor}" opacity="0.86">${escapeSvgText(descriptorLine)}</text>`
-    : "";
-  const svg = `
-    <svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <filter id="textShadow" x="-30%" y="-40%" width="160%" height="190%">
-          <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#000000" flood-opacity="0.20"/>
-        </filter>
-      </defs>
-      <g filter="url(#textShadow)">
-        ${brandMarkup}
-        ${titleMarkup}
-        ${descriptorMarkup}
-        <line x1="420" y1="${ANIMATED_TEXT_PANEL_TOP + ANIMATED_TEXT_PANEL_HEIGHT - 6}" x2="660" y2="${ANIMATED_TEXT_PANEL_TOP + ANIMATED_TEXT_PANEL_HEIGHT - 6}" stroke="${style.accentColor}" stroke-width="3" stroke-linecap="round" opacity="0.74"/>
       </g>
     </svg>
   `;
@@ -39341,92 +39280,16 @@ async function normalizeGeneratedAnimatedTextOverlay(generatedBuffer, chromaKey)
   }
 }
 
-async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, animationLayout = null, { trustedFallback = false } = {}) {
+async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, animationLayout = null) {
   const textBox = animationLayout?.text || { left: ANIMATED_TEXT_PANEL_LEFT, top: ANIMATED_TEXT_PANEL_TOP, width: ANIMATED_TEXT_PANEL_WIDTH, height: ANIMATED_TEXT_PANEL_HEIGHT };
-  const normalized = await sharp(generatedBuffer)
-    .rotate()
-    .resize({
-      width: ANIMATED_TEXT_PANEL_SOURCE_WIDTH,
-      height: ANIMATED_TEXT_PANEL_SOURCE_HEIGHT,
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-      kernel: sharp.kernel.lanczos3,
-    })
-    .ensureAlpha()
-    .png({ compressionLevel: 9 })
-    .toBuffer();
-  const { data, info } = await sharp(normalized)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const pixelCount = Math.max(1, info.width * info.height);
-  let visible = 0;
-  let strong = 0;
-  let edgeVisible = 0;
-  const edge = Math.max(12, Math.round(Math.min(info.width, info.height) * 0.045));
-
-  for (let y = 0; y < info.height; y += 1) {
-    for (let x = 0; x < info.width; x += 1) {
-      const alpha = data[(y * info.width + x) * info.channels + 3];
-      if (alpha < 28) continue;
-      visible += 1;
-      if (alpha >= 150) strong += 1;
-      if (x < edge || x >= info.width - edge || y < edge || y >= info.height - edge) {
-        edgeVisible += 1;
-      }
-    }
-  }
-
-  const visibleRatio = visible / pixelCount;
-  const strongRatio = strong / pixelCount;
-  const edgeRatio = edgeVisible / Math.max(1, visible);
-  if (!trustedFallback && (visibleRatio < 0.018 || strongRatio < 0.006)) {
-    throw new Error("Generated transparent Reel typography was visually blank");
-  }
-  if (!trustedFallback && visibleRatio > 0.38) {
-    throw new Error("Generated Reel typography contained an opaque card or excessive background area");
-  }
-  if (!trustedFallback && edgeRatio > 0.14) {
-    throw new Error("Generated Reel typography touched the outer canvas edges");
-  }
-
-  const resizedTypography = await sharp(normalized)
-    .resize({
-      width: textBox.width,
-      height: textBox.height,
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-      kernel: sharp.kernel.lanczos3,
-    })
-    .ensureAlpha()
-    .png({ compressionLevel: 9 })
-    .toBuffer();
-  const textOverlayBuffer = await sharp({
-    create: {
-      width: 1080,
-      height: 1920,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    },
-  })
-    .composite([
-      {
-        input: resizedTypography,
-        left: textBox.left,
-        top: textBox.top,
-      },
-    ])
-    .png({ compressionLevel: 9 })
-    .toBuffer();
-
-  return {
-    textOverlayBuffer,
-    analysis: {
-      visibleRatio: Number(visibleRatio.toFixed(4)),
-      strongRatio: Number(strongRatio.toFixed(4)),
-      edgeVisibleRatio: Number(edgeRatio.toFixed(4)),
-    },
-  };
+  const inspected = await inspectTypographyShape(generatedBuffer);
+  const resized = await sharp(inspected.buffer).resize({
+    width: textBox.width - 24, height: textBox.height - 24, fit: "inside",
+  }).png().toBuffer();
+  const meta = await sharp(resized).metadata();
+  const textOverlayBuffer = await sharp({create:{width:1080,height:1920,channels:4,background:{r:0,g:0,b:0,alpha:0}}})
+    .composite([{input:resized,left:textBox.left+Math.round((textBox.width-meta.width)/2),top:textBox.top+Math.round((textBox.height-meta.height)/2)}]).png().toBuffer();
+  return {textOverlayBuffer, analysis:inspected.analysis};
 }
 
 function cleanKlingOverlayTextLine(value, maxWords = 7, maxChars = 58) {
@@ -39748,8 +39611,16 @@ async function createAnimatedTextOverlay({
     animationLayout,
   });
 
+  let contrastReferences = backgroundReferenceBuffer ? [backgroundReferenceBuffer] : [];
   try {
-    const referenceFiles = [];
+    const frames = await sampleRemoteVideoFrames({videoUrl: backgroundAsset?.public_url,
+      durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS, fractions:[0.1,0.5,0.9]});
+    contrastReferences.push(...frames.map(frame=>frame.buffer));
+  } catch (sampleError) {
+    console.warn("Animated background frame sampling unavailable; checking poster", {ruleId:rule?.id || null,message:sampleError?.message});
+  }
+  const referenceFiles = [];
+  try {
 
     if (backgroundReferenceBuffer) {
       const compactBackgroundReference = await sharp(backgroundReferenceBuffer)
@@ -39786,57 +39657,52 @@ async function createAnimatedTextOverlay({
       throw new Error("No visual reference was available for transparent Reel typography");
     }
 
-    const response = await openai.images.edit({
-      model: ANIMATED_OVERLAY_IMAGE_MODEL,
-      image: referenceFiles,
-      prompt,
-      size: `${ANIMATED_TEXT_PANEL_SOURCE_WIDTH}x${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT}`,
-      quality: "medium",
-      background: "transparent",
-      output_format: "png",
-    });
-    const imageBase64 = response?.data?.[0]?.b64_json;
+    let lastError;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const attemptPrompt = attempt === 1 ? prompt : `${prompt}
 
-    if (!imageBase64) {
-      throw new Error("OpenAI returned no transparent Reel typography image data");
+CORRECTION: The previous text image was rejected: ${String(lastError?.message || "invalid typography").slice(0, 200)}. Output ONLY the requested advertising lettering on a genuinely transparent canvas. The references are context only: do not copy their backgrounds, product, logo or scenery. No card, rectangle, panel or opaque backdrop. Keep lettering comfortably inside the canvas, with generous transparent margins.`;
+      try {
+        const response = await openai.images.edit({
+          model: ANIMATED_OVERLAY_IMAGE_MODEL,
+          image: referenceFiles,
+          prompt: attemptPrompt,
+          size: `${ANIMATED_TEXT_PANEL_SOURCE_WIDTH}x${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT}`,
+          quality: "medium",
+          background: "transparent",
+          output_format: "png",
+        }, {maxRetries:0});
+        const imageBase64 = response?.data?.[0]?.b64_json;
+        if (!imageBase64) throw new Error("OpenAI returned no transparent Reel typography image data");
+        const normalizedPanel = await normalizeGeneratedAnimatedTextPanel(
+          Buffer.from(imageBase64, "base64"), animationLayout
+        );
+        const contrast = await ensureTypographyContrast({overlayBuffer:normalizedPanel.textOverlayBuffer,
+          backgroundBuffers:contrastReferences, textBox:animationLayout?.text});
+        console.info("OpenAI context-aware transparent Reel typography created", {
+          ruleId: rule?.id || null, model: ANIMATED_OVERLAY_IMAGE_MODEL,
+          attempt, referenceCount: referenceFiles.length, ...normalizedPanel.analysis, ...contrast.analysis,
+        });
+        return { textOverlayBuffer: contrast.buffer, contrastAnalysis:contrast.analysis,
+          prompt: attemptPrompt, provider: `${ANIMATED_OVERLAY_IMAGE_MODEL}-transparent-typography` };
+      } catch (error) {
+        lastError = error;
+        const status = Number(error?.status || error?.statusCode || 0);
+        const billingOrAuth = [400, 401, 403, 429].includes(status) ||
+          /insufficient_quota|credit_balance_exhausted|no credits remaining|invalid api key/i.test(`${error?.code || ""} ${error?.message || ""}`);
+        console.warn("Animated AI typography attempt rejected", {
+          ruleId: rule?.id || null, model: ANIMATED_OVERLAY_IMAGE_MODEL,
+          attempt, maxAttempts: 2, retrying: attempt < 2 && !billingOrAuth,
+          message: error?.message,
+        });
+        if (billingOrAuth || attempt === 2) throw error;
+      }
     }
-
-    const normalizedPanel = await normalizeGeneratedAnimatedTextPanel(
-      Buffer.from(imageBase64, "base64"), animationLayout
-    );
-
-    console.info("OpenAI context-aware transparent Reel typography created", {
-      ruleId: rule?.id || null,
-      model: ANIMATED_OVERLAY_IMAGE_MODEL,
-      referenceCount: referenceFiles.length,
-      ...normalizedPanel.analysis,
-    });
-
-    return {
-      textOverlayBuffer: normalizedPanel.textOverlayBuffer,
-      prompt,
-      provider: `${ANIMATED_OVERLAY_IMAGE_MODEL}-transparent-typography`,
-    };
   } catch (error) {
-    console.warn("GPT Image transparent Reel typography was unusable; using emergency text-only fallback", {
-      ruleId: rule?.id || null,
-      model: ANIMATED_OVERLAY_IMAGE_MODEL,
-      message: error?.message,
-    });
-
-    const fallback = await createProfessionalFallbackAnimatedTextOverlay({
-      rule, backgroundAsset, backgroundBrightness, dominantColor,
-    });
-    const fallbackPanel = await sharp(fallback).extract({
-      left: ANIMATED_TEXT_PANEL_LEFT, top: ANIMATED_TEXT_PANEL_TOP,
-      width: ANIMATED_TEXT_PANEL_WIDTH, height: ANIMATED_TEXT_PANEL_HEIGHT,
-    }).png().toBuffer();
-    const positionedFallback = await normalizeGeneratedAnimatedTextPanel(fallbackPanel, animationLayout, { trustedFallback: true });
-    return {
-      textOverlayBuffer: positionedFallback.textOverlayBuffer,
-      prompt,
-      provider: "fallback_text_only_typography",
-    };
+    const failure = new Error(`Animated AI typography could not be created and validated. No substitute text was used. Reason: ${error?.message || "Unknown provider error"}`);
+    failure.code = "ANIMATED_AI_TYPOGRAPHY_FAILED";
+    failure.cause = error;
+    throw failure;
   }
 }
 
@@ -40156,19 +40022,20 @@ async function createAnimatedProductVideoAssets({
       reasons: selection.reasons,
       top_candidates: selection.topCandidates,
       animation_layout: animationLayout,
+      typography_contrast: textOverlay.contrastAnalysis || null,
       product_image_presentation: selectedProductImage.analysis || null,
     },
   };
 }
 
-async function uploadRenderedVideoToStorage({
+export async function uploadRenderedVideoToStorage({
   supabase,
   videoUrl,
   userId,
   postId,
 }) {
   const safeVideoUrl = await assertPublicHttpUrl(videoUrl);
-  const response = await fetch(safeVideoUrl);
+  const response = await fetch(safeVideoUrl, {signal: AbortSignal.timeout(60_000)});
 
   if (!response.ok) {
     throw new Error(`Could not download rendered video: ${response.status}`);
@@ -40209,6 +40076,7 @@ export async function generateAnimatedProductVideo({
   userId,
   postId,
   costTracker = null,
+  occurrenceId = null,
 }) {
   const assets = await createAnimatedProductVideoAssets({
     openai,
@@ -40263,72 +40131,32 @@ export async function generateAnimatedProductVideo({
     musicTrimStartSeconds: musicSelection?.trimStartSeconds ?? null,
     musicVolume: musicSelection?.volume ?? 0.5,
   });
-  const renderId = await queueShotstackRender(edit);
-
-  await supabase
-    .from("posts")
-    .update({
-      video_render_id: renderId,
-      video_status: "rendering",
-      video_background_asset_id: assets.backgroundAsset.id,
-      video_background_family: assets.backgroundAsset.family,
-      video_background_selection: {
-        ...assets.backgroundSelection,
-        music_applied: Boolean(musicSelection),
-        music_asset_id: musicSelection?.id || null,
-        music_asset_name: musicSelection?.name || null,
-        music_source_url: musicSelection?.url || null,
-        music_asset_duration_seconds: musicSelection?.durationSeconds || null,
-        music_trim_start_seconds: musicSelection?.trimStartSeconds ?? null,
-        music_volume: musicSelection?.volume ?? null,
-        music_selection_score: musicSelection?.score ?? null,
-        music_selection_reasons: musicSelection?.reasons || [],
-        music_recent_use_penalty: musicSelection?.recentUsePenalty ?? null,
-        music_variety_bonus: musicSelection?.varietyBonus ?? null,
-        music_eligible_track_count: musicSelection?.eligibleTrackCount ?? null,
-      },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", postId);
-
-  const render = await waitForShotstackRender({ renderId });
-  if (costTracker?.recordShotstack) {
-    try {
-      await costTracker.recordShotstack({
-        renderId,
-        billableSeconds: render.billableSeconds,
-        plan: render.plan,
-        environment: render.environment,
-      });
-    } catch (costError) {
-      console.warn("Shotstack generation cost tracking failed without affecting the render", {
-        postId,
-        renderId,
-        message: costError?.message || String(costError),
-      });
-    }
-  }
-  const storedVideo = await uploadRenderedVideoToStorage({
-    supabase,
-    videoUrl: render.url,
-    userId,
-    postId,
-  });
-
-  await supabase
-    .from("video_background_assets")
-    .update({
-      times_used: Number(assets.backgroundAsset.times_used || 0) + 1,
-      last_used_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", assets.backgroundAsset.id);
-
-  return {
-    ...assets,
-    ...storedVideo,
-    renderId,
-  };
+  // Persist assets before POST. A crash during submission is an uncertain outcome,
+  // never permission to repeat a potentially billable provider request.
+  let checkpoint={occurrence_id:occurrenceId,origin:occurrenceId?"automation":"admin",phase:"submitting",submitted_at:new Date().toISOString(),
+    poster_url:assets.posterUrl,poster_storage_path:assets.posterStoragePath};
+  const selection={...assets.backgroundSelection,shotstack_checkpoint:checkpoint,
+    music_applied:Boolean(musicSelection),music_asset_id:musicSelection?.id||null,music_asset_name:musicSelection?.name||null};
+  const saved=await supabase.from("posts").update({content:postContent,image_url:assets.posterUrl,image_storage_path:assets.posterStoragePath,
+    image_status:"ready",status:"generating",video_provider:"shotstack",video_render_id:null,video_url:null,video_storage_path:null,video_status:"rendering",video_background_asset_id:assets.backgroundAsset.id,
+    video_background_family:assets.backgroundAsset.family,video_background_selection:selection,
+    updated_at:new Date().toISOString()}).eq("id",postId);
+  if(saved.error)throw Object.assign(new Error(`Could not save Shotstack assets before submission: ${saved.error.message}`),{code:"SHOTSTACK_CHECKPOINT_SAVE_FAILED"});
+  let renderId;
+  try { renderId=await queueShotstackRender(edit); }
+  catch(error){throw Object.assign(new Error(`Shotstack submission was not confirmed. No automatic resubmission is allowed: ${error.message}`),{code:"SHOTSTACK_SUBMISSION_UNKNOWN",cause:error});}
+  checkpoint={...checkpoint,phase:"rendering",render_id:renderId};
+  const recorded=await supabase.from("posts").update({video_render_id:renderId,video_status:"rendering",
+    video_background_selection:{...selection,shotstack_checkpoint:checkpoint},updated_at:new Date().toISOString()}).eq("id",postId);
+  if(recorded.error)throw Object.assign(new Error(`Shotstack job ${renderId} exists but its checkpoint could not be saved: ${recorded.error.message}`),{code:"SHOTSTACK_CHECKPOINT_SAVE_FAILED",renderId});
+  try {
+    const ready=await finishSavedShotstackPost({supabase,post:{id:postId,user_id:userId,video_render_id:renderId,
+      image_url:assets.posterUrl,image_storage_path:assets.posterStoragePath,video_background_selection:{...selection,shotstack_checkpoint:checkpoint}},
+      waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker});
+    await supabase.from("video_background_assets").update({times_used:Number(assets.backgroundAsset.times_used||0)+1,
+      last_used_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",assets.backgroundAsset.id);
+    return {...assets,backgroundSelection:ready.video_background_selection,videoUrl:ready.video_url,videoStoragePath:ready.video_storage_path,renderId};
+  } catch(error){throw shotstackContinuationError(error,renderId);}
 }
 
 async function resolveBrandLogoPublicUrl(supabase, brandProfile) {
@@ -46045,6 +45873,17 @@ async function runAutomationCron(request, options = {}) {
         return { ...result, terminal: false };
       };
 
+      const deferCurrentShotstackJob = async (postId, renderId, status = null) => {
+        const {data,error}=await supabase.rpc("defer_automation_occurrence_for_shotstack", {
+          p_occurrence_id:automationOccurrenceId,p_post_id:postId,p_render_id:renderId,p_status:status,
+        });
+        if(error || !data?.handled)throw Object.assign(new Error(`Could not save Shotstack continuation. Run v144_304_shotstack_continuation.sql. ${error?.message || data?.status || ""}`),{code:"SHOTSTACK_CONTINUATION_SAVE_FAILED"});
+        await finishRunLog("skipped",null,{stage:"shotstack_waiting",post_id:postId,render_id:renderId,
+          provider_status:status,continuation_scheduled:true,retry_at:data.retry_at,new_generation:false});
+        console.info("Existing Shotstack job will continue without regeneration",{postId,renderId,status,retryAt:data.retry_at});
+        summary.skipped+=1;
+      };
+
       const deferCurrentOccurrenceForCampaignResearch = async (
         errorOrMessage,
         extraSummary = {}
@@ -46388,6 +46227,35 @@ async function runAutomationCron(request, options = {}) {
           supabase,
           ruleId: rule.id,
         });
+
+        const savedShotstackDraft = automationDrafts.find(post =>
+          normalizeContentFormat(post.content_format) === "animated_video" && hasShotstackCheckpoint(post) &&
+          post.video_status !== "ready");
+        if (savedShotstackDraft) {
+          automationRunPostId=savedShotstackDraft.id;
+          automationCurrentStage="shotstack_resume";
+          const checkpoint=savedShotstackDraft.video_background_selection?.shotstack_checkpoint;
+          if(checkpoint?.occurrence_id && checkpoint.occurrence_id !== automationOccurrenceId) {
+            throw Object.assign(new Error("A different occurrence still owns this Shotstack job. Automatic regeneration is blocked."),{code:"SHOTSTACK_OCCURRENCE_MISMATCH"});
+          }
+          try {
+            await activeGenerationCostTracker?.bindPost(savedShotstackDraft.id);
+            const finished=await finishSavedShotstackPost({supabase,post:savedShotstackDraft,
+              waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker:activeGenerationCostTracker});
+            automationDrafts=automationDrafts.map(post=>post.id===finished.id?finished:post);
+            await upsertAdminReviewCase(supabase,{occurrence_id:automationOccurrenceId,post_id:finished.id,
+              user_id:rule.user_id,brand_profile_id:rule.brand_profile_id,automation_rule_id:rule.id,
+              status:"awaiting_spreelo",needs_review:true});
+          } catch (resumeError) {
+            if(resumeError?.code === "SHOTSTACK_RENDER_PENDING") {
+              await deferCurrentShotstackJob(savedShotstackDraft.id,savedShotstackDraft.video_render_id,resumeError.lastStatus);
+              continue;
+            }
+            await supabase.from("posts").update({video_status:"failed",video_error:resumeError.message,updated_at:new Date().toISOString()}).eq("id",savedShotstackDraft.id);
+            await failCurrentOccurrence(resumeError,"shotstack_resume",{post_id:savedShotstackDraft.id,render_id:savedShotstackDraft.video_render_id,no_resubmission:true});
+            summary.errors+=1;continue;
+          }
+        }
 
         const staleIncompleteAnimatedVideoDrafts = automationDrafts.filter(
           (post) => isStaleIncompleteAnimatedVideoDraft(post, now)
@@ -48078,6 +47946,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
                 userId: rule.user_id,
                 postId: post.id,
                 costTracker: activeGenerationCostTracker,
+                occurrenceId: automationOccurrenceId,
               });
 
               imageUrl = animatedVideo.posterUrl;
@@ -48135,7 +48004,15 @@ product_research_model_used: websitePreparedRule.uses_website_content
               summary.website_image_used += 1;
               break;
             } catch (videoError) {
+              if (videoRenderId && videoError?.code !== "SHOTSTACK_RENDER_FAILED") {
+                videoError = shotstackContinuationError(videoError, videoRenderId, "done");
+              }
               animatedVideoFinalError = videoError;
+              if(["SHOTSTACK_SUBMISSION_UNKNOWN","SHOTSTACK_CHECKPOINT_SAVE_FAILED"].includes(videoError?.code)) throw videoError;
+              if(videoError?.code === "SHOTSTACK_RENDER_PENDING") {
+                await deferCurrentShotstackJob(post.id,videoError.renderId,videoError.lastStatus);
+                break;
+              }
               console.warn("Animated Reel product attempt failed", {
                 ruleId: rule.id,
                 postId: post.id,
@@ -48164,9 +48041,12 @@ product_research_model_used: websitePreparedRule.uses_website_content
               videoUrl = null;
               videoStoragePath = null;
               videoRenderId = null;
+              // Changing products cannot repair typography; keep the two-call limit.
+              if (["ANIMATED_AI_TYPOGRAPHY_FAILED","SHOTSTACK_SUBMISSION_UNKNOWN","SHOTSTACK_RENDER_FAILED","SHOTSTACK_CHECKPOINT_SAVE_FAILED"].includes(videoError?.code)) break;
             }
           }
 
+          if(animatedVideoFinalError?.code === "SHOTSTACK_RENDER_PENDING") continue;
           if (!videoUrl) {
             const candidateDiagnostics = [
               ...animatedReelRejectedCandidates.map((entry) => ({
@@ -48211,6 +48091,9 @@ product_research_model_used: websitePreparedRule.uses_website_content
             summary.video_generation_failed =
               Number(summary.video_generation_failed || 0) + 1;
             summary.warnings += 1;
+            if (["ANIMATED_AI_TYPOGRAPHY_FAILED","SHOTSTACK_SUBMISSION_UNKNOWN","SHOTSTACK_RENDER_FAILED","SHOTSTACK_CHECKPOINT_SAVE_FAILED"].includes(animatedVideoFinalError?.code)) {
+              throw animatedVideoFinalError;
+            }
           }
         } else if (wantsImage && isWebsiteTextAdRule(ruleWithBrandProfile)) {
           try {

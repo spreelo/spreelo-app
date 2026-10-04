@@ -25,6 +25,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/finalize-shotstack-videos",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/run-brand-analysis-jobs",
       "schedule": "* * * * *"
     },

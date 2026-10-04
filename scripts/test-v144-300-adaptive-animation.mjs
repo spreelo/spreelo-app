@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import sharp from 'sharp';
 import {calculateAnimatedProductLayout,prepareAnimatedProductLayout} from '../lib/animatedProductLayout.js';
+import {inspectTypographyShape} from '../lib/animatedTypographyQuality.js';
 import {buildProductPushEdit} from '../lib/shotstack.js';
 const source=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const extract=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
@@ -30,7 +31,7 @@ assert.equal(prepared.layout.kind,'wide');assert.equal(prepared.sourceBounds.wid
 const metadata=await sharp(prepared.cutoutBuffer).metadata();assert.equal(metadata.width,900);
 const opaque=await sharp({create:{width:150,height:200,channels:4,background:'white'}}).png().toBuffer();
 assert.equal((await prepareAnimatedProductLayout(opaque)).sourceBounds.width,150,'White source pixels must not be removed');
-const ctx=vm.createContext({sharp,Buffer,console,ANIMATED_TEXT_PANEL_SOURCE_WIDTH:1408,ANIMATED_TEXT_PANEL_SOURCE_HEIGHT:480,ANIMATED_TEXT_PANEL_LEFT:128,ANIMATED_TEXT_PANEL_TOP:1280,ANIMATED_TEXT_PANEL_WIDTH:824,ANIMATED_TEXT_PANEL_HEIGHT:281});
+const ctx=vm.createContext({sharp,Buffer,console,inspectTypographyShape,ANIMATED_TEXT_PANEL_SOURCE_WIDTH:1408,ANIMATED_TEXT_PANEL_SOURCE_HEIGHT:480,ANIMATED_TEXT_PANEL_LEFT:128,ANIMATED_TEXT_PANEL_TOP:1280,ANIMATED_TEXT_PANEL_WIDTH:824,ANIMATED_TEXT_PANEL_HEIGHT:281});
 vm.runInContext(extract('async function createAnimatedProductLayer','async function createAnimatedLogoOverlay'),ctx);
 const layer=await ctx.createAnimatedProductLayer({preparedCutoutBuffer:prepared.cutoutBuffer,animationLayout:prepared.layout});
 assert.equal(layer.productWidth,prepared.layout.product.width); assert.equal(layer.productHeight,prepared.layout.product.height);
