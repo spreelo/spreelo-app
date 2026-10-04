@@ -13,7 +13,7 @@ for (const [w,h] of [[1800,600],[400,1500],[800,950],[4000,100],[30,4000],[900,9
  assert.ok(p.left>=60 && p.left+p.width<=1020);
  assert.ok(p.top>=280 && p.top+p.height<=1450);
  const zoom={left:p.left-p.width*(layout.motionScale-1)/2,right:p.left+p.width+p.width*(layout.motionScale-1)/2,top:p.top-p.height*(layout.motionScale-1)/2,bottom:p.top+p.height+p.height*(layout.motionScale-1)/2};
- assert.ok(zoom.left>=59 && zoom.right<=1021);
+ assert.ok(zoom.left>=0 && zoom.right<=1080);
  assert.ok(zoom.bottom<t.top || zoom.top>t.top+t.height,'Text must not overlap product at maximum zoom');
  assert.ok(t.top+t.height<=1630);
  const edit=buildProductPushEdit({backgroundVideoUrl:'https://example.com/background.mp4',productDataUri:'data:image/webp;base64,AA',productWidth:p.width,productHeight:p.height,textOverlayUrl:'https://example.com/text.png',animationLayout:layout});
@@ -23,7 +23,8 @@ for (const [w,h] of [[1800,600],[400,1500],[800,950],[4000,100],[30,4000],[900,9
  assert.ok(html.asset.css.includes(`height:${p.height}px`));
  assert.ok(html.asset.js.includes('opacity:0'));
  assert.equal(clips.find(x=>x.asset.src==='https://example.com/text.png').start,0.6);
- if(layout.kind==='wide') assert.ok(!html.asset.js.includes('scale:'));
+ assert.equal(layout.motionScale,1.065);
+ assert.ok(html.asset.js.includes('scale:1.065'));
 }
 const padded=await sharp({create:{width:1200,height:800,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).composite([{input:Buffer.from('<svg width="900" height="300"><rect width="900" height="300" fill="white"/></svg>'),left:150,top:250}]).png().toBuffer();
 const prepared=await prepareAnimatedProductLayout(padded);

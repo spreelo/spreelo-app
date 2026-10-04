@@ -25,7 +25,7 @@ Object.assign(ctx,{
   ANIMATED_OVERLAY_IMAGE_MODEL:model('gpt-image-2'),
   ANIMATED_TEXT_PANEL_SOURCE_WIDTH:1408, ANIMATED_TEXT_PANEL_SOURCE_HEIGHT:480,
   ANIMATED_TEXT_PANEL_LEFT:128, ANIMATED_TEXT_PANEL_TOP:1280, ANIMATED_TEXT_PANEL_WIDTH:824, ANIMATED_TEXT_PANEL_HEIGHT:281,
-  ANIMATED_VIDEO_DURATION_SECONDS:5, sampleRemoteVideoFrames:async()=>[],
+  ANIMATED_VIDEO_DURATION_SECONDS:7,ANIMATED_VIDEO_MOTION_SECONDS:5, sampleRemoteVideoFrames:async()=>[],
   ensureTypographyContrast:async({overlayBuffer})=>({buffer:overlayBuffer,analysis:{}}),
   getAnimatedOverlayBackgroundReference:async()=>null,
   getAnimatedOverlayBackgroundLuminance:async()=>0.7,

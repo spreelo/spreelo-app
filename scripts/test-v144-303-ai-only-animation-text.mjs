@@ -9,7 +9,7 @@ let rejected=0;
 const requests=[];
 const ctx=vm.createContext({sharp,Buffer,console:{info(){},warn(){}},
  ANIMATED_OVERLAY_IMAGE_MODEL:'gpt-image-2.5-flare',ANIMATED_TEXT_PANEL_SOURCE_WIDTH:1408,ANIMATED_TEXT_PANEL_SOURCE_HEIGHT:480,
- ANIMATED_VIDEO_DURATION_SECONDS:5,sampleRemoteVideoFrames:async()=>[],ensureTypographyContrast:async({overlayBuffer})=>({buffer:overlayBuffer,analysis:{}}),
+ ANIMATED_VIDEO_DURATION_SECONDS:7,ANIMATED_VIDEO_MOTION_SECONDS:5,sampleRemoteVideoFrames:async()=>[],ensureTypographyContrast:async({overlayBuffer})=>({buffer:overlayBuffer,analysis:{}}),
  getAnimatedOverlayBackgroundReference:async()=>null,getAnimatedOverlayBackgroundLuminance:async()=>100,
  getAnimatedOverlayBrightnessLabel:()=> 'medium',buildAnimatedTextPanelPrompt:()=> 'Make room',toFile:async b=>b,
  normalizeGeneratedAnimatedTextPanel:async()=>{if(rejected++===0)throw new Error('opaque card');return {textOverlayBuffer:image,analysis:{}};}});

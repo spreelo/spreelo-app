@@ -14,7 +14,7 @@ const supabase={rpc:async()=>({data:true,error:null}),from(table){return {update
 }};}};
 const waitForRender=async ({renderId})=>{assert.equal(renderId,'saved-render');if(stage==='queued')throw shotstackContinuationError(new Error('queued'),renderId,'queued');return {url:'video'};};
 const ctx=vm.createContext({console:{info(){},warn(){}},Date,Number,String,Boolean,Object,Error,
- ANIMATED_VIDEO_DURATION_SECONDS:5,createAnimatedProductVideoAssets:async()=>{ai++;return {backgroundAsset:{id:'bg'},posterUrl:'poster',posterStoragePath:'poster.png',backgroundSelection:{}};},
+ ANIMATED_VIDEO_DURATION_SECONDS:7,ANIMATED_VIDEO_MOTION_SECONDS:5,ANIMATED_VIDEO_CLOSING_HOLD_SECONDS:2,createAnimatedProductVideoAssets:async()=>{ai++;return {backgroundAsset:{id:'bg'},posterUrl:'poster',posterStoragePath:'poster.png',backgroundSelection:{}};},
  selectBestVideoMusic:async()=>null,getCustomerFacingCampaignTheme:()=>null,buildProductPushEdit:()=>({}),
  queueShotstackRender:async()=>{submissions++;assert.equal(post.video_render_id,null);assert.equal(post.video_background_selection.shotstack_checkpoint.phase,'submitting');return 'saved-render';},
  finishSavedShotstackPost,shotstackContinuationError,waitForShotstackRender:waitForRender,

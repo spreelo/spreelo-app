@@ -226,7 +226,9 @@ const MAX_STALE_CAROUSEL_AUTOMATIC_RECOVERIES = 2;
 const APP_URL = "https://app.spreelo.com";
 const RESEND_FROM_EMAIL = "Spreelo <noreply@spreelo.com>";
 const POST_VIDEOS_BUCKET = "post-videos";
-const ANIMATED_VIDEO_DURATION_SECONDS = 5;
+const ANIMATED_VIDEO_MOTION_SECONDS = 5;
+const ANIMATED_VIDEO_CLOSING_HOLD_SECONDS = 2;
+const ANIMATED_VIDEO_DURATION_SECONDS = ANIMATED_VIDEO_MOTION_SECONDS + ANIMATED_VIDEO_CLOSING_HOLD_SECONDS;
 const KLING_AI_VIDEO_DURATION_SECONDS = Math.max(
   3,
   Math.min(15, Number(process.env.KLING_VIDEO_DURATION_SECONDS || 6) || 6)
@@ -39613,10 +39615,12 @@ async function createAnimatedTextOverlay({
   });
 
   let contrastReferences = backgroundReferenceBuffer ? [backgroundReferenceBuffer] : [];
+  let closingBackgroundBuffer = backgroundReferenceBuffer;
   try {
     const frames = await sampleRemoteVideoFrames({videoUrl: backgroundAsset?.public_url,
-      durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS, fractions:[0.1,0.5,0.9]});
+      durationSeconds: ANIMATED_VIDEO_MOTION_SECONDS, fractions:[0.1,0.5,0.99]});
     contrastReferences.push(...frames.map(frame=>frame.buffer));
+    closingBackgroundBuffer = frames.at(-1)?.buffer || closingBackgroundBuffer;
   } catch (sampleError) {
     console.warn("Animated background frame sampling unavailable; checking poster", {ruleId:rule?.id || null,message:sampleError?.message});
   }
@@ -39684,7 +39688,7 @@ CORRECTION: The previous text image was rejected: ${String(lastError?.message ||
           ruleId: rule?.id || null, model: ANIMATED_OVERLAY_IMAGE_MODEL,
           attempt, referenceCount: referenceFiles.length, ...normalizedPanel.analysis, ...contrast.analysis,
         });
-        return { textOverlayBuffer: contrast.buffer, contrastAnalysis:contrast.analysis,
+        return { textOverlayBuffer: contrast.buffer, contrastAnalysis:contrast.analysis, closingBackgroundBuffer,
           prompt: attemptPrompt, provider: `${ANIMATED_OVERLAY_IMAGE_MODEL}-transparent-typography` };
       } catch (error) {
         lastError = error;
@@ -39984,6 +39988,13 @@ async function createAnimatedProductVideoAssets({
     );
   }
 
+  if (!textOverlay.closingBackgroundBuffer) throw new Error("Animated Reel requires a closing background frame");
+  const closingBackgroundUpload = await uploadGeneratedImageToStorage({
+    supabase, imageBase64: (await sharp(textOverlay.closingBackgroundBuffer).resize(1080, 1920, {fit:"cover"}).png().toBuffer()).toString("base64"),
+    userId, postId, fileSuffix: "animation-closing-background",
+  });
+  if (!closingBackgroundUpload.imageUrl) throw new Error("Could not save animated Reel closing background");
+
   const [
     productLayerUpload,
     productMotionUpload,
@@ -40004,6 +40015,7 @@ async function createAnimatedProductVideoAssets({
 
   return {
     animationLayout,
+    closingBackgroundUrl: closingBackgroundUpload.imageUrl,
     backgroundVideoUrl: selection.asset.public_url,
     productUrl: productMotionUpload.imageUrl,
     productDataUri: productLayer.productDataUri,
@@ -40129,7 +40141,9 @@ export async function generateAnimatedProductVideo({
     productHeight: assets.productHeight,
     textOverlayUrl: assets.textOverlayUrl,
     logoOverlayUrl: assets.logoOverlayUrl,
-    durationSeconds: ANIMATED_VIDEO_DURATION_SECONDS,
+    durationSeconds: ANIMATED_VIDEO_MOTION_SECONDS,
+    closingHoldSeconds: ANIMATED_VIDEO_CLOSING_HOLD_SECONDS,
+    closingBackgroundUrl: assets.closingBackgroundUrl,
     musicUrl: musicSelection?.url || null,
     musicDurationSeconds: musicSelection?.durationSeconds || null,
     musicTrimStartSeconds: musicSelection?.trimStartSeconds ?? null,
@@ -40140,9 +40154,10 @@ export async function generateAnimatedProductVideo({
   let checkpoint={occurrence_id:occurrenceId,origin:occurrenceId?"automation":"admin",phase:"submitting",submitted_at:new Date().toISOString(),
     poster_url:assets.posterUrl,poster_storage_path:assets.posterStoragePath,delivery_context:deliveryContext};
   const selection={...assets.backgroundSelection,shotstack_checkpoint:checkpoint,
+    duration_seconds:ANIMATED_VIDEO_DURATION_SECONDS,motion_seconds:ANIMATED_VIDEO_MOTION_SECONDS,closing_hold_seconds:ANIMATED_VIDEO_CLOSING_HOLD_SECONDS,
     music_applied:Boolean(musicSelection),music_asset_id:musicSelection?.id||null,music_asset_name:musicSelection?.name||null};
   const saved=await supabase.from("posts").update({content:postContent,image_url:assets.posterUrl,image_storage_path:assets.posterStoragePath,
-    image_status:"ready",image_prompt:assets.foregroundPrompt||null,admin_product_items:rule?.website_item?[rule.website_item]:undefined,status:"generating",video_provider:"shotstack",video_render_id:null,video_url:null,video_storage_path:null,video_status:"rendering",video_background_asset_id:assets.backgroundAsset.id,
+    image_status:"ready",video_duration_seconds:ANIMATED_VIDEO_DURATION_SECONDS,image_prompt:assets.foregroundPrompt||null,admin_product_items:rule?.website_item?[rule.website_item]:undefined,status:"generating",video_provider:"shotstack",video_render_id:null,video_url:null,video_storage_path:null,video_status:"rendering",video_background_asset_id:assets.backgroundAsset.id,
     video_background_family:assets.backgroundAsset.family,video_background_selection:selection,
     updated_at:new Date().toISOString()}).eq("id",postId);
   if(saved.error)throw Object.assign(new Error(`Could not save Shotstack assets before submission: ${saved.error.message}`),{code:"SHOTSTACK_CHECKPOINT_SAVE_FAILED"});
