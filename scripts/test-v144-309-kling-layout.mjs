@@ -5,13 +5,13 @@ import { normalizeKlingLayout, klingTypographyGeometry, getKlingTextFrameFractio
 import { buildVideoOverlayEdit } from '../lib/shotstack.js';
 const fallback={left:64,top:190,width:440,height:300};
 const safe=normalizeKlingLayout(null,fallback);
-assert.equal(safe.preferredScale,.74);assert.equal(safe.top,340);
+assert.equal(safe.preferredScale,.96);assert.equal(safe.top,340);
 const invalid=normalizeKlingLayout({left:-500,top:1900,width:9000,height:9000,preferredScale:8,alignment:'bad'},fallback,.95);
-assert(invalid.left>=64&&invalid.left+invalid.width<=940);assert(invalid.top>=340&&invalid.top+invalid.height<=1536);assert.equal(invalid.preferredScale,.9);
+assert(invalid.left>=64&&invalid.left+invalid.width<=940);assert(invalid.top>=340&&invalid.top+invalid.height<=1536);assert.equal(invalid.preferredScale,1);
 assert.deepEqual(normalizeKlingLayout({left:800,top:1200,width:300,height:180},fallback,.2),safe);
 for(const alignment of ['left','center','right']){
- const box=normalizeKlingLayout({left:80,top:600,width:400,height:240,preferredScale:.7,alignment},fallback,.9);
- const p=klingTypographyGeometry(box,200,100);assert.equal(p.left,alignment==='left'?80:alignment==='center'?180:280);assert.equal(p.top,670);
+ const box=normalizeKlingLayout({left:80,top:600,width:600,height:240,preferredScale:.7,alignment},fallback,.9);
+ const p=klingTypographyGeometry(box,200,100);assert.equal(p.left,alignment==='left'?80:alignment==='center'?280:480);assert.equal(p.top,670);
 }
 const fractions=getKlingTextFrameFractions(10,{scene_trim_start_seconds:1.9,overlay_start_seconds:2});
 assert.equal(fractions.length,5);assert.equal(fractions[0],.39);assert.equal(fractions[4],.998);
@@ -30,8 +30,8 @@ const result=await context.placeFinishedKlingTypographyInSafeArea(small,'top_lef
 const {data,info}=await sharp(result.buffer).raw().toBuffer({resolveWithObject:true});
 let minX=1080,maxX=-1,minY=1920,maxY=-1;
 for(let y=0;y<info.height;y++)for(let x=0;x<info.width;x++)if(data[(y*info.width+x)*4+3]>0){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}
-assert.equal(maxX-minX+1,100);assert.equal(maxY-minY+1,50);assert.equal(minX,64);assert(minY>=340);
-console.log('v144.309 layout and compositor behavior passed, including pixel placement and no enlargement.');
+assert.equal(maxX-minX+1,499);assert.equal(maxY-minY+1,250);assert.equal(minX,64);assert(minY>=340);
+console.log('v144.309 layout and compositor behavior passed, including pixel placement and mobile-readable artwork scaling.');
 // Exercise the real logo builder and the existing per-post logo policy.
 const automations=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const policyStart=automations.indexOf('export function shouldUseLogoForRule');

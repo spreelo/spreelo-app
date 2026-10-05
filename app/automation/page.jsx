@@ -6973,6 +6973,7 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
   const [showSmartOnboarding, setShowSmartOnboarding] = useState(false);
   const [smartOnboardingLoading, setSmartOnboardingLoading] = useState(false);
   const [hasCompletedFirstPlan, setHasCompletedFirstPlan] = useState(false);
+  const initialAutoPlanBrandsRef = useRef(new Set());
   const smartOnboardingPreparedRef = useRef(false);
   const smartOnboardingDismissedRef = useRef(false);
   const onboardingPreviewScrollRef = useRef(null);
@@ -7179,6 +7180,18 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
     planCreationMode,
     runtimePlatformCapabilities.pinterestVideo,
   ]);
+
+  // Initialize the draft independently of the informational welcome guide.
+  // loadRules has finished resolving brand capabilities, channels and deep links.
+  useEffect(() => {
+    if (loading || !currentBrandId || !currentBrandProfile || !currentUserEmail) return;
+    if (initialAutoPlanBrandsRef.current.has(currentBrandId)) return;
+    const params = new URLSearchParams(window.location.search);
+    const existingPlanEntry = params.get("plan") || params.get("mode") === "campaign" || params.get("campaignOpportunityId") || params.get("campaignId") || isRecentCalendarCampaignHandoff(getStoredCalendarCampaignHandoff());
+    if (existingPlanEntry || editingRuleId || savedPlanSummary || planCreationMode !== "auto" || slots.length || !autoPlanGoal) return;
+    initialAutoPlanBrandsRef.current.add(currentBrandId);
+    void applyDynamicAutoPlan({ goalId: autoPlanGoal, postCount: autoPlanPostCount });
+  }, [loading, currentBrandId, currentBrandProfile, currentUserEmail, editingRuleId, savedPlanSummary, planCreationMode, slots.length, autoPlanGoal, autoPlanPostCount]);
 
   // The welcome guide never changes an existing plan or starts generation.
   useEffect(() => {

@@ -83,13 +83,13 @@ function getFallbackKlingCta(post) {
   if (swedish) {
     if (raw.includes("contact")) return "Kontakta oss";
     if (raw.includes("book")) return "Boka nu";
-    if (raw.includes("visit")) return "Visit website";
+    if (raw.includes("visit")) return "Besök vår webbutik";
     if (raw.includes("shop")) return "Se produkten";
-    return "Learn more";
+    return "Upptäck sortimentet";
   }
   if (raw.includes("contact")) return "Contact us";
   if (raw.includes("book")) return "Book now";
-  if (raw.includes("visit")) return "Visit website";
+  if (raw.includes("visit")) return "Besök vår webbutik";
   if (raw.includes("shop")) return "View product";
   return "Learn more";
 }
@@ -406,13 +406,15 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
     normalizeKlingCreativeLine(selection?.verified_product_title, { maxWords: 9, maxChars: 62 }) ||
     "Featured product";
   const fallbackSubheadline = normalizeKlingCreativeLine(fallbackCopy?.subheadline, { maxWords: 5, maxChars: 38 });
-  const fallbackCta = normalizeKlingCreativeLine(getFallbackKlingCta(post), { maxWords: 4, maxChars: 28 }) || "Learn more";
+  const fallbackCta = normalizeKlingCreativeLine(getFallbackKlingCta(post), { maxWords: 6, maxChars: 40 }) || "Learn more";
   const fallbackPlan = {
     headline: fallbackHeadline,
     subheadline: fallbackSubheadline,
     cta: fallbackCta,
-    main_placement: "top_left",
+    main_placement: "lower_left",
     cta_placement: "lower_left",
+    main_layout: normalizeKlingLayout(null, { left: 64, top: 1160, width: 720, height: 340 }),
+    cta_layout: normalizeKlingLayout(null, { left: 64, top: 1320, width: 620, height: 180 }, 0, true),
     main_text_tone: "light",
     cta_text_tone: "light",
     placement_confidence: 0,
@@ -434,10 +436,10 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       "Reject empty generic advertising language such as 'classic comfort for every occasion', 'quality for every day', 'made for every moment', or equivalents unless the supplied product facts genuinely support it. " +
       "Do not invent material, comfort, durability, fit, performance, reviews, scarcity, prices, discounts or other claims. For graphic apparel, you may use the printed theme/motif only when it is explicit in the product title or caption. " +
       "The subheadline is OPTIONAL and should usually be empty. Return an empty string unless a short 2-5 word line adds clear advertising value beyond the headline. Never use filler, product-category labels, gender labels, material facts or catalogue descriptors as the subheadline. " +
-      "Choose the CTA from the actual purpose of THIS post, the verified product or service type, the campaign goal, the CTA setting and the intended next user action. The CTA must be 1-4 words, max 24 characters, natural in the same language and specifically useful for what the viewer should do next. " +
+      "The cta field is a non-interactive closing advertising line, NOT a clickable video button. Use 2-6 words, max 40 characters, tailored to THIS product, audience and campaign goal. For sales, a natural invitation to explore the verified product or store can work; for engagement, a relevant short question can work. Never imply the video itself is clickable, or invent a link in the bio, caption, a tag, swipe-up or shopping feature. Avoid repeating a fixed phrase on every post. " +
       "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
       "Choose main_placement from top_left, top_right, middle_left, middle_right, lower_left, lower_right so the headline avoids the advertised product and especially its print/design, plus faces, hands and the main action ACROSS ALL supplied frames. " +
-      "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.55-0.9) and alignment (left, center, right). Choose compact negative space across the entire text display interval; never cover faces, hands or product print. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose main width 260-660, height 140-300; CTA width 260-500, height 140-240. preferredScale controls the intended size INSIDE that box; do not fill all available space. " +
+      "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, often below the product print; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose main width 520-820, height 240-420; closing line width 520-760, height 140-240. Use bold mobile-readable hierarchy and purposeful line breaks. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
       "Choose cta_placement independently for the final frame, and prefer a different safe region from the main placement whenever possible. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
   }];
   for (const frame of frames) {
@@ -461,6 +463,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
             type: "object",
             additionalProperties: false,
             properties: {
+              design_direction: { type: "string" },
               headline: { type: "string" },
               subheadline: { type: "string" },
               cta: { type: "string" },
@@ -473,7 +476,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
               placement_confidence: { type: "number", minimum: 0, maximum: 1 },
             },
             required: [
-              "headline", "subheadline", "cta", "main_placement", "cta_placement",
+              "design_direction", "headline", "subheadline", "cta", "main_placement", "cta_placement",
               "main_text_tone", "cta_text_tone", "placement_confidence", "main_layout", "cta_layout"
             ],
           },
@@ -483,8 +486,9 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
     const parsed = JSON.parse(getOpenAiTextOutput(response));
     const headline = normalizeKlingCreativeLine(parsed?.headline, { maxWords: 6, maxChars: 48 }) || fallbackHeadline;
     const subheadline = normalizeKlingCreativeLine(parsed?.subheadline, { maxWords: 5, maxChars: 36 });
-    const cta = normalizeKlingCreativeLine(parsed?.cta, { maxWords: 4, maxChars: 24 }) || fallbackCta;
+    const cta = normalizeKlingCreativeLine(parsed?.cta, { maxWords: 6, maxChars: 40 }) || fallbackCta;
     return {
+      design_direction: truncate(parsed?.design_direction, 600),
       headline,
       subheadline,
       cta,
@@ -873,7 +877,7 @@ async function placeFinishedKlingTypographyInSafeArea(buffer, placement, layout 
       width: Math.max(120, Math.round(box.width * box.preferredScale)),
       height: Math.max(100, Math.round(box.height * box.preferredScale)),
       fit: "inside",
-      withoutEnlargement: true,
+      withoutEnlargement: false,
       kernel: sharp.kernel.lanczos3,
     })
     .ensureAlpha()
@@ -985,8 +989,8 @@ async function splitCombinedKlingTypographyOverlay(buffer) {
 async function createKlingCtaOverlay({ supabase, post, selection, creativePlan, sourceBuffer = null }) {
   if (String(selection?.cta_overlay_url || "").trim()) return selection;
   const cta =
-    normalizeKlingCreativeLine(creativePlan?.cta, { maxWords: 4, maxChars: 24 }) ||
-    normalizeKlingCreativeLine(getFallbackKlingCta(post), { maxWords: 4, maxChars: 28 });
+    normalizeKlingCreativeLine(creativePlan?.cta, { maxWords: 6, maxChars: 40 }) ||
+    normalizeKlingCreativeLine(getFallbackKlingCta(post), { maxWords: 6, maxChars: 40 });
   if (!cta) return selection;
   const placement = creativePlan?.cta_placement || "lower_left";
   const box = creativePlan?.cta_layout || normalizeKlingLayout(null, getKlingPlacementBox(placement, "lower_left"), 0, true);
@@ -1015,27 +1019,22 @@ async function createKlingCtaOverlay({ supabase, post, selection, creativePlan, 
     };
   }
 
-  const profile = getProductTypographyProfile(cta);
-  const family = escapeProductSvg(profile?.family || "Noto Sans");
-  const direction = profile?.direction === "rtl" ? "rtl" : "ltr";
-  const fontSize = Array.from(cta).length > 18 ? 38 : Array.from(cta).length > 12 ? 42 : 46;
-  const estimatedTextWidth = Math.round(Array.from(cta).length * fontSize * 0.58);
-  const pillWidth = Math.max(230, Math.min(box.width - 12, estimatedTextWidth + 120));
-  const pillHeight = 96;
-  const x = Math.round(box.left + (box.width - pillWidth) / 2);
-  const y = Math.round(box.top + (box.height - pillHeight) / 2);
-  const lightText = creativePlan?.cta_text_tone === "light";
-  const fill = lightText ? "#111827" : "#FFFFFF";
-  const textFill = lightText ? "#FFFFFF" : "#111827";
-  const border = lightText ? "#FFFFFF" : "#111827";
-  const textX = x + Math.round(pillWidth / 2) - 14;
-  const textY = y + 61;
-  const arrowX = x + pillWidth - 38;
-  const svg = `<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
-    <rect x="${x}" y="${y}" width="${pillWidth}" height="${pillHeight}" rx="48" fill="${fill}" fill-opacity="0.92" stroke="${border}" stroke-opacity="0.7" stroke-width="2"/>
-    <text x="${textX}" y="${textY}" text-anchor="middle" font-family="${family}, Noto Sans, sans-serif" font-size="${fontSize}" font-weight="800" fill="${textFill}" direction="${direction}" unicode-bidi="plaintext">${escapeProductSvg(cta)}</text>
-    <text x="${arrowX}" y="${textY}" text-anchor="middle" font-family="Noto Sans, sans-serif" font-size="42" font-weight="800" fill="${textFill}">→</text>
-  </svg>`;
+  // The fallback is lettering, never a fake interactive pill or arrow.
+  const textLayout = layoutDeterministicTypography(cta, {
+    maxWidth: box.width * box.preferredScale,
+    maxLines: 2,
+    sizes: [64, 60, 56, 52, 48, 44],
+  });
+  const family = escapeProductSvg(getProductTypographyProfile(cta)?.family || "Noto Sans");
+  const direction = getProductTypographyProfile(cta)?.direction === "rtl" ? "rtl" : "ltr";
+  const lightText = creativePlan?.cta_text_tone !== "dark";
+  const fill = lightText ? "#FFFFFF" : "#111827";
+  const stroke = lightText ? "#111827" : "#FFFFFF";
+  const anchor = box.alignment === "center" ? "middle" : box.alignment === "right" ? "end" : "start";
+  const x = box.left + (box.alignment === "center" ? box.width / 2 : box.alignment === "right" ? box.width : 0);
+  const top = box.top + Math.max(0, box.height - textLayout.lines.length * textLayout.lineHeight) / 2;
+  const lines = textLayout.lines.map((line, i) => `<text x="${x}" y="${top + textLayout.fontSize + i * textLayout.lineHeight}" text-anchor="${anchor}" font-family="${family}, Noto Sans, sans-serif" font-size="${textLayout.fontSize}" font-weight="800" fill="${fill}" stroke="${stroke}" stroke-width="2" paint-order="stroke fill" direction="${direction}" unicode-bidi="plaintext">${escapeProductSvg(line)}</text>`).join("");
+  const svg = `<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">${lines}</svg>`;
   const buffer = await sharp(Buffer.from(svg)).ensureAlpha().png({ compressionLevel: 9 }).toBuffer();
   const uploaded = await uploadKlingCtaOverlay({ supabase, post, buffer });
   return {
@@ -1135,8 +1134,10 @@ async function createDeterministicKlingTypographyFallback({ supabase, post, sele
     headline,
     subheadline,
     cta: getFallbackKlingCta(post),
-    main_placement: "top_left",
+    main_placement: "lower_left",
     cta_placement: "lower_left",
+    main_layout: normalizeKlingLayout(null, { left: 64, top: 1160, width: 720, height: 340 }),
+    cta_layout: normalizeKlingLayout(null, { left: 64, top: 1320, width: 620, height: 180 }, 0, true),
     main_text_tone: "light",
     cta_text_tone: "light",
     placement_confidence: 0,
@@ -1311,7 +1312,8 @@ The supplied images are real frames from the FINISHED video, followed optionally
 EXACT VISIBLE TEXT — render exactly these words, with exact spelling and language:
 Main headline: "${headline}"
 ${subheadline ? `Subheadline: "${subheadline}"` : "No subheadline."}
-CTA ending text: "${creativePlan.cta || getFallbackKlingCta(post)}"
+Non-interactive closing line: "${creativePlan.cta || getFallbackKlingCta(post)}"
+Art direction for THIS video: ${creativePlan.design_direction || "Confident editorial lettering chosen to suit the product and scene."}
 
 DESIGN:
 - Make the typography feel specifically art-directed for the finished video and product, as a professional short commercial rather than generic system text.
@@ -1320,11 +1322,11 @@ DESIGN:
 - Mostly light/white or dark high-contrast lettering as the frames require.
 - You MAY make the typography more alive with a restrained accent color, a compact underline, a SMALL brush stroke, a SMALL crown/flourish, or another SMALL graphic accent when it genuinely suits the content.
 - Decorative accents must stay visually attached to the lettering and close to the text. They are part of the typography design, never a background.
-- Create TWO separate compact text groups on the same transparent canvas: (1) one grouped main-message design containing the headline and optional subheadline, and (2) one smaller grouped CTA design that feels art-directed in the same visual language.
+- Create TWO separate compact text groups on the same transparent canvas: (1) one grouped main-message design containing the headline and optional subheadline, and (2) one secondary grouped closing-line design that feels art-directed in the same visual language.
 - Keep a LARGE transparent gap between the main-message group and the CTA group so Spreelo can separate them into timed layers after this single generation.
-- The CTA design may be plain text or a compact bespoke accent shape if it genuinely suits the ad, but NEVER a generic app-style button.
-- Keep the overall composition compact. Spreelo will crop the main-message group and the CTA group separately and place them deterministically inside scene-safe regions chosen from the supplied finished frames. Do not try to fill the canvas.
-- NO large card, panel, sticker base, banner, rectangle or opaque plate behind the text. A small CTA accent shape is allowed only when it is tightly fitted to the CTA lettering.
+- The closing line is prominent, readable typography, NOT an interactive control. NO button, pill, rounded rectangle, clickable-looking badge or navigation arrow. A restrained underline or typographic accent is allowed. Do not imply the video is clickable.
+- Render each text group at a generous high-resolution size on this working canvas, with strong letterforms; do not make microscopic text. Spreelo crops the groups separately and fits each into the broad scene-safe regions. Keep text to one or two intentional lines where possible, never a cramped corner label.
+- NO large card, panel, sticker base, banner, rectangle or opaque plate behind the text. Only a small underline or typographic accent attached to lettering is allowed.
 - NO shadow of any kind (including drop shadow, soft shadow or long shadow), no glow, haze, mist, blur or atmospheric halo. Use crisp lettering and crisp decorative accents instead.
 
 TRANSPARENCY / LAYER RULE — CRITICAL:
