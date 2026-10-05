@@ -30,6 +30,9 @@ Object.assign(ctx,{
   getAnimatedOverlayBackgroundReference:async()=>null,
   getAnimatedOverlayBackgroundLuminance:async()=>0.7,
   getAnimatedOverlayBrightnessLabel:()=> 'light',
+  planAnimatedAdvertisingCopy:async()=>({headline:'A new advertising idea'}),
+  verifyAnimatedAdvertisingTypography:async()=>({verified:true}),
+  PRODUCT_RESEARCH_FAST_MODEL:'gpt-4.1-mini',
   buildAnimatedTextPanelPrompt:()=> 'Typography only',
   toFile:async buffer=>buffer,
   normalizeGeneratedAnimatedTextPanel:async()=>({textOverlayBuffer:Buffer.from('overlay'),analysis:{}}),
@@ -40,6 +43,17 @@ const args={rule:{id:'test'},productReferenceBuffer:transparentLogo,openai:{imag
 const result=await ctx.createAnimatedTextOverlay(args);
 assert.equal(request.model,'gpt-image-2.5-flare'); assert.equal(request.background,'transparent'); assert.equal(request.output_format,'png'); assert.equal(request.quality,'medium');
 assert.equal(result.provider,'gpt-image-2.5-flare-transparent-typography'); assert.equal(fallbackCalls,0);
+let readbacks=0, imageAttempts=0;
+ctx.verifyAnimatedAdvertisingTypography=async()=>{readbacks++;throw new Error('missing locked word');};
+args.openai.images.edit=async r=>{imageAttempts++;return {data:[{b64_json:transparentLogo.toString('base64')}]};};
+await assert.rejects(ctx.createAnimatedTextOverlay(args), error=>error.code==='ANIMATED_AI_TYPOGRAPHY_FAILED');
+assert.equal(imageAttempts,2);assert.equal(readbacks,2);assert.equal(fallbackCalls,0);
+ctx.verifyAnimatedAdvertisingTypography=async()=>({verified:true});
+ctx.planAnimatedAdvertisingCopy=async()=>{throw new Error('copied physical product wording');};
+imageAttempts=0;
+await assert.rejects(ctx.createAnimatedTextOverlay(args), error=>error.code==='ANIMATED_AI_TYPOGRAPHY_FAILED');
+assert.equal(imageAttempts,0,'Rejected copy never reaches the paid image renderer');
+ctx.planAnimatedAdvertisingCopy=async()=>({headline:'A new advertising idea'});
 args.openai.images.edit=async()=>{throw new Error('provider unavailable');};
 await assert.rejects(ctx.createAnimatedTextOverlay(args), error => error.code === 'ANIMATED_AI_TYPOGRAPHY_FAILED');
 assert.equal(fallbackCalls,0);

@@ -1,3 +1,4 @@
+import { planAnimatedAdvertisingCopy, verifyAnimatedAdvertisingTypography } from "../../../../lib/animatedAdvertisingCopy.js";
 import { classifyOpenAiServiceError, recordOpenAiRuntimeResult } from "../../../../lib/openAiRuntimeHealth.js";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI, { toFile } from "openai";
@@ -38375,7 +38376,9 @@ function buildAnimatedTextPanelPrompt({
   hasBackgroundReference,
   hasProductReference,
   animationLayout = null,
+  advertisingCopy,
 }) {
+  if (!advertisingCopy?.headline) throw new Error("Locked animation advertising headline is required");
   const websiteItem = rule?.website_item || {};
   const brand = rule?.brand_profile || {};
   const presentation = getCarouselProductLabelPresentation(
@@ -38437,27 +38440,24 @@ Transparent output contract:
 - Do not simulate transparency with white, checkerboard or chroma colors.
 - A subtle text shadow, outline, highlight, underline, tiny linework or restrained flourish is allowed only when attached to the typography and useful for readability.
 
-Advertising message:
-- Write one concise advertising headline in ${contentLanguage}, normally 3–7 words and no more than two strong lines.
-- Give a relevant reason to care about this product, using the verified product identity and the supplied post/campaign context.
-- Do not simply duplicate wording already printed prominently on the product. The product name is context, not a mandatory headline.
-- Verified product name: "${mainTitle}". ${productBrand ? `Verified brand: "${productBrand}".` : ""}
-- Verified descriptor: "${secondaryLineContent || "none supplied"}".
+EXACT LOCKED ADVERTISING TEXT:
+- Render ONLY this headline, verbatim: ${JSON.stringify(advertisingCopy.headline)}
+- Preserve every word, letter and accent in the same order. Capitalization and line breaks may change for typography, but never omit, add, translate or rewrite wording.
+- Do not compose any new copy. No secondary product-name line, printed slogan, URL, hashtag, tiny caption or button label.
+- The product name and post copy below are CONTEXT ONLY, never text to render.
+- Verified product name (context only): ${JSON.stringify(mainTitle)}.
 - Supplied post copy (context only): ${truncateText(stripDetectedPrices(String(postContent || "")), 900)}
-- Never invent material, quality, comfort, sustainability, availability, performance, endorsements, discounts, prices or other product claims.
-- Use a subjective invitation or theme when no factual benefit is verified. Do not infer product features from appearance.
-- The product name may appear as a smaller secondary line ONLY if it adds useful information and does not repeat the headline or product print.
-- Do not add hashtags, URLs, tiny captions, buttons or extra decorative words. At most a headline and one optional short product-name line.
+- Keep all physical product lettering on the product reference only. Do not copy its text, lettering layout, font treatment or slogan fragments into this overlay.
 
 Mobile readability:
-- The main product name is the visual focus and must be immediately readable on a phone.
+- The locked advertising headline is the visual focus and must be immediately readable on a phone.
 - Use one or two strong balanced lines when possible.
 - Keep generous transparent outer margins so no letter is clipped.
 - Avoid tiny text, thin hairlines, pixel fonts, fake glyphs or overdecorated lettering. Keep secondary text large enough to read on a phone.
 - This asset will occupy ${animationLayout?.text?.width || ANIMATED_TEXT_PANEL_WIDTH} x ${animationLayout?.text?.height || ANIMATED_TEXT_PANEL_HEIGHT} pixels in the final 1080 x 1920 video, ${animationLayout?.kind === "wide" ? "ABOVE a wide product" : "BELOW the product"}. Design for this final readable size, not the larger source canvas.
 
 Art direction:
-- Match the actual product, moving-video palette and campaign/theme so the typography feels specifically art-directed for this post.
+- Match the moving-video palette and campaign/theme with independent advertising typography. Never imitate the product print's font or stacked slogan layout. Choose an original treatment suited to this post.
 - Choose the most suitable premium treatment: editorial serif, modern geometric sans, condensed display, refined expressive lettering or another professional style that genuinely fits.
 - Do not look like a generic template or Canva label.
 - ${contrastDirection}
@@ -39603,6 +39603,17 @@ async function createAnimatedTextOverlay({
   );
   const backgroundBrightness =
     getAnimatedOverlayBrightnessLabel(backgroundLuminance);
+  let advertisingCopy;
+  try {
+    advertisingCopy = await planAnimatedAdvertisingCopy({
+      openai, model: PRODUCT_RESEARCH_FAST_MODEL, rule, postContent, productReferenceBuffer,
+    });
+  } catch (error) {
+    const failure = new Error(`Animation advertising copy could not be verified: ${error?.message || "Unknown error"}`);
+    failure.code = "ANIMATED_AI_TYPOGRAPHY_FAILED";
+    failure.cause = error;
+    throw failure;
+  }
   const prompt = buildAnimatedTextPanelPrompt({
     rule,
     postContent,
@@ -39612,6 +39623,7 @@ async function createAnimatedTextOverlay({
     hasBackgroundReference: Boolean(backgroundReferenceBuffer),
     hasProductReference: Boolean(productReferenceBuffer),
     animationLayout,
+    advertisingCopy,
   });
 
   let contrastReferences = backgroundReferenceBuffer ? [backgroundReferenceBuffer] : [];
@@ -39684,12 +39696,16 @@ CORRECTION: The previous text image was rejected: ${String(lastError?.message ||
         );
         const contrast = await ensureTypographyContrast({overlayBuffer:normalizedPanel.textOverlayBuffer,
           backgroundBuffers:contrastReferences, textBox:animationLayout?.text});
+        const copyValidation = await verifyAnimatedAdvertisingTypography({
+          openai, model: PRODUCT_RESEARCH_FAST_MODEL, buffer: contrast.buffer,
+          headline: advertisingCopy.headline,
+        });
         console.info("OpenAI context-aware transparent Reel typography created", {
           ruleId: rule?.id || null, model: ANIMATED_OVERLAY_IMAGE_MODEL,
           attempt, referenceCount: referenceFiles.length, ...normalizedPanel.analysis, ...contrast.analysis,
         });
         return { textOverlayBuffer: contrast.buffer, contrastAnalysis:contrast.analysis, closingBackgroundBuffer,
-          prompt: attemptPrompt, provider: `${ANIMATED_OVERLAY_IMAGE_MODEL}-transparent-typography` };
+          advertisingCopy, copyValidation, prompt: attemptPrompt, provider: `${ANIMATED_OVERLAY_IMAGE_MODEL}-transparent-typography` };
       } catch (error) {
         lastError = error;
         const status = Number(error?.status || error?.statusCode || 0);
@@ -40036,6 +40052,8 @@ async function createAnimatedProductVideoAssets({
       top_candidates: selection.topCandidates,
       animation_layout: animationLayout,
       typography_contrast: textOverlay.contrastAnalysis || null,
+      advertising_headline: textOverlay.advertisingCopy?.headline || null,
+      advertising_copy_validation: textOverlay.copyValidation || null,
       product_image_presentation: selectedProductImage.analysis || null,
     },
   };
