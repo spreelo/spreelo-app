@@ -1,4 +1,4 @@
-import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeKlingEndCardLogo, buildFallbackKlingEndCard, KLING_END_CARD_SECONDS, KLING_END_CARD_TRANSITION_SECONDS } from "../../../../lib/klingEndCard.js";
+import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeKlingAdvertisingEndCard, buildFallbackKlingEndCard, KLING_END_CARD_SECONDS, KLING_END_CARD_TRANSITION_SECONDS } from "../../../../lib/klingEndCard.js";
 import { completeShotstackDeliveryForPost, fetchBrandLogoBufferForOverlay } from "../run-automations/route.js";
 import { normalizeKlingLayout, klingTypographyGeometry, getKlingTextFrameFractions } from "../../../../lib/klingLayout.js";
 import { createClient } from "@supabase/supabase-js";
@@ -766,7 +766,7 @@ async function uploadKlingClosingHeroFrame({ supabase, post, buffer }) {
 }
 
 async function uploadKlingEndCardFrame({ supabase, post, buffer }) {
-  const storagePath = `${post.user_id}/${post.id}-kling-end-card-v314.png`;
+  const storagePath = `${post.user_id}/${post.id}-kling-end-card-v315.png`;
   const { error } = await supabase.storage.from(POST_IMAGES_BUCKET)
     .upload(storagePath, buffer, { contentType: "image/png", upsert: true });
   if (error) throw error;
@@ -1322,15 +1322,17 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     );
     const uploaded = await uploadKlingTypographyOverlay({ supabase, post, buffer: normalized.buffer });
     const endCard = await uploadKlingEndCardFrame({ supabase, post,
-      buffer: await composeKlingEndCardLogo(splitOverlay.endCard, logoBuffer) });
+      buffer: await composeKlingAdvertisingEndCard({ background: splitOverlay.endCard, closingText: splitOverlay.closingText, closingLine: creativePlan.cta || getFallbackKlingCta(post), brand, logoBuffer }) });
     let completedSelection = {
       ...workingSelection,
       end_card_url: endCard.imageUrl,
       end_card_storage_path: endCard.storagePath,
-      end_card_provider: "gpt-image-2.5-flare-shared-atlas",
+      end_card_provider: "gpt-image-2.5-flare-separated-atlas-v315",
       end_card_seconds: KLING_END_CARD_SECONDS,
       end_card_brand_name: brand.business_name || null,
       end_card_has_logo: Boolean(logoBuffer),
+      end_card_background_bounds: splitOverlay.backgroundBounds,
+      end_card_text_alignment: "center_visible_bounds",
       text_overlay_url: uploaded.imageUrl,
       text_overlay_storage_path: uploaded.storagePath,
       text_overlay_provider: "gpt-image-2.5-flare-finished-video-shared-overlay",

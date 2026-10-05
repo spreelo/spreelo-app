@@ -1,5 +1,7 @@
 "use client";
 
+import { DEFAULT_WEBSITE_POST_PROMPTS } from "../../lib/websitePostIntent.js";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -481,7 +483,7 @@ const contentTypes = [
     description:
       "Pick one verified website product and let AI create a premium 4:5 editorial product post with readable text and a product-specific background.",
     prompt:
-      "Use the website URL from the brand profile. Identify one concrete, verified product with a usable product image from the website. Create a social media post that promotes that specific product in a helpful, trustworthy and sales-focused way. Use only information that clearly appears on the website. Do not substitute a service, listing or generic category, and do not invent prices, discounts, guarantees, features or availability.",
+      DEFAULT_WEBSITE_POST_PROMPTS.website_item,
     imagePrompt:
       "Create a premium 4:5 editorial product post around the verified product. If the website image already has real transparency, place that exact product inside the working 4:5 canvas and generate the full finished composition around it in one pass while preserving the product unchanged. If it does not have transparency, skip background-removal attempts and faithfully recreate the exact product inside the finished composition. Give the product generous space, keep the typography slightly smaller and more restrained, reserve a bottom safe zone for an optional later logo overlay, and show only a centered mobile-readable headline plus the exact product/model name. No third copy row, CTA button, price, ratings or invented claims.",
     usesWebsiteContent: true,
@@ -493,7 +495,7 @@ const contentTypes = [
     description:
       "Pick one website product and let AI create a full ad-style post image with text, tailored to that product.",
     prompt:
-      "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website. Create a social media post caption that promotes that specific item in a helpful, trustworthy and sales-focused way. The caption should work together with a product-specific ad image. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
+      DEFAULT_WEBSITE_POST_PROMPTS.website_item_text_ad,
     imagePrompt:
       "Create a full ad-style image around the selected website item. Use the real website item image as the basis when possible, and design a unique social media ad that fits that exact product. Include short readable marketing text in the image. Do not include price, ratings or invented discounts. If an authorized campaign offer is explicitly supplied in the post instruction, show only that exact discount and campaign code without changing them.",
     usesWebsiteContent: true,
@@ -505,7 +507,7 @@ const contentTypes = [
     description:
       "Pick one real website product and turn it into a 9:16 Reel using the best matching uploaded video background.",
     prompt:
-      "Use the website URL from the brand profile. Identify one concrete product, service, listing, offer or other sellable item from the website. Create a social media caption that promotes that exact item in a helpful, trustworthy and sales-focused way. The caption will be paired with a short animated product video. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
+      DEFAULT_WEBSITE_POST_PROMPTS.animated_website_item,
     imagePrompt:
       "Create a premium 9:16 animated product Reel. Use an uploaded moving background selected from the Spreelo library, create the product and overlay design with OpenAI, and animate the foreground with a smooth zoom in and zoom out plus only a slight side drift. Do not add a fake button.",
     usesWebsiteContent: true,
@@ -519,7 +521,7 @@ const contentTypes = [
     description:
       "Turn one verified website product image into a real 6-second 9:16 AI video with a product-safe, attention-grabbing concept.",
     prompt:
-      "Use the website URL from the brand profile. Identify one concrete, verified product with a usable product image from the website. Create a social media caption that promotes that exact product in a helpful, trustworthy and sales-focused way. The caption will be paired with a short AI-generated product video. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, features or availability.",
+      DEFAULT_WEBSITE_POST_PROMPTS.ai_product_video,
     imagePrompt:
       "Create a 6-second 9:16 AI product video from the verified product image. Use a strong scroll-stopping hook that genuinely fits the product. The uploaded product image is authoritative: only show product surfaces and details already visible in that image. Never reveal or invent the back, sides, top, bottom, underside, interior or hidden labels. Keep the product at the same visible camera angle and preserve visible branding, colors, proportions and printed details exactly.",
     usesWebsiteContent: true,
@@ -533,7 +535,7 @@ const contentTypes = [
     description:
       "Show five verified products in five coordinated AI-designed slides. The fifth product slide also carries the closing CTA.",
     prompt:
-      "Use the website URL from the brand profile. Identify several concrete products, services, listings, offers or other sellable items from the website and create a swipeable carousel draft around them. The carousel should feel like a curated collection, guide, comparison or campaign post with one clear shared theme. Use only information that clearly appears on the website. Do not invent prices, discounts, guarantees, opening hours, features or availability.",
+      DEFAULT_WEBSITE_POST_PROMPTS.carousel_website_item,
     imagePrompt:
       "Use relevant images connected to the selected website items if they can be found. Avoid logos, banners, hero images, decorative icons and unrelated images. If enough verified item images cannot be found, stop instead of inventing products.",
     usesWebsiteContent: true,

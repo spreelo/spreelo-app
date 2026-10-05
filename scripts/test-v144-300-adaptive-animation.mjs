@@ -48,8 +48,8 @@ for(const layout of [prepared.layout,calculateAnimatedProductLayout(400,1500)]) 
 }
 Object.assign(ctx,{getCarouselProductLabelPresentation:()=>({title:'Printed slogan shirt'}),truncateText:(s,n)=>String(s).slice(0,n),sanitizeProductTitleForCard:s=>s,rgbToHex:()=> '#004499',stripDetectedPrices:s=>s,getAnimatedOverlayThemeContext:()=> 'brand awareness'});
 vm.runInContext(extract('function buildAnimatedTextPanelPrompt','function splitAnimatedOverlayTitle'),ctx);
-const prompt=ctx.buildAnimatedTextPanelPrompt({rule:{language:'English'},postContent:'Discover the collection',animationLayout:prepared.layout});
-assert.ok(prompt.includes('ABOVE a wide product'));assert.ok(prompt.includes('3–7 words'));assert.ok(prompt.includes('Never invent'));assert.ok(prompt.includes('Do not simply duplicate wording'));assert.ok(!prompt.includes('all words preserved'));
+const prompt=ctx.buildAnimatedTextPanelPrompt({rule:{language:'English'},postContent:'Discover the collection',animationLayout:prepared.layout,advertisingCopy:{headline:'Make room'}});
+assert.ok(prompt.includes('ABOVE a wide product'));assert.ok(prompt.includes('EXACT LOCKED ADVERTISING TEXT'));assert.ok(prompt.includes('Make room'));assert.ok(prompt.includes('Do not compose any new copy'));assert.ok(prompt.includes('Never imitate the product print'));assert.ok(prompt.includes('The real product is the visual focus'));
 console.log('v144.300 adaptive layout, alpha bounds, aspect ratios, zoom safety, Shotstack payload, typography placement and advertising instructions passed');
 
 vm.runInContext(extract('async function getAnimatedOverlayBackgroundLuminance','function getAnimatedOverlayBrightnessLabel'),ctx);

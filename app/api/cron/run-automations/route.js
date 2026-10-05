@@ -1,3 +1,4 @@
+import { removeDefaultWebsitePostInstructions } from "../../../../lib/websitePostIntent.js";
 import { planAnimatedAdvertisingCopy, verifyAnimatedAdvertisingTypography } from "../../../../lib/animatedAdvertisingCopy.js";
 import { classifyOpenAiServiceError, recordOpenAiRuntimeResult } from "../../../../lib/openAiRuntimeHealth.js";
 import { createClient } from "@supabase/supabase-js";
@@ -473,7 +474,6 @@ const CAROUSEL_FINAL_BROAD_FALLBACK_MIN_CONFIDENCE = 50;
 const WEBSITE_TEXT_INTENT_MATCH_TERM_LIMIT = 18;
 const WEBSITE_TEXT_INTENT_QUERY_LIMIT = 10;
 const WEBSITE_TEXT_INTENT_AVOID_LIMIT = 12;
-const WEBSITE_TEXT_INTENT_AI_MIN_SIGNAL_TERMS = 2;
 const WEBSITE_TEXT_INTENT_AI_SCORE_MAX_ITEMS = 25;
 const WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT = 12;
 
@@ -20543,7 +20543,7 @@ const genericWebsiteTextIntentTokens = new Set([
 ]);
 
 function stripDefaultWebsiteTextPromptNoise(value) {
-  return String(value || "")
+  return removeDefaultWebsitePostInstructions(value)
     .replace(/this post is part of a strategic content sequence for the goal:[^\n\r.]*\.?/gi, " ")
     .replace(/^post role:\s*.+$/gim, " ")
     .replace(/^strategic purpose:\s*.+$/gim, " ")
@@ -20570,65 +20570,12 @@ function stripDefaultWebsiteTextPromptNoise(value) {
     .replace(/if no clearly relevant product, service, listing or offer image can be found, create a professional ai image based on the selected item instead\.?/gi, " ");
 }
 
-function isUsefulWebsiteTextIntentToken(token) {
-  const value = normalizeSearchText(token).trim();
-
-  return (
-    value.length >= 3 &&
-    value.length <= 34 &&
-    !/^\d+$/.test(value) &&
-    !weakShortSearchRoots.has(value) &&
-    !genericWebsiteTextIntentTokens.has(value)
-  );
-}
-
-function extractWebsiteTextIntentTermsFromText(value, limit = WEBSITE_TEXT_INTENT_MATCH_TERM_LIMIT) {
-  const normalized = normalizeSearchText(stripDefaultWebsiteTextPromptNoise(value))
-    .replace(/https?:\/\/\S+/g, " ")
-    .replace(/\bwww\.\S+/g, " ");
-  const segments = normalized
-    .split(/[\n\r.!?;:|()[\]{}<>]+/u)
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-  const terms = [];
-
-  for (const segment of segments) {
-    const tokens = segment
-      .split(/[^\p{L}\p{N}]+/u)
-      .map((token) => token.trim())
-      .filter(isUsefulWebsiteTextIntentToken);
-
-    if (!tokens.length) {
-      continue;
-    }
-
-    for (let index = 0; index < tokens.length; index += 1) {
-      const threeWordPhrase = tokens.slice(index, index + 3);
-      const twoWordPhrase = tokens.slice(index, index + 2);
-
-      if (threeWordPhrase.length === 3) {
-        terms.push(threeWordPhrase.join(" "));
-      }
-
-      if (twoWordPhrase.length === 2) {
-        terms.push(twoWordPhrase.join(" "));
-      }
-    }
-
-    terms.push(...tokens);
-  }
-
-  return collectUniqueTerms(terms, limit);
-}
-
 function getWebsiteTextIntentSourceText(rule) {
   const prompt = String(rule?.prompt || "");
-  const imagePrompt = String(rule?.image_prompt || "");
 
   return [
     getCustomerFacingCampaignTheme(rule),
     stripDefaultWebsiteTextPromptNoise(prompt),
-    stripDefaultWebsiteTextPromptNoise(imagePrompt),
     extractPromptLineValue(prompt, "Campaign"),
     extractPromptLineValue(prompt, "Campaign context"),
     extractPromptLineValue(prompt, "Product selection hint"),
@@ -20683,44 +20630,13 @@ function normalizeWebsiteTextIntentMetadata(metadata = {}) {
 }
 
 function buildDeterministicWebsiteTextProductIntent(rule) {
-  const sourceText = getWebsiteTextIntentSourceText(rule);
-  const inferredTerms = extractWebsiteTextIntentTermsFromText(sourceText);
-  const existingMetadata = normalizeWebsiteTextIntentMetadata({
-    product_match_terms: rule?.product_match_terms,
-    product_search_queries: rule?.product_search_queries,
-    product_avoid_terms: rule?.product_avoid_terms,
-    avoid_terms: rule?.avoid_terms,
-    product_search_intent: rule?.product_search_intent,
-  });
-  const productMatchTerms = collectUniqueTerms(
-    [
-      ...existingMetadata.productMatchTerms,
-      ...inferredTerms,
-    ],
-    WEBSITE_TEXT_INTENT_MATCH_TERM_LIMIT
-  );
-  const productSearchQueries = normalizeStoreSearchQueries(
-    [
-      ...existingMetadata.productSearchQueries,
-      ...inferredTerms.slice(0, WEBSITE_TEXT_INTENT_QUERY_LIMIT),
-    ],
-    WEBSITE_TEXT_INTENT_QUERY_LIMIT
-  );
-  const productAvoidTerms = existingMetadata.productAvoidTerms;
-  const productSearchIntent =
-    existingMetadata.productSearchIntent ||
-    (productMatchTerms.length
-      ? `Prioritize concrete website products matching: ${productMatchTerms.slice(0, 8).join(", ")}.`
-      : "");
-
+  // Only explicit product metadata is safe as a deterministic fallback.
+  // Never synthesize search-box n-grams from caption or rendering instructions.
+  const existingMetadata = normalizeWebsiteTextIntentMetadata(rule);
   return {
-    productMatchTerms,
-    productSearchQueries,
-    productAvoidTerms,
-    productSearchIntent,
-    hasSpecificIntent:
-      hasProductSearchMetadata(rule) ||
-      inferredTerms.length >= WEBSITE_TEXT_INTENT_AI_MIN_SIGNAL_TERMS,
+    ...existingMetadata,
+    hasSpecificIntent: hasProductSearchMetadata(rule) ||
+      Boolean(getWebsiteTextIntentSourceText(rule).trim()),
   };
 }
 
@@ -20776,7 +20692,9 @@ Rules:
 - Return local-language website search terms that a real store search box could use.
 - Prefer short exact terms, category terms, recipient/use-case terms and theme terms.
 - Avoid generic words like product, website, post, campaign, custom or offer unless they are truly part of the customer's product vocabulary.
-- If the prompt has no specific theme, occasion, recipient, category or product intent, return empty arrays.
+- Caption style, trustworthy claims, sales goals, video formats, animation, composition and typography are creation instructions, never product intent.
+- Infer only actual products, categories, occasions, recipients or use cases explicitly requested by the customer. Never copy adjacent instruction words into queries.
+- If there is no actual product restriction, return empty arrays AND an empty product_search_intent. Brand assortment alone must not invent a restriction.
 
 Brand profile:
 ${formatBrandProfileForPrompt(brandProfile)}
@@ -20787,12 +20705,9 @@ ${getCustomerFacingCampaignTheme(rule) || "None"}
 Internal automation/plan names are scheduling metadata and must not be treated as product intent.
 
 Automation prompt:
-${stripDefaultWebsiteTextPromptNoise(rule?.prompt || "")}
+${getWebsiteTextIntentSourceText(rule)}
 
-Image prompt:
-${stripDefaultWebsiteTextPromptNoise(rule?.image_prompt || "")}
-
-Existing inferred terms:
+Existing explicit product terms:
 ${deterministicIntent.productMatchTerms.join(", ") || "None"}
 
 Return strict JSON only:
@@ -20806,7 +20721,10 @@ Return strict JSON only:
   });
 
   const parsed = safeJsonParse(response.output_text || "");
-  return normalizeWebsiteTextIntentMetadata(parsed);
+  const normalized = normalizeWebsiteTextIntentMetadata(parsed);
+  if (!normalized.productMatchTerms.length && !normalized.productSearchQueries.length &&
+      !normalized.productAvoidTerms.length) normalized.productSearchIntent = "";
+  return normalized;
 }
 
 async function resolveWebsiteTextProductIntentRule({
@@ -20835,11 +20753,19 @@ async function resolveWebsiteTextProductIntentRule({
         deterministicIntent,
       });
     } catch (error) {
-      console.log("Website text product-intent AI expansion failed; using deterministic terms", {
+      console.log("Website product-intent interpretation failed; retaining explicit product metadata only", {
         ruleId: rule?.id,
         brandProfileId: rule?.brand_profile_id,
         message: error.message,
       });
+      // A custom request must not silently become an unrestricted product post.
+      // Standard templates skip this step entirely; explicit product metadata
+      // remains a safe fallback when interpretation is temporarily unavailable.
+      if (!hasProductSearchMetadata(rule)) {
+        const intentError = new Error("The custom product request could not be interpreted. Please retry without changing the request.");
+        intentError.code = "product_intent_unavailable";
+        throw intentError;
+      }
     }
   }
 
@@ -38434,11 +38360,11 @@ ${referenceGuidance}
 
 Transparent output contract:
 - Wide horizontal ${ANIMATED_TEXT_PANEL_SOURCE_WIDTH} x ${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT} RGBA canvas.
-- Every pixel outside the typography must be fully transparent alpha. Keep at least 5% transparent margin on every edge. Use large, bold, readable lettering; no tiny secondary captions.
+- Every pixel outside the typography must be fully transparent alpha. Keep at least 5% transparent margin on every edge. Use comfortably readable, proportionate lettering with breathing room; no tiny secondary captions.
 - No card, panel, badge, sticker, banner, rectangle, capsule, paper block, colored plate or opaque background of any kind.
 - No product image, person, photo, scene, logo mark, button, watermark, mockup or fake interface.
 - Do not simulate transparency with white, checkerboard or chroma colors.
-- A subtle text shadow, outline, highlight, underline, tiny linework or restrained flourish is allowed only when attached to the typography and useful for readability.
+- No decorative rules, stars, swashes, underlines or ornaments. Prefer clean lettering without effects. A very subtle outline or shadow is allowed only when necessary for contrast against the supplied moving background; never use heavy extrusion or a thick drop shadow.
 
 EXACT LOCKED ADVERTISING TEXT:
 - Render ONLY this headline, verbatim: ${JSON.stringify(advertisingCopy.headline)}
@@ -38450,15 +38376,15 @@ EXACT LOCKED ADVERTISING TEXT:
 - Keep all physical product lettering on the product reference only. Do not copy its text, lettering layout, font treatment or slogan fragments into this overlay.
 
 Mobile readability:
-- The locked advertising headline is the visual focus and must be immediately readable on a phone.
-- Use one or two strong balanced lines when possible.
+- The real product is the visual focus. The locked advertising headline supports it and must remain immediately readable on a phone without competing with the product or its print.
+- Prefer one or two balanced lines with generous line spacing (about 1.15–1.25 times the letter height), clearly separated words and calm outer margins. Never compress lines into a dense block.
 - Keep generous transparent outer margins so no letter is clipped.
 - Avoid tiny text, thin hairlines, pixel fonts, fake glyphs or overdecorated lettering. Keep secondary text large enough to read on a phone.
-- This asset will occupy ${animationLayout?.text?.width || ANIMATED_TEXT_PANEL_WIDTH} x ${animationLayout?.text?.height || ANIMATED_TEXT_PANEL_HEIGHT} pixels in the final 1080 x 1920 video, ${animationLayout?.kind === "wide" ? "ABOVE a wide product" : "BELOW the product"}. Design for this final readable size, not the larger source canvas.
+- This asset will occupy ${Math.round(((animationLayout?.text?.width || ANIMATED_TEXT_PANEL_WIDTH) - 24) * 0.86)} x ${Math.round(((animationLayout?.text?.height || ANIMATED_TEXT_PANEL_HEIGHT) - 24) * 0.78)} pixels at most in the final 1080 x 1920 video, ${animationLayout?.kind === "wide" ? "ABOVE a wide product" : "BELOW the product"}. Design for this final readable size, not the larger source canvas.
 
 Art direction:
 - Match the moving-video palette and campaign/theme with independent advertising typography. Never imitate the product print's font or stacked slogan layout. Choose an original treatment suited to this post.
-- Choose the most suitable premium treatment: editorial serif, modern geometric sans, condensed display, refined expressive lettering or another professional style that genuinely fits.
+- Choose a refined serif or clean modern sans by default, suited to this specific business and scene. Vary the typography naturally between posts. Expressive or condensed lettering is appropriate only when the product and campaign clearly justify it; avoid heavy italic styling and oversized extra-bold lettering by default. Prefer medium or semibold weight, not a dense black text block.
 - Do not look like a generic template or Canva label.
 - ${contrastDirection}
 - Product dominant color: ${productColorHex}
@@ -39287,7 +39213,7 @@ async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, animationLay
   const textBox = animationLayout?.text || { left: ANIMATED_TEXT_PANEL_LEFT, top: ANIMATED_TEXT_PANEL_TOP, width: ANIMATED_TEXT_PANEL_WIDTH, height: ANIMATED_TEXT_PANEL_HEIGHT };
   const inspected = await inspectTypographyShape(generatedBuffer);
   const resized = await sharp(inspected.buffer).resize({
-    width: textBox.width - 24, height: textBox.height - 24, fit: "inside",
+    width: Math.round((textBox.width - 24) * 0.86), height: Math.round((textBox.height - 24) * 0.78), fit: "inside",
   }).png().toBuffer();
   const meta = await sharp(resized).metadata();
   const textOverlayBuffer = await sharp({create:{width:1080,height:1920,channels:4,background:{r:0,g:0,b:0,alpha:0}}})
