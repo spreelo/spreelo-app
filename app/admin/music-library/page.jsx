@@ -114,6 +114,7 @@ export default function MusicLibraryPage() {
   const [editingTrack, setEditingTrack] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingIds, setDeletingIds] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -317,6 +318,8 @@ export default function MusicLibraryPage() {
 
   async function deleteTrack(track) {
     if (!track?.id || !window.confirm(t("admin.music.deleteConfirm", { name: track.name }))) return;
+    if (deletingIds.includes(track.id)) return;
+    setDeletingIds(ids => [...ids, track.id]);
     setError("");
     setMessage("");
     try {
@@ -332,6 +335,8 @@ export default function MusicLibraryPage() {
       setMessage(t("admin.music.deleted", { name: track.name }));
     } catch (deleteError) {
       setError(deleteError?.message || t("admin.music.deleteError"));
+    } finally {
+      setDeletingIds(ids => ids.filter(id => id !== track.id));
     }
   }
 
@@ -432,7 +437,7 @@ export default function MusicLibraryPage() {
                     </div>
                     <div className="music-track-actions">
                       <button type="button" onClick={() => startEdit(track)}><Pencil size={15} /> {t("admin.music.edit")}</button>
-                      <button type="button" className="danger" onClick={() => deleteTrack(track)}><Trash2 size={15} /> {t("admin.music.delete")}</button>
+                      <button type="button" className="danger" disabled={deletingIds.includes(track.id)} onClick={() => deleteTrack(track)}><Trash2 size={15} /> {t("admin.music.delete")}</button>
                     </div>
                   </article>
                 ))}

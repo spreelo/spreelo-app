@@ -1,3 +1,4 @@
+import { isMissingMusicCatalog, loadVideoMusicDeletedIds, markVideoMusicDeleted, excludeDeletedVideoMusic } from "../../../lib/videoMusicDeletions.js";
 import crypto from "crypto";
 import { adminContextError, getAdminContext } from "../../../lib/adminAuth.js";
 import {
@@ -117,37 +118,31 @@ async function ensureMusicBucket(admin) {
 
 async function readCatalog(admin) {
   await ensureMusicBucket(admin);
-  const { data, error } = await admin.storage
-    .from(VIDEO_MUSIC_BUCKET)
-    .download(VIDEO_MUSIC_CATALOG_PATH);
-
+  const storage = admin.storage.from(VIDEO_MUSIC_BUCKET);
+  const { data, error } = await storage.download(VIDEO_MUSIC_CATALOG_PATH);
+  if (error && !isMissingMusicCatalog(error)) throw error;
+  let catalog;
   if (!error && data) {
-    try {
-      const parsed = JSON.parse(await data.text());
-      const sourceVersion = Number(parsed?.version || 1);
-      const normalized = normalizeVideoMusicCatalog(parsed);
-      if (sourceVersion < VIDEO_MUSIC_CATALOG_VERSION) {
-        // Persist the one-time bundled-library migration so future admin
-        // deletions remain intentional and are not re-seeded.
-        return await writeCatalog(admin, normalized);
-      }
-      return normalized;
-    } catch {
-      // Replace a corrupt catalog with the safe bundled seed below.
+    // A corrupt or temporarily unavailable catalog must never reset deletions.
+    const parsed = JSON.parse(await data.text());
+    catalog = normalizeVideoMusicCatalog(parsed);
+    if (Number(parsed?.version || 1) < VIDEO_MUSIC_CATALOG_VERSION) {
+      catalog = await writeCatalog(admin, catalog);
     }
+  } else if (isMissingMusicCatalog(error)) {
+    catalog = await writeCatalog(admin, buildDefaultVideoMusicCatalog());
+  } else {
+    throw new Error("The music catalog could not be read.");
   }
-
-  const fallback = buildDefaultVideoMusicCatalog();
-  await writeCatalog(admin, fallback);
-  return fallback;
+  return excludeDeletedVideoMusic(catalog, await loadVideoMusicDeletedIds(storage));
 }
 
 async function writeCatalog(admin, catalog) {
   await ensureMusicBucket(admin);
-  const normalized = normalizeVideoMusicCatalog({
+  const normalized = excludeDeletedVideoMusic(normalizeVideoMusicCatalog({
     ...catalog,
     updated_at: new Date().toISOString(),
-  });
+  }), await loadVideoMusicDeletedIds(admin.storage.from(VIDEO_MUSIC_BUCKET)));
   const body = Buffer.from(JSON.stringify(normalized, null, 2), "utf8");
   const { error } = await admin.storage
     .from(VIDEO_MUSIC_BUCKET)
@@ -322,10 +317,18 @@ export async function DELETE(request) {
   try {
     const catalog = await readCatalog(context.admin);
     const existing = (catalog.tracks || []).find((track) => track.id === id);
-    if (!existing) return Response.json({ ok: false, error: "Track not found." }, { status: 404 });
+    if (!existing) {
+      const deleted = await loadVideoMusicDeletedIds(context.admin.storage.from(VIDEO_MUSIC_BUCKET));
+      if (deleted.has(id)) return Response.json({ ok: true });
+      return Response.json({ ok: false, error: "Track not found." }, { status: 404 });
+    }
 
+    // Persist deletion before touching the shared catalog. Concurrent writes
+    // cannot undo this independent object. A repeated DELETE is safe.
+    await markVideoMusicDeleted(context.admin.storage.from(VIDEO_MUSIC_BUCKET), id);
     const tracks = (catalog.tracks || []).filter((track) => track.id !== id);
-    await writeCatalog(context.admin, { ...catalog, tracks });
+    try { await writeCatalog(context.admin, { ...catalog, tracks }); }
+    catch (error) { console.warn("Music deletion persisted; catalog compaction deferred", { id, message: error.message }); }
 
     if (existing.source_kind === "uploaded" && existing.storage_path) {
       const removal = await context.admin.storage

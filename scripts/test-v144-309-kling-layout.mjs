@@ -32,7 +32,7 @@ let minX=1080,maxX=-1,minY=1920,maxY=-1;
 for(let y=0;y<info.height;y++)for(let x=0;x<info.width;x++)if(data[(y*info.width+x)*4+3]>0){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}
 assert.equal(maxX-minX+1,499);assert.equal(maxY-minY+1,250);assert.equal(minX,64);assert(minY>=340);
 console.log('v144.309 layout and compositor behavior passed, including pixel placement and mobile-readable artwork scaling.');
-// Exercise the real logo builder and the existing per-post logo policy.
+// Exercise the real logo builder: v314 always brands videos when an asset exists.
 const automations=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const policyStart=automations.indexOf('export function shouldUseLogoForRule');
 const policyCode=automations.slice(policyStart,automations.indexOf('async function fetchPublicImageForResolution',policyStart)).replace('export function','function');
@@ -43,9 +43,7 @@ const logoSupabase={from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data
 const logoContext=vm.createContext({sharp,Error,POST_IMAGES_BUCKET:'post-images',fetchBrandLogoBufferForOverlay:async()=>{fetched++;return small;}});
 vm.runInContext(policyCode+logoCode,logoContext);
 const post={id:'post',user_id:'user',brand_profile_id:'brand',include_logo:false};
-await logoContext.ensureKlingLogoOverlay({supabase:logoSupabase,post,selection:{}});assert.equal(uploads,0);assert.equal(fetched,0);
-post.include_logo=true;
 const withLogo=await logoContext.ensureKlingLogoOverlay({supabase:logoSupabase,post,selection:{}});assert.equal(uploads,1);assert.equal(fetched,1);assert.equal(withLogo.logo_overlay_url,'https://example.com/logo.png');
 const dimensions=await sharp(uploadedBuffer).metadata();assert.equal(dimensions.width,1080);assert.equal(dimensions.height,1920);
 await logoContext.ensureKlingLogoOverlay({supabase:logoSupabase,post,selection:withLogo});assert.equal(uploads,1);
-console.log('v144.309 logo: stored brand asset, enabled/disabled policy, full-size transparent layer and retry cache passed.');
+console.log('v144.309 logo: stored brand asset despite inherited include_logo:false, full-size transparent layer and retry cache passed.');

@@ -40,5 +40,5 @@ const result=await closing.createKlingCtaOverlay({supabase:{},post:{},selection:
 assert.equal(uploads,1);assert.equal(result.cta_overlay_copy,'Explore the collection');assert(!svgText.includes('<rect'));assert(!svgText.includes('→'));assert(svgText.includes('font-size="56"'));
 await closing.createKlingCtaOverlay({supabase:{},post:{},selection:result,creativePlan:{}});assert.equal(uploads,1);
 assert(source.includes('design_direction: truncate(parsed?.design_direction, 600)'));
-assert(source.includes('NO button, pill, rounded rectangle'));
+assert(fs.readFileSync('lib/klingEndCard.js','utf8').includes('No website address, button'));
 console.log('Closing line: plain mobile-readable typography, no button/arrow; cached layers reused; per-video art direction wired through.');

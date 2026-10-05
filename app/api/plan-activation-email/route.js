@@ -33,7 +33,7 @@ function buildHtml({ t, summary }) {
 
   const formatItems = Array.isArray(summary.formats) ? summary.formats : [];
   const ctaUrl = `${APP_URL}/`;
-  const logoUrl = `${APP_URL}/brand/spreelologo.png`;
+  const logoUrl = `${APP_URL}/brand/spreelologo-on-dark.png`;
   const title = escapeHtml(t("emails.planActivated.title"));
   const intro = escapeHtml(t("emails.planActivated.intro", { brand: summary.brand || "" }));
   const button = escapeHtml(t("emails.planActivated.button"));
