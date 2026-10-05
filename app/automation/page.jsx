@@ -64,6 +64,7 @@ import {
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import PlanLimitModal from "../../components/PlanLimitModal";
+import ContentCreatorWelcome from "../../components/ContentCreatorWelcome";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
@@ -7179,84 +7180,28 @@ const languageOptions = SUPPORTED_CONTENT_LANGUAGES.map((item) => ({
     runtimePlatformCapabilities.pinterestVideo,
   ]);
 
+  // The welcome guide never changes an existing plan or starts generation.
   useEffect(() => {
-    if (loading || !currentBrandId || !currentBrandProfile || smartOnboardingPreparedRef.current || smartOnboardingDismissedRef.current) return;
-    if (typeof window === "undefined") return;
-
+    if (loading || !currentBrandId || !currentBrandProfile || !currentUserEmail || smartOnboardingPreparedRef.current || smartOnboardingDismissedRef.current) return;
     const params = new URLSearchParams(window.location.search);
-    const requestedMode = params.get("mode") || "";
-    const storedCampaignHandoff = getStoredCalendarCampaignHandoff();
-    const hasCampaignHandoff = Boolean(
-      requestedMode === "campaign" ||
-      params.get("campaignOpportunityId") ||
-      params.get("campaignId") ||
-      isRecentCalendarCampaignHandoff(storedCampaignHandoff)
-    );
-    const hasDirectPlan = Boolean(params.get("plan"));
-    if (hasCampaignHandoff || hasDirectPlan || planCreationMode === "campaign") return;
-
-    const normalizedEmail = String(currentUserEmail || "").trim().toLowerCase();
-    const isInternalTester = normalizedEmail === SPREELO_INTERNAL_TESTER_EMAIL;
-    if (!isInternalTester && hasCompletedFirstPlan) return;
-
-    smartOnboardingPreparedRef.current = true;
-    setSmartOnboardingLoading(true);
-    setPlanCreationMode("auto");
-    setScheduleType("weekly");
-    setVaryWeeklyContentTypes(true);
-
-    const fallback = getFallbackSmartOnboardingRecommendation({
-      brandProfile: currentBrandProfile,
-      connectedPlatformCount: connectedPlatforms.length,
-    });
-    const profileVersion = String(currentBrandProfile?.updated_at || "profile").replace(/[^a-zA-Z0-9]/g, "").slice(0, 32);
-    const cacheKey = `spreelo_smart_onboarding_v296_${currentBrandId}_${profileVersion}`;
-    let recommendation = fallback;
-    try {
-      const cached = JSON.parse(window.localStorage.getItem(cacheKey) || "null");
-      if (["sell_more", "get_followers", "build_trust"].includes(cached?.goalId) && [3, 5, 7].includes(Number(cached?.postCount))) {
-        recommendation = { goalId: "sell_more", postCount: Number(cached.postCount) };
-      }
-    } catch {
-      window.localStorage.removeItem(cacheKey);
-    }
-
-    setAutoPlanGoal(recommendation.goalId);
-    setAutoPlanPostCount(recommendation.postCount);
-    void applyDynamicAutoPlan({ goalId: recommendation.goalId, postCount: recommendation.postCount });
-    setShowSmartOnboarding(true);
-    setSmartOnboardingLoading(false);
-
-    // Improve the next recommendation in the background. Never replace the
-    // plan currently shown in the popup: that avoids activation races and visual jumps.
+    if (params.get("plan") || params.get("mode") === "campaign" || params.get("campaignOpportunityId") || params.get("campaignId") || isRecentCalendarCampaignHandoff(getStoredCalendarCampaignHandoff()) || planCreationMode === "campaign") return;
+    let cancelled = false;
+    const preferenceKey = `spreelo_creator_welcome_hidden_v310_${currentUserEmail.trim().toLowerCase()}`;
     void (async () => {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData?.session?.access_token;
-        if (!accessToken) return;
-        const response = await fetch("/api/onboarding-plan", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ brandProfileId: currentBrandId }),
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) return;
-        if (!["sell_more", "get_followers", "build_trust"].includes(payload?.goalId)) return;
-        if (![3, 5, 7].includes(Number(payload?.postCount))) return;
-        window.localStorage.setItem(cacheKey, JSON.stringify({ goalId: "sell_more", postCount: Number(payload.postCount) }));
-      } catch (error) {
-        console.warn("Could not refine smart onboarding recommendation", error);
+      let hidden = false;
+      try { hidden = window.localStorage.getItem(preferenceKey) === "true"; } catch {}
+      if (!hidden) {
+        try {
+          const { data } = await supabase.auth.getSession();
+          hidden = data?.session?.user?.user_metadata?.spreelo_creator_welcome_hidden_v310 === true;
+        } catch {}
       }
+      if (cancelled) return;
+      smartOnboardingPreparedRef.current = true;
+      setShowSmartOnboarding(!hidden);
     })();
-  }, [
-    loading,
-    currentBrandId,
-    currentBrandProfile,
-    currentUserEmail,
-    hasCompletedFirstPlan,
-    connectedPlatforms.length,
-    planCreationMode,
-  ]);
+    return () => { cancelled = true; };
+  }, [loading, currentBrandId, currentBrandProfile, currentUserEmail, planCreationMode]);
 
   const displayedAutoPlanPostCountOptions = useMemo(
     () => Array.from(new Set([...autoPlanPostCountOptions, autoPlanPostCount])).sort((a, b) => a - b),
@@ -11827,7 +11772,16 @@ function blockFormatCardClickAfterDrag(event) {
     scroller.scrollLeft += delta;
   }
 
-  function dismissSmartOnboarding() {
+  function dismissSmartOnboarding(dontShowAgain = false) {
+    if (dontShowAgain === true) {
+      try {
+        window.localStorage.setItem(`spreelo_creator_welcome_hidden_v310_${currentUserEmail.trim().toLowerCase()}`, "true");
+      } catch {}
+      // Store only this user-owned UI preference; no plan/brand settings change.
+      void supabase.auth.updateUser({ data: { spreelo_creator_welcome_hidden_v310: true } }).then(({ error }) => {
+        if (error) console.warn("Could not sync content creator welcome preference", error.message);
+      }).catch(() => {});
+    }
     smartOnboardingDismissedRef.current = true;
     setShowSmartOnboarding(false);
   }
@@ -15328,206 +15282,7 @@ function blockFormatCardClickAfterDrag(event) {
   </div>
 )}
       {showSmartOnboarding && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              className="spreeloRef-backdrop"
-              role="presentation"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) dismissSmartOnboarding();
-              }}
-            >
-              <section
-                className="spreeloRef-modal"
-                lang={locale}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="spreeloRef-title"
-              >
-                <header className="spreeloRef-header">
-                  <div className="spreeloRef-topbar">
-                    <img className="spreeloRef-logo" src="/brand/spreelologo.png" alt="Spreelo" />
-                    <div className="spreeloRef-top-actions">
-                      
-                      <button
-                        type="button"
-                        className="spreeloRef-close"
-                        onClick={dismissSmartOnboarding}
-                        aria-label={t("automation.onboarding.close")}
-                      >
-                        <X size={20}/>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="spreeloRef-hero">
-                    <div className="spreeloRef-hero-copy">
-                      <span className="spreeloRef-ready-pill"><X size={14}/>{t("automation.onboardingV296.welcomeBadge")}</span>
-                      <h2 id="spreeloRef-title">{t("automation.onboardingV296.welcomeTitle")}<span className="spreeloRef-celebration" aria-hidden="true">🎉</span></h2>
-                      <p>
-                        {t("automation.onboardingV296.welcomeIntro", { brandName: smartOnboardingBrandName })}
-                      </p>
-                    </div>
-                    <div className="spreeloRef-hero-art" aria-hidden="true">
-                      <span className="spreeloRef-scribble">{t("automation.onboardingV202.planReady")}</span>
-                      <div className="spreeloRef-calendar-art" />
-                      <div className="spreeloRef-count">
-                        <strong>{autoPlanPostCount}</strong>
-                        <span>{t("automation.onboardingV202.postsPerWeekCompact")}</span>
-                      </div>
-                      
-                      <span className="spreeloRef-hero-note">{t("automation.onboardingV202.heroNote")}</span>
-                      
-                    </div>
-                  </div>
-                </header>
-
-                <main className="spreeloRef-body">
-                  {smartOnboardingLoading ? (
-                    <div className="spreeloRef-loading"><LoaderCircle className="admin-spin" size={18}/>{t("automation.onboarding.loading")}</div>
-                  ) : null}
-
-                  <section className="spreeloRef-process" aria-label={t("automation.onboardingV202.processAria")}>
-                    <div className="spreeloRef-process-head"><h3>{t("automation.onboardingV287.processTitle")}</h3><p>{t("automation.onboardingV287.processSubtitle")}</p></div>
-                    <div className="spreeloRef-steps" role="list">
-                      <article className="spreeloRef-step is-plan" role="listitem">
-                        <div className="spreeloRef-step-top"><span>1</span><div className="spreeloRef-step-label">{t("automation.onboardingV202.planTag")}</div></div>
-                        <div className="spreeloRef-step-art-wrap"><div className="spreeloRef-step-art"><span className="spreeloRef-reference-art art-plan" aria-hidden="true" /></div></div>
-                        <div className="spreeloRef-step-copy"><h3>{t("automation.onboardingV202.planTitle")}</h3><p>{t("automation.onboardingV202.planText")}</p></div>
-                      </article>
-                      <span className="spreeloRef-flow-arrow" aria-hidden="true"><ChevronRight size={19}/></span>
-
-                      <article className="spreeloRef-step is-create" role="listitem">
-                        <div className="spreeloRef-step-top"><span>2</span><div className="spreeloRef-step-label">{t("automation.onboardingV202.createTag")}</div></div>
-                        <div className="spreeloRef-step-art-wrap"><div className="spreeloRef-step-art"><span className="spreeloRef-reference-art art-create" aria-hidden="true" /></div></div>
-                        <div className="spreeloRef-step-copy"><h3>{t("automation.onboardingV202.createTitle")}</h3><p>{t("automation.onboardingV202.createText")}</p></div>
-                      </article>
-                      <span className="spreeloRef-flow-arrow" aria-hidden="true"><ChevronRight size={19}/></span>
-
-                      <article className="spreeloRef-step is-review" role="listitem">
-                        <div className="spreeloRef-step-top"><span>3</span><div className="spreeloRef-step-label">{t("automation.onboardingV202.reviewTag")}</div></div>
-                        <div className="spreeloRef-step-art-wrap"><div className="spreeloRef-step-art"><span className="spreeloRef-reference-art art-review" aria-hidden="true" /></div></div>
-                        <div className="spreeloRef-step-copy"><h3>{t("automation.onboardingV202.reviewTitle")}</h3><p>{t("automation.onboardingV202.reviewText")}</p></div>
-                      </article>
-                      <span className="spreeloRef-flow-arrow" aria-hidden="true"><ChevronRight size={19}/></span>
-
-                      <article className="spreeloRef-step is-publish" role="listitem">
-                        <div className="spreeloRef-step-top"><span>4</span><div className="spreeloRef-step-label">{t("automation.onboardingV202.publishTag")}</div></div>
-                        <div className="spreeloRef-step-art-wrap"><div className="spreeloRef-step-art"><span className="spreeloRef-reference-art art-publish" aria-hidden="true" /></div></div>
-                        <div className="spreeloRef-step-copy"><h3>{t("automation.onboardingV202.publishTitle")}</h3><p>{t("automation.onboardingV202.publishText")}</p></div>
-                      </article>
-                    </div>
-
-                  </section>
-
-                  <section className="spreeloRef-summary-panel">
-                    <div className="spreeloRef-section-head">
-                      <div><h3>{t("automation.onboardingV202.summaryTitle")}</h3></div>
-                      <span className="spreeloRef-tailored">{t("automation.onboardingV202.tailored", { brandName: smartOnboardingBrandName })}</span>
-                    </div>
-
-                    <div className="spreeloRef-summary-cards">
-                      <article>
-                        <span className="spreeloRef-icon is-green"><Users size={18}/></span>
-                        <div><strong>{t("automation.onboarding.audience")}</strong><p>{smartOnboardingAudienceText}</p></div>
-                      </article>
-                      <article>
-                        <span className="spreeloRef-icon is-red"><MapPin size={18}/></span>
-                        <div><strong>{t("automation.onboarding.market")}</strong><p>{smartOnboardingMarketCompact}</p></div>
-                      </article>
-                      <article>
-                        <span className="spreeloRef-icon is-purple"><Box size={18}/></span>
-                        <div><strong>{t("automation.onboarding.offering")}</strong><p>{smartOnboardingOfferingCompact}</p></div>
-                      </article>
-                    </div>
-
-                    
-
-                    <div className="spreeloRef-ready-banner">
-                      <span><ClipboardList size={24}/></span>
-                      <div><strong>{t("automation.onboardingV191.readyTitle")}</strong><p>{t("automation.onboardingV191.readySubtitle")}</p></div>
-                    </div>
-                  </section>
-
-                  <section className="spreeloRef-includes-panel">
-                    <div className="spreeloRef-section-head is-simple">
-                      <div><h3>{t("automation.onboardingV202.includesTitle")}</h3></div><p>{t("automation.onboardingV287.includesSubtitle")}</p>
-                    </div>
-
-                    <div className="spreeloRef-detail-grid">
-                      <article><span className="spreeloRef-icon is-red"><Target size={20}/></span><div><strong>{t("automation.onboarding.goal")}</strong><p>{smartOnboardingGoalSummary}</p></div></article>
-                      <article><span className="spreeloRef-icon is-red"><TrendingUp size={20}/></span><div><strong>{t("automation.onboarding.frequency", { count: autoPlanPostCount })}</strong><p>{t("automation.onboardingV187.frequencyHelp")}</p></div></article>
-                      <article><span className="spreeloRef-icon is-red"><CalendarClock size={20}/></span><div><strong>{t("automation.onboarding.publishingDays")}</strong><p>{smartOnboardingDays.join(" · ") || "—"}</p></div></article>
-                      <article><span className="spreeloRef-icon is-red"><Coins size={20}/></span><div><strong>{t("automation.onboarding.estimatedCost")}</strong><p>{smartOnboardingCostSummary}</p></div></article>
-                      <article><span className="spreeloRef-icon is-yellow"><ClipboardList size={20}/></span><div><strong>{t("automation.onboardingV187.variedContent")}</strong><p>{smartOnboardingVariedSummary}</p></div></article>
-                      <article>
-                        <span className="spreeloRef-icon is-purple"><Share2 size={20}/></span>
-                        <div className="spreeloRef-channels">
-                          <strong>{t("automation.onboardingV191.channelsTitle")}</strong>
-                          <div className="spreeloRef-channel-actions">
-                            {smartOnboardingSocialOptions.map((item) => (
-                              <span key={item.key} title={item.label}><img src={item.icon} alt={item.label}/></span>
-                            ))}
-                            <a href="/social-channels" title={t("automation.onboardingV191.addChannel")} aria-label={t("automation.onboardingV191.addChannel")}><Plus size={17}/></a>
-                          </div>
-                        </div>
-                      </article>
-                    </div>
-                  </section>
-
-                  <section className="spreeloRef-planned">
-                    <div className="spreeloRef-planned-head">
-                      <div><h3>{t("automation.onboardingV191.plannedTitle")}</h3></div>
-                      <div className="spreeloRef-planned-meta">
-                        <span>{t("automation.onboardingV202.postsThisWeek", { count: autoPlanPostCount })}</span>
-                      </div>
-                    </div>
-
-                    <div className="spreeloRef-carousel">
-                      <button type="button" className="spreeloRef-carousel-btn previous" onClick={() => scrollSmartOnboardingPreview(-1)} aria-label={t("automation.onboardingV196.previousPosts")}><ChevronLeft size={20}/></button>
-                      <div
-                        className="spreeloRef-post-row"
-                        ref={onboardingPreviewScrollRef}
-                        onPointerDown={handleSmartOnboardingPreviewPointerDown}
-                        onPointerMove={handleSmartOnboardingPreviewPointerMove}
-                        onPointerUp={finishSmartOnboardingPreviewDrag}
-                        onPointerCancel={finishSmartOnboardingPreviewDrag}
-                        onLostPointerCapture={finishSmartOnboardingPreviewDrag}
-                        onDragStart={(event) => event.preventDefault()}
-                        onWheel={handleSmartOnboardingPreviewWheel}
-                      >
-                        {smartOnboardingPreviewPosts.map((post) => {
-                          const PreviewIcon = SMART_ONBOARDING_PREVIEW_ICON_COMPONENTS[post.iconKey] || Sparkles;
-                          return (
-                            <article key={post.id} className={`spreeloRef-post-card tone-${post.tone}`}>
-                              <div className="spreeloRef-post-media">
-                                <img src={post.image} alt="" />
-                                <div className="spreeloRef-date-badge" aria-label={post.date}>
-                                  <span>{post.dateParts.weekday}</span><strong>{post.dateParts.day}</strong><span>{post.dateParts.month}</span>
-                                </div>
-                              </div>
-                              <div className="spreeloRef-post-footer"><span><PreviewIcon size={20}/></span><strong>{post.label}</strong></div>
-                            </article>
-                          );
-                        })}
-                      </div>
-                      <button type="button" className="spreeloRef-carousel-btn next" onClick={() => scrollSmartOnboardingPreview(1)} aria-label={t("automation.onboardingV196.nextPosts")}><ChevronRight size={20}/></button>
-                    </div>
-                  <div className="spreeloRef-note"><span className="spreeloRef-info-icon" aria-hidden="true">i</span><span>{t("automation.onboardingV198.untilFirstPlanNote.v296")}</span></div>
-                  </section>
-                </main>
-
-                <footer className="spreeloRef-actions">
-                  <div className="spreeloRef-actions-inner">
-                    <button type="button" className="spreeloRef-primary" disabled={saving || smartOnboardingLoading || !slots.length} onClick={() => void savePlan()}>
-                      {saving ? <LoaderCircle className="admin-spin" size={18}/> : null}<span>{saving ? t("automation.onboarding.activating") : t("automation.onboardingV191.activate")}</span>{!saving ? <span className="spreeloRef-cta-arrow" aria-hidden="true">→</span> : null}
-                    </button>
-                    <button type="button" className="spreeloRef-secondary" onClick={dismissSmartOnboarding}>{t("automation.onboardingV198.chooseSettings")}</button>
-                  </div>
-                </footer>
-              </section>
-            </div>,
-            document.body
-          )
+        ? createPortal(<ContentCreatorWelcome t={t} locale={locale} onClose={dismissSmartOnboarding}/>, document.body)
         : null}
       <PlanLimitModal details={planLimitDetails} onClose={() => setPlanLimitDetails(null)} />
       </div>
