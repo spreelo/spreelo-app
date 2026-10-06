@@ -23,10 +23,10 @@ import {
   ThumbsUp,
   TrendingDown,
   TrendingUp,
-  X,
   Database,
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
+import GrowBrainConnectModal from "../../components/GrowBrainConnectModal";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 
@@ -1223,70 +1223,26 @@ export default function GrowBrainPage() {
           <aside className="grow-v215-panel grow-v215-system-card"><div className="grow-v215-panel-head compact"><div><span className="grow-v215-section-kicker">{t("growBrain.system")}</span><h2 className="grow-v317-title"><span className="grow-v317-heading-icon" aria-hidden="true"><Database size={19} /></span><span>{t("growBrain.dataHealth")}</span></h2></div></div><div className="grow-v215-health-score"><span className="grow-v215-health-ring" style={{ "--score": `${connectedPlatforms.length ? Math.round((healthyPlatforms.length / connectedPlatforms.length) * 100) : 0}%` }}><strong>{connectedPlatforms.length ? Math.round((healthyPlatforms.length / connectedPlatforms.length) * 100) : 0}%</strong></span><div><strong>{t("growBrain.measurementCoverage")}</strong><p>{t("growBrain.measurementCoverageText")}</p></div></div><div className="grow-v215-health-list"><div><CheckCircle2 size={16} /><span>{t("growBrain.connectedChannels")}</span><strong>{connectedPlatforms.length}</strong></div><div><Activity size={16} /><span>{t("growBrain.channelsWithData")}</span><strong>{healthyPlatforms.length}</strong></div><div><Clock3 size={16} /><span>{t("growBrain.lastCollection")}</span><strong>{lastSuccess ? formatDateTime(lastSuccess, locale) : "—"}</strong></div></div><p className="grow-v215-system-note">{t("growBrain.observationalNote")}</p></aside>
         </section>
 
-        {websiteConnectOpen ? <div className="grow-v231-connect-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setWebsiteConnectOpen(false); }}>
-          <section className="grow-v231-connect-modal" role="dialog" aria-modal="true" aria-labelledby="grow-web-connect-title">
-            <button type="button" className="grow-v231-connect-close" onClick={() => setWebsiteConnectOpen(false)} aria-label={t("growBrain.webConnectClose")}><X size={19} /></button>
-            {websiteConnectView === "discovering" ? <div className="grow-v231-connect-loading">
-              <span className="grow-v231-connect-orb"><LoaderCircle size={28} className="grow-v215-spin" /></span>
-              <span className="grow-v215-section-kicker">{t("growBrain.webConnectEyebrow")}</span>
-              <h2 id="grow-web-connect-title">{t("growBrain.webConnectScanningTitle")}</h2>
-              <p>{t("growBrain.webConnectScanningText")}</p>
-            </div> : websiteConnectView === "recommendation" ? <>
-              <div className="grow-v231-connect-icon"><WebProviderIcon size={27} /></div>
-              <span className="grow-v215-section-kicker">{t("growBrain.webConnectEyebrow")}</span>
-              <h2 id="grow-web-connect-title">{websiteDiscovery?.needs_website_url ? t("growBrain.webConnectNeedWebsiteTitle") : t("growBrain.webConnectFoundTitle", { provider: webProviderMeta.label })}</h2>
-              <p>{websiteDiscovery?.needs_website_url ? t("growBrain.webConnectNeedWebsiteText") : t(webProviderMeta.descriptionKey)}</p>
-              {websiteDiscovery?.technologies?.length ? <div className="grow-v231-tech-list">{websiteDiscovery.technologies.map((technology) => <span key={technology.id}>{technology.label}</span>)}</div> : null}
-              {websiteDiscovery?.fetch_error ? <div className="grow-v231-connect-soft-note"><CircleAlert size={15} /><span>{t("growBrain.webConnectPartialDetection")}</span></div> : null}
-              <div className="grow-v231-recommendation">
-                <span>{t("growBrain.webConnectRecommended")}</span>
-                <strong>{webProviderMeta.label}</strong>
-                <small>{t("growBrain.webConnectRecommendedHelp")}</small>
-              </div>
-              {webProvider === "shopify" && !websiteDiscovery?.needs_website_url ? <div className="grow-v231-connect-soft-note"><CircleAlert size={15} /><span>{t("growBrain.shopifyAiConsent")}</span></div> : null}
-              {websiteConnectError ? <p className="grow-v231-connect-error" role="alert">{websiteConnectError}</p> : null}
-              <div className="grow-v231-connect-actions">
-                {websiteDiscovery?.needs_website_url ? <a className="primary" href="/brand">{t("growBrain.webConnectAddWebsite")} <ArrowRight size={16} /></a> : <button type="button" className="primary" onClick={prepareWebsiteProvider}>{webProvider === "shopify" ? t("growBrain.shopifyAiConsentAction") : t("growBrain.webConnectChoosePath")} <ArrowRight size={16} /></button>}
-                <button type="button" onClick={() => setWebsiteConnectOpen(false)}>{t("growBrain.webConnectClose")}</button>
-              </div>
-            </> : websiteConnectView === "connected" ? <>
-              <div className="grow-v231-connect-icon success"><CheckCircle2 size={29} /></div>
-              <span className="grow-v215-section-kicker">{t("growBrain.webConnectEyebrow")}</span>
-              <h2 id="grow-web-connect-title">{t("growBrain.shopifyConnectedTitle")}</h2>
-              <p>{t("growBrain.shopifyConnectedText")}</p>
-              <div className="grow-v231-connect-soft-note"><ShoppingBag size={15} /><span>{websiteConnection?.detected_signals?.shop_domain || t("growBrain.shopifyConnectedStore")}</span></div>
-              {websiteConnectError ? <p className="grow-v231-connect-error" role="alert">{websiteConnectError}</p> : null}
-              <div className="grow-v231-connect-actions">
-                <button type="button" className="primary" onClick={() => setWebsiteConnectOpen(false)}>{t("growBrain.webConnectDone")}</button>
-                <button type="button" onClick={disconnectShopify}>{t("growBrain.shopifyDisconnect")}</button>
-              </div>
-            </> : websiteConnectView === "prepared" ? <>
-              <div className="grow-v231-connect-icon success"><CheckCircle2 size={29} /></div>
-              <span className="grow-v215-section-kicker">{t("growBrain.webConnectEyebrow")}</span>
-              <h2 id="grow-web-connect-title">{t("growBrain.webConnectPreparedTitle")}</h2>
-              <p>{t("growBrain.webConnectPreparedText", { provider: webProviderMeta.label })}</p>
-              <div className="grow-v231-connect-soft-note"><Sparkles size={15} /><span>{t("growBrain.webConnectPreparedSafety")}</span></div>
-              <div className="grow-v231-connect-actions"><button type="button" className="primary" onClick={() => setWebsiteConnectOpen(false)}>{t("growBrain.webConnectDone")}</button></div>
-            </> : <>
-              <div className="grow-v231-connect-icon"><Globe2 size={28} /></div>
-              <span className="grow-v215-section-kicker">{t("growBrain.webConnectEyebrow")}</span>
-              <h2 id="grow-web-connect-title">{t("growBrain.webConnectIntroTitle")}</h2>
-              <p>{t("growBrain.webConnectIntroText")}</p>
-              <div className="grow-v231-connect-benefits">
-                <div><MousePointerClick size={17} /><span><strong>{t("growBrain.webConnectBenefitTraffic")}</strong><small>{t("growBrain.webConnectBenefitTrafficText")}</small></span></div>
-                <div><ShoppingBag size={17} /><span><strong>{t("growBrain.webConnectBenefitSales")}</strong><small>{t("growBrain.webConnectBenefitSalesText")}</small></span></div>
-                <div><Sparkles size={17} /><span><strong>{t("growBrain.webConnectBenefitLearning")}</strong><small>{t("growBrain.webConnectBenefitLearningText")}</small></span></div>
-              </div>
-              {currentBrand?.website_url ? <div className="grow-v231-known-site"><Globe2 size={15} /><span>{t("growBrain.webConnectKnownWebsite")} <strong>{currentBrand.website_url}</strong></span></div> : null}
-              {websiteConnectError ? <p className="grow-v231-connect-error" role="alert">{websiteConnectError}</p> : null}
-              <div className="grow-v231-connect-actions">
-                <button type="button" className="primary" disabled={websiteDiscovering} onClick={discoverWebsiteConnection}><Globe2 size={16} />{t("growBrain.webConnectButton")}</button>
-                <button type="button" onClick={dismissWebsiteConnectIntro}>{t("growBrain.webConnectNotNow")}</button>
-              </div>
-              <p className="grow-v231-connect-optional">{t("growBrain.webConnectOptionalText")}</p>
-            </>}
-          </section>
-        </div> : null}
+        {websiteConnectOpen ? (
+          <GrowBrainConnectModal
+            t={t}
+            locale={locale}
+            view={websiteConnectView}
+            webProvider={webProvider}
+            webProviderMeta={webProviderMeta}
+            websiteDiscovery={websiteDiscovery}
+            websiteConnection={websiteConnection}
+            websiteConnectError={websiteConnectError}
+            websiteDiscovering={websiteDiscovering}
+            currentBrand={currentBrand}
+            connectedPlatformCount={connectedPlatforms.length}
+            onRequestClose={() => setWebsiteConnectOpen(false)}
+            onDismissIntro={dismissWebsiteConnectIntro}
+            onDiscover={discoverWebsiteConnection}
+            onPrepare={prepareWebsiteProvider}
+            onDisconnectShopify={disconnectShopify}
+          />
+        ) : null}
       </div>
     </AppLayout>
   );

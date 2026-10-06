@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   CalendarRange,
@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
+import ThemeCalendarWelcome from "../../components/ThemeCalendarWelcome";
 import { supabase } from "../../lib/supabaseClient";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { getCreditCostForCampaignSourceMode } from "../../lib/credits";
@@ -910,6 +911,9 @@ export default function Calendar() {
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [showThemeCalendarWelcome, setShowThemeCalendarWelcome] = useState(false);
+  const themeCalendarWelcomePreparedRef = useRef(false);
+  const themeCalendarWelcomeDismissedRef = useRef(false);
 
   const visibleCampaigns = useMemo(() => {
     const filteredCampaigns = campaigns.filter((campaign) =>
@@ -1074,11 +1078,52 @@ export default function Calendar() {
   }, []);
 
   useEffect(() => {
+    if (loading || !user?.email || themeCalendarWelcomePreparedRef.current || themeCalendarWelcomeDismissedRef.current) return;
+
+    let cancelled = false;
+    const preferenceKey = `spreelo_theme_calendar_welcome_hidden_v319_${user.email.trim().toLowerCase()}`;
+
+    void (async () => {
+      let hidden = false;
+      try {
+        hidden = window.localStorage.getItem(preferenceKey) === "true";
+      } catch {}
+
+      if (!hidden) {
+        try {
+          const { data } = await supabase.auth.getSession();
+          hidden = data?.session?.user?.user_metadata?.spreelo_theme_calendar_welcome_hidden_v319 === true;
+        } catch {}
+      }
+
+      if (cancelled) return;
+      themeCalendarWelcomePreparedRef.current = true;
+      setShowThemeCalendarWelcome(!hidden);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user?.email]);
+
+  useEffect(() => {
     const updateToday = () => setToday(new Date());
     const intervalId = window.setInterval(updateToday, 60 * 1000);
 
     return () => window.clearInterval(intervalId);
   }, []);
+
+  function dismissThemeCalendarWelcome(dontShowAgain = false) {
+    if (dontShowAgain && user?.email) {
+      try {
+        window.localStorage.setItem(`spreelo_theme_calendar_welcome_hidden_v319_${user.email.trim().toLowerCase()}`, "true");
+      } catch {}
+      void supabase.auth.updateUser({ data: { spreelo_theme_calendar_welcome_hidden_v319: true } }).catch(() => {});
+    }
+
+    themeCalendarWelcomeDismissedRef.current = true;
+    setShowThemeCalendarWelcome(false);
+  }
 
   function handleCreateCampaign(campaign) {
     if (!campaign?.id) return;
@@ -1369,6 +1414,9 @@ export default function Calendar() {
             </section>
           </>
         )}
+        {showThemeCalendarWelcome ? (
+          <ThemeCalendarWelcome t={t} locale={locale} onClose={dismissThemeCalendarWelcome} />
+        ) : null}
       </div>
     </AppLayout>
   );
