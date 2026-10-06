@@ -1,0 +1,258 @@
+/* v144.317 — approved Grow Brain proposal 3.
+   Scoped presentation only. The page retains every live data source and action.
+   Match Social Channels' existing centered 1380px shell, not viewport width. */
+html body .content.spreelo-content:has(.grow-v317-page) {padding:28px 32px!important}
+html body .grow-v317-page {
+  --gb-ink:#111b31;
+  --gb-muted:#66758d;
+  --gb-line:#e0e7f1;
+  --gb-orange:#ff5938;
+  --gb-lilac:#754cf2;
+  width:min(100%,1380px)!important;
+  max-width:1380px!important;
+  margin:0 auto!important;
+  padding:6px 18px 64px!important;
+  color:var(--gb-ink);
+  font-size:13.5px;
+  container-type:inline-size;
+  container-name:grow-brain;
+}
+html body .grow-v317-page .grow-v215-eyebrow,
+html body .grow-v317-page .grow-v216-kpi-heading,
+html body .grow-v317-page .grow-v215-panel .grow-v215-section-kicker,
+html body .grow-v317-page .grow-v231-web-data-copy>.grow-v215-section-kicker {display:none!important}
+html body .grow-v317-page .grow-v216-hero {
+  display:grid!important;
+  grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr)!important;
+  gap:30px!important;
+  align-items:center!important;
+  min-height:224px!important;
+  margin:0!important;
+  padding:30px 32px!important;
+  border-radius:22px!important;
+  border:1px solid rgba(218,222,244,.8)!important;
+  background-image:linear-gradient(90deg,rgba(255,255,255,.48),rgba(255,255,255,.14) 52%,transparent 76%),url('/grow-brain/grow-brain-hero-bg.png')!important;
+  background-size:100% 100%,cover!important;
+  background-position:center,center!important;
+  box-shadow:0 10px 25px rgba(28,46,77,.055)!important;
+}
+html body .grow-v317-page .grow-v216-hero::before,
+html body .grow-v317-page .grow-v216-hero::after,
+html body .grow-v317-page .grow-v216-hero-stage {display:none!important}
+html body .grow-v317-page .grow-v215-hero-copy {max-width:none!important;min-width:0;text-shadow:none}
+html body .grow-v317-page .grow-v317-hero-heading {display:flex;align-items:center;gap:12px}
+html body .grow-v317-page .grow-v216-hero h1 {
+  margin:0!important;font-size:clamp(30px,3vw,44px)!important;line-height:1.08!important;
+  font-weight:850!important;letter-spacing:-.045em!important;color:var(--gb-ink)!important;
+}
+html body .grow-v317-page .grow-v215-hero-copy>p {margin:12px 0 16px!important;max-width:540px!important;font-size:13.5px!important;line-height:1.55!important;color:var(--gb-muted)!important}
+html body .grow-v317-page .grow-v317-heading-icon {
+  display:inline-grid;place-items:center;flex:0 0 34px;width:34px;height:34px;
+  border-radius:10px;background:#fff0e9;color:var(--gb-orange);
+}
+html body .grow-v317-page .grow-v317-hero-heading>.grow-v317-heading-icon {width:46px;height:46px;flex-basis:46px;border-radius:13px}
+html body .grow-v317-page .grow-v216-hero-meta {display:flex!important;flex-wrap:wrap;gap:7px!important;margin:0!important}
+html body .grow-v317-page .grow-v215-brand-chip,
+html body .grow-v317-page .grow-v216-last-update {padding:7px 10px!important;font-size:11.5px!important;white-space:normal!important}
+html body .grow-v317-page .grow-v216-hero-status {
+  position:relative!important;inset:auto!important;align-self:center!important;justify-self:end!important;
+  width:100%!important;max-width:400px!important;min-width:0!important;gap:11px!important;padding:15px!important;
+  border-radius:16px!important;box-shadow:0 7px 20px rgba(40,39,85,.06)!important;
+}
+html body .grow-v317-page .grow-v216-hero-status>div:nth-child(2) {flex:1;min-width:0}
+html body .grow-v317-page .grow-v216-hero-status span {font-size:10px!important;color:var(--gb-muted)!important}
+html body .grow-v317-page .grow-v216-hero-status strong {font-size:14px!important;line-height:1.35!important;overflow-wrap:anywhere}
+html body .grow-v317-page .grow-v216-hero-status small {font-size:11px!important;line-height:1.4!important}
+html body .grow-v317-page .grow-v215-brain-orb {width:43px!important;height:43px!important;flex:0 0 43px!important;border-radius:12px!important}
+html body .grow-v317-page .grow-v216-hero-status button {width:36px!important;height:36px!important;flex:0 0 36px}
+html body .grow-v317-page .grow-v215-controlbar {margin:16px 0!important;gap:12px!important;flex-wrap:wrap}
+html body .grow-v317-page .grow-v215-range-tabs,
+html body .grow-v317-page .grow-v215-platform-filter {background:rgba(255,255,255,.95)!important;box-shadow:0 4px 14px rgba(31,48,76,.035)!important;border-radius:12px!important}
+html body .grow-v317-page .grow-v215-range-tabs button {min-height:36px!important;font-size:12px!important;padding:8px 13px!important}
+html body .grow-v317-page .grow-v215-range-tabs button.active,
+html body .grow-v317-page .grow-v215-chart-toggle button.active {background:linear-gradient(135deg,#936cff,#7448ec)!important;box-shadow:0 3px 9px rgba(108,66,218,.16)!important}
+html body .grow-v317-page .grow-v215-platform-filter select {font-size:12px!important;min-height:40px!important}
+/* One six-metric panel. All six values and explanations are retained. */
+html body .grow-v317-page .grow-v215-metrics {
+  display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:0!important;
+  padding:0!important;margin:0 0 18px!important;border:1px solid var(--gb-line);border-radius:17px;
+  background:rgba(255,255,255,.94);box-shadow:0 7px 20px rgba(31,48,76,.045);overflow:hidden;
+}
+html body .grow-v317-page .grow-v215-metric-card {
+  display:flex!important;align-items:flex-start!important;gap:9px!important;min-height:116px!important;
+  margin:0!important;padding:18px 13px!important;border:0!important;border-inline-end:1px solid var(--gb-line)!important;
+  border-radius:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;
+}
+html body .grow-v317-page .grow-v215-metric-card:last-child {border-inline-end:0!important}
+html body .grow-v317-page .grow-v215-metric-card>div {min-width:0}
+html body .grow-v317-page .grow-v215-metric-icon {width:31px!important;height:31px!important;flex:0 0 31px!important;border-radius:9px!important;box-shadow:none!important;background:#f3efff!important;border:0!important}
+html body .grow-v317-page .grow-v215-metric-card>div>span {font-size:11px!important;letter-spacing:0!important;text-transform:none!important;font-weight:750!important;line-height:1.3!important;color:var(--gb-muted)!important;overflow-wrap:anywhere}
+html body .grow-v317-page .grow-v215-metric-card>div>strong {font-size:24px!important;line-height:1.15!important;color:var(--gb-ink)!important;margin:5px 0!important}
+html body .grow-v317-page .grow-v215-metric-card small {font-size:10.5px!important;line-height:1.4!important;color:var(--gb-muted)!important}
+html body .grow-v317-page .grow-v216-metric-glow {display:none!important}
+/* Full-width shallow chart, then the two distinct learning panels. */
+html body .grow-v317-page .grow-v215-main-grid {display:block!important;margin:0 0 18px!important}
+html body .grow-v317-page .grow-v317-learning-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch;margin:0 0 18px}
+html body .grow-v317-page .grow-v215-panel,
+html body .grow-v317-page .grow-v231-web-data-card {
+  padding:20px!important;border:1px solid var(--gb-line)!important;border-radius:18px!important;
+  background:rgba(255,255,255,.94)!important;box-shadow:0 7px 22px rgba(31,48,76,.045)!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+html body .grow-v317-page .grow-v215-panel-head {gap:15px!important;align-items:flex-start!important;margin:0 0 15px!important;flex-wrap:wrap}
+html body .grow-v317-page .grow-v215-panel-head>div:first-child {min-width:0;flex:1}
+html body .grow-v317-page .grow-v317-title {display:flex;align-items:center;gap:10px;margin:0 0 8px!important;font-size:15px!important;line-height:1.35!important;color:var(--gb-ink)!important;font-weight:800!important;letter-spacing:-.015em!important}
+html body .grow-v317-page .grow-v317-title>span:last-child {min-width:0}
+html body .grow-v317-page .grow-v215-panel-head p,
+html body .grow-v317-page .grow-v227-performance-head p,
+html body .grow-v317-page .grow-v231-web-data-copy>p {font-size:13.5px!important;line-height:1.5!important;color:var(--gb-muted)!important;margin:0!important}
+html body .grow-v317-page .grow-v215-chart-toggle {padding:3px!important;flex:0 0 auto;max-width:100%;border-radius:10px!important;align-self:flex-start!important}
+html body .grow-v317-page .grow-v215-chart-toggle button {min-height:32px;font-size:11.5px!important;padding:7px 12px!important;white-space:normal!important}
+html body .grow-v317-page .grow-v215-chart-wrap {min-height:0!important;margin:12px 0 0!important;grid-template-columns:30px minmax(0,1fr)!important}
+html body .grow-v317-page .grow-v215-chart-y {height:176px!important;font-size:10.5px!important}
+html body .grow-v317-page .grow-v215-chart-canvas svg {height:176px!important;width:100%!important}
+html body .grow-v317-page .grow-v215-chart-labels {font-size:11px!important;margin:10px 0 0!important}
+html body .grow-v317-page .grow-v215-chart-empty {min-height:200px!important;padding:20px!important}
+html body .grow-v317-page .grow-v215-learning-panel {width:100%!important;user-select:text!important}
+html body .grow-v317-page .grow-v215-learning-panel * {user-select:text!important;-webkit-user-select:text!important}
+html body .grow-v317-page .grow-v215-learning-panel ::selection {background:#ded4ff!important}
+html body .grow-v317-page .grow-v219-maturity-card {margin:0 0 13px!important;padding:14px!important;gap:8px!important;border-radius:13px!important;background:#faf8ff!important;box-shadow:none!important}
+html body .grow-v317-page .grow-v219-maturity-value strong {font-size:26px!important;color:#7448ec!important}
+html body .grow-v317-page .grow-v219-maturity-value span {font-size:12px!important}
+html body .grow-v317-page .grow-v219-maturity-copy {font-size:11.5px!important;line-height:1.45!important}
+html body .grow-v317-page .grow-v215-signal-list {gap:9px!important}
+html body .grow-v317-page .grow-v215-signal-row {min-height:56px!important;padding:11px!important;border-radius:12px!important;box-shadow:none!important;background:#fff!important}
+html body .grow-v317-page .grow-v215-signal-row::after {display:none!important}
+html body .grow-v317-page .grow-v215-signal-row>div strong {font-size:13px!important;line-height:1.4!important}
+html body .grow-v317-page .grow-v215-signal-row>div small {font-size:11.5px!important;line-height:1.4!important}
+html body .grow-v317-page .grow-v215-signal-mark {width:31px!important;height:31px!important;flex:0 0 31px!important}
+html body .grow-v317-page .grow-v215-signal-score {font-size:13px!important}
+html body .grow-v317-page .grow-v215-learning-note {margin:12px 0 0!important;padding:0!important;background:none!important;font-size:11.5px!important;line-height:1.5!important}
+html body .grow-v317-page .grow-v215-learning-state,
+html body .grow-v317-page .grow-v227-learning-state {min-height:25px!important;font-size:10.5px!important;letter-spacing:0!important;text-transform:none!important;white-space:normal!important;max-width:100%;line-height:1.3}
+html body .grow-v317-page .grow-v227-performance-learning {margin:0!important;min-width:0;overflow:visible!important}
+html body .grow-v317-page .grow-v227-performance-head {gap:12px;flex-wrap:wrap}
+html body .grow-v317-page .grow-v227-performance-head>div:first-child {flex:1;min-width:220px;max-width:none}
+html body .grow-v317-page .grow-v227-performance-status {max-width:100%;gap:5px}
+html body .grow-v317-page .grow-v227-performance-status small {font-size:10.5px;overflow-wrap:anywhere}
+html body .grow-v317-page .grow-v227-performance-empty {margin:16px 0!important;padding:20px!important;gap:13px!important;border-radius:13px!important;background:#fcfbff!important}
+html body .grow-v317-page .grow-v227-performance-empty strong {font-size:13.5px!important;line-height:1.45!important;color:var(--gb-ink)!important}
+html body .grow-v317-page .grow-v227-performance-empty p {font-size:13px!important;line-height:1.55!important;color:var(--gb-muted)!important;margin-top:5px!important}
+html body .grow-v317-page .grow-v227-observation-note {padding:13px!important;border:1px solid #e7e0f8!important;background:#faf8ff!important;border-radius:12px;font-size:11.5px!important;line-height:1.5!important;color:var(--gb-muted)!important}
+/* Established-learning details remain visible; fit inside the narrower card. */
+html body .grow-v317-page .grow-v227-insight-groups {grid-template-columns:1fr!important}
+html body .grow-v317-page .grow-v227-performance-summary {grid-template-columns:repeat(2,minmax(0,1fr))!important}
+html body .grow-v317-page .grow-v227-insight-top {flex-wrap:wrap}
+html body .grow-v317-page .grow-v227-insight-title>strong {font-size:13px;line-height:1.4}
+html body .grow-v317-page .grow-v227-insight-evidence>span {font-size:11px;min-height:27px}
+html body .grow-v317-page .grow-v227-insight-foot {font-size:10.5px;line-height:1.4}
+/* Optional website data uses the same white panel and orange app action. */
+html body .grow-v317-page .grow-v231-web-data-card {margin:0 0 18px!important;gap:22px!important;grid-template-columns:minmax(0,1fr) auto}
+html body .grow-v317-page .grow-v231-web-data-statuses {gap:9px;margin-top:15px;grid-template-columns:repeat(3,minmax(0,1fr))}
+html body .grow-v317-page .grow-v231-web-data-statuses strong {font-size:13px}
+html body .grow-v317-page .grow-v231-web-data-statuses small {font-size:11.5px;line-height:1.4;overflow-wrap:anywhere}
+html body .grow-v317-page .grow-v231-web-data-action button {min-height:40px;border-radius:10px;font-size:12px}
+html body .grow-v317-page .grow-v231-web-data-action button.primary {background:linear-gradient(135deg,#ff7554,#f35231)!important;color:#fff!important;border:0!important;box-shadow:0 5px 13px rgba(230,81,44,.16)!important}
+html body .grow-v317-page .grow-v231-web-data-action button.secondary {color:#ba432c;background:#fff2ec;border-color:#ffd9ce}
+/* Six aligned channel rows; mobile keeps the same data in stacked cards. */
+html body .grow-v317-page .grow-v215-channel-grid {display:grid!important;grid-template-columns:1fr!important;gap:0!important}
+html body .grow-v317-page .grow-v215-channel-card {
+  display:grid;grid-template-columns:minmax(250px,1.05fr) minmax(245px,1fr) minmax(150px,.8fr);align-items:center;gap:15px;
+  padding:15px 0!important;border:0!important;border-bottom:1px solid var(--gb-line)!important;border-radius:0!important;
+  background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;overflow:visible!important;
+}
+html body .grow-v317-page .grow-v215-channel-card:last-child {border-bottom:0!important}
+html body .grow-v317-page .grow-v215-channel-card::after {display:none!important}
+html body .grow-v317-page .grow-v215-channel-top {align-items:center!important;gap:12px!important;margin:0!important;flex-wrap:wrap}
+html body .grow-v317-page .grow-v215-channel-top>div {min-width:0;flex:1}
+html body .grow-v317-page .grow-v215-channel-top strong {font-size:13px!important;line-height:1.4!important}
+html body .grow-v317-page .grow-v215-channel-top small {font-size:11.5px!important;line-height:1.35!important;overflow-wrap:anywhere}
+html body .grow-v317-page .grow-v215-status-pill {font-size:10px!important;text-transform:none!important;letter-spacing:0!important;line-height:1.35!important;white-space:normal!important;max-width:100%!important}
+html body .grow-v317-page .grow-v215-channel-metrics {margin:0!important;padding:0!important;border:0!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important}
+html body .grow-v317-page .grow-v215-channel-metrics div {padding:0 10px!important}
+html body .grow-v317-page .grow-v215-channel-metrics span {font-size:9.5px!important;line-height:1.4!important;letter-spacing:0!important;text-transform:none!important;overflow-wrap:anywhere}
+html body .grow-v317-page .grow-v215-channel-metrics strong {font-size:14px!important;margin-top:4px}
+html body .grow-v317-page .grow-v215-channel-foot {display:flex!important;flex-wrap:wrap!important;gap:6px!important;margin:0!important;padding:0!important;border:0!important;justify-content:space-between;font-size:11px!important;line-height:1.4!important}
+html body .grow-v317-page .grow-v215-channel-foot a {display:inline-flex;align-items:center;gap:4px;padding:7px 9px;border:1px solid #ffdfd3;border-radius:8px;background:#fff8f4;color:#e95632!important;font-size:11.5px!important;min-height:32px}
+html body .grow-v317-page .grow-v215-coverage {text-transform:none!important;font-size:11px!important;white-space:normal!important;max-width:100%;line-height:1.4}
+html body .grow-v317-page .grow-v215-bottom-grid {display:grid!important;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)!important;gap:18px!important;margin-top:18px!important;align-items:stretch!important}
+html body .grow-v317-page .grow-v216-top-grid {display:grid!important;grid-template-columns:1fr!important;gap:10px!important}
+html body .grow-v317-page .grow-v216-top-card {display:grid!important;grid-template-columns:100px minmax(0,1fr)!important;gap:7px 13px!important;padding:12px!important;border-radius:12px!important;border:1px solid var(--gb-line)!important;background:#fff!important;box-shadow:none!important;position:relative;align-items:center}
+html body .grow-v317-page .grow-v216-top-media {grid-row:1 / 3;width:100px!important;height:126px!important;min-height:0!important;aspect-ratio:4/5!important;border-radius:9px!important;background-size:cover!important;margin:0!important}
+html body .grow-v317-page .grow-v215-top-copy {padding:0!important;min-width:0}
+html body .grow-v317-page .grow-v215-top-copy strong {font-size:13px!important;line-height:1.45!important}
+html body .grow-v317-page .grow-v215-top-copy small {font-size:11px!important;line-height:1.4!important;margin-top:6px}
+html body .grow-v317-page .grow-v216-top-metrics {padding:0!important;border:0!important;gap:12px!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+html body .grow-v317-page .grow-v216-top-metrics strong {font-size:15px!important}
+html body .grow-v317-page .grow-v216-top-metrics small {font-size:11px!important;text-transform:none!important;letter-spacing:0!important}
+html body .grow-v317-page .grow-v215-rank {position:absolute;left:14px;top:14px;width:22px;height:22px;font-size:11px;z-index:1}
+html body .grow-v317-page .grow-v215-health-score {padding:15px!important;gap:12px!important;border-radius:13px!important;background:#faf8ff!important;box-shadow:none!important}
+html body .grow-v317-page .grow-v215-health-ring {width:66px!important;height:66px!important}
+html body .grow-v317-page .grow-v215-health-score p {font-size:12px!important;line-height:1.5!important}
+html body .grow-v317-page .grow-v215-health-list {margin-top:12px!important;border-radius:12px!important}
+html body .grow-v317-page .grow-v215-health-list>div {padding:10px!important;gap:8px!important}
+html body .grow-v317-page .grow-v215-health-list span,
+html body .grow-v317-page .grow-v215-health-list strong {font-size:11.5px!important;line-height:1.4!important;overflow-wrap:anywhere}
+html body .grow-v317-page .grow-v215-system-note {padding:12px!important;font-size:11.5px!important;line-height:1.5!important;background:#faf8ff!important}
+html body .grow-v317-page button:focus-visible,
+html body .grow-v317-page a:focus-visible,
+html body .grow-v317-page select:focus-visible {outline:2px solid #7854e8;outline-offset:3px}
+/* Break on actual available content width, including Shopify embeds. */
+@container grow-brain (max-width:1050px) {
+  html body .grow-v317-page .grow-v215-metrics {grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  html body .grow-v317-page .grow-v215-metric-card {border-bottom:1px solid var(--gb-line)!important}
+  html body .grow-v317-page .grow-v215-metric-card:nth-child(3n) {border-inline-end:0!important}
+  html body .grow-v317-page .grow-v215-metric-card:nth-last-child(-n+3) {border-bottom:0!important}
+  html body .grow-v317-page .grow-v215-channel-card {grid-template-columns:minmax(220px,1fr) minmax(220px,1fr)!important}
+  html body .grow-v317-page .grow-v215-channel-foot {grid-column:1/-1;justify-content:flex-end}
+  html body .grow-v317-page .grow-v216-hero {gap:22px!important;padding:25px!important}
+  html body .grow-v317-page .grow-v231-web-data-card {grid-template-columns:1fr}
+  html body .grow-v317-page .grow-v231-web-data-action {align-items:flex-start;flex-direction:row;flex-wrap:wrap;gap:10px}
+  html body .grow-v317-page .grow-v231-web-data-action>small {text-align:left;max-width:300px}
+}
+@container grow-brain (max-width:760px) {
+  html body .grow-v317-page .grow-v216-hero {grid-template-columns:1fr!important;padding:24px!important;background-image:linear-gradient(90deg,rgba(255,255,255,.85),rgba(255,255,255,.24)),url('/grow-brain/grow-brain-hero-bg.png')!important}
+  html body .grow-v317-page .grow-v216-hero-status {justify-self:start!important;max-width:420px!important}
+  html body .grow-v317-page .grow-v317-learning-grid,
+  html body .grow-v317-page .grow-v215-bottom-grid {grid-template-columns:1fr!important}
+  html body .grow-v317-page .grow-v231-web-data-statuses {grid-template-columns:1fr}
+  html body .grow-v317-page .grow-v215-channel-card {grid-template-columns:1fr!important;gap:12px;padding:16px 0!important}
+  html body .grow-v317-page .grow-v215-channel-foot {grid-column:auto;justify-content:space-between}
+  html body .grow-v317-page .grow-v215-channel-metrics div:first-child {padding-inline-start:0!important}
+  html body .grow-v317-page .grow-v227-performance-head>div:first-child {min-width:0}
+}
+@container grow-brain (max-width:480px) {
+  html body .grow-v317-page .grow-v215-metrics {grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  html body .grow-v317-page .grow-v215-metric-card {padding:13px 10px!important;min-height:112px!important;border-inline-end:1px solid var(--gb-line)!important;border-bottom:1px solid var(--gb-line)!important}
+  html body .grow-v317-page .grow-v215-metric-card:nth-child(2n) {border-inline-end:0!important}
+  html body .grow-v317-page .grow-v215-metric-card:nth-last-child(-n+2) {border-bottom:0!important}
+  html body .grow-v317-page .grow-v215-controlbar {align-items:stretch!important;flex-direction:column!important}
+  html body .grow-v317-page .grow-v215-platform-filter {align-self:flex-start}
+  html body .grow-v317-page .grow-v215-panel,
+  html body .grow-v317-page .grow-v231-web-data-card {padding:15px!important;border-radius:16px!important}
+  html body .grow-v317-page .grow-v216-hero {padding:20px 16px!important;gap:18px!important;border-radius:18px!important}
+  html body .grow-v317-page .grow-v317-hero-heading {gap:9px}
+  html body .grow-v317-page .grow-v317-hero-heading>.grow-v317-heading-icon {width:38px;height:38px;flex-basis:38px}
+  html body .grow-v317-page .grow-v216-hero h1 {font-size:30px!important}
+  html body .grow-v317-page .grow-v215-panel-head {gap:10px!important}
+  html body .grow-v317-page .grow-v215-panel-head.compact {flex-direction:row!important}
+  html body .grow-v317-page .grow-v317-title {font-size:15px!important;gap:8px}
+  html body .grow-v317-page .grow-v215-channel-top {flex-wrap:wrap}
+  html body .grow-v317-page .grow-v215-channel-top>div {flex:1 1 150px}
+  html body .grow-v317-page .grow-v219-maturity-top {flex-wrap:wrap;gap:8px}
+  html body .grow-v317-page .grow-v215-health-score {grid-template-columns:1fr!important}
+  html body .grow-v317-page .grow-v215-health-list>div {flex-wrap:wrap}
+  html body .grow-v317-page .grow-v215-health-list strong {margin-inline-start:auto}
+  html body .grow-v317-page .grow-v216-top-card {grid-template-columns:80px minmax(0,1fr)!important;gap:8px!important}
+  html body .grow-v317-page .grow-v216-top-media {width:80px!important;height:100px!important}
+  html body .grow-v317-page .grow-v231-web-data-action {display:flex;width:100%;flex-direction:column;align-items:stretch}
+  html body .grow-v317-page .grow-v231-web-data-action button {width:100%;min-height:44px}
+  html body .grow-v317-page .grow-v231-provider-chip {align-self:flex-start}
+}
+@media(max-width:760px) {
+  html body .content.spreelo-content:has(.grow-v317-page) {padding:16px 14px!important}
+  html body .grow-v317-page {padding:6px 0 40px!important}
+}
+@media(prefers-reduced-motion:reduce) {
+  html body .grow-v317-page .grow-v215-spin {animation:none!important}
+}

@@ -5,6 +5,7 @@ import {
   Activity,
   ArrowRight,
   BarChart3,
+  Brain,
   CheckCircle2,
   ChevronDown,
   CircleAlert,
@@ -1027,11 +1028,11 @@ export default function GrowBrainPage() {
 
   return (
     <AppLayout active="grow-brain">
-      <div className="grow-v215-page">
+      <div className="grow-v215-page grow-v317-page">
         <header className="grow-v215-hero grow-v216-hero">
           <div className="grow-v215-hero-copy">
             <span className="grow-v215-eyebrow"><Sparkles size={15} /> {t("growBrain.eyebrow")}</span>
-            <h1>{t("growBrain.title")}</h1>
+            <div className="grow-v317-hero-heading"><span className="grow-v317-heading-icon" aria-hidden="true"><Brain size={27} /></span><h1>{t("growBrain.title")}</h1></div>
             <p>{t("growBrain.subtitle")}</p>
             <div className="grow-v216-hero-meta">
               {currentBrand?.business_name ? <span className="grow-v215-brand-chip">{t("growBrain.currentBrand")} <strong>{currentBrand.business_name}</strong></span> : null}
@@ -1121,25 +1122,26 @@ export default function GrowBrainPage() {
 
         <section className="grow-v215-main-grid">
           <article className="grow-v215-panel grow-v215-trend-panel">
-            <div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.performance")}</span><h2>{t("growBrain.performanceByPublishDate")}</h2><p>{t("growBrain.performanceByPublishDateHelp")}</p></div><div className="grow-v215-chart-toggle"><button type="button" className={chartMetric === "interactions" ? "active" : ""} onClick={() => setChartMetric("interactions")}>{t("growBrain.interactions")}</button><button type="button" className={chartMetric === "exposure" ? "active" : ""} onClick={() => setChartMetric("exposure")}>{t("growBrain.exposure")}</button></div></div>
+            <div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.performance")}</span><h2 className="grow-v317-title"><span className="grow-v317-heading-icon" aria-hidden="true"><Activity size={19} /></span><span>{t("growBrain.performanceByPublishDate")}</span></h2><p>{t("growBrain.performanceByPublishDateHelp")}</p></div><div className="grow-v215-chart-toggle"><button type="button" className={chartMetric === "interactions" ? "active" : ""} onClick={() => setChartMetric("interactions")}>{t("growBrain.interactions")}</button><button type="button" className={chartMetric === "exposure" ? "active" : ""} onClick={() => setChartMetric("exposure")}>{t("growBrain.exposure")}</button></div></div>
             {loading ? <div className="grow-v215-chart-empty"><LoaderCircle className="grow-v215-spin" /><span>{t("growBrain.loading")}</span></div> : hasPerformance ? (
               <div className="grow-v215-chart-wrap grow-v222-chart-wrap"><div className="grow-v215-chart-y grow-v222-chart-y"><span>{formatCompact(chartMax, locale)}</span><span>{formatCompact(chartMax * .75, locale)}</span><span>{formatCompact(chartMax / 2, locale)}</span><span>{formatCompact(chartMax * .25, locale)}</span><span>0</span></div><div className="grow-v215-chart-canvas grow-v222-chart-canvas"><svg viewBox="0 0 760 210" preserveAspectRatio="none" role="img" aria-label={t("growBrain.performanceChartLabel")}><defs><linearGradient id="growActiveArea" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor={chartMetric === "exposure" ? "#9f8fff" : "#6a4cf2"} stopOpacity=".18" /><stop offset="100%" stopColor={chartMetric === "exposure" ? "#9f8fff" : "#6a4cf2"} stopOpacity="0" /></linearGradient></defs><line x1="14" x2="746" y1="14" y2="14" className="grow-v215-gridline" /><line x1="14" x2="746" y1="60" y2="60" className="grow-v215-gridline" /><line x1="14" x2="746" y1="105" y2="105" className="grow-v215-gridline" /><line x1="14" x2="746" y1="150" y2="150" className="grow-v215-gridline" /><line x1="14" x2="746" y1="196" y2="196" className="grow-v215-gridline" />{chartGeometry.areaPath ? <path d={chartGeometry.areaPath} className="grow-v224-area" /> : null}{chartGeometry.path ? <path d={chartGeometry.path} className={`grow-v224-line ${chartMetric}`} /> : null}{chartGeometry.points.map((point, index) => <circle key={`point-${chartMetric}-${index}`} cx={point.x} cy={point.y} r="3.2" className={`grow-v224-chart-point ${chartMetric}`} />)}</svg><div className="grow-v215-chart-labels"><span>{formatDate(dailySeries[0]?.start, locale)}</span><span>{formatDate(dailySeries[Math.floor(dailySeries.length / 2)]?.start, locale)}</span><span>{formatDate(dailySeries.at(-1)?.end, locale)}</span></div></div></div>
             ) : <div className="grow-v215-chart-empty"><TrendingUp size={25} /><strong>{t("growBrain.noPerformanceTitle")}</strong><span>{t("growBrain.noPerformanceText")}</span><a href="/social-channels">{t("growBrain.openSocialChannels")} <ArrowRight size={15} /></a></div>}
           </article>
+        </section>
 
+        <section className="grow-v317-learning-grid">
           <aside className="grow-v215-panel grow-v215-learning-panel">
-            <div className="grow-v215-panel-head compact"><div><span className="grow-v215-section-kicker">{t("growBrain.customerLearning")}</span><h2>{t("growBrain.whatSpreeloLearns")}</h2></div><span className={`grow-v215-learning-state ${learningState}`}>{t(`growBrain.learningState.${learningState}`)}</span></div>
+            <div className="grow-v215-panel-head compact"><div><span className="grow-v215-section-kicker">{t("growBrain.customerLearning")}</span><h2 className="grow-v317-title"><span className="grow-v317-heading-icon" aria-hidden="true"><Brain size={19} /></span><span>{t("growBrain.whatSpreeloLearns")}</span></h2></div><span className={`grow-v215-learning-state ${learningState}`}>{t(`growBrain.learningState.${learningState}`)}</span></div>
             <div className="grow-v219-maturity-card"><div className="grow-v219-maturity-top"><div className="grow-v219-maturity-value"><strong>{learningProgressPercent}%</strong><span>{t("growBrain.learningMaturity")}</span></div><span className="grow-v219-decision-badge" aria-label={t("growBrain.decisionCount", { count: learningEventCount })}>{learningEventCount >= 12 ? `${learningEventCount} ✓` : `${learningEventCount} / 12`}</span></div><div className="grow-v219-progress-track" aria-hidden="true"><span style={{ width: `${Math.max(8, learningProgressPercent)}%` }} /></div><p className="grow-v219-maturity-copy">{learningEventCount >= 12 ? t("growBrain.learningEstablishedText") : t("growBrain.learningProgressText", { count: Math.max(0, 12 - learningEventCount) })}</p></div>
             {learningSignals.length ? <div className="grow-v215-signal-list">{learningSignals.map((signal) => <div key={`${signal.kind}-${signal.key}`} className="grow-v215-signal-row"><span className={`grow-v215-signal-mark ${signal.score >= 0 ? "positive" : "negative"}`}>{signal.score >= 0 ? <ThumbsUp size={14} /> : <Activity size={14} />}</span><div><strong>{getLearningSignalLabel(t, signal)}</strong><small>{signal.score >= 0 ? t("growBrain.positivePreference") : t("growBrain.negativePreference")} · {t("growBrain.observations", { count: signal.observations })}</small></div><span className={`grow-v215-signal-score ${signal.score >= 0 ? "positive" : "negative"}`}>{signal.score > 0 ? "+" : ""}{signal.score}</span></div>)}</div> : <div className="grow-v215-learning-empty"><Sparkles size={20} /><p>{t("growBrain.learningEmpty")}</p></div>}
             <p className="grow-v215-learning-note">{t("growBrain.learningSafetyNote")}</p>
           </aside>
-        </section>
 
         <section className="grow-v215-panel grow-v227-performance-learning">
           <div className="grow-v227-performance-head">
             <div>
               <span className="grow-v215-section-kicker">{t("growBrain.performanceLearningEyebrow")}</span>
-              <h2>{t("growBrain.performanceLearningTitle")}</h2>
+              <h2 className="grow-v317-title"><span className="grow-v317-heading-icon" aria-hidden="true"><BarChart3 size={19} /></span><span>{t("growBrain.performanceLearningTitle")}</span></h2>
               <p>{t("growBrain.performanceLearningDescription")}</p>
             </div>
             <div className="grow-v227-performance-status">
@@ -1173,11 +1175,12 @@ export default function GrowBrainPage() {
 
           <div className="grow-v227-observation-note grow-v229-planning-active"><CircleAlert size={15} /><span>{t("growBrain.performanceLearningPlanningActive")}</span></div>
         </section>
+        </section>
 
         <section className="grow-v231-web-data-card">
           <div className="grow-v231-web-data-copy">
             <span className="grow-v215-section-kicker">{t("growBrain.webDataEyebrow")}</span>
-            <h2>{t("growBrain.webDataTitle")}</h2>
+            <h2 className="grow-v317-title"><span className="grow-v317-heading-icon" aria-hidden="true"><Globe2 size={19} /></span><span>{t("growBrain.webDataTitle")}</span></h2>
             <p>{t("growBrain.webDataDescription")}</p>
             <div className="grow-v231-web-data-statuses">
               <div className={connectedPlatforms.length ? "connected" : "pending"}>
@@ -1205,7 +1208,7 @@ export default function GrowBrainPage() {
         </section>
 
         <section className="grow-v215-panel grow-v215-channels-panel">
-          <div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.channels")}</span><h2>{t("growBrain.channelPerformance")}</h2><p>{t("growBrain.channelPerformanceHelp")}</p></div><span className="grow-v215-coverage"><CheckCircle2 size={15} /> {coverageLabel}</span></div>
+          <div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.channels")}</span><h2 className="grow-v317-title"><span className="grow-v317-heading-icon" aria-hidden="true"><Share2 size={19} /></span><span>{t("growBrain.channelPerformance")}</span></h2><p>{t("growBrain.channelPerformanceHelp")}</p></div><span className="grow-v215-coverage"><CheckCircle2 size={15} /> {coverageLabel}</span></div>
           <div className="grow-v215-channel-grid">{PLATFORM_ORDER.map((platform) => {
             const connection = getConnectionForPlatform(connections, platform);
             const stats = allPlatformStats[platform];
@@ -1216,8 +1219,8 @@ export default function GrowBrainPage() {
         </section>
 
         <section className="grow-v215-bottom-grid">
-          <article className="grow-v215-panel grow-v215-top-posts"><div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.content")}</span><h2>{t("growBrain.topContent")}</h2><p>{t("growBrain.topContentHelp")}</p></div></div>{topPosts.length ? <div className="grow-v215-top-list grow-v216-top-grid">{topPosts.slice(0, 6).map((row, index) => { const post = postsById[row.post_id] || {}; const title = truncate(post.idea || post.content || humanize(row.content_type_id || row.content_format) || t("growBrain.publishedPost"), 62); const imageUrl = post.image_url || ""; return <a key={`${row.post_id}-${row.platform}`} href={String(row.post_id || "").startsWith("demo-") ? "/grow-brain?demo=1" : `/posts/${row.post_id}`} className="grow-v215-top-row grow-v216-top-card"><span className="grow-v215-rank">{index + 1}</span><div className={`grow-v216-top-media ${imageUrl ? "has-image" : ""}`} style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}>{!imageUrl ? <PlatformIcon platform={row.platform} /> : null}</div><span className="grow-v215-top-copy"><strong>{title}</strong><small><PlatformIcon platform={row.platform} /> {PLATFORM_META[row.platform]?.label || humanize(row.platform)} · {formatDate(row.published_at, locale)}</small></span><span className="grow-v216-top-metrics"><span><strong>{formatCompact(getInteractionCount(row), locale)}</strong><small>{t("growBrain.interactions")}</small></span><span><strong>{formatCompact(getExposure(row), locale)}</strong><small>{t("growBrain.exposure")}</small></span></span></a>; })}</div> : <div className="grow-v215-list-empty"><BarChart3 size={21} /><p>{t("growBrain.topContentEmpty")}</p></div>}</article>
-          <aside className="grow-v215-panel grow-v215-system-card"><div className="grow-v215-panel-head compact"><div><span className="grow-v215-section-kicker">{t("growBrain.system")}</span><h2>{t("growBrain.dataHealth")}</h2></div></div><div className="grow-v215-health-score"><span className="grow-v215-health-ring" style={{ "--score": `${connectedPlatforms.length ? Math.round((healthyPlatforms.length / connectedPlatforms.length) * 100) : 0}%` }}><strong>{connectedPlatforms.length ? Math.round((healthyPlatforms.length / connectedPlatforms.length) * 100) : 0}%</strong></span><div><strong>{t("growBrain.measurementCoverage")}</strong><p>{t("growBrain.measurementCoverageText")}</p></div></div><div className="grow-v215-health-list"><div><CheckCircle2 size={16} /><span>{t("growBrain.connectedChannels")}</span><strong>{connectedPlatforms.length}</strong></div><div><Activity size={16} /><span>{t("growBrain.channelsWithData")}</span><strong>{healthyPlatforms.length}</strong></div><div><Clock3 size={16} /><span>{t("growBrain.lastCollection")}</span><strong>{lastSuccess ? formatDateTime(lastSuccess, locale) : "—"}</strong></div></div><p className="grow-v215-system-note">{t("growBrain.observationalNote")}</p></aside>
+          <article className="grow-v215-panel grow-v215-top-posts"><div className="grow-v215-panel-head"><div><span className="grow-v215-section-kicker">{t("growBrain.content")}</span><h2 className="grow-v317-title"><span className="grow-v317-heading-icon" aria-hidden="true"><TrendingUp size={19} /></span><span>{t("growBrain.topContent")}</span></h2><p>{t("growBrain.topContentHelp")}</p></div></div>{topPosts.length ? <div className="grow-v215-top-list grow-v216-top-grid">{topPosts.slice(0, 6).map((row, index) => { const post = postsById[row.post_id] || {}; const title = truncate(post.idea || post.content || humanize(row.content_type_id || row.content_format) || t("growBrain.publishedPost"), 62); const imageUrl = post.image_url || ""; return <a key={`${row.post_id}-${row.platform}`} href={String(row.post_id || "").startsWith("demo-") ? "/grow-brain?demo=1" : `/posts/${row.post_id}`} className="grow-v215-top-row grow-v216-top-card"><span className="grow-v215-rank">{index + 1}</span><div className={`grow-v216-top-media ${imageUrl ? "has-image" : ""}`} style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}>{!imageUrl ? <PlatformIcon platform={row.platform} /> : null}</div><span className="grow-v215-top-copy"><strong>{title}</strong><small><PlatformIcon platform={row.platform} /> {PLATFORM_META[row.platform]?.label || humanize(row.platform)} · {formatDate(row.published_at, locale)}</small></span><span className="grow-v216-top-metrics"><span><strong>{formatCompact(getInteractionCount(row), locale)}</strong><small>{t("growBrain.interactions")}</small></span><span><strong>{formatCompact(getExposure(row), locale)}</strong><small>{t("growBrain.exposure")}</small></span></span></a>; })}</div> : <div className="grow-v215-list-empty"><BarChart3 size={21} /><p>{t("growBrain.topContentEmpty")}</p></div>}</article>
+          <aside className="grow-v215-panel grow-v215-system-card"><div className="grow-v215-panel-head compact"><div><span className="grow-v215-section-kicker">{t("growBrain.system")}</span><h2 className="grow-v317-title"><span className="grow-v317-heading-icon" aria-hidden="true"><Database size={19} /></span><span>{t("growBrain.dataHealth")}</span></h2></div></div><div className="grow-v215-health-score"><span className="grow-v215-health-ring" style={{ "--score": `${connectedPlatforms.length ? Math.round((healthyPlatforms.length / connectedPlatforms.length) * 100) : 0}%` }}><strong>{connectedPlatforms.length ? Math.round((healthyPlatforms.length / connectedPlatforms.length) * 100) : 0}%</strong></span><div><strong>{t("growBrain.measurementCoverage")}</strong><p>{t("growBrain.measurementCoverageText")}</p></div></div><div className="grow-v215-health-list"><div><CheckCircle2 size={16} /><span>{t("growBrain.connectedChannels")}</span><strong>{connectedPlatforms.length}</strong></div><div><Activity size={16} /><span>{t("growBrain.channelsWithData")}</span><strong>{healthyPlatforms.length}</strong></div><div><Clock3 size={16} /><span>{t("growBrain.lastCollection")}</span><strong>{lastSuccess ? formatDateTime(lastSuccess, locale) : "—"}</strong></div></div><p className="grow-v215-system-note">{t("growBrain.observationalNote")}</p></aside>
         </section>
 
         {websiteConnectOpen ? <div className="grow-v231-connect-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setWebsiteConnectOpen(false); }}>
