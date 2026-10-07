@@ -1,16 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronRight, ClipboardList, PenLine, Send, X } from "lucide-react";
 import styles from "./ThemeCalendarWelcome.module.css";
 
 export default function ThemeCalendarWelcome({ t, locale, onClose }) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const dialogRef = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = () => onClose(dontShowAgain);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return undefined;
     const previousFocus = document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -41,13 +48,15 @@ export default function ThemeCalendarWelcome({ t, locale, onClose }) {
       document.removeEventListener("keydown", handleKey);
       if (previousFocus?.isConnected) previousFocus.focus();
     };
-  }, []);
+  }, [mounted]);
 
   const steps = [ClipboardList, PenLine, Send];
   const key = (name) => t(`calendar.welcomeV319.${name}`);
   const cards = ["occasions", "products", "setup"];
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       className={styles.backdrop}
       onMouseDown={(event) => {
@@ -125,6 +134,7 @@ export default function ThemeCalendarWelcome({ t, locale, onClose }) {
           </div>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
