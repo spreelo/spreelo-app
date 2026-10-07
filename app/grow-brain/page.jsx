@@ -258,7 +258,7 @@ function getWebProviderMeta(provider) {
 }
 
 function getWebIntroStorageKey(brandId) {
-  return `spreelo_grow_brain_web_intro_dismissed_v321_${brandId || "unknown"}`;
+  return `spreelo_grow_brain_web_intro_hidden_v322_${brandId || "unknown"}`;
 }
 
 function getPlatformCollectionStatus(states, platform, connection, stats) {
@@ -754,56 +754,46 @@ export default function GrowBrainPage() {
     if (websiteConnection?.status === "connected") return;
     if (webIntroCheckedRef.current === currentBrand.id) return;
     webIntroCheckedRef.current = currentBrand.id;
-    // v321: the redesigned Grow Brain intro has its own local UI-version marker.
-    // Deliberately do not use the legacy database intro_dismissed_at here: customers
-    // who dismissed the old modal should still see the new design once. The actual
-    // website/commerce connection state remains untouched.
-    const locallyDismissed = typeof window !== "undefined" && localStorage.getItem(getWebIntroStorageKey(currentBrand.id)) === "1";
-    if (locallyDismissed) return;
-    setWebsiteConnectView("intro");
-    setWebsiteConnectOpen(true);
+    // v322: keep showing the redesigned intro until the user explicitly checks
+    // “Don’t show again”. Closing the modal, choosing “Not now”, or clicking the
+    // backdrop must never permanently hide it. This UI preference is independent
+    // from the website/commerce connection state.
+    let cancelled = false;
+    void (async () => {
+      let hidden = typeof window !== "undefined" && localStorage.getItem(getWebIntroStorageKey(currentBrand.id)) === "1";
+      if (!hidden) {
+        try {
+          const { data } = await supabase.auth.getSession();
+          hidden = data?.session?.user?.user_metadata?.spreelo_grow_brain_web_intro_hidden_v322 === true;
+        } catch {}
+      }
+      if (cancelled || hidden) return;
+      setWebsiteConnectView("intro");
+      setWebsiteConnectOpen(true);
+    })();
+    return () => { cancelled = true; };
   }, [websiteConnectionLoaded, loading, currentBrand?.id, websiteConnection?.status]);
 
-  async function dismissWebsiteConnectIntro() {
-    const dismissedAt = new Date().toISOString();
-    if (typeof window !== "undefined" && currentBrand?.id) {
-      localStorage.setItem(getWebIntroStorageKey(currentBrand.id), "1");
-    }
+  async function dismissWebsiteConnectIntro(dontShowAgain = false) {
     setWebsiteConnectOpen(false);
-    if (!currentBrand?.id) return;
-    if (demoMode || currentUserId === "demo-user") {
-      setWebsiteConnection((current) => ({ ...(current || {}), status: current?.status || "not_connected", intro_dismissed_at: dismissedAt }));
-      return;
+    if (!dontShowAgain || !currentBrand?.id) return;
+
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(getWebIntroStorageKey(currentBrand.id), "1");
+      } catch {}
     }
+
+    // Same pattern as the AI Content Creator welcome guide: persist only the
+    // explicit UI preference. No website-connection row or commerce status changes.
+    if (demoMode || currentUserId === "demo-user") return;
     try {
-      if (websiteConnection?.brand_profile_id) {
-        const { data, error } = await supabase
-          .from("brand_web_data_connections")
-          .update({ intro_dismissed_at: dismissedAt, updated_at: dismissedAt })
-          .eq("brand_profile_id", currentBrand.id)
-          .eq("user_id", currentUserId)
-          .select("*")
-          .single();
-        if (error) throw error;
-        setWebsiteConnection(data);
-      } else {
-        const { data, error } = await supabase
-          .from("brand_web_data_connections")
-          .insert({
-            brand_profile_id: currentBrand.id,
-            user_id: currentUserId,
-            status: "not_connected",
-            website_url: currentBrand.website_url || null,
-            intro_dismissed_at: dismissedAt,
-            updated_at: dismissedAt,
-          })
-          .select("*")
-          .single();
-        if (error) throw error;
-        setWebsiteConnection(data);
-      }
+      const { error } = await supabase.auth.updateUser({
+        data: { spreelo_grow_brain_web_intro_hidden_v322: true },
+      });
+      if (error) throw error;
     } catch (error) {
-      console.warn("Could not persist Grow Brain website intro dismissal", error);
+      console.warn("Could not sync Grow Brain welcome preference", error);
     }
   }
 

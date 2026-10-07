@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   CheckCircle2,
   CircleAlert,
   Globe2,
   LoaderCircle,
-  MousePointerClick,
   ShoppingBag,
   Sparkles,
   Wifi,
@@ -38,6 +37,12 @@ export default function GrowBrainConnectModal({
   onDisconnectShopify,
 }) {
   const dialogRef = useRef(null);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const closeRef = useRef(onRequestClose);
+  closeRef.current = () => {
+    if (view === "intro") onDismissIntro(dontShowAgain);
+    else onRequestClose();
+  };
 
   useEffect(() => {
     const previousFocus = document.activeElement;
@@ -48,7 +53,7 @@ export default function GrowBrainConnectModal({
     const handleKey = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onRequestClose();
+        closeRef.current();
       }
       if (event.key !== "Tab") return;
       const nodes = dialogRef.current?.querySelectorAll('button:not(:disabled), input, a[href], [tabindex="0"]');
@@ -70,7 +75,7 @@ export default function GrowBrainConnectModal({
       document.removeEventListener("keydown", handleKey);
       if (previousFocus?.isConnected) previousFocus.focus();
     };
-  }, [onRequestClose]);
+  }, []);
 
   const WebProviderIcon = webProviderMeta?.icon || Globe2;
   const websiteUrl =
@@ -126,7 +131,6 @@ export default function GrowBrainConnectModal({
               <span>{t("growBrain.webConnectCurrentWebsiteLabel")}</span>
               <strong>{websiteUrl}</strong>
             </div>
-            <a href="/brand" className={styles.secondaryGhost}>{t("growBrain.webConnectChangeWebsite")}</a>
           </div>
         ) : null}
 
@@ -137,10 +141,16 @@ export default function GrowBrainConnectModal({
             <Globe2 size={17} />
             <span>{t("growBrain.webConnectButton")}</span>
           </button>
-          <button type="button" className={styles.secondary} onClick={onDismissIntro}>{t("growBrain.webConnectNotNow")}</button>
+          <button type="button" className={styles.secondary} onClick={() => closeRef.current()}>{t("growBrain.webConnectNotNow")}</button>
         </div>
 
-        <p className={styles.optional}>{t("growBrain.webConnectOptionalText")}</p>
+        <div className={styles.introFooter}>
+          <label className={styles.preference}>
+            <input type="checkbox" checked={dontShowAgain} onChange={(event) => setDontShowAgain(event.target.checked)} />
+            <span>{t("growBrain.webConnectDontShowAgain")}</span>
+          </label>
+          <p className={styles.optional}>{t("growBrain.webConnectOptionalText")}</p>
+        </div>
       </>
     );
   }
@@ -252,10 +262,10 @@ export default function GrowBrainConnectModal({
 
   return (
     <div className={styles.backdrop} role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onRequestClose();
+      if (event.target === event.currentTarget) closeRef.current();
     }}>
       <section className={styles.dialog} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="grow-brain-connect-title" lang={locale}>
-        <button type="button" className={styles.close} onClick={onRequestClose} aria-label={t("growBrain.webConnectClose")}>
+        <button type="button" className={styles.close} onClick={() => closeRef.current()} aria-label={t("growBrain.webConnectClose")}>
           <X size={20} />
         </button>
 
