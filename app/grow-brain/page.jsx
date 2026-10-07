@@ -258,7 +258,7 @@ function getWebProviderMeta(provider) {
 }
 
 function getWebIntroStorageKey(brandId) {
-  return `spreelo_grow_brain_web_intro_dismissed_${brandId || "unknown"}`;
+  return `spreelo_grow_brain_web_intro_dismissed_v321_${brandId || "unknown"}`;
 }
 
 function getPlatformCollectionStatus(states, platform, connection, stats) {
@@ -754,11 +754,15 @@ export default function GrowBrainPage() {
     if (websiteConnection?.status === "connected") return;
     if (webIntroCheckedRef.current === currentBrand.id) return;
     webIntroCheckedRef.current = currentBrand.id;
+    // v321: the redesigned Grow Brain intro has its own local UI-version marker.
+    // Deliberately do not use the legacy database intro_dismissed_at here: customers
+    // who dismissed the old modal should still see the new design once. The actual
+    // website/commerce connection state remains untouched.
     const locallyDismissed = typeof window !== "undefined" && localStorage.getItem(getWebIntroStorageKey(currentBrand.id)) === "1";
-    if (websiteConnection?.intro_dismissed_at || locallyDismissed) return;
+    if (locallyDismissed) return;
     setWebsiteConnectView("intro");
     setWebsiteConnectOpen(true);
-  }, [websiteConnectionLoaded, loading, currentBrand?.id, websiteConnection?.status, websiteConnection?.intro_dismissed_at]);
+  }, [websiteConnectionLoaded, loading, currentBrand?.id, websiteConnection?.status]);
 
   async function dismissWebsiteConnectIntro() {
     const dismissedAt = new Date().toISOString();
