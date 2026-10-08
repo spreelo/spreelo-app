@@ -1,3 +1,4 @@
+import { activeAiModel, withRuntimeAiModels } from "../../../../lib/aiModelControl.js";
 import { createClient } from "@supabase/supabase-js";
 import {
   resolveCalendarVisualTheme,
@@ -455,7 +456,7 @@ async function processVisualJob(supabase, job) {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: process.env.CALENDAR_IMAGE_MODEL || "gpt-image-2",
+        model: activeAiModel("calendar_image", process.env.CALENDAR_IMAGE_MODEL || "gpt-image-2"),
         prompt: job.prompt,
         size: "1024x1024",
         quality: "medium",
@@ -510,7 +511,7 @@ async function processVisualJob(supabase, job) {
   }
 }
 
-export async function GET(request) {
+async function calendarVisualsGet(request) {
   if (request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
@@ -570,3 +571,5 @@ export async function GET(request) {
     results,
   });
 }
+
+export async function GET(request) { return withRuntimeAiModels(() => calendarVisualsGet(request)); }

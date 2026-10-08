@@ -53,6 +53,7 @@ import { inspectTypographyShape, ensureTypographyContrast } from "../../../../li
 import { sampleRemoteVideoFrames } from "../../../../lib/videoFrameSampler.js";
 import { prepareAnimatedProductLayout } from "../../../../lib/animatedProductLayout.js";
 import { submitKlingImageToVideo } from "../../../../lib/kling.js";
+import { activeAiModel, withRuntimeAiModels } from "../../../../lib/aiModelControl.js";
 import { selectBestVideoMusic } from "../../../../lib/videoMusicLibrary.js";
 import { createGenerationCostTracker, ensureOpenAIResponseCostTracked, wrapOpenAIForCostTracking } from "../../../../lib/generationCostTracking.js";
 import {
@@ -477,25 +478,32 @@ const WEBSITE_TEXT_INTENT_AVOID_LIMIT = 12;
 const WEBSITE_TEXT_INTENT_AI_SCORE_MAX_ITEMS = 25;
 const WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT = 12;
 
-const POST_TEXT_MODEL = "gpt-4.1-mini";
-const EDITORIAL_HEADLINE_MODEL =
-  process.env.EDITORIAL_HEADLINE_MODEL || "gpt-5.6-sol";
-const CAROUSEL_CREATIVE_MODEL =
-  process.env.CAROUSEL_CREATIVE_MODEL || "gpt-5.6-sol";
-const PRODUCT_RESEARCH_MODEL = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
+const POST_TEXT_MODEL_DEFAULT = "gpt-4.1-mini";
+const postTextModel = () => activeAiModel("post_text", POST_TEXT_MODEL_DEFAULT);
+const EDITORIAL_HEADLINE_MODEL_DEFAULT = process.env.EDITORIAL_HEADLINE_MODEL || "gpt-5.6-sol";
+const editorialHeadlineModel = () => activeAiModel("editorial_headline", EDITORIAL_HEADLINE_MODEL_DEFAULT);
+const CAROUSEL_CREATIVE_MODEL_DEFAULT = process.env.CAROUSEL_CREATIVE_MODEL || "gpt-5.6-sol";
+const carouselCreativeModel = () => activeAiModel("carousel_creative", CAROUSEL_CREATIVE_MODEL_DEFAULT);
+const PRODUCT_RESEARCH_MODEL_DEFAULT = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
+const productResearchModel = () => activeAiModel("product_research", PRODUCT_RESEARCH_MODEL_DEFAULT);
 const PRODUCT_RESEARCH_FAST_MODEL =
-  process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL;
-const IMAGE_MODEL = "gpt-image-2";
+  process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL_DEFAULT;
+const IMAGE_MODEL_DEFAULT = "gpt-image-2";
+const imageModel = () => activeAiModel("standard_image", IMAGE_MODEL_DEFAULT);
 const configuredAnimatedOverlayImageModel = String(
   process.env.ANIMATED_OVERLAY_IMAGE_MODEL || ""
 ).trim();
 // Transparent typography requires Flare; legacy GPT Image 2 overrides must
 // never send an unsupported transparent-background request.
-const ANIMATED_OVERLAY_IMAGE_MODEL = /^gpt-image-2\.5-flare(?:-\d{4}-\d{2}-\d{2})?$/.test(
+const ANIMATED_OVERLAY_IMAGE_MODEL_DEFAULT = /^gpt-image-2\.5-flare(?:-\d{4}-\d{2}-\d{2})?$/.test(
   configuredAnimatedOverlayImageModel
-)
-  ? configuredAnimatedOverlayImageModel
-  : "gpt-image-2.5-flare";
+) ? configuredAnimatedOverlayImageModel : "gpt-image-2.5-flare";
+const animatedOverlayImageModel = () => activeAiModel("transparent_typography", ANIMATED_OVERLAY_IMAGE_MODEL_DEFAULT);
+// Legacy aliases remain for metadata/default parameters; actual generation callsites below use request-scoped getters.
+const PRODUCT_RESEARCH_MODEL = PRODUCT_RESEARCH_MODEL_DEFAULT;
+const IMAGE_MODEL = IMAGE_MODEL_DEFAULT;
+const ANIMATED_OVERLAY_IMAGE_MODEL = ANIMATED_OVERLAY_IMAGE_MODEL_DEFAULT;
+
 const INSTAGRAM_GRAPH_API_VERSION =
   process.env.INSTAGRAM_GRAPH_API_VERSION || "v21.0";
 const FACEBOOK_GRAPH_API_VERSION =
@@ -2613,7 +2621,7 @@ async function createTransparentProductTypographyOverlay({
   });
   const response = await openai.images.edit(
     {
-      model: IMAGE_MODEL,
+      model: imageModel(),
       image: referenceFiles,
       prompt,
       size: "1024x1024",
@@ -3102,7 +3110,7 @@ DESIGN RULES
 
   const response = await openai.images.edit(
     {
-      model: IMAGE_MODEL,
+      model: imageModel(),
       image: referenceFile,
       prompt,
       size: "1024x1024",
@@ -8910,7 +8918,7 @@ async function prepareCarouselProductsForRule({
         ruleId: rule?.id,
         brandProfileId: rule?.brand_profile_id,
         websiteUrl,
-        model: PRODUCT_RESEARCH_MODEL,
+        model: productResearchModel(),
         code: error?.code || null,
         message: error?.message,
         elapsedMs: Date.now() - productPreparationStartedAt,
@@ -15921,7 +15929,7 @@ NON-NEGOTIABLE:
 `.trim();
 
   const response = await openai.images.generate({
-    model: IMAGE_MODEL,
+    model: imageModel(),
     prompt,
     size: "1024x1536",
     quality: "medium",
@@ -16482,7 +16490,7 @@ NON-NEGOTIABLE OPENING RULES:
 
   const response = await openai.images.edit(
     {
-      model: IMAGE_MODEL,
+      model: imageModel(),
       image: referenceFile,
       prompt,
       size: "1024x1536",
@@ -16716,7 +16724,7 @@ async function buildKlingProductVideoPrompt({ openai, rule, postContent, referen
 
   try {
     const completion = await openai.chat.completions.create({
-      model: POST_TEXT_MODEL,
+      model: postTextModel(),
       response_format: { type: "json_object" },
       messages: [
         {
@@ -17368,7 +17376,7 @@ async function extractWebsiteItems(openai, brandProfile, pages, rule = null) {
 const analysisInput = buildWebsiteAnalysisInput({ brandProfile, pages });
 const selectionContext = buildWebsiteItemSelectionContext(rule);
   const completion = await openai.chat.completions.create({
-    model: POST_TEXT_MODEL,
+    model: postTextModel(),
     messages: [
       {
         role: "system",
@@ -19708,7 +19716,7 @@ async function generateCampaignCarouselMarketingStrategy({
   try {
     response = await openai.responses.create(
     {
-      model: PRODUCT_RESEARCH_MODEL,
+      model: productResearchModel(),
       ...getReasoningOptionsForModel(PRODUCT_RESEARCH_MODEL),
       input: `
 You are the senior marketing strategist responsible for planning one product carousel.
@@ -22878,7 +22886,7 @@ function applyCampaignFinalReviewEvaluation(item, evaluation) {
     ? item.campaign_fit_evaluations
     : [];
   const seniorEvaluation = {
-    model: PRODUCT_RESEARCH_MODEL,
+    model: productResearchModel(),
     fitsTheme: evaluation.fitsTheme,
     score: evaluation.score,
     verdict: evaluation.verdict,
@@ -22908,7 +22916,7 @@ function applyCampaignFinalReviewEvaluation(item, evaluation) {
         ? evaluation.evidence
         : item?.campaign_relevance_evidence || [],
     ai_campaign_fit_source: "ai_campaign_fit_final_review",
-    ai_campaign_fit_model: PRODUCT_RESEARCH_MODEL,
+    ai_campaign_fit_model: productResearchModel(),
     ai_campaign_fit_senior_score: evaluation.score,
     ai_campaign_fit_senior_verdict: evaluation.verdict,
     ai_campaign_fit_senior_reason: evaluation.reason,
@@ -23096,7 +23104,7 @@ async function selectCampaignCarouselProductsWithSeniorFinalReview({
   try {
     response = await openai.responses.create(
       {
-        model: PRODUCT_RESEARCH_MODEL,
+        model: productResearchModel(),
         ...getReasoningOptionsForModel(PRODUCT_RESEARCH_MODEL),
         input: `
 You are the mandatory senior marketing curator making the final product selection for a social media campaign carousel.
@@ -29198,7 +29206,7 @@ Return only the required JSON structure.`.trim();
   });
 
   const requestBody = {
-      model: PRODUCT_RESEARCH_MODEL,
+      model: productResearchModel(),
       // This function exists specifically to repair a stale/mismatched exact
       // product identity. It must always be allowed to search the retailer's
       // official domain. Do not depend on the editorial-pool flag from the
@@ -30271,7 +30279,7 @@ async function getDurableCampaignResearchResponse({
         user_id: rule.user_id,
         brand_profile_id: rule.brand_profile_id || null,
         research_round: researchRound,
-        model: PRODUCT_RESEARCH_MODEL,
+        model: productResearchModel(),
         request_fingerprint: requestFingerprint,
         status: "starting",
       })
@@ -30553,7 +30561,7 @@ Return the result in the required JSON structure. Keep each reason concise and g
     brandProfileId: rule?.brand_profile_id,
     websiteUrl,
     allowedDomain,
-    model: PRODUCT_RESEARCH_MODEL,
+    model: productResearchModel(),
     requestedProductCount: CAMPAIGN_PRIMARY_WEB_RESEARCH_TARGET,
     campaignTheme,
     recentProductExclusionCount: usedProducts.length,
@@ -30561,7 +30569,7 @@ Return the result in the required JSON structure. Keep each reason concise and g
   });
 
   const requestBody = {
-    model: PRODUCT_RESEARCH_MODEL,
+    model: productResearchModel(),
       tools: [
         {
           type: "web_search",
@@ -30730,7 +30738,7 @@ Return the result in the required JSON structure. Keep each reason concise and g
       campaign_relevance_evidence: reason ? [reason] : [],
       campaign_fit_source: CAMPAIGN_PRIMARY_WEB_RESEARCH_SOURCE,
       ai_campaign_fit_source: CAMPAIGN_PRIMARY_WEB_RESEARCH_SOURCE,
-      ai_campaign_fit_model: PRODUCT_RESEARCH_MODEL,
+      ai_campaign_fit_model: productResearchModel(),
       ai_campaign_fit_score: fitScore,
       campaign_fit_score: fitScore,
       campaign_fit_verdict: "fits",
@@ -30986,7 +30994,7 @@ Return the result in the required JSON structure. Keep each reason concise and g
     brandProfileId: rule?.brand_profile_id,
     websiteUrl,
     allowedDomain,
-    model: PRODUCT_RESEARCH_MODEL,
+    model: productResearchModel(),
     requestedProductCount: CAMPAIGN_PRIMARY_WEB_RESEARCH_TARGET,
     requiredVerifiedProductCount: requiredVerifiedCount,
     requiredCarouselProductCount: CAROUSEL_PRODUCT_SLIDE_TARGET,
@@ -31351,7 +31359,7 @@ async function finalizeCarouselFromPrimaryCampaignWebResearch({
       campaign_theme: researchResult?.campaignTheme || null,
       allowed_domain: researchResult?.allowedDomain || null,
       exact_task: researchResult?.prompt || null,
-      model: PRODUCT_RESEARCH_MODEL,
+      model: productResearchModel(),
       primary_web_research: true,
       reserve_required_for_delivery: requireReserve,
       authoritative_gpt_ranking_preserved: true,
@@ -31414,7 +31422,7 @@ async function finalizeCarouselFromPrimaryCampaignWebResearch({
     websiteRule: rule,
     productEngineDiagnostics: {
       primaryWebResearch: {
-        model: PRODUCT_RESEARCH_MODEL,
+        model: productResearchModel(),
         candidateCount: researchResult?.candidates?.length || 0,
         verifiedCount: validProducts.length,
         selectedCount: selectedProducts.length,
@@ -34722,7 +34730,7 @@ async function rewriteProductCopyToExactContract({
     : [];
 
   const completion = await openai.chat.completions.create({
-    model: POST_TEXT_MODEL,
+    model: postTextModel(),
     messages: [
       {
         role: "system",
@@ -34955,7 +34963,7 @@ async function generateCarouselSlides(openai, rule, postContent) {
 
   try {
     const completion = await openai.chat.completions.create({
-      model: POST_TEXT_MODEL,
+      model: postTextModel(),
       messages: [
         {
           role: "system",
@@ -35262,7 +35270,7 @@ Return the strict JSON only.`.trim();
   try {
     const response = await openai.responses.create(
       {
-        model: CAROUSEL_CREATIVE_MODEL,
+        model: carouselCreativeModel(),
         reasoning: { effort: "none" },
         input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
         max_output_tokens: 1800,
@@ -35309,7 +35317,7 @@ Return the strict JSON only.`.trim();
     );
     const parsed = safeJsonParse(getOpenAiResponseOutputText(response));
     const normalized = normalizeCarouselCreativePlan(
-      { ...parsed, model: CAROUSEL_CREATIVE_MODEL },
+      { ...parsed, model: carouselCreativeModel() },
       rule,
       selectedProducts,
       fallbackCaption
@@ -35348,7 +35356,7 @@ Return the strict JSON only.`.trim();
 
     console.info("Five-product carousel creative plan locked before image generation", {
       ruleId: rule?.id || null,
-      model: CAROUSEL_CREATIVE_MODEL,
+      model: carouselCreativeModel(),
       productCount: normalized.slides.length,
       hasCaption: Boolean(normalized.caption),
       hasDesignBrief: Boolean(normalized.design_brief),
@@ -35357,7 +35365,7 @@ Return the strict JSON only.`.trim();
   } catch (error) {
     console.warn("Carousel creative planning failed; using identity-safe fallback plan", {
       ruleId: rule?.id || null,
-      model: CAROUSEL_CREATIVE_MODEL,
+      model: carouselCreativeModel(),
       message: error?.message || String(error),
     });
     return fallbackPlan;
@@ -35554,7 +35562,7 @@ async function saveCarouselSlidesForPost({
       metadata: {
         generated_by: slideRenderedBy,
         carousel_slide_role: slide.slide_type || (index === CAROUSEL_PRODUCT_SLIDE_TARGET - 1 ? "product_cta" : "product"),
-        carousel_creative_model: plan?.model || CAROUSEL_CREATIVE_MODEL,
+        carousel_creative_model: plan?.model || carouselCreativeModel(),
         carousel_design_brief: plan?.design_brief || null,
         locked_headline: slide?.headline || null,
         locked_supporting_text: slide?.body || slide?.supporting_text || null,
@@ -36026,7 +36034,7 @@ HEADLINE RULES
   try {
     const response = await openai.responses.create(
       {
-        model: EDITORIAL_HEADLINE_MODEL,
+        model: editorialHeadlineModel(),
         reasoning: { effort: "none" },
         input: [{ role: "user", content }],
         max_output_tokens: 120,
@@ -36072,7 +36080,7 @@ HEADLINE RULES
 
     console.info("Editorial product headline locked before image generation", {
       ruleId: rule?.id || null,
-      model: EDITORIAL_HEADLINE_MODEL,
+      model: editorialHeadlineModel(),
       headline,
       visionIncluded,
       source: "gpt-5.6-sol-proofread",
@@ -36086,7 +36094,7 @@ HEADLINE RULES
   } catch (error) {
     console.warn("Editorial headline preparation unavailable; using pre-image text fallback without adding web research", {
       ruleId: rule?.id || null,
-      model: EDITORIAL_HEADLINE_MODEL,
+      model: editorialHeadlineModel(),
       message: error?.message || String(error),
       fallbackHeadline: fallbackHeadline || null,
     });
@@ -36502,7 +36510,7 @@ async function createWebsiteItemEditorialTypographyOverlay({
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const response = await openai.images.edit({
-        model: IMAGE_MODEL,
+        model: imageModel(),
         image: referenceFile,
         prompt: attempt === 0
           ? prompt
@@ -36613,7 +36621,7 @@ export async function generateWebsiteItemEditorialPostImage(openai, rule, postCo
     );
 
     const imageRequest = {
-      model: IMAGE_MODEL,
+      model: imageModel(),
       image: referenceFile,
       prompt,
       size: "1024x1280",
@@ -36674,7 +36682,7 @@ export async function generateWebsiteItemEditorialPostImage(openai, rule, postCo
   );
 
   const imageRequest = {
-    model: IMAGE_MODEL,
+    model: imageModel(),
     image: referenceFile,
     prompt,
     size: "1024x1280",
@@ -36955,7 +36963,7 @@ export async function generateWebsiteItemAdImage(openai, rule, postContent, cost
   );
 
   const imageRequest = {
-    model: IMAGE_MODEL,
+    model: imageModel(),
     image: referenceFile,
     prompt,
     size: "1024x1280",
@@ -36985,7 +36993,7 @@ export async function generateAutomationImage(openai, rule, postContent, costTra
   const prompt = buildImagePrompt(rule, postContent);
 
 const imageRequest = {
-    model: IMAGE_MODEL,
+    model: imageModel(),
     prompt,
     size: "1024x1024",
   };
@@ -37918,7 +37926,7 @@ Technical output contract:
 
   const response = await openai.images.edit(
     {
-      model: IMAGE_MODEL,
+      model: imageModel(),
       image: referenceFile,
       prompt,
       size: "1024x1024",
@@ -39483,7 +39491,7 @@ Return only the transparent typography asset.
 `.trim();
   const response = await openai.images.edit(
     {
-      model: ANIMATED_OVERLAY_IMAGE_MODEL,
+      model: animatedOverlayImageModel(),
       image: files,
       prompt,
       size: "1024x1536",
@@ -39498,7 +39506,7 @@ Return only the transparent typography asset.
   const normalized = await normalizeKlingTypographyOverlay(Buffer.from(base64, "base64"), placement.placement);
   console.info("GPT Image scene-aware Kling typography created", {
     ruleId: rule?.id || null,
-    model: ANIMATED_OVERLAY_IMAGE_MODEL,
+    model: animatedOverlayImageModel(),
     placement: placement.placement,
     placementConfidence: placement.confidence,
     ...normalized.analysis,
@@ -39607,7 +39615,7 @@ async function createAnimatedTextOverlay({
 CORRECTION: The previous text image was rejected: ${String(lastError?.message || "invalid typography").slice(0, 200)}. Output ONLY the requested advertising lettering on a genuinely transparent canvas. The references are context only: do not copy their backgrounds, product, logo or scenery. No card, rectangle, panel or opaque backdrop. Keep lettering comfortably inside the canvas, with generous transparent margins.`;
       try {
         const response = await openai.images.edit({
-          model: ANIMATED_OVERLAY_IMAGE_MODEL,
+          model: animatedOverlayImageModel(),
           image: referenceFiles,
           prompt: attemptPrompt,
           size: `${ANIMATED_TEXT_PANEL_SOURCE_WIDTH}x${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT}`,
@@ -39627,7 +39635,7 @@ CORRECTION: The previous text image was rejected: ${String(lastError?.message ||
           headline: advertisingCopy.headline,
         });
         console.info("OpenAI context-aware transparent Reel typography created", {
-          ruleId: rule?.id || null, model: ANIMATED_OVERLAY_IMAGE_MODEL,
+          ruleId: rule?.id || null, model: animatedOverlayImageModel(),
           attempt, referenceCount: referenceFiles.length, ...normalizedPanel.analysis, ...contrast.analysis,
         });
         return { textOverlayBuffer: contrast.buffer, contrastAnalysis:contrast.analysis, closingBackgroundBuffer,
@@ -39638,7 +39646,7 @@ CORRECTION: The previous text image was rejected: ${String(lastError?.message ||
         const billingOrAuth = [400, 401, 403, 429].includes(status) ||
           /insufficient_quota|credit_balance_exhausted|no credits remaining|invalid api key/i.test(`${error?.code || ""} ${error?.message || ""}`);
         console.warn("Animated AI typography attempt rejected", {
-          ruleId: rule?.id || null, model: ANIMATED_OVERLAY_IMAGE_MODEL,
+          ruleId: rule?.id || null, model: animatedOverlayImageModel(),
           attempt, maxAttempts: 2, retrying: attempt < 2 && !billingOrAuth,
           message: error?.message,
         });
@@ -47372,7 +47380,7 @@ scheduled_for: scheduledPublishAtIso,
               : isShotstackAnimatedVideoRule(websitePreparedRule)
               ? ANIMATED_VIDEO_DURATION_SECONDS
               : null,
-    text_model_used: carouselCreativePlan?.model || POST_TEXT_MODEL,
+    text_model_used: carouselCreativePlan?.model || postTextModel(),
 image_model_used:
   wantsImage && websitePreparedRule.image_source !== "uploaded"
     ? isKlingAiVideoRule(websitePreparedRule)
@@ -49300,7 +49308,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
 }
 
 
-export async function GET(request) {
+async function runAutomationsGet(request) {
   const requestUrl = new URL(request.url);
   const requestedWorkerCount = Math.max(
     1,
@@ -49314,4 +49322,9 @@ export async function GET(request) {
     workerName:
       requestUrl.searchParams.get("workerName") || "manual-worker",
   });
+}
+
+
+export async function GET(request) {
+  return withRuntimeAiModels(() => runAutomationsGet(request));
 }

@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  BrainCircuit,
   CheckCircle2,
   CircleDollarSign,
   Clock3,
@@ -379,6 +380,7 @@ export default function AdminDashboardPage() {
                 </QuickGroup>
                 <QuickGroup tone="blue" title={t("adminCommand.quick.systemQuality")} icon={Settings2}>
                   <QuickLink href="/admin/rescue-center" icon={AlertTriangle} title={t("adminCommand.quick.rescueCenter")} text={t("adminCommand.quick.rescueCenterText")} badge={stats.openRescueCases || null} />
+                  <QuickLink href="/admin/ai-control" icon={BrainCircuit} title="AI Control Center" text="Modeller, kompatibilitet och säkra modellbyten." />
                   <QuickLink href="#translations" icon={Languages} title={t("adminCommand.quick.translations")} text={t("adminCommand.quick.translationsText", { count: requestedLocaleCount })} />
                   <QuickLink href="/admin/content-formats" icon={LayoutGrid} title={t("adminCommand.quick.contentFormats")} text={t("adminCommand.quick.contentFormatsText")} />
                   <QuickLink href="/admin/icons" icon={Shapes} title={t("adminCommand.quick.icons")} text={t("adminCommand.quick.iconsText")} />

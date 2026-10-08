@@ -1,3 +1,4 @@
+import { activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
 import { recordOpenAiRuntimeResult } from "../../../lib/openAiRuntimeHealth.js";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
@@ -48,7 +49,8 @@ const openai = new OpenAI({
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const contentPlanModel = process.env.CONTENT_PLAN_MODEL || "gpt-5.5";
+const contentPlanModelDefault = process.env.CONTENT_PLAN_MODEL || "gpt-5.5";
+const contentPlanModel = () => activeAiModel("content_plan", contentPlanModelDefault);
 
 const allowedGoals = new Set(["sell_more", "get_followers", "build_trust"]);
 const allowedAngles = new Set([
@@ -562,7 +564,7 @@ async function loadOptionalPlanningContext(supabase, brandProfileId, userId) {
   };
 }
 
-export async function POST(request) {
+async function planContentPost(request) {
   try {
     if (!supabaseUrl || !supabaseAnonKey) {
       return Response.json({ error: "Supabase configuration is missing." }, { status: 500 });
@@ -871,7 +873,7 @@ export async function POST(request) {
       .join("\n");
 
     const response = await openai.responses.create({
-      model: contentPlanModel,
+      model: contentPlanModel(),
       instructions:
         "You are Spreelo's senior always-on social media strategist. Choose the strongest content-format mix for one real business and one stated goal. Return valid JSON only. Do not write finished captions or image prompts.",
       input: `
@@ -1056,3 +1058,5 @@ Return this exact JSON structure:
     );
   }
 }
+
+export async function POST(request) { return withRuntimeAiModels(() => planContentPost(request)); }

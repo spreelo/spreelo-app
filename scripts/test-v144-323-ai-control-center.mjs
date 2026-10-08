@@ -1,0 +1,21 @@
+import fs from 'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');
+const sql=read('supabase/v144_323_ai_control_center.sql');
+const ctl=read('lib/aiModelControl.js');
+const auto=read('app/api/cron/run-automations/route.js');
+const plan=read('app/api/plan-content/route.js');
+const brand=read('app/api/analyze-brand/route.js');
+const cal=read('app/api/cron/generate-calendar-visuals/route.js');
+const kling=read('lib/kling.js');
+const must=(ok,msg)=>{if(!ok)throw new Error(msg)};
+for(const [purpose,model] of [['post_text','gpt-4.1-mini'],['brand_analysis','gpt-4.1-mini'],['content_plan','gpt-5.5'],['product_research','gpt-5.5'],['standard_image','gpt-image-2'],['transparent_typography','gpt-image-2.5-flare'],['kling_video','kling-3.0']]) { must(sql.includes(`'${purpose}'`)&&sql.includes(`'${model}'`),`missing safe default ${purpose}`); }
+must(sql.includes('on conflict (purpose) do nothing'),'deployment must never overwrite an existing selection');
+must(ctl.includes("'gpt-image-2.5-flare': ['image','image_alpha']"),'transparent model capability missing');
+must(!ctl.includes("'gpt-image-2': ['image','image_alpha']"),'gpt-image-2 must not be alpha-approved');
+must(auto.includes('withRuntimeAiModels(() => runAutomationsGet(request))'),'automation runtime settings not scoped');
+must(auto.includes('activeAiModel("transparent_typography"'),'transparent typography not controlled');
+must(plan.includes('activeAiModel("content_plan"'),'content plan not controlled');
+must(brand.includes('activeAiModel("brand_analysis"'),'brand analysis not controlled');
+must(cal.includes('activeAiModel("calendar_image"'),'calendar image not controlled');
+must(kling.includes('activeAiModel("kling_video"'),'Kling not controlled');
+console.log('v144.323 AI Control Center safety checks passed');

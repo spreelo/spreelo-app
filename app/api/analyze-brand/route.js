@@ -1,3 +1,4 @@
+import { activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
 import { randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
@@ -402,7 +403,7 @@ async function repairJsonWithOpenAI({
   contextLabel = "OpenAI JSON response",
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: activeAiModel("brand_analysis", "gpt-4.1-mini"),
     messages: [
       {
         role: "system",
@@ -1036,7 +1037,7 @@ async function detectWebsiteLanguageWithOpenAI({
   const visibleText = truncateText(stripHtmlToText(html), 12000);
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: activeAiModel("brand_analysis", "gpt-4.1-mini"),
     messages: [
       {
         role: "system",
@@ -1409,7 +1410,7 @@ async function analyzeWebsiteWithOpenAI({
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: activeAiModel("brand_analysis", "gpt-4.1-mini"),
     messages: [
       {
         role: "system",
@@ -1801,7 +1802,7 @@ async function analyzeDescriptionWithOpenAI({
   campaignCalendarYear,
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: activeAiModel("brand_analysis", "gpt-4.1-mini"),
     messages: [
       {
         role: "system",
@@ -2049,7 +2050,7 @@ Rules:
 };
 }
 
-export async function POST(request) {
+async function analyzeBrandPost(request) {
   let supabase = null;
   let user = null;
   let brandProfileId = "";
@@ -2414,3 +2415,5 @@ contentLanguage: finalContentLanguage,
     );
   }
 }
+
+export async function POST(request) { return withRuntimeAiModels(() => analyzeBrandPost(request)); }
