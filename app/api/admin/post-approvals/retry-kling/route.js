@@ -20,7 +20,7 @@ function buildRetryPrompt(originalPrompt) {
     "Never invent or activate product lights, illuminated logos, glows, ports, controls, seams, accessories or other features that are not visibly active in frame 0.",
     "No rotation exposing unverified surfaces and no product operation unless explicitly source-verified. Reduce product motion before changing identity.",
     "ADMIN RETRY SCENE CONTINUITY LOCK — NON-NEGOTIABLE: maintain a single continuous set. Never add anything to an area already shown empty. People and moving props must move continuously. No pop-in, pop-out, teleporting, duplication or unexplained disappearance.",
-    "Move the camera and environment, not the product features. No fake text, marks or watermarks.",
+    "Any original creative beat conflicting with product preservation must yield to a passive, stationary product shot. Move the camera and existing environment, not product features. No fake text, marks or watermarks.",
   ].join(" ");
   return assembleKlingPrompt({ safety: retryLock, direction: creative, maxCreative: 1200 });
 }
