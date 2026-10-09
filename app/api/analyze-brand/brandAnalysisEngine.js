@@ -1,3 +1,4 @@
+import { activeAiModel } from "../../../lib/aiModelControl.js";
 import OpenAI from "openai";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
@@ -230,7 +231,7 @@ export async function repairJsonWithOpenAI({
   contextLabel = "OpenAI JSON response",
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: activeAiModel("brand_analysis", "gpt-4.1-mini"),
     messages: [
       {
         role: "system",
@@ -595,7 +596,7 @@ async function selectWebsiteContextLinksWithOpenAI({ openai, websiteUrl, html })
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: activeAiModel("brand_analysis", "gpt-4.1-mini"),
       messages: [
         {
           role: "system",
@@ -936,7 +937,7 @@ Existing search queries: ${existingSearchQueries.join(" | ") || "None"}`;
 
     const completion = await openai.chat.completions.create(
       {
-        model: "gpt-4.1-mini",
+        model: activeAiModel("brand_analysis", "gpt-4.1-mini"),
         messages: [
         {
           role: "system",
@@ -1841,7 +1842,7 @@ export async function detectWebsiteLanguageWithOpenAI({
   const visibleText = truncateText(stripHtmlToLanguageText(html), 14000);
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: activeAiModel("brand_analysis", "gpt-4.1-mini"),
     messages: [
       {
         role: "system",
@@ -1943,7 +1944,7 @@ export async function analyzeWebsiteWithOpenAI({
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: activeAiModel("brand_analysis", "gpt-4.1-mini"),
     messages: [
       {
         role: "system",
@@ -2284,7 +2285,7 @@ export async function analyzeDescriptionWithOpenAI({
   campaignCalendarYear,
 }) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: activeAiModel("brand_analysis", "gpt-4.1-mini"),
     messages: [
       {
         role: "system",

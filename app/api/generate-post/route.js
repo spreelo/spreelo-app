@@ -1,3 +1,4 @@
+import { activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
 import OpenAI from "openai";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
@@ -14,7 +15,7 @@ const rawOpenai = new OpenAI({
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export async function POST(request) {
+async function originalPost(request) {
   try {
     const authHeader = request.headers.get("authorization");
 
@@ -113,7 +114,7 @@ export async function POST(request) {
       : "Do not invent a website link.";
 
     const response = await openai.responses.create({
-      model: "gpt-5.5",
+      model: activeAiModel("manual_post", "gpt-5.5"),
       instructions:
         "You are Spreelo, an expert social media content assistant for small businesses. Write practical, ready-to-publish social media posts. Do not mention that you are AI. Do not explain your work. Only return the finished post text.",
       input: `
@@ -162,3 +163,6 @@ Rules:
     );
   }
 }
+
+// Model settings are scoped to this request; v322 model is the fallback.
+export async function POST(request) { return withRuntimeAiModels(() => originalPost(request)); }

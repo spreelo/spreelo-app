@@ -53,7 +53,8 @@ import { inspectTypographyShape, ensureTypographyContrast } from "../../../../li
 import { sampleRemoteVideoFrames } from "../../../../lib/videoFrameSampler.js";
 import { prepareAnimatedProductLayout } from "../../../../lib/animatedProductLayout.js";
 import { submitKlingImageToVideo } from "../../../../lib/kling.js";
-import { activeAiModel, withRuntimeAiModels } from "../../../../lib/aiModelControl.js";
+import { activeAiModel, withRuntimeAiModels, setRuntimeJobModelOverride } from "../../../../lib/aiModelControl.js";
+import { loadVerifiedAiModelTestOverride } from "../../../../lib/aiModelTest.js";
 import { selectBestVideoMusic } from "../../../../lib/videoMusicLibrary.js";
 import { createGenerationCostTracker, ensureOpenAIResponseCostTracked, wrapOpenAIForCostTracking } from "../../../../lib/generationCostTracking.js";
 import {
@@ -34547,7 +34548,7 @@ async function saveWebsiteContentHistory({
 
 async function generateAutomationPost(openai, rule) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: postTextModel(),
     messages: [
       {
         role: "system",
@@ -45568,6 +45569,27 @@ async function runAutomationCron(request, options = {}) {
       // v144.102: admin mass tests use the exact production generation path,
       // but never reserve, validate or deduct customer credits.
       const isAdminTestRun = rule?.is_admin_test === true;
+      // v327: only a dedicated, verified admin AI-model test can override the
+      // request-local model for this one job. Reset before EVERY job so no
+      // model from a prior test can bleed into an ordinary customer run.
+      setRuntimeJobModelOverride();
+      if (isAdminTestRun && rule?.admin_test_batch_id) {
+        try {
+          const override = await loadVerifiedAiModelTestOverride(supabase, rule);
+          if (override) setRuntimeJobModelOverride(override.purpose, override.model);
+        } catch (modelTestError) {
+          // Fail closed for the special test. Never silently generate with
+          // the customer's production model and report it as a test.
+          if (String(rule.admin_test_job_key || '').startsWith('ai-model-test:')) {
+            console.error('AI model test configuration invalid', { ruleId: rule.id, message: modelTestError.message });
+            await supabase.from('ai_model_test_requests').update({status:'failed',email_error: `Modelltestet kunde inte starta: ${modelTestError.message}`, updated_at:new Date().toISOString()}).eq('batch_id',rule.admin_test_batch_id);
+            await supabase.from('automation_rules').update({is_active:false,last_error: `Invalid AI model test: ${modelTestError.message}`}).eq('id',rule.id);
+            summary.errors += 1;
+            continue;
+          }
+        }
+      }
+
 
       if (
         isAnimatedVideoRule(rule) &&

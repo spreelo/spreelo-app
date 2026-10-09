@@ -1,3 +1,4 @@
+import {blockDisabledAiBackgroundJob} from '../../../../lib/aiAutomationSwitch.js';
 import {createClient} from '@supabase/supabase-js';
 import {getConfiguredAdminEmails} from '../../../../lib/adminAuth.js';
 import {WATCH_SOURCES,fetchFeed} from '../../../../lib/aiMarketWatch';
@@ -6,6 +7,8 @@ export async function GET(request){
  const secret=process.env.CRON_SECRET;
  if(!secret||request.headers.get('authorization')!==`Bearer ${secret}`)return Response.json({ok:false,error:'Unauthorized'},{status:401});
  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+  const blocked=await blockDisabledAiBackgroundJob(db);
+  if(blocked)return blocked;
  const day=new Date().toISOString().slice(0,10);
  const {data:prior}=await db.from('ai_market_watch_runs').select('day').eq('day',day).maybeSingle();
  if(prior)return Response.json({ok:true,skipped:'already_checked_today'});

@@ -1,3 +1,4 @@
+import { activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { hasVerifiedServiceEvidence } from "../../../lib/editorialContentStrategy";
@@ -1000,7 +1001,7 @@ function buildFallbackPlan(campaign, brandProfile) {
   return normalized;
 }
 
-export async function POST(request) {
+async function originalPost(request) {
   try {
     const authHeader = request.headers.get("authorization");
 
@@ -1069,7 +1070,7 @@ export async function POST(request) {
     }
 
     const response = await openai.responses.create({
-      model: "gpt-5.5",
+      model: activeAiModel("campaign_plan", "gpt-5.5"),
       instructions: `You are Spreelo's senior campaign strategist. Create a practical social media campaign sequence for a real small business. Think like a senior marketer at a strong brand: every post must have a clear job, timing, format and reason. Return valid JSON only. Do not include finished captions or finished image prompts.`,
       input: `
 Create the detailed post plan for this selected calendar campaign.
@@ -1215,3 +1216,6 @@ Strategic rules:
     );
   }
 }
+
+// Model settings are scoped to this request; v322 model is the fallback.
+export async function POST(request) { return withRuntimeAiModels(() => originalPost(request)); }
