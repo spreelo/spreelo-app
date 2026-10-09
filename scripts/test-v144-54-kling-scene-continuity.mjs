@@ -16,9 +16,9 @@ assert.match(cron, /HARD PRODUCT LOCK: frame 0 is authoritative/);
 assert.match(cron, /SCENE CONTINUITY LOCK: frame 0 is one fixed physical set filmed by a real camera/);
 assert.match(cron, /never add anything to an area already shown empty/);
 assert.match(cron, /People, animals, vehicles and moving props enter\/leave only through continuous motion/);
-assert.match(cron, /return truncateText\(`\$\{providerSafety\} \$\{closingDirection\} CREATIVE DIRECTION: \$\{creativeDirection\}`, 2450\)/);
-assert.match(cron, /return truncateText\(`\$\{providerSafety\} \$\{creativeDirection\}`, 2450\)/);
-assert.match(kling, /String\(prompt\)\.trim\(\)\.slice\(0, 2500\)/);
+assert.match(cron, /return assembleKlingPrompt\(\{ safety: providerSafety, closing: closingDirection, direction: creativePrompt, maxCreative: 950 \}\)/);
+assert.match(cron, /return assembleKlingPrompt\(\{ safety: providerSafety, direction, maxCreative: 950 \}\)/);
+assert.match(kling, /KLING_PROMPT_TOO_LONG/);
 assert.doesNotMatch(cron, /return truncateText\(`\$\{creativePrompt\} \$\{safetyTail\}`/);
 
 // The creative-director call itself is also told to design one persistent physical world.
@@ -29,9 +29,9 @@ assert.match(cron, /if a creative idea conflicts with scene continuity, simplify
 
 // Manual retry must put the retry locks before the original prompt, including for older rejected posts.
 assert.match(retry, /ADMIN RETRY SCENE CONTINUITY LOCK/);
-assert.match(retry, /Never add an object to an area already shown empty/);
+assert.match(retry, /Never add anything to an area already shown empty/);
 assert.match(retry, /No pop-in, pop-out, teleporting, duplication or unexplained disappearance/);
-assert.match(retry, /`\$\{retryLock\}\\n\\nORIGINAL CREATIVE DIRECTION:\\n\$\{base\}`/);
+assert.match(retry, /assembleKlingPrompt\(\{ safety: retryLock, direction: creative, maxCreative: 1200 \}\)/);
 
 // Finished-video audit reuses the same AI call and now checks temporal scene continuity too.
 assert.match(finalizer, /scene_continuity_preserved/);

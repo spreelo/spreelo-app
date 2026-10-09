@@ -7,7 +7,7 @@ assert.match(route, /FUNCTIONAL TRUTH SAFETY:/, 'Kling prompt must contain an ex
 assert.match(route, /a fully visible product is NOT the same as a functionally verified product/i, 'Visual completeness must not imply function knowledge.');
 assert.match(route, /never invent a button, pump, sprayer, dispenser/i, 'Prompt must forbid invented product mechanisms.');
 assert.match(route, /perfume\/cosmetic bottles may be held and presented, but do not press the cap\/top, spray, pump, dispense, open or remove parts/i, 'Ambiguous perfume/cosmetic operation must be blocked.');
-assert.match(route, /FUNCTIONAL TRUTH OVERRIDES ANY EARLIER CREATIVE IDEA/i, 'Final Kling safety tail must override an unsafe generated creative idea.');
+assert.match(route, /LIGHT AND EFFECT LOCK:/, 'The product lock must explicitly forbid fabricated lights and illuminated logos.');
 assert.match(route, /universally self-evident direct physical use/i, 'Obvious physical use must remain possible.');
 assert.doesNotMatch(route, /handheld items held\/operated, tools used, appliances operated/, 'Kling must no longer be forced to operate arbitrary products.');
 assert.doesNotMatch(route, /have a person naturally hold\/use the exact product/, 'Opening-frame generation must not force ambiguous handheld products into unverified operation.');

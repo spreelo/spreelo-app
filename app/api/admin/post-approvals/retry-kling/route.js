@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth";
 import { submitKlingImageToVideo } from "../../../../../lib/kling.js";
+import { assembleKlingPrompt } from "../../../../../lib/klingPromptBudget.js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,23 +11,18 @@ const AUDIT_STAGE = "kling_finished_product_identity";
 const AUDIT_CODE = "KLING_FINISHED_PRODUCT_IDENTITY_REJECTED";
 
 function buildRetryPrompt(originalPrompt) {
-  const base = String(originalPrompt || "").trim();
-  const retryLock = `
-ADMIN RETRY PRODUCT LOCK — NON-NEGOTIABLE:
-- Keep the referenced product visually identical in every frame.
-- Every visible component keeps the same purpose, attachment, geometry and mechanical state. Never turn an existing panel, fabric part, cover, seam, cap, handle or other component into a different feature or accessory.
-- Preserve every visible logo, emblem, letter, number, label graphic, printed mark and color character-for-character. Never redraw, simplify, substitute or reinterpret label text or brand marks.
-- Do not expose an unseen side or surface of the product. Do not invent controls, openings, accessories, mechanisms or product details.
-- If exact product preservation conflicts with motion, keep the product visually rigid and create motion with the camera, people, lighting and environment instead.
-
-ADMIN RETRY SCENE CONTINUITY LOCK — NON-NEGOTIABLE:
-- Treat the opening frame as one fixed real-world set filmed continuously by a real camera.
-- Static visible furniture, benches, signs, lamps, plants, architecture, paths, ground features and background structures must persist in stable world-space positions. Never make them appear, disappear, morph, relocate or swap.
-- A static object may become newly visible only when camera movement naturally reveals an area that was previously outside frame. Never add an object to an area already shown empty.
-- People, animals, vehicles and moving props may enter or leave only by continuous physical movement or plausible occlusion. No pop-in, pop-out, teleporting, duplication or unexplained disappearance.
-- If spectacle conflicts with continuity, simplify the action and preserve the fixed physical scene.
-`.trim();
-  return `${retryLock}\n\nORIGINAL CREATIVE DIRECTION:\n${base}`.trim().slice(0, 2500);
+  const original = String(originalPrompt || "").trim();
+  const creative = original.includes("CREATIVE DIRECTION:")
+    ? original.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim()
+    : original;
+  const retryLock = [
+    "ADMIN RETRY PRODUCT LOCK — NON-NEGOTIABLE: frame 0 is authoritative. Preserve the exact product design, color, labels, geometry and physical state.",
+    "Never invent or activate product lights, illuminated logos, glows, ports, controls, seams, accessories or other features that are not visibly active in frame 0.",
+    "No rotation exposing unverified surfaces and no product operation unless explicitly source-verified. Reduce product motion before changing identity.",
+    "ADMIN RETRY SCENE CONTINUITY LOCK — NON-NEGOTIABLE: maintain a single continuous set. Never add anything to an area already shown empty. People and moving props must move continuously. No pop-in, pop-out, teleporting, duplication or unexplained disappearance.",
+    "Move the camera and environment, not the product features. No fake text, marks or watermarks.",
+  ].join(" ");
+  return assembleKlingPrompt({ safety: retryLock, direction: creative, maxCreative: 1200 });
 }
 
 function cleanSelection(selection) {
