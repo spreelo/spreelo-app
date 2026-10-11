@@ -327,9 +327,9 @@ export default function AdminDashboardPage() {
 
   return (
     <AppLayout active="admin">
-      <div className="admin156-shell admin-page">
+      <div className="admin156-shell admin335-shell admin-page">
         <header className="admin156-topbar">
-          <div><h1>{t("adminCommand.title")}</h1><p>{t("adminCommand.subtitle")}</p></div>
+          <div><span className="admin335-welcome">{t("adminCommand.kicker")} / {t("adminCommand.welcome", { name: adminName })}</span><h1>{t("adminCommand.title")}</h1><p>{t("adminCommand.subtitle")}</p></div>
           <div className="admin156-top-actions">
             <button type="button" onClick={loadAdminData}><RefreshCw size={16} /> {t("adminCommand.refresh")}</button>
             <span className={`admin156-overall-status ${allSystemsHealthy ? "up" : "problem"}`}><StatusDot status={allSystemsHealthy ? "up" : healthAvailable ? "degraded" : "unknown"} /> {allSystemsHealthy ? t("adminCommand.systemsOnline") : healthAvailable ? t("adminCommand.systemsNeedReview", { count: systemProblems }) : t("adminCommand.systemUnavailable")}</span>
@@ -344,8 +344,6 @@ export default function AdminDashboardPage() {
         ) : (
           <>
             <section className="admin156-hero">
-              <div className="admin156-hero-title"><span>{t("adminCommand.kicker")}</span><h2>{t("adminCommand.welcome", { name: adminName })}</h2><p>{t("adminCommand.heroText")}</p></div>
-              <div className="admin156-hero-note">{t("adminCommand.heroNoteLine1")}<br/>{t("adminCommand.heroNoteLine2")}</div>
               <div className="admin156-kpis">
                 <MiniMetric icon={Users} label={t("adminCommand.metrics.customers")} value={Number(stats.brands || 0).toLocaleString(locale || "en")} sub={t("adminCommand.metrics.activeBrands")} tone="violet" href="/admin/customers" />
                 <MiniMetric icon={FileCheck2} label={t("adminCommand.metrics.posts")} value={Number(stats.postsThisMonth || 0).toLocaleString(locale || "en")} sub={t("adminCommand.metrics.generatedThisMonth")} tone="violet" href="/admin/post-approvals" />
@@ -360,7 +358,8 @@ export default function AdminDashboardPage() {
               </div>
             </section>
 
-            <section className="admin156-section">
+            <div className="admin335-workspace-grid">
+            <section className="admin156-section admin335-operations">
               <div className="admin156-section-head"><div><h2>{t("adminCommand.quick.title")}</h2><p>{t("adminCommand.quick.subtitle")}</p></div></div>
               <div className="admin156-quick-grid">
                 <QuickGroup tone="violet" title={t("adminCommand.quick.customersContent")} icon={Users}>
@@ -388,6 +387,12 @@ export default function AdminDashboardPage() {
                 </QuickGroup>
               </div>
             </section>
+              <article className="admin156-section admin156-system-panel" id="systemstatus">
+                <div className="admin156-section-head compact"><div><h2>{t("adminCommand.system.title")}</h2><p>{health.migrationRequired ? t("adminCommand.system.migrationRequired") : t("adminCommand.system.history")}</p></div><button type="button" onClick={loadAdminData}>{t("adminCommand.refresh")}</button></div>
+                <div className="admin156-system-list">{(health.systems || []).map((system) => <div key={system.key}><StatusDot status={system.status}/><span><strong>{systemHealthLabel(system, t)}</strong><small>{systemHealthMessage(system, t)}</small></span><em>{system.status === "up" ? t("adminCommand.system.online") : system.status === "unconfigured" ? t(system.key === "openai" && system.details?.generationState === "unverified" ? "adminCommand.system.unverified.v297" : "adminCommand.system.unconfigured") : system.status === "degraded" ? t("adminCommand.system.degraded") : t("adminCommand.system.down")}</em><b>{Number(system.uptime30d ?? 100).toFixed(system.uptime30d < 99.95 ? 2 : 1)}%</b></div>)}</div>
+                <div className="admin156-incidents"><h3>{t("adminCommand.system.recentHistory")}</h3>{(health.incidents || []).length ? health.incidents.slice(0, 5).map((incident) => <div key={incident.id}><span className={`admin156-incident-icon ${incident.resolved_at ? "resolved" : "open"}`}>{incident.resolved_at ? <CheckCircle2 size={15}/> : <XCircle size={15}/>}</span><span><strong>{systemHealthLabel(incident, t)}</strong><small>{formatDateTime(incident.started_at, true, locale)}{incident.resolved_at ? ` → ${formatDateTime(incident.resolved_at, true, locale)}` : ` · ${t("adminCommand.system.ongoing")}`}</small></span></div>) : <p>{t("adminCommand.system.noIncidents")}</p>}</div>
+              </article>
+            </div>
 
             <section className="admin156-section admin156-performance">
               <div className="admin156-section-head"><div><h2>{t("adminCommand.performance.title")}</h2><p>{t("adminCommand.performance.subtitle")}</p></div><span className="admin156-period">{t("adminCommand.last30Days")}</span></div>
@@ -434,29 +439,24 @@ export default function AdminDashboardPage() {
                 <div className="admin156-table-scroll"><table><thead><tr><th>{t("adminCommand.credits.customer")}</th><th>{t("adminCommand.credits.change")}</th><th>{t("adminCommand.credits.newBalance")}</th><th>{t("adminCommand.credits.reason")}</th><th>{t("adminCommand.credits.date")}</th></tr></thead><tbody>{recentAdjustments.length ? recentAdjustments.slice(0, 5).map((item) => <tr key={item.id}><td>{item.target_email || t("adminCommand.unknownAccount")}</td><td className={Number(item.amount) >= 0 ? "positive" : "negative"}>{Number(item.amount) > 0 ? "+" : ""}{Number(item.amount || 0)}</td><td>{Number(item.new_balance || 0).toLocaleString(locale || "en")}</td><td>{item.reason || "—"}</td><td>{formatDateTime(item.created_at, false, locale)}</td></tr>) : <tr><td colSpan="5">{t("adminCommand.credits.none")}</td></tr>}</tbody></table></div>
               </article>
 
-              <article className="admin156-section admin156-system-panel" id="systemstatus">
-                <div className="admin156-section-head compact"><div><h2>{t("adminCommand.system.title")}</h2><p>{health.migrationRequired ? t("adminCommand.system.migrationRequired") : t("adminCommand.system.history")}</p></div><button type="button" onClick={loadAdminData}>{t("adminCommand.refresh")}</button></div>
-                <div className="admin156-system-list">{(health.systems || []).map((system) => <div key={system.key}><StatusDot status={system.status}/><span><strong>{systemHealthLabel(system, t)}</strong><small>{systemHealthMessage(system, t)}</small></span><em>{system.status === "up" ? t("adminCommand.system.online") : system.status === "unconfigured" ? t(system.key === "openai" && system.details?.generationState === "unverified" ? "adminCommand.system.unverified.v297" : "adminCommand.system.unconfigured") : system.status === "degraded" ? t("adminCommand.system.degraded") : t("adminCommand.system.down")}</em><b>{Number(system.uptime30d ?? 100).toFixed(system.uptime30d < 99.95 ? 2 : 1)}%</b></div>)}</div>
-                <div className="admin156-incidents"><h3>{t("adminCommand.system.recentHistory")}</h3>{(health.incidents || []).length ? health.incidents.slice(0, 5).map((incident) => <div key={incident.id}><span className={`admin156-incident-icon ${incident.resolved_at ? "resolved" : "open"}`}>{incident.resolved_at ? <CheckCircle2 size={15}/> : <XCircle size={15}/>}</span><span><strong>{systemHealthLabel(incident, t)}</strong><small>{formatDateTime(incident.started_at, true, locale)}{incident.resolved_at ? ` → ${formatDateTime(incident.resolved_at, true, locale)}` : ` · ${t("adminCommand.system.ongoing")}`}</small></span></div>) : <p>{t("adminCommand.system.noIncidents")}</p>}</div>
-              </article>
+              <section className="admin156-section admin156-maintenance" id="translations">
+                <div className="admin156-section-head"><div><h2>{t("adminCommand.tools.title")}</h2><p>{t("adminCommand.tools.subtitle")}</p></div></div>
+                <div className="admin156-maintenance-grid">
+                  <article>
+                    <div className="admin156-maintenance-title"><Languages size={20}/><div><h3>{t("adminCommand.tools.translations")}</h3><p>{t("adminCommand.tools.translationsText")}</p></div></div>
+                    <div className="admin156-language-grid">{translationLocales.map((item) => <button type="button" className={selectedLocales.includes(item.locale) ? "selected" : ""} aria-pressed={selectedLocales.includes(item.locale)} key={item.locale} onClick={() => toggleLocale(item.locale)}><span>{selectedLocales.includes(item.locale) ? "✓" : ""}</span><strong>{item.nativeName}</strong></button>)}</div>
+                    <button className="admin156-action-button" type="button" disabled={!selectedLocales.length || translationSaving} onClick={requestTranslationRefresh}>{translationSaving ? <LoaderCircle className="admin-spin" size={16}/> : <RefreshCw size={16}/>} {t("adminCommand.tools.requestUpdate")}</button>
+                    {translationMessage ? <p className="admin156-message">{translationMessage}</p> : null}
+                  </article>
+                  <article>
+                    <div className="admin156-maintenance-title"><AlertTriangle size={20}/><div><h3>{t("adminCommand.tools.openAiJobs")}</h3><p>{t("adminCommand.tools.openAiJobsText", { count: backgroundJobCount })}</p></div></div>
+                    <button className="admin156-danger-button" type="button" onClick={stopOpenAIBackgroundJobs} disabled={backgroundStopping || backgroundJobCount === 0}>{backgroundStopping ? <LoaderCircle className="admin-spin" size={16}/> : <AlertTriangle size={16}/>} {t("adminCommand.tools.stopJobs")}</button>
+                    {backgroundStopMessage ? <p className="admin156-message">{backgroundStopMessage}</p> : null}
+                  </article>
+                </div>
+              </section>
             </section>
 
-            <section className="admin156-section admin156-maintenance" id="translations">
-              <div className="admin156-section-head"><div><h2>{t("adminCommand.tools.title")}</h2><p>{t("adminCommand.tools.subtitle")}</p></div></div>
-              <div className="admin156-maintenance-grid">
-                <article>
-                  <div className="admin156-maintenance-title"><Languages size={20}/><div><h3>{t("adminCommand.tools.translations")}</h3><p>{t("adminCommand.tools.translationsText")}</p></div></div>
-                  <div className="admin156-language-grid">{translationLocales.map((item) => <button type="button" className={selectedLocales.includes(item.locale) ? "selected" : ""} key={item.locale} onClick={() => toggleLocale(item.locale)}><span>{selectedLocales.includes(item.locale) ? "✓" : ""}</span><strong>{item.nativeName}</strong></button>)}</div>
-                  <button className="admin156-action-button" type="button" disabled={!selectedLocales.length || translationSaving} onClick={requestTranslationRefresh}>{translationSaving ? <LoaderCircle className="admin-spin" size={16}/> : <RefreshCw size={16}/>} {t("adminCommand.tools.requestUpdate")}</button>
-                  {translationMessage ? <p className="admin156-message">{translationMessage}</p> : null}
-                </article>
-                <article>
-                  <div className="admin156-maintenance-title"><AlertTriangle size={20}/><div><h3>{t("adminCommand.tools.openAiJobs")}</h3><p>{t("adminCommand.tools.openAiJobsText", { count: backgroundJobCount })}</p></div></div>
-                  <button className="admin156-danger-button" type="button" onClick={stopOpenAIBackgroundJobs} disabled={backgroundStopping || backgroundJobCount === 0}>{backgroundStopping ? <LoaderCircle className="admin-spin" size={16}/> : <AlertTriangle size={16}/>} {t("adminCommand.tools.stopJobs")}</button>
-                  {backgroundStopMessage ? <p className="admin156-message">{backgroundStopMessage}</p> : null}
-                </article>
-              </div>
-            </section>
           </>
         )}
       </div>
