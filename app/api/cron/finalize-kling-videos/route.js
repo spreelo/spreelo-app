@@ -1,3 +1,5 @@
+import { KLING_QUALITY_VERSION, klingQualitySampleTimes, inspectKlingVideoQuality, decideKlingVideoQuality } from "../../../../lib/klingVideoIntelligence.js";
+import { buildKlingPixelPreservingEdit } from "../../../../lib/klingQualityFallback.js";
 import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeKlingAdvertisingEndCard, buildFallbackKlingEndCard, KLING_END_CARD_SECONDS, KLING_END_CARD_TRANSITION_SECONDS } from "../../../../lib/klingEndCard.js";
 import { completeShotstackDeliveryForPost, fetchBrandLogoBufferForOverlay } from "../run-automations/route.js";
 import { normalizeKlingLayout, klingTypographyGeometry, getKlingTextFrameFractions } from "../../../../lib/klingLayout.js";
@@ -518,208 +520,104 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
 
 async function validateFinishedKlingProductIdentity({ openai, supabase, post, task }) {
   const selection = post?.video_background_selection;
-  if (!selection || typeof selection !== "object" || Array.isArray(selection)) {
-    throw new Error("Kling finished-video product identity metadata is missing");
+  if (!selection || typeof selection !== "object" || Array.isArray(selection)) throw new Error("Kling quality metadata is missing");
+  const existing = selection.product_video_validation;
+  // Cache only this audit version for this exact provider task and source. A
+  // historical identity-only pass cannot bypass the new event inspector.
+  if (existing?.version === KLING_QUALITY_VERSION && existing.task_id === post.kling_task_id && existing.source_url === task.videoUrl && ["passed", "failed"].includes(existing.status)) {
+    return { passed: existing.status === "passed", cached: true, validation: existing };
   }
-  if (selection.identity_validation_required === false) {
-    return {
-      passed: true,
-      cached: true,
-      validation: {
-        status: "not_required",
-        reason: "This Kling task is an engagement concept video without a locked verified product identity.",
-      },
-    };
-  }
-
-  const existing = selection?.product_video_validation;
-  if (existing?.status === "passed") {
-    return { passed: true, cached: true, validation: existing };
-  }
-
-  const productImageUrl = String(selection?.verified_product_image_url || "").trim();
-  const productTitle = String(selection?.verified_product_title || "verified product").trim();
-  const viewLock = selection?.reference_safety?.verifiedViewLock || null;
-  if (!productImageUrl || !viewLock) {
-    throw new Error("Kling finished-video product identity prerequisites are missing");
-  }
-
-  const durationSeconds = normalizeVideoDurationSeconds(
-    task.durationSeconds,
-    post.video_duration_seconds,
-    6
-  );
-  const fractions = getKlingDeliveredAuditFractions(selection, durationSeconds);
-  const [referenceDataUrl, frames] = await Promise.all([
-    fetchKlingVerifiedProductReferenceDataUrl(productImageUrl),
-    sampleRemoteVideoFrames({
-      videoUrl: task.videoUrl,
-      durationSeconds,
-      fractions,
-    }),
+  const productRequired = selection.identity_validation_required !== false;
+  const productImageUrl = String(selection.verified_product_image_url || "").trim();
+  const sceneImageUrl = String(post.kling_reference_image_url || post.image_url || "").trim();
+  const viewLock = selection.reference_safety?.verifiedViewLock || null;
+  if (!sceneImageUrl || (productRequired && (!productImageUrl || !viewLock))) throw new Error("Kling quality audit reference prerequisites are missing");
+  const durationSeconds = normalizeVideoDurationSeconds(task.durationSeconds, post.video_duration_seconds, 6);
+  const timesSeconds = klingQualitySampleTimes(durationSeconds, selection.scene_trim_start_seconds);
+  const [productDataUrl, sceneDataUrl, frames] = await Promise.all([
+    productRequired ? fetchKlingVerifiedProductReferenceDataUrl(productImageUrl) : null,
+    fetchKlingVerifiedProductReferenceDataUrl(sceneImageUrl),
+    sampleRemoteVideoFrames({ videoUrl: task.videoUrl, durationSeconds, timesSeconds }),
   ]);
-  if (!frames?.length) {
-    throw new Error("Kling finished-video product identity audit produced no sampled frames");
-  }
-
-  const content = [
-    {
-      type: "input_text",
-      text:
-        `Audit the finished Kling product video for the ecommerce product "${productTitle}". ` +
-        "The first image is the ONLY authoritative retailer product reference. The following images are sampled from the part of the Kling video that will actually be delivered after any setup trim. " +
-        `Verified view lock: ${String(viewLock?.verifiedView || "same source view only")}. ` +
-        `${String(viewLock?.visibleSurfaceSummary || "Only source-visible surfaces are verified.")} ` +
-        `${String(viewLock?.motionConstraint || "Never expose an unseen product surface.")} ` +
-        "The PRODUCT DESIGN may not change. The shot must also preserve real-world scene continuity: treat the sampled frames as moments from one continuous physical set, not independent regenerated images. Static environmental objects, furniture, benches, signs, lamps, vegetation, architecture, paths, ground features and background structures must remain spatially persistent. A static object may become newly visible only if camera movement naturally reveals an area that was previously outside frame; reject a bench/object that materializes in a region previously visible and empty, or any static object that disappears, morphs, relocates or is replaced without a physically plausible occlusion/camera explanation. Moving people, animals, vehicles and props may enter/exit only through continuous motion or motivated occlusion; reject unexplained pop-in, pop-out, teleporting, duplication or disappearance. Compare visible identity details whenever the product is visible. " +
-        "For rigid products, explicitly compare the number, position, shape and size of visible buttons, switches, controls, openings, seams, joints and distinctive hardware; compare material boundaries, surface finish/texture, color blocking, silhouette/proportions, logos and printed design. " +
-        "Reject if any frame visibly adds a button/control/detail, removes or relocates one, changes material or color regions, changes the visible geometry, substitutes a similar product, or exposes an unverified product side/surface. " +
-        "Do NOT fail merely because a real detail is temporarily occluded by a hand, motion blur, perspective, glare or is too small to judge. Fail only for a visible contradiction/addition/redesign, or an unverified surface exposure. " +
-        "A plausible invented detail is still a failure. Every boolean must agree with the written reason: never set unverified_surface_exposed=true if the reason says no unverified surface was exposed; never set object_materialized_or_disappeared=true if every newly visible object is naturally explained by camera reveal/continuous entry; and never set a preservation field=true if the reason describes that property as changed. Return strict JSON only.",
-    },
-    { type: "input_text", text: "AUTHORITATIVE RETAILER PRODUCT REFERENCE" },
-    { type: "input_image", image_url: referenceDataUrl, detail: "high" },
-  ];
-  for (const frame of frames) {
-    content.push({
-      type: "input_text",
-      text: `DELIVERED VIDEO FRAME at ${Number(frame.time).toFixed(2)} seconds`,
-    });
-    content.push({
-      type: "input_image",
-      image_url: `data:image/jpeg;base64,${frame.buffer.toString("base64")}`,
-      detail: "high",
-    });
-  }
-
-  const response = await openai.responses.create(
-    {
-      model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-      input: [{ role: "user", content }],
-      max_output_tokens: 650,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "kling_finished_product_identity_audit",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              same_product_all_auditable_frames: { type: "boolean" },
-              verified_view_preserved: { type: "boolean" },
-              unverified_surface_exposed: { type: "boolean" },
-              visible_controls_hardware_preserved: { type: "boolean" },
-              visible_material_color_design_preserved: { type: "boolean" },
-              invented_or_moved_identity_detail: { type: "boolean" },
-              scene_continuity_preserved: { type: "boolean" },
-              static_environment_geometry_preserved: { type: "boolean" },
-              object_materialized_or_disappeared: { type: "boolean" },
-              confidence: { type: "number", minimum: 0, maximum: 1 },
-              reason: { type: "string" },
-            },
-            required: [
-              "same_product_all_auditable_frames",
-              "verified_view_preserved",
-              "unverified_surface_exposed",
-              "visible_controls_hardware_preserved",
-              "visible_material_color_design_preserved",
-              "invented_or_moved_identity_detail",
-              "scene_continuity_preserved",
-              "static_environment_geometry_preserved",
-              "object_materialized_or_disappeared",
-              "confidence",
-              "reason",
-            ],
-          },
-        },
-      },
-    },
-    { timeout: 28_000, maxRetries: 0 }
-  );
-
-  let parsed = null;
-  try {
-    parsed = JSON.parse(getOpenAiTextOutput(response));
-  } catch {
-    parsed = null;
-  }
-  if (!parsed) {
-    throw new Error("Kling finished-video product identity audit returned invalid JSON");
-  }
-
-  const confidence = Number(parsed?.confidence || 0);
-  const passed = Boolean(
-    parsed?.same_product_all_auditable_frames === true &&
-      parsed?.verified_view_preserved === true &&
-      parsed?.unverified_surface_exposed !== true &&
-      parsed?.visible_controls_hardware_preserved === true &&
-      parsed?.visible_material_color_design_preserved === true &&
-      parsed?.invented_or_moved_identity_detail !== true &&
-      parsed?.scene_continuity_preserved === true &&
-      parsed?.static_environment_geometry_preserved === true &&
-      parsed?.object_materialized_or_disappeared !== true &&
-      confidence >= 0.9
-  );
-  const violationCodes = [];
-  if (parsed?.same_product_all_auditable_frames !== true) violationCodes.push("product_identity_changed");
-  if (parsed?.verified_view_preserved !== true || parsed?.unverified_surface_exposed === true) violationCodes.push("verified_view_or_surface_changed");
-  if (parsed?.visible_controls_hardware_preserved !== true) violationCodes.push("controls_or_hardware_changed");
-  if (parsed?.visible_material_color_design_preserved !== true) violationCodes.push("material_color_or_print_changed");
-  if (parsed?.invented_or_moved_identity_detail === true) violationCodes.push("invented_or_moved_identity_detail");
-  if (parsed?.scene_continuity_preserved !== true) violationCodes.push("scene_continuity_broken");
-  if (parsed?.static_environment_geometry_preserved !== true) violationCodes.push("environment_geometry_changed");
-  if (parsed?.object_materialized_or_disappeared === true) violationCodes.push("object_appeared_or_disappeared");
-  if (!passed && !violationCodes.length) violationCodes.push("identity_audit_uncertain");
-
-  const validation = {
-    status: passed ? "passed" : "failed",
-    checked_at: new Date().toISOString(),
-    model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-    sampled_frames: frames.map((frame) => Number(frame.time.toFixed(2))),
-    confidence,
-    same_product_all_auditable_frames: parsed?.same_product_all_auditable_frames === true,
-    verified_view_preserved: parsed?.verified_view_preserved === true,
-    unverified_surface_exposed: parsed?.unverified_surface_exposed === true,
-    visible_controls_hardware_preserved: parsed?.visible_controls_hardware_preserved === true,
-    visible_material_color_design_preserved: parsed?.visible_material_color_design_preserved === true,
-    invented_or_moved_identity_detail: parsed?.invented_or_moved_identity_detail === true,
-    scene_continuity_preserved: parsed?.scene_continuity_preserved === true,
-    static_environment_geometry_preserved: parsed?.static_environment_geometry_preserved === true,
-    object_materialized_or_disappeared: parsed?.object_materialized_or_disappeared === true,
-    violation_codes: violationCodes,
-    reason: String(parsed?.reason || (passed ? "verified" : "product_identity_mismatch")).trim(),
-  };
-  const nextSelection = { ...selection, product_video_validation: validation };
-  const { error } = await supabase
-    .from("posts")
-    .update({ video_background_selection: nextSelection, updated_at: new Date().toISOString() })
-    .eq("id", post.id)
-    .eq("video_provider", "kling");
-  if (error) {
-    throw new Error(`Could not persist Kling finished-video identity audit: ${error.message}`);
-  }
-  post.video_background_selection = nextSelection;
-
-  console.info("Kling finished-video product identity audit completed", {
-    postId: post.id,
-    taskId: post.kling_task_id,
-    productTitle,
-    passed,
-    confidence,
-    sampledFrames: validation.sampled_frames,
-    controlsHardwarePreserved: validation.visible_controls_hardware_preserved,
-    materialColorDesignPreserved: validation.visible_material_color_design_preserved,
-    inventedOrMovedIdentityDetail: validation.invented_or_moved_identity_detail,
-    unverifiedSurfaceExposed: validation.unverified_surface_exposed,
-    sceneContinuityPreserved: validation.scene_continuity_preserved,
-    staticEnvironmentGeometryPreserved: validation.static_environment_geometry_preserved,
-    objectMaterializedOrDisappeared: validation.object_materialized_or_disappeared,
-    violationCodes: validation.violation_codes,
-    reason: truncate(validation.reason, 700),
+  if (frames?.length < 12) throw new Error("Kling quality audit frame sequence is incomplete");
+  const parsed = await inspectKlingVideoQuality({
+    openai, model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+    productTitle: selection.verified_product_title || "engagement concept",
+    productDataUrl, sceneDataUrl, viewLock, frames,
+    intelligence: selection.reference_safety?.productIntelligence || null,
+    motionPlan: selection.reference_safety?.motionPlan || null,
   });
+  const decision = decideKlingVideoQuality(parsed, { productRequired });
+  const validation = {
+    ...parsed, ...decision, version: KLING_QUALITY_VERSION,
+    status: decision.passed ? "passed" : "failed",
+    checked_at: new Date().toISOString(), model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+    task_id: post.kling_task_id, source_url: task.videoUrl,
+    audit_scope: "ordered_sampled_frames",
+    sampled_frames: frames.map(frame => Number(frame.time.toFixed(3))),
+    reason: String(parsed.reason || "quality_audit_uncertain").trim(),
+  };
+  const nextSelection = { ...selection, product_video_validation: validation, quality_decision: decision.decision };
+  const { error } = await supabase.from("posts").update({ video_background_selection: nextSelection, updated_at: new Date().toISOString() }).eq("id", post.id).eq("video_provider", "kling");
+  if (error) throw new Error(`Could not persist Kling quality audit: ${error.message}`);
+  post.video_background_selection = nextSelection;
+  console.info("Kling product and event quality inspection completed", { postId: post.id, taskId: post.kling_task_id, ...decision, confidence: parsed.confidence, sampledFrames: frames.length });
+  return { passed: decision.passed, cached: false, validation };
+}
 
-  return { passed, cached: false, validation };
+async function saveKlingQualitySelection(supabase, post, selection) {
+  const { error } = await supabase.from("posts").update({ video_background_selection: selection, updated_at: new Date().toISOString() }).eq("id", post.id).eq("video_provider", "kling");
+  if (error) throw new Error(`Could not checkpoint safe animation: ${error.message}`);
+  post.video_background_selection = selection;
+}
+
+async function getKlingQualityFallbackSource({ supabase, post, costTracker }) {
+  let selection = post.video_background_selection;
+  let fallback = selection.quality_fallback || {};
+  if (!selection.verified_product_image_url) throw new Error("Safe product animation requires the authoritative product reference");
+  if (fallback.status === "ready" && fallback.video_url) return { status: "succeeded", videoUrl: fallback.video_url, durationSeconds: 6, qualityFallback: true };
+  if (fallback.status === "submission_unknown" || (fallback.status === "submitting" && !fallback.render_id)) {
+    const error = new Error("Safe animation submission outcome is unknown. Reconcile it in admin before any new render; no automatic resubmission was made.");
+    error.code = "QUALITY_FALLBACK_SUBMISSION_UNKNOWN";
+    throw error;
+  }
+  if (!fallback.frame_url) {
+    // Compose locally using the FULL original photograph. Do not use the
+    // AI-created scene, the rejected video, a generated cutout or a redraw.
+    const originalDataUrl = await fetchKlingVerifiedProductReferenceDataUrl(selection.verified_product_image_url);
+    const original = Buffer.from(originalDataUrl.split(",")[1], "base64");
+    const frame = await sharp(original).resize({ width: 880, height: 1150, fit: "contain", background: "#f4f6fb" }).png().toBuffer();
+    const path = `${post.user_id}/${post.id}-quality-safe-original.png`;
+    const { error } = await supabase.storage.from(POST_IMAGES_BUCKET).upload(path, frame, { contentType: "image/png", upsert: true });
+    if (error) throw error;
+    const { data } = supabase.storage.from(POST_IMAGES_BUCKET).getPublicUrl(path);
+    if (!data?.publicUrl) throw new Error("Could not preserve safe original-image animation asset");
+    fallback = { ...fallback, frame_url: data.publicUrl, frame_storage_path: path };
+  }
+  if (!fallback.render_id) {
+    fallback = { ...fallback, status: "submitting", kind: "pixel_preserving_animation", original_task_id: post.kling_task_id, started_at: new Date().toISOString() };
+    await saveKlingQualitySelection(supabase, post, { ...selection, quality_fallback: fallback });
+    try {
+      const renderId = await queueShotstackRender(buildKlingPixelPreservingEdit({ imageUrl: fallback.frame_url }));
+      fallback = { ...fallback, status: "rendering", render_id: renderId };
+      await saveKlingQualitySelection(supabase, post, { ...selection, quality_fallback: fallback });
+    } catch (error) {
+      // If queueing succeeded but checkpointing failed, the persisted submitting
+      // claim still blocks a second paid render. Never solve ambiguity by retry.
+      const blocked = new Error(`Safe animation needs reconciliation after submission: ${error.message}`);
+      blocked.code = "QUALITY_FALLBACK_SUBMISSION_UNKNOWN";
+      throw blocked;
+    }
+  }
+  const render = await waitForShotstackRender({ renderId: fallback.render_id, maxAttempts: 8, delayMs: 2500 });
+  if (costTracker?.recordShotstack) {
+    try { await costTracker.recordShotstack({ renderId: fallback.render_id, billableSeconds: render.billableSeconds, plan: render.plan, environment: render.environment }); }
+    catch (error) { console.warn("Safe animation cost recording deferred", { postId: post.id, message: error.message }); }
+  }
+  fallback = { ...fallback, status: "ready", video_url: render.url, completed_at: new Date().toISOString() };
+  selection = { ...post.video_background_selection, quality_fallback: fallback, scene_trim_start_seconds: 0.05, overlay_start_seconds: 1.0 };
+  await saveKlingQualitySelection(supabase, post, selection);
+  return { status: "succeeded", videoUrl: render.url, durationSeconds: 6, qualityFallback: true };
 }
 
 // v144.42: product identity is constrained before the paid Kling generation and
@@ -1542,6 +1440,11 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
   let nextSelection = postprocess;
 
   if (!renderId) {
+    if (postprocess.quality_fallback && postprocess.quality_postprocess_submission === "submitting") {
+      const error = new Error("Safe animation advertising render has an unknown submission outcome. Reconcile it before ordering another render.");
+      error.code = "QUALITY_FALLBACK_SUBMISSION_UNKNOWN";
+      throw error;
+    }
     postprocess = await ensureKlingEndCard({ supabase, post, selection: postprocess, brand, logoBuffer });
     const closingHoldSeconds = KLING_END_CARD_SECONDS;
     const deliveredMotionDurationSeconds = Math.max(2.5, durationSeconds - trimStartSeconds);
@@ -1578,9 +1481,19 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       musicTrimStartSeconds: musicSelection?.trimStartSeconds || null,
       musicVolume: musicSelection?.volume ?? 0.5,
     });
-    renderId = await queueShotstackRender(edit);
+    if (postprocess.quality_fallback) {
+      postprocess = { ...postprocess, quality_postprocess_submission: "submitting" };
+      await saveKlingQualitySelection(supabase, post, postprocess);
+    }
+    try {
+      renderId = await queueShotstackRender(edit);
+    } catch (error) {
+      if (postprocess.quality_fallback) error.code = "QUALITY_FALLBACK_SUBMISSION_UNKNOWN";
+      throw error;
+    }
     nextSelection = {
       ...postprocess,
+      ...(postprocess.quality_fallback ? { quality_postprocess_submission: "submitted" } : {}),
       scene_trim_start_seconds: trimStartSeconds,
       overlay_start_seconds: overlayStartSeconds,
       closing_hero_hold_seconds: closingHoldSeconds,
@@ -1614,10 +1527,13 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       .eq("id", post.id)
       .eq("video_provider", "kling");
     if (persistError) {
-      throw new Error(
+      const error = new Error(
         `Professional Kling typography render ${renderId} was queued but its id could not be saved: ${persistError.message || "unknown database error"}`
       );
+      if (postprocess.quality_fallback) error.code = "QUALITY_FALLBACK_SUBMISSION_UNKNOWN";
+      throw error;
     }
+    post.video_background_selection = nextSelection;
     console.info("Kling professional advertising typography render queued", {
       postId: post.id,
       klingTaskId: post.kling_task_id,
@@ -1665,7 +1581,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
     shotstack_status: "done",
     shotstack_completed_at: new Date().toISOString(),
   };
-  await supabase
+  const { error: completedPersistError } = await supabase
     .from("posts")
     .update({
       video_background_selection: completedSelection,
@@ -1673,6 +1589,9 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
     })
     .eq("id", post.id)
     .eq("video_provider", "kling");
+
+  if (completedPersistError) throw new Error(`Could not checkpoint completed advertising render: ${completedPersistError.message}`);
+  post.video_background_selection = completedSelection;
 
   console.info("Kling professional advertising typography applied", {
     postId: post.id,
@@ -1725,7 +1644,14 @@ async function finalizeReadyTask(
       video_url: publicUrl,
       video_storage_path: storagePath,
       video_status: "ready",
-      video_render_id: post.kling_task_id,
+      video_render_id: post.video_background_selection?.quality_fallback?.status === "ready"
+        ? post.video_background_selection.shotstack_render_id || post.video_background_selection.quality_fallback.render_id
+        : post.kling_task_id,
+      ...(post.video_background_selection?.quality_fallback?.status === "ready" ? {
+        video_provider: "shotstack",
+        image_url: post.video_background_selection.quality_fallback.frame_url,
+        image_storage_path: post.video_background_selection.quality_fallback.frame_storage_path,
+      } : {}),
       kling_task_status: task.status || "succeeded",
       kling_completed_at: nowIso,
       kling_last_polled_at: nowIso,
@@ -1919,28 +1845,19 @@ export async function GET(request) {
           post,
           task,
         });
+        let deliveryTask = task;
         if (!productIdentity.passed) {
-          const reason =
-            productIdentity?.validation?.reason ||
-            "The finished Kling video visibly changed the verified product design.";
-          await markKlingPostFailed(
-            supabase,
-            post,
-            "kling_finished_product_identity",
-            `Kling video rejected before delivery because the verified product changed: ${reason}`
-          );
-          summary.failed += 1;
+          const reason = productIdentity.validation.reason || "Finished video quality failed";
           summary.product_identity_rejected += 1;
-          continue;
+          if (productIdentity.validation.decision !== "pixel_preserving_animation") {
+            await markKlingPostFailed(supabase, post, "kling_finished_product_identity", `Kling event-quality inspection rejected the video: ${reason}`);
+            summary.failed += 1;
+            continue;
+          }
+          deliveryTask = await getKlingQualityFallbackSource({ supabase, post, costTracker });
+          summary.safe_animation_fallbacks = Number(summary.safe_animation_fallbacks || 0) + 1;
         }
-
-        const finalVideo = await getKlingFinalVideoSource({
-          openai,
-          supabase,
-          post,
-          task,
-          costTracker,
-        });
+        const finalVideo = await getKlingFinalVideoSource({ openai, supabase, post, task: deliveryTask, costTracker });
         await finalizeReadyTask(
           supabase,
           post,
@@ -1954,6 +1871,11 @@ export async function GET(request) {
             Number(summary.professional_typography_applied || 0) + 1;
         }
       } catch (finalizeError) {
+        if (finalizeError?.code === "QUALITY_FALLBACK_SUBMISSION_UNKNOWN" || (post.video_background_selection?.quality_fallback && finalizeError?.code === "SHOTSTACK_RENDER_FAILED")) {
+          await markKlingPostFailed(supabase, post, "kling_finished_product_identity", finalizeError.message);
+          summary.failed += 1;
+          continue;
+        }
         // Do not fail the paid Kling generation just because local post-processing
         // had a temporary error. The successful Kling source was cached before
         // post-processing, so retries do not keep polling the provider.

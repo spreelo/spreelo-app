@@ -1,68 +1,39 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-
 const read = p => fs.readFileSync(p, 'utf8');
 const source = read('app/api/cron/run-automations/route.js');
-const helper = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingPromptBudget.js'))}`);
-const validateKlingCreativeDirection = (await import(`data:text/javascript,${encodeURIComponent(fs.readFileSync('lib/klingCreativeSafety.js','utf8'))}`)).validateKlingCreativeDirection;
+const budget = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingPromptBudget.js'))}`);
+const safety = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingCreativeSafety.js'))}`);
 const grab = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
-const context = {
-  assembleKlingPrompt:helper.assembleKlingPrompt, validateKlingCreativeDirection,
-  truncateText:(v,n)=>String(v||'').trim().length>n?String(v).trim().slice(0,n)+'...':String(v||'').trim(),
-  getCustomerFacingCampaignTheme:()=>'',
-  formatCampaignIdentityLockForPrompt:()=>'',
-  getKlingVerifiedViewInstruction:()=>'',
-  postTextModel:()=>'gpt-test',
-  safeJsonParse:JSON.parse,
-  console,
+let candidate = 'A subtle camera push shows the unchanged product. Established background motion continues. Hold the final second.';
+const ctx = { ...budget, ...safety, PRODUCT_RESEARCH_FAST_MODEL: 'test',
+  planKlingVerifiedMotion: async () => ({ motion_prompt: candidate, mode: 'camera_environment', action_ids: [] }),
+  truncateText: (v,n) => String(v || '').slice(0,n), getCustomerFacingCampaignTheme: () => '', formatCampaignIdentityLockForPrompt: () => '',
 };
 vm.runInNewContext([
   grab('function getKlingProviderSafetyPrefix(', '\nfunction getKlingProductPromptFallback('),
   grab('function getKlingProductPromptFallback(', '\nasync function buildKlingProductVideoPrompt('),
   grab('async function buildKlingProductVideoPrompt(', '\nfunction buildKlingEngagementVideoPrompt('),
   grab('function buildKlingEngagementVideoPrompt(', '\nasync function submitKlingEngagementConceptVideo('),
-  'this.buildProduct = buildKlingProductVideoPrompt; this.fallback = getKlingProductPromptFallback; this.buildEngagement = buildKlingEngagementVideoPrompt; this.fixed = getKlingProviderSafetyPrefix;',
-].join('\n'),context);
-
-const rule={website_item:{title:'Sony wireless earbuds',description:'Silver wireless earbuds and case'},brand_profile:{business_name:'Sony'}};
-const view={verifiedViewLock:{verifiedView:'the exact silver charging case front and earbud outer shells',motionConstraint:'No rotation of case or earbuds.'}};
-const candidate='A subtle camera push-in shows the unchanged earbuds on the marble table. Background person picks up a book while the camera remains on the verified view. The product stays still and unlit.';
-const openai={chat:{completions:{create:async()=>({choices:[{message:{content:JSON.stringify({motion_prompt:candidate})}}]})}}};
-const p=await context.buildProduct({openai,rule,postContent:'Try the new earbuds',referenceSafety:view});
-assert(p.length<=2450,`Product prompt exceeds limit: ${p.length}`);
-assert(p.includes(candidate),'Creative directions must fit fully if under the allocation');
-assert(p.includes('LIGHT AND EFFECT LOCK'),'Product prompt must forbid invented lights');
-assert(p.includes('character-for-character'),'Product logos must stay locked');
-assert(p.includes('No rotation of case or earbuds.'),'Model must receive exact product view constraint');
-assert(!p.endsWith('...'),'No prompt may end with truncation ellipsis');
-console.log('PASS: Sony product prompt contains whole creative direction + verified view + light and surface locks; length',p.length);
-
-const tooLongCreative=Array(35).fill('Camera moves quietly behind the coffee table without touching the product.').join(' ');
-const long=await context.buildProduct({openai:{chat:{completions:{create:async()=>({choices:[{message:{content:JSON.stringify({motion_prompt:tooLongCreative})}}]})}}},rule,referenceSafety:view});
-assert(long.length<=2450);
-assert(!long.endsWith('...') && /[.!?;]$/.test(long));
-assert(/[.!?;]$/.test(long) && long.split('Camera moves quietly').length>1);
-console.log('PASS: Oversize AI creative description is reduced to complete sentences, not cut mid sentence; length',long.length);
-
-const f=context.fallback({rule,postContent:'a'.repeat(5000),referenceSafety:view});
-assert(f.length<=2450 && !f.endsWith('...'));
-assert(f.includes('LIGHT AND EFFECT LOCK'));
-console.log('PASS: Deterministic fallback prompt is complete and within budget; length',f.length);
-
-const e=context.buildEngagement({rule,postContent:'Engagement campaign. '.repeat(100),referenceSafety:view});
-assert(e.length<=2450 && !e.endsWith('...'));
-assert(e.includes('LIGHT AND EFFECT LOCK'));
-console.log('PASS: Engagement video prompt is complete and within budget; length',e.length);
-
-const retry=read('app/api/admin/post-approvals/retry-kling/route.js');
-assert.match(retry,/assembleKlingPrompt\(\{ safety: retryLock, direction: creative, maxCreative: 1200 \}\)/);
-assert.doesNotMatch(retry,/\.slice\(0,\s*2500\)/);
-const provider=read('lib/kling.js');
-assert.match(provider,/KLING_PROMPT_TOO_LONG/);
-assert.match(provider,/const exactPrompt = String\(prompt\)\.trim\(\)/);
-assert.doesNotMatch(provider,/String\(prompt\)\.trim\(\)\.slice\(0, 2500\)/);
-const control=read('lib/aiModelControl.js');
-assert.match(control,/key:'kling_video'.*provider:'kling'/);
-assert.doesNotMatch(control,/runway|\bwan\b/i);
-console.log('PASS: retry + paid provider use explicit prompt-length safety; only Kling video provider is registered');
+  'this.build = buildKlingProductVideoPrompt; this.fallback = getKlingProductPromptFallback; this.engagement = buildKlingEngagementVideoPrompt;',
+].join('\n'), ctx);
+const view = { verifiedViewLock: { verifiedView: 'Top-front source view', motionConstraint: 'No rotation of case or earbuds.' } };
+const rule = { website_item: { title: 'Verified product' }, brand_profile: { business_name: 'Store' } };
+const check = prompt => { assert(prompt.length <= 2450); assert(/[.!?]$/.test(prompt)); for (const lock of ['HARD PRODUCT LOCK', 'SURFACE PRINT LOCK', 'LIGHT AND EFFECT LOCK', 'FUNCTION LOCK', 'SCENE CONTINUITY LOCK']) assert(prompt.includes(lock)); };
+const normal = await ctx.build({ rule, referenceSafety: view });
+check(normal); assert(normal.includes(candidate)); assert(normal.includes('No rotation of case or earbuds.'));
+candidate = 'A longer camera movement remains outside the verified product. '.repeat(60);
+const limited = await ctx.build({ rule, referenceSafety: view });
+check(limited); assert.equal(view.motionPlan.source, 'passive_plan_fallback'); assert.equal(view.motionPlan.rejected_plan_reason, 'reviewed_plan_exceeds_provider_budget');
+assert(limited.includes('mechanically passive'));
+check(ctx.fallback({ rule, referenceSafety: view, postContent: 'x'.repeat(5000) }));
+check(ctx.engagement({ rule, referenceSafety: view, postContent: 'Engagement. '.repeat(500) }));
+assert.throws(() => budget.assembleKlingPrompt({ safety: 'x'.repeat(2450), direction: 'A complete scene.' }));
+assert.equal(budget.completeKlingSentences('First sentence. Second sentence. Third sentence.', 30), 'First sentence.');
+const provider = read('lib/kling.js');
+assert.match(provider, /KLING_PROMPT_TOO_LONG/);
+assert.match(provider, /const exactPrompt = String\(prompt\)\.trim\(\)/);
+assert.doesNotMatch(provider, /String\(prompt\)\.trim\(\)\.slice\(0, 2500\)/);
+assert.doesNotMatch(read('lib/aiModelControl.js'), /runway|\bwan\b/i);
+console.log('PASS: complete provider locks and verified view, unchanged normal plan, whole safe replacement of oversized reviewed plan, prompt budget and Kling-only guard');

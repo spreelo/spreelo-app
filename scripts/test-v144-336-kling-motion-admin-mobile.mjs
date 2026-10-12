@@ -20,9 +20,9 @@ for (const candidate of [
 ]) assert.equal(validate(candidate).ok, false, `Unsafe creative direction was accepted: ${candidate}`);
 const prompt = read('app/api/cron/run-automations/route.js');
 assert.match(prompt, /validateKlingCreativeDirection\(creativePrompt\)/);
-assert.match(prompt, /natural, ordinary product use and modest physical motion are encouraged/);
-assert.match(prompt, /NEVER reveal or interpolate a side\/surface not visible/);
-assert.match(prompt, /stroller may roll straight forward/);
+assert.match(prompt, /planKlingVerifiedMotion/);
+assert.match(prompt, /fullProductInteractionSafe: referenceSafety/);
+assert.match(prompt, /Never rotate, flip, orbit or reveal unverified surfaces/);
 assert.doesNotMatch(prompt, /Keep rigid products stationary and mechanically passive/);
 assert.match(read('app/api/admin/post-approvals/retry-kling/route.js'), /validateKlingCreativeDirection\(originalCreative\)/);
 console.log('PASS: normal shirt/stroller/phone handling allowed; unsafe phone flip/orbit/duplicates rejected before paid generation and on retries');

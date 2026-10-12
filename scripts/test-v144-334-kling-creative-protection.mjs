@@ -1,46 +1,17 @@
+// v144.337 supersedes the former text-only director. Keep this regression entry
+// point and exercise the evidence-aware director and independent preflight.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import vm from 'node:vm';
-
-const source = fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
-const priorTest = fs.readFileSync('scripts/test-v144-329-kling-prompt-integrity.mjs','utf8');
-const {assembleKlingPrompt} = await import(`data:text/javascript,${encodeURIComponent(fs.readFileSync('lib/klingPromptBudget.js','utf8'))}`);
-const validateKlingCreativeDirection = (await import(`data:text/javascript,${encodeURIComponent(fs.readFileSync('lib/klingCreativeSafety.js','utf8'))}`)).validateKlingCreativeDirection;
-const grab=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
-const ctx={ validateKlingCreativeDirection, assembleKlingPrompt, truncateText:(v,n)=>String(v||'').trim().length>n?String(v).trim().slice(0,n)+'...':String(v||'').trim(),getCustomerFacingCampaignTheme:()=>'',formatCampaignIdentityLockForPrompt:()=>'',getKlingVerifiedViewInstruction:()=>'',postTextModel:()=> 'gpt-test',safeJsonParse:JSON.parse, console };
-vm.runInNewContext([
- grab('function getKlingProviderSafetyPrefix(', '\nfunction getKlingProductPromptFallback('),
- grab('function getKlingProductPromptFallback(', '\nasync function buildKlingProductVideoPrompt('),
- grab('async function buildKlingProductVideoPrompt(', '\nfunction buildKlingEngagementVideoPrompt('),
- grab('function buildKlingEngagementVideoPrompt(', '\nasync function submitKlingEngagementConceptVideo('),
- 'this.buildProduct=buildKlingProductVideoPrompt; this.buildEngagement=buildKlingEngagementVideoPrompt; this.safety=getKlingProviderSafetyPrefix; this.fallback=getKlingProductPromptFallback;'
-].join('\n'),ctx);
-const locks = ['HARD PRODUCT LOCK','SURFACE PRINT LOCK','LIGHT AND EFFECT LOCK','FUNCTION LOCK','SCENE CONTINUITY LOCK'];
-const assertSafe=(p)=> {assert(p.length<=2450,`too long ${p.length}`);for(const lock of locks)assert(p.includes(lock),lock);assert(p.includes('CREATIVE DIRECTION:'));assert(!p.endsWith('...'));};
-const ref={ verifiedViewLock:{verifiedView:'front silver Sony earbud case and visible earbud shells',motionConstraint:'Keep both objects in the original orientation.'}};
-const refLong={ verifiedViewLock:{verifiedView:'visible retailer view '.repeat(150),motionConstraint:'do not rotate '.repeat(150)} };
-const rule={website_item:{title:'Sony WF-1000XM6',description:'Silver earbuds with their original identity'},brand_profile:{business_name:'Sony'}};
-const scene='Slowly push the camera toward the stationary product in the original living room. Let the curtain move naturally in the background. Hold the product unchanged in a stable hero composition.';
-let call=0;
-const openai={chat:{completions:{create:async()=>{call++;return {choices:[{message:{content:JSON.stringify({motion_prompt:scene})}}]};}}}};
-const p=await ctx.buildProduct({openai,rule,postContent:'',referenceSafety:ref});
-assertSafe(p);assert(p.includes(scene));assert(p.includes('character-for-character'));
-const max=await ctx.buildProduct({openai,rule,postContent:'a'.repeat(5000),referenceSafety:refLong});
-assertSafe(max);
-const stroller={website_item:{title:'Full-size stroller',description:'Stroller only as verified in photo'},brand_profile:{business_name:'Demo'}};
-const strollerPrompt=await ctx.buildProduct({openai,rule:stroller,postContent:'',referenceSafety:ref});
-assertSafe(strollerPrompt);
-const longSafe=ctx.buildEngagement({rule:{website_item:{title:'L'.repeat(3000)},brand_profile:{business_name:'B'.repeat(5000),target_audience:'A'.repeat(5000)}},postContent:'Big sale. '.repeat(300),referenceSafety:refLong});
-assertSafe(longSafe);
-const extreme=await ctx.buildProduct({openai:{chat:{completions:{create:async()=>({choices:[{message:{content:JSON.stringify({motion_prompt:'The camera stays outside the verified product view. '.repeat(300)})}}]})}}},rule:stroller,referenceSafety:refLong});
-assertSafe(extreme);assert(/[.!?]$/.test(extreme));
-assert(source.includes('a stroller may roll straight forward in its verified view'),'natural stroller use must stay possible');
-assert(source.includes('a T-shirt may remain worn as its wearer walks'),'ordinary clothing use should stay possible');
-assert(!source.includes('Keep rigid products stationary and mechanically passive'),'old blanket no-motion rule must be gone');
-assert(source.includes('If ordinary use cannot preserve the source view'),'verified-view safety is paramount');
-// Regression: no safety-lock words silently removed by helper when creative is excessively long.
-assert(priorTest.includes('LIGHT AND EFFECT LOCK'));
-console.log('PASS: Sony and stroller prompts contain every original product lock, preserve complete normal motion directions');
-console.log('PASS: extreme metadata and overly long creative outputs fit inside 2450 without chopping instructions');
-console.log('PASS: ordinary, verified-view natural product use restored without allowing hidden surfaces');
-console.log('PASS: fixed product rules remain detailed and unchanged');
+const read = p => fs.readFileSync(p, 'utf8');
+const { motionPlanIsSupported } = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingVideoIntelligence.js'))}`);
+const { validateKlingCreativeDirection } = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingCreativeSafety.js'))}`);
+for (const action of ['The person walks in the front-facing garment.', 'The wheeled product rolls straight in its source view.', 'A hand presents the verified object without operating its parts.']) {
+  const evidence = { confidence: 0.98, verified_actions: [{ id: 'a', action, source_evidence: 'Verified source pixels', preserves_source_view: true, confidence: 0.98 }] };
+  assert(motionPlanIsSupported({ mode: 'verified_use', risk: 'low', action_ids: ['a'], motion_prompt: action }, evidence));
+  assert(!motionPlanIsSupported({ mode: 'verified_use', risk: 'low', action_ids: ['invented'], motion_prompt: action }, evidence));
+}
+for (const prompt of ['Orbit around the product to show its reverse.', 'Flip the phone to display the back.', 'Introduce another phone and hold both devices.']) assert(!validateKlingCreativeDirection(prompt).ok);
+const retry = read('app/api/admin/post-approvals/retry-kling/route.js');
+assert.match(retry, /Keep the exact product mechanically passive/);
+assert.doesNotMatch(retry, /const creative = review.ok \? originalCreative/);
+console.log('PASS: verified natural use across products, unsupported operation ids rejected and rejected actions never blindly reused on admin retry');

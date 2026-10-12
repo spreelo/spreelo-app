@@ -18,8 +18,10 @@ function buildRetryPrompt(originalPrompt) {
     : original;
   // Never blindly resubmit an orbit/flip that caused an identity rejection.
   const review = validateKlingCreativeDirection(originalCreative);
-  const creative = review.ok ? originalCreative :
-    "Continue an ordinary, clearly verified use already present in frame zero without changing the product-facing view. Show a subtle cinematic push-in and natural established background movement, with the exact product details and original number of product instances preserved. Settle into a stable product shot for the final second.";
+  // Every confirmed rejection gets a safer plan, even when regex checks cannot
+  // detect the physical/causal defect. Do not replay the rejected action.
+  const creative = "Keep the exact product mechanically passive in its original verified view. Use a subtle camera push with only established background movement; independent stationary props stay fixed. Preserve initial material and all component roles. Settle the shot by 5 seconds and hold the final second.";
+  void review;
   const retryLock = [
     "ADMIN RETRY PRODUCT LOCK — NON-NEGOTIABLE: frame 0 is authoritative. Preserve the exact product design, color, labels, geometry and physical state.",
     "Never invent or activate product lights, illuminated logos, glows, ports, controls, seams, accessories or other features that are not visibly active in frame 0.",
@@ -34,7 +36,10 @@ function cleanSelection(selection) {
   const source = selection && typeof selection === "object" ? selection : {};
   return {
     mode: source.mode || "kling_professional_advertising_postprocess",
-    reference_safety: source.reference_safety || null,
+    reference_safety: source.reference_safety ? {
+      ...source.reference_safety,
+      motionPlan: { version: 337, mode: "camera_environment", source: "admin_passive_retry", action_ids: [], risk: "low" },
+    } : null,
     natural_start_background: source.natural_start_background || null,
     verified_product_image_url: source.verified_product_image_url || null,
     verified_product_source_url: source.verified_product_source_url || null,

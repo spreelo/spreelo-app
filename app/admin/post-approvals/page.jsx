@@ -145,6 +145,7 @@ const PRODUCT_CONTENT_TYPE_IDS = new Set([
 // Display-only distinction. Database content_format stays "animated_video" for
 // both pipelines so delivery, credit accounting and historical posts are safe.
 function adminPostFormatLabel(post) {
+  if (post?.video_background_selection?.quality_fallback?.status === "ready") return "Animerad video";
   const format = String(post?.content_format || post?.post_type || "").trim();
   const provider = String(post?.video_provider || "").trim().toLowerCase();
   const type = String(post?.content_type_id || "").trim().toLowerCase();
@@ -196,6 +197,13 @@ function getKlingAuditViolationLabels(audit, t) {
     environment_geometry_changed: "admin.approvals.klingViolationEnvironmentGeometry",
     object_appeared_or_disappeared: "admin.approvals.klingViolationObjectAppeared",
     identity_audit_uncertain: "admin.approvals.klingViolationUncertain",
+    quality_audit_uncertain: "admin.approvals.klingViolationUncertain",
+    component_role_or_count_changed: "admin.approvals.klingViolationComponentRole",
+    unsupported_product_function: "admin.approvals.klingViolationFunction",
+    initial_conditions_changed: "admin.approvals.klingViolationInitialState",
+    physical_causality_broken: "admin.approvals.klingViolationPhysics",
+    anatomy_changed: "admin.approvals.klingViolationAnatomy",
+    unfinished_closing_action: "admin.approvals.klingViolationEnding",
   };
   return codes.map((code) => t(labelKeys[code] || "admin.approvals.klingViolationGeneric", { code }));
 }
@@ -1711,6 +1719,19 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                       ) : null}
                       {refundActionMessage ? <div className="admin-alert success"><CheckCircle2 size={15} /><span>{refundActionMessage}</span></div> : null}
                       {refundActionError ? <div className="admin-alert error"><AlertTriangle size={15} /><span>{refundActionError}</span></div> : null}
+                    </div>
+                  ) : null}
+
+                  {selectedPost.video_background_selection?.quality_fallback ? (
+                    <div className="admin-generation-error-card">
+                      <ShieldCheck size={20} />
+                      <div>
+                        <strong>{t("admin.approvals.klingSafeAnimationTitle")}</strong>
+                        <p>{t("admin.approvals.klingSafeAnimationHelp")}</p>
+                        <p>{selectedPost.video_background_selection.product_video_validation?.reason}</p>
+                        <ul>{getKlingAuditViolationLabels(selectedPost.video_background_selection.product_video_validation || {}, t).map((label, index) => <li key={index}>{label}</li>)}</ul>
+                        {selectedPost.video_background_selection.product_video_validation?.issues?.map((issue, index) => <p key={index}>{Number(issue.time_seconds).toFixed(2)} s: {issue.observation}</p>)}
+                      </div>
                     </div>
                   ) : null}
 
