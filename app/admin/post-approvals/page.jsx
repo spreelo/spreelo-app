@@ -142,6 +142,21 @@ const PRODUCT_CONTENT_TYPE_IDS = new Set([
   "carousel_website_item",
   "ai_product_video",
 ]);
+// Display-only distinction. Database content_format stays "animated_video" for
+// both pipelines so delivery, credit accounting and historical posts are safe.
+function adminPostFormatLabel(post) {
+  const format = String(post?.content_format || post?.post_type || "").trim();
+  const provider = String(post?.video_provider || "").trim().toLowerCase();
+  const type = String(post?.content_type_id || "").trim().toLowerCase();
+  const isKlingVideo = provider === "kling" || type === "ai_product_video" ||
+    String(post?.post_type || "").toLowerCase().includes("ai_video") ||
+    String(post?.post_type || "").toLowerCase().includes("ai video") ||
+    Boolean(post?.kling_task_id);
+  if (isKlingVideo) return "AI-video";
+  if (format.toLowerCase() === "animated_video" || type === "animated_website_item") return "Animerad video";
+  return format;
+}
+
 function isProductDrivenPost(post) {
   const contentTypeId = String(post?.content_type_id || "").trim();
   if (PRODUCT_CONTENT_TYPE_IDS.has(contentTypeId)) return true;
@@ -324,7 +339,7 @@ export default function AdminPostApprovalsPage() {
   );
   const lightboxItems = useMemo(() => getPostMediaItems(selectedPost), [selectedPost]);
   const availableFormats = useMemo(() => Array.from(new Set(
-    posts.map((post) => String(post.content_format || post.post_type || "").trim()).filter(Boolean)
+    posts.map((post) => adminPostFormatLabel(post)).filter(Boolean)
   )).sort((a, b) => a.localeCompare(b)), [posts]);
   const availableTestBatches = useMemo(() => Array.from(new Set(
     posts.map((post) => String(post.admin_test_batch_id || "").trim()).filter(Boolean)
@@ -332,13 +347,13 @@ export default function AdminPostApprovalsPage() {
   const filteredPosts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return posts.filter((post) => {
-      const format = String(post.content_format || post.post_type || "").trim();
+      const format = adminPostFormatLabel(post);
       if (formatFilter !== "all" && format !== formatFilter) return false;
       if (testFilter === "tests" && post.is_admin_test !== true) return false;
       if (testFilter === "normal" && post.is_admin_test === true) return false;
       if (!["all", "tests", "normal"].includes(testFilter) && post.admin_test_batch_id !== testFilter) return false;
       if (!query) return true;
-      return [post.brand_name, post.customer_email, post.content, post.platform, post.post_type, post.content_format]
+      return [post.brand_name, post.customer_email, post.content, post.platform, post.post_type, post.content_format, adminPostFormatLabel(post)]
         .some((value) => String(value || "").toLowerCase().includes(query));
     });
   }, [posts, searchQuery, formatFilter, testFilter]);
@@ -1369,7 +1384,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                     {(post.slides?.[0]?.image_url || post.image_url) ? <img src={post.slides?.[0]?.image_url || post.image_url} alt="" /> : post.video_url ? <Video size={20} /> : <ImageIcon size={20} />}
                   </span>
                   <span className="admin-v14370-review-main">
-                    <small>{post.platform || t("admin.approvals.platformUnknown")} · {post.content_format || post.post_type || t("admin.approvals.post")}</small>
+                    <small>{post.platform || t("admin.approvals.platformUnknown")} · {adminPostFormatLabel(post) || t("admin.approvals.post")}</small>
                     <strong>{post.brand_name || t("admin.approvals.unknownBrand")} {post.is_admin_test ? <span className="sp102-approval-test-badge">{t("admin.approvals.testMassTest")}</span> : null}</strong>
                     <em>{post.admin_test_campaign ? `${post.admin_test_campaign} · ` : ""}{String(post.content || "").replace(/\s+/g, " ").slice(0, 120) || t("admin.approvals.noContent")}</em>
                   </span>
@@ -1421,7 +1436,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                   <div className="admin-v74-email-topline">{t("admin.approvals.reviewWorkspace")}</div>
                   <div className="admin-review-title-row">
                     <div>
-                      <span>{selectedPost.post_type || selectedPost.content_format || t("admin.approvals.post")}</span>
+                      <span>{adminPostFormatLabel(selectedPost) || t("admin.approvals.post")}</span>
                       <h3>{t("admin.approvals.qualityReview")}</h3>
                     </div>
                     <div className="admin-review-title-actions">
@@ -1647,7 +1662,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                       <div className="admin-v144106-work-order-head"><Clock3 size={18} /><div><strong>{t("admin.approvals.workOrderCreated")}</strong><span>{t("admin.approvals.noContentGenerated")}</span></div></div>
                       <dl>
                         <div><dt>{t("admin.approvals.postType")}</dt><dd>{selectedPost.content_type_label || selectedPost.post_type || "—"}</dd></div>
-                        <div><dt>{t("admin.approvals.format")}</dt><dd>{selectedPost.content_format || "—"}</dd></div>
+                        <div><dt>{t("admin.approvals.format")}</dt><dd>{adminPostFormatLabel(selectedPost) || "—"}</dd></div>
                         <div><dt>{t("admin.approvals.productStrategy")}</dt><dd>{selectedPost.product_strategy || (selectedPost.product_match_terms?.length ? selectedPost.product_match_terms.join(", ") : t("admin.approvals.automatic"))}</dd></div>
                         <div><dt>{t("admin.approvals.needsFetch")}</dt><dd>{Number(selectedPost.requirement_count || 0) > 0 ? t("admin.approvals.productCount", { count: selectedPost.requirement_count }) : t("admin.approvals.websiteBrandMaterial")}</dd></div>
                       </dl>
@@ -1734,7 +1749,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                             <dl>
                               <div><dt>{t("admin.approvals.failureStage")}</dt><dd>{selectedPost.failure.failure_stage || "—"}</dd></div>
                               <div><dt>{t("admin.approvals.failureCode")}</dt><dd>{selectedPost.failure.failure_code || "—"}</dd></div>
-                              <div><dt>{t("admin.approvals.contentType")}</dt><dd>{selectedPost.failure.content_type_label || selectedPost.failure.content_format || "—"}</dd></div>
+                              <div><dt>{t("admin.approvals.contentType")}</dt><dd>{adminPostFormatLabel(selectedPost) || selectedPost.failure.content_type_label || selectedPost.failure.content_format || "—"}</dd></div>
                             </dl>
                             <pre>{JSON.stringify(selectedPost.failure, null, 2)}</pre>
                           </details>

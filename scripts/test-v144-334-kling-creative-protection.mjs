@@ -5,8 +5,9 @@ import vm from 'node:vm';
 const source = fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const priorTest = fs.readFileSync('scripts/test-v144-329-kling-prompt-integrity.mjs','utf8');
 const {assembleKlingPrompt} = await import(`data:text/javascript,${encodeURIComponent(fs.readFileSync('lib/klingPromptBudget.js','utf8'))}`);
+const validateKlingCreativeDirection = (await import(`data:text/javascript,${encodeURIComponent(fs.readFileSync('lib/klingCreativeSafety.js','utf8'))}`)).validateKlingCreativeDirection;
 const grab=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
-const ctx={ assembleKlingPrompt, truncateText:(v,n)=>String(v||'').trim().length>n?String(v).trim().slice(0,n)+'...':String(v||'').trim(),getCustomerFacingCampaignTheme:()=>'',formatCampaignIdentityLockForPrompt:()=>'',getKlingVerifiedViewInstruction:()=>'',postTextModel:()=> 'gpt-test',safeJsonParse:JSON.parse, console };
+const ctx={ validateKlingCreativeDirection, assembleKlingPrompt, truncateText:(v,n)=>String(v||'').trim().length>n?String(v).trim().slice(0,n)+'...':String(v||'').trim(),getCustomerFacingCampaignTheme:()=>'',formatCampaignIdentityLockForPrompt:()=>'',getKlingVerifiedViewInstruction:()=>'',postTextModel:()=> 'gpt-test',safeJsonParse:JSON.parse, console };
 vm.runInNewContext([
  grab('function getKlingProviderSafetyPrefix(', '\nfunction getKlingProductPromptFallback('),
  grab('function getKlingProductPromptFallback(', '\nasync function buildKlingProductVideoPrompt('),
@@ -33,18 +34,13 @@ const longSafe=ctx.buildEngagement({rule:{website_item:{title:'L'.repeat(3000)},
 assertSafe(longSafe);
 const extreme=await ctx.buildProduct({openai:{chat:{completions:{create:async()=>({choices:[{message:{content:JSON.stringify({motion_prompt:'The camera stays outside the verified product view. '.repeat(300)})}}]})}}},rule:stroller,referenceSafety:refLong});
 assertSafe(extreme);assert(/[.!?]$/.test(extreme));
-for (const fragment of [
- 'when Full-product interaction allowed is YES, natural physical interaction is allowed',
- 'pedaling a clearly visible bicycle, walking in shoes, wearing clothing, or sitting on a chair'
-]) assert(!source.includes(fragment),`conflicting direction remains: ${fragment}`);
-for(const fragment of [
- 'Keep rigid products stationary and mechanically passive',
- 'If a proposed creative beat would conflict with any product lock',
- 'Write only actions Kling can execute without moving, operating or redrawing the product'
-]) assert(source.includes(fragment),`new creative safety missing: ${fragment}`);
+assert(source.includes('a stroller may roll straight forward in its verified view'),'natural stroller use must stay possible');
+assert(source.includes('a T-shirt may remain worn as its wearer walks'),'ordinary clothing use should stay possible');
+assert(!source.includes('Keep rigid products stationary and mechanically passive'),'old blanket no-motion rule must be gone');
+assert(source.includes('If ordinary use cannot preserve the source view'),'verified-view safety is paramount');
 // Regression: no safety-lock words silently removed by helper when creative is excessively long.
 assert(priorTest.includes('LIGHT AND EFFECT LOCK'));
 console.log('PASS: Sony and stroller prompts contain every original product lock, preserve complete normal motion directions');
 console.log('PASS: extreme metadata and overly long creative outputs fit inside 2450 without chopping instructions');
-console.log('PASS: conflicting physical-use instructions removed; camera and scene motion prioritized');
+console.log('PASS: ordinary, verified-view natural product use restored without allowing hidden surfaces');
 console.log('PASS: fixed product rules remain detailed and unchanged');

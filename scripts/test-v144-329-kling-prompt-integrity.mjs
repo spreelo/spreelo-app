@@ -5,9 +5,10 @@ import vm from 'node:vm';
 const read = p => fs.readFileSync(p, 'utf8');
 const source = read('app/api/cron/run-automations/route.js');
 const helper = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingPromptBudget.js'))}`);
+const validateKlingCreativeDirection = (await import(`data:text/javascript,${encodeURIComponent(fs.readFileSync('lib/klingCreativeSafety.js','utf8'))}`)).validateKlingCreativeDirection;
 const grab = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 const context = {
-  assembleKlingPrompt:helper.assembleKlingPrompt,
+  assembleKlingPrompt:helper.assembleKlingPrompt, validateKlingCreativeDirection,
   truncateText:(v,n)=>String(v||'').trim().length>n?String(v).trim().slice(0,n)+'...':String(v||'').trim(),
   getCustomerFacingCampaignTheme:()=>'',
   formatCampaignIdentityLockForPrompt:()=>'',

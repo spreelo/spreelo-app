@@ -1,0 +1,160 @@
+/* v144.336 — Admin's complete post-review workspace on real phone viewports.
+   Desktop layout, review logic, product fields and save/approval actions stay intact. */
+@media (max-width: 760px) {
+  html body .admin-v14401-workbench .admin-v74-detail-backdrop {
+    inset: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    align-items: stretch !important;
+  }
+  html body .admin-v14401-workbench .admin-v74-detail-modal {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0,1fr) !important;
+    grid-template-rows: auto minmax(0,1fr) auto !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+  }
+  html body .admin-v14401-workbench .admin-v74-detail-modal > header {
+    min-height: 0 !important;
+    padding: 12px 16px !important;
+    gap: 8px !important;
+    max-width: 100%;
+  }
+  html body .admin-v14401-workbench .admin-v74-detail-modal > header > div { min-width: 0; }
+  html body .admin-v14401-workbench .admin-v74-detail-modal > header h2 { font-size: 19px !important; line-height: 1.25 !important; overflow-wrap: anywhere; }
+  html body .admin-v14401-workbench .admin-v74-detail-modal > header p { font-size: 12px !important; overflow-wrap: anywhere; }
+  html body .admin-v14401-workbench .admin-v74-detail-modal > header button { flex-shrink: 0; align-self: flex-start !important; min-width: 40px; width: 40px; min-height: 40px; height: 40px; }
+  html body .admin-v14401-workbench .admin-v74-detail-body {
+    display: grid !important;
+    grid-template-columns: minmax(0,1fr) !important;
+    grid-template-rows: none !important;
+    grid-auto-rows: max-content !important;
+    align-content: start;
+    gap: 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    scrollbar-gutter: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  html body .admin-v14401-workbench .admin-v74-detail-body > div:first-child,
+  html body .admin-v14401-workbench .admin-review-workspace-main {
+    display: grid !important;
+    grid-template-columns: minmax(0,1fr) !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 12px !important;
+    box-sizing: border-box !important;
+  }
+  html body .admin-v14401-workbench .admin-v74-detail-meta {
+    position: static !important;
+    top: auto !important;
+    align-self: stretch !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 12px !important;
+    border-left: 0 !important;
+    border-top: 1px solid #e5e9ef !important;
+    box-sizing: border-box !important;
+  }
+  html body .admin-v14401-workbench .admin-review-workspace-main > *,
+  html body .admin-v14401-workbench .admin-v74-detail-meta > *,
+  html body .admin-v14401-workbench .admin-review-workspace-main section,
+  html body .admin-v14401-workbench .admin-review-workspace-main article,
+  html body .admin-v14401-workbench .admin-review-workspace-main label {
+    min-width: 0 !important;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  html body .admin-v14401-workbench .admin-review-title-row { display: grid !important; grid-template-columns: minmax(0,1fr) !important; gap: 10px !important; margin-bottom: 4px !important; }
+  html body .admin-v14401-workbench .admin-review-title-row h3 { font-size: 23px !important; }
+  html body .admin-v14401-workbench .admin-review-title-actions { flex-flow: row wrap !important; align-items: center !important; justify-content: flex-start !important; gap: 8px !important; }
+  html body .admin-v14401-workbench .admin-review-quality-strip { display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 8px !important; margin-bottom: 2px !important; }
+  html body .admin-v14401-workbench .admin-review-quality-strip > div { min-width: 0 !important; min-height: 65px; padding: 10px !important; }
+  html body .admin-v14401-workbench .admin-review-quality-strip span { font-size: 11px; }
+  html body .admin-v14401-workbench .admin-review-quality-strip strong { font-size: 13px; overflow-wrap: anywhere; }
+  html body .admin-v14401-workbench .admin-review-media-section,
+  html body .admin-v14401-workbench .admin-review-copy-editor,
+  html body .admin-v14401-workbench .admin-review-single-product,
+  html body .admin-v14401-workbench .admin-review-product-workspace {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 12px !important;
+    margin: 0 !important;
+    border-radius: 13px !important;
+  }
+  html body .admin-v14401-workbench .admin-review-section-heading { flex-wrap: wrap; gap: 6px; }
+  html body .admin-v14401-workbench .admin-review-product-grid,
+  html body .admin-v14401-workbench .admin-review-product-grid > article,
+  html body .admin-v14401-workbench .admin-review-single-product-source {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(0,1fr) !important;
+    box-sizing: border-box !important;
+  }
+  html body .admin-v14401-workbench .admin-review-product-grid > article { padding: 10px !important; gap: 12px !important; }
+  html body .admin-v14401-workbench .admin-review-product-image,
+  html body .admin-v14401-workbench .admin-review-single-product-source .admin-review-product-image { min-height: 0 !important; }
+  html body .admin-v14401-workbench .admin-review-product-image img { display: block; max-width: 100%; height: 205px !important; object-fit: contain !important; }
+  html body .admin-v14401-workbench .admin-product-facts,
+  html body .admin-v14401-workbench .admin-product-facts-single { grid-template-columns: minmax(0,1fr) !important; }
+  html body .admin-v14401-workbench .admin-product-url-field > div { grid-template-columns: auto minmax(0,1fr) !important; }
+  html body .admin-v14401-workbench .admin-product-url-field button { grid-column: 1 / -1; width: 100%; min-height: 42px; }
+  html body .admin-v14401-workbench input,
+  html body .admin-v14401-workbench select,
+  html body .admin-v14401-workbench textarea { min-width: 0; max-width: 100%; box-sizing: border-box; font-size: 14px !important; }
+  html body .admin-v14401-workbench .admin-review-copy-editor textarea { width: 100% !important; min-height: 160px; }
+  html body .admin-v14401-workbench .admin-review-actionbar {
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 9px 12px max(9px,env(safe-area-inset-bottom)) !important;
+    gap: 8px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    box-sizing: border-box !important;
+  }
+  html body .admin-v14401-workbench .admin-review-actionbar > div { min-width: 0; max-width: 100%; gap: 7px; flex-wrap: wrap; }
+  html body .admin-v14401-workbench .admin-review-actionbar button { min-height: 42px; flex: 1 1 auto; }
+  html body .admin-v14401-workbench .admin-v74-detail-meta pre,
+  html body .admin-v14401-workbench .admin-v74-detail-meta code { max-width: 100%; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+  html body .admin-v14401-workbench .admin-v74-detail-meta p,
+  html body .admin-v14401-workbench .admin-v74-detail-meta dd,
+  html body .admin-v14401-workbench .admin-v74-detail-meta strong,
+  html body .admin-v14401-workbench .admin-v74-detail-meta span,
+  html body .admin-v14401-workbench .admin-review-workspace-main dd {
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+  html body .admin-v14401-workbench .admin-v14401-policy-actions { display: grid !important; grid-template-columns: minmax(0,1fr) !important; }
+  html body .admin-v14401-workbench .admin-v14401-policy-actions button { min-height: 42px; white-space: normal; }
+  html body .admin-v14401-workbench .admin-v14401-source-card,
+  html body .admin-v14401-workbench .admin-v14401-brand-policy { min-width: 0; width: 100%; box-sizing: border-box; }
+  html body .admin-v14401-workbench .admin-v14401-policy-head,
+  html body .admin-v14401-workbench .admin-v14401-source-head { flex-wrap: wrap; }
+}
+@media (max-width: 380px) {
+  html body .admin-v14401-workbench .admin-review-quality-strip { grid-template-columns: minmax(0,1fr) !important; }
+  html body .admin-v14401-workbench .admin-v74-detail-modal > header { padding: 10px 12px !important; }
+  html body .admin-v14401-workbench .admin-review-actionbar button { flex-basis: 100%; }
+}

@@ -54,6 +54,7 @@ import { sampleRemoteVideoFrames } from "../../../../lib/videoFrameSampler.js";
 import { prepareAnimatedProductLayout } from "../../../../lib/animatedProductLayout.js";
 import { submitKlingImageToVideo } from "../../../../lib/kling.js";
 import { assembleKlingPrompt } from "../../../../lib/klingPromptBudget.js";
+import { validateKlingCreativeDirection } from "../../../../lib/klingCreativeSafety.js";
 import { activeAiModel, withRuntimeAiModels, setRuntimeJobModelOverride } from "../../../../lib/aiModelControl.js";
 import { loadVerifiedAiModelTestOverride } from "../../../../lib/aiModelTest.js";
 import { selectBestVideoMusic } from "../../../../lib/videoMusicLibrary.js";
@@ -16660,9 +16661,9 @@ function getKlingProviderSafetyPrefix(referenceSafety = {}) {
     "Every visible component keeps its exact geometry, attachment, mechanical state, material and color; never morph, extend, redesign, replace, invent or activate a product part.",
     "SURFACE PRINT LOCK: every visible logo, emblem, letter, number, label, printed mark and surface detail stays character-for-character and visually identical. Never invent, redraw or illuminate branding.",
     "LIGHT AND EFFECT LOCK: never add or activate LEDs, indicator lights, blue glows, illuminated logos, displays, blinking lights, reflections implying operation, or other new effects on or inside the product unless already visibly present in frame 0. Environment light may change naturally, not the product's features.",
-    "FUNCTION LOCK: never invent a mechanism or operate/open/press/pump/spray/twist/unfold/activate anything without explicit source proof; reduce product motion instead.",
+    "FUNCTION LOCK: show the product's ordinary, visually verified use if it stays within the original camera-facing view, but never invent or activate an unverified mechanism or change a component; reduce only unsafe motion.",
     "SCENE CONTINUITY LOCK: frame 0 is one fixed physical set filmed by a real camera. Static scene objects persist; never add anything to an area already shown empty. People, animals, vehicles and moving props enter/leave only through continuous motion. No pop-in, morphing, duplication or teleporting.",
-    "No new overlay text, fabricated labels, fake logos or watermarks. Move the camera or surrounding environment, never the product's features.",
+    "ONE-SCENE PRODUCT COUNT LOCK: keep exactly the verified number of product instances in frame 0; never create a duplicate, replacement or second version. No new overlay text, fabricated labels, fake logos or watermarks. Natural use may continue inside the locked view; never change the product's features.",
   ].join(" ");
 }
 
@@ -16693,7 +16694,7 @@ function getKlingProductPromptFallback({ rule, postContent, referenceSafety = nu
   // A short, self-contained direction is safer than cutting a long assembled prompt.
   const direction = [
     `Create a premium 6-second vertical advertisement for ${title}.`,
-    "Frame 0 is already the real-world set. Begin a subtle camera move or natural background activity immediately while keeping the exact product motionless and unmodified.",
+    "Frame 0 is the real-world set. Begin natural, verified in-scene use if the existing view permits it, otherwise use subtle camera or background movement. Keep identity, product count and camera-facing orientation unchanged.",
     "Resolve the action before the final second, then hold a stable product hero composition through the final frame.",
   ].join(" ");
   return assembleKlingPrompt({ safety: providerSafety, direction, maxCreative: 950 });
@@ -16728,7 +16729,7 @@ async function buildKlingProductVideoPrompt({ openai, rule, postContent, referen
         {
           role: "system",
           content:
-            "You are Spreelo's short-form product video director. Return strict JSON only. Design one highly attention-grabbing, sales-oriented but physically plausible 6-second concept that begins inside a believable real-world environment from frame zero and ends with a deliberate stable product hero shot. Product identity, functional truth and real-world temporal scene continuity are more important than spectacle. Do not design a scene that relies on product use, manipulation or a mechanism to create excitement; keep the verified product static and unchanged. Use cinematic camera motion and movement already plausible within the first-frame environment. Treat the first frame as a fixed physical world filmed by a real camera: static scene objects must persist, and nothing may materialize, vanish, teleport, morph or relocate without a physically continuous reason. Never invent how a product operates merely because its appearance or category suggests a plausible mechanism. Never add product lights, illuminated branding, electronic glow, controls or accessory parts absent from frame 0. Keep the product passive; direct motion to camera and environment.",
+            "You are Spreelo's short-form product video director. Return strict JSON only in fluent English, preserving official product names. Design one engaging, sales-oriented, physically plausible 6-second concept starting in the actual frame-zero scene and ending with a stable product hero shot. Natural, ordinary product use is WELCOME only when supported by the verified source image and the existing first-frame scene; clothing may be worn, a stroller may roll, and objects may be held or carried while maintaining exactly the same camera-facing product view. Never use the category alone to infer an unverified mechanism or operation. The product must NOT turn, flip, orbit, or reveal a side not visible in the authoritative retailer image; multiple known product views never authorize invented intermediate angles. Keep its exact printed identity, parts, lights and product count. Camera/background movement may complement safe physical interaction. No objects pop in, duplicate, morph or move without continuous physical cause. When natural use would require revealing a hidden surface or changing a mechanism, choose another equally professional scene beat instead.",
         },
         {
           role: "user",
@@ -16747,16 +16748,16 @@ Verified product view lock: ${getKlingVerifiedViewInstruction(referenceSafety)}
 Natural first-frame environment source: ${referenceSafety?.startBackgroundSource || "real-world environment plate"}
 Return JSON exactly in this shape:
 {"creative_strategy":"...","motion_prompt":"..."}.
-The motion_prompt must be 2-4 complete sentences, preferably under 650 characters. End with a period. Write only actions Kling can execute without moving, operating or redrawing the product. Keep product features, orientation, print and light state fixed. Do not repeat safety rules or describe unverified new product features.
+The motion_prompt must be 2-4 complete English sentences, preferably under 650 characters, ending with a period. Show tasteful natural movement and use already supported by the product's verified view and first-frame scene. Keep the number of products, camera-facing orientation, visible features, print and light state fixed. NEVER direct a camera orbit or a product turn/flip to reveal an opposite, hidden or unverified surface. Do not repeat safety rules or describe unverified features.
 
 Creative goals:
 - if a CAMPAIGN IDENTITY LOCK is present, the scene must stay exclusively inside that active campaign and must not introduce another holiday/campaign/occasion
 - frame 0 is already the beginning of the finished commercial: keep the believable real-world environment from the supplied first frame and do NOT create any plain-color/studio intro, backdrop reveal or transition from setup screen into lifestyle scene
 - the verified retailer product reference is already large in frame from the first frame; do NOT create a small-card-to-full-screen expansion
 - do not linger on a static, staged or composited opening frame; begin believable in-scene motion/action immediately and be fully inside the real commercial world within the first 0.2-0.3 second
-- create an engaging first 0.5-1.0 second through purposeful camera movement or believable background activity already supported by frame 0. Never force a product interaction, new product state, light effect or new character simply to create a pattern interrupt.
+- create an engaging first 0.5-1.0 second through ordinary verified product use, purposeful camera movement, or believable background activity already supported by frame 0. Never invent a product action/state, light effect or new character merely to create a pattern interrupt.
 - the result must feel like a professionally directed short commercial, but product identity and physical accuracy always take priority over spectacle. If a proposed creative beat would conflict with any product lock, replace the beat with camera/background movement rather than weakening the lock
-- when Full-product interaction allowed is YES, this confirms only that the product is visible enough for composition, NOT that any physical interaction or function is verified. Keep rigid products stationary and mechanically passive. A garment may remain naturally worn only if that state and its camera-facing appearance are supported by frame 0; otherwise do not introduce wearing, holding, pushing, pedaling, folding, opening or handling actions. Never operate, press, pump, spray, dispense, twist, activate, extend, transform, attach/detach, reposition or manipulate any product mechanism or part. Place visual action in the camera and existing environment instead. The verified product view and crop must remain locked throughout.
+- when Full-product interaction allowed is YES, the product image verifies geometry and visible view, NOT every imagined operation. Prefer natural ordinary use when already shown or strongly supported by visible geometry and source data: a T-shirt may remain worn as its wearer walks, a stroller may roll straight forward in its verified view, shoes may walk, a bike may ride, a handheld item may be held or presented. A phone held facing the camera may remain in use without flipping to show its back. Such actions must never expose new front/back/side/top/bottom/interior pixels not visible in the authoritative retailer photo, turn/orbit the product into an intermediate unverified angle, change the print, duplicate the product, or operate an unverified mechanism. Do not infer special folding, opening, pumping, spraying, switching, dispensing, extending or mechanical transformations. If ordinary use cannot preserve the source view, change the camera/background action, not product identity.
 - when Full-product interaction allowed is NO, never fabricate missing product areas or propose any product handling or usage; preserve the exact visible crop and create the story/action around that crop
 - escalate quickly and deliver the MAIN visual payoff before the final second; do not save a major action, reveal, hand movement or camera move for the final frame
 - complete all meaningful action by about 5.0 seconds, then use the final 0.8-1.0 second as a clean, stable product hero shot: major hand/product/camera/environment motion has settled, the composition is resolved, and the final frame is intentionally held rather than cut off mid-action
@@ -16773,12 +16774,12 @@ SCENE CONTINUITY SAFETY:
 - if a creative idea conflicts with scene continuity, simplify the action rather than regenerate the world
 
 FUNCTIONAL TRUTH SAFETY:
-- never infer a product function from appearance, category stereotypes or general world knowledge when the verified product data does not prove that exact function
+- never infer special or ambiguous product functions from appearance, category stereotypes or general world knowledge. Familiar non-mechanical use (wearing a T-shirt, walking in shoes, rolling a stroller straight ahead) is allowed only when the original image/view and verified product context support it
 - a fully visible product is NOT the same as a functionally verified product
 - never invent a button, pump, sprayer, dispenser, latch, hinge behavior, opening method, removable part, control, output, transformation or operating sequence
 - never reinterpret an existing visible component as a different feature or accessory. A fabric panel cannot become a sunshade, a cover cannot become a flap, and a fixed part cannot become extendable unless the verified source explicitly proves that exact function/state
 - perfume/cosmetic bottles may be held and presented, but do not press the cap/top, spray, pump, dispense, open or remove parts unless the verified product data explicitly proves that exact mechanism/action
-- when in doubt, keep the product mechanically passive and put the motion in the hand/person/camera/props/environment instead
+- when an action is uncertain, keep all unverified mechanisms passive; use only natural verified product motion or the hand/person/camera/props/environment instead
 
 TEXT SAFETY:
 - do not generate any new readable overlay text, captions, slogans, prices, labels or typography
@@ -16791,12 +16792,12 @@ NON-NEGOTIABLE PRODUCT RULES:
 - treat visible logos, emblems, letters, numbers, label graphics and packaging print as character-for-character locked. Never redraw or approximate them; if exact preservation conflicts with motion, reduce product motion and move the camera/environment instead
 - treat every visible component's role, attachment, geometry and mechanical state as locked. Do not unfold, extend, open, transform, repurpose or convert a component unless that exact transformation is explicitly verified in the product source
 - if Full-product interaction allowed is NO: keep the SAME visible camera angle/crop throughout, show only surfaces/details already visible, never extend/complete the crop, and never rotate/orbit/tilt to reveal a new area
-- if Full-product interaction allowed is YES: natural product use and modest physical motion are allowed, but NEVER reveal a side/surface that is absent from the retailer image. Keep the same verified camera-facing orientation for the entire clip
+- if Full-product interaction allowed is YES: natural, ordinary product use and modest physical motion are encouraged WHEN they can preserve the exact verified camera-facing orientation. NEVER reveal or interpolate a side/surface not visible in the authoritative retailer photo, even if the product category suggests what that side looks like. Never transform or duplicate a product
 - for apparel specifically, a person may wear the exact garment while the visible print/color/design stays unchanged and prominent. If the retailer image verifies only the BACK, the wearer must stay back-facing/three-quarter-back and must never turn far enough for the front to become visible. If only the FRONT is verified, the reverse applies. Do not replace it with a similar garment
 - for rigid products, interaction must not morph geometry, move controls/components, alter ports/hardware, fabricate hidden product surfaces, or imply that a visible component is a control/mechanism unless verified product data proves that function
 - every visible control/detail is immutable: never add, remove, relocate, resize or reshape buttons, switches, controls, openings, seams, joints or hardware; preserve material boundaries, surface finish, texture and color blocking exactly
 - never invent an LED, indicator light, glowing SONY-like logo, electronic status effect, changing display, reflected light that implies activation, or any other effect on the product that is not already active in the reference image
-- if the desired action would require the model to redraw or redesign the product, reduce product motion rather than redraw the product; move the hand/person, camera, props or environment instead
+- if the desired use would require the model to redraw a hidden surface or redesign/duplicate a product, choose another natural verified-view action rather than redraw the product; use the hand/person, camera, props or environment instead
 `,
         },
       ],
@@ -16807,6 +16808,16 @@ NON-NEGOTIABLE PRODUCT RULES:
     const parsed = safeJsonParse(completion?.choices?.[0]?.message?.content || "");
     const creativePrompt = String(parsed?.motion_prompt || "").replace(/\s+/g, " ").trim();
     if (!creativePrompt) return fallback;
+    // Fail closed before a paid Kling request: hard safety prefix alone cannot
+    // neutralize a contradictory creative instruction (e.g. orbit to show back).
+    const safetyReview = validateKlingCreativeDirection(creativePrompt);
+    if (!safetyReview.ok) {
+      console.warn("Kling creative direction rejected before video generation", {
+        ruleId: rule?.id || null,
+        reasons: safetyReview.reasons,
+      });
+      return fallback;
+    }
     const providerSafety = getKlingProviderSafetyPrefix(referenceSafety);
     const closingDirection =
       "Begin believable in-scene motion immediately. Resolve the main action by 5 seconds, then hold one stable product hero composition throughout the final second.";

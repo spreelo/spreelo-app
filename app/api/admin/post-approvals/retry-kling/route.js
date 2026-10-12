@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth";
 import { submitKlingImageToVideo } from "../../../../../lib/kling.js";
 import { assembleKlingPrompt } from "../../../../../lib/klingPromptBudget.js";
+import { validateKlingCreativeDirection } from "../../../../../lib/klingCreativeSafety.js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,15 +13,19 @@ const AUDIT_CODE = "KLING_FINISHED_PRODUCT_IDENTITY_REJECTED";
 
 function buildRetryPrompt(originalPrompt) {
   const original = String(originalPrompt || "").trim();
-  const creative = original.includes("CREATIVE DIRECTION:")
+  const originalCreative = original.includes("CREATIVE DIRECTION:")
     ? original.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim()
     : original;
+  // Never blindly resubmit an orbit/flip that caused an identity rejection.
+  const review = validateKlingCreativeDirection(originalCreative);
+  const creative = review.ok ? originalCreative :
+    "Continue an ordinary, clearly verified use already present in frame zero without changing the product-facing view. Show a subtle cinematic push-in and natural established background movement, with the exact product details and original number of product instances preserved. Settle into a stable product shot for the final second.";
   const retryLock = [
     "ADMIN RETRY PRODUCT LOCK — NON-NEGOTIABLE: frame 0 is authoritative. Preserve the exact product design, color, labels, geometry and physical state.",
     "Never invent or activate product lights, illuminated logos, glows, ports, controls, seams, accessories or other features that are not visibly active in frame 0.",
     "No rotation exposing unverified surfaces and no product operation unless explicitly source-verified. Reduce product motion before changing identity.",
     "ADMIN RETRY SCENE CONTINUITY LOCK — NON-NEGOTIABLE: maintain a single continuous set. Never add anything to an area already shown empty. People and moving props must move continuously. No pop-in, pop-out, teleporting, duplication or unexplained disappearance.",
-    "Any original creative beat conflicting with product preservation must yield to a passive, stationary product shot. Move the camera and existing environment, not product features. No fake text, marks or watermarks.",
+    "Any creative beat conflicting with product preservation must yield to ordinary, original-view-safe use, or gentle camera/background movement. Never reveal an unseen product side or duplicate the product. No fake text, marks or watermarks.",
   ].join(" ");
   return assembleKlingPrompt({ safety: retryLock, direction: creative, maxCreative: 1200 });
 }
