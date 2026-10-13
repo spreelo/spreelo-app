@@ -1,3 +1,4 @@
+import { verifyPreparedKlingAuditReferences } from "../../../../../lib/klingAuditReferences.js";
 import crypto from "crypto";
 import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth";
 import { submitKlingImageToVideo } from "../../../../../lib/kling.js";
@@ -179,6 +180,7 @@ export async function POST(request) {
     if (claimError) throw new Error(claimError.message || "Could not claim Kling generation.");
     if (claimed !== true) throw new Error("The new retry post could not claim its one allowed Kling generation.");
 
+    await verifyPreparedKlingAuditReferences({ supabase: context.admin, postId: newPost.id });
     const submission = await submitKlingImageToVideo({
       imageUrl: referenceImageUrl,
       prompt: retryPrompt,

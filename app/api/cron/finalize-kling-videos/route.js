@@ -1,3 +1,4 @@
+import { KLING_FINALIZER_POST_SELECT, klingAuditReferences, assertKlingAuditReferences, recoverableKlingReferenceFailure, restoreKlingLegacyViewLock } from "../../../../lib/klingAuditReferences.js";
 import { KLING_QUALITY_VERSION, klingQualitySampleTimes, inspectKlingVideoQuality, decideKlingVideoQuality } from "../../../../lib/klingVideoIntelligence.js";
 import { buildKlingPixelPreservingEdit } from "../../../../lib/klingQualityFallback.js";
 import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeKlingAdvertisingEndCard, buildFallbackKlingEndCard, KLING_END_CARD_SECONDS, KLING_END_CARD_TRANSITION_SECONDS } from "../../../../lib/klingEndCard.js";
@@ -133,10 +134,10 @@ function createSupabaseAdmin() {
 function getCachedKlingSource(post) {
   const selection = post?.video_background_selection;
   if (!selection || typeof selection !== "object" || Array.isArray(selection)) return null;
-  const videoUrl = String(selection.kling_source_url || "").trim();
+  const videoUrl = String(selection.kling_source_storage_url || selection.kling_source_url || "").trim();
   if (!videoUrl) return null;
   return {
-    status: String(post?.kling_task_status || selection.kling_source_status || "succeeded"),
+    status: String(selection.kling_source_status || post?.kling_task_status || "succeeded"),
     videoUrl,
     durationSeconds: normalizeVideoDurationSeconds(
       selection.kling_source_duration_seconds,
@@ -226,6 +227,32 @@ async function persistKlingSourceCache(supabase, post, task) {
   return nextSelection;
 }
 
+async function preserveKlingSourceVideo({ supabase, post, task }) {
+  let selection = post.video_background_selection || {};
+  if (selection.kling_source_storage_url) return { ...task, videoUrl: selection.kling_source_storage_url, cached: true };
+  let buffer;
+  try {
+    buffer = await downloadKlingVideo(task.videoUrl);
+  } catch (error) {
+    if (![403, 404, 410].includes(error.httpStatus)) throw error;
+    // Refresh a potentially expired download link for the SAME paid task.
+    // This is a read-only status lookup, never a replacement generation.
+    const refreshed = await getKlingImageToVideoTask(post.kling_task_id);
+    if (!isKlingTaskSuccessful(refreshed?.status) || !refreshed.videoUrl) throw error;
+    buffer = await downloadKlingVideo(refreshed.videoUrl);
+    selection = { ...selection, kling_source_url: refreshed.videoUrl, kling_source_status: refreshed.status };
+  }
+  const storagePath = `${post.user_id}/${post.id}-kling-source.mp4`;
+  const { error: uploadError } = await supabase.storage.from(POST_VIDEOS_BUCKET).upload(storagePath, buffer, { contentType: "video/mp4", upsert: true });
+  if (uploadError) throw new Error(`Could not preserve the paid Kling source video: ${uploadError.message}`);
+  const { data } = supabase.storage.from(POST_VIDEOS_BUCKET).getPublicUrl(storagePath);
+  if (!data?.publicUrl) throw new Error("Could not resolve the saved Kling source-video URL");
+  const next = { ...selection, kling_source_storage_url: data.publicUrl, kling_source_storage_path: storagePath, kling_source_preserved_at: new Date().toISOString() };
+  await saveKlingQualitySelection(supabase, post, next);
+  console.info("Kling source video preserved for admin review", { postId: post.id, taskId: post.kling_task_id, sourceVideoUrl: data.publicUrl });
+  return { ...task, videoUrl: data.publicUrl, cached: true };
+}
+
 async function setReviewCaseFailure(supabase, postId, stage, message, failureCode = null) {
   const nowIso = new Date().toISOString();
   const { error } = await supabase
@@ -302,7 +329,9 @@ async function downloadKlingVideo(videoUrl) {
   });
 
   if (!response.ok) {
-    throw new Error(`Kling output download failed (${response.status})`);
+    const error = new Error(`Kling output download failed (${response.status})`);
+    error.httpStatus = response.status;
+    throw error;
   }
 
   const declaredLength = Number(response.headers.get("content-length") || 0);
@@ -527,11 +556,7 @@ async function validateFinishedKlingProductIdentity({ openai, supabase, post, ta
   if (existing?.version === KLING_QUALITY_VERSION && existing.task_id === post.kling_task_id && existing.source_url === task.videoUrl && ["passed", "failed"].includes(existing.status)) {
     return { passed: existing.status === "passed", cached: true, validation: existing };
   }
-  const productRequired = selection.identity_validation_required !== false;
-  const productImageUrl = String(selection.verified_product_image_url || "").trim();
-  const sceneImageUrl = String(post.kling_reference_image_url || post.image_url || "").trim();
-  const viewLock = selection.reference_safety?.verifiedViewLock || null;
-  if (!sceneImageUrl || (productRequired && (!productImageUrl || !viewLock))) throw new Error("Kling quality audit reference prerequisites are missing");
+  const { productRequired, productUrl: productImageUrl, sceneUrl: sceneImageUrl, viewLock } = assertKlingAuditReferences(post);
   const durationSeconds = normalizeVideoDurationSeconds(task.durationSeconds, post.video_duration_seconds, 6);
   const timesSeconds = klingQualitySampleTimes(durationSeconds, selection.scene_trim_start_seconds);
   const [productDataUrl, sceneDataUrl, frames] = await Promise.all([
@@ -1666,6 +1691,7 @@ async function finalizeReadyTask(
       ),
       video_error: null,
       status: "pending_approval",
+      admin_review_status: "pending",
       updated_at: nowIso,
     })
     .eq("id", post.id)
@@ -1704,11 +1730,9 @@ export async function GET(request) {
     const pendingStatuses = [...KLING_PROVIDER_PENDING_STATUSES, "finalizing", "finalization_retry"];
     const { data: posts, error } = await supabase
       .from("posts")
-      .select(
-        "id, user_id, brand_profile_id, automation_rule_id, include_logo, logo_url, status, content, cta_type, language, website_url, video_provider, video_status, video_duration_seconds, video_error, video_background_selection, kling_generation_count, kling_task_id, kling_task_status, kling_submitted_at, kling_last_polled_at, kling_model, kling_resolution, kling_audio, updated_at"
-      )
+      .select(KLING_FINALIZER_POST_SELECT)
       .eq("video_provider", "kling")
-      .in("video_status", pendingStatuses)
+      .or(`video_status.in.(${pendingStatuses.join(",")}),and(video_status.eq.failed,video_background_selection->>kling_source_url.not.is.null,or(video_error.ilike.*reference prerequisites are missing*,video_error.ilike.*Kling generation did not finish*))`)
       .not("kling_task_id", "is", null)
       .order("kling_submitted_at", { ascending: true, nullsFirst: true })
       .limit(10);
@@ -1717,6 +1741,7 @@ export async function GET(request) {
 
     for (const post of posts || []) {
       summary.checked += 1;
+      if (post.video_status === "failed" && !recoverableKlingReferenceFailure(post)) continue;
 
       // Local post-processing retries are intentionally slower than the cron.
       // A transient Shotstack/storage/etc. problem must not be hammered every
@@ -1736,13 +1761,14 @@ export async function GET(request) {
         continue;
       }
 
+      let task = getCachedKlingSource(post);
       const now = new Date();
       const submittedAtMs = new Date(post.kling_submitted_at || 0).getTime();
       const ageHours = Number.isFinite(submittedAtMs)
         ? (now.getTime() - submittedAtMs) / 3_600_000
         : 0;
 
-      if (submittedAtMs > 0 && ageHours > maxPendingHours) {
+      if (!task && submittedAtMs > 0 && ageHours > maxPendingHours) {
         const message = `Kling generation did not finish within ${maxPendingHours} hours. No automatic retry was made; this post has already used its one allowed Kling generation.`;
         await markKlingPostFailed(supabase, post, "kling_video_timeout", message);
         summary.failed += 1;
@@ -1750,7 +1776,6 @@ export async function GET(request) {
         continue;
       }
 
-      let task = getCachedKlingSource(post);
       if (task) {
         summary.provider_cache_hits += 1;
       } else try {
@@ -1839,6 +1864,8 @@ export async function GET(request) {
       }
 
       try {
+        task = await preserveKlingSourceVideo({ supabase, post, task });
+        await restoreKlingLegacyViewLock({ supabase, post });
         const productIdentity = await validateFinishedKlingProductIdentity({
           openai,
           supabase,
@@ -1871,6 +1898,14 @@ export async function GET(request) {
             Number(summary.professional_typography_applied || 0) + 1;
         }
       } catch (finalizeError) {
+        if (finalizeError?.code === "KLING_AUDIT_REFERENCES_MISSING") {
+          const selection = { ...post.video_background_selection, quality_reference_repair: { status: "needs_repair", missing: finalizeError.missingReferences || [], message: finalizeError.message, checked_at: new Date().toISOString() } };
+          await saveKlingQualitySelection(supabase, post, selection);
+          await markKlingPostFailed(supabase, post, "kling_quality_references", finalizeError.message);
+          summary.reference_repairs_required = Number(summary.reference_repairs_required || 0) + 1;
+          summary.failed += 1;
+          continue;
+        }
         if (finalizeError?.code === "QUALITY_FALLBACK_SUBMISSION_UNKNOWN" || (post.video_background_selection?.quality_fallback && finalizeError?.code === "SHOTSTACK_RENDER_FAILED")) {
           await markKlingPostFailed(supabase, post, "kling_finished_product_identity", finalizeError.message);
           summary.failed += 1;

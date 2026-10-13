@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const read = p => fs.readFileSync(p, 'utf8');
 const intel = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingVideoIntelligence.js'))}`);
+const references = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingAuditReferences.js'))}`);
 const budget = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingPromptBudget.js'))}`);
 const safety = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingCreativeSafety.js'))}`);
 const { buildKlingPixelPreservingEdit } = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingQualityFallback.js'))}`);
@@ -14,12 +15,16 @@ const fakeAi = values => ({ responses: { create: async request => {
   assert(request.text.format.strict);
   return { output_text: JSON.stringify(value) };
 } } });
-const evidence = { confidence: 0.98, verified_actions: [{ id: 'move', action: 'Straight motion', source_evidence: 'Visible ground contact and rigid attachment', preserves_source_view: true, confidence: 0.96 }] };
-const plan = { mode: 'verified_use', action_ids: ['move'], risk: 'low', motion_prompt: 'Move straight in the verified view. Hold the composition for the final second.' };
+const evidence = { physical_subject: { kind: 'physical_product', name: 'Wheeled product', visible_surfaces: ['front'] }, confidence: 0.98,
+  components: [{ name: 'Wheeled product', kind: 'physical', relation: 'integral' }],
+  verified_actions: [{ id: 'move', kind: 'roll_straight', target_component: 'Wheeled product', action: 'Straight motion', evidence_type: 'visible_geometry',
+    source_evidence: 'Visible wheels touching the ground', physical_motion_supported: true, preserves_source_view: true, confidence: 0.96 }] };
+const plan = { mode: 'verified_use', action_id: 'move', risk: 'low', camera_mode: 'locked', environment_motion: 'none', product_pose: 'source_locked', shot_count: 1, finish_seconds: 5, initial_conditions: ['Wheels on ground'], stationary_objects: [] };
+const direction = intel.renderKlingStructuredMotion(plan, evidence);
 const review = { identity_safe: true, source_view_safe: true, functions_supported: true, scene_safe: true, causality_safe: true, confidence: 0.95, reason: 'Supported' };
-const args = { model: 'test', intelligence: evidence, firstFrameDataUrl: 'data:image/png;base64,AA==', context: { fullProductInteractionSafe: true }, fallbackPrompt: 'Keep the product mechanically passive. Hold the final second.' };
+const args = { model: 'test', intelligence: evidence, firstFrameDataUrl: 'data:image/png;base64,AA==', context: { fullProductInteractionSafe: true } };
 assert(intel.motionPlanIsSupported(plan, evidence));
-for (const changed of [{ action_ids: ['unknown'] }, { risk: 'high' }, { motion_prompt: 'unfinished' }]) assert(!intel.motionPlanIsSupported({ ...plan, ...changed }, evidence));
+for (const changed of [{ action_id: 'unknown' }, { risk: 'high' }, { camera_mode: 'orbit' }, { motion_prompt: 'free prose' }]) assert(!intel.motionPlanIsSupported({ ...plan, ...changed }, evidence));
 assert(!intel.motionPlanIsSupported(plan, { ...evidence, confidence: 0.3 }));
 assert(!intel.motionPlanIsSupported(plan, { ...evidence, verified_actions: [{ ...evidence.verified_actions[0], preserves_source_view: false }] }));
 assert.equal((await intel.planKlingVerifiedMotion({ ...args, openai: fakeAi([{ ...plan }, review]) })).source, 'scene_aware_reviewed_plan');
@@ -49,16 +54,16 @@ assert(times.every((t, i) => t >= 0.15 && t < 6 && (!i || t > times[i - 1])));
 console.log('PASS: all identity/event/anatomy/closing gates fail closed; 17 ordered samples cover early action and final frame');
 
 const automation = read('app/api/cron/run-automations/route.js');
-const ctx = { ...budget, ...safety, planKlingVerifiedMotion: intel.planKlingVerifiedMotion, PRODUCT_RESEARCH_FAST_MODEL: 'test',
+const ctx = { ...budget, ...safety, planKlingVerifiedMotion: intel.planKlingVerifiedMotion, passiveKlingMotionPlan: intel.passiveKlingMotionPlan, PRODUCT_RESEARCH_FAST_MODEL: 'test',
   getCustomerFacingCampaignTheme: () => 'Summer', formatCampaignIdentityLockForPrompt: () => 'Only summer',
 };
 vm.runInNewContext(crop(automation, 'function getKlingProviderSafetyPrefix(', '\nfunction getKlingProductPromptFallback(') + '\n' + crop(automation, 'async function buildKlingProductVideoPrompt(', '\nfunction buildKlingEngagementVideoPrompt(') + '\nthis.build=buildKlingProductVideoPrompt;', ctx);
 const referenceSafety = { productIntelligence: evidence, fullProductInteractionSafe: true, verifiedViewLock: { verifiedView: 'Verified top-front source view' } };
 const prompt = await ctx.build({ openai: fakeAi([{ ...plan }, review]), rule: {}, referenceSafety, referenceFrameBuffer: Buffer.from('test') });
 assert(prompt.length <= 2450);
-assert(prompt.includes(plan.motion_prompt));
+assert(prompt.includes(direction));
 assert(prompt.includes('COMPONENT ROLE LOCK') && prompt.includes('SURFACE PRINT LOCK') && prompt.includes('SCENE CONTINUITY LOCK'));
-assert.equal(referenceSafety.motionPlan.submitted_prompt, plan.motion_prompt);
+assert.equal(referenceSafety.motionPlan.submitted_prompt, direction);
 const worst = await ctx.build({ rule: {}, referenceSafety: { verifiedViewLock: { verifiedView: 'x'.repeat(1000) } } });
 assert(worst.length <= 2450 && /[.!?]$/.test(worst));
 console.log('PASS: actual provider prompt retains complete reviewed direction and hard locks within API budget');
@@ -77,7 +82,7 @@ function dbMock() {
 let inspections = 0;
 const db = dbMock();
 const frames = times.map(time => ({ time, buffer: Buffer.from('frame') }));
-const auditCtx = { ...intel, KLING_PRODUCT_IDENTITY_AUDIT_MODEL: 'test',
+const auditCtx = { ...intel, ...references, KLING_PRODUCT_IDENTITY_AUDIT_MODEL: 'test',
   normalizeVideoDurationSeconds: (...v) => v.find(x => Number(x) > 0),
   fetchKlingVerifiedProductReferenceDataUrl: async () => 'data:image/png;base64,AA==',
   sampleRemoteVideoFrames: async () => frames,
@@ -85,7 +90,7 @@ const auditCtx = { ...intel, KLING_PRODUCT_IDENTITY_AUDIT_MODEL: 'test',
   console, Date, String, Number, Promise,
 };
 vm.runInNewContext(crop(finalizer, 'async function validateFinishedKlingProductIdentity(', '\nasync function saveKlingQualitySelection(') + '\nthis.audit=validateFinishedKlingProductIdentity;', auditCtx);
-const post = { id: 'post', kling_task_id: 'task-one', kling_reference_image_url: 'https://scene.test/frame.png', video_background_selection: { verified_product_image_url: 'https://store.test/image.png', reference_safety: { verifiedViewLock: { verifiedView: 'front' } }, scene_trim_start_seconds: 0.15 } };
+const post = { id: 'post', kling_task_id: 'task-one', kling_reference_image_url: 'https://scene.test/frame.png', video_background_selection: { verified_product_image_url: 'https://store.test/image.png', reference_safety: { verifiedViewLock: { verifiedView: 'front', motionConstraint: 'Keep the front view.' } }, scene_trim_start_seconds: 0.15 } };
 const task = { videoUrl: 'https://video.test/source.mp4', durationSeconds: 6 };
 assert((await auditCtx.audit({ openai: {}, supabase: db, post, task })).passed);
 assert((await auditCtx.audit({ openai: {}, supabase: db, post, task })).cached);

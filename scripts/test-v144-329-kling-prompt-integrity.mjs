@@ -5,9 +5,10 @@ const read = p => fs.readFileSync(p, 'utf8');
 const source = read('app/api/cron/run-automations/route.js');
 const budget = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingPromptBudget.js'))}`);
 const safety = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingCreativeSafety.js'))}`);
+const intelligence = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingVideoIntelligence.js'))}`);
 const grab = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 let candidate = 'A subtle camera push shows the unchanged product. Established background motion continues. Hold the final second.';
-const ctx = { ...budget, ...safety, PRODUCT_RESEARCH_FAST_MODEL: 'test',
+const ctx = { ...budget, ...safety, passiveKlingMotionPlan: intelligence.passiveKlingMotionPlan, PRODUCT_RESEARCH_FAST_MODEL: 'test',
   planKlingVerifiedMotion: async () => ({ motion_prompt: candidate, mode: 'camera_environment', action_ids: [] }),
   truncateText: (v,n) => String(v || '').slice(0,n), getCustomerFacingCampaignTheme: () => '', formatCampaignIdentityLockForPrompt: () => '',
 };
@@ -22,7 +23,7 @@ const view = { verifiedViewLock: { verifiedView: 'Top-front source view', motion
 const rule = { website_item: { title: 'Verified product' }, brand_profile: { business_name: 'Store' } };
 const check = prompt => { assert(prompt.length <= 2450); assert(/[.!?]$/.test(prompt)); for (const lock of ['HARD PRODUCT LOCK', 'SURFACE PRINT LOCK', 'LIGHT AND EFFECT LOCK', 'FUNCTION LOCK', 'SCENE CONTINUITY LOCK']) assert(prompt.includes(lock)); };
 const normal = await ctx.build({ rule, referenceSafety: view });
-check(normal); assert(normal.includes(candidate)); assert(normal.includes('No rotation of case or earbuds.'));
+check(normal); assert(normal.includes(candidate)); assert(normal.includes('frame 0 is authoritative')); assert(normal.includes('Never rotate, flip, orbit or reveal unverified surfaces.'));
 candidate = 'A longer camera movement remains outside the verified product. '.repeat(60);
 const limited = await ctx.build({ rule, referenceSafety: view });
 check(limited); assert.equal(view.motionPlan.source, 'passive_plan_fallback'); assert.equal(view.motionPlan.rejected_plan_reason, 'reviewed_plan_exceeds_provider_budget');

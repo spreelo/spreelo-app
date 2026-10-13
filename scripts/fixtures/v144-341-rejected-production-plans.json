@@ -1,0 +1,242 @@
+[
+  {
+    "case": "packaging",
+    "prompt": "HARD PRODUCT LOCK: the retailer reference defines product identity; frame 0 defines the set only. Keep front three-quarter view, showing the front of the Nintendo Switch 2 console with attached Joy-Con controllers, and the front and side of the dock. No rotation or movement that would reveal the back, bottom, or top surfaces of the console, controllers, or dock is allowed, as these are not visible and thus not verified. Never rotate, flip, orbit or reveal unverified surfaces. COMPONENT ROLE LOCK: preserve exact visible component count, purpose, attachment, geometry, mechanical state, material and color. Never add, remove, repurpose or transform parts. SURFACE PRINT LOCK: logos, letters, numbers, labels and printed details stay visually identical, character-for-character. No redraw, replacement, invented branding, text or watermarks. LIGHT AND EFFECT LOCK: no new LEDs, glows, displays, illumination or product effects absent in frame 0. FUNCTION LOCK: use only source-verified actions preserving the original view; otherwise keep mechanisms passive. Full visibility never proves function. SCENE CONTINUITY LOCK: one continuous physical set. Independent stationary props stay fixed in world space, never attached to a moving product. Keep initial material/conditions; no effects or material appear without a verified physical cause. Moving objects enter/leave continuously. No pop-in, morphing, extra limbs, duplication, teleporting or unexplained displacement. ONE-SCENE PRODUCT COUNT LOCK: keep the verified product count. Preserve physical contact, scale and perspective. Resolve action before the final second and hold the same scene. Resolve the action by 5 seconds and hold the final second. CREATIVE DIRECTION: Start with a smooth close-up pan over the Nintendo Switch 2 box on the table, showcasing its vibrant red packaging. Cut to the delighted faces of the young couple on the couch reacting happily. Return to the steady shot of the box, holding the frame to emphasize the excitement and anticipation the product brings.",
+    "plan": {
+      "mode": "presentation",
+      "risk": "low",
+      "source": "scene_aware_reviewed_plan",
+      "version": 337,
+      "strategy": "Open with a slow, close-up pan of the Nintendo Switch 2 box on the coffee table to highlight the vibrant packaging and branding. Cut to the excited expressions of the young couple in the background, capturing their genuine joy and anticipation. Maintain focus on the product packaging throughout, holding the final frame on the box for emphasis.",
+      "preflight": {
+        "reason": "The proposed motion plan involves a slow, close-up pan of the Nintendo Switch 2 box placed on the wooden coffee table, consistent with the initial scene showing the red Nintendo Switch 2 box on the table with associated accessories such as a glass of water, popcorn bowl, and striped cloth. The plan includes cutting to the excited expressions of the young couple sitting on the couch behind the table, which matches the scene content. The camera remains mechanically passive, only panning and cutting between product and people, as required. No unsupported actions, state changes, hidden surfaces, or contradictory cause/effect are proposed. The handling action id is supported and verified. The motion complies with the verified view and motion constraints. Therefore, the motion plan is fully supported by the product evidence and initial scene with high confidence.",
+        "confidence": 0.95,
+        "scene_safe": true,
+        "identity_safe": true,
+        "causality_safe": true,
+        "source_view_safe": true,
+        "functions_supported": true
+      },
+      "action_ids": [
+        "action1"
+      ],
+      "motion_prompt": "Start with a smooth close-up pan over the Nintendo Switch 2 box on the table, showcasing its vibrant red packaging. Cut to the delighted faces of the young couple on the couch reacting happily. Return to the steady shot of the box, holding the frame to emphasize the excitement and anticipation the product brings.",
+      "causal_sequence": [
+        "Camera slowly pans from left to right across the Nintendo Switch 2 box highlighting the front and sides.",
+        "Cut to a brief focus on the excited expressions of the two people behind the table.",
+        "Return focus to the Nintendo Switch 2 box, holding steady.",
+        "End with a final still frame of the box on the table."
+      ],
+      "submitted_prompt": "Start with a smooth close-up pan over the Nintendo Switch 2 box on the table, showcasing its vibrant red packaging. Cut to the delighted faces of the young couple on the couch reacting happily. Return to the steady shot of the box, holding the frame to emphasize the excitement and anticipation the product brings.",
+      "initial_conditions": [
+        "Red Nintendo Switch 2 box placed on a wooden coffee table.",
+        "Glass of water next to the box.",
+        "Striped cloth napkin on the table.",
+        "Bowl of popcorn in the background on the table.",
+        "Two people (a young man and woman) sitting on a couch behind the table, showing reactions to the product box."
+      ],
+      "stationary_objects": [
+        "Nintendo Switch 2 box",
+        "Glass of water",
+        "Striped cloth napkin",
+        "Bowl of popcorn",
+        "Couch",
+        "Bookshelf",
+        "Indoor plants"
+      ]
+    },
+    "intelligence": {
+      "source": "retailer_image_and_text",
+      "version": 337,
+      "unknowns": [
+        "exact function of buttons on controllers",
+        "internal screen capabilities",
+        "interface ports and buttons on docking station",
+        "existence or details of accessories not visible from front view"
+      ],
+      "components": [
+        {
+          "name": "Main console screen",
+          "role": "unknown",
+          "evidence": "visible as the central rectangular display in the main console body",
+          "attachment": "attached to main console body",
+          "visible_count": 1
+        },
+        {
+          "name": "Left Joy-Con controller",
+          "role": "controller",
+          "evidence": "visible with joystick, buttons and attached on left side of main console",
+          "attachment": "attached to left side of main console screen",
+          "visible_count": 1
+        },
+        {
+          "name": "Right Joy-Con controller",
+          "role": "controller",
+          "evidence": "visible with joystick, buttons and attached on right side of main console",
+          "attachment": "attached to right side of main console screen",
+          "visible_count": 1
+        },
+        {
+          "name": "Main console body",
+          "role": "main unit",
+          "evidence": "visible as the central gray base in which screen and Joy-Cons attach",
+          "attachment": "holds the main console screen and Joy-Con controllers",
+          "visible_count": 1
+        },
+        {
+          "name": "Docking station",
+          "role": "docking station",
+          "evidence": "visible behind main console as black unit with slot",
+          "attachment": "not visibly attached, placed behind main console",
+          "visible_count": 1
+        },
+        {
+          "name": "Box packaging",
+          "role": "packaging",
+          "evidence": "red box with Nintendo Switch 2 branding enclosing all items",
+          "attachment": "encloses all components",
+          "visible_count": 1
+        }
+      ],
+      "confidence": 0.95,
+      "verified_actions": [
+        {
+          "id": "action1",
+          "action": "next generation release",
+          "confidence": 1,
+          "source_evidence": "Nästa generationen av Nintendo Switch är här",
+          "preserves_source_view": true
+        }
+      ],
+      "visible_identity": [
+        "Nintendo Switch 2",
+        "Nintendo Switch 2 spelkonsol",
+        "Nintendo Switch"
+      ]
+    },
+    "view_lock": {
+      "source": "vision_verified_view_lock",
+      "confidence": 0.99,
+      "verifiedView": "front three-quarter view, showing the front of the Nintendo Switch 2 console with attached Joy-Con controllers, and the front and side of the dock",
+      "motionConstraint": "No rotation or movement that would reveal the back, bottom, or top surfaces of the console, controllers, or dock is allowed, as these are not visible and thus not verified.",
+      "visibleSurfaceSummary": "Visible are the front and sides of the Nintendo Switch 2 console with its screen, the two Joy-Con controllers with specific button layouts and colored ring details (blue on left, red on right), the front of the console with the 'nintendo switch 2' logo, and the front and right side of the black dock with a slot for console insertion visible. The red packaging background is visible around the product."
+    }
+  },
+  {
+    "case": "docking",
+    "prompt": "HARD PRODUCT LOCK: the retailer reference defines product identity; frame 0 defines the set only. Keep front three-quarter with bottom dock and front robot vacuum base visible. no rotation allowed that would show left side or back of any components, only the currently visible front three-quarter and below front dock platform views allowed Never rotate, flip, orbit or reveal unverified surfaces. COMPONENT ROLE LOCK: preserve exact visible component count, purpose, attachment, geometry, mechanical state, material and color. Never add, remove, repurpose or transform parts. SURFACE PRINT LOCK: logos, letters, numbers, labels and printed details stay visually identical, character-for-character. No redraw, replacement, invented branding, text or watermarks. LIGHT AND EFFECT LOCK: no new LEDs, glows, displays, illumination or product effects absent in frame 0. FUNCTION LOCK: use only source-verified actions preserving the original view; otherwise keep mechanisms passive. Full visibility never proves function. SCENE CONTINUITY LOCK: one continuous physical set. Independent stationary props stay fixed in world space, never attached to a moving product. Keep initial material/conditions; no effects or material appear without a verified physical cause. Moving objects enter/leave continuously. No pop-in, morphing, extra limbs, duplication, teleporting or unexplained displacement. ONE-SCENE PRODUCT COUNT LOCK: keep the verified product count. Preserve physical contact, scale and perspective. Resolve action before the final second and hold the same scene. Resolve the action by 5 seconds and hold the final second. CREATIVE DIRECTION: Robot vacuum smoothly backs down the ramp platform towards the docking station, guided by its front sensor array and laser turret to align perfectly. It completes the docking by sliding fully inside, showcasing the automatic docking functionality and the stylish modern docking station. The final frame holds steady, highlighting the product's sleek design and integration into the living space.",
+    "plan": {
+      "mode": "verified_use",
+      "risk": "low",
+      "source": "scene_aware_reviewed_plan",
+      "version": 337,
+      "strategy": "Show the Dreame L50S Pro Ultra robot vacuum in an automated docking action as it moves back into the docking station from an initial position partially outside, emphasizing its precise alignment and seamless return-to-dock feature. Hold the last frame to highlight the clean, modern design and the refined docking station finish.",
+      "preflight": {
+        "reason": "The proposed motion accurately represents the robot vacuum's automated docking action as supported by the evidence. The initial condition shows the robot vacuum partially on the ramp platform outside the docking station base, consistent with the starting pose in the image. The docking station and ramp platform remain stationary throughout as required, with no hidden surfaces or added materials introduced. The robot vacuum's movement sequence — pulling out then moving backwards precisely onto the ramp, aligning, and docking inside the base — matches the mechanical and functional evidence of automated docking (verified action id 'action1'). The camera viewpoint constraint is respected (front three-quarter view visible surfaces only). No unsupported state changes or contradictory cause-effect relationships are present. Therefore, all safety fields are true and the confidence meets the 0.9 threshold for acceptance.",
+        "confidence": 0.9,
+        "scene_safe": true,
+        "identity_safe": true,
+        "causality_safe": true,
+        "source_view_safe": true,
+        "functions_supported": true
+      },
+      "action_ids": [
+        "action1"
+      ],
+      "motion_prompt": "Robot vacuum smoothly backs down the ramp platform towards the docking station, guided by its front sensor array and laser turret to align perfectly. It completes the docking by sliding fully inside, showcasing the automatic docking functionality and the stylish modern docking station. The final frame holds steady, highlighting the product's sleek design and integration into the living space.",
+      "causal_sequence": [
+        "Robot vacuum pulls outwards from docking station ramp platform.",
+        "Robot vacuum moves backwards precisely onto the ramp platform.",
+        "Robot vacuum aligns and docks securely inside the docking station base."
+      ],
+      "submitted_prompt": "Robot vacuum smoothly backs down the ramp platform towards the docking station, guided by its front sensor array and laser turret to align perfectly. It completes the docking by sliding fully inside, showcasing the automatic docking functionality and the stylish modern docking station. The final frame holds steady, highlighting the product's sleek design and integration into the living space.",
+      "initial_conditions": [
+        "Robot vacuum is positioned partially out of the docking station base on the ramp platform with front sensors and laser turret visible.",
+        "Docking station is upright, stationary, with brushed metallic gold panel and ramp platform extending forward under the robot vacuum.",
+        "Living room environment with wooden floor, beige walls, potted plant, and partial view of sofa and coffee table in background."
+      ],
+      "stationary_objects": [
+        "Docking station unit",
+        "Ramp platform",
+        "Wall",
+        "Floor",
+        "Potted plant",
+        "Sofa",
+        "Coffee table"
+      ]
+    },
+    "intelligence": {
+      "source": "retailer_image_and_text",
+      "version": 337,
+      "unknowns": [
+        "exact component functions of docking unit parts",
+        "attachment mechanism details",
+        "specific function of visible buttons and sensors"
+      ],
+      "components": [
+        {
+          "name": "Docking station unit",
+          "role": "unknown",
+          "evidence": "Large upright rectangular unit visible behind robot vacuum",
+          "attachment": "none",
+          "visible_count": 1
+        },
+        {
+          "name": "Robot vacuum unit",
+          "role": "cleaning unit",
+          "evidence": "Circular device at the base under docking station with visible sensors and buttons",
+          "attachment": "attached below the docking station",
+          "visible_count": 1
+        },
+        {
+          "name": "Control button panel",
+          "role": "unknown",
+          "evidence": "Small visible button section on top front of robot vacuum",
+          "attachment": "attached to front upper side of robot vacuum",
+          "visible_count": 1
+        },
+        {
+          "name": "Laser sensor turret",
+          "role": "unknown",
+          "evidence": "Round laser sensor on top of robot vacuum",
+          "attachment": "attached top center of robot vacuum",
+          "visible_count": 1
+        },
+        {
+          "name": "Front sensor array",
+          "role": "unknown",
+          "evidence": "Visible black sensor window on front side of robot vacuum",
+          "attachment": "front of robot vacuum",
+          "visible_count": 1
+        },
+        {
+          "name": "Ramp platform",
+          "role": "unknown",
+          "evidence": "White platform extending forward from docking station base, under the robot vacuum",
+          "attachment": "attached to bottom of docking station",
+          "visible_count": 1
+        }
+      ],
+      "confidence": 0.85,
+      "verified_actions": [
+        {
+          "id": "action1",
+          "action": "automated docking",
+          "confidence": 0.9,
+          "source_evidence": "The robot vacuum is positioned inside the docking station at the base, indicating automated docking functionality",
+          "preserves_source_view": true
+        }
+      ],
+      "visible_identity": [
+        "Dreame L50S Pro Ultra robotdammsugare, vit"
+      ]
+    },
+    "view_lock": {
+      "source": "vision_verified_view_lock",
+      "confidence": 1,
+      "verifiedView": "front three-quarter with bottom dock and front robot vacuum base visible",
+      "motionConstraint": "no rotation allowed that would show left side or back of any components, only the currently visible front three-quarter and below front dock platform views allowed",
+      "visibleSurfaceSummary": "Front and right side of the upright docking station visible; front dock platform visible; front, top and left side of the robot vacuum visible. Docking station is white with a brushed metallic gold panel on front with 'DESIGNED BY DREAME' text. Robot vacuum is white with a raised circular sensor tower on top with gold colored top. Front bumper area of robot vacuum is black with visible sensors."
+    }
+  }
+]

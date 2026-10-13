@@ -1,0 +1,43 @@
+/* v144.340: read-only recovery guidance. No provider task is restarted by this UI. */
+.admin-v144340-failure-list-note {
+  display: inline-flex; align-items: flex-start; gap: 7px; max-width: 100%;
+  margin-top: 6px; padding: 7px 9px; border-radius: 8px;
+  background: #fff7f2; border: 1px solid #f0ddd2; color: #89462d;
+  font-size: 12px; font-style: normal; line-height: 1.35;
+}
+.admin-v144340-failure-list-note > span { display: grid; gap: 2px; min-width: 0; }
+.admin-v144340-failure-list-note b { font-weight: 750; white-space: normal; }
+.admin-v144340-failure-list-note small { font-size: 11px; opacity: .92; white-space: normal; }
+.admin-v144340-failure-list-note svg { flex: 0 0 auto; margin-top: 2px; }
+.admin-v144340-failure-list-note.is-database,
+.admin-v144340-failure-list-note.is-interrupted { background: #f0f5fc; border-color: #cbdcf1; color: #285280; }
+.admin-v144340-failure-guide {
+  border: 1px solid #e9d5cb; border-radius: 13px; background: #fff9f5;
+  padding: 16px; margin-bottom: 16px; overflow-wrap: anywhere;
+  color: #293746;
+}
+.admin-v144340-failure-guide.is-database,
+.admin-v144340-failure-guide.is-interrupted { background: #f5f9ff; border-color: #d5e4f6; }
+.admin-v144340-failure-head { display: flex; align-items: flex-start; gap: 10px; color: #864936; }
+.admin-v144340-failure-guide.is-database .admin-v144340-failure-head,
+.admin-v144340-failure-guide.is-interrupted .admin-v144340-failure-head { color: #285280; }
+.admin-v144340-failure-head svg { flex: 0 0 auto; margin-top: 2px; }
+.admin-v144340-failure-head > div { display: grid; gap: 5px; min-width: 0; }
+.admin-v144340-failure-head small { font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+.admin-v144340-failure-head strong { font-size: 15px; line-height: 1.35; }
+.admin-v144340-failure-reason { margin: 11px 0 14px; font-size: 13px; line-height: 1.55; }
+.admin-v144340-failure-next { padding: 12px; border-radius: 9px; background: #fff; border: 1px solid #eddfd5; }
+.admin-v144340-failure-next > strong { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.admin-v144340-failure-next > p { margin: 7px 0 0; font-size: 13px; line-height: 1.6; }
+.admin-v144340-failure-next > small { display: flex; align-items: center; gap: 6px; margin-top: 9px; font-size: 11px; color: #944d2a; }
+.admin-v144340-failure-evidence { display: grid; gap: 6px; margin: 12px 0 0; font-size: 11px; }
+.admin-v144340-failure-evidence > div { display: grid; grid-template-columns: 90px minmax(0,1fr); gap: 8px; }
+.admin-v144340-failure-evidence dt { color: #697487; }
+.admin-v144340-failure-evidence dd { margin: 0; font-weight: 650; overflow-wrap: anywhere; }
+.admin-v144340-failure-raw { margin-top: 12px; font-size: 12px; }
+.admin-v144340-failure-raw summary { cursor: pointer; font-weight: 700; }
+.admin-v144340-failure-raw pre { margin: 8px 0 0; max-width: 100%; max-height: 180px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 11px; }
+@media (max-width: 760px) {
+  .admin-v144340-failure-guide { padding: 12px; }
+  .admin-v144340-failure-evidence > div { grid-template-columns: minmax(65px,90px) minmax(0,1fr); }
+}

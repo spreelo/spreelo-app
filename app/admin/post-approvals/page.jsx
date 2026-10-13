@@ -31,11 +31,13 @@ import {
   ZoomIn,
   XCircle,
 } from "lucide-react";
+import { adminVideoSources } from "../../../lib/klingAdminVideo.js";
 import AppLayout from "../../../components/AppLayout";
 import { supabase } from "../../../lib/supabaseClient";
 import { useUiText } from "../../../lib/i18n/useUiText";
 import { getPostRescueProductCount, POST_RESCUE_TYPES, resolvePostRescueType } from "../../../lib/postRescueFormat";
 import { buildEditorialQualityInstruction } from "../../../lib/editorialContentStrategy";
+import { diagnoseFailedPost } from "../../../lib/adminFailureRecovery.js";
 
 async function getHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -231,8 +233,9 @@ function getPostMediaItems(post) {
 }
 
 function MediaPreview({ post, t, onOpen }) {
+  const video = adminVideoSources(post);
   const mediaItems = getPostMediaItems(post);
-  if (post.slides?.length) {
+  if (post.slides?.length && !video.previewUrl) {
     return (
       <div className="admin-review-media-section">
         <div className="admin-review-section-heading">
@@ -265,10 +268,17 @@ function MediaPreview({ post, t, onOpen }) {
       </div>
     );
   }
-  if (post.video_url) {
+  if (video.previewUrl) {
     return (
-      <div className="admin-v74-media-frame admin-review-primary-media">
-        <video src={post.video_url} controls playsInline preload="metadata" />
+      <div className="admin-review-media-section">
+        {video.isSourcePreview ? <div className="admin-alert"><AlertTriangle size={16} /><span>{t("admin.approvals.sourceVideoPending")}</span></div> : null}
+        <div className="admin-v74-media-frame admin-review-primary-media">
+          <video key={video.previewUrl} src={video.previewUrl} poster={post.image_url || undefined} controls playsInline preload="metadata" />
+        </div>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", padding: "12px 0" }}>
+          <a href={video.previewUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} /> {t("admin.approvals.openVideo")}</a>
+          {video.finalUrl && video.sourceUrl && video.sourceUrl !== video.finalUrl ? <a href={video.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} /> {t("admin.approvals.openSourceVideo")}</a> : null}
+        </div>
       </div>
     );
   }
@@ -341,6 +351,7 @@ export default function AdminPostApprovalsPage() {
     () => posts.find((post) => post.id === selectedPostId) || null,
     [posts, selectedPostId]
   );
+  const selectedFailureGuide = useMemo(() => diagnoseFailedPost(selectedPost, locale), [selectedPost, locale]);
   const selectedKlingRejectedAudit = useMemo(
     () => getKlingRejectedAudit(selectedPost),
     [selectedPost]
@@ -382,6 +393,16 @@ export default function AdminPostApprovalsPage() {
     isCarouselPost(selectedPost) &&
     materials.length === CAROUSEL_PRODUCT_COUNT &&
     materials.every(isMaterialReady);
+  // A failed video must never silently trigger a new paid run. The user must
+  // confirm provider results were checked, in addition to importing rescue.
+  const canRegenerateFailedPost = Boolean(
+    selectedFailureGuide?.allowRegenerate ||
+    (selectedFailureGuide?.action === "rescue" &&
+      !["database", "publishing", "billing", "unknown"].includes(selectedFailureGuide?.category) &&
+      materials.length > 0 && materials.every(isMaterialReady) &&
+      selectedFailureGuide?.category !== "video" &&
+      !selectedPost?.kling_task_id)
+  );
   const singleProductReady =
     Boolean(selectedPost) &&
     !isCarouselPost(selectedPost) &&
@@ -842,6 +863,9 @@ export default function AdminPostApprovalsPage() {
 
   async function retryRejectedKlingVideo() {
     if (!selectedPost || !selectedKlingRejectedAudit) return;
+    if (typeof window !== "undefined" && !window.confirm(String(locale).startsWith("sv")
+      ? "En ny Kling-körning kan debiteras. Kontrollera först den befintliga videon och bekräfta att du vill försöka igen."
+      : "A new Kling run may incur charges. Check the existing video first and confirm that you want to retry.")) return;
     setRetryingKling(true);
     setError("");
     setRegenerationError("");
@@ -869,6 +893,17 @@ export default function AdminPostApprovalsPage() {
 
   async function regenerateCurrent(mode = "all") {
     if (!selectedPost) return;
+    if (selectedPost.status === "failed") {
+      if (!canRegenerateFailedPost || selectedKlingRejectedAudit) {
+        setRegenerationError(String(locale).startsWith("sv")
+          ? "Kontrollera först felguiden och använd den angivna återställningsmetoden. Ny generering är spärrad tills underlaget är klart."
+          : "Follow the recovery guide first. A new generation is blocked until the required recovery conditions are met.");
+        return;
+      }
+      if (typeof window !== "undefined" && !window.confirm(String(locale).startsWith("sv")
+        ? "Jag har kontrollerat att det inte finns någon pågående leverantörskörning eller redan färdigt resultat. Regenerate kan medföra en ny kostnad. Fortsätta?"
+        : "I checked that no provider task is still running and no usable output already exists. Regenerate may incur a new charge. Continue?")) return;
+    }
     if (isCarouselPost(selectedPost)) return regenerateFromMaterials();
     if (materials.length) return regenerateSingleProduct();
     return regenerateGeneric(mode);
@@ -1375,6 +1410,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                     ? "needs_repair"
                     : post.status;
               const meta = statusMeta(displayStatus, t);
+              const failureGuide = diagnoseFailedPost(post, locale);
               return (
                 <button type="button" className="admin-v74-approval-row admin-v14370-review-row" key={post.id} onClick={() => setSelectedPostId(post.id)}>
                   {isSyntheticAdminCaseId(post.id) ? (
@@ -1395,6 +1431,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                     <small>{post.platform || t("admin.approvals.platformUnknown")} · {adminPostFormatLabel(post) || t("admin.approvals.post")}</small>
                     <strong>{post.brand_name || t("admin.approvals.unknownBrand")} {post.is_admin_test ? <span className="sp102-approval-test-badge">{t("admin.approvals.testMassTest")}</span> : null}</strong>
                     <em>{post.admin_test_campaign ? `${post.admin_test_campaign} · ` : ""}{String(post.content || "").replace(/\s+/g, " ").slice(0, 120) || t("admin.approvals.noContent")}</em>
+                    {failureGuide ? <span className={`admin-v144340-failure-list-note is-${failureGuide.category}`}><AlertTriangle size={13} /><span><b>{failureGuide.title}</b><small>{String(locale).startsWith("sv") ? "Åtgärd:" : "Action:"} {failureGuide.actionLabel}</small></span></span> : null}
                   </span>
                   <span className="admin-v14370-review-time"><small>{t("admin.approvals.created")}</small><strong>{formatDate(post.created_at, locale)}</strong></span>
                   <span className="admin-v14370-review-time admin-v14412-review-cost"><small>{t("admin.approvals.generationCost")}</small><strong>{formatGenerationCost(post)}</strong></span>
@@ -1471,7 +1508,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                       <ImageIcon size={18} /><span>{t("admin.approvals.imageQuality")}</span><strong>{lowResolutionMaterialCount ? t("admin.approvals.lowResolution", { count: lowResolutionMaterialCount }) : t("admin.approvals.checked")}</strong>
                     </div>
                     <div className={lightboxItems.length ? "ok" : "neutral"}>
-                      <PackageCheck size={18} /><span>{t("admin.approvals.media")}</span><strong>{lightboxItems.length ? t(lightboxItems.length === 1 ? "admin.approvals.oneImage" : "admin.approvals.imageCount", { count: lightboxItems.length }) : selectedPost.video_url ? t("admin.approvals.video") : t("admin.approvals.none")}</strong>
+                      <PackageCheck size={18} /><span>{t("admin.approvals.media")}</span><strong>{adminVideoSources(selectedPost).previewUrl ? t("admin.approvals.video") : lightboxItems.length ? t(lightboxItems.length === 1 ? "admin.approvals.oneImage" : "admin.approvals.imageCount", { count: lightboxItems.length }) : t("admin.approvals.none")}</strong>
                     </div>
                     <div className={selectedPost.content ? "ok" : "warning"}>
                       <FileCheck2 size={18} /><span>{t("admin.approvals.postCopy")}</span><strong>{selectedPost.content ? t("admin.approvals.ready") : t("admin.approvals.missing")}</strong>
@@ -1665,6 +1702,24 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                     </div>
                   ) : null}
 
+                  {selectedFailureGuide ? (
+                    <section className={`admin-v144340-failure-guide is-${selectedFailureGuide.category}`} aria-label={String(locale).startsWith("sv") ? "Felorsak och återställningsinstruktion" : "Failure cause and recovery instructions"}>
+                      <div className="admin-v144340-failure-head"><AlertTriangle size={20} /><div><small>{String(locale).startsWith("sv") ? "VARFÖR MISSLYCKADES INLÄGGET?" : "WHY DID THIS POST FAIL?"}</small><strong>{selectedFailureGuide.title}</strong></div></div>
+                      <p className="admin-v144340-failure-reason">{selectedFailureGuide.reason}</p>
+                      <div className="admin-v144340-failure-next">
+                        <strong><ShieldCheck size={16} /> {String(locale).startsWith("sv") ? "Så återställer du inlägget" : "How to recover this post"}</strong>
+                        <p>{selectedFailureGuide.instruction}</p>
+                        {selectedFailureGuide.safety ? <small><AlertTriangle size={13} />{selectedFailureGuide.safety}</small> : null}
+                      </div>
+                      <dl className="admin-v144340-failure-evidence">
+                        <div><dt>{String(locale).startsWith("sv") ? "Bedömning" : "Assessment"}</dt><dd>{selectedFailureGuide.confirmed ? (String(locale).startsWith("sv") ? "Baserad på sparat fel" : "Based on recorded failure") : (String(locale).startsWith("sv") ? "Orsak ej bekräftad" : "Cause not confirmed")}</dd></div>
+                        <div><dt>{String(locale).startsWith("sv") ? "Felkod" : "Error code"}</dt><dd>{selectedFailureGuide.code || "—"}</dd></div>
+                        <div><dt>{String(locale).startsWith("sv") ? "Körningsfas" : "Execution stage"}</dt><dd>{selectedFailureGuide.stage || "—"}</dd></div>
+                      </dl>
+                      {selectedFailureGuide.recordedMessage ? <details className="admin-v144340-failure-raw"><summary>{String(locale).startsWith("sv") ? "Visa ursprungligt felmeddelande" : "Show original error message"}</summary><pre>{selectedFailureGuide.recordedMessage}</pre></details> : null}
+                    </section>
+                  ) : null}
+
                   {selectedPost.status === "planned" ? (
                     <div className="admin-v144106-work-order-card">
                       <div className="admin-v144106-work-order-head"><Clock3 size={18} /><div><strong>{t("admin.approvals.workOrderCreated")}</strong><span>{t("admin.approvals.noContentGenerated")}</span></div></div>
@@ -1678,7 +1733,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                     </div>
                   ) : null}
 
-                  {selectedPost.status === "failed" && selectedPost.work_item_id ? (
+                  {selectedPost.status === "failed" && selectedPost.work_item_id && (selectedFailureGuide?.action === "rescue" || selectedFailureGuide?.category === "video" || selectedFailureGuide?.category === "audit") ? (
                     <div className="admin-v144106-rescue-card">
                       <div className="admin-v144106-rescue-head">
                         <div><PackageCheck size={19} /><span><strong>{t("admin.approvals.aiRescue")}</strong><small>{t("admin.approvals.aiRescueText")}</small></span></div>
@@ -1808,13 +1863,13 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                       {t("admin.approvals.saveChanges")}
                     </button>
                   ) : null}
-                  {!selectedKlingRejectedAudit && selectedPost.status !== "planned" ? (
+                  {!selectedKlingRejectedAudit && selectedPost.status !== "planned" && (selectedPost.status !== "failed" || canRegenerateFailedPost) ? (
                     <button type="button" className="admin-review-secondary-action admin-review-regenerate-action admin-v14401-regenerate-main" disabled={regenerating || (isCarouselPost(selectedPost) ? !carouselReady : materials.length ? !singleProductReady : false)} onClick={() => regenerateCurrent("all")}>
                       {regenerating ? <LoaderCircle className="admin-spin" size={16} /> : <RefreshCw size={16} />}
                       {t("admin.approvals.regeneratePost")}
                     </button>
                   ) : null}
-                  {!selectedKlingRejectedAudit && selectedPost.status !== "planned" && !isCarouselPost(selectedPost) && !materials.length ? (
+                  {!selectedKlingRejectedAudit && selectedPost.status !== "planned" && (selectedPost.status !== "failed" || canRegenerateFailedPost) && !isCarouselPost(selectedPost) && !materials.length ? (
                     <div className="admin-v14401-partial-actions">
                       <button type="button" disabled={regenerating} onClick={() => regenerateCurrent("text")}>{t("admin.approvals.textOnly")}</button>
                       <button type="button" disabled={regenerating} onClick={() => regenerateCurrent("media")}>{t("admin.approvals.imageOnly")}</button>

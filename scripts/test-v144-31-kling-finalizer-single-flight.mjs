@@ -18,6 +18,8 @@ must(route, 'video_status: "finalization_retry"', 'Post-processing failure must 
 must(route, 'isKlingTaskSuccessful(providerStatus)\n              ? "finalizing"', 'Successful provider result must stay locked while post-processing runs');
 
 const klingCalls = [...route.matchAll(/getKlingImageToVideoTask\(/g)].length;
-if (klingCalls !== 1) throw new Error(`Expected exactly one provider polling call site, found ${klingCalls}`);
+if (klingCalls !== 2) throw new Error(`Expected provider status polling plus one expired-download-link refresh path, found ${klingCalls}`);
+must(route, 'if (![403, 404, 410].includes(error.httpStatus)) throw error;', 'Source refresh must be limited to an expired or inaccessible download link');
+if (route.includes('submitKlingImageToVideo(')) throw new Error('Finalization must never submit a new paid Kling generation');
 
 console.log('v144.31 Kling single-flight/cache regression checks passed');

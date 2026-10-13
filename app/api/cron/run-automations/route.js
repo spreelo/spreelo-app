@@ -1,4 +1,5 @@
-import { analyzeKlingProductIntelligence, planKlingVerifiedMotion } from "../../../../lib/klingVideoIntelligence.js";
+import { verifyPreparedKlingAuditReferences } from "../../../../lib/klingAuditReferences.js";
+import { analyzeKlingProductIntelligence, planKlingVerifiedMotion, passiveKlingMotionPlan } from "../../../../lib/klingVideoIntelligence.js";
 import { removeDefaultWebsitePostInstructions } from "../../../../lib/websitePostIntent.js";
 import { planAnimatedAdvertisingCopy, verifyAnimatedAdvertisingTypography } from "../../../../lib/animatedAdvertisingCopy.js";
 import { classifyOpenAiServiceError, recordOpenAiRuntimeResult } from "../../../../lib/openAiRuntimeHealth.js";
@@ -882,6 +883,35 @@ async function releaseWebsiteDomainJobLock({ domain, token, ruleId }) {
   }
 }
 
+
+// v144.339: Treat an upstream Supabase project-routing response as a dependency
+// outage, not a failed customer post. The exact error is also returned when a
+// previously valid Supabase project cannot be resolved by the gateway.
+function isSupabaseProjectRoutingUnavailable(errorOrMessage) {
+  return /\bproject not specified\.?\b/i.test(
+    String(errorOrMessage?.message || errorOrMessage || "")
+  );
+}
+
+// Stable within a failure category, but distinct for different crash messages.
+// The former dedupe key grouped every generic Error thrown by one worker.
+function buildAutomationWorkerFailureDedupeKey({ workerName, phase, error }) {
+  const normalizedMessage = String(error?.message || error || "unknown")
+    .toLowerCase()
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, "{uuid}")
+    .replace(/\b\d{4}-\d{2}-\d{2}(?:t\S+)?\b/gi, "{date}")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1000);
+  const fingerprint = crypto.createHash("sha256")
+    .update(normalizedMessage)
+    .digest("hex")
+    .slice(0, 16);
+  const code = String(error?.code || error?.name || "error")
+    .replace(/[^a-z0-9_-]/gi, "_")
+    .slice(0, 60);
+  return `worker_cron_unhandled:${workerName}:${phase}:${code}:${fingerprint}`;
+}
 
 function isDedicatedAutomationWorkerName(workerName) {
   return /^worker-[1-9]\d*$/i.test(String(workerName || "").trim());
@@ -13237,7 +13267,7 @@ function isTransientAutomationError(errorOrMessage) {
     return true;
   }
 
-  return /request timed out|timed?\s*out|timeout|deadline|aborted|aborterror|econnreset|econnrefused|enotfound|etimedout|socket hang up|network error|fetch failed|temporar(?:y|ily) unavailable|service unavailable|overloaded|bad gateway|gateway timeout|connection reset|connection closed|rate limit|too many requests/.test(
+  return /request timed out|timed?\s*out|timeout|deadline|aborted|aborterror|econnreset|econnrefused|enotfound|etimedout|socket hang up|network error|fetch failed|temporar(?:y|ily) unavailable|service unavailable|overloaded|bad gateway|gateway timeout|connection reset|connection closed|rate limit|too many requests|project not specified/.test(
     `${code} ${message}`
   );
 }
@@ -13749,6 +13779,9 @@ async function sendImmediateAdminFailureAlertEmail({
     ["Format", rule?.content_format || runLogSnapshot?.content_format || null],
     ["Scheduled for", scheduledFor || null],
     ["Worker", workerName],
+    ...(incidentMetadata.worker_phase ? [["Worker phase", incidentMetadata.worker_phase]] : []),
+    ...(incidentMetadata.suspected_dependency && incidentMetadata.suspected_dependency !== "unconfirmed"
+      ? [["Suspected dependency", incidentMetadata.suspected_dependency]] : []),
     ["Stage", stage || "unknown"],
     ["Failure code", failureCode || "unknown"],
     ["Rule ID", rule?.id || null],
@@ -14277,6 +14310,9 @@ async function finalizeStaleAutomationOccurrences({ supabase, resendApiKey, now 
     .limit(25);
 
   if (error) {
+    if (isSupabaseProjectRoutingUnavailable(error)) {
+      throw error; // Defer stale cleanup and customer work until the database recovers.
+    }
     if (!String(error.message || "").toLowerCase().includes("automation_occurrences")) {
       console.warn("Could not check stale automation occurrences", { message: error.message });
     }
@@ -16107,6 +16143,7 @@ async function analyzeKlingVerifiedViewLock({ openai, websiteItem, sourceImageBu
                 `Analyze the authoritative retailer image for the ecommerce product "${productTitle}". ` +
                 "Your job is NOT to infer how hidden parts probably look. Identify only which camera-facing side/view and product surfaces are actually verified by visible pixels. " +
                 "For apparel, distinguish front/back/side when possible based on the visible garment construction and print placement. A back-only retailer image verifies the back only; a later video must never show the front. " +
+                "Identify the actual physical subject first: a photographed box is packaging; consoles or other objects printed on it are static depictions, not physical components. Describe only the outer packaging surfaces in that case. Do not treat objects near or parked under a station as mechanically attached. " +
                 "For rigid products, footwear, packaging and other objects, describe the exact visible view (for example front, left side, three-quarter front-left, top detail) and explicitly forbid any rotation that would expose an unseen surface. " +
                 "Treat every visible identity-defining feature as immutable: number/position/shape of buttons, switches, openings, seams, joints, material boundaries, color blocking, surface finish, logos, printed details and distinctive geometry. Mention these concrete visible details in visible_surface_summary when they can be observed. " +
                 "Return strict JSON only. If uncertain, choose the stricter same-view constraint.",
@@ -16372,6 +16409,7 @@ async function reviewKlingOpeningSceneIdentity({
                     ? "Natural in-use deformation is allowed (for example apparel worn by a person), but visible color, print/design, logo/wording, distinctive geometry, materials and identity-defining details must still match. "
                     : "The source is cropped or uncertain. Image 2 must not invent or expose new identity-defining product surfaces/details outside what Image 1 verifies; it may only place the same visible portion into a believable context. ") +
                   ` ${verifiedViewLock ? getKlingVerifiedViewInstruction({ verifiedViewLock }) : "Only product surfaces visible in Image 1 are verified; reject any newly exposed side or surface."} ` +
+                  "If the retailer reference shows packaging, compare its physical outer surfaces and exact printed artwork, not the devices depicted in the print. A printed device may never become a physical scene component. Independent adjacent objects may not be fused or attached. " +
                   "Reject if Image 2 exposes any product side/surface that Image 1 does not visibly verify, even if that hidden side looks plausible. Reject if the AI changed the visible variant, print, wording, logo, silhouette/geometry, product type, number/position/shape of buttons or controls, openings, seams, joints, material boundaries, color blocking, surface finish, distinctive hardware, or substituted a similar product. A newly invented control/detail is always an identity failure. If uncertain, reject. Return only the requested JSON.",
               },
               { type: "input_text", text: "IMAGE 1 — authoritative retailer product" },
@@ -16470,8 +16508,8 @@ async function generateKlingDirectSceneOpeningFrame({
 
   const verifiedViewInstruction = getKlingVerifiedViewInstruction(referenceSafety);
   const interactionInstruction = fullProductInteractionSafe
-    ? `Start with the exact product already integrated naturally into a believable real scene. Visual completeness only means the visible product geometry is safe to preserve; it does NOT prove how the product operates. Apparel may be worn, shoes may be worn/walked in, a bicycle may be ridden/pedaled, and similarly universally self-evident direct physical use is allowed. For any ambiguous mechanism or output, keep the product mechanically passive: a person may hold, carry, present or move it without pressing, opening, pumping, spraying, dispensing, switching, unlatching, removing parts or implying an unverified function. Perfume/cosmetic bottles may be held and presented but must not be pressed, sprayed, pumped, dispensed, opened or have parts removed unless the verified product context explicitly proves that exact mechanism. The product must never appear first as a floating cutout, catalog card, isolated hero object, pedestal display or pasted layer. ${verifiedViewInstruction}`
-    : `The source is cropped or identity-sensitive. Keep only the exact verified visible portion/view of the product and place that same verified view naturally into a real context. Do not complete, extend, rotate or invent unseen product surfaces or mechanisms. Keep functionally ambiguous products mechanically passive; hands may hold or present them without operating controls, opening parts or producing outputs. Use a believable close-up/detail-shot commercial composition instead of a floating catalog object. ${verifiedViewInstruction}`;
+    ? `Place the exact physical subject naturally in a believable supported scene, retaining its precise verified view. Ordinary holding/wearing/ground contact may be staged ONLY when the sanitized PRODUCT EVIDENCE CONTRACT below supports that specific physical subject and its bounded action. Do not infer permission from product category or full visibility alone. Preserve component roles and state. Establish any supporting hand, wearer or ground contact from frame zero. For packaging, stage the physical box with exact static artwork; never extract or animate the devices printed on it. No operation, docking/undocking, insertion, opening, pumping, spraying, switching, pedaling mechanism, part removal or transformation may be staged. The opening must already be the finished real scene, with no setup transition. ${verifiedViewInstruction}`
+    : `Keep only the exact verified visible portion/view naturally in a supported real scene. Do not complete, extend, rotate or invent unseen surfaces. Keep the physical subject mechanically passive and establish no handling or operational state. Printed artwork stays static. The opening must already be the finished real scene, with no setup transition. ${verifiedViewInstruction}`;
 
   const prompt = `
 Create the literal FIRST FRAME of a premium 9:16 social-media product commercial for this verified ecommerce product:
@@ -16488,6 +16526,8 @@ ${JSON.stringify(referenceSafety?.productIntelligence || {})}
 Keep independent props and accessories separate from the product unless the source visibly proves attachment. Establish all material, props and conditions needed for an action from frame zero. Never stage a consequence before its cause or imply an unsupported function.
 
 NON-NEGOTIABLE OPENING RULES:
+- Depictions printed on a box, label or screen remain exact static artwork. They are not physical devices or accessories in the scene. If the source shows packaging, preserve the packaging itself, its actual visible outer surfaces and all printed content; never unbox or animate its printed product pictures.
+- Proximity to an accessory or docking station is not mechanical attachment. Preserve each real object separately.
 - Frame 0 must be a complete photorealistic real-world scene with natural depth, lighting, surfaces and spatial context.
 - NO plain/solid/gradient/abstract background, studio sweep, catalog background, display card, product-on-backdrop composition, poster, title card or transitional setup frame.
 - NO visual state where the product is simply centered against a background waiting for the video to begin.
@@ -16661,19 +16701,15 @@ async function createKlingProductReferenceFrame(sourceImageBuffer, { naturalBack
 
 
 function getKlingProviderSafetyPrefix(referenceSafety = {}) {
-  const lock = referenceSafety?.verifiedViewLock || {};
-  const view = String(lock.verifiedView || "the verified retailer view").replace(/\s+/g, " ").trim();
-  const verifiedView = view.length <= 160 ? view : "the exact verified retailer view";
-  const motion = String(lock.motionConstraint || "Keep the original camera-facing orientation.").replace(/\s+/g, " ").trim();
-  const verifiedMotion = motion.length <= 180 ? motion : "Keep the original camera-facing orientation.";
+  const packaging = referenceSafety?.productIntelligence?.physical_subject?.kind === "packaging";
   return [
-    `HARD PRODUCT LOCK: the retailer reference defines product identity; frame 0 defines the set only. Keep ${verifiedView}. ${verifiedMotion} Never rotate, flip, orbit or reveal unverified surfaces.`,
-    "COMPONENT ROLE LOCK: preserve exact visible component count, purpose, attachment, geometry, mechanical state, material and color. Never add, remove, repurpose or transform parts.",
-    "SURFACE PRINT LOCK: logos, letters, numbers, labels and printed details stay visually identical, character-for-character. No redraw, replacement, invented branding, text or watermarks.",
-    "LIGHT AND EFFECT LOCK: no new LEDs, glows, displays, illumination or product effects absent in frame 0.",
-    "FUNCTION LOCK: use only source-verified actions preserving the original view; otherwise keep mechanisms passive. Full visibility never proves function.",
-    "SCENE CONTINUITY LOCK: one continuous physical set. Independent stationary props stay fixed in world space, never attached to a moving product. Keep initial material/conditions; no effects or material appear without a verified physical cause. Moving objects enter/leave continuously. No pop-in, morphing, extra limbs, duplication, teleporting or unexplained displacement.",
-    "ONE-SCENE PRODUCT COUNT LOCK: keep the verified product count. Preserve physical contact, scale and perspective. Resolve action before the final second and hold the same scene.",
+    "HARD PRODUCT LOCK: frame 0 is authoritative for the exact visible physical product, pose and set. Keep its exact camera-facing view and only the surfaces already visible. Never rotate, flip, orbit or reveal unverified surfaces.",
+    packaging ? "PHYSICAL SUBJECT LOCK: the physical product is the packaging itself; preserve its outer surfaces and all artwork. Printed devices are flat depictions, never physical scene objects." : "PHYSICAL SUBJECT LOCK: printed pictures and screen depictions remain static artwork, never physical scene objects.",
+    "COMPONENT ROLE LOCK: preserve component count, geometry, role, attachment, state, material and color. Independent stationary accessories stay fixed and separate.",
+    "SURFACE PRINT LOCK: preserve every logo, letter, number and printed detail character-for-character. No redraw, invented branding, overlay text or watermarks.",
+    "LIGHT AND EFFECT LOCK: no new lights, displays, glows or product effects.",
+    "FUNCTION LOCK: only the bounded movement specified below is allowed; never activate, open, dock, insert, transform or repurpose parts.",
+    "SCENE CONTINUITY LOCK: one continuous shot; no cuts, new perspective, pop-in, duplication, extra limbs or unexplained motion. Preserve initial conditions, physical support and product count.",
   ].join(" ");
 }
 
@@ -16702,17 +16738,12 @@ function getKlingProductPromptFallback({ rule, postContent, referenceSafety = nu
 
   const providerSafety = getKlingProviderSafetyPrefix(referenceSafety);
   // A short, self-contained direction is safer than cutting a long assembled prompt.
-  const direction = [
-    `Create a premium 6-second vertical advertisement for ${title}.`,
-    "Frame 0 is the real-world set. Begin natural, verified in-scene use if the existing view permits it, otherwise use subtle camera or background movement. Keep identity, product count and camera-facing orientation unchanged.",
-    "Resolve the action before the final second, then hold a stable product hero composition through the final frame.",
-  ].join(" ");
-  return assembleKlingPrompt({ safety: providerSafety, direction, maxCreative: 950 });
+  const direction = passiveKlingMotionPlan().motion_prompt;
+  return assembleKlingPrompt({ safety: providerSafety, direction, maxCreative: 1200 });
 }
 
 async function buildKlingProductVideoPrompt({ openai, rule, postContent, referenceSafety = null, referenceFrameBuffer = null }) {
-  const fallbackDirection = "Keep the exact product mechanically passive in its verified view. Use a restrained camera push with established environmental motion only; independent props remain fixed. Settle the composition by 5 seconds and hold the final second.";
-  const motionPlan = await planKlingVerifiedMotion({
+  let motionPlan = await planKlingVerifiedMotion({
     openai, model: PRODUCT_RESEARCH_FAST_MODEL,
     intelligence: referenceSafety?.productIntelligence,
     firstFrameDataUrl: referenceFrameBuffer?.length ? `data:image/png;base64,${referenceFrameBuffer.toString("base64")}` : null,
@@ -16726,40 +16757,24 @@ async function buildKlingProductVideoPrompt({ openai, rule, postContent, referen
       caption: String(postContent || "").slice(0, 700),
       fullProductInteractionSafe: referenceSafety?.fullProductInteractionSafe === true,
     },
-    fallbackPrompt: fallbackDirection,
   });
-  // The deterministic guard complements the independent vision preflight.
   const creativePrompt = motionPlan.motion_prompt;
   const safetyReview = validateKlingCreativeDirection(creativePrompt);
-  let direction = safetyReview.ok ? creativePrompt : fallbackDirection;
-  if (!safetyReview.ok) {
-    motionPlan.rejected_plan_reason = safetyReview.reasons.join(", ");
-    motionPlan.mode = "camera_environment";
-    motionPlan.action_ids = [];
-    motionPlan.source = "passive_plan_fallback";
+  if (!safetyReview.ok) motionPlan = passiveKlingMotionPlan(safetyReview.reasons.join(", "));
+  const safety = getKlingProviderSafetyPrefix(referenceSafety);
+  let prompt = assembleKlingPrompt({ safety, direction: motionPlan.motion_prompt, maxCreative: 1200 });
+  // A review is valid only for the exact direction that is submitted. Never
+  // truncate a reviewed operation and leave incompatible metadata behind.
+  let submitted = prompt.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim();
+  if (submitted !== motionPlan.motion_prompt) {
+    motionPlan = passiveKlingMotionPlan("reviewed_plan_exceeds_provider_budget");
+    prompt = assembleKlingPrompt({ safety, direction: motionPlan.motion_prompt, maxCreative: 1200 });
+    submitted = prompt.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim();
+    if (submitted !== motionPlan.motion_prompt) throw new Error("Kling passive motion direction was not preserved in full");
   }
-  motionPlan.motion_prompt = direction;
-  if (referenceSafety) referenceSafety.motionPlan = motionPlan;
-  let prompt = assembleKlingPrompt({
-    safety: getKlingProviderSafetyPrefix(referenceSafety),
-    closing: "Resolve the action by 5 seconds and hold the final second.",
-    direction, maxCreative: 650, fallbackCreative: fallbackDirection,
-  });
-  // Never submit a changed action after reviewing a different full plan.
-  const submitted = prompt.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim();
-  if (submitted !== direction) {
-    direction = fallbackDirection;
-    motionPlan.mode = "camera_environment";
-    motionPlan.action_ids = [];
-    motionPlan.source = "passive_plan_fallback";
-    motionPlan.rejected_plan_reason = "reviewed_plan_exceeds_provider_budget";
-    motionPlan.motion_prompt = direction;
-    prompt = assembleKlingPrompt({ safety: getKlingProviderSafetyPrefix(referenceSafety), direction, maxCreative: 650 });
-  }
-  if (referenceSafety) referenceSafety.motionPlan.submitted_prompt = prompt.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim();
+  if (referenceSafety) referenceSafety.motionPlan = { ...motionPlan, submitted_prompt: submitted, submitted_full_prompt: prompt };
   return prompt;
 }
-
 
 function buildKlingEngagementVideoPrompt({ rule, postContent, referenceSafety = null }) {
   const brandName = String(rule?.brand_profile?.business_name || "the brand").trim().slice(0, 120);
@@ -16888,6 +16903,7 @@ async function submitKlingEngagementConceptVideo({
   await supabase.from("posts").update({
     content: postContent,
     image_url: uploaded.imageUrl,
+    kling_reference_image_url: uploaded.imageUrl,
     image_storage_path: uploaded.imageStoragePath,
     image_status: "ready",
     image_prompt: generatedFrame.imagePrompt,
@@ -16902,6 +16918,7 @@ async function submitKlingEngagementConceptVideo({
     updated_at: new Date().toISOString(),
   }).eq("id", postId);
 
+  await verifyPreparedKlingAuditReferences({ supabase, postId });
   const submission = await submitKlingImageToVideo({
     imageUrl: uploaded.imageUrl,
     prompt,
@@ -17134,6 +17151,7 @@ export async function submitAdminRescueAiProductVideo({
     throw new Error(`Could not prepare the fresh AI product-video rescue post: ${prepareError.message}`);
   }
 
+  await verifyPreparedKlingAuditReferences({ supabase, postId });
   // Exactly one provider call. Never retry this submission inside Rescue.
   const submission = await submitKlingImageToVideo({
     imageUrl: referenceImageUrl,
@@ -43988,7 +44006,11 @@ async function publishApprovedSocialPosts({
       message: error.message,
     });
 
-    summary.social_publish_failed += 1;
+    if (isSupabaseProjectRoutingUnavailable(error)) {
+      throw error; // No post was attempted: do not count a publication failure.
+    }
+    summary.social_publish_queue_unavailable =
+      Number(summary.social_publish_queue_unavailable || 0) + 1;
     return;
   }
 
@@ -45259,6 +45281,7 @@ async function runAutomationCron(request, options = {}) {
   let runtimeSupabase = null;
   let runtimeResendApiKey = process.env.RESEND_API_KEY || null;
   let runtimeWorkerName = String(options.workerName || "manual-worker");
+  let runtimePhase = "initialize";
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45318,6 +45341,7 @@ async function runAutomationCron(request, options = {}) {
     });
 
     const summary = createEmptySummary();
+    runtimePhase = "stale_occurrence_sweep";
     summary.stale_occurrences_finalized = await finalizeStaleAutomationOccurrences({
       supabase,
       resendApiKey,
@@ -45343,6 +45367,7 @@ async function runAutomationCron(request, options = {}) {
     const usedWebsiteImageUrlsThisRun = new Set();
     let animatedVideoRendersThisRun = 0;
 
+   runtimePhase = "publish_queue_scan";
    await publishApprovedSocialPosts({
   supabase,
   nowIso,
@@ -45351,6 +45376,7 @@ async function runAutomationCron(request, options = {}) {
 });
 
     const workerRunActivity = [];
+    runtimePhase = "worker_lane_lease";
     const laneLeaseResult = await acquireAutomationWorkerLaneLease({
       supabase,
       workerName,
@@ -45454,6 +45480,7 @@ async function runAutomationCron(request, options = {}) {
       workerLaneLeaseSupabase = supabase;
     }
 
+    runtimePhase = "queue_rule_scan";
     const rules = await getRulesToProcess({
       supabase,
       nowIso,
@@ -45461,15 +45488,18 @@ async function runAutomationCron(request, options = {}) {
       batchSize: SMART_QUEUE_BATCH_SIZE,
       workerCount,
     });
+    runtimePhase = "adaptive_history";
     const adaptiveHistoryByOwner = await loadAdaptiveWeeklyHistory({
       supabase,
       rules,
       now,
     });
+    runtimePhase = "adaptive_brand_learning";
     const adaptiveLearningProfilesByOwner = await loadAdaptiveWeeklyLearningProfiles({
       supabase,
       rules,
     });
+    runtimePhase = "adaptive_performance";
     const adaptivePerformanceLearningByOwner = await loadAdaptiveWeeklyPerformanceLearning({
       supabase,
       rules,
@@ -45485,6 +45515,7 @@ async function runAutomationCron(request, options = {}) {
 
     let claimedRulesThisRun = 0;
 
+    runtimePhase = "process_customer_rules";
     for (const queuedRule of rules || []) {
       activeGenerationCostTracker = null;
       if (claimedRulesThisRun >= SMART_QUEUE_BATCH_SIZE) {
@@ -47817,6 +47848,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
               updated_at: new Date().toISOString(),
             }).eq("id", post.id);
 
+            await verifyPreparedKlingAuditReferences({ supabase, postId: post.id });
             // IMPORTANT: exactly one provider submission. submitKlingImageToVideo
             // intentionally has no retry loop. If this call fails, the post is
             // terminally failed and never auto-submitted again.
@@ -49224,8 +49256,11 @@ product_research_model_used: websitePreparedRule.uses_website_content
       summary,
     });
   } catch (error) {
+    const supabaseGatewayUnreachable = isSupabaseProjectRoutingUnavailable(error);
     console.error("Shared automation queue crashed outside the per-job safety boundary", {
       workerName: runtimeWorkerName,
+      workerPhase: runtimePhase,
+      suspectedDependency: supabaseGatewayUnreachable ? "supabase_project_routing" : "unconfirmed",
       message: error?.message || String(error),
     });
     try {
@@ -49241,8 +49276,15 @@ product_research_model_used: websitePreparedRule.uses_website_content
         workerName: runtimeWorkerName,
         metadata: {
           request_url: request?.url || null,
+          worker_phase: runtimePhase,
+          suspected_dependency: supabaseGatewayUnreachable ? "supabase_project_routing" : "unconfirmed",
+          next_scheduled_run_will_retry: supabaseGatewayUnreachable,
         },
-        dedupeKey: `worker_cron_unhandled:${runtimeWorkerName}:${error?.code || error?.name || "error"}`,
+        dedupeKey: buildAutomationWorkerFailureDedupeKey({
+          workerName: runtimeWorkerName,
+          phase: runtimePhase,
+          error,
+        }),
         title: `Unhandled automation worker failure · ${runtimeWorkerName}`,
       });
     } catch (alertError) {
@@ -49254,9 +49296,12 @@ product_research_model_used: websitePreparedRule.uses_website_content
     return Response.json(
       {
         ok: false,
-        error: error.message || "Unknown cron error",
+        error: error?.message || "Unknown cron error",
+        worker_phase: runtimePhase,
+        dependency_unavailable: supabaseGatewayUnreachable ? "supabase_project_routing" : null,
       },
-      { status: 500 }
+      { status: supabaseGatewayUnreachable ? 503 : 500,
+        headers: supabaseGatewayUnreachable ? { "Retry-After": "60" } : {} }
     );
   } finally {
     if (workerLaneLease?.token && workerLaneLeaseSupabase) {

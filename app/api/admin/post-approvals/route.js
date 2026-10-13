@@ -964,7 +964,7 @@ async function releasePostToCustomer({ context, body }) {
 
   const { data: post, error: postError } = await context.admin
     .from("posts")
-    .select("id, user_id, brand_profile_id, automation_rule_id, status, content, platform, post_type, content_format, image_url, video_url, approval_token, scheduled_for, admin_review_status, language")
+    .select("id, user_id, brand_profile_id, automation_rule_id, status, content, platform, post_type, content_format, image_url, video_url, video_status, video_provider, approval_token, scheduled_for, admin_review_status, language")
     .eq("id", postId)
     .single();
   if (postError || !post) {
@@ -972,6 +972,9 @@ async function releasePostToCustomer({ context, body }) {
   }
   if (post.status === "failed") {
     return Response.json({ ok: false, error: "A failed post must be repaired before it can be released." }, { status: 400 });
+  }
+  if (post.video_provider === "kling" && (post.video_status !== "ready" || !post.video_url)) {
+    return Response.json({ ok: false, error: "The source Kling clip is visible only for admin inspection. Quality checking and finishing must complete before customer release." }, { status: 409 });
   }
 
   const [{ data: brand }, { data: rule }] = await Promise.all([
