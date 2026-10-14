@@ -11,7 +11,7 @@ const bg=await sharp({create:{width:520,height:984,channels:4,background:'#aabbc
 const message=Buffer.from('<svg width="800" height="180" xmlns="http://www.w3.org/2000/svg"><text x="30" y="120" font-family="sans-serif" font-size="100" fill="white">New favorite</text></svg>');
 // Deliberately asymmetric padding on the CTA asset. The visible letters, not
 // the padded canvas, must be centered by the compositor.
-const cta=await sharp({create:{width:700,height:180,channels:4,background:'#00000000'}}).composite([{input:Buffer.from('<svg width="700" height="180" xmlns="http://www.w3.org/2000/svg"><rect x="390" y="80" width="280" height="65" fill="#ee00dd"/></svg>')}]).png().toBuffer();
+const cta=await sharp({create:{width:700,height:180,channels:4,background:'#00000000'}}).composite([{input:Buffer.from('<svg width="700" height="180" xmlns="http://www.w3.org/2000/svg"><rect x="390" y="80" width="280" height="65" fill="#171724"/></svg>')}]).png().toBuffer();
 const atlas=await sharp({create:{width:1536,height:1024,channels:4,background:'#00000000'}}).composite([{input:bg,left:24,top:20},{input:message,left:660,top:140},{input:cta,left:600,top:700}]).png().toBuffer();
 const split=await splitKlingAdvertisingAtlas(atlas);
 assert.deepEqual(split.backgroundBounds,{left:24,top:20,width:520,height:984});
@@ -20,9 +20,9 @@ const logo=await sharp({create:{width:200,height:80,channels:4,background:'#ff00
 const card=await composeKlingAdvertisingEndCard({background:split.endCard,closingText:split.closingText,closingLine:'Discover the collection',brand:{business_name:'Pressit'},logoBuffer:logo});
 const {data,info}=await sharp(card).ensureAlpha().raw().toBuffer({resolveWithObject:true});
 let minX=info.width,maxX=-1,minY=info.height,maxY=-1;
-for(let y=850;y<1500;y++)for(let x=0;x<info.width;x++){const i=(y*info.width+x)*4;if(data[i]>210&&data[i+1]<30&&data[i+2]>180){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}}
-assert(Math.abs((minX+maxX)/2-540)<=1);assert(Math.abs((minY+maxY)/2-1175)<=1);
-const center=await sharp(card).extract({left:540,top:675,width:1,height:1}).raw().toBuffer();assert.equal(center[0],255);assert.equal(center[1],0);
+for(let y=650;y<1300;y++)for(let x=0;x<info.width;x++){const i=(y*info.width+x)*4;if(data[i]<40&&data[i+1]<40&&data[i+2]<60){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}}
+assert(Math.abs((minX+maxX)/2-540)<=1);assert(Math.abs((minY+maxY)/2-960)<=1);
+const center=await sharp(card).extract({left:540,top:675,width:1,height:1}).raw().toBuffer();assert.notEqual(center[0],255);assert.notEqual(center[1],0);
 const noisy=await sharp(split.endCard).composite([{input:Buffer.from('<svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg"><path d="M100 675 H980" stroke="black" stroke-width="6"/></svg>')}]).png().toBuffer();
 const quiet=await composeKlingAdvertisingEndCard({background:noisy,closingText:split.closingText,logoBuffer:logo});
 const muted=await sharp(quiet).extract({left:200,top:675,width:1,height:1}).raw().toBuffer();assert(muted[0]>60,'The original sharp black stroke beside the logo must be softened locally');
@@ -44,5 +44,5 @@ for(const box of [{left:128,top:1280,width:824,height:281},{left:80,top:420,widt
 }
 const animationPrompt=source.slice(source.indexOf('function buildAnimatedTextPanelPrompt'),source.indexOf('function splitAnimatedOverlayTitle'));
 assert(animationPrompt.includes('The real product is the visual focus'));assert(animationPrompt.includes('generous line spacing'));assert(animationPrompt.includes('avoid heavy italic styling'));assert(animationPrompt.includes('never use heavy extrusion'));
-await sharp(card).resize(540,960).toFile('/workspace/scratch/5f3579686467/end-card315-test.png');
+
 console.log('v144.315: shifted atlas bounds, edge-to-edge background, alpha-isolated text, visible CTA centering, real logo/no-logo sender, airy centered animation typography and art-direction contracts passed.');

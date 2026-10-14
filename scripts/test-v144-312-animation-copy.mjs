@@ -14,7 +14,7 @@ assert.equal(normalizeAdvertisingText('VISA DIN\nESLÖVSSTOLTHET!'),normalizeAdv
 assert.notEqual(normalizeAdvertisingText('Eslov'),normalizeAdvertisingText('Eslöv'));
 const image=await sharp(Buffer.from('<svg width="900" height="220"><text x="20" y="100" font-size="60" fill="black">Visa din Eslövsstolthet</text></svg>')).png().toBuffer();
 const requests=[];
-let verdict={headline:'Visa din Eslövsstolthet',printed_text:slogan,independent_message:true,supported:true};
+let verdict={headline:'Visa din Eslövsstolthet',printed_text:slogan,independent_message:true,supported:true,closing_line:'Upptäck din nya favorit',closing_supported:true,design_direction:'Airy clean type'};
 const openai={responses:{create:async request=>{requests.push(request);return {output_text:JSON.stringify(verdict)};}}};
 const args={openai,model:'gpt-4.1-mini',rule:{language:'Swedish',website_item:{title:slogan}},postContent:'Visa din lokala stolthet.',productReferenceBuffer:image};
 const copy=await planAnimatedAdvertisingCopy(args);assert.equal(copy.headline,'Visa din Eslövsstolthet');
@@ -32,7 +32,7 @@ verdict={visible_text:copy.headline,legible:false};await assert.rejects(verifyAn
 const source=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const start=source.indexOf('function buildAnimatedTextPanelPrompt(');
 const end=source.indexOf('function splitAnimatedOverlayTitle(',start);
-const ctx=vm.createContext({JSON,getCarouselProductLabelPresentation:p=>({title:p.title}),truncateText:t=>t,sanitizeProductTitleForCard:t=>t,rgbToHex:()=> '#556677',stripDetectedPrices:t=>t,getAnimatedOverlayThemeContext:()=>'',ANIMATED_TEXT_PANEL_SOURCE_WIDTH:1408,ANIMATED_TEXT_PANEL_SOURCE_HEIGHT:480,ANIMATED_TEXT_PANEL_WIDTH:824,ANIMATED_TEXT_PANEL_HEIGHT:281});
+const ctx=vm.createContext({JSON,VIDEO_ART_DIRECTION:"Scene-specific direction",getCarouselProductLabelPresentation:p=>({title:p.title}),truncateText:t=>t,sanitizeProductTitleForCard:t=>t,rgbToHex:()=> '#556677',stripDetectedPrices:t=>t,getAnimatedOverlayThemeContext:()=>'',ANIMATED_TEXT_PANEL_SOURCE_WIDTH:1408,ANIMATED_TEXT_PANEL_SOURCE_HEIGHT:480,ANIMATED_TEXT_PANEL_WIDTH:824,ANIMATED_TEXT_PANEL_HEIGHT:281});
 vm.runInContext(source.slice(start,end),ctx);
 const prompt=ctx.buildAnimatedTextPanelPrompt({rule:args.rule,postContent:args.postContent,hasProductReference:true,advertisingCopy:copy});
 assert(prompt.includes(JSON.stringify(copy.headline)));assert(!prompt.includes('The main product name is the visual focus'));assert(!prompt.includes('Write one concise advertising headline'));

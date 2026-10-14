@@ -260,7 +260,8 @@
     "test:v144.337": "node scripts/test-v144-337-video-intelligence.mjs",
     "test:v144.338": "node scripts/test-v144-338-kling-reference-preview.mjs",
     "test:v144.339": "npm run test:v144.338 && node scripts/test-v144-339-automation-worker-dependency.mjs",
-    "test:v144.341": "node scripts/test-v144-341-bounded-kling-motion.mjs"
+    "test:v144.341": "node scripts/test-v144-341-bounded-kling-motion.mjs",
+    "test:v144.342": "node scripts/test-v144-342-video-design.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

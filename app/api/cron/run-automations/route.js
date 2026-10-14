@@ -1,3 +1,6 @@
+import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
+import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeVideoEndCardLayers } from "../../../../lib/klingEndCard.js";
+import { prepareSafeProductCutout } from "../../../../lib/productCutout.js";
 import { verifyPreparedKlingAuditReferences } from "../../../../lib/klingAuditReferences.js";
 import { analyzeKlingProductIntelligence, planKlingVerifiedMotion, passiveKlingMotionPlan } from "../../../../lib/klingVideoIntelligence.js";
 import { removeDefaultWebsitePostInstructions } from "../../../../lib/websitePostIntent.js";
@@ -248,7 +251,7 @@ const KLING_NATURAL_SCENE_TRIM_SECONDS = Math.max(
 );
 const KLING_TEXT_OVERLAY_START_SECONDS = Math.max(
   0.6,
-  Math.min(4, Number(process.env.KLING_TEXT_OVERLAY_START_SECONDS || 2.0) || 2.0)
+  Math.min(4, Number(process.env.KLING_TEXT_OVERLAY_START_SECONDS || 1.5) || 1.5)
 );
 const ANIMATED_TEXT_PANEL_SOURCE_WIDTH = 1408;
 const ANIMATED_TEXT_PANEL_SOURCE_HEIGHT = 480;
@@ -37386,154 +37389,7 @@ function getAlphaEdgeRatio(alphaChannel, width, height, threshold = 48) {
 }
 
 async function prepareAnimatedProductCutout(sourceImageBuffer) {
-  const normalized = await sharp(sourceImageBuffer)
-    .rotate()
-    .resize({
-      width: 1400,
-      height: 1400,
-      fit: "inside",
-      withoutEnlargement: true,
-    })
-    .ensureAlpha()
-    .png()
-    .toBuffer();
-  const { data, info } = await sharp(normalized)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const pixelCount = info.width * info.height;
-  const originalAlphaChannel = Buffer.alloc(pixelCount);
-  let transparentPixelCount = 0;
-
-  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-    const alpha = data[pixel * 4 + 3];
-    originalAlphaChannel[pixel] = alpha;
-    if (alpha < 245) transparentPixelCount += 1;
-  }
-
-  const existingTransparencyRatio = pixelCount
-    ? transparentPixelCount / pixelCount
-    : 0;
-
-  if (existingTransparencyRatio >= 0.005) {
-    const existingBounds = findAlphaBounds(
-      originalAlphaChannel,
-      info.width,
-      info.height,
-      18
-    );
-    if (!existingBounds) {
-      throw new Error("Product image transparency contained no visible product");
-    }
-    const boundsAreaRatio =
-      (existingBounds.width * existingBounds.height) / Math.max(1, pixelCount);
-    const edgeVisibleRatio = getAlphaEdgeRatio(
-      originalAlphaChannel,
-      info.width,
-      info.height,
-      48
-    );
-    if (boundsAreaRatio > 0.97 && edgeVisibleRatio > 0.22) {
-      throw new Error("Product image still contained a full rectangular background");
-    }
-    return {
-      cutoutBuffer: await sharp(normalized).extract(existingBounds).png().toBuffer(),
-      score: 210 - boundsAreaRatio * 30 - edgeVisibleRatio * 40,
-      analysis: {
-        mode: "existing_transparency",
-        existingTransparencyRatio,
-        boundsAreaRatio,
-        edgeVisibleRatio,
-      },
-    };
-  }
-
-  const cornerStats = getCornerBackgroundStats(data, info.width, info.height);
-  if (cornerStats.maximumDistance > 62) {
-    throw new Error(
-      `Product image background was too complex to remove safely (corner distance ${Math.round(cornerStats.maximumDistance)})`
-    );
-  }
-
-  const background = cornerStats.background;
-  const rgba = Buffer.alloc(pixelCount * 4);
-  const alphaChannel = Buffer.alloc(pixelCount);
-  const fadeStart = 14;
-  const fadeEnd = 62;
-
-  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-    const index = pixel * 4;
-    const r = data[index];
-    const g = data[index + 1];
-    const b = data[index + 2];
-    const originalAlpha = data[index + 3];
-    const distance = Math.sqrt(
-      (r - background.r) ** 2 + (g - background.g) ** 2 + (b - background.b) ** 2
-    );
-    let alpha = originalAlpha;
-    if (distance <= fadeStart) {
-      alpha = 0;
-    } else if (distance < fadeEnd) {
-      alpha = Math.min(
-        originalAlpha,
-        Math.max(0, Math.round(((distance - fadeStart) / (fadeEnd - fadeStart)) * 255))
-      );
-    }
-    rgba[index] = r;
-    rgba[index + 1] = g;
-    rgba[index + 2] = b;
-    rgba[index + 3] = alpha;
-    alphaChannel[pixel] = alpha;
-  }
-
-  const bounds = findAlphaBounds(alphaChannel, info.width, info.height, 28);
-  if (!bounds) {
-    throw new Error("Product image background removal left no visible product");
-  }
-
-  let stronglyVisiblePixels = 0;
-  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-    if (alphaChannel[pixel] >= 180) stronglyVisiblePixels += 1;
-  }
-  const stronglyVisibleRatio = pixelCount
-    ? stronglyVisiblePixels / pixelCount
-    : 0;
-  const boundsAreaRatio = (bounds.width * bounds.height) / Math.max(1, pixelCount);
-  const edgeVisibleRatio = getAlphaEdgeRatio(alphaChannel, info.width, info.height, 48);
-
-  if (stronglyVisibleRatio < 0.08) {
-    throw new Error("Product image background removal removed too much of the product");
-  }
-  if (boundsAreaRatio > 0.93 || edgeVisibleRatio > 0.08) {
-    throw new Error("Product image still contained a visible rectangular or lifestyle background");
-  }
-
-  const cutoutBuffer = await sharp(rgba, {
-    raw: {
-      width: info.width,
-      height: info.height,
-      channels: 4,
-    },
-  })
-    .extract(bounds)
-    .png()
-    .toBuffer();
-
-  return {
-    cutoutBuffer,
-    score:
-      150 -
-      cornerStats.maximumDistance * 0.7 -
-      boundsAreaRatio * 25 -
-      edgeVisibleRatio * 80,
-    analysis: {
-      mode: "uniform_background_cutout",
-      backgroundColor: rgbToHex(background),
-      maximumCornerDistance: cornerStats.maximumDistance,
-      stronglyVisibleRatio,
-      boundsAreaRatio,
-      edgeVisibleRatio,
-    },
-  };
+  return prepareSafeProductCutout(sourceImageBuffer);
 }
 
 async function extractAnimatedProductCutout(sourceImageBuffer) {
@@ -37713,7 +37569,7 @@ async function reviewAnimatedProductTransparentIdentity({
                 type: "input_text",
                 text:
                   `Compare two images of the exact ecommerce product named \"${productTitle}\". ` +
-                  "Image 1 is the authoritative verified retailer image. Image 2 is an AI edit whose ONLY allowed change is isolating the marketed product onto real alpha transparency. Ignore the removed background, people, props, promotional graphics and text that were not physically part of the product. Reject Image 2 if the marketed product itself changed in product type, silhouette, number of included items, visible color/variant, logo, printed text/design, distinctive hardware, proportions or other identity-defining detail. Minor resizing and centering are allowed. If uncertain, reject. Return only the requested JSON.",
+                  "Image 1 is the authoritative verified retailer image. Image 2 is an AI edit whose ONLY allowed change is isolating the marketed product onto real alpha transparency. Ignore the removed background, people, props, promotional graphics and text that were not physically part of the product. Reject Image 2 if the marketed product itself changed in product type, silhouette, number of included items, visible color/variant, logo, printed text/design, distinctive hardware, proportions or other identity-defining detail. Minor resizing and centering are allowed. Explicitly check alpha damage: white or silver keys, casing, highlights and other solid surfaces must remain opaque, with no new transparent holes or washed-out patches. Preserve genuine source holes, fine edges and translucent materials. Set solid_surface_opacity_preserved=false if a solid surface has become transparent. If uncertain, reject. Return only the requested JSON.",
               },
               { type: "input_text", text: "IMAGE 1 — authoritative verified source" },
               { type: "input_image", image_url: sourceDataUrl, detail: "high" },
@@ -37737,6 +37593,7 @@ async function reviewAnimatedProductTransparentIdentity({
                 visible_variant_match: { type: "boolean" },
                 logo_or_text_conflict: { type: "boolean" },
                 major_visual_change: { type: "boolean" },
+                solid_surface_opacity_preserved: { type: "boolean" },
                 confidence: { type: "number", minimum: 0, maximum: 1 },
                 reason: { type: "string" },
               },
@@ -37746,6 +37603,7 @@ async function reviewAnimatedProductTransparentIdentity({
                 "visible_variant_match",
                 "logo_or_text_conflict",
                 "major_visual_change",
+                "solid_surface_opacity_preserved",
                 "confidence",
                 "reason",
               ],
@@ -37762,6 +37620,7 @@ async function reviewAnimatedProductTransparentIdentity({
         parsed?.visible_variant_match === true &&
         parsed?.logo_or_text_conflict !== true &&
         parsed?.major_visual_change !== true &&
+        parsed?.solid_surface_opacity_preserved === true &&
         Number(parsed?.confidence || 0) >= 0.88
     );
     return {
@@ -37862,6 +37721,7 @@ Product identity rules:
 - Preserve the marketed product exactly as visibly shown in the source image.
 - Preserve its exact visible silhouette, proportions, number of included pieces/items, color/variant, logos, printed words, graphics, stitching, hardware and identity-defining details.
 - Do not redesign, redraw, restyle, recolor, retouch, beautify or reinterpret the product.
+- Solid product surfaces must stay opaque. White/silver surfaces, keys, screens and highlights are NOT background. Preserve real holes, fine edges and genuine translucent materials as shown.
 - Do not invent hidden sides, undersides, backs or product details that are not visible in the source.
 - If multiple objects are shown, keep only the object or set of objects that together most likely constitute the exact sold product named above (for example a true pair, kit or bundle when the listing itself is for that set). Do not keep nearby props merely because they are visually associated with it.
 
@@ -38347,6 +38207,7 @@ Mobile readability:
 - Avoid tiny text, thin hairlines, pixel fonts, fake glyphs or overdecorated lettering. Keep secondary text large enough to read on a phone.
 - This asset will occupy ${Math.round(((animationLayout?.text?.width || ANIMATED_TEXT_PANEL_WIDTH) - 24) * 0.86)} x ${Math.round(((animationLayout?.text?.height || ANIMATED_TEXT_PANEL_HEIGHT) - 24) * 0.78)} pixels at most in the final 1080 x 1920 video, ${animationLayout?.kind === "wide" ? "ABOVE a wide product" : "BELOW the product"}. Design for this final readable size, not the larger source canvas.
 
+${VIDEO_ART_DIRECTION}
 Art direction:
 - Match the moving-video palette and campaign/theme with independent advertising typography. Never imitate the product print's font or stacked slogan layout. Choose an original treatment suited to this post.
 - Choose a refined serif or clean modern sans by default, suited to this specific business and scene. Vary the typography naturally between posts. Expressive or condensed lettering is appropriate only when the product and campaign clearly justify it; avoid heavy italic styling and oversized extra-bold lettering by default. Prefer medium or semibold weight, not a dense black text block.
@@ -39476,145 +39337,53 @@ Return only the transparent typography asset.
   };
 }
 
-async function createAnimatedTextOverlay({
-  openai,
-  rule,
-  postContent,
-  backgroundAsset,
-  dominantColor,
-  productReferenceBuffer,
-  animationLayout = null,
-}) {
-  const backgroundReferenceBuffer =
-    await getAnimatedOverlayBackgroundReference(backgroundAsset);
-  const backgroundLuminance = await getAnimatedOverlayBackgroundLuminance(
-    backgroundReferenceBuffer,
-    backgroundAsset,
-    animationLayout
-  );
-  const backgroundBrightness =
-    getAnimatedOverlayBrightnessLabel(backgroundLuminance);
-  let advertisingCopy;
+async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsset,dominantColor,productReferenceBuffer,animationLayout=null,hasLogo=false}) {
+  const backgroundReferenceBuffer=await getAnimatedOverlayBackgroundReference(backgroundAsset);
   try {
-    advertisingCopy = await planAnimatedAdvertisingCopy({
-      openai, model: PRODUCT_RESEARCH_FAST_MODEL, rule, postContent, productReferenceBuffer,
-    });
-  } catch (error) {
-    const failure = new Error(`Animation advertising copy could not be verified: ${error?.message || "Unknown error"}`);
-    failure.code = "ANIMATED_AI_TYPOGRAPHY_FAILED";
-    failure.cause = error;
-    throw failure;
-  }
-  const prompt = buildAnimatedTextPanelPrompt({
-    rule,
-    postContent,
-    backgroundAsset,
-    backgroundBrightness,
-    dominantColor,
-    hasBackgroundReference: Boolean(backgroundReferenceBuffer),
-    hasProductReference: Boolean(productReferenceBuffer),
-    animationLayout,
-    advertisingCopy,
-  });
-
-  let contrastReferences = backgroundReferenceBuffer ? [backgroundReferenceBuffer] : [];
-  let closingBackgroundBuffer = backgroundReferenceBuffer;
-  try {
-    const frames = await sampleRemoteVideoFrames({videoUrl: backgroundAsset?.public_url,
-      durationSeconds: ANIMATED_VIDEO_MOTION_SECONDS, fractions:[0.1,0.5,0.99]});
-    contrastReferences.push(...frames.map(frame=>frame.buffer));
-    closingBackgroundBuffer = frames.at(-1)?.buffer || closingBackgroundBuffer;
-  } catch (sampleError) {
-    console.warn("Animated background frame sampling unavailable; checking poster", {ruleId:rule?.id || null,message:sampleError?.message});
-  }
-  const referenceFiles = [];
-  try {
-
-    if (backgroundReferenceBuffer) {
-      const compactBackgroundReference = await sharp(backgroundReferenceBuffer)
-        .resize({ width: 576, height: 1024, fit: "cover" })
-        .png({ compressionLevel: 9 })
-        .toBuffer();
-      referenceFiles.push(
-        await toFile(compactBackgroundReference, "reel-background-reference.png", {
-          type: "image/png",
-        })
-      );
-    }
-
-    if (productReferenceBuffer) {
-      const compactProductReference = await sharp(productReferenceBuffer)
-        .rotate()
-        .resize({
-          width: 768,
-          height: 768,
-          fit: "contain",
-          withoutEnlargement: true,
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        })
-        .png({ compressionLevel: 9 })
-        .toBuffer();
-      referenceFiles.push(
-        await toFile(compactProductReference, "product-reference.png", {
-          type: "image/png",
-        })
-      );
-    }
-
-    if (referenceFiles.length === 0) {
-      throw new Error("No visual reference was available for transparent Reel typography");
-    }
-
+    const advertisingCopy=await planAnimatedAdvertisingCopy({openai,model:PRODUCT_RESEARCH_FAST_MODEL,rule,postContent,productReferenceBuffer,backgroundReferenceBuffer,animationLayout});
+    const prompt=buildKlingAdvertisingAtlasPrompt({headline:advertisingCopy.headline,subheadline:"",closingLine:advertisingCopy.closingLine,
+      designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},hasLogo});
+    let backgrounds=backgroundReferenceBuffer ? [backgroundReferenceBuffer] : [];
+    try {
+      const frames=await sampleRemoteVideoFrames({videoUrl:backgroundAsset?.public_url,durationSeconds:ANIMATED_VIDEO_MOTION_SECONDS,fractions:[.1,.5,.99]});
+      backgrounds.push(...frames.map(frame=>frame.buffer));
+    } catch(error) {console.warn("Animated frame sampling unavailable; using poster",{ruleId:rule?.id,message:error?.message});}
+    if(!backgrounds.length) throw new Error("No background reference available for animation typography");
+    // Show the image model the actual final composition, rather than asking it
+    // to infer the product placement from two unrelated reference canvases.
+    const product=await sharp(productReferenceBuffer).resize({width:animationLayout.product.width,height:animationLayout.product.height,fit:"inside"}).png().toBuffer();
+    const composites=await Promise.all(backgrounds.map(async buffer=>sharp(buffer).resize(1080,1920,{fit:"cover"})
+      .composite([{input:product,left:animationLayout.product.left,top:animationLayout.product.top}]).png().toBuffer()));
+    const files=await Promise.all(composites.slice(-3).map(async (buffer,i)=>toFile(await sharp(buffer).resize(576,1024).png().toBuffer(),`animation-composition-${i}.png`,{type:"image/png"})));
     let lastError;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      const attemptPrompt = attempt === 1 ? prompt : `${prompt}
-
-CORRECTION: The previous text image was rejected: ${String(lastError?.message || "invalid typography").slice(0, 200)}. Output ONLY the requested advertising lettering on a genuinely transparent canvas. The references are context only: do not copy their backgrounds, product, logo or scenery. No card, rectangle, panel or opaque backdrop. Keep lettering comfortably inside the canvas, with generous transparent margins.`;
+    for(let attempt=1;attempt<=2;attempt++) {
+      const attemptPrompt=attempt===1 ? prompt : `${prompt}\nCORRECTION: ${String(lastError?.message||"").slice(0,220)}. Preserve the exact headline and CTA, truly transparent lettering areas and the specified independent atlas assets.`;
       try {
-        const response = await openai.images.edit({
-          model: animatedOverlayImageModel(),
-          image: referenceFiles,
-          prompt: attemptPrompt,
-          size: `${ANIMATED_TEXT_PANEL_SOURCE_WIDTH}x${ANIMATED_TEXT_PANEL_SOURCE_HEIGHT}`,
-          quality: "medium",
-          background: "transparent",
-          output_format: "png",
-        }, {maxRetries:0});
-        const imageBase64 = response?.data?.[0]?.b64_json;
-        if (!imageBase64) throw new Error("OpenAI returned no transparent Reel typography image data");
-        const normalizedPanel = await normalizeGeneratedAnimatedTextPanel(
-          Buffer.from(imageBase64, "base64"), animationLayout
-        );
-        const contrast = await ensureTypographyContrast({overlayBuffer:normalizedPanel.textOverlayBuffer,
-          backgroundBuffers:contrastReferences, textBox:animationLayout?.text});
-        const copyValidation = await verifyAnimatedAdvertisingTypography({
-          openai, model: PRODUCT_RESEARCH_FAST_MODEL, buffer: contrast.buffer,
-          headline: advertisingCopy.headline,
-        });
-        console.info("OpenAI context-aware transparent Reel typography created", {
-          ruleId: rule?.id || null, model: animatedOverlayImageModel(),
-          attempt, referenceCount: referenceFiles.length, ...normalizedPanel.analysis, ...contrast.analysis,
-        });
-        return { textOverlayBuffer: contrast.buffer, contrastAnalysis:contrast.analysis, closingBackgroundBuffer,
-          advertisingCopy, copyValidation, prompt: attemptPrompt, provider: `${ANIMATED_OVERLAY_IMAGE_MODEL}-transparent-typography` };
-      } catch (error) {
-        lastError = error;
-        const status = Number(error?.status || error?.statusCode || 0);
-        const billingOrAuth = [400, 401, 403, 429].includes(status) ||
-          /insufficient_quota|credit_balance_exhausted|no credits remaining|invalid api key/i.test(`${error?.code || ""} ${error?.message || ""}`);
-        console.warn("Animated AI typography attempt rejected", {
-          ruleId: rule?.id || null, model: animatedOverlayImageModel(),
-          attempt, maxAttempts: 2, retrying: attempt < 2 && !billingOrAuth,
-          message: error?.message,
-        });
-        if (billingOrAuth || attempt === 2) throw error;
+        const response=await openai.images.edit({model:animatedOverlayImageModel(),image:files,prompt:attemptPrompt,size:"1536x1024",quality:"medium",background:"transparent",output_format:"png"},{maxRetries:0});
+        const base64=response?.data?.[0]?.b64_json;
+        if(!base64) throw new Error("No animation advertising atlas was returned");
+        const split=await splitKlingAdvertisingAtlas(Buffer.from(base64,"base64"));
+        if(!split.closingText) throw new Error("Animation closing CTA is missing; no substitute text is allowed");
+        const panel=await normalizeGeneratedAnimatedTextPanel(split.headline,animationLayout);
+        const contrast=await ensureTypographyContrast({overlayBuffer:panel.textOverlayBuffer,backgroundBuffers:composites,textBox:animationLayout.text});
+        const closing=await inspectTypographyShape(split.closingText);
+        const copyValidation=await verifyAnimatedAdvertisingTypography({openai,model:PRODUCT_RESEARCH_FAST_MODEL,buffer:contrast.buffer,
+          headline:advertisingCopy.headline,closingBuffer:closing.buffer,closingLine:advertisingCopy.closingLine});
+        const endCard=await composeVideoEndCardLayers({background:split.endCard,closingText:closing.buffer,closingLine:advertisingCopy.closingLine,
+          brand:rule?.brand_profile||{},hasLogo,language:rule?.language});
+        return {textOverlayBuffer:contrast.buffer,contrastAnalysis:contrast.analysis,
+          closingBackgroundBuffer:endCard.backgroundBuffer,closingTextBuffer:endCard.foregroundBuffer,closingCardBuffer:endCard.cardBuffer,
+          advertisingCopy,copyValidation,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-shared-advertising-atlas-v342`};
+      } catch(error) {
+        lastError=error;
+        const status=Number(error?.status||error?.statusCode||0);
+        const terminal=[400,401,403,429].includes(status)||/insufficient_quota|credit_balance_exhausted|invalid api key/i.test(`${error?.code||""} ${error?.message||""}`);
+        console.warn("Animation advertising atlas rejected",{ruleId:rule?.id,attempt,retrying:attempt<2&&!terminal,message:error?.message});
+        if(terminal||attempt===2) throw error;
       }
     }
-  } catch (error) {
-    const failure = new Error(`Animated AI typography could not be created and validated. No substitute text was used. Reason: ${error?.message || "Unknown provider error"}`);
-    failure.code = "ANIMATED_AI_TYPOGRAPHY_FAILED";
-    failure.cause = error;
-    throw failure;
+  } catch(error) {
+    throw Object.assign(new Error(`Animated AI typography could not be created and validated. No substitute text was used. Reason: ${error?.message||"Unknown error"}`),{code:"ANIMATED_AI_TYPOGRAPHY_FAILED",cause:error});
   }
 }
 
@@ -39717,11 +39486,11 @@ async function createAnimatedProductLayer({ sourceImageBuffer, preparedCutoutBuf
   };
 }
 
-async function createAnimatedLogoOverlay({ brandProfile, includeLogo, animationLayout = null }) {
-  if (!includeLogo || !brandProfile?.logo_url) return null;
+async function createAnimatedLogoOverlay({ supabase = null, brandProfile, includeLogo, animationLayout = null }) {
+  if (!includeLogo || (!brandProfile?.logo_url && !brandProfile?.logo_storage_path)) return null;
 
   try {
-    const logoBuffer = await fetchImageBufferForOverlay(brandProfile.logo_url);
+    const logoBuffer = await fetchBrandLogoBufferForOverlay(supabase, brandProfile);
     const logoPng = await sharp(logoBuffer)
       .rotate()
       .trim({ threshold: 10 })
@@ -39826,8 +39595,9 @@ async function createAnimatedProductVideoAssets({
     rule,
     dominantColor,
   });
-  const includeLogo = shouldUseLogoForRule(rule, brandProfile);
-  const [textOverlay, productLayer, logoOverlayBuffer] = await Promise.all([
+  const includeLogo = Boolean(brandProfile.logo_url || brandProfile.logo_storage_path);
+  const logoOverlayBuffer = await createAnimatedLogoOverlay({supabase,brandProfile,includeLogo,animationLayout});
+  const [textOverlay, productLayer] = await Promise.all([
     createAnimatedTextOverlay({
       openai,
       rule,
@@ -39836,13 +39606,13 @@ async function createAnimatedProductVideoAssets({
       dominantColor,
       productReferenceBuffer: preparedLayout.cutoutBuffer,
       animationLayout,
+      hasLogo: Boolean(logoOverlayBuffer),
     }),
     createAnimatedProductLayer({
       sourceImageBuffer,
       preparedCutoutBuffer: preparedLayout.cutoutBuffer,
       animationLayout,
     }),
-    createAnimatedLogoOverlay({ brandProfile, includeLogo, animationLayout }),
   ]);
   const { textOverlayBuffer, prompt, provider: textOverlayProvider } = textOverlay;
   const posterBuffer = await createAnimatedPoster({
@@ -39895,12 +39665,16 @@ async function createAnimatedProductVideoAssets({
     );
   }
 
-  if (!textOverlay.closingBackgroundBuffer) throw new Error("Animated Reel requires a closing background frame");
+  if (!textOverlay.closingBackgroundBuffer || !textOverlay.closingTextBuffer) throw new Error("Animated Reel requires a complete advertising end card");
   const closingBackgroundUpload = await uploadGeneratedImageToStorage({
     supabase, imageBase64: (await sharp(textOverlay.closingBackgroundBuffer).resize(1080, 1920, {fit:"cover"}).png().toBuffer()).toString("base64"),
     userId, postId, fileSuffix: "animation-closing-background",
   });
   if (!closingBackgroundUpload.imageUrl) throw new Error("Could not save animated Reel closing background");
+
+  const closingTextUpload = await uploadGeneratedImageToStorage({supabase,imageBase64:textOverlay.closingTextBuffer.toString("base64"),userId,postId,fileSuffix:"animation-closing-text"});
+  const closingCardUpload = await uploadGeneratedImageToStorage({supabase,imageBase64:textOverlay.closingCardBuffer.toString("base64"),userId,postId,fileSuffix:"animation-closing-card"});
+  if(!closingTextUpload.imageUrl || !closingCardUpload.imageUrl) throw new Error("Could not save animation closing typography");
 
   const [
     productLayerUpload,
@@ -39923,6 +39697,8 @@ async function createAnimatedProductVideoAssets({
   return {
     animationLayout,
     closingBackgroundUrl: closingBackgroundUpload.imageUrl,
+    endCardUrl: closingCardUpload.imageUrl,
+    endCardTextUrl: closingTextUpload.imageUrl,
     backgroundVideoUrl: selection.asset.public_url,
     productUrl: productMotionUpload.imageUrl,
     productDataUri: productLayer.productDataUri,
@@ -39944,6 +39720,12 @@ async function createAnimatedProductVideoAssets({
       animation_layout: animationLayout,
       typography_contrast: textOverlay.contrastAnalysis || null,
       advertising_headline: textOverlay.advertisingCopy?.headline || null,
+      advertising_closing_line: textOverlay.advertisingCopy?.closingLine || null,
+      advertising_design_direction: textOverlay.advertisingCopy?.designDirection || null,
+      video_design_version: VIDEO_DESIGN_VERSION,
+      end_card_url: closingCardUpload.imageUrl,
+      end_card_background_url: closingBackgroundUpload.imageUrl,
+      end_card_text_url: closingTextUpload.imageUrl,
       advertising_copy_validation: textOverlay.copyValidation || null,
       product_image_presentation: selectedProductImage.analysis || null,
     },
@@ -40053,6 +39835,9 @@ export async function generateAnimatedProductVideo({
     durationSeconds: ANIMATED_VIDEO_MOTION_SECONDS,
     closingHoldSeconds: ANIMATED_VIDEO_CLOSING_HOLD_SECONDS,
     closingBackgroundUrl: assets.closingBackgroundUrl,
+    endCardUrl: assets.endCardUrl,
+    endCardBackgroundUrl: assets.closingBackgroundUrl,
+    endCardTextUrl: assets.endCardTextUrl,
     musicUrl: musicSelection?.url || null,
     musicDurationSeconds: musicSelection?.durationSeconds || null,
     musicTrimStartSeconds: musicSelection?.trimStartSeconds ?? null,

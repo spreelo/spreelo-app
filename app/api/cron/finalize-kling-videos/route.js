@@ -1,9 +1,11 @@
+import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
+import { ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
 import { KLING_FINALIZER_POST_SELECT, klingAuditReferences, assertKlingAuditReferences, recoverableKlingReferenceFailure, restoreKlingLegacyViewLock } from "../../../../lib/klingAuditReferences.js";
 import { KLING_QUALITY_VERSION, klingQualitySampleTimes, inspectKlingVideoQuality, decideKlingVideoQuality } from "../../../../lib/klingVideoIntelligence.js";
 import { buildKlingPixelPreservingEdit } from "../../../../lib/klingQualityFallback.js";
-import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeKlingAdvertisingEndCard, buildFallbackKlingEndCard, KLING_END_CARD_SECONDS, KLING_END_CARD_TRANSITION_SECONDS } from "../../../../lib/klingEndCard.js";
+import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeKlingAdvertisingEndCard, composeVideoEndCardLayers, buildFallbackKlingEndCard, buildFallbackKlingEndCardLayers, KLING_END_CARD_SECONDS, KLING_END_CARD_TRANSITION_SECONDS } from "../../../../lib/klingEndCard.js";
 import { completeShotstackDeliveryForPost, fetchBrandLogoBufferForOverlay } from "../run-automations/route.js";
-import { normalizeKlingLayout, klingTypographyGeometry, getKlingTextFrameFractions } from "../../../../lib/klingLayout.js";
+import { normalizeKlingLayout, sceneSafeKlingLayout, klingTypographyGeometry, getKlingTextFrameFractions } from "../../../../lib/klingLayout.js";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI, { toFile } from "openai";
 import sharp from "sharp";
@@ -475,8 +477,9 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       "The cta field is a non-interactive closing advertising line, NOT a clickable video button. Use 2-6 words, max 40 characters, tailored to THIS product, audience and campaign goal. For sales, a natural invitation to explore the verified product or store can work; for engagement, a relevant short question can work. Never imply the video itself is clickable, or invent a link in the bio, caption, a tag, swipe-up or shopping feature. Avoid repeating a fixed phrase on every post. " +
       "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
       "Choose main_placement from top_left, top_right, middle_left, middle_right, lower_left, lower_right so the headline avoids the advertised product and especially its print/design, plus faces, hands and the main action ACROSS ALL supplied frames. " +
-      "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, often below the product print; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose main width 520-820, height 240-420; closing line width 520-760, height 140-240. Use bold mobile-readable hierarchy and purposeful line breaks. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
-      "The cta is displayed on a separate company-branded end card, not on a frozen product photograph. Keep it concise enough to read in 1.3 seconds. Include end-card background art direction suited to the business in design_direction. Choose cta_placement independently for legacy compatibility. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
+      "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, where the scene has real negative space, including above the product when appropriate; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose main width 520-820, height 120-420; closing line width 520-760, height 140-240. Use scene-appropriate medium or semibold hierarchy and purposeful line breaks. Do not default to extra-bold text or outlines. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
+      VIDEO_ART_DIRECTION + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
+      "The cta is displayed on a separate company-branded end card, not on a frozen product photograph. Keep it concise enough to read in 1.5 seconds. Include end-card background art direction suited to the business in design_direction. Choose cta_placement independently for legacy compatibility. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
   }];
   for (const frame of frames) {
     content.push({
@@ -507,13 +510,14 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
               cta_placement: { type: "string", enum: Object.keys(KLING_FINISHED_TYPOGRAPHY_PLACEMENTS) },
               main_text_tone: { type: "string", enum: ["light", "dark"] },
               cta_text_tone: { type: "string", enum: ["light", "dark"] },
+              protected_regions: {type:"array",minItems:1,maxItems:16,items:{type:"object",additionalProperties:false,properties:{left:{type:"number"},top:{type:"number"},width:{type:"number"},height:{type:"number"}},required:["left","top","width","height"]}},
               main_layout: klingLayoutSchema(),
               cta_layout: klingLayoutSchema(),
               placement_confidence: { type: "number", minimum: 0, maximum: 1 },
             },
             required: [
               "design_direction", "headline", "subheadline", "cta", "main_placement", "cta_placement",
-              "main_text_tone", "cta_text_tone", "placement_confidence", "main_layout", "cta_layout"
+              "main_text_tone", "cta_text_tone", "placement_confidence", "main_layout", "cta_layout", "protected_regions"
             ],
           },
         },
@@ -533,11 +537,14 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       main_text_tone: parsed?.main_text_tone === "dark" ? "dark" : "light",
       cta_text_tone: parsed?.cta_text_tone === "dark" ? "dark" : "light",
       placement_confidence: Math.max(0, Math.min(1, Number(parsed?.placement_confidence) || 0)),
-      main_layout: normalizeKlingLayout(parsed?.main_layout, getKlingPlacementBox(parsed?.main_placement), parsed?.placement_confidence),
+      main_layout: sceneSafeKlingLayout(normalizeKlingLayout(parsed?.main_layout, getKlingPlacementBox(parsed?.main_placement), parsed?.placement_confidence), parsed?.protected_regions || []),
+      protected_regions: parsed?.protected_regions || [],
+      video_design_version: VIDEO_DESIGN_VERSION,
       cta_layout: normalizeKlingLayout(parsed?.cta_layout, getKlingPlacementBox(parsed?.cta_placement, "lower_left"), parsed?.placement_confidence, true),
       source: "gpt-4.1-mini-finished-video-creative-plan",
     };
   } catch (error) {
+    if (/No sufficiently clear region/.test(error?.message || "")) throw error;
     console.warn("Kling finished-video creative planning unavailable; using safe fallback copy/placement", {
       postId: post?.id || null,
       message: truncate(error?.message || String(error), 500),
@@ -688,8 +695,8 @@ async function uploadKlingClosingHeroFrame({ supabase, post, buffer }) {
   return { imageUrl, storagePath };
 }
 
-async function uploadKlingEndCardFrame({ supabase, post, buffer }) {
-  const storagePath = `${post.user_id}/${post.id}-kling-end-card-v315.png`;
+async function uploadKlingEndCardFrame({ supabase, post, buffer, suffix = "kling-end-card" }) {
+  const storagePath = `${post.user_id}/${post.id}-${suffix}-v342.png`;
   const { error } = await supabase.storage.from(POST_IMAGES_BUCKET)
     .upload(storagePath, buffer, { contentType: "image/png", upsert: true });
   if (error) throw error;
@@ -1126,6 +1133,7 @@ async function createDeterministicKlingTypographyFallback({ supabase, post, sele
 async function createFinishedKlingTypographyOnce({ openai, supabase, post, task, selection, brand = {}, logoBuffer = null }) {
   if (selection?.text_overlay_url) return selection;
   const status = String(selection?.text_overlay_status || "").trim();
+  if(status === "blocked_layout") throw Object.assign(new Error(selection.text_overlay_error || "No sufficiently clear region for advertising typography"), {code:"KLING_TYPOGRAPHY_LAYOUT_UNSAFE"});
   if (status === "generating") {
     const startedAt = new Date(selection?.text_overlay_generation_started_at || 0).getTime();
     const stale = !Number.isFinite(startedAt) || startedAt <= 0 || Date.now() - startedAt >= KLING_FINALIZATION_LEASE_MS;
@@ -1243,14 +1251,21 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       creativePlan.main_placement,
       creativePlan.main_layout
     );
-    const uploaded = await uploadKlingTypographyOverlay({ supabase, post, buffer: normalized.buffer });
-    const endCard = await uploadKlingEndCardFrame({ supabase, post,
-      buffer: await composeKlingAdvertisingEndCard({ background: splitOverlay.endCard, closingText: splitOverlay.closingText, closingLine: creativePlan.cta || getFallbackKlingCta(post), brand, logoBuffer }) });
+    const contrast=await ensureTypographyContrast({overlayBuffer:normalized.buffer,backgroundBuffers:frames.map(frame=>frame.buffer),textBox:creativePlan.main_layout});
+    const uploaded = await uploadKlingTypographyOverlay({ supabase, post, buffer: contrast.buffer });
+    const layers=await composeVideoEndCardLayers({background:splitOverlay.endCard,closingText:splitOverlay.closingText,
+      closingLine:creativePlan.cta||getFallbackKlingCta(post),brand,logoBuffer,language:post.language});
+    const endCard=await uploadKlingEndCardFrame({supabase,post,buffer:layers.cardBuffer});
+    const endBackground=await uploadKlingEndCardFrame({supabase,post,buffer:layers.backgroundBuffer,suffix:"kling-end-background"});
+    const endText=await uploadKlingEndCardFrame({supabase,post,buffer:layers.foregroundBuffer,suffix:"kling-end-text"});
     let completedSelection = {
       ...workingSelection,
+      video_design_version: VIDEO_DESIGN_VERSION,
+      end_card_background_url: endBackground.imageUrl,
+      end_card_text_url: endText.imageUrl,
       end_card_url: endCard.imageUrl,
       end_card_storage_path: endCard.storagePath,
-      end_card_provider: "gpt-image-2.5-flare-separated-atlas-v315",
+      end_card_provider: "gpt-image-2.5-flare-separated-atlas-v342",
       end_card_seconds: KLING_END_CARD_SECONDS,
       end_card_brand_name: brand.business_name || null,
       end_card_has_logo: Boolean(logoBuffer),
@@ -1263,6 +1278,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       text_overlay_status: "ready",
       text_overlay_generated_at: new Date().toISOString(),
       text_overlay_analysis: {
+        contrast: contrast.analysis,
         visible_ratio: Number(normalized.visibleRatio.toFixed(4)),
         strong_ratio: Number(normalized.strongRatio.toFixed(4)),
         low_alpha_ratio: Number((normalized.lowAlphaRatio || 0).toFixed(4)),
@@ -1295,6 +1311,11 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     });
     return completedSelection;
   } catch (error) {
+    if (/No sufficiently clear region/.test(error?.message || "")) {
+      const blocked={...workingSelection,text_overlay_status:"blocked_layout",text_overlay_error:error.message};
+      await supabase.from("posts").update({video_background_selection:blocked,updated_at:new Date().toISOString()}).eq("id",post.id);
+      throw Object.assign(error,{code:"KLING_TYPOGRAPHY_LAYOUT_UNSAFE"});
+    }
     let rejectedOverlay = null;
     if (error?.typographyDebugBuffer) {
       try {
@@ -1397,15 +1418,18 @@ async function ensureKlingClosingHeroFrame({ supabase, post, task, selection, du
 }
 
 async function ensureKlingEndCard({ supabase, post, selection, brand, logoBuffer }) {
-  if (selection.end_card_url) return selection;
-  const buffer = await buildFallbackKlingEndCard({ brand, logoBuffer,
-    closingLine: selection.ad_creative_plan?.cta || selection.cta_overlay_copy || getFallbackKlingCta(post) });
-  const uploaded = await uploadKlingEndCardFrame({ supabase, post, buffer });
-  const next = { ...selection, end_card_url: uploaded.imageUrl, end_card_storage_path: uploaded.storagePath,
-    end_card_provider: "deterministic-cached-typography-fallback", end_card_seconds: KLING_END_CARD_SECONDS,
-    end_card_has_logo: Boolean(logoBuffer), end_card_brand_name: brand.business_name || null };
-  const { error } = await supabase.from("posts").update({ video_background_selection: next }).eq("id", post.id);
-  if (error) throw error;
+  if(selection.end_card_url) return selection;
+  const layers=await buildFallbackKlingEndCardLayers({brand,logoBuffer,language:post.language,
+    closingLine:selection.ad_creative_plan?.cta||selection.cta_overlay_copy||getFallbackKlingCta(post)});
+  const uploaded=await uploadKlingEndCardFrame({supabase,post,buffer:layers.cardBuffer});
+  const bg=await uploadKlingEndCardFrame({supabase,post,buffer:layers.backgroundBuffer,suffix:"kling-end-background"});
+  const text=await uploadKlingEndCardFrame({supabase,post,buffer:layers.foregroundBuffer,suffix:"kling-end-text"});
+  const next={...selection,end_card_url:uploaded.imageUrl,end_card_storage_path:uploaded.storagePath,
+    end_card_background_url:bg.imageUrl,end_card_text_url:text.imageUrl,video_design_version:VIDEO_DESIGN_VERSION,
+    end_card_provider:"deterministic-cached-typography-fallback-v342",end_card_seconds:KLING_END_CARD_SECONDS,
+    end_card_has_logo:Boolean(logoBuffer),end_card_brand_name:brand.business_name||null};
+  const {error}=await supabase.from("posts").update({video_background_selection:next}).eq("id",post.id);
+  if(error) throw error;
   return next;
 }
 
@@ -1447,6 +1471,11 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
     post.video_duration_seconds,
     6
   );
+  // Keep the paid 341 source and safety instructions unchanged. Its planned
+  // final hold is replaced by the moving end card in the advertising edit.
+  const plannedFinish=Number(postprocess.reference_safety?.motionPlan?.finish_seconds);
+  const motionEndSeconds=!postprocess.quality_fallback && Number.isFinite(plannedFinish) && plannedFinish>=3
+    ? Math.min(durationSeconds,plannedFinish) : durationSeconds;
   const trimStartSeconds = Math.max(
     0,
     Math.min(
@@ -1457,8 +1486,8 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
   const overlayStartSeconds = Math.max(
     0.6,
     Math.min(
-      Math.max(0.8, durationSeconds - trimStartSeconds - 0.8),
-      Number(postprocess.overlay_start_seconds ?? 2.0) || 2.0
+      Math.max(0.8, motionEndSeconds - trimStartSeconds - 0.8),
+      Number(postprocess.overlay_start_seconds ?? 1.5) || 1.5
     )
   );
   let renderId = String(postprocess.shotstack_render_id || "").trim() || null;
@@ -1472,7 +1501,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
     }
     postprocess = await ensureKlingEndCard({ supabase, post, selection: postprocess, brand, logoBuffer });
     const closingHoldSeconds = KLING_END_CARD_SECONDS;
-    const deliveredMotionDurationSeconds = Math.max(2.5, durationSeconds - trimStartSeconds);
+    const deliveredMotionDurationSeconds = Math.max(2.5, motionEndSeconds - trimStartSeconds);
     const deliveredDurationSeconds = deliveredMotionDurationSeconds + closingHoldSeconds;
     const musicSelection = await selectBestVideoMusic({
       supabase,
@@ -1496,8 +1525,10 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       logoOverlayUrl: postprocess.logo_overlay_url || null,
       closingFrameUrl: null,
       endCardUrl: postprocess.end_card_url,
+      endCardBackgroundUrl: postprocess.end_card_background_url || null,
+      endCardTextUrl: postprocess.end_card_text_url || null,
       endCardTransitionSeconds: KLING_END_CARD_TRANSITION_SECONDS,
-      durationSeconds,
+      durationSeconds: motionEndSeconds,
       overlayStartSeconds,
       trimStartSeconds,
       closingHoldSeconds,
@@ -1521,6 +1552,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       ...(postprocess.quality_fallback ? { quality_postprocess_submission: "submitted" } : {}),
       scene_trim_start_seconds: trimStartSeconds,
       overlay_start_seconds: overlayStartSeconds,
+      scene_motion_end_seconds: motionEndSeconds,
       closing_hero_hold_seconds: closingHoldSeconds,
       delivered_duration_seconds: Number(deliveredDurationSeconds.toFixed(3)),
       music_applied: Boolean(musicSelection),
@@ -1631,7 +1663,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
     postprocessRenderId: renderId,
     durationSeconds: Number(
       nextSelection.delivered_duration_seconds ||
-        Math.max(2.5, durationSeconds - trimStartSeconds)
+        Math.max(2.5, motionEndSeconds - trimStartSeconds)
     ),
   };
 }

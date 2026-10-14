@@ -131,7 +131,7 @@ assert.equal(submissions, 1);
 const edit = buildKlingPixelPreservingEdit({ imageUrl: 'https://store.test/true.png' });
 const clip = edit.timeline.tracks[0].clips[0];
 assert.equal(clip.length, 6);
-assert.match(clip.asset.js, /scale:1.06,duration:5/);
+assert.match(clip.asset.js, /scale:1.06,duration:6/);
 assert(!clip.asset.js.includes('x:') && !clip.asset.js.includes('y:'));
 assert.throws(() => buildKlingPixelPreservingEdit({ imageUrl: 'javascript:alert(1)' }));
 assert.match(automation, /submissionAlreadySettled:post.video_provider === "kling" \|\| Boolean\(post.video_background_selection\?\.quality_fallback\?\.original_task_id\)/);
@@ -140,7 +140,7 @@ const labelCtx = {};
 vm.runInNewContext(crop(page, 'function adminPostFormatLabel(', '\nfunction isProductDrivenPost(') + '\nthis.label=adminPostFormatLabel;', labelCtx);
 assert.equal(labelCtx.label({ content_type_id: 'ai_product_video', kling_task_id: 'paid-original', video_provider: 'shotstack', video_background_selection: { quality_fallback: { status: 'ready' } } }), 'Animerad video');
 assert.equal(labelCtx.label({ video_provider: 'kling' }), 'AI-video');
-console.log('PASS: one safe render across continuation, ambiguous submission blocks retries, 6% fixed-centre animation with closing hold and correct admin format');
+console.log('PASS: one safe render across continuation, ambiguous submission blocks retries, 6% fixed-centre continuous animation and correct admin format');
 
 // Delivery must recognize that the original Kling occurrence was already
 // settled, even after the successful fallback changes its display provider.
