@@ -11,6 +11,7 @@ import {
 import AppLayout from "../../components/AppLayout";
 import ThemeCalendarWelcome from "../../components/ThemeCalendarWelcome";
 import { supabase } from "../../lib/supabaseClient";
+import { getBrowserUserOrRedirect } from "../../lib/browserSession";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { getCreditCostForCampaignSourceMode } from "../../lib/credits";
 
@@ -981,14 +982,9 @@ export default function Calendar() {
       setLoading(true);
       setMessage("");
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getBrowserUserOrRedirect(supabase);
 
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
+      if (!user) return;
 
       setUser(user);
 

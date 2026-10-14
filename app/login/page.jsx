@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { isLoginCodeRateLimitError, loginCodeRequestError, remainingLoginCodeCooldown, saveLoginCodeCooldown } from "../../lib/loginCodeCooldown";
+import { confirmCodeLoginSession, sessionFailureDetails } from "../../lib/browserSession";
 import {
   ArrowRight,
   CalendarDays,
@@ -49,13 +52,7 @@ async function withTimeout(promise, timeoutMs = LOGIN_REQUEST_TIMEOUT_MS) {
 }
 
 function isRateLimitError(error) {
-  const message = String(error?.message || error || "").toLowerCase();
-  return (
-    message.includes("rate limit") ||
-    message.includes("too many requests") ||
-    message.includes("email rate limit") ||
-    message.includes("429")
-  );
+  return isLoginCodeRateLimitError(error);
 }
 
 function renderMarketingTitle(value) {
@@ -75,7 +72,9 @@ function renderMarketingTitle(value) {
 }
 
 export default function LoginPage() {
-  const { t, locale, setLocale } = useUiText(["login"]);
+  const { t, locale, setLocale } = useUiText(["login", "layout"]);
+  const router = useRouter();
+  const acceptedCodeRef = useRef(null);
 
   const [email, setEmail] = useState("");
   const [otpDigits, setOtpDigits] = useState(EMPTY_OTP_DIGITS);
@@ -92,10 +91,16 @@ export default function LoginPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const savedEmail = localStorage.getItem(SAVED_LOGIN_EMAIL_KEY);
+    let savedEmail = "";
+    try { savedEmail = localStorage.getItem(SAVED_LOGIN_EMAIL_KEY); } catch { /* Optional preference. */ }
 
     if (savedEmail) {
       setEmail(savedEmail);
+      const remaining = remainingLoginCodeCooldown(window.sessionStorage, savedEmail);
+      if (remaining > 0) {
+        setCodeSent(true);
+        setResendCooldown(remaining);
+      }
     }
   }, []);
 
@@ -144,7 +149,7 @@ export default function LoginPage() {
     const value = String(
       new URLSearchParams(window.location.search).get("next") || ""
     ).trim();
-    return value.startsWith("/") && !value.startsWith("//") ? value : "";
+    return value.startsWith("/") && !value.startsWith("//") && !value.includes("\\") ? value : "";
   }
 
   function requestWelcomeEmail(accessToken) {
@@ -185,23 +190,22 @@ export default function LoginPage() {
       existingBrands = data || [];
     } catch (error) {
       console.error("Could not check workspace after login:", error);
-      window.location.href = "/";
+      router.replace("/");
       return;
     }
 
     if ((existingBrands || []).length > 0) {
       if (typeof window !== "undefined") {
-        localStorage.setItem(
-          getBrandStorageKey(loggedInUser.id),
-          existingBrands[0].id
-        );
+        try {
+          localStorage.setItem(getBrandStorageKey(loggedInUser.id), existingBrands[0].id);
+        } catch { /* The workspace can load its default brand without this preference. */ }
       }
 
-      window.location.href = getSafeNextPath() || "/";
+      router.replace(getSafeNextPath() || "/");
       return;
     }
 
-    window.location.href = buildLocalizedPath("/onboarding");
+    router.replace(buildLocalizedPath("/onboarding"));
   }
 
   async function handleSendCode(event) {
@@ -250,9 +254,7 @@ export default function LoginPage() {
         }).then(async (result) => {
           const payload = await result.json().catch(() => ({}));
           if (!result.ok || !payload?.ok) {
-            const requestError = new Error(payload?.error || t("common.errorGeneric"));
-            requestError.code = payload?.code || "LOGIN_CODE_REQUEST_FAILED";
-            throw requestError;
+            throw loginCodeRequestError(result, payload, t("common.errorGeneric"));
           }
           return payload;
         })
@@ -261,11 +263,13 @@ export default function LoginPage() {
       setEmail(normalizedEmail);
 
       if (typeof window !== "undefined") {
-        localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
+        try { localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail); } catch { /* Optional preference. */ }
       }
 
+      acceptedCodeRef.current = null;
       setCodeSent(true);
       setResendCooldown(OTP_RESEND_COOLDOWN_SECONDS);
+      saveLoginCodeCooldown(window.sessionStorage, normalizedEmail, OTP_RESEND_COOLDOWN_SECONDS);
       resetOtpDigits();
       setMessage(t("login.codeSentMessage"));
       setMessageType("success");
@@ -277,12 +281,15 @@ export default function LoginPage() {
         setEmail(normalizedEmail);
 
         if (typeof window !== "undefined") {
-          localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
+          try { localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail); } catch { /* Optional preference. */ }
         }
 
         setCodeSent(true);
-        setResendCooldown(OTP_RESEND_COOLDOWN_SECONDS);
-        resetOtpDigits();
+        const waitSeconds = isRateLimitError(error) ? error.retryAfterSeconds || OTP_RESEND_COOLDOWN_SECONDS : OTP_RESEND_COOLDOWN_SECONDS;
+        setResendCooldown(waitSeconds);
+        saveLoginCodeCooldown(window.sessionStorage, normalizedEmail, waitSeconds);
+        // A rejected request did not issue a new code. Keep an already-entered
+        // code and its successful verification available for continuation.
         setMessage(
           isRateLimitError(error)
             ? t("login.errorTooManyCodes")
@@ -323,24 +330,29 @@ export default function LoginPage() {
     setMessageType("info");
 
     try {
-      const { data, error } = await withTimeout(
-        supabase.auth.verifyOtp({
-          email: normalizedEmail,
-          token: normalizedCode,
-          type: "email",
-        })
-      );
-
-      if (error) {
-        throw error;
+      // A successfully consumed code is not submitted again when a later
+      // session/workspace check needs a retry.
+      let data = acceptedCodeRef.current?.email === normalizedEmail ? acceptedCodeRef.current.data : null;
+      if (!data) {
+        const response = await withTimeout(supabase.auth.verifyOtp({email:normalizedEmail,token:normalizedCode,type:"email"}));
+        if (response.error) throw response.error;
+        data = response.data;
+        if (!data?.session?.access_token || !data?.user?.id) throw new Error(t("login.errorCheckWorkspace"));
+        acceptedCodeRef.current = {email:normalizedEmail,data};
       }
-
+      const checked = await confirmCodeLoginSession(supabase, data.user.id);
+      if (checked.status !== "authenticated") {
+        console.warn("Code accepted but session confirmation did not complete", sessionFailureDetails(checked.error, checked.stage));
+        if (checked.status === "signed_out") acceptedCodeRef.current = null;
+        setMessage(checked.status === "unavailable" ? t("layout.sessionTemporaryError") : t("login.errorCheckWorkspace"));
+        setMessageType("error");
+        return;
+      }
       if (typeof window !== "undefined") {
-        localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail);
+        try { localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, normalizedEmail); } catch { /* Optional preference; never discard a verified session. */ }
       }
-
-      requestWelcomeEmail(data?.session?.access_token);
-      await redirectAfterLogin(data?.user);
+      requestWelcomeEmail(checked.session.access_token);
+      await redirectAfterLogin(checked.user);
     } catch (error) {
       if (error?.code === "LOGIN_REQUEST_TIMEOUT") {
         setMessage(t("login.errorRequestTimeout"));
@@ -357,6 +369,7 @@ export default function LoginPage() {
   function handleChangeEmail() {
     if (loading || verifying) return;
 
+    acceptedCodeRef.current = null;
     setCodeSent(false);
     resetOtpDigits();
     setMessage("");

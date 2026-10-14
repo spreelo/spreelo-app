@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { getBrowserUserOrRedirect } from "../../lib/browserSession";
 import { useUiText } from "../../lib/i18n/useUiText";
 
 const CUSTOMER_READY_ADMIN_STATES = new Set([
@@ -69,11 +70,8 @@ export default function CustomerReviewPage() {
   async function loadPosts() {
     setLoading(true);
     setError("");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      window.location.replace("/login");
-      return;
-    }
+    const user = await getBrowserUserOrRedirect(supabase);
+    if (!user) return;
 
     const savedBrandId = localStorage.getItem(getBrandStorageKey(user.id)) || "";
     let brandQuery = supabase

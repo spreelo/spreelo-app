@@ -14,6 +14,7 @@ import {
 import AppLayout from "../../components/AppLayout";
 import PlanLimitModal from "../../components/PlanLimitModal";
 import { supabase } from "../../lib/supabaseClient";
+import { getBrowserUserOrRedirect } from "../../lib/browserSession";
 import { useUiText } from "../../lib/i18n/useUiText";
 
 const SOCIAL_PLATFORMS = [
@@ -544,11 +545,8 @@ export default function SocialChannelsPage() {
     setMessageKind("info");
     setConnectingPlatform("");
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    const user = await getBrowserUserOrRedirect(supabase);
+    if (!user) return;
     setCurrentUser(user);
 
     let selectedBrand = null;

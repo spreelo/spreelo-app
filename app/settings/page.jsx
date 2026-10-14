@@ -5,6 +5,7 @@ import AppLayout from "../../components/AppLayout";
 import StripeBillingPanel from "../../components/StripeBillingPanel";
 import SettingsPanels from "../../components/SettingsPanels";
 import { supabase } from "../../lib/supabaseClient";
+import { getBrowserUserOrRedirect } from "../../lib/browserSession";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
 import { SUPPORTED_CONTENT_LANGUAGES } from "../../lib/languageCatalog.js";
@@ -133,9 +134,8 @@ export default function Settings() {
 
   useEffect(() => {
     async function loadUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getBrowserUserOrRedirect(supabase);
+      if (!user) return;
 
       setCurrentUser(user || null);
       setCurrentUserEmail(user?.email || "");

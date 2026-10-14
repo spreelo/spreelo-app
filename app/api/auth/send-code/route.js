@@ -1,3 +1,4 @@
+import { createLoginCodeRateLimit } from "../../../../lib/loginCodeRateLimit.js";
 import { createClient } from "@supabase/supabase-js";
 import {
   getServerTranslations,
@@ -7,7 +8,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "Spreelo <noreply@spreelo.com>";
-const recentRequests = new Map();
+const codeRequestLimit = createLoginCodeRateLimit();
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -23,21 +24,6 @@ function normalizeEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
 }
 
-function isRateLimited(request, email) {
-  const now = Date.now();
-  const forwardedFor = String(request.headers.get("x-forwarded-for") || "").split(",")[0].trim();
-  const key = `${forwardedFor || "unknown"}:${email}`;
-  const previous = recentRequests.get(key) || 0;
-  recentRequests.set(key, now);
-
-  if (recentRequests.size > 500) {
-    for (const [entryKey, timestamp] of recentRequests.entries()) {
-      if (now - timestamp > 10 * 60 * 1000) recentRequests.delete(entryKey);
-    }
-  }
-
-  return now - previous < 55 * 1000;
-}
 
 function buildEmail({ t, code, locale }) {
   const safeCode = escapeHtml(code);
@@ -74,8 +60,10 @@ export async function POST(request) {
     if (!email) {
       return Response.json({ ok: false, error: "Enter a valid email address." }, { status: 400 });
     }
-    if (isRateLimited(request, email)) {
-      return Response.json({ ok: false, code: "RATE_LIMIT", error: "Wait before requesting another code." }, { status: 429 });
+    const limit = codeRequestLimit(request, email);
+    if (limit.limited) {
+      return Response.json({ ok:false, code:"RATE_LIMIT", retry_after_seconds:limit.retryAfterSeconds,
+        error:"Wait before requesting another code." }, {status:429,headers:{"Retry-After":String(limit.retryAfterSeconds),"Cache-Control":"no-store"}});
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

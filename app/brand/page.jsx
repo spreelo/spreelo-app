@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, Building2, Check, ChevronRight, Globe2, Heart, Languages, MessageCircle, Pencil, Search, Send, ShieldCheck, Sparkles, Users, X } from "lucide-react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { getBrowserUserOrRedirect } from "../../lib/browserSession";
 import { getValidAnalysisAccessToken } from "../../lib/analysisSession";
 import { getSmoothAnalysisProgress } from "../../lib/analysisProgress";
 import { useUiText } from "../../lib/i18n/useUiText";
@@ -509,14 +510,9 @@ export default function BrandProfile() {
 
   useEffect(() => {
     async function loadProfile() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getBrowserUserOrRedirect(supabase);
 
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
+      if (!user) return;
 
       setUser(user);
       void refreshAnalysisUsage();

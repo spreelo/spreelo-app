@@ -28,6 +28,7 @@ import {
 import AppLayout from "../../components/AppLayout";
 import GrowBrainConnectModal from "../../components/GrowBrainConnectModal";
 import { supabase } from "../../lib/supabaseClient";
+import { getBrowserUserOrRedirect } from "../../lib/browserSession";
 import { useUiText } from "../../lib/i18n/useUiText";
 
 const RANGE_OPTIONS = [7, 30, 90];
@@ -698,10 +699,8 @@ export default function GrowBrainPage() {
         return;
       }
 
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      const user = authData?.user;
-      if (!user) { window.location.href = "/login"; return; }
+      const user = await getBrowserUserOrRedirect(supabase);
+      if (!user) return;
       setCurrentUserId(user.id);
       const brand = await resolveBrand(user);
       setCurrentBrand(brand);

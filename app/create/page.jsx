@@ -3,6 +3,7 @@
 import { useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "../../lib/supabaseClient";
+import { getBrowserUserOrRedirect } from "../../lib/browserSession";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { SUPPORTED_CONTENT_LANGUAGES } from "../../lib/languageCatalog.js";
 
@@ -108,14 +109,9 @@ export default function CreatePost() {
 
     setSaving(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getBrowserUserOrRedirect(supabase);
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    if (!user) return;
 
     const generatedPostId = globalThis.crypto?.randomUUID?.() || null;
     const { error } = await supabase

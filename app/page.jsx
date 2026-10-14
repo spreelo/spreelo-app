@@ -31,6 +31,7 @@ import AppLayout from "../components/AppLayout";
 import HomeReferenceOverview from "../components/HomeReferenceOverview";
 import PlanLimitModal from "../components/PlanLimitModal";
 import { supabase } from "../lib/supabaseClient";
+import { getBrowserUserOrRedirect } from "../lib/browserSession";
 import { useUiText } from "../lib/i18n/useUiText";
 import { parsePlanLimitDatabaseError } from "../lib/planEntitlements";
 
@@ -645,14 +646,9 @@ export default function Home() {
     setShowHistory(false);
     setSuggestedCampaign(null);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getBrowserUserOrRedirect(supabase);
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    if (!user) return;
 
     let selectedBrand = null;
 
@@ -1302,14 +1298,9 @@ export default function Home() {
     setBulkActionLoading(true);
     setMessage("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getBrowserUserOrRedirect(supabase);
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    if (!user) return;
 
     const idsToDelete = [...selectedPendingPostIds];
 

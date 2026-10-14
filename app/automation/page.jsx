@@ -69,6 +69,8 @@ import PlanLimitModal from "../../components/PlanLimitModal";
 import ContentCreatorWelcome from "../../components/ContentCreatorWelcome";
 import PlanActivatedModal from "../../components/PlanActivatedModal";
 import { supabase } from "../../lib/supabaseClient";
+import { writeOptionalBrowserCache } from "../../lib/browserStorage";
+import { getBrowserUserOrRedirect } from "../../lib/browserSession";
 import { useUiText } from "../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../lib/contentLanguage";
 import { SUPPORTED_CONTENT_LANGUAGES } from "../../lib/languageCatalog.js";
@@ -8843,14 +8845,9 @@ async function resolveProductModeForBrand(brandProfileId, brandProfile) {
 async function loadRules() {
     setLoading(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getBrowserUserOrRedirect(supabase);
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    if (!user) return;
 
     setCurrentUserEmail(user.email || "");
     setHasCompletedFirstPlan(Boolean(
@@ -10000,7 +9997,7 @@ async function applyDynamicAutoPlan({ goalId, postCount }) {
     });
 
     if (dynamicSlots.length === safePostCount && cacheKey && typeof window !== "undefined") {
-      window.localStorage.setItem(cacheKey, JSON.stringify(payload));
+      writeOptionalBrowserCache(cacheKey, JSON.stringify({posts:payload.posts,rotation_pool:payload.rotation_pool,strategy_summary:payload.strategy_summary}));
     }
   } catch (error) {
     if (requestId === autoPlanRequestIdRef.current) {
@@ -10216,14 +10213,9 @@ function toggleContentType(typeId) {
     setDeletingRules(true);
     setMessage("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getBrowserUserOrRedirect(supabase);
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    if (!user) return;
 
     setCurrentUserEmail(user.email || "");
 
@@ -10724,14 +10716,9 @@ function toggleContentType(typeId) {
 
     setSaving(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getBrowserUserOrRedirect(supabase);
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    if (!user) return;
 
     setCurrentUserEmail(user.email || "");
 

@@ -24,19 +24,14 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import { readBrowserSession, BROWSER_SESSION_UNAVAILABLE_EVENT } from "../lib/browserSession";
 import { useUiText } from "../lib/i18n/useUiText";
 import LanguageSuggestionBanner from "./LanguageSuggestionBanner";
 import PlanLimitModal from "./PlanLimitModal";
 import { buildPlanLimitDetails, getPlanEntitlements, parsePlanLimitDatabaseError } from "../lib/planEntitlements";
 
-const SESSION_CHECK_ATTEMPTS = 3;
-const SESSION_CHECK_RETRY_DELAY_MS = 900;
 const SESSION_REQUEST_TIMEOUT_MS = 12000;
 const WORKSPACE_REQUEST_TIMEOUT_MS = 20000;
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function withTimeout(promise, timeoutMs) {
   let timeoutId;
@@ -289,35 +284,19 @@ export default function AppLayout({ active, children }) {
   }, []);
 
   async function getSessionWithRetry() {
-    let lastError = null;
-
-    for (let attempt = 0; attempt < SESSION_CHECK_ATTEMPTS; attempt++) {
-      try {
-        const { data, error } = await withTimeout(
-          supabase.auth.getSession(),
-          SESSION_REQUEST_TIMEOUT_MS
-        );
-
-        if (data?.session?.user) {
-          return { session: data.session, error: null };
-        }
-
-        if (!error) {
-          return { session: null, error: null };
-        }
-
-        lastError = error;
-      } catch (error) {
-        lastError = error;
-      }
-
-      if (attempt < SESSION_CHECK_ATTEMPTS - 1) {
-        await sleep(SESSION_CHECK_RETRY_DELAY_MS * (attempt + 1));
-      }
-    }
-
-    return { session: null, error: lastError };
+    const checked = await readBrowserSession(supabase);
+    return { session: checked.status === "authenticated" ? checked.session : null,
+      error: checked.status === "unavailable" ? checked.error : null };
   }
+
+  useEffect(() => {
+    function showSessionError() {
+      setCheckingSession(false);
+      setSessionCheckError(t("layout.sessionTemporaryError"));
+    }
+    window.addEventListener(BROWSER_SESSION_UNAVAILABLE_EVENT, showSessionError);
+    return () => window.removeEventListener(BROWSER_SESSION_UNAVAILABLE_EVENT, showSessionError);
+  }, [t]);
 
   async function checkUser() {
     setCheckingSession(true);
@@ -327,7 +306,7 @@ export default function AppLayout({ active, children }) {
       const { session, error } = await getSessionWithRetry();
 
       if (error) {
-        console.error("Could not verify session:", error);
+        console.warn("Could not verify session", {code:error?.code || error?.name || "AUTH_CHECK_UNAVAILABLE",status:error?.status || null});
         setSessionCheckError(t("layout.sessionTemporaryError"));
         return;
       }
@@ -347,7 +326,9 @@ export default function AppLayout({ active, children }) {
 
       if (!brandsLoaded) {
         setSessionCheckError(t("layout.workspaceTemporaryError"));
+        return false;
       }
+      return true;
     } catch (error) {
       console.error("Could not load workspace:", error);
       setSessionCheckError(t("layout.workspaceTemporaryError"));
@@ -804,7 +785,11 @@ export default function AppLayout({ active, children }) {
               <button
                 type="button"
                 className="primary-button full workspace-loader-retry"
-                onClick={checkUser}
+                onClick={async () => {
+                  // An explicit successful retry restarts page load effects.
+                  // Errors never cause a repeated redirect or reload.
+                  if (await checkUser()) window.location.reload();
+                }}
               >
                 {t("layout.retry")}
               </button>

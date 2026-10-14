@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import AppLayout from "../../../components/AppLayout";
 import { supabase } from "../../../lib/supabaseClient";
+import { getBrowserUserOrRedirect } from "../../../lib/browserSession";
 import { useUiText } from "../../../lib/i18n/useUiText";
 import { normalizeSingleContentLanguage } from "../../../lib/contentLanguage";
 
@@ -217,14 +218,9 @@ export default function EditPostPage() {
 
   useEffect(() => {
     async function loadPost() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getBrowserUserOrRedirect(supabase);
 
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
+      if (!user) return;
 
       const { data, error } = await supabase
         .from("posts")
@@ -298,14 +294,9 @@ export default function EditPostPage() {
     setSaving(true);
     setMessage("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getBrowserUserOrRedirect(supabase);
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    if (!user) return;
 
     const { data, error } = await supabase
       .from("posts")
@@ -351,14 +342,9 @@ export default function EditPostPage() {
     setApproving(true);
     setMessage("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getBrowserUserOrRedirect(supabase);
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    if (!user) return;
 
     const approvedAt = new Date().toISOString();
 
@@ -396,14 +382,9 @@ export default function EditPostPage() {
     setDiscarding(true);
     setMessage("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getBrowserUserOrRedirect(supabase);
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    if (!user) return;
 
     const discardedAt = new Date().toISOString();
 
