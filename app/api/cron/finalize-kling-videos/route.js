@@ -1,4 +1,6 @@
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
+import { CREATIVE_DIRECTOR_BRIEF, creativeCorrectionInstruction } from "../../../../lib/videoCreativeDirector.js";
+import { finalizationJobGate, nextFinalizationControl, canRegenerateTypographyAfterKnownRejection } from "../../../../lib/videoProductionController.js";
 import { ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
 import { composedAdvertisingSceneFrames, reviewAdvertisingComposition, reviewRenderedAdvertisingVideo } from "../../../../lib/videoAdvertisingReview.js";
 import { verifyAnimatedAdvertisingTypography } from "../../../../lib/animatedAdvertisingCopy.js";
@@ -164,15 +166,6 @@ function finalizationRetryBackoffIsFresh(post, nowMs = Date.now()) {
   return Number.isFinite(failedAt) && failedAt > 0 && nowMs - failedAt < KLING_FINALIZATION_RETRY_BACKOFF_MS;
 }
 
-function hasRecoverableTypographyFailure(post) {
-  const selection = post?.video_background_selection;
-  if (!selection || typeof selection !== "object" || Array.isArray(selection)) return false;
-  const status = String(selection.text_overlay_status || "").trim();
-  if (status === "failed") return true;
-  if (status !== "generating") return false;
-  const startedAt = new Date(selection.text_overlay_generation_started_at || 0).getTime();
-  return !Number.isFinite(startedAt) || startedAt <= 0 || Date.now() - startedAt >= KLING_FINALIZATION_LEASE_MS;
-}
 
 async function claimKlingFinalization(supabase, post) {
   if (finalizationLeaseIsFresh(post)) return false;
@@ -310,7 +303,10 @@ async function markKlingPostFailed(supabase, post, stage, message) {
       status: "failed",
       admin_review_status: "needs_repair",
       video_status: "failed",
-      kling_task_status: "failed",
+      // A completed, paid Kling provider task remains successful when its
+      // *local post-processing* fails. Do not misreport the source as failed.
+      kling_task_status: ['kling_video_generation', 'kling_video_timeout', 'kling_video_result'].includes(stage)
+        ? 'failed' : (getCachedKlingSource(post) ? 'succeeded' : post.kling_task_status || 'failed'),
       kling_last_polled_at: nowIso,
       video_error: safeMessage,
       updated_at: nowIso,
@@ -480,7 +476,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
       "Choose main_placement from top_left, top_right, middle_left, middle_right, lower_left, lower_right so the headline avoids the advertised product and especially its print/design, plus faces, hands and the main action ACROSS ALL supplied frames. " +
       "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, where the scene has real negative space, including above the product when appropriate; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose the most compelling safe main width 520-876, height 140-500; the closing line belongs on the separate end card, so do not waste scene space by preparing a small second in-scene label. Prioritize prominent readable lettering without covering the product. Use scene-appropriate medium or semibold hierarchy and purposeful line breaks. Do not default to extra-bold text or outlines. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
-      VIDEO_ART_DIRECTION + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
+      VIDEO_ART_DIRECTION + " " + CREATIVE_DIRECTOR_BRIEF + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
       "The cta is displayed on a separate company-branded end card, not on a frozen product photograph. Keep it concise enough to read in 1.5 seconds. Include end-card background art direction suited to the business in design_direction. Choose cta_placement independently for legacy compatibility. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
   }];
   for (const frame of frames) {
@@ -1228,36 +1224,71 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       designDirection: creativePlan.design_direction,
       brand, hasLogo: Boolean(logoBuffer),
     });
-    const response = await openai.images.edit({
-      model: KLING_TYPOGRAPHY_MODEL,
-      image: referenceFiles,
-      prompt,
-      size: "1536x1024",
-      quality: "medium",
-      background: "transparent",
-      output_format: "png",
-    }, { timeout: 75_000, maxRetries: 0 });
-    const base64 = response?.data?.[0]?.b64_json;
-    if (!base64) throw new Error("GPT-Image-2.5 Flare returned no transparent Kling typography image");
-    const splitOverlay = await splitKlingAdvertisingAtlas(Buffer.from(base64, "base64"));
-    if(!splitOverlay.closingText) throw new Error('End card is missing GPT Image CTA lettering');
-    // Read back BOTH groups from the generated artwork, independently of the
-    // expected words. Never publish invented/misspelled image text.
-    await verifyAnimatedAdvertisingTypography({openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-      buffer:splitOverlay.headline,headline:[headline,subheadline].filter(Boolean).join(' '),
-      closingBuffer:splitOverlay.closingText,closingLine:creativePlan.cta||getFallbackKlingCta(post)});
-    const combinedOverlay = await normalizeFinishedKlingTypography(splitOverlay.headline);
-    const normalized = await placeFinishedKlingTypographyInSafeArea(
-      combinedOverlay.buffer,
-      creativePlan.main_placement,
-      creativePlan.main_layout
-    );
-    const contrast=await ensureTypographyContrast({overlayBuffer:normalized.buffer,backgroundBuffers:frames.map(frame=>frame.buffer),textBox:creativePlan.main_layout,preserveDesign:true});
-    const layers=await composeVideoEndCardLayers({background:splitOverlay.endCard,closingText:splitOverlay.closingText,
-      closingLine:creativePlan.cta||getFallbackKlingCta(post),brand,logoBuffer,language:post.language,preserveDesign:true});
-    const review=await reviewAdvertisingComposition({openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-      frames:await composedAdvertisingSceneFrames(frames.map(frame=>frame.buffer),contrast.buffer),
-      endCard:layers.cardBuffer,headline,closingLine:creativePlan.cta||getFallbackKlingCta(post)});
+    // A single cached Kling movie, up to two KNOWN-outcome paid typography
+    // attempts. Never repeat after unknown API outcome or on an unavailable reviewer.
+    let approvedArtwork = null;
+    let designFeedback = null;
+    for (let designAttempt = 1; designAttempt <= 2; designAttempt += 1) {
+      const attemptPrompt = designAttempt === 1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(designFeedback)}`;
+      if (designAttempt > 1) {
+        workingSelection = {
+          ...workingSelection,
+          text_overlay_generation_attempts: designAttempt,
+          text_overlay_correction_reason: truncate(designFeedback?.message || 'Visual quality repair', 500),
+        };
+        const { error: retryCheckpointError } = await supabase.from('posts').update({
+          video_background_selection: workingSelection, updated_at: new Date().toISOString(),
+        }).eq('id', post.id).eq('video_provider', 'kling');
+        if (retryCheckpointError) throw new Error(`Cannot checkpoint second design attempt: ${retryCheckpointError.message}`);
+      }
+      try {
+        const response = await openai.images.edit({
+          model: KLING_TYPOGRAPHY_MODEL,
+          image: referenceFiles,
+          prompt: attemptPrompt,
+          size: '1536x1024',
+          quality: 'medium',
+          background: 'transparent',
+          output_format: 'png',
+        }, { timeout: 75_000, maxRetries: 0 });
+        const base64 = response?.data?.[0]?.b64_json;
+        if (!base64) throw new Error('GPT-Image-2.5 Flare returned no transparent Kling typography image');
+        const splitOverlay = await splitKlingAdvertisingAtlas(Buffer.from(base64, 'base64'));
+        if (!splitOverlay.closingText) throw new Error('End card is missing GPT Image CTA lettering');
+        await verifyAnimatedAdvertisingTypography({openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+          buffer:splitOverlay.headline,headline:[headline,subheadline].filter(Boolean).join(' '),
+          closingBuffer:splitOverlay.closingText,closingLine:creativePlan.cta||getFallbackKlingCta(post)});
+        const combinedOverlay = await normalizeFinishedKlingTypography(splitOverlay.headline);
+        const normalized = await placeFinishedKlingTypographyInSafeArea(
+          combinedOverlay.buffer, creativePlan.main_placement, creativePlan.main_layout
+        );
+        // Per-pixel contrast is diagnostic only. A vision reviewer sees the
+        // actual composited scene and rejects genuinely unreadable designs.
+        const contrast = await ensureTypographyContrast({
+          overlayBuffer:normalized.buffer,backgroundBuffers:frames.map(frame=>frame.buffer),
+          textBox:creativePlan.main_layout,preserveDesign:true,
+        });
+        const layers = await composeVideoEndCardLayers({
+          background:splitOverlay.endCard,closingText:splitOverlay.closingText,
+          closingLine:creativePlan.cta||getFallbackKlingCta(post),brand,logoBuffer,
+          language:post.language,preserveDesign:true,
+        });
+        const review = await reviewAdvertisingComposition({openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+          frames:await composedAdvertisingSceneFrames(frames.map(frame=>frame.buffer),contrast.buffer),
+          endCard:layers.cardBuffer,headline,closingLine:creativePlan.cta||getFallbackKlingCta(post)});
+        approvedArtwork={splitOverlay,combinedOverlay,normalized,contrast,layers,review,prompt:attemptPrompt,designAttempt};
+        break;
+      } catch (designError) {
+        if (!canRegenerateTypographyAfterKnownRejection(designError, designAttempt)) throw designError;
+        designFeedback = designError;
+        console.warn('Kling creative director requested one targeted typography correction', {
+          postId: post.id, designAttempt, code: designError?.code || null,
+          reason: truncate(designError?.message, 450),
+        });
+      }
+    }
+    if (!approvedArtwork) throw Object.assign(new Error('No approved finished-video typography after bounded correction'),{code:'KLING_TYPOGRAPHY_DESIGN_FAILED'});
+    const {splitOverlay,combinedOverlay,normalized,contrast,layers,review} = approvedArtwork;
     const uploaded = await uploadKlingTypographyOverlay({ supabase, post, buffer: contrast.buffer });
     const endCard=await uploadKlingEndCardFrame({supabase,post,buffer:layers.cardBuffer});
     const endBackground=await uploadKlingEndCardFrame({supabase,post,buffer:layers.backgroundBuffer,suffix:"kling-end-background"});
@@ -1278,7 +1309,9 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       text_overlay_url: uploaded.imageUrl,
       text_overlay_storage_path: uploaded.storagePath,
       text_overlay_provider: "gpt-image-2.5-flare-finished-video-shared-overlay",
-      text_overlay_prompt: prompt,
+      text_overlay_prompt: approvedArtwork.prompt,
+      creative_director_version: VIDEO_DESIGN_VERSION,
+      text_overlay_approved_attempt: approvedArtwork.designAttempt,
       text_overlay_status: "ready",
       text_overlay_generated_at: new Date().toISOString(),
       text_overlay_analysis: {
@@ -1497,6 +1530,13 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
   let nextSelection = postprocess;
 
   if (!renderId) {
+    // An earlier invocation might already have submitted a paid Shotstack
+    // render but crashed before its ID was checkpointed. Never submit again.
+    if (postprocess.shotstack_submission_status === 'submitting') {
+      const error = new Error('Shotstack submission outcome is unknown. Preserve the Kling source and resolve the existing render in admin.');
+      error.code = 'SHOTSTACK_SUBMISSION_UNKNOWN';
+      throw error;
+    }
     if (postprocess.quality_fallback && postprocess.quality_postprocess_submission === "submitting") {
       const error = new Error("Safe animation advertising render has an unknown submission outcome. Reconcile it before ordering another render.");
       error.code = "QUALITY_FALLBACK_SUBMISSION_UNKNOWN";
@@ -1540,18 +1580,24 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       musicTrimStartSeconds: musicSelection?.trimStartSeconds || null,
       musicVolume: musicSelection?.volume ?? 0.5,
     });
-    if (postprocess.quality_fallback) {
-      postprocess = { ...postprocess, quality_postprocess_submission: "submitting" };
-      await saveKlingQualitySelection(supabase, post, postprocess);
-    }
+    // Persist BEFORE provider call. Ambiguous submission outcomes require
+    // reconciliation, never blindly ordering the same paid render again.
+    postprocess = {
+      ...postprocess,
+      shotstack_submission_status:'submitting',
+      shotstack_submission_started_at:new Date().toISOString(),
+      ...(postprocess.quality_fallback ? {quality_postprocess_submission:'submitting'} : {}),
+    };
+    await saveKlingQualitySelection(supabase, post, postprocess);
     try {
       renderId = await queueShotstackRender(edit);
     } catch (error) {
-      if (postprocess.quality_fallback) error.code = "QUALITY_FALLBACK_SUBMISSION_UNKNOWN";
+      error.code = postprocess.quality_fallback ? 'QUALITY_FALLBACK_SUBMISSION_UNKNOWN' : 'SHOTSTACK_SUBMISSION_UNKNOWN';
       throw error;
     }
     nextSelection = {
       ...postprocess,
+      shotstack_submission_status:'submitted',
       ...(postprocess.quality_fallback ? { quality_postprocess_submission: "submitted" } : {}),
       scene_trim_start_seconds: trimStartSeconds,
       overlay_start_seconds: overlayStartSeconds,
@@ -1590,7 +1636,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       const error = new Error(
         `Professional Kling typography render ${renderId} was queued but its id could not be saved: ${persistError.message || "unknown database error"}`
       );
-      if (postprocess.quality_fallback) error.code = "QUALITY_FALLBACK_SUBMISSION_UNKNOWN";
+      error.code = postprocess.quality_fallback ? 'QUALITY_FALLBACK_SUBMISSION_UNKNOWN' : 'SHOTSTACK_SUBMISSION_UNKNOWN';
       throw error;
     }
     post.video_background_selection = nextSelection;
@@ -1796,7 +1842,16 @@ export async function GET(request) {
       // Local post-processing retries are intentionally slower than the cron.
       // A transient Shotstack/storage/etc. problem must not be hammered every
       // minute. Successful Kling output is already cached at this point.
-      if (finalizationRetryBackoffIsFresh(post) && !hasRecoverableTypographyFailure(post)) {
+      const productionGate = finalizationJobGate(post);
+      if (productionGate.action === 'review') {
+        // Repairing a rejected GPT Image design requires a new explicit admin
+        // decision, not another cron loop with identical inputs.
+        await markKlingPostFailed(supabase, post, productionGate.stage, productionGate.reason);
+        summary.failed += 1;
+        summary.needs_repair = Number(summary.needs_repair || 0) + 1;
+        continue;
+      }
+      if (productionGate.action === 'defer' || finalizationRetryBackoffIsFresh(post)) {
         summary.deferred += 1;
         continue;
       }
@@ -1964,23 +2019,47 @@ export async function GET(request) {
           summary.failed += 1;
           continue;
         }
-        // Do not fail the paid Kling generation just because local post-processing
-        // had a temporary error. The successful Kling source was cached before
-        // post-processing, so retries do not keep polling the provider.
-        console.warn("Kling video finalization failed; cached result will retry after backoff", {
-          postId: post.id,
-          taskId: post.kling_task_id,
-          message: finalizeError?.message || String(finalizeError),
+        // Read latest state: previous helpers may have persisted the Kling
+        // source, approved artwork, Shotstack ID or a rejected artwork.
+        // Never overwrite those checkpoints with a stale cron snapshot.
+        const {data:latestPost,error:checkpointReadError} = await supabase
+          .from('posts').select('video_background_selection').eq('id',post.id).maybeSingle();
+        if (checkpointReadError) throw checkpointReadError;
+        const latestSelection=latestPost?.video_background_selection || post.video_background_selection || {};
+        const decision=nextFinalizationControl({
+          current:latestSelection.finalization_control || {},
+          selection:latestSelection,
+          error:finalizeError,
         });
-        await supabase.from("posts").update({
-          video_status: "finalization_retry",
-          video_error: truncate(
-            `Kling video is ready but Spreelo has not copied it yet: ${finalizeError?.message || "finalization error"}`,
-            1600
-          ),
-          kling_last_polled_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }).eq("id", post.id);
+        const nowIso=new Date().toISOString();
+        const checkpoint={...latestSelection, finalization_control:decision.control};
+        const {error:checkpointError}=await supabase.from('posts').update({
+          video_background_selection:checkpoint, updated_at:nowIso,
+        }).eq('id',post.id).eq('video_provider','kling');
+        if (checkpointError) throw checkpointError;
+        if (decision.terminal) {
+          await markKlingPostFailed(supabase,post,decision.stage,
+            `Kling video preserved; finalization stopped after ${decision.control.attempts} attempt(s). ${decision.failure.message}`);
+          summary.failed += 1;
+          summary.needs_repair = Number(summary.needs_repair || 0) + 1;
+          console.error('Kling finalization stopped for admin review, source retained', {
+            postId:post.id,taskId:post.kling_task_id,errorCode:decision.failure.code,
+            attempts:decision.control.attempts,stage:decision.stage,
+          });
+          continue;
+        }
+        // Only transient errors with known, safe continuation paths can retry;
+        // progressive delay and a maximum attempt count are durable per post.
+        const {error:retryPersistError}=await supabase.from('posts').update({
+          video_status:'finalization_retry',
+          video_error:truncate(`Kling film saved; temporary finalization error (attempt ${decision.control.attempts}/${decision.control.max_attempts}): ${decision.failure.message}`,1600),
+          kling_last_polled_at:nowIso,updated_at:nowIso,
+        }).eq('id',post.id).eq('video_provider','kling');
+        if (retryPersistError) throw retryPersistError;
+        console.warn('Kling finalization deferred with durable bounded retry', {
+          postId:post.id,taskId:post.kling_task_id,attempts:decision.control.attempts,
+          nextRetryAt:decision.control.next_retry_at,errorCode:decision.failure.code,
+        });
         summary.poll_errors += 1;
       }
     }

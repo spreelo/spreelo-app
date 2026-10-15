@@ -55,6 +55,7 @@ import {
 import { completeShotstackDelivery } from "../../../../lib/shotstackDelivery.js";
 import { hasShotstackCheckpoint, finishSavedShotstackPost, shotstackContinuationError } from "../../../../lib/shotstackContinuation.js";
 import { inspectTypographyShape, ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
+import { creativeCorrectionInstruction } from "../../../../lib/videoCreativeDirector.js";
 import { composedAdvertisingSceneFrames, reviewAdvertisingComposition, reviewRenderedAdvertisingVideo } from "../../../../lib/videoAdvertisingReview.js";
 import { sampleRemoteVideoFrames } from "../../../../lib/videoFrameSampler.js";
 import { prepareAnimatedProductLayout } from "../../../../lib/animatedProductLayout.js";
@@ -13185,6 +13186,16 @@ function classifyAutomationCreationFailure(errorOrMessage, stage = "unhandled") 
       code: "no_suitable_product",
       customerMessage:
         "Spreelo could not verify enough suitable products from the website for this planned post. This occurrence will not be retried automatically.",
+    };
+  }
+
+  // v347: a rejected bespoke AI design has its own actionable failure code.
+  // Do not claim a generic runtime crash, nor retry the same occurrence.
+  if (errorOrMessage?.code === 'ANIMATED_AI_TYPOGRAPHY_FAILED' ||
+      /animated ai typography could not be created/i.test(normalized)) {
+    return {
+      code: 'animated_advertising_design_needs_review',
+      customerMessage: 'The advertising design could not be approved. The verified product is preserved and this attempt will not repeat automatically.',
     };
   }
 
@@ -39339,7 +39350,7 @@ Return only the transparent typography asset.
   };
 }
 
-async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsset,dominantColor,productReferenceBuffer,animationLayout=null,hasLogo=false}) {
+async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsset,dominantColor,productReferenceBuffer,animationLayout=null,hasLogo=false,supabase=null,userId=null,postId=null}) {
   const backgroundReferenceBuffer=await getAnimatedOverlayBackgroundReference(backgroundAsset);
   try {
     const advertisingCopy=await planAnimatedAdvertisingCopy({openai,model:PRODUCT_RESEARCH_FAST_MODEL,rule,postContent,productReferenceBuffer,backgroundReferenceBuffer,animationLayout});
@@ -39358,12 +39369,14 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
       .composite([{input:product,left:animationLayout.product.left,top:animationLayout.product.top}]).png().toBuffer()));
     const files=await Promise.all(composites.slice(-3).map(async (buffer,i)=>toFile(await sharp(buffer).resize(576,1024).png().toBuffer(),`animation-composition-${i}.png`,{type:"image/png"})));
     let lastError;
+    let lastGeneratedAtlas=null;
     for(let attempt=1;attempt<=2;attempt++) {
-      const attemptPrompt=attempt===1 ? prompt : `${prompt}\nCORRECTION: ${String(lastError?.message||"").slice(0,220)}. Preserve the exact headline and CTA, truly transparent lettering areas and the specified independent atlas assets.`;
+      const attemptPrompt=attempt===1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(lastError)}`;
       try {
         const response=await openai.images.edit({model:animatedOverlayImageModel(),image:files,prompt:attemptPrompt,size:"1536x1024",quality:"medium",background:"transparent",output_format:"png"},{maxRetries:0});
         const base64=response?.data?.[0]?.b64_json;
         if(!base64) throw new Error("No animation advertising atlas was returned");
+        lastGeneratedAtlas=base64;
         const split=await splitKlingAdvertisingAtlas(Buffer.from(base64,"base64"));
         if(!split.closingText) throw new Error("Animation closing CTA is missing; no substitute text is allowed");
         const panel=await normalizeGeneratedAnimatedTextPanel(split.headline,animationLayout);
@@ -39386,11 +39399,30 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         const status=Number(error?.status||error?.statusCode||0);
         const terminal=[400,401,403,429].includes(status)||error?.code==='VIDEO_DESIGN_REVIEW_UNAVAILABLE'||/insufficient_quota|credit_balance_exhausted|invalid api key/i.test(`${error?.code||""} ${error?.message||""}`);
         console.warn("Animation advertising atlas rejected",{ruleId:rule?.id,attempt,retrying:attempt<2&&!terminal,message:error?.message});
-        if(terminal||attempt===2) throw error;
+        if(terminal||attempt===2) {
+          // Save the last known rejected AI artwork for directed admin repair.
+          // Never generate a generic replacement or order another animation.
+          if(lastGeneratedAtlas && supabase && userId && postId) {
+            try {
+              error.rejectedTypographyAsset=await uploadGeneratedImageToStorage({
+                supabase,imageBase64:lastGeneratedAtlas,userId,postId,
+                fileSuffix:'animation-rejected-advertising-atlas',
+              });
+            } catch(storageError) {
+              console.warn('Could not checkpoint rejected animation artwork',{
+                ruleId:rule?.id,postId,message:storageError?.message,
+              });
+            }
+          }
+          throw error;
+        }
       }
     }
   } catch(error) {
-    throw Object.assign(new Error(`Animated AI typography could not be created and validated. No substitute text was used. Reason: ${error?.message||"Unknown error"}`),{code:"ANIMATED_AI_TYPOGRAPHY_FAILED",cause:error});
+    throw Object.assign(new Error(`Animated AI typography could not be created and validated. No substitute text was used. Reason: ${error?.message||"Unknown error"}`),{
+      code:"ANIMATED_AI_TYPOGRAPHY_FAILED",cause:error,
+      rejectedTypographyAsset:error?.rejectedTypographyAsset || null,
+    });
   }
 }
 
@@ -39614,6 +39646,7 @@ async function createAnimatedProductVideoAssets({
       productReferenceBuffer: preparedLayout.cutoutBuffer,
       animationLayout,
       hasLogo: Boolean(logoOverlayBuffer),
+      supabase, userId, postId,
     }),
     createAnimatedProductLayer({
       sourceImageBuffer,
@@ -47919,6 +47952,11 @@ product_research_model_used: websitePreparedRule.uses_website_content
                   candidate_attempts: candidateDiagnostics,
                   total_products_checked:
                     renderCandidates.length + animatedReelRejectedCandidates.length,
+                  creative_director_version: 347,
+                  rejected_typography_asset_url: animatedVideoFinalError?.rejectedTypographyAsset?.imageUrl || null,
+                  rejected_typography_asset_storage_path: animatedVideoFinalError?.rejectedTypographyAsset?.imageStoragePath || null,
+                  typography_failure_reason: animatedVideoFinalError?.code === 'ANIMATED_AI_TYPOGRAPHY_FAILED'
+                    ? failureMessage : null,
                 },
                 updated_at: nowIso,
               })

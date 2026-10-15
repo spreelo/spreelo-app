@@ -1,3 +1,5 @@
+import {creativeCorrectionInstruction} from "../lib/videoCreativeDirector.js";
+import {canRegenerateTypographyAfterKnownRejection} from "../lib/videoProductionController.js";
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -95,7 +97,7 @@ const crop=(s,a,b)=>s.slice(s.indexOf(a),s.indexOf(b,s.indexOf(a)));
 const title=await svg('<svg width="840" height="300" xmlns="http://www.w3.org/2000/svg"><text x="40" y="150" font-size="90" font-family="DejaVu Sans" fill="#e5f3ff">Frihet och precision</text></svg>');
 const atlas=await sharp({create:{width:1536,height:1024,channels:4,background:'#00000000'}}).composite([{input:await sharp(bg).resize(576,1024).toBuffer(),left:0,top:0},{input:title,left:636,top:90},{input:await sharp(cta).resize({width:840,height:220,fit:'inside'}).toBuffer(),left:636,top:700}]).png().toBuffer();
 let imageCalls=0;
-const ctx={Buffer,sharp,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,ANIMATED_VIDEO_MOTION_SECONDS:5,PRODUCT_RESEARCH_FAST_MODEL:'offline',ANIMATED_OVERLAY_IMAGE_MODEL:'offline',
+const ctx={Buffer,sharp,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,creativeCorrectionInstruction,ANIMATED_VIDEO_MOTION_SECONDS:5,PRODUCT_RESEARCH_FAST_MODEL:'offline',ANIMATED_OVERLAY_IMAGE_MODEL:'offline',
  getAnimatedOverlayBackgroundReference:async()=>bg,planAnimatedAdvertisingCopy:async()=>copy,buildKlingAdvertisingAtlasPrompt,splitKlingAdvertisingAtlas,composeVideoEndCardLayers,
  sampleRemoteVideoFrames:async()=>[{buffer:bg}],toFile:async b=>b,animatedOverlayImageModel:()=> 'offline',ensureTypographyContrast,inspectTypographyShape,
  verifyAnimatedAdvertisingTypography:async args=>{assert(args.closingBuffer);assert.equal(args.closingLine,copy.closingLine);return {verified:true};},
@@ -125,7 +127,7 @@ assert(stored.every(s=>s.path.endsWith('-v342.png')));
 let klingCalls=0;
 const writes=[];
 const db={...storageDb,from:()=>{const q={update:d=>{writes.push(d);return q;},eq:()=>q,then:resolve=>resolve({})};return q;}};
-const kc={Buffer,sharp,console,Date,Math,Number,String,Error,VIDEO_DESIGN_VERSION,KLING_FINALIZATION_LEASE_MS:360000,KLING_TYPOGRAPHY_MODEL:'offline',KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'offline',KLING_END_CARD_SECONDS:1.5,
+const kc={Buffer,sharp,console,Date,Math,Number,String,Error,VIDEO_DESIGN_VERSION,creativeCorrectionInstruction,canRegenerateTypographyAfterKnownRejection,KLING_FINALIZATION_LEASE_MS:360000,KLING_TYPOGRAPHY_MODEL:'offline',KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'offline',KLING_END_CARD_SECONDS:1.5,
  normalizeVideoDurationSeconds:()=>5,getKlingTextFrameFractions:()=>[.3,.8],sampleRemoteVideoFrames:async()=>[{buffer:bg}],
  planFinishedKlingAdvertisingCreative:async()=>({headline:'Frihet och precision',subheadline:'',cta:'Upptäck gamingkraften nu',main_placement:'top_left',main_layout:{left:80,top:340,width:820,height:240,preferredScale:.96,alignment:'center'},design_direction:'Gaming, cool light'}),
  buildKlingAdvertisingAtlasPrompt,splitKlingAdvertisingAtlas,composeVideoEndCardLayers,ensureTypographyContrast,normalizeKlingLayout,klingTypographyGeometry,
@@ -139,6 +141,27 @@ const ready=await kc.create(klingArgs);assert(ready.end_card_url&&ready.end_card
 assert.equal(new Set([ready.end_card_url,ready.end_card_background_url,ready.end_card_text_url]).size,3);
 assert.equal(klingCalls,1);await kc.create({...klingArgs,selection:ready});assert.equal(klingCalls,1);
 console.log('PASS: distinct card/background/text uploads, actual Kling one-image pass, persisted assets and retry reuse without paid resubmission');
+// v347 regression: one corrected GPT-image artwork is allowed only after a
+// known, actionable visual rejection (never after an unknown provider result).
+const priorReview=kc.reviewAdvertisingComposition;
+let correctedVideoCalls=0,qualityReviewCalls=0;
+kc.reviewAdvertisingComposition=async()=>{
+  qualityReviewCalls++;
+  if(qualityReviewCalls===1)throw Object.assign(new Error('Main text is too small'),{
+    code:'VIDEO_ADVERTISING_DESIGN_REJECTED',review:{issue:'too_small',reason:'Not readable on a phone'},
+  });
+  return {approved:true,issue:'none'};
+};
+const corrected347=await kc.create({...klingArgs,post:{...post,id:'corrected-post',language:'sv'},
+  openai:{images:{edit:async request=>{correctedVideoCalls++;if(correctedVideoCalls===2)assert.match(request.prompt,/Second and FINAL design correction/);return {data:[{b64_json:atlas.toString('base64')}]};}}},
+});
+assert.equal(correctedVideoCalls,2);
+assert.equal(qualityReviewCalls,2);
+assert.equal(corrected347.text_overlay_generation_attempts,2);
+assert.equal(corrected347.text_overlay_approved_attempt,2);
+kc.reviewAdvertisingComposition=priorReview;
+console.log('PASS: actual finished-Kling design flow corrects once on known visual rejection, preserves source video and records paid-attempt count');
+
 
 // A damaged/missing CTA must fail, never silently use substitute animation text.
 const savedVerify=ctx.verifyAnimatedAdvertisingTypography;
@@ -179,6 +202,6 @@ const fractions=getKlingTextFrameFractions(6,{scene_trim_start_seconds:.7,overla
 assert(Math.abs(fractions[0]-2.2/6)<1e-8);assert(Math.abs(fractions.at(-1)-4.6/6)<1e-8,'Sample only the actual pre-card headline interval');
 // The paid provider direction is deliberately unchanged, including its safe
 // final hold; only the advertising edit omits that hold from customer delivery.
-const source341=fs.readFileSync('lib/klingVideoIntelligence.js','utf8');assert(source341.includes('Settle all motion by 5 seconds and hold the final second.'));
+const source341=fs.readFileSync('lib/klingVideoIntelligence.js','utf8');assert(source341.includes('Resolve action by 5 seconds and hold the final second.'));
 assert(finalizer.includes('durationSeconds: motionEndSeconds'));
 console.log('PASS: earlier text interval and end-card handoff before the bounded Kling hold, with unchanged provider motion');
