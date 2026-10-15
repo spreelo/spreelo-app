@@ -39433,7 +39433,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         const composedFrames=async overlay=>composedAdvertisingSceneFrames(backgrounds,overlay,productOverlay);
         const verifyScene=async ({overlay,endCard:card})=>reviewAdvertisingComposition({openai,model:PRODUCT_RESEARCH_FAST_MODEL,
           frames:await composedFrames(overlay),endCard:card,
-          headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,allowReviewServiceOutage:true});
+          headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,allowReviewServiceOutage:true,typographyPreflightPassed:true});
         // v144.350: enforce actual visible character size BEFORE the expensive
         // rendered-video stage, rather than hoping a later AI review catches it.
         // Preserve professional GPT-image lettering when the ink is large enough.
@@ -40000,7 +40000,7 @@ export async function generateAnimatedProductVideo({
       reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
         durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
         headline:post.video_background_selection?.advertising_headline||assets.backgroundSelection?.advertising_headline,
-        closingLine:post.video_background_selection?.advertising_closing_line||assets.backgroundSelection?.advertising_closing_line,allowReviewServiceOutage:true})});
+        closingLine:post.video_background_selection?.advertising_closing_line||assets.backgroundSelection?.advertising_closing_line,allowReviewServiceOutage:true,typographyPreflightPassed:true})});
     return {...assets,backgroundSelection:ready.video_background_selection,videoUrl:ready.video_url,videoStoragePath:ready.video_storage_path,renderId};
   } catch(error){throw shotstackContinuationError(error,renderId);}
 }
@@ -46186,7 +46186,7 @@ async function runAutomationCron(request, options = {}) {
               reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
                 durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
                 headline:post.video_background_selection?.advertising_headline,
-                closingLine:post.video_background_selection?.advertising_closing_line,allowReviewServiceOutage:true})});
+                closingLine:post.video_background_selection?.advertising_closing_line,allowReviewServiceOutage:true,typographyPreflightPassed:true})});
             automationDrafts=automationDrafts.map(post=>post.id===finished.id?finished:post);
           } catch (resumeError) {
             if(resumeError?.code === "SHOTSTACK_RENDER_PENDING") {

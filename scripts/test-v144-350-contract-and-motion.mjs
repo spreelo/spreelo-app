@@ -7,10 +7,10 @@ import { assembleKlingPrompt } from '../lib/klingPromptBudget.js';
 
 const garment={physical_subject:{kind:'physical_product',name:'Print on apron',visible_surfaces:['verified front']},visible_identity:['one unique print'],components:[],confidence:0.97,verified_actions:[]};
 const proposed={strategy:'Natural ad for verified worn garment',mode:'scene_verified_wear',action_id:'',camera_mode:'follow_same_view',environment_motion:'none',product_pose:'source_locked',shot_count:1,finish_seconds:5,initial_conditions:[],stationary_objects:[],risk:'low'};
-assert.equal(motion.KLING_MOTION_VERSION,350);
+assert(motion.KLING_MOTION_VERSION>=350); // later safe motion contracts retain v350 protections
 assert(motion.motionPlanIsSupported(proposed,garment));
 const direction=motion.renderKlingStructuredMotion(proposed,garment);
-assert.match(direction,/natural purposeful forward steps/);
+assert.match(direction,/two or three clearly visible natural walking steps/);
 assert.match(direction,/precise garment outline, print/);
 assert(validateKlingCreativeDirection(direction).ok);
 for(const unsafe of [

@@ -1299,7 +1299,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         const verifyScene=async({overlay,endCard:card})=>reviewAdvertisingComposition({
           openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
           frames:await composedAdvertisingSceneFrames(videoBackgrounds,overlay),
-          endCard:card,headline,closingLine:creativePlan.cta||getFallbackKlingCta(post),allowReviewServiceOutage:true,
+          endCard:card,headline,closingLine:creativePlan.cta||getFallbackKlingCta(post),allowReviewServiceOutage:true,typographyPreflightPassed:true,
         });
         // v144.350: verify the ACTUAL final-resolution glyph height before
         // compositing and keep the existing approved Kling source untouched.
@@ -1756,7 +1756,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
   try {
     await reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
       durationSeconds:nextSelection.delivered_duration_seconds||6,sampleFrames:sampleRemoteVideoFrames,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-      headline:postprocess.text_overlay_copy?.headline||'',closingLine:postprocess.ad_creative_plan?.cta||'',allowReviewServiceOutage:true});
+      headline:postprocess.text_overlay_copy?.headline||'',closingLine:postprocess.ad_creative_plan?.cta||'',allowReviewServiceOutage:true,typographyPreflightPassed:true});
   } catch(error) {
     const rejected={...nextSelection,shotstack_design_review:{status:'rejected',reason:String(error.message).slice(0,800),at:new Date().toISOString(),render_id:renderId}};
     await supabase.from('posts').update({video_background_selection:rejected,updated_at:new Date().toISOString()}).eq('id',post.id).eq('video_provider','kling');
