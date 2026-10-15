@@ -1,5 +1,5 @@
 import { explicitCollectionScope, restrictToExplicitCollection } from "../../../../lib/storeMapCollectionScope.js";
-import { verifyExplicitCollectionMembership } from "../../../../lib/verifiedCollectionMembership.js";
+import { verifyExplicitCollectionMembership, filterExplicitCollectionCandidates, getExplicitCollectionProductCandidates } from "../../../../lib/verifiedCollectionMembership.js";
 import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering } from "../../../../lib/videoAdvertisingAssetPipeline.js";
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
 import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeVideoEndCardLayers } from "../../../../lib/klingEndCard.js";
@@ -33332,9 +33332,34 @@ async function prepareWebsiteContentForRule({
     }
   }
 
-  const sortedCatalogItems = [...catalogItems].sort(
+  const rankedCatalogItems = [...catalogItems].sort(
     (a, b) => scoreWebsiteItemForRule(b, rule) - scoreWebsiteItemForRule(a, rule)
   );
+  // v144.355: every product selector must receive only candidates that belong
+  // to an explicitly selected collection. Old catalog entries and Store Map
+  // cache are merely leads; a prior rejection must never re-enter selection.
+  const collectionCatalogFilter = await filterExplicitCollectionCandidates({
+    sourceUrl: websiteUrl,
+    items: rankedCatalogItems,
+  });
+  const directCollectionItems = collectionCatalogFilter.applicable
+    ? await getExplicitCollectionProductCandidates({ sourceUrl: websiteUrl })
+    : [];
+  // Feed records often have no long-form description yet, so the generic
+  // carousel deduper would incorrectly discard them before page locking.
+  const sortedCatalogItems = collectionCatalogFilter.applicable
+    ? dedupeUrlItems([...collectionCatalogFilter.items, ...directCollectionItems])
+    : dedupeWebsiteItemsByUrlTitleAndImage(collectionCatalogFilter.items);
+  if (collectionCatalogFilter.applicable) {
+    console.info('Explicit collection product pool verified before catalog selection', {
+      ruleId: rule.id,
+      websiteUrl,
+      rejectedCachedCandidates: collectionCatalogFilter.rejected.length,
+      verifiedCachedCandidates: collectionCatalogFilter.items.length,
+      directCollectionCandidates: directCollectionItems.length,
+      selectionPoolCount: sortedCatalogItems.length,
+    });
+  }
 
   const catalogSelection = await chooseUnusedWebsiteItem({
     supabase,
@@ -33346,24 +33371,54 @@ async function prepareWebsiteContentForRule({
     rule,
     usedWebsiteImageUrlsThisRun,
     recentUsedItems,
-    allowReuseWhenExhausted: false,
+    // A verified older product is safer than an unrelated product or a paid
+    // research pass once the customer's own collection is exhausted.
+    allowReuseWhenExhausted: collectionCatalogFilter.applicable,
   });
 
   if (catalogSelection?.item && !productIntentScoped) {
-    console.log("Website product selected from product catalog", {
-      ruleId: rule.id,
-      brandProfileId: rule.brand_profile_id,
-      websiteUrl,
-      productUrl: catalogSelection.item.url,
-      title: catalogSelection.item.title,
-      catalogCount: catalogItems.length,
-      recentUsedCount: recentUsedItems.length,
-    });
-
-    summary.website_items_found += 1;
-    summary.website_content_success += 1;
-
-    return finalizePreparedWebsiteItem(catalogSelection.item, catalogSelection.cycleNumber);
+    // Unlike v144.354, do not let one stale/invalid catalog entry terminate
+    // the whole occurrence. Try another collection-verified item first.
+    let remainingCatalogCandidates = [...sortedCatalogItems];
+    let nextCatalogSelection = catalogSelection;
+    const maxCatalogAttempts = Math.min(12, remainingCatalogCandidates.length);
+    for (let attempt = 0; nextCatalogSelection?.item && attempt < maxCatalogAttempts; attempt += 1) {
+      const candidate = nextCatalogSelection.item;
+      try {
+        const prepared = await finalizePreparedWebsiteItem(
+          candidate, nextCatalogSelection.cycleNumber, { allowAiRepair: false }
+        );
+        console.log('Website product selected from verified product catalog', {
+          ruleId: rule.id, brandProfileId: rule.brand_profile_id, websiteUrl,
+          productUrl: prepared?.websiteItem?.url || candidate.url,
+          title: prepared?.websiteItem?.title || candidate.title,
+          eligibleCatalogCount: sortedCatalogItems.length,
+          previousCandidateFailures: attempt,
+          recentlyUsedProductReused: Boolean(nextCatalogSelection.reusedBecauseExhausted),
+        });
+        if (nextCatalogSelection.startedNewCycle) summary.website_items_reused_cycle += 1;
+        summary.website_items_found += 1;
+        summary.website_content_success += 1;
+        return prepared;
+      } catch (error) {
+        if (isWebsiteRateLimitError(error)) throw error;
+        console.info('Collection catalog candidate could not be safely locked; trying another', {
+          ruleId: rule.id, websiteUrl, productUrl: candidate?.url,
+          message: error?.message || String(error), attempt: attempt + 1,
+        });
+        remainingCatalogCandidates = remainingCatalogCandidates.filter(
+          (item) => !areSameWebsiteItem(item, candidate, websiteUrl)
+        );
+        nextCatalogSelection = remainingCatalogCandidates.length
+          ? await chooseUnusedWebsiteItem({
+              supabase, userId: rule.user_id, brandProfileId: rule.brand_profile_id,
+              sourceUrl: websiteUrl, contentType, items: remainingCatalogCandidates,
+              rule, usedWebsiteImageUrlsThisRun, recentUsedItems,
+              allowReuseWhenExhausted: collectionCatalogFilter.applicable,
+            })
+          : null;
+      }
+    }
   }
 
   // v144.285: for a connected Shopify store, accept the ranked Admin API
@@ -34209,29 +34264,35 @@ async function prepareWebsiteContentForRule({
         });
       }
 
+      const discoveredCandidatePool = productIntentScoped
+        ? [
+            ...discoveredItems.map((item) => ({
+              ...item,
+              selection_priority: 100,
+              campaign_fit_source: isCampaignScopedWebsiteRule(rule) ? 'campaign_discovery' : 'product_intent_discovery',
+              campaign_fit_score: scoreCampaignFitForRule(item, rule),
+            })),
+            ...(Array.isArray(webSearchItems) ? webSearchItems.map((item) => ({
+              ...item,
+              selection_priority: 90,
+              campaign_fit_source: isCampaignScopedWebsiteRule(rule) ? 'ai_campaign_research' : 'ai_product_intent_research',
+              campaign_fit_score: scoreCampaignFitForRule(item, rule) + 40,
+            })) : []),
+            ...getSafeCampaignProductCandidates(sortedCatalogItems, rule).map((item) => ({ ...item, selection_priority: 10 })),
+          ]
+        : discoveredItems;
+      const filteredDiscoveredPool = await filterExplicitCollectionCandidates({
+        sourceUrl: websiteUrl,
+        items: discoveredCandidatePool,
+        refreshIfEmpty: false,
+      });
       const discoveredSelection = await chooseUnusedWebsiteItem({
         supabase,
         userId: rule.user_id,
         brandProfileId: rule.brand_profile_id,
         sourceUrl: websiteUrl,
         contentType,
-        items: productIntentScoped
-          ? [
-              ...discoveredItems.map((item) => ({
-                ...item,
-                selection_priority: 100,
-                campaign_fit_source: isCampaignScopedWebsiteRule(rule) ? "campaign_discovery" : "product_intent_discovery",
-                campaign_fit_score: scoreCampaignFitForRule(item, rule),
-              })),
-              ...(Array.isArray(webSearchItems) ? webSearchItems.map((item) => ({
-                ...item,
-                selection_priority: 90,
-                campaign_fit_source: isCampaignScopedWebsiteRule(rule) ? "ai_campaign_research" : "ai_product_intent_research",
-                campaign_fit_score: scoreCampaignFitForRule(item, rule) + 40,
-              })) : []),
-              ...getSafeCampaignProductCandidates(sortedCatalogItems, rule).map((item) => ({ ...item, selection_priority: 10 })),
-            ]
-          : discoveredItems,
+        items: filteredDiscoveredPool.items,
         rule,
         usedWebsiteImageUrlsThisRun,
         recentUsedItems,
@@ -34281,13 +34342,16 @@ async function prepareWebsiteContentForRule({
           ...(Array.isArray(webSearchItems) ? getSafeCampaignProductCandidates(webSearchItems, rule) : []),
         ]
       : [...sortedCatalogItems, ...(Array.isArray(webSearchItems) ? webSearchItems : [])];
+    const filteredReusePool = await filterExplicitCollectionCandidates({
+      sourceUrl: websiteUrl, items: reusablePool, refreshIfEmpty: false,
+    });
     const reuseSelection = await chooseUnusedWebsiteItem({
       supabase,
       userId: rule.user_id,
       brandProfileId: rule.brand_profile_id,
       sourceUrl: websiteUrl,
       contentType,
-      items: reusablePool,
+      items: filteredReusePool.items,
       rule,
       usedWebsiteImageUrlsThisRun,
       recentUsedItems,
