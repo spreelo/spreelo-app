@@ -269,7 +269,8 @@
     "test:v144.344:sdk": "node scripts/test-v144-344-storage-sdk-browser.mjs",
     "test:v144.345": "node scripts/test-v144-345-design-guards.mjs",
     "test:v144.346": "node scripts/test-v144-346-cinematic-motion.mjs",
-    "test:v144.347": "node scripts/test-v144-347-creative-production.mjs"
+    "test:v144.347": "node scripts/test-v144-347-creative-production.mjs",
+    "test:v144.348": "node scripts/test-v144-348-reliable-advertising.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

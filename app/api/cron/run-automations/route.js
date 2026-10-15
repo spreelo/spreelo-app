@@ -1,3 +1,5 @@
+import { explicitCollectionScope, restrictToExplicitCollection } from "../../../../lib/storeMapCollectionScope.js";
+import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering } from "../../../../lib/videoAdvertisingAssetPipeline.js";
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
 import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeVideoEndCardLayers } from "../../../../lib/klingEndCard.js";
 import { prepareSafeProductCutout } from "../../../../lib/productCutout.js";
@@ -7355,15 +7357,20 @@ async function discoverProductsFromStoreMapAgent({
       .filter(Boolean)
       .map(normalizeComparableValue)
   );
-  const selectedShelves = (
-    await rankStoreMapShelvesWithAi({
-      openai,
-      rule,
-      brandProfile,
-      nodes: storeMap.nodes,
-      selectionLimit: shelfSelectionLimit,
-    })
-  ).slice(0, shelfSelectionLimit);
+  const collectionScope = explicitCollectionScope(websiteUrl);
+  const rankedShelves = await rankStoreMapShelvesWithAi({
+    openai,rule,brandProfile,nodes:storeMap.nodes,
+    selectionLimit:shelfSelectionLimit,
+  });
+  let selectedShelves = restrictToExplicitCollection(rankedShelves,websiteUrl).slice(0,shelfSelectionLimit);
+  if(collectionScope && !selectedShelves.length) {
+    // AI shelf ranking may overlook the customer's exact collection. Restore
+    // only that verified source instead of relaxing the customer's scope.
+    selectedShelves = restrictToExplicitCollection(storeMap.nodes,websiteUrl).slice(0,1);
+  }
+  if(collectionScope)console.info('Store Map product discovery restricted to configured collection',{
+    ruleId:rule?.id,collectionScope,selectedShelfCount:selectedShelves.length,
+  });
   const products = [];
   const shelfDiagnostics = [];
   const candidateDiagnostics = [];
@@ -7469,7 +7476,7 @@ async function discoverProductsFromStoreMapAgent({
         : 1;
     if (deeplyVerified.length >= minimumDeepVerifiedProducts) {
       const diversitySatisfied =
-        requiredCount >= CAROUSEL_PRODUCT_SLIDE_TARGET ||
+        Boolean(collectionScope) || requiredCount >= CAROUSEL_PRODUCT_SLIDE_TARGET ||
         !(recentUsedItems || []).length ||
         hasMeaningfullyDiverseProductCandidate(uniqueVerified, recentUsedItems);
       console.log("Store Map Product Agent reached initial technical pool target", {
@@ -39370,20 +39377,32 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
     const files=await Promise.all(composites.slice(-3).map(async (buffer,i)=>toFile(await sharp(buffer).resize(576,1024).png().toBuffer(),`animation-composition-${i}.png`,{type:"image/png"})));
     let lastError;
     let lastGeneratedAtlas=null;
+    let cachedIndependentBackground=null;
     for(let attempt=1;attempt<=2;attempt++) {
       const attemptPrompt=attempt===1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(lastError)}`;
       try {
-        const response=await openai.images.edit({model:animatedOverlayImageModel(),image:files,prompt:attemptPrompt,size:"1536x1024",quality:"medium",background:"transparent",output_format:"png"},{maxRetries:0});
-        const base64=response?.data?.[0]?.b64_json;
-        if(!base64) throw new Error("No animation advertising atlas was returned");
-        lastGeneratedAtlas=base64;
-        const split=await splitKlingAdvertisingAtlas(Buffer.from(base64,"base64"));
+        let split=await generateIndependentAdvertisingAssets({
+          openai,model:animatedOverlayImageModel(),referenceFiles:files,
+          headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,
+          designDirection:attempt===1?advertisingCopy.designDirection:`${advertisingCopy.designDirection}. ${creativeCorrectionInstruction(lastError)}`,
+          brand:rule?.brand_profile||{},hasLogo,
+          cachedBackground:cachedIndependentBackground,
+          onBackground:async buffer=>{cachedIndependentBackground=buffer;},
+        });
+        // Background and independent typography are separately generated. No atlas split,
+        // no mixed-alpha geometry, no giant opaque background behind lettering.
+        lastGeneratedAtlas=null;
         if(!split.closingText) throw new Error("Animation closing CTA is missing; no substitute text is allowed");
+        let copyValidation;
+        ({assets:split,audit:copyValidation}=await ensureExactAdvertisingLettering({
+          assets:split,headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,
+          designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},
+          verify:(main,cta)=>verifyAnimatedAdvertisingTypography({openai,model:PRODUCT_RESEARCH_FAST_MODEL,buffer:main,
+            headline:advertisingCopy.headline,closingBuffer:cta,closingLine:advertisingCopy.closingLine}),
+        }));
         const panel=await normalizeGeneratedAnimatedTextPanel(split.headline,animationLayout);
         const contrast=await ensureTypographyContrast({overlayBuffer:panel.textOverlayBuffer,backgroundBuffers:composites,textBox:animationLayout.text,preserveDesign:true});
         const closing=await inspectTypographyShape(split.closingText);
-        const copyValidation=await verifyAnimatedAdvertisingTypography({openai,model:PRODUCT_RESEARCH_FAST_MODEL,buffer:contrast.buffer,
-          headline:advertisingCopy.headline,closingBuffer:closing.buffer,closingLine:advertisingCopy.closingLine});
         const endCard=await composeVideoEndCardLayers({background:split.endCard,closingText:closing.buffer,closingLine:advertisingCopy.closingLine,
           brand:rule?.brand_profile||{},hasLogo,language:rule?.language,preserveDesign:true});
         const review=await reviewAdvertisingComposition({openai,model:PRODUCT_RESEARCH_FAST_MODEL,
@@ -39393,12 +39412,18 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
           endCard:endCard.cardBuffer,headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine});
         return {textOverlayBuffer:contrast.buffer,contrastAnalysis:contrast.analysis,designReview:review,
           closingBackgroundBuffer:endCard.backgroundBuffer,closingTextBuffer:endCard.foregroundBuffer,closingCardBuffer:endCard.cardBuffer,
-          advertisingCopy,copyValidation,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-shared-advertising-atlas-v345`};
+          advertisingCopy,copyValidation,typographyMode:split.typographyMode,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-independent-advertising-assets-v348`};
       } catch(error) {
         lastError=error;
         const status=Number(error?.status||error?.statusCode||0);
-        const terminal=[400,401,403,429].includes(status)||error?.code==='VIDEO_DESIGN_REVIEW_UNAVAILABLE'||/insufficient_quota|credit_balance_exhausted|invalid api key/i.test(`${error?.code||""} ${error?.message||""}`);
-        console.warn("Animation advertising atlas rejected",{ruleId:rule?.id,attempt,retrying:attempt<2&&!terminal,message:error?.message});
+        // Retry a known rejected *visual design* only. Never re-send a paid
+        // request after timeout, disconnection or an unknown provider outcome.
+        const knownDesignRejection=error?.code==='VIDEO_ADVERTISING_DESIGN_REJECTED'||
+          /typography did not reproduce the exact locked|advertising closing line is too small|advertising headline is too small/i.test(String(error?.message||''));
+        const terminal=!knownDesignRejection || [400,401,403,429].includes(status) ||
+          error?.code==='VIDEO_DESIGN_REVIEW_UNAVAILABLE'||
+          /insufficient_quota|credit_balance_exhausted|invalid api key/i.test(`${error?.code||""} ${error?.message||""}`);
+        console.warn("Animation independent advertising design rejected",{ruleId:rule?.id,attempt,retrying:attempt<2&&!terminal,message:error?.message});
         if(terminal||attempt===2) {
           // Save the last known rejected AI artwork for directed admin repair.
           // Never generate a generic replacement or order another animation.

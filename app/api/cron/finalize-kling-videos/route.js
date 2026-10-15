@@ -1,4 +1,5 @@
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
+import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering } from "../../../../lib/videoAdvertisingAssetPipeline.js";
 import { CREATIVE_DIRECTOR_BRIEF, creativeCorrectionInstruction } from "../../../../lib/videoCreativeDirector.js";
 import { finalizationJobGate, nextFinalizationControl, canRegenerateTypographyAfterKnownRejection } from "../../../../lib/videoProductionController.js";
 import { ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
@@ -1228,6 +1229,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     // attempts. Never repeat after unknown API outcome or on an unavailable reviewer.
     let approvedArtwork = null;
     let designFeedback = null;
+    let cachedIndependentBackground = null;
     for (let designAttempt = 1; designAttempt <= 2; designAttempt += 1) {
       const attemptPrompt = designAttempt === 1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(designFeedback)}`;
       if (designAttempt > 1) {
@@ -1242,22 +1244,32 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         if (retryCheckpointError) throw new Error(`Cannot checkpoint second design attempt: ${retryCheckpointError.message}`);
       }
       try {
-        const response = await openai.images.edit({
-          model: KLING_TYPOGRAPHY_MODEL,
-          image: referenceFiles,
-          prompt: attemptPrompt,
-          size: '1536x1024',
-          quality: 'medium',
-          background: 'transparent',
-          output_format: 'png',
-        }, { timeout: 75_000, maxRetries: 0 });
-        const base64 = response?.data?.[0]?.b64_json;
-        if (!base64) throw new Error('GPT-Image-2.5 Flare returned no transparent Kling typography image');
-        const splitOverlay = await splitKlingAdvertisingAtlas(Buffer.from(base64, 'base64'));
+        // v348: independent end-card background, hero typography and CTA.
+        // When the image model embeds a solid panel, restore the *AI-selected*
+        // typography with exact-word vector lettering, not a generic template.
+        // Unknown provider outcomes are NOT re-sent automatically.
+        let splitOverlay = await generateIndependentAdvertisingAssets({
+          openai, model:KLING_TYPOGRAPHY_MODEL, referenceFiles,
+          headline, subheadline, closingLine:creativePlan.cta||getFallbackKlingCta(post),
+          designDirection:designAttempt===1?creativePlan.design_direction:`${creativePlan.design_direction}. ${creativeCorrectionInstruction(designFeedback)}`,
+          brand, hasLogo:Boolean(logoBuffer),
+          cachedBackground:cachedIndependentBackground,
+          onBackground:async buffer=>{cachedIndependentBackground=buffer;},
+        });
         if (!splitOverlay.closingText) throw new Error('End card is missing GPT Image CTA lettering');
-        await verifyAnimatedAdvertisingTypography({openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-          buffer:splitOverlay.headline,headline:[headline,subheadline].filter(Boolean).join(' '),
-          closingBuffer:splitOverlay.closingText,closingLine:creativePlan.cta||getFallbackKlingCta(post)});
+        // If GPT-image renders a misspelled (yet transparent) headline, repair
+        // only the typography, retain its independent background and run the
+        // exact-word audit again. No second provider image call is required.
+        ({assets:splitOverlay}=await ensureExactAdvertisingLettering({
+          assets:splitOverlay,headline,subheadline,
+          closingLine:creativePlan.cta||getFallbackKlingCta(post),
+          designDirection:creativePlan.design_direction,brand,
+          verify:(main,cta)=>verifyAnimatedAdvertisingTypography({
+            openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+            buffer:main,headline:[headline,subheadline].filter(Boolean).join(' '),
+            closingBuffer:cta,closingLine:creativePlan.cta||getFallbackKlingCta(post),
+          }),
+        }));
         const combinedOverlay = await normalizeFinishedKlingTypography(splitOverlay.headline);
         const normalized = await placeFinishedKlingTypographyInSafeArea(
           combinedOverlay.buffer, creativePlan.main_placement, creativePlan.main_layout
@@ -1300,7 +1312,8 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       end_card_text_url: endText.imageUrl,
       end_card_url: endCard.imageUrl,
       end_card_storage_path: endCard.storagePath,
-      end_card_provider: "gpt-image-2.5-flare-separated-atlas-v345",
+      end_card_provider: "gpt-image-2.5-flare-independent-assets-v348",
+      advertising_typography_mode:splitOverlay.typographyMode,
       end_card_seconds: KLING_END_CARD_SECONDS,
       end_card_brand_name: brand.business_name || null,
       end_card_has_logo: Boolean(logoBuffer),
@@ -1308,7 +1321,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       end_card_text_alignment: "center_visible_bounds",
       text_overlay_url: uploaded.imageUrl,
       text_overlay_storage_path: uploaded.storagePath,
-      text_overlay_provider: "gpt-image-2.5-flare-finished-video-shared-overlay",
+      text_overlay_provider: splitOverlay.typographyMode?.headline === "ai_brief_vector_recovery" ? "ai-directed-vector-lettering-v348" : "gpt-image-2.5-flare-independent-lettering-v348",
       text_overlay_prompt: approvedArtwork.prompt,
       creative_director_version: VIDEO_DESIGN_VERSION,
       text_overlay_approved_attempt: approvedArtwork.designAttempt,
@@ -1335,7 +1348,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       .eq("id", post.id)
       .eq("video_provider", "kling");
     if (persistError) throw new Error(`Could not persist finished Kling typography: ${persistError.message}`);
-    console.info("GPT-Image-2.5 Flare finished-video transparent typography created in one generation", {
+    console.info("Finished-video independent advertising assets approved", {
       postId: post.id,
       headline,
       hasSubheadline: Boolean(subheadline),
@@ -1345,7 +1358,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       placementConfidence: creativePlan.placement_confidence,
       referenceFrames: frames.length,
       provider: completedSelection.text_overlay_provider,
-      sharedOverlay: completedSelection.cta_overlay_provider === "gpt-image-2.5-flare-shared-overlay-split",
+      artworkModes:splitOverlay.typographyMode,
     });
     return completedSelection;
   } catch (error) {
