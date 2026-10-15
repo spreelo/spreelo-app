@@ -3,7 +3,7 @@ import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering }
 import { CREATIVE_DIRECTOR_BRIEF, creativeCorrectionInstruction } from "../../../../lib/videoCreativeDirector.js";
 import { finalizationJobGate, nextFinalizationControl, canRegenerateTypographyAfterKnownRejection } from "../../../../lib/videoProductionController.js";
 import { ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
-import { composedAdvertisingSceneFrames, reviewAdvertisingComposition, reviewRenderedAdvertisingVideo } from "../../../../lib/videoAdvertisingReview.js";
+import { composedAdvertisingSceneFrames, reviewAdvertisingComposition, reviewRenderedAdvertisingVideo, isRecoverableAestheticRejection } from "../../../../lib/videoAdvertisingReview.js";
 import { renderReadableAdvertisingLettering, repairReviewedAdvertising, isLocallyRepairableReview } from "../../../../lib/videoAdvertisingReadabilityRepair.js";
 import { ensurePreflightAdvertisingTypography } from "../../../../lib/videoTypographyPreflight.js";
 import { sendTerminalVideoAdminAlert } from "../../../../lib/videoTerminalAdminAlert.js";
@@ -1726,9 +1726,15 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
     });
   }
 
+  // v144.354: old subjective rejections must not become permanent locks on a
+  // completed render. Reinspect the SAME Shotstack ID; never buy a second film.
   if(nextSelection.shotstack_design_review?.status==='rejected') {
-    throw Object.assign(new Error('Rendered Kling advertisement failed visual review; preserve Shotstack ID and repair graphics before delivery.'),
-      {code:'KLING_RENDER_DESIGN_REJECTED'});
+    const reason=nextSelection.shotstack_design_review?.reason||'';
+    if(!isRecoverableAestheticRejection(reason)) {
+      throw Object.assign(new Error('Rendered Kling advertisement has a concrete visual-integrity defect; repair without resubmitting Kling.'),
+        {code:'KLING_RENDER_DESIGN_REJECTED'});
+    }
+    nextSelection={...nextSelection,shotstack_design_review:{status:'advisory_recovered',reason,at:new Date().toISOString(),render_id:renderId}};
   }
   const render = await waitForShotstackRender({
     renderId,
@@ -1753,10 +1759,12 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
   }
 
 
+  let finishedDesignReview;
   try {
-    await reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
+    finishedDesignReview=await reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
       durationSeconds:nextSelection.delivered_duration_seconds||6,sampleFrames:sampleRemoteVideoFrames,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-      headline:postprocess.text_overlay_copy?.headline||'',closingLine:postprocess.ad_creative_plan?.cta||'',allowReviewServiceOutage:true,typographyPreflightPassed:true});
+      headline:postprocess.text_overlay_copy?.headline||'',closingLine:postprocess.ad_creative_plan?.cta||'',
+      allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true});
   } catch(error) {
     const rejected={...nextSelection,shotstack_design_review:{status:'rejected',reason:String(error.message).slice(0,800),at:new Date().toISOString(),render_id:renderId}};
     await supabase.from('posts').update({video_background_selection:rejected,updated_at:new Date().toISOString()}).eq('id',post.id).eq('video_provider','kling');
@@ -1766,6 +1774,9 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
 
   const completedSelection = {
     ...nextSelection,
+    shotstack_design_review:{status:finishedDesignReview?.reviewStatus||'approved',
+      ...(finishedDesignReview?.creativeFeedback ? {creativeFeedback:finishedDesignReview.creativeFeedback}:{}),
+      requiresFollowup:Boolean(finishedDesignReview?.requiresFollowup),at:new Date().toISOString(),render_id:renderId},
     shotstack_render_id: renderId,
     shotstack_status: "done",
     shotstack_completed_at: new Date().toISOString(),
