@@ -55,6 +55,7 @@ import {
 import { completeShotstackDelivery } from "../../../../lib/shotstackDelivery.js";
 import { hasShotstackCheckpoint, finishSavedShotstackPost, shotstackContinuationError } from "../../../../lib/shotstackContinuation.js";
 import { inspectTypographyShape, ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
+import { composedAdvertisingSceneFrames, reviewAdvertisingComposition, reviewRenderedAdvertisingVideo } from "../../../../lib/videoAdvertisingReview.js";
 import { sampleRemoteVideoFrames } from "../../../../lib/videoFrameSampler.js";
 import { prepareAnimatedProductLayout } from "../../../../lib/animatedProductLayout.js";
 import { submitKlingImageToVideo } from "../../../../lib/kling.js";
@@ -16712,7 +16713,7 @@ function getKlingProviderSafetyPrefix(referenceSafety = {}) {
     "SURFACE PRINT LOCK: preserve every logo, letter, number and printed detail character-for-character. No redraw, invented branding, overlay text or watermarks.",
     "LIGHT AND EFFECT LOCK: no new lights, displays, glows or product effects.",
     "FUNCTION LOCK: only the bounded movement specified below is allowed; never activate, open, dock, insert, transform or repurpose parts.",
-    "SCENE CONTINUITY LOCK: one continuous shot; no cuts, new perspective, pop-in, duplication, extra limbs or unexplained motion. Preserve initial conditions, physical support and product count.",
+    "SCENE CONTINUITY LOCK: one continuous shot; no cuts, new product-facing perspective, pop-in, duplication, extra limbs or unexplained motion. Tracking may move the background only while the verified product view stays unchanged. Preserve initial conditions, physical support and product count.",
   ].join(" ");
 }
 
@@ -39039,9 +39040,10 @@ async function normalizeGeneratedAnimatedTextPanel(generatedBuffer, animationLay
   const textBox = animationLayout?.text || { left: ANIMATED_TEXT_PANEL_LEFT, top: ANIMATED_TEXT_PANEL_TOP, width: ANIMATED_TEXT_PANEL_WIDTH, height: ANIMATED_TEXT_PANEL_HEIGHT };
   const inspected = await inspectTypographyShape(generatedBuffer);
   const resized = await sharp(inspected.buffer).resize({
-    width: Math.round((textBox.width - 24) * 0.86), height: Math.round((textBox.height - 24) * 0.78), fit: "inside",
+    width: Math.round(textBox.width * 0.96), height: Math.round(textBox.height * 0.94), fit: "inside",
   }).png().toBuffer();
   const meta = await sharp(resized).metadata();
+  if (meta.width < 330 || meta.height < 67) throw new Error("Advertising headline is too small after final 1080x1920 layout");
   const textOverlayBuffer = await sharp({create:{width:1080,height:1920,channels:4,background:{r:0,g:0,b:0,alpha:0}}})
     .composite([{input:resized,left:textBox.left+Math.round((textBox.width-meta.width)/2),top:textBox.top+Math.round((textBox.height-meta.height)/2)}]).png().toBuffer();
   return {textOverlayBuffer, analysis:inspected.analysis};
@@ -39365,19 +39367,24 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         const split=await splitKlingAdvertisingAtlas(Buffer.from(base64,"base64"));
         if(!split.closingText) throw new Error("Animation closing CTA is missing; no substitute text is allowed");
         const panel=await normalizeGeneratedAnimatedTextPanel(split.headline,animationLayout);
-        const contrast=await ensureTypographyContrast({overlayBuffer:panel.textOverlayBuffer,backgroundBuffers:composites,textBox:animationLayout.text});
+        const contrast=await ensureTypographyContrast({overlayBuffer:panel.textOverlayBuffer,backgroundBuffers:composites,textBox:animationLayout.text,preserveDesign:true});
         const closing=await inspectTypographyShape(split.closingText);
         const copyValidation=await verifyAnimatedAdvertisingTypography({openai,model:PRODUCT_RESEARCH_FAST_MODEL,buffer:contrast.buffer,
           headline:advertisingCopy.headline,closingBuffer:closing.buffer,closingLine:advertisingCopy.closingLine});
         const endCard=await composeVideoEndCardLayers({background:split.endCard,closingText:closing.buffer,closingLine:advertisingCopy.closingLine,
-          brand:rule?.brand_profile||{},hasLogo,language:rule?.language});
-        return {textOverlayBuffer:contrast.buffer,contrastAnalysis:contrast.analysis,
+          brand:rule?.brand_profile||{},hasLogo,language:rule?.language,preserveDesign:true});
+        const review=await reviewAdvertisingComposition({openai,model:PRODUCT_RESEARCH_FAST_MODEL,
+          frames:await composedAdvertisingSceneFrames(backgrounds,contrast.buffer,
+            await sharp({create:{width:1080,height:1920,channels:4,background:'#00000000'}})
+              .composite([{input:product,left:animationLayout.product.left,top:animationLayout.product.top}]).png().toBuffer()),
+          endCard:endCard.cardBuffer,headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine});
+        return {textOverlayBuffer:contrast.buffer,contrastAnalysis:contrast.analysis,designReview:review,
           closingBackgroundBuffer:endCard.backgroundBuffer,closingTextBuffer:endCard.foregroundBuffer,closingCardBuffer:endCard.cardBuffer,
-          advertisingCopy,copyValidation,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-shared-advertising-atlas-v342`};
+          advertisingCopy,copyValidation,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-shared-advertising-atlas-v345`};
       } catch(error) {
         lastError=error;
         const status=Number(error?.status||error?.statusCode||0);
-        const terminal=[400,401,403,429].includes(status)||/insufficient_quota|credit_balance_exhausted|invalid api key/i.test(`${error?.code||""} ${error?.message||""}`);
+        const terminal=[400,401,403,429].includes(status)||error?.code==='VIDEO_DESIGN_REVIEW_UNAVAILABLE'||/insufficient_quota|credit_balance_exhausted|invalid api key/i.test(`${error?.code||""} ${error?.message||""}`);
         console.warn("Animation advertising atlas rejected",{ruleId:rule?.id,attempt,retrying:attempt<2&&!terminal,message:error?.message});
         if(terminal||attempt===2) throw error;
       }
@@ -39719,6 +39726,7 @@ async function createAnimatedProductVideoAssets({
       top_candidates: selection.topCandidates,
       animation_layout: animationLayout,
       typography_contrast: textOverlay.contrastAnalysis || null,
+      typography_design_review: textOverlay.designReview || null,
       advertising_headline: textOverlay.advertisingCopy?.headline || null,
       advertising_closing_line: textOverlay.advertisingCopy?.closingLine || null,
       advertising_design_direction: textOverlay.advertisingCopy?.designDirection || null,
@@ -39865,7 +39873,11 @@ export async function generateAnimatedProductVideo({
   try {
     const ready=await finishSavedShotstackPost({supabase,post:{id:postId,user_id:userId,video_render_id:renderId,
       image_url:assets.posterUrl,image_storage_path:assets.posterStoragePath,video_background_selection:{...selection,shotstack_checkpoint:checkpoint}},
-      waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker});
+      waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker,
+      reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
+        durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
+        headline:post.video_background_selection?.advertising_headline||assets.backgroundSelection?.advertising_headline,
+        closingLine:post.video_background_selection?.advertising_closing_line||assets.backgroundSelection?.advertising_closing_line})});
     return {...assets,backgroundSelection:ready.video_background_selection,videoUrl:ready.video_url,videoStoragePath:ready.video_storage_path,renderId};
   } catch(error){throw shotstackContinuationError(error,renderId);}
 }
@@ -46047,7 +46059,11 @@ async function runAutomationCron(request, options = {}) {
           try {
             await activeGenerationCostTracker?.bindPost(savedShotstackDraft.id);
             const finished=await finishSavedShotstackPost({supabase,post:savedShotstackDraft,
-              waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker:activeGenerationCostTracker});
+              waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker:activeGenerationCostTracker,
+              reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
+                durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
+                headline:post.video_background_selection?.advertising_headline,
+                closingLine:post.video_background_selection?.advertising_closing_line})});
             automationDrafts=automationDrafts.map(post=>post.id===finished.id?finished:post);
           } catch (resumeError) {
             if(resumeError?.code === "SHOTSTACK_RENDER_PENDING") {

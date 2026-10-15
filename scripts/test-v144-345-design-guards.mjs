@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {normalizeKlingLayout,sceneSafeKlingLayout} from '../lib/klingLayout.js';
+const productSource=fs.readFileSync('lib/animatedProductLayout.js','utf8');
+const layoutBlock=productSource.split('export async function prepareAnimatedProductLayout')[0].replace(/^import sharp.*\n/,'').replace('export function calculateAnimatedProductLayout','function calculateAnimatedProductLayout');
+const ctx={}; vm.runInNewContext(layoutBlock+'\nthis.layout=calculateAnimatedProductLayout;',ctx);
+for(const [w,h] of [[1200,430],[330,900],[940,910],[1080,300]]) {
+  const l=ctx.layout(w,h);
+  assert(l.text.width>=930,'Art-directed text must get sufficient width');
+  assert(l.text.height>=240,'Text must not be trapped in the original 176px panel');
+  assert(l.text.top>=350 && l.text.top+l.text.height<=1610,'Logo and UI safe areas');
+  assert(l.text.top+l.text.height+20<l.product.top || l.text.top>l.product.top+l.product.height+30,'Keep letters outside verified product bounds');
+}
+const layout=normalizeKlingLayout({left:64,top:350,width:876,height:490,preferredScale:1,alignment:'center'},null,0.9);
+assert(layout.left>=64 && layout.left+layout.width<=940,'Kling UI safe boundary');
+const protectedScene=sceneSafeKlingLayout(normalizeKlingLayout({left:64,top:1080,width:760,height:400,preferredScale:1,alignment:'center'},null,.99),[{left:280,top:900,width:660,height:700}]);
+assert(protectedScene.top+protectedScene.height<=900 || protectedScene.left+protectedScene.width<=268,'Product remains protected');
+const route=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
+const finalizer=fs.readFileSync('app/api/cron/finalize-kling-videos/route.js','utf8');
+const review=fs.readFileSync('lib/videoAdvertisingReview.js','utf8');
+const continuation=fs.readFileSync('lib/shotstackContinuation.js','utf8');
+assert(route.includes('preserveDesign:true') && finalizer.includes('preserveDesign:true'));
+assert(route.includes('reviewAdvertisingComposition(') && finalizer.includes('reviewAdvertisingComposition('));
+assert(route.includes('reviewRenderedAdvertisingVideo(') && finalizer.includes('reviewRenderedAdvertisingVideo('));
+assert(review.includes('FINAL COMPOSITED visible frames'));
+assert(continuation.includes('design_review_failed') && continuation.includes('reviewVideo({post,render})'));
+assert(!finalizer.includes('return createDeterministicKlingTypographyFallback({\n      supabase,\n      post,\n      selection: failedSelection'));
+assert(finalizer.includes('KLING_QUALITY_VERSION') && finalizer.includes('inspectKlingVideoQuality('));
+assert(route.includes('splitKlingAdvertisingAtlas('));
+console.log('PASS v144.345: dynamic safe layout, preserved AI art direction, independent AI review before and after rendering, no generic text substitution, Kling identity protections retained');

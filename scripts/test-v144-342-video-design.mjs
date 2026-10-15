@@ -44,7 +44,7 @@ const centered=await centerClosingLettering(cta),c=await raw(centered);
 for(const [top,bottom] of [[0,Math.floor(c.info.height/2)],[Math.floor(c.info.height/2),c.info.height]]) {
  let lo=c.info.width,hi=-1;
  for(let y=top;y<bottom;y++)for(let x=0;x<c.info.width;x++)if(c.data[(y*c.info.width+x)*4+3]>180){lo=Math.min(lo,x);hi=Math.max(hi,x);}
- assert(Math.abs((lo+hi)/2-424.5)<=1,'Every CTA line must be centered');
+ assert(Math.abs((lo+hi)/2-464.5)<=1,'Every CTA line must be centered');
 }
 const bg=await svg('<svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g"><stop stop-color="#071626"/><stop offset="1" stop-color="#252347"/></linearGradient></defs><rect width="1080" height="1920" fill="url(#g)"/><path d="M0 1600L1080 1300" stroke="#59dbed" stroke-width="4" opacity=".3"/></svg>');
 const logo=await svg('<svg width="200" height="80" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="80" fill="#e33130"/></svg>');
@@ -74,7 +74,7 @@ const corrected=await ensureTypographyContrast({overlayBuffer:await svg('<svg wi
 assert.equal(corrected.analysis.outlineColor,null,'Calm scene gets color correction without outline');
 const safe=sceneSafeKlingLayout(normalizeKlingLayout({left:64,top:1160,width:720,height:340},null,.99),[{left:290,top:480,width:665,height:1080}]);
 assert(safe.top+safe.height<=468,'Dreame text moves to free upper wall');
-const layout=calculateAnimatedProductLayout(1056,409);assert(layout.text.top+layout.text.height<layout.product.top);assert(layout.text.top>420);
+const layout=calculateAnimatedProductLayout(1056,409);assert(layout.text.top+layout.text.height<layout.product.top);assert(layout.text.top>=350);
 console.log('PASS: individually centered CTA lines, cohesive sender group, no central logo, persistent top corner, moving background, stable text, no frozen tail, scene exclusion and clean contrast');
 
 const requests=[];
@@ -98,7 +98,8 @@ let imageCalls=0;
 const ctx={Buffer,sharp,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,ANIMATED_VIDEO_MOTION_SECONDS:5,PRODUCT_RESEARCH_FAST_MODEL:'offline',ANIMATED_OVERLAY_IMAGE_MODEL:'offline',
  getAnimatedOverlayBackgroundReference:async()=>bg,planAnimatedAdvertisingCopy:async()=>copy,buildKlingAdvertisingAtlasPrompt,splitKlingAdvertisingAtlas,composeVideoEndCardLayers,
  sampleRemoteVideoFrames:async()=>[{buffer:bg}],toFile:async b=>b,animatedOverlayImageModel:()=> 'offline',ensureTypographyContrast,inspectTypographyShape,
- verifyAnimatedAdvertisingTypography:async args=>{assert(args.closingBuffer);assert.equal(args.closingLine,copy.closingLine);return {verified:true};}};
+ verifyAnimatedAdvertisingTypography:async args=>{assert(args.closingBuffer);assert.equal(args.closingLine,copy.closingLine);return {verified:true};},
+ composedAdvertisingSceneFrames:async()=>[bg],reviewAdvertisingComposition:async()=>({approved:true,issue:'none'})};
 vm.runInNewContext(crop(route,'async function normalizeGeneratedAnimatedTextPanel(','\nfunction cleanKlingOverlayTextLine(')+'\n'+crop(route,'async function createAnimatedTextOverlay(','\nasync function createAnimatedProductLayer(')+'\nthis.create=createAnimatedTextOverlay;',ctx);
 const args={openai:{images:{edit:async request=>{imageCalls++;assert.equal(request.size,'1536x1024');return{data:[{b64_json:atlas.toString('base64')}]};}}},rule:{language:'sv',brand_profile:{business_name:'POWER'}},productReferenceBuffer:prepared.cutoutBuffer,animationLayout:layout};
 const result=await ctx.create(args);assert(result.closingTextBuffer&&result.closingCardBuffer);assert.equal(imageCalls,1,'Headline/end card share ONE image generation');
@@ -124,10 +125,11 @@ assert(stored.every(s=>s.path.endsWith('-v342.png')));
 let klingCalls=0;
 const writes=[];
 const db={...storageDb,from:()=>{const q={update:d=>{writes.push(d);return q;},eq:()=>q,then:resolve=>resolve({})};return q;}};
-const kc={Buffer,sharp,console,Date,Math,Number,String,Error,VIDEO_DESIGN_VERSION,KLING_FINALIZATION_LEASE_MS:360000,KLING_TYPOGRAPHY_MODEL:'offline',KLING_END_CARD_SECONDS:1.5,
+const kc={Buffer,sharp,console,Date,Math,Number,String,Error,VIDEO_DESIGN_VERSION,KLING_FINALIZATION_LEASE_MS:360000,KLING_TYPOGRAPHY_MODEL:'offline',KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'offline',KLING_END_CARD_SECONDS:1.5,
  normalizeVideoDurationSeconds:()=>5,getKlingTextFrameFractions:()=>[.3,.8],sampleRemoteVideoFrames:async()=>[{buffer:bg}],
  planFinishedKlingAdvertisingCreative:async()=>({headline:'Frihet och precision',subheadline:'',cta:'Upptäck gamingkraften nu',main_placement:'top_left',main_layout:{left:80,top:340,width:820,height:240,preferredScale:.96,alignment:'center'},design_direction:'Gaming, cool light'}),
  buildKlingAdvertisingAtlasPrompt,splitKlingAdvertisingAtlas,composeVideoEndCardLayers,ensureTypographyContrast,normalizeKlingLayout,klingTypographyGeometry,
+ composedAdvertisingSceneFrames:async()=>[bg],reviewAdvertisingComposition:async()=>({approved:true,issue:'none'}),verifyAnimatedAdvertisingTypography:async()=>({verified:true}),
  normalizeFinishedKlingTypography:async b=>({buffer:b,visibleRatio:.1,strongRatio:.1,edgeRatio:0}),uploadKlingEndCardFrame:uploadCtx.upload,toFile:async b=>b,
  uploadKlingTypographyOverlay:async()=>({imageUrl:'https://fixture.test/headline',storagePath:'headline'}),getFallbackKlingCta:()=> 'Upptäck gamingkraften nu',truncate:s=>s,
  createDeterministicKlingTypographyFallback:async()=>{throw new Error('Unexpected fallback during valid Kling atlas test');}};

@@ -27,16 +27,16 @@ assert(intel.motionPlanIsSupported(plan, evidence));
 for (const changed of [{ action_id: 'unknown' }, { risk: 'high' }, { camera_mode: 'orbit' }, { motion_prompt: 'free prose' }]) assert(!intel.motionPlanIsSupported({ ...plan, ...changed }, evidence));
 assert(!intel.motionPlanIsSupported(plan, { ...evidence, confidence: 0.3 }));
 assert(!intel.motionPlanIsSupported(plan, { ...evidence, verified_actions: [{ ...evidence.verified_actions[0], preserves_source_view: false }] }));
-assert.equal((await intel.planKlingVerifiedMotion({ ...args, openai: fakeAi([{ ...plan }, review]) })).source, 'scene_aware_reviewed_plan');
-assert.equal((await intel.planKlingVerifiedMotion({ ...args, openai: fakeAi([{ ...plan }, { ...review, causality_safe: false }]) })).source, 'passive_plan_fallback');
-assert.equal((await intel.planKlingVerifiedMotion({ ...args, context: { fullProductInteractionSafe: false }, openai: fakeAi([{ ...plan }]) })).mode, 'camera_environment');
+assert.equal((await intel.planKlingVerifiedMotion({ ...args, openai: fakeAi([{ ...plan }, review]) })).source, 'scene_aware_cinematic_plan');
+assert.equal((await intel.planKlingVerifiedMotion({ ...args, openai: fakeAi([{ ...plan }, { ...review, causality_safe: false }]) })).source, 'safe_cinematic_fallback');
+assert.equal((await intel.planKlingVerifiedMotion({ ...args, context: { fullProductInteractionSafe: false }, openai: fakeAi([{ ...plan }, review]) })).mode, 'verified_use');
 assert.equal((await intel.analyzeKlingProductIntelligence({ openai: fakeAi([new Error('unavailable')]), model: 'test', sourceDataUrl: args.firstFrameDataUrl })).verified_actions.length, 0);
-console.log('PASS: evidence-backed motion, independent preflight, cropped-view gate and passive outage fallback');
+console.log('PASS: evidence-backed motion, independent preflight, scene-verified use and cinematic outage fallback');
 
 const goodAudit = Object.fromEntries(Object.keys(intel.videoQualitySchema.properties).filter(k => intel.videoQualitySchema.properties[k].type === 'boolean').map(k => [k, !['unverified_surface_exposed', 'invented_or_moved_identity_detail', 'object_materialized_or_disappeared'].includes(k)]));
 Object.assign(goodAudit, { confidence: 0.98, issues: [], reason: 'All visible identity and causal relationships preserved' });
 assert(intel.decideKlingVideoQuality(goodAudit).passed);
-for (const field of Object.keys(goodAudit).filter(k => typeof goodAudit[k] === 'boolean')) {
+for (const field of Object.keys(goodAudit).filter(k => typeof goodAudit[k] === 'boolean' && k !== 'commercial_motion_engaging')) {
   const bad = { ...goodAudit, [field]: !goodAudit[field] };
   assert(!intel.decideKlingVideoQuality(bad).passed, field);
 }
@@ -184,6 +184,7 @@ const adCtx = {
   buildVideoOverlayEdit: args => args,
   queueShotstackRender: async () => { adSubmissions++; return 'advertising-one'; },
   waitForShotstackRender: async () => { adWaits++; if (adWaits === 1) throw new Error('processing'); return { url: 'https://video.test/final.mp4' }; },
+  reviewRenderedAdvertisingVideo: async () => ({passed:true}), sampleRemoteVideoFrames: async () => [], KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'test',
 };
 vm.runInNewContext(crop(finalizer, 'async function saveKlingQualitySelection(', '\nasync function getKlingQualityFallbackSource(') + '\n' + crop(finalizer, 'async function getKlingFinalVideoSource(', '\nasync function finalizeReadyTask(') + '\nthis.render=getKlingFinalVideoSource;', adCtx);
 const adPost = { id: 'ad-post', video_background_selection: { quality_fallback: { status: 'ready' }, text_overlay_url: 'https://store.test/text.png', scene_trim_start_seconds: 0.05, end_card_url: 'https://store.test/end.png' } };

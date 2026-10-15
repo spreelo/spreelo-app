@@ -1,5 +1,7 @@
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
 import { ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
+import { composedAdvertisingSceneFrames, reviewAdvertisingComposition, reviewRenderedAdvertisingVideo } from "../../../../lib/videoAdvertisingReview.js";
+import { verifyAnimatedAdvertisingTypography } from "../../../../lib/animatedAdvertisingCopy.js";
 import { KLING_FINALIZER_POST_SELECT, klingAuditReferences, assertKlingAuditReferences, recoverableKlingReferenceFailure, restoreKlingLegacyViewLock } from "../../../../lib/klingAuditReferences.js";
 import { KLING_QUALITY_VERSION, klingQualitySampleTimes, inspectKlingVideoQuality, decideKlingVideoQuality } from "../../../../lib/klingVideoIntelligence.js";
 import { buildKlingPixelPreservingEdit } from "../../../../lib/klingQualityFallback.js";
@@ -477,7 +479,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       "The cta field is a non-interactive closing advertising line, NOT a clickable video button. Use 2-6 words, max 40 characters, tailored to THIS product, audience and campaign goal. For sales, a natural invitation to explore the verified product or store can work; for engagement, a relevant short question can work. Never imply the video itself is clickable, or invent a link in the bio, caption, a tag, swipe-up or shopping feature. Avoid repeating a fixed phrase on every post. " +
       "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
       "Choose main_placement from top_left, top_right, middle_left, middle_right, lower_left, lower_right so the headline avoids the advertised product and especially its print/design, plus faces, hands and the main action ACROSS ALL supplied frames. " +
-      "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, where the scene has real negative space, including above the product when appropriate; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose main width 520-820, height 120-420; closing line width 520-760, height 140-240. Use scene-appropriate medium or semibold hierarchy and purposeful line breaks. Do not default to extra-bold text or outlines. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
+      "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, where the scene has real negative space, including above the product when appropriate; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose the most compelling safe main width 520-876, height 140-500; the closing line belongs on the separate end card, so do not waste scene space by preparing a small second in-scene label. Prioritize prominent readable lettering without covering the product. Use scene-appropriate medium or semibold hierarchy and purposeful line breaks. Do not default to extra-bold text or outlines. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
       VIDEO_ART_DIRECTION + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
       "The cta is displayed on a separate company-branded end card, not on a frozen product photograph. Keep it concise enough to read in 1.5 seconds. Include end-card background art direction suited to the business in design_direction. Choose cta_placement independently for legacy compatibility. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
   }];
@@ -579,7 +581,8 @@ async function validateFinishedKlingProductIdentity({ openai, supabase, post, ta
     intelligence: selection.reference_safety?.productIntelligence || null,
     motionPlan: selection.reference_safety?.motionPlan || null,
   });
-  const decision = decideKlingVideoQuality(parsed, { productRequired });
+  const checkCreativeMotion = productRequired && Number(selection.reference_safety?.motionPlan?.version || 0) >= 346;
+  const decision = decideKlingVideoQuality(parsed, { productRequired, checkCreativeMotion });
   const validation = {
     ...parsed, ...decision, version: KLING_QUALITY_VERSION,
     status: decision.passed ? "passed" : "failed",
@@ -1140,20 +1143,12 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     if (!stale) {
       throw new Error("Kling typography generation is still inside its active finalization lease.");
     }
-    return createDeterministicKlingTypographyFallback({
-      supabase,
-      post,
-      selection,
-      reason: "The original GPT-Image-2.5 Flare typography claim became stale before completion.",
-    });
+    throw Object.assign(new Error('GPT Image request outcome is unknown. Keep the original Kling source and reconcile in admin; do not replace professional typography with generic SVG.'),
+      {code:'KLING_TYPOGRAPHY_SUBMISSION_UNKNOWN'});
   }
   if (status === "failed") {
-    return createDeterministicKlingTypographyFallback({
-      supabase,
-      post,
-      selection,
-      reason: selection?.text_overlay_error || "The one allowed GPT-Image-2.5 Flare typography generation previously failed.",
-    });
+    throw Object.assign(new Error(`GPT Image advertising design was not approved: ${selection?.text_overlay_error||'previous attempt failed'}`),
+      {code:'KLING_TYPOGRAPHY_DESIGN_FAILED'});
   }
   const copy = selection?.text_overlay_copy || {};
   const fallbackHeadline = String(copy?.headline || "").trim();
@@ -1245,16 +1240,25 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     const base64 = response?.data?.[0]?.b64_json;
     if (!base64) throw new Error("GPT-Image-2.5 Flare returned no transparent Kling typography image");
     const splitOverlay = await splitKlingAdvertisingAtlas(Buffer.from(base64, "base64"));
+    if(!splitOverlay.closingText) throw new Error('End card is missing GPT Image CTA lettering');
+    // Read back BOTH groups from the generated artwork, independently of the
+    // expected words. Never publish invented/misspelled image text.
+    await verifyAnimatedAdvertisingTypography({openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+      buffer:splitOverlay.headline,headline:[headline,subheadline].filter(Boolean).join(' '),
+      closingBuffer:splitOverlay.closingText,closingLine:creativePlan.cta||getFallbackKlingCta(post)});
     const combinedOverlay = await normalizeFinishedKlingTypography(splitOverlay.headline);
     const normalized = await placeFinishedKlingTypographyInSafeArea(
       combinedOverlay.buffer,
       creativePlan.main_placement,
       creativePlan.main_layout
     );
-    const contrast=await ensureTypographyContrast({overlayBuffer:normalized.buffer,backgroundBuffers:frames.map(frame=>frame.buffer),textBox:creativePlan.main_layout});
-    const uploaded = await uploadKlingTypographyOverlay({ supabase, post, buffer: contrast.buffer });
+    const contrast=await ensureTypographyContrast({overlayBuffer:normalized.buffer,backgroundBuffers:frames.map(frame=>frame.buffer),textBox:creativePlan.main_layout,preserveDesign:true});
     const layers=await composeVideoEndCardLayers({background:splitOverlay.endCard,closingText:splitOverlay.closingText,
-      closingLine:creativePlan.cta||getFallbackKlingCta(post),brand,logoBuffer,language:post.language});
+      closingLine:creativePlan.cta||getFallbackKlingCta(post),brand,logoBuffer,language:post.language,preserveDesign:true});
+    const review=await reviewAdvertisingComposition({openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+      frames:await composedAdvertisingSceneFrames(frames.map(frame=>frame.buffer),contrast.buffer),
+      endCard:layers.cardBuffer,headline,closingLine:creativePlan.cta||getFallbackKlingCta(post)});
+    const uploaded = await uploadKlingTypographyOverlay({ supabase, post, buffer: contrast.buffer });
     const endCard=await uploadKlingEndCardFrame({supabase,post,buffer:layers.cardBuffer});
     const endBackground=await uploadKlingEndCardFrame({supabase,post,buffer:layers.backgroundBuffer,suffix:"kling-end-background"});
     const endText=await uploadKlingEndCardFrame({supabase,post,buffer:layers.foregroundBuffer,suffix:"kling-end-text"});
@@ -1265,7 +1269,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       end_card_text_url: endText.imageUrl,
       end_card_url: endCard.imageUrl,
       end_card_storage_path: endCard.storagePath,
-      end_card_provider: "gpt-image-2.5-flare-separated-atlas-v342",
+      end_card_provider: "gpt-image-2.5-flare-separated-atlas-v345",
       end_card_seconds: KLING_END_CARD_SECONDS,
       end_card_brand_name: brand.business_name || null,
       end_card_has_logo: Boolean(logoBuffer),
@@ -1278,6 +1282,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       text_overlay_status: "ready",
       text_overlay_generated_at: new Date().toISOString(),
       text_overlay_analysis: {
+        design_review: review,
         contrast: contrast.analysis,
         visible_ratio: Number(normalized.visibleRatio.toFixed(4)),
         strong_ratio: Number(normalized.strongRatio.toFixed(4)),
@@ -1362,12 +1367,10 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         : {}),
     };
     await supabase.from("posts").update({ video_background_selection: failedSelection, updated_at: new Date().toISOString() }).eq("id", post.id).eq("video_provider", "kling");
-    return createDeterministicKlingTypographyFallback({
-      supabase,
-      post,
-      selection: failedSelection,
-      reason: error?.message || String(error),
-    });
+    // Never disguise an under-designed GPT Image asset with a generic SVG
+    // text layer. Preserve failed status and the original Kling film for review.
+    throw Object.assign(new Error(`AI advertising typography needs review; source Kling film preserved: ${error?.message || error}`),
+      {code:error?.code||'KLING_TYPOGRAPHY_DESIGN_FAILED',cause:error});
   }
 }
 
@@ -1609,12 +1612,15 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
     });
   }
 
+  if(nextSelection.shotstack_design_review?.status==='rejected') {
+    throw Object.assign(new Error('Rendered Kling advertisement failed visual review; preserve Shotstack ID and repair graphics before delivery.'),
+      {code:'KLING_RENDER_DESIGN_REJECTED'});
+  }
   const render = await waitForShotstackRender({
     renderId,
     maxAttempts: 70,
     delayMs: 2500,
   });
-
   if (costTracker?.recordShotstack) {
     try {
       await costTracker.recordShotstack({
@@ -1631,6 +1637,18 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       });
     }
   }
+
+
+  try {
+    await reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
+      durationSeconds:nextSelection.delivered_duration_seconds||6,sampleFrames:sampleRemoteVideoFrames,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+      headline:postprocess.text_overlay_copy?.headline||'',closingLine:postprocess.ad_creative_plan?.cta||''});
+  } catch(error) {
+    const rejected={...nextSelection,shotstack_design_review:{status:'rejected',reason:String(error.message).slice(0,800),at:new Date().toISOString(),render_id:renderId}};
+    await supabase.from('posts').update({video_background_selection:rejected,updated_at:new Date().toISOString()}).eq('id',post.id).eq('video_provider','kling');
+    throw Object.assign(new Error(`Final Kling advertising render needs review: ${error.message}`),{code:'KLING_RENDER_DESIGN_REJECTED',cause:error});
+  }
+
 
   const completedSelection = {
     ...nextSelection,
@@ -1909,7 +1927,10 @@ export async function GET(request) {
           const reason = productIdentity.validation.reason || "Finished video quality failed";
           summary.product_identity_rejected += 1;
           if (productIdentity.validation.decision !== "pixel_preserving_animation") {
-            await markKlingPostFailed(supabase, post, "kling_finished_product_identity", `Kling event-quality inspection rejected the video: ${reason}`);
+            const creativeOnly = productIdentity.validation.decision === "admin_review" &&
+              productIdentity.validation.violation_codes?.every(code => code === "commercial_motion_inadequate");
+            await markKlingPostFailed(supabase, post, creativeOnly ? "kling_motion_quality" : "kling_finished_product_identity",
+              creativeOnly ? `Kling commercial motion quality needs review: ${reason}` : `Kling event-quality inspection rejected the video: ${reason}`);
             summary.failed += 1;
             continue;
           }

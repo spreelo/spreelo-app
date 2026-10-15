@@ -29,7 +29,7 @@ for (const kind of ['present', 'carry_straight', 'walk_same_view', 'roll_straigh
   const selected = { ...plan, camera_mode };
   assert(intel.motionPlanIsSupported(selected, evidence(kind)), kind);
   const direction = intel.renderKlingStructuredMotion(selected, evidence(kind));
-  if (camera_mode === 'digital_push') assert(direction.includes('at most 6%'));
+  if (camera_mode === 'digital_push') assert(direction.includes('at most 7%'));
   assert(!direction.includes('orbits') && !direction.includes('Cut to'));
   assert(direction.includes('"Subject"'));
   assert(guard.validateKlingCreativeDirection(direction).ok, direction);
@@ -57,16 +57,16 @@ const approved = await intel.planKlingVerifiedMotion({ ...args, openai: fakeAi([
 assert.equal(requests.length, 2);
 const reviewText = requests[1].input[0].content[0].text;
 assert.equal(JSON.parse(reviewText.slice(reviewText.indexOf('{"plan":'))).exact_provider_direction, approved.motion_prompt);
-assert.equal(approved.version, 341);
-assert.equal(approved.source, 'scene_aware_reviewed_plan');
+assert.equal(approved.version, 346);
+assert.equal(approved.source, 'scene_aware_cinematic_plan');
 for (const values of [[new Error('Outage')], [fixtures[0].plan], [{ ...plan }, { ...review, source_view_safe: false }]]) {
   const fallback = await intel.planKlingVerifiedMotion({ ...args, openai: fakeAi(values) });
-  assert.equal(fallback.source, 'passive_plan_fallback');
-  assert(fallback.motion_prompt.includes('Keep the camera fixed'));
+  assert.equal(fallback.source, 'safe_cinematic_fallback');
+  assert(fallback.motion_prompt.includes('at most 7%'));
   assert.deepEqual(fallback.action_ids, []);
 }
-assert.equal((await intel.planKlingVerifiedMotion({ ...args, context: { fullProductInteractionSafe: false }, openai: fakeAi([{ ...plan }]) })).mode, 'camera_environment');
-console.log('PASS: exact rendered direction independently reviewed; invalid plans/outages use a fixed-view passive plan without provider retries');
+assert.equal((await intel.planKlingVerifiedMotion({ ...args, context: { fullProductInteractionSafe: false }, openai: fakeAi([{ ...plan }, review]) })).mode, 'verified_use');
+console.log('PASS: exact cinematic direction independently reviewed; invalid plans/outages use source-view digital push without provider retries');
 
 const source = read('app/api/cron/run-automations/route.js');
 const crop = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
@@ -83,7 +83,7 @@ const boxSafety = { productIntelligence: intel.sanitizeKlingProductIntelligence(
 const boxPlan = { ...plan, mode: 'camera_environment', action_id: '', environment_motion: 'existing_people_react' };
 const boxPrompt = await context.build({ openai: fakeAi([boxPlan, review]), rule: {}, referenceSafety: boxSafety, referenceFrameBuffer: Buffer.from('test') });
 assert(boxPrompt.includes('packaging itself'));
-assert(boxPrompt.includes('people already in the first frame react naturally'));
+assert(boxPrompt.includes('People already visible in the first frame react naturally'));
 assert(!boxPrompt.includes('pan over') && !boxPrompt.includes('Cut to'));
 assert.equal(boxSafety.motionPlan.submitted_prompt, intel.renderKlingStructuredMotion(boxPlan, boxSafety.productIntelligence));
 assert.equal(intel.KLING_QUALITY_VERSION, 337, 'Do not invalidate old paid-job quality caches just to change motion planning');
