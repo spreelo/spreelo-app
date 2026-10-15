@@ -1,4 +1,5 @@
 import { explicitCollectionScope, restrictToExplicitCollection } from "../../../../lib/storeMapCollectionScope.js";
+import { verifyExplicitCollectionMembership } from "../../../../lib/verifiedCollectionMembership.js";
 import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering } from "../../../../lib/videoAdvertisingAssetPipeline.js";
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
 import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeVideoEndCardLayers } from "../../../../lib/klingEndCard.js";
@@ -59,6 +60,8 @@ import { hasShotstackCheckpoint, finishSavedShotstackPost, shotstackContinuation
 import { inspectTypographyShape, ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
 import { creativeCorrectionInstruction } from "../../../../lib/videoCreativeDirector.js";
 import { composedAdvertisingSceneFrames, reviewAdvertisingComposition, reviewRenderedAdvertisingVideo } from "../../../../lib/videoAdvertisingReview.js";
+import { renderReadableAdvertisingLettering, repairReviewedAdvertising, isLocallyRepairableReview } from "../../../../lib/videoAdvertisingReadabilityRepair.js";
+import { ensurePreflightAdvertisingTypography } from "../../../../lib/videoTypographyPreflight.js";
 import { sampleRemoteVideoFrames } from "../../../../lib/videoFrameSampler.js";
 import { prepareAnimatedProductLayout } from "../../../../lib/animatedProductLayout.js";
 import { submitKlingImageToVideo } from "../../../../lib/kling.js";
@@ -32676,6 +32679,18 @@ async function prepareWebsiteContentForRule({
           ruleId: rule?.id || "single-product",
           allowAiRepair,
         });
+    // Final universal boundary: cached catalog, Store Map, AI store search,
+    // and reserve/reuse paths must ALL respect a customer-selected collection.
+    // Checking only the discovery shelf is insufficient (v144.348 Pressit bug).
+    const sourceMembership=await verifyExplicitCollectionMembership({
+      sourceUrl:websiteUrl,
+      productUrl:lockedItem?.url||lockedItem?.product_url||item?.url,
+    });
+    if(sourceMembership.applicable && !sourceMembership.verified){
+      const e=new Error(`Product is not verified in selected collection: ${sourceMembership.reason}`);
+      e.code='COLLECTION_MEMBERSHIP_UNVERIFIED';
+      throw e;
+    }
     return {
       websiteItem: lockedItem,
       websiteSourceUrl: websiteUrl,
@@ -33240,6 +33255,13 @@ async function prepareWebsiteContentForRule({
         // GPT-5.5 to rediscover the same current product. Lock deterministically
         // from the exact page; if one candidate has unusable markup, try the
         // next already-verified product instead of terminally failing the post.
+        const membership=await verifyExplicitCollectionMembership({sourceUrl:websiteUrl,productUrl:candidate?.url});
+        if(membership.applicable && !membership.verified){
+          console.warn('Store Map candidate rejected: not verified in user-selected collection',{
+            ruleId:rule.id,productUrl:candidate?.url,collection:websiteUrl,reason:membership.reason,
+          });
+          continue;
+        }
         const prepared = await finalizePreparedWebsiteItem(
           candidate,
           candidateIndex === 0 ? storeMapSelection?.cycleNumber || 1 : 1,
@@ -39404,15 +39426,58 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         const contrast=await ensureTypographyContrast({overlayBuffer:panel.textOverlayBuffer,backgroundBuffers:composites,textBox:animationLayout.text,preserveDesign:true});
         const closing=await inspectTypographyShape(split.closingText);
         const endCard=await composeVideoEndCardLayers({background:split.endCard,closingText:closing.buffer,closingLine:advertisingCopy.closingLine,
+          headlineArtwork:split.headline,headline:advertisingCopy.headline,productLabel:rule?.website_item?.title||"",
           brand:rule?.brand_profile||{},hasLogo,language:rule?.language,preserveDesign:true});
-        const review=await reviewAdvertisingComposition({openai,model:PRODUCT_RESEARCH_FAST_MODEL,
-          frames:await composedAdvertisingSceneFrames(backgrounds,contrast.buffer,
-            await sharp({create:{width:1080,height:1920,channels:4,background:'#00000000'}})
-              .composite([{input:product,left:animationLayout.product.left,top:animationLayout.product.top}]).png().toBuffer()),
-          endCard:endCard.cardBuffer,headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine});
-        return {textOverlayBuffer:contrast.buffer,contrastAnalysis:contrast.analysis,designReview:review,
-          closingBackgroundBuffer:endCard.backgroundBuffer,closingTextBuffer:endCard.foregroundBuffer,closingCardBuffer:endCard.cardBuffer,
-          advertisingCopy,copyValidation,typographyMode:split.typographyMode,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-independent-advertising-assets-v348`};
+        const productOverlay=await sharp({create:{width:1080,height:1920,channels:4,background:'#00000000'}})
+          .composite([{input:product,left:animationLayout.product.left,top:animationLayout.product.top}]).png().toBuffer();
+        const composedFrames=async overlay=>composedAdvertisingSceneFrames(backgrounds,overlay,productOverlay);
+        const verifyScene=async ({overlay,endCard:card})=>reviewAdvertisingComposition({openai,model:PRODUCT_RESEARCH_FAST_MODEL,
+          frames:await composedFrames(overlay),endCard:card,
+          headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,allowReviewServiceOutage:true});
+        // v144.350: enforce actual visible character size BEFORE the expensive
+        // rendered-video stage, rather than hoping a later AI review catches it.
+        // Preserve professional GPT-image lettering when the ink is large enough.
+        const preflight=await ensurePreflightAdvertisingTypography({
+          overlay:contrast.buffer,backgroundFrames:composites,box:animationLayout.text,
+          text:advertisingCopy.headline,designDirection:advertisingCopy.designDirection,
+          brand:rule?.brand_profile||{},
+        });
+        let approvedOverlay=preflight.buffer;
+        let review;
+        let approvedEndCard=endCard;
+        let localRepair=preflight.locallyRebuilt ? preflight.rebuildAnalysis : null;
+        try {
+          review=await verifyScene({overlay:approvedOverlay,endCard:endCard.cardBuffer});
+        } catch(designError) {
+          if(!isLocallyRepairableReview(designError))throw designError;
+          // 144.349: repair the ACTUAL too-small/low-contrast lettering in its
+          // final 1080x1920 box, not another paid GPT Image generation with the
+          // same sizing/contrast defect. The independent background is kept.
+          const corrected=await repairReviewedAdvertising({error:designError,
+            frames:composites,headline:advertisingCopy.headline,box:animationLayout.text,
+            designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},
+            closingLine:advertisingCopy.closingLine,
+            renderEndCard:async({variant,issue,reason})=>{
+              if(issue!=='unfinished_end_card' && !/closing|end.card|cta/i.test(reason))return endCard;
+              const fixedCta=await renderReadableAdvertisingLettering({
+                text:advertisingCopy.closingLine,backgroundFrames:[split.endCard],
+                box:{left:75,top:770,width:930,height:380},
+                designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},variant,
+              });
+              return composeVideoEndCardLayers({background:split.endCard,closingText:fixedCta.buffer,
+                headlineArtwork:split.headline,headline:advertisingCopy.headline,productLabel:rule?.website_item?.title||"",
+                closingLine:advertisingCopy.closingLine,brand:rule?.brand_profile||{},hasLogo,
+                language:rule?.language,preserveDesign:true});
+            },
+            verify:async({overlay,endCard:card})=>verifyScene({overlay,endCard:card}),
+          });
+          approvedOverlay=corrected.overlay;approvedEndCard=corrected.endCard;
+          review=corrected.review;localRepair=corrected.repair;
+        }
+        return {textOverlayBuffer:approvedOverlay,contrastAnalysis:contrast.analysis,designReview:review,
+          localTypographyRepair:localRepair,
+          closingBackgroundBuffer:approvedEndCard.backgroundBuffer,closingTextBuffer:approvedEndCard.foregroundBuffer,closingCardBuffer:approvedEndCard.cardBuffer,
+          advertisingCopy,copyValidation,typographyMode:split.typographyMode,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-independent-advertising-assets-v349`};
       } catch(error) {
         lastError=error;
         const status=Number(error?.status||error?.statusCode||0);
@@ -39421,7 +39486,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         const knownDesignRejection=error?.code==='VIDEO_ADVERTISING_DESIGN_REJECTED'||
           /typography did not reproduce the exact locked|advertising closing line is too small|advertising headline is too small/i.test(String(error?.message||''));
         const terminal=!knownDesignRejection || [400,401,403,429].includes(status) ||
-          error?.code==='VIDEO_DESIGN_REVIEW_UNAVAILABLE'||
+          error?.code==='VIDEO_DESIGN_REVIEW_UNAVAILABLE'||error?.code==='TYPOGRAPHY_MINIMUM_NOT_MET'||error?.code==='TYPOGRAPHY_COPY_CANNOT_FIT'||
           /insufficient_quota|credit_balance_exhausted|invalid api key/i.test(`${error?.code||""} ${error?.message||""}`);
         console.warn("Animation independent advertising design rejected",{ruleId:rule?.id,attempt,retrying:attempt<2&&!terminal,message:error?.message});
         if(terminal||attempt===2) {
@@ -39935,7 +40000,7 @@ export async function generateAnimatedProductVideo({
       reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
         durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
         headline:post.video_background_selection?.advertising_headline||assets.backgroundSelection?.advertising_headline,
-        closingLine:post.video_background_selection?.advertising_closing_line||assets.backgroundSelection?.advertising_closing_line})});
+        closingLine:post.video_background_selection?.advertising_closing_line||assets.backgroundSelection?.advertising_closing_line,allowReviewServiceOutage:true})});
     return {...assets,backgroundSelection:ready.video_background_selection,videoUrl:ready.video_url,videoStoragePath:ready.video_storage_path,renderId};
   } catch(error){throw shotstackContinuationError(error,renderId);}
 }
@@ -46121,7 +46186,7 @@ async function runAutomationCron(request, options = {}) {
               reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
                 durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
                 headline:post.video_background_selection?.advertising_headline,
-                closingLine:post.video_background_selection?.advertising_closing_line})});
+                closingLine:post.video_background_selection?.advertising_closing_line,allowReviewServiceOutage:true})});
             automationDrafts=automationDrafts.map(post=>post.id===finished.id?finished:post);
           } catch (resumeError) {
             if(resumeError?.code === "SHOTSTACK_RENDER_PENDING") {

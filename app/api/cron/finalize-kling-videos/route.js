@@ -4,6 +4,9 @@ import { CREATIVE_DIRECTOR_BRIEF, creativeCorrectionInstruction } from "../../..
 import { finalizationJobGate, nextFinalizationControl, canRegenerateTypographyAfterKnownRejection } from "../../../../lib/videoProductionController.js";
 import { ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
 import { composedAdvertisingSceneFrames, reviewAdvertisingComposition, reviewRenderedAdvertisingVideo } from "../../../../lib/videoAdvertisingReview.js";
+import { renderReadableAdvertisingLettering, repairReviewedAdvertising, isLocallyRepairableReview } from "../../../../lib/videoAdvertisingReadabilityRepair.js";
+import { ensurePreflightAdvertisingTypography } from "../../../../lib/videoTypographyPreflight.js";
+import { sendTerminalVideoAdminAlert } from "../../../../lib/videoTerminalAdminAlert.js";
 import { verifyAnimatedAdvertisingTypography } from "../../../../lib/animatedAdvertisingCopy.js";
 import { KLING_FINALIZER_POST_SELECT, klingAuditReferences, assertKlingAuditReferences, recoverableKlingReferenceFailure, restoreKlingLegacyViewLock } from "../../../../lib/klingAuditReferences.js";
 import { KLING_QUALITY_VERSION, klingQualitySampleTimes, inspectKlingVideoQuality, decideKlingVideoQuality } from "../../../../lib/klingVideoIntelligence.js";
@@ -295,7 +298,7 @@ async function setReviewCaseFailure(supabase, postId, stage, message, failureCod
   }
 }
 
-async function markKlingPostFailed(supabase, post, stage, message) {
+async function markKlingPostFailed(supabase, post, stage, message, failureCode = null) {
   const nowIso = new Date().toISOString();
   const safeMessage = truncate(message, 2000);
   const { error } = await supabase
@@ -316,7 +319,12 @@ async function markKlingPostFailed(supabase, post, stage, message) {
     .eq("video_provider", "kling");
 
   if (error) throw error;
-  await setReviewCaseFailure(supabase, post.id, stage, safeMessage);
+  const code=failureCode || (stage==='kling_finished_product_identity'?'KLING_FINISHED_PRODUCT_IDENTITY_REJECTED':'KLING_FINALIZATION_ERROR');
+  await setReviewCaseFailure(supabase, post.id, stage, safeMessage, code);
+  // Alerts are best-effort, use durable incident deduplication, and never
+  // change a terminal post back to generating because email failed.
+  try { await sendTerminalVideoAdminAlert({supabase,post,stage,code,message:safeMessage}); }
+  catch(alertError) { console.error('Kling terminal admin alert failed',{postId:post.id,message:alertError?.message}); }
 }
 
 async function downloadKlingVideo(videoUrl) {
@@ -469,11 +477,11 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       `The supplied frames come from the FINISHED delivered video. Existing social caption: ${JSON.stringify(postCopy)}. ` +
       `CTA setting: ${JSON.stringify(post?.cta_type || "Learn more")}. Campaign goal: ${JSON.stringify(context?.goal || "")}. ` +
       `Company identity for the end card: ${JSON.stringify(selection?.end_card_brand_context || {})}. Product category: ${JSON.stringify(context?.product_category || "")}. Existing draft headline: ${JSON.stringify(fallbackHeadline)}. ` +
-      "Write all visible copy in the same language as the social caption. The headline must be 3-6 words, max 48 characters, semantically complete, and specifically connected to the verified product, its explicit motif/theme, category or supplied campaign angle. " +
+      "Write all visible copy in the same language as the social caption. Prefer a bold, concise 2-5 word headline that fits into one or two visually dominant lines without shrinking the font; rewrite overlong phrasing at planning time. Maximum 48 characters, semantically complete, and specifically connected to the verified product, its explicit motif/theme, category or supplied campaign angle. " +
       "Reject empty generic advertising language such as 'classic comfort for every occasion', 'quality for every day', 'made for every moment', or equivalents unless the supplied product facts genuinely support it. " +
       "Do not invent material, comfort, durability, fit, performance, reviews, scarcity, prices, discounts or other claims. For graphic apparel, you may use the printed theme/motif only when it is explicit in the product title or caption. " +
       "The subheadline is OPTIONAL and should usually be empty. Return an empty string unless a short 2-5 word line adds clear advertising value beyond the headline. Never use filler, product-category labels, gender labels, material facts or catalogue descriptors as the subheadline. " +
-      "The cta field is a non-interactive closing advertising line, NOT a clickable video button. Use 2-6 words, max 40 characters, tailored to THIS product, audience and campaign goal. For sales, a natural invitation to explore the verified product or store can work; for engagement, a relevant short question can work. Never imply the video itself is clickable, or invent a link in the bio, caption, a tag, swipe-up or shopping feature. Avoid repeating a fixed phrase on every post. " +
+      "The cta field is a non-interactive closing advertising line, NOT a clickable video button. Prefer 2-4 words, max 40 characters, distinct from the headline; this appears as the highlighted support line beneath the large headline on the end card, tailored to THIS product, audience and campaign goal. For sales, a natural invitation to explore the verified product or store can work; for engagement, a relevant short question can work. Never imply the video itself is clickable, or invent a link in the bio, caption, a tag, swipe-up or shopping feature. Avoid repeating a fixed phrase on every post. " +
       "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
       "Choose main_placement from top_left, top_right, middle_left, middle_right, lower_left, lower_right so the headline avoids the advertised product and especially its print/design, plus faces, hands and the main action ACROSS ALL supplied frames. " +
       "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, where the scene has real negative space, including above the product when appropriate; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose the most compelling safe main width 520-876, height 140-500; the closing line belongs on the separate end card, so do not waste scene space by preparing a small second in-scene label. Prioritize prominent readable lettering without covering the product. Use scene-appropriate medium or semibold hierarchy and purposeful line breaks. Do not default to extra-bold text or outlines. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
@@ -1282,13 +1290,59 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         });
         const layers = await composeVideoEndCardLayers({
           background:splitOverlay.endCard,closingText:splitOverlay.closingText,
+          headlineArtwork:splitOverlay.headline,headline:[headline,subheadline].filter(Boolean).join(" "),
+          productLabel:selection?.verified_product_title||"",
           closingLine:creativePlan.cta||getFallbackKlingCta(post),brand,logoBuffer,
           language:post.language,preserveDesign:true,
         });
-        const review = await reviewAdvertisingComposition({openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-          frames:await composedAdvertisingSceneFrames(frames.map(frame=>frame.buffer),contrast.buffer),
-          endCard:layers.cardBuffer,headline,closingLine:creativePlan.cta||getFallbackKlingCta(post)});
-        approvedArtwork={splitOverlay,combinedOverlay,normalized,contrast,layers,review,prompt:attemptPrompt,designAttempt};
+        const videoBackgrounds=frames.map(frame=>frame.buffer);
+        const verifyScene=async({overlay,endCard:card})=>reviewAdvertisingComposition({
+          openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+          frames:await composedAdvertisingSceneFrames(videoBackgrounds,overlay),
+          endCard:card,headline,closingLine:creativePlan.cta||getFallbackKlingCta(post),allowReviewServiceOutage:true,
+        });
+        // v144.350: verify the ACTUAL final-resolution glyph height before
+        // compositing and keep the existing approved Kling source untouched.
+        const preflight=await ensurePreflightAdvertisingTypography({
+          overlay:contrast.buffer,backgroundFrames:videoBackgrounds,
+          box:creativePlan.main_layout,text:[headline,subheadline].filter(Boolean).join(' '),
+          designDirection:creativePlan.design_direction,brand,
+        });
+        let approvedOverlay=preflight.buffer;
+        let approvedReview;
+        let approvedLayers=layers;
+        let localRepair=preflight.locallyRebuilt ? preflight.rebuildAnalysis : null;
+        try {
+          approvedReview=await verifyScene({overlay:approvedOverlay,endCard:layers.cardBuffer});
+        } catch(designError) {
+          if(!isLocallyRepairableReview(designError))throw designError;
+          // Keep the paid, identity-verified Kling film. Fix the concrete
+          // readability/layout defect locally and REQUIRE another visual review.
+          const corrected=await repairReviewedAdvertising({error:designError,
+            frames:videoBackgrounds,headline:[headline,subheadline].filter(Boolean).join(' '),
+            box:creativePlan.main_layout,designDirection:creativePlan.design_direction,
+            brand,closingLine:creativePlan.cta||getFallbackKlingCta(post),
+            renderEndCard:async({variant,issue,reason})=>{
+              if(issue!=='unfinished_end_card' && !/closing|end.card|cta/i.test(reason))return layers;
+              const fixedCta=await renderReadableAdvertisingLettering({
+                text:creativePlan.cta||getFallbackKlingCta(post),backgroundFrames:[splitOverlay.endCard],
+                box:{left:75,top:770,width:930,height:380},
+                designDirection:creativePlan.design_direction,brand,variant,
+              });
+              return composeVideoEndCardLayers({background:splitOverlay.endCard,
+                headlineArtwork:splitOverlay.headline,headline:[headline,subheadline].filter(Boolean).join(" "),
+                productLabel:selection?.verified_product_title||"",
+                closingText:fixedCta.buffer,closingLine:creativePlan.cta||getFallbackKlingCta(post),
+                brand,logoBuffer,language:post.language,preserveDesign:true});
+            },
+            verify:verifyScene,
+          });
+          approvedOverlay=corrected.overlay;approvedLayers=corrected.endCard;
+          approvedReview=corrected.review;localRepair=corrected.repair;
+        }
+        approvedArtwork={splitOverlay,combinedOverlay,normalized,
+          contrast:{...contrast,buffer:approvedOverlay},layers:approvedLayers,review:approvedReview,
+          localRepair,prompt:attemptPrompt,designAttempt};
         break;
       } catch (designError) {
         if (!canRegenerateTypographyAfterKnownRejection(designError, designAttempt)) throw designError;
@@ -1323,6 +1377,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       text_overlay_storage_path: uploaded.storagePath,
       text_overlay_provider: splitOverlay.typographyMode?.headline === "ai_brief_vector_recovery" ? "ai-directed-vector-lettering-v348" : "gpt-image-2.5-flare-independent-lettering-v348",
       text_overlay_prompt: approvedArtwork.prompt,
+      text_overlay_local_repair: approvedArtwork.localRepair || null,
       creative_director_version: VIDEO_DESIGN_VERSION,
       text_overlay_approved_attempt: approvedArtwork.designAttempt,
       text_overlay_status: "ready",
@@ -1701,7 +1756,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
   try {
     await reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
       durationSeconds:nextSelection.delivered_duration_seconds||6,sampleFrames:sampleRemoteVideoFrames,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-      headline:postprocess.text_overlay_copy?.headline||'',closingLine:postprocess.ad_creative_plan?.cta||''});
+      headline:postprocess.text_overlay_copy?.headline||'',closingLine:postprocess.ad_creative_plan?.cta||'',allowReviewServiceOutage:true});
   } catch(error) {
     const rejected={...nextSelection,shotstack_design_review:{status:'rejected',reason:String(error.message).slice(0,800),at:new Date().toISOString(),render_id:renderId}};
     await supabase.from('posts').update({video_background_selection:rejected,updated_at:new Date().toISOString()}).eq('id',post.id).eq('video_provider','kling');
@@ -2052,7 +2107,7 @@ export async function GET(request) {
         if (checkpointError) throw checkpointError;
         if (decision.terminal) {
           await markKlingPostFailed(supabase,post,decision.stage,
-            `Kling video preserved; finalization stopped after ${decision.control.attempts} attempt(s). ${decision.failure.message}`);
+            `Kling video preserved; finalization stopped after ${decision.control.attempts} attempt(s). ${decision.failure.message}`,decision.failure.code);
           summary.failed += 1;
           summary.needs_repair = Number(summary.needs_repair || 0) + 1;
           console.error('Kling finalization stopped for admin review, source retained', {

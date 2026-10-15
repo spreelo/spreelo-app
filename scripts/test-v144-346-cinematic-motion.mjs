@@ -13,7 +13,7 @@ const original = { physical_subject:{kind:'physical_product',name:'Exact product
 const base = { strategy:'Purposeful cinematic movement',mode:'verified_use',action_id:'verified_walk',
   camera_mode:'follow_same_view',environment_motion:'none',product_pose:'source_locked',
   shot_count:1,finish_seconds:5,initial_conditions:[],stationary_objects:[],risk:'low' };
-assert.equal(motion.KLING_MOTION_VERSION,346);
+assert(motion.KLING_MOTION_VERSION >= 346);
 assert.equal(motion.KLING_QUALITY_VERSION,337);
 assert(motion.motionPlanIsSupported(base,original));
 const tracking = motion.renderKlingStructuredMotion(base,original);

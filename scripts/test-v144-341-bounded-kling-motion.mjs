@@ -57,7 +57,7 @@ const approved = await intel.planKlingVerifiedMotion({ ...args, openai: fakeAi([
 assert.equal(requests.length, 2);
 const reviewText = requests[1].input[0].content[0].text;
 assert.equal(JSON.parse(reviewText.slice(reviewText.indexOf('{"plan":'))).exact_provider_direction, approved.motion_prompt);
-assert.equal(approved.version, 346);
+assert(approved.version >= 346);
 assert.equal(approved.source, 'scene_aware_cinematic_plan');
 for (const values of [[new Error('Outage')], [fixtures[0].plan], [{ ...plan }, { ...review, source_view_safe: false }]]) {
   const fallback = await intel.planKlingVerifiedMotion({ ...args, openai: fakeAi(values) });

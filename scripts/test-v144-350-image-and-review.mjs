@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import sharp from 'sharp';
+import {measureAdvertisingTypography, ensurePreflightAdvertisingTypography, measureStrongInkRows} from '../lib/videoTypographyPreflight.js';
+import {reviewAdvertisingComposition} from '../lib/videoAdvertisingReview.js';
+import {composeVideoEndCardLayers} from '../lib/klingEndCard.js';
+
+const svg=font=>Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920"><text x="80" y="1480" font-family="DejaVu Sans" font-size="${font}" font-weight="800" fill="white">NYA PLAGG</text></svg>`);
+const small=await sharp(svg(26)).png().toBuffer();
+const large=await sharp(svg(92)).png().toBuffer();
+const bg=await sharp({create:{width:1080,height:1920,channels:3,background:'#292d34'}}).png().toBuffer();
+assert.equal((await measureAdvertisingTypography(small)).passed,false);
+assert.equal((await measureAdvertisingTypography(large)).passed,true);
+const existing=await ensurePreflightAdvertisingTypography({overlay:large,backgroundFrames:[bg],box:{left:60,top:1260,width:960,height:350},text:'NYA PLAGG'});
+assert.equal(existing.locallyRebuilt,false,'existing expressive typography must not be replaced when safe');
+const fixed=await ensurePreflightAdvertisingTypography({overlay:small,backgroundFrames:[bg],box:{left:60,top:1260,width:960,height:350},text:'NYA PLAGG'});
+assert.equal(fixed.locallyRebuilt,true,'actual tiny glyphs must be rebuilt before final video');
+assert.equal(fixed.measure.passed,true);
+assert(fixed.measure.shortestInkHeight>=46);
+const multi=measureStrongInkRows([0,0,9,12,13,0,0,0,0,0,0,0,0,0,0,0,0,12,12,12]);
+assert(Array.isArray(multi));
+const tinyCta=await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="930" height="200"><text x="50" y="75" fill="white" font-family="DejaVu Sans" font-size="16">UPPTÄCK MER</text></svg>')).png().toBuffer();
+const ctaEndCard=await composeVideoEndCardLayers({background:bg,closingText:tinyCta,closingLine:'UPPTÄCK MER',hasLogo:true,preserveDesign:true});
+assert.equal((await measureAdvertisingTypography(ctaEndCard.foregroundBuffer,{minInkPx:38})).passed,true,'CTA must be reconstructed locally if actual lettering is tiny');
+console.log('PASS: measured 1080x1920 ink, early local repair, real CTA glyph test, existing professional art preserved');
+
+const mocked=issue=>({responses:{create:async()=>({output_text:JSON.stringify({approved:issue==='none',issue,reason:issue==='poor_hierarchy'?'Subjective hierarchy preference':'Clearly visible problem'})})}});
+const args={frames:[bg],endCard:bg,headline:'NYA PLAGG',closingLine:'UPPTÄCK',phase:'composite'};
+const advisory=await reviewAdvertisingComposition({...args,openai:mocked('poor_hierarchy')});
+assert.equal(advisory.reviewStatus,'creative_advisory');
+assert.equal(advisory.approved,true);
+await assert.rejects(()=>reviewAdvertisingComposition({...args,openai:mocked('subject_overlap')}),error=>error.code==='VIDEO_ADVERTISING_DESIGN_REJECTED'&&error.review.issue==='subject_overlap');
+await assert.rejects(()=>reviewAdvertisingComposition({...args,openai:mocked('too_small')}),error=>error.code==='VIDEO_ADVERTISING_DESIGN_REJECTED'&&error.review.issue==='too_small');
+const unavailable={responses:{create:async()=>{throw new Error('Temporary reviewer timeout');}}};
+await assert.rejects(()=>reviewAdvertisingComposition({...args,openai:unavailable}),error=>error.code==='VIDEO_DESIGN_REVIEW_UNAVAILABLE');
+const deferred=await reviewAdvertisingComposition({...args,openai:unavailable,allowReviewServiceOutage:true});
+assert.equal(deferred.reviewStatus,'unavailable');
+assert.equal(deferred.requiresFollowup,true);
+console.log('PASS: aesthetic feedback advisory, objectively unsafe content blocked, reviewer outage only tolerated by explicit preflighted caller');

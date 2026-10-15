@@ -270,7 +270,10 @@
     "test:v144.345": "node scripts/test-v144-345-design-guards.mjs",
     "test:v144.346": "node scripts/test-v144-346-cinematic-motion.mjs",
     "test:v144.347": "node scripts/test-v144-347-creative-production.mjs",
-    "test:v144.348": "node scripts/test-v144-348-reliable-advertising.mjs"
+    "test:v144.348": "node scripts/test-v144-348-reliable-advertising.mjs",
+    "test:v144.349": "node scripts/test-v144-349-production-recovery.mjs && node scripts/test-v144-349-alerts.mjs",
+    "test:v144.351": "node scripts/test-v144-351-end-card-hierarchy.mjs",
+    "test:v144.350": "node scripts/test-v144-350-contract-and-motion.mjs && node scripts/test-v144-350-image-and-review.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",
