@@ -1,3 +1,4 @@
+import {completedVideoSelection} from '../lib/videoJobSafety.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -94,7 +95,7 @@ const klingSource=fs.readFileSync('app/api/cron/finalize-kling-videos/route.js',
 const readyCode=klingSource.slice(klingSource.indexOf('async function finalizeReadyTask('),klingSource.indexOf('export async function GET'));
 const readyWrites=[];
 const readyDb={storage:{from:()=>({upload:async()=>({error:null}),getPublicUrl:()=>({data:{publicUrl:'saved.mp4'}})})},from(){return {update(v){readyWrites.push(v);return this;},eq(){return this;},then(resolve){return Promise.resolve({error:null}).then(resolve);}};}};
-const readyCtx=vm.createContext({console:quiet,Date,normalizeVideoDurationSeconds,POST_VIDEOS_BUCKET:'post-videos',downloadKlingVideo:async()=>Buffer.from('video'),completeShotstackDeliveryForPost:async()=>{throw new Error('Delivery DB unavailable');}});
+const readyCtx=vm.createContext({completedVideoSelection,console:quiet,Date,normalizeVideoDurationSeconds,POST_VIDEOS_BUCKET:'post-videos',downloadKlingVideo:async()=>Buffer.from('video'),completeShotstackDeliveryForPost:async()=>{throw new Error('Delivery DB unavailable');}});
 vm.runInContext(readyCode,readyCtx);
 assert.equal(await readyCtx.finalizeReadyTask(readyDb,{id:'p',user_id:'u',kling_task_id:'t',video_background_selection:{}},{status:'succeeded',durationSeconds:6,videoUrl:'original'}),'saved.mp4');
 assert.equal(readyWrites.length,1);assert.equal(readyWrites[0].video_status,'ready');

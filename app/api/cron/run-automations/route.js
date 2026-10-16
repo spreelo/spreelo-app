@@ -1,9 +1,11 @@
+import { recordDatabaseRuntimeFailure } from '../../../../lib/systemHealth.js';
+import { inspectVideoComposition, chooseVideoTextBox, adaptVideoTextContrast, adaptEndCardComposition, emptyVideoTypography } from '../../../../lib/videoAdaptiveLayout.js';
 import { persistTerminalVideoFailure } from "../../../../lib/videoFailurePersistence.js";
 import { hasProtectedVideoJob } from "../../../../lib/videoJobSafety.js";
 import { classifyVideoProviderCreationFailure, automationFailureHandoffError } from "../../../../lib/videoFailureDiagnostics.js";
 import { explicitCollectionScope, restrictToExplicitCollection } from "../../../../lib/storeMapCollectionScope.js";
 import { verifyExplicitCollectionMembership, filterExplicitCollectionCandidates, getExplicitCollectionProductCandidates } from "../../../../lib/verifiedCollectionMembership.js";
-import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering } from "../../../../lib/videoAdvertisingAssetPipeline.js";
+import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering, buildOfflineAdvertisingBackdrop } from "../../../../lib/videoAdvertisingAssetPipeline.js";
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
 import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeVideoEndCardLayers } from "../../../../lib/klingEndCard.js";
 import { prepareSafeProductCutout } from "../../../../lib/productCutout.js";
@@ -14424,6 +14426,7 @@ async function finalizeStaleAutomationOccurrences({ supabase, resendApiKey, now 
     .limit(25);
 
   if (error) {
+    await recordDatabaseRuntimeFailure({admin:supabase,error,operation:'stale_automation_occurrences'});
     if (isSupabaseProjectRoutingUnavailable(error)) {
       throw error; // Defer stale cleanup and customer work until the database recovers.
     }
@@ -39607,6 +39610,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
     let lastError;
     let lastGeneratedAtlas=null;
     let cachedIndependentBackground=null;
+    let compositionInspection=null;
     for(let attempt=1;attempt<=2;attempt++) {
       const attemptPrompt=attempt===1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(lastError)}`;
       try {
@@ -39629,27 +39633,35 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
           verify:(main,cta)=>verifyAnimatedAdvertisingTypography({openai,model:PRODUCT_RESEARCH_FAST_MODEL,buffer:main,
             headline:advertisingCopy.headline,closingBuffer:cta,closingLine:advertisingCopy.closingLine}),
         }));
-        const panel=await normalizeGeneratedAnimatedTextPanel(split.headline,animationLayout);
-        const contrast=await ensureTypographyContrast({overlayBuffer:panel.textOverlayBuffer,backgroundBuffers:composites,textBox:animationLayout.text,preserveDesign:true});
+        compositionInspection ||= await inspectVideoComposition({openai,sceneFrames:composites,endCard:split.endCard,model:PRODUCT_RESEARCH_FAST_MODEL});
+        const sceneChoice=await chooseVideoTextBox({frames:composites,preferred:animationLayout.text,
+          protectedRegions:[{left:animationLayout.product.left-40,top:animationLayout.product.top-50,width:animationLayout.product.width+80,height:animationLayout.product.height+100},...compositionInspection.sceneRegions],verified:compositionInspection.sceneVerified});
+        const sceneBox=sceneChoice?.box || animationLayout.text;
+        const panel=sceneChoice?await normalizeGeneratedAnimatedTextPanel(split.headline,{...animationLayout,text:sceneBox}):{textOverlayBuffer:await emptyVideoTypography()};
+        const contrast=sceneChoice?await ensureTypographyContrast({overlayBuffer:panel.textOverlayBuffer,backgroundBuffers:composites,textBox:sceneBox,preserveDesign:true}):{buffer:panel.textOverlayBuffer,analysis:{sceneHeadlineOmitted:true}};
         const closing=await inspectTypographyShape(split.closingText);
-        const endCard=await composeVideoEndCardLayers({background:split.endCard,closingText:closing.buffer,closingLine:advertisingCopy.closingLine,
+        const initialEndCard=await composeVideoEndCardLayers({background:split.endCard,closingText:closing.buffer,closingLine:advertisingCopy.closingLine,
           headlineArtwork:split.headline,headline:advertisingCopy.headline,productLabel:rule?.website_item?.title||"",
-          brand:rule?.brand_profile||{},hasLogo,language:rule?.language,preserveDesign:true});
+          brand:rule?.brand_profile||{},hasLogo,language:rule?.language,preserveDesign:true,includeSender:false});
+        const endCard=await adaptEndCardComposition({layers:initialEndCard,inspection:compositionInspection,sceneBackground:composites.at(-1),
+          quietBackground:()=>buildOfflineAdvertisingBackdrop({designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{}})});
         const productOverlay=await sharp({create:{width:1080,height:1920,channels:4,background:'#00000000'}})
           .composite([{input:product,left:animationLayout.product.left,top:animationLayout.product.top}]).png().toBuffer();
         const composedFrames=async overlay=>composedAdvertisingSceneFrames(backgrounds,overlay,productOverlay);
         const verifyScene=async ({overlay,endCard:card})=>reviewAdvertisingComposition({openai,model:PRODUCT_RESEARCH_FAST_MODEL,
-          frames:await composedFrames(overlay),endCard:card,
+          frames:await composedFrames(overlay),endCard:card,sceneHeadlineOmitted:!sceneChoice,
           headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true});
         // v144.350: enforce actual visible character size BEFORE the expensive
         // rendered-video stage, rather than hoping a later AI review catches it.
         // Preserve professional GPT-image lettering when the ink is large enough.
-        const preflight=await ensurePreflightAdvertisingTypography({
-          overlay:contrast.buffer,backgroundFrames:composites,box:animationLayout.text,
+        const preflight=sceneChoice?await ensurePreflightAdvertisingTypography({
+          overlay:contrast.buffer,backgroundFrames:composites,box:sceneBox,
           text:advertisingCopy.headline,designDirection:advertisingCopy.designDirection,
           brand:rule?.brand_profile||{},
-        });
-        let approvedOverlay=preflight.buffer;
+        }):{buffer:contrast.buffer,locallyRebuilt:false};
+        const sceneContrast=sceneChoice?await adaptVideoTextContrast({overlay:preflight.buffer,frames:composites,box:sceneBox}):{buffer:preflight.buffer,analysis:{omitted:true}};
+        contrast.analysis={...contrast.analysis,adaptive:sceneContrast.analysis};
+        let approvedOverlay=sceneContrast.buffer;
         let review;
         let approvedEndCard=endCard;
         let localRepair=preflight.locallyRebuilt ? preflight.rebuildAnalysis : null;
@@ -39661,7 +39673,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
           // final 1080x1920 box, not another paid GPT Image generation with the
           // same sizing/contrast defect. The independent background is kept.
           const corrected=await repairReviewedAdvertising({error:designError,
-            frames:composites,headline:advertisingCopy.headline,box:animationLayout.text,
+            frames:composites,headline:advertisingCopy.headline,box:sceneBox,
             designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},
             closingLine:advertisingCopy.closingLine,
             renderEndCard:async({variant,issue,reason})=>{
@@ -39671,10 +39683,12 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
                 box:{left:75,top:770,width:930,height:380},
                 designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},variant,
               });
-              return composeVideoEndCardLayers({background:split.endCard,closingText:fixedCta.buffer,
+              const repaired=await composeVideoEndCardLayers({background:split.endCard,closingText:fixedCta.buffer,
                 headlineArtwork:split.headline,headline:advertisingCopy.headline,productLabel:rule?.website_item?.title||"",
                 closingLine:advertisingCopy.closingLine,brand:rule?.brand_profile||{},hasLogo,
-                language:rule?.language,preserveDesign:true});
+                language:rule?.language,preserveDesign:true,includeSender:false});
+              return adaptEndCardComposition({layers:repaired,inspection:compositionInspection,sceneBackground:composites.at(-1),
+                quietBackground:()=>buildOfflineAdvertisingBackdrop({designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{}})});
             },
             verify:async({overlay,endCard:card})=>verifyScene({overlay,endCard:card}),
           });
@@ -39683,6 +39697,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         }
         return {textOverlayBuffer:approvedOverlay,contrastAnalysis:contrast.analysis,designReview:review,
           localTypographyRepair:localRepair,
+          compositionInspection,sceneHeadlineOmitted:!sceneChoice,sceneLayout:sceneBox,endCardLayout:approvedEndCard.layout,
           endCardIncludesSender:Boolean(approvedEndCard.hasSender),
           closingBackgroundBuffer:approvedEndCard.backgroundBuffer,closingTextBuffer:approvedEndCard.foregroundBuffer,closingCardBuffer:approvedEndCard.cardBuffer,
           advertisingCopy,copyValidation,typographyMode:split.typographyMode,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-independent-advertising-assets-v349`};
@@ -39832,8 +39847,8 @@ async function createAnimatedLogoOverlay({ supabase = null, brandProfile, includ
       .rotate()
       .trim({ threshold: 10 })
       .resize({
-        width: animationLayout?.logo?.width || 220,
-        height: animationLayout?.logo?.height || 100,
+        width: 220,
+        height: 100,
         fit: "inside",
         withoutEnlargement: true,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
@@ -39849,7 +39864,7 @@ async function createAnimatedLogoOverlay({ supabase = null, brandProfile, includ
       },
     })
       .composite([
-        { input: logoPng, left: animationLayout?.logo?.left ?? 78, top: animationLayout?.logo?.top ?? 207 },
+        { input: logoPng, left: 78, top: 207 },
       ])
       .png()
       .toBuffer();
@@ -40058,6 +40073,11 @@ async function createAnimatedProductVideoAssets({
       top_candidates: selection.topCandidates,
       animation_layout: animationLayout,
       typography_contrast: textOverlay.contrastAnalysis || null,
+      composition_inspection: textOverlay.compositionInspection || null,
+      scene_headline_omitted: textOverlay.sceneHeadlineOmitted === true,
+      scene_text_layout: textOverlay.sceneLayout || null,
+      end_card_layout: textOverlay.endCardLayout || null,
+      logo_placement:'corner_only',
       typography_design_review: textOverlay.designReview || null,
       advertising_headline: textOverlay.advertisingCopy?.headline || null,
       advertising_closing_line: textOverlay.advertisingCopy?.closingLine || null,
@@ -40175,6 +40195,7 @@ export async function generateAnimatedProductVideo({
     endCardIncludesSender: assets.endCardIncludesSender === true,
     durationSeconds: ANIMATED_VIDEO_MOTION_SECONDS,
     closingHoldSeconds: ANIMATED_VIDEO_CLOSING_HOLD_SECONDS,
+    endCardTransitionSeconds: assets.backgroundSelection?.video_design_version >= 361 ? 0.12 : 0.4,
     closingBackgroundUrl: assets.closingBackgroundUrl,
     endCardUrl: assets.endCardUrl,
     endCardBackgroundUrl: assets.closingBackgroundUrl,
@@ -40210,6 +40231,7 @@ export async function generateAnimatedProductVideo({
       reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
         durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
         headline:post.video_background_selection?.advertising_headline||assets.backgroundSelection?.advertising_headline,
+        sceneHeadlineOmitted:(post.video_background_selection?.scene_headline_omitted??assets.backgroundSelection?.scene_headline_omitted)===true,
         closingLine:post.video_background_selection?.advertising_closing_line||assets.backgroundSelection?.advertising_closing_line,allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true})});
     return {...assets,backgroundSelection:ready.video_background_selection,videoUrl:ready.video_url,videoStoragePath:ready.video_storage_path,renderId};
   } catch(error){throw shotstackContinuationError(error,renderId);}
@@ -46439,6 +46461,7 @@ async function runAutomationCron(request, options = {}) {
               reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
                 durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
                 headline:post.video_background_selection?.advertising_headline,
+                sceneHeadlineOmitted:post.video_background_selection?.scene_headline_omitted===true,
                 closingLine:post.video_background_selection?.advertising_closing_line,allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true})});
             automationDrafts=automationDrafts.map(post=>post.id===finished.id?finished:post);
           } catch (resumeError) {

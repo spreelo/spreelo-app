@@ -1,9 +1,10 @@
+import { inspectVideoComposition, chooseVideoTextBox, adaptVideoTextContrast, adaptEndCardComposition, emptyVideoTypography } from '../../../../lib/videoAdaptiveLayout.js';
 import { COMMERCIAL_COPY_HIERARCHY, repeatsAdvertisingMessage, isProductLabelHeadline } from "../../../../lib/videoAdvertisingHierarchy.js";
-import { deferKlingRenderContinuation } from "../../../../lib/videoJobSafety.js";
+import { deferKlingRenderContinuation, completedVideoSelection } from "../../../../lib/videoJobSafety.js";
 import { videoFailureDetails } from "../../../../lib/videoFailureDiagnostics.js";
 import { isKlingCreativeOnlyReview } from "../../../../lib/klingCreativeReview.js";
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
-import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering } from "../../../../lib/videoAdvertisingAssetPipeline.js";
+import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering, buildOfflineAdvertisingBackdrop } from "../../../../lib/videoAdvertisingAssetPipeline.js";
 import { CREATIVE_DIRECTOR_BRIEF, creativeCorrectionInstruction } from "../../../../lib/videoCreativeDirector.js";
 import { finalizationJobGate, nextFinalizationControl, canRegenerateTypographyAfterKnownRejection } from "../../../../lib/videoProductionController.js";
 import { ensureTypographyContrast } from "../../../../lib/animatedTypographyQuality.js";
@@ -567,7 +568,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
         main_text_tone: parsed?.main_text_tone === "dark" ? "dark" : "light",
         cta_text_tone: parsed?.cta_text_tone === "dark" ? "dark" : "light",
         placement_confidence: Math.max(0, Math.min(1, Number(parsed?.placement_confidence) || 0)),
-        main_layout: sceneSafeKlingLayout(normalizeKlingLayout(parsed?.main_layout, getKlingPlacementBox(parsed?.main_placement), parsed?.placement_confidence), parsed?.protected_regions || []),
+        main_layout: normalizeKlingLayout(parsed?.main_layout, getKlingPlacementBox(parsed?.main_placement), parsed?.placement_confidence),
         protected_regions: parsed?.protected_regions || [],
         video_design_version: VIDEO_DESIGN_VERSION,
         cta_layout: normalizeKlingLayout(parsed?.cta_layout, getKlingPlacementBox(parsed?.cta_placement, "lower_left"), parsed?.placement_confidence, true),
@@ -577,7 +578,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       };
     }
   } catch (error) {
-    if (/No sufficiently clear region/.test(error?.message || "")) throw error;
+    // Missing scene space is handled by the final composition pass, not a creative admin hold.
     console.warn("Kling finished-video creative planning unavailable; using safe fallback copy/placement", {
       postId: post?.id || null,
       message: truncate(error?.message || String(error), 500),
@@ -1265,6 +1266,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     let approvedArtwork = null;
     let designFeedback = null;
     let cachedIndependentBackground = null;
+    let compositionInspection = null;
     for (let designAttempt = 1; designAttempt <= 2; designAttempt += 1) {
       const attemptPrompt = designAttempt === 1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(designFeedback)}`;
       if (designAttempt > 1) {
@@ -1305,37 +1307,47 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
             closingBuffer:cta,closingLine:creativePlan.cta||getFallbackKlingCta(post),
           }),
         }));
+        compositionInspection ||= await inspectVideoComposition({openai,sceneFrames:frames.map(frame=>frame.buffer),endCard:splitOverlay.endCard});
+        const sceneChoice=await chooseVideoTextBox({frames:frames.map(frame=>frame.buffer),
+          protectedRegions:compositionInspection.sceneRegions,preferred:creativePlan.main_layout,
+          verified:compositionInspection.sceneVerified});
+        creativePlan.scene_headline_omitted=!sceneChoice;
+        if(sceneChoice)creativePlan.main_layout=sceneChoice.box;
         const combinedOverlay = await normalizeFinishedKlingTypography(splitOverlay.headline);
-        const normalized = await placeFinishedKlingTypographyInSafeArea(
+        const normalized = sceneChoice ? await placeFinishedKlingTypographyInSafeArea(
           combinedOverlay.buffer, creativePlan.main_placement, creativePlan.main_layout
-        );
+        ) : {buffer:await emptyVideoTypography(),visibleRatio:0,strongRatio:0,lowAlphaRatio:0,edgeRatio:0,bboxWidthRatio:0,bboxHeightRatio:0,bboxAreaRatio:0,bboxFillRatio:0};
         // Per-pixel contrast is diagnostic only. A vision reviewer sees the
         // actual composited scene and rejects genuinely unreadable designs.
-        const contrast = await ensureTypographyContrast({
+        const contrast = sceneChoice ? await ensureTypographyContrast({
           overlayBuffer:normalized.buffer,backgroundBuffers:frames.map(frame=>frame.buffer),
           textBox:creativePlan.main_layout,preserveDesign:true,
-        });
-        const layers = await composeVideoEndCardLayers({
+        }) : {buffer:normalized.buffer,analysis:{sceneHeadlineOmitted:true}};
+        const initialLayers = await composeVideoEndCardLayers({
           background:splitOverlay.endCard,closingText:splitOverlay.closingText,
           headlineArtwork:splitOverlay.headline,headline:[headline,subheadline].filter(Boolean).join(" "),
           productLabel:selection?.verified_product_title||"",
           closingLine:creativePlan.cta||getFallbackKlingCta(post),brand,logoBuffer,
-          language:post.language,preserveDesign:true,
+          language:post.language,preserveDesign:true,includeSender:false,
         });
+        const layers=await adaptEndCardComposition({layers:initialLayers,inspection:compositionInspection,sceneBackground:frames.at(-1)?.buffer,
+          quietBackground:()=>buildOfflineAdvertisingBackdrop({designDirection:creativePlan.design_direction,brand})});
         const videoBackgrounds=frames.map(frame=>frame.buffer);
         const verifyScene=async({overlay,endCard:card})=>reviewAdvertisingComposition({
           openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
           frames:await composedAdvertisingSceneFrames(videoBackgrounds,overlay),
-          endCard:card,headline,closingLine:creativePlan.cta||getFallbackKlingCta(post),allowReviewServiceOutage:true,typographyPreflightPassed:true,
+          endCard:card,headline,closingLine:creativePlan.cta||getFallbackKlingCta(post),sceneHeadlineOmitted:!sceneChoice,allowReviewServiceOutage:true,typographyPreflightPassed:true,
         });
         // v144.350: verify the ACTUAL final-resolution glyph height before
         // compositing and keep the existing approved Kling source untouched.
-        const preflight=await ensurePreflightAdvertisingTypography({
+        const preflight=sceneChoice ? await ensurePreflightAdvertisingTypography({
           overlay:contrast.buffer,backgroundFrames:videoBackgrounds,
           box:creativePlan.main_layout,text:[headline,subheadline].filter(Boolean).join(' '),
           designDirection:creativePlan.design_direction,brand,
-        });
-        let approvedOverlay=preflight.buffer;
+        }) : {buffer:contrast.buffer,locallyRebuilt:false};
+        const sceneContrast=sceneChoice ? await adaptVideoTextContrast({overlay:preflight.buffer,frames:videoBackgrounds,box:creativePlan.main_layout}) : {buffer:preflight.buffer,analysis:{omitted:true}};
+        contrast.analysis={...contrast.analysis,adaptive:sceneContrast.analysis};
+        let approvedOverlay=sceneContrast.buffer;
         let approvedReview;
         let approvedLayers=layers;
         let localRepair=preflight.locallyRebuilt ? preflight.rebuildAnalysis : null;
@@ -1356,11 +1368,12 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
                 box:{left:75,top:770,width:930,height:380},
                 designDirection:creativePlan.design_direction,brand,variant,
               });
-              return composeVideoEndCardLayers({background:splitOverlay.endCard,
+              return adaptEndCardComposition({layers:await composeVideoEndCardLayers({background:splitOverlay.endCard,
                 headlineArtwork:splitOverlay.headline,headline:[headline,subheadline].filter(Boolean).join(" "),
                 productLabel:selection?.verified_product_title||"",
                 closingText:fixedCta.buffer,closingLine:creativePlan.cta||getFallbackKlingCta(post),
-                brand,logoBuffer,language:post.language,preserveDesign:true});
+                brand,logoBuffer,language:post.language,preserveDesign:true,includeSender:false}),inspection:compositionInspection,sceneBackground:frames.at(-1)?.buffer,
+                quietBackground:()=>buildOfflineAdvertisingBackdrop({designDirection:creativePlan.design_direction,brand})});
             },
             verify:verifyScene,
           });
@@ -1389,6 +1402,10 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     let completedSelection = {
       ...workingSelection,
       video_design_version: VIDEO_DESIGN_VERSION,
+      ad_creative_plan: creativePlan,
+      composition_inspection: compositionInspection,
+      logo_placement: 'corner_only',
+      end_card_layout: layers.layout,
       end_card_background_url: endBackground.imageUrl,
       end_card_text_url: endText.imageUrl,
       end_card_url: endCard.imageUrl,
@@ -1397,10 +1414,10 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       advertising_typography_mode:splitOverlay.typographyMode,
       end_card_seconds: KLING_END_CARD_SECONDS,
       end_card_brand_name: brand.business_name || null,
-      end_card_has_logo: Boolean(logoBuffer),
+      end_card_has_logo: false,
       end_card_includes_sender: Boolean(layers.hasSender),
       end_card_background_bounds: splitOverlay.backgroundBounds,
-      end_card_text_alignment: "center_visible_bounds",
+      end_card_text_alignment: "center_within_verified_region",
       text_overlay_url: uploaded.imageUrl,
       text_overlay_storage_path: uploaded.storagePath,
       text_overlay_provider: splitOverlay.typographyMode?.headline === "ai_brief_vector_recovery" ? "ai-directed-vector-lettering-v348" : "gpt-image-2.5-flare-independent-lettering-v348",
@@ -1552,14 +1569,14 @@ async function ensureKlingClosingHeroFrame({ supabase, post, task, selection, du
 async function ensureKlingEndCard({ supabase, post, selection, brand, logoBuffer }) {
   if(selection.end_card_url) return selection;
   const layers=await buildFallbackKlingEndCardLayers({brand,logoBuffer,language:post.language,
-    closingLine:selection.ad_creative_plan?.cta||selection.cta_overlay_copy||getFallbackKlingCta(post)});
+    closingLine:selection.ad_creative_plan?.cta||selection.cta_overlay_copy||getFallbackKlingCta(post),includeSender:false});
   const uploaded=await uploadKlingEndCardFrame({supabase,post,buffer:layers.cardBuffer});
   const bg=await uploadKlingEndCardFrame({supabase,post,buffer:layers.backgroundBuffer,suffix:"kling-end-background"});
   const text=await uploadKlingEndCardFrame({supabase,post,buffer:layers.foregroundBuffer,suffix:"kling-end-text"});
   const next={...selection,end_card_url:uploaded.imageUrl,end_card_storage_path:uploaded.storagePath,
     end_card_background_url:bg.imageUrl,end_card_text_url:text.imageUrl,video_design_version:VIDEO_DESIGN_VERSION,
     end_card_provider:"deterministic-cached-typography-fallback-v342",end_card_seconds:KLING_END_CARD_SECONDS,
-    end_card_has_logo:Boolean(logoBuffer),end_card_brand_name:brand.business_name||null};
+    end_card_has_logo:false,end_card_brand_name:brand.business_name||null};
   const {error}=await supabase.from("posts").update({video_background_selection:next}).eq("id",post.id);
   if(error) throw error;
   return next;
@@ -1667,7 +1684,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       endCardUrl: postprocess.end_card_url,
       endCardBackgroundUrl: postprocess.end_card_background_url || null,
       endCardTextUrl: postprocess.end_card_text_url || null,
-      endCardTransitionSeconds: KLING_END_CARD_TRANSITION_SECONDS,
+      endCardTransitionSeconds: postprocess.video_design_version >= 361 ? 0.12 : KLING_END_CARD_TRANSITION_SECONDS,
       durationSeconds: motionEndSeconds,
       overlayStartSeconds,
       trimStartSeconds,
@@ -1792,6 +1809,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
     finishedDesignReview=await reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
       durationSeconds:nextSelection.delivered_duration_seconds||6,sampleFrames:sampleRemoteVideoFrames,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
       headline:postprocess.text_overlay_copy?.headline||'',closingLine:postprocess.ad_creative_plan?.cta||'',
+      sceneHeadlineOmitted:postprocess.ad_creative_plan?.scene_headline_omitted===true,
       allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true});
   } catch(error) {
     const rejected={...nextSelection,shotstack_design_review:{status:'rejected',reason:String(error.message).slice(0,800),
@@ -1889,6 +1907,7 @@ async function finalizeReadyTask(
       // posts.video_duration_seconds is an INTEGER column. Keep the exact
       // post-processed duration in video_background_selection.delivered_duration_seconds,
       // but normalize the summary column to a whole second before persistence.
+      video_background_selection: completedVideoSelection(post.video_background_selection,nowIso),
       video_duration_seconds: normalizeVideoDurationSeconds(
         finalDurationSeconds,
         task.durationSeconds,
