@@ -8,7 +8,7 @@ import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/video
 import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeVideoEndCardLayers } from "../../../../lib/klingEndCard.js";
 import { prepareSafeProductCutout } from "../../../../lib/productCutout.js";
 import { verifyPreparedKlingAuditReferences } from "../../../../lib/klingAuditReferences.js";
-import { analyzeKlingProductIntelligence, planKlingCommercialStory, klingCommercialStoryOpeningInstruction, planKlingVerifiedMotion, passiveKlingMotionPlan } from "../../../../lib/klingVideoIntelligence.js";
+import { analyzeKlingProductIntelligence, planKlingCommercialStory, klingCommercialStoryOpeningInstruction, assertKlingMotionPlanningReady, planKlingVerifiedMotion, passiveKlingMotionPlan } from "../../../../lib/klingVideoIntelligence.js";
 import { removeDefaultWebsitePostInstructions } from "../../../../lib/websitePostIntent.js";
 import { planAnimatedAdvertisingCopy, verifyAnimatedAdvertisingTypography } from "../../../../lib/animatedAdvertisingCopy.js";
 import { classifyOpenAiServiceError, recordOpenAiRuntimeResult } from "../../../../lib/openAiRuntimeHealth.js";
@@ -14265,6 +14265,7 @@ async function failAutomationOccurrenceTerminal({
     p_failure_stage: stage || null,
     p_metadata: {
       ...(metadata || {}),
+      ...(errorOrMessage?.motionPlanning ? {motion_planning:errorOrMessage.motionPlanning} : {}),
       ...(repairProductItems.length ? { admin_product_items: repairProductItems } : {}),
     },
     p_keep_rule_active: keepRuleActive,
@@ -16642,6 +16643,7 @@ async function generateKlingDirectSceneOpeningFrame({
       brand:brand.business_name,campaign:getCustomerFacingCampaignTheme(rule),goal:rule?.campaign_goal||rule?.target_customer_need,
       campaignIdentity:formatCampaignIdentityLockForPrompt(rule),fullProductInteractionSafe}});
   if(referenceSafety) referenceSafety.commercialStory=commercialStory;
+  if(commercialStory) assertKlingMotionPlanningReady({story:commercialStory});
 
   const prompt = `
 Create the literal FIRST FRAME of a premium 9:16 social-media product commercial for this verified ecommerce product:
@@ -16911,6 +16913,7 @@ async function buildKlingProductVideoPrompt({ openai, rule, postContent, referen
     if (submitted !== motionPlan.motion_prompt) throw new Error("Kling passive motion direction was not preserved in full");
   }
   if (referenceSafety) referenceSafety.motionPlan = { ...motionPlan, submitted_prompt: submitted, submitted_full_prompt: prompt };
+  if(referenceSafety?.commercialStory) assertKlingMotionPlanningReady({story:referenceSafety.commercialStory,motionPlan});
   console.info('Kling commercial motion selected', {product:rule?.website_item?.title||rule?.website_item?.item_title||null,
     storyStatus:referenceSafety?.commercialStory?.status||'legacy_scene_first',mode:motionPlan.mode,camera:motionPlan.camera_mode,
     source:motionPlan.source,fallbackReason:motionPlan.rejected_plan_reason||null});
@@ -17155,6 +17158,7 @@ export async function submitAdminRescueAiProductVideo({
     imagePrompt =
       "Verified GPT-Image-2 direct-scene first frame: exact rescued product is already inside the finished commercial scene before Kling motion begins.";
   } catch (directSceneError) {
+    if(directSceneError?.code==='KLING_MOTION_PLAN_REVIEW_REQUIRED')throw directSceneError;
     console.warn("AI product-video rescue direct scene failed identity safety; using pixel-preserving trimmed setup", {
       postId,
       productTitle: websiteItem?.title || null,
@@ -47878,6 +47882,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
               finalImagePrompt =
                 "Verified GPT-Image-2 direct-scene first frame: the exact product is already naturally inside the finished real-world commercial scene before Kling motion begins.";
             } catch (directSceneError) {
+              if(directSceneError?.code==='KLING_MOTION_PLAN_REVIEW_REQUIRED')throw directSceneError;
               // Quality-preserving fallback: if GPT Image cannot make a scene that
               // passes strict product-identity review, keep the deterministic
               // pixel-preserving setup frame for Kling guidance but remove the
@@ -48115,6 +48120,9 @@ product_research_model_used: websitePreparedRule.uses_website_content
             summary.video_submitted = Number(summary.video_submitted || 0) + 1;
             summary.website_image_used += 1;
           } catch (videoError) {
+            if(videoError?.code==='KLING_MOTION_PLAN_REVIEW_REQUIRED') {
+              await persistTerminalVideoFailure({supabase,post,error:videoError,provider:'kling',stage:'kling_motion_planning'});
+            }
             const failureMessage = truncateText(
               videoError?.message || "Kling AI product video could not be submitted.",
               1000

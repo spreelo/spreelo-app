@@ -79,12 +79,13 @@ const cropped=await motion.planKlingVerifiedMotion({openai:fake([{...review,scen
   model:'test',intelligence:garment,firstFrameDataUrl:args.sourceDataUrl,context:{commercialStory:{...story,status:'planned'}}});
 assert.equal(cropped.source,'safe_cinematic_fallback');assert.match(cropped.rejected_plan_reason,/crops off the legs/);
 for(const change of [{camera_mode:'orbit'},{action_id:'invented'},{shot_count:2},{risk:'high'}]) {
-  const bad=await motion.planKlingCommercialStory({...args,intelligence:garment,openai:fake([{...story,motion_plan:{...plan,...change}}])});
+  const proposal={...story,motion_plan:{...plan,...change}};
+  const bad=await motion.planKlingCommercialStory({...args,intelligence:garment,openai:fake([proposal,proposal])});
   assert.equal(bad.status,'unavailable');
 }
-const noHandling=await motion.planKlingCommercialStory({...args,context:{fullProductInteractionSafe:false},intelligence:garment,openai:fake([story])});
+const noHandling=await motion.planKlingCommercialStory({...args,context:{fullProductInteractionSafe:false},intelligence:garment,openai:fake([story,story])});
 assert.equal(noHandling.status,'unavailable');
-const printed=await motion.planKlingCommercialStory({...args,intelligence:{...garment,physical_subject:{kind:'packaging',name:'Box showing a person'}},openai:fake([story])});
+const printed=await motion.planKlingCommercialStory({...args,intelligence:{...garment,physical_subject:{kind:'packaging',name:'Box showing a person'}},openai:fake([story,story])});
 assert.equal(printed.status,'unavailable');
 const outage=await motion.planKlingCommercialStory({...args,intelligence:garment,openai:fake([new Error('planning timeout')])});
 assert.equal(outage.status,'unavailable');

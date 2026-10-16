@@ -36,7 +36,7 @@ console.log('PASS: evidence-backed motion, independent preflight, scene-verified
 const goodAudit = Object.fromEntries(Object.keys(intel.videoQualitySchema.properties).filter(k => intel.videoQualitySchema.properties[k].type === 'boolean').map(k => [k, !['unverified_surface_exposed', 'invented_or_moved_identity_detail', 'object_materialized_or_disappeared'].includes(k)]));
 Object.assign(goodAudit, { confidence: 0.98, issues: [], reason: 'All visible identity and causal relationships preserved' });
 assert(intel.decideKlingVideoQuality(goodAudit).passed);
-for (const field of Object.keys(goodAudit).filter(k => typeof goodAudit[k] === 'boolean' && k !== 'commercial_motion_engaging')) {
+for (const field of Object.keys(goodAudit).filter(k => typeof goodAudit[k] === 'boolean' && !['commercial_motion_engaging','closing_action_resolved'].includes(k))) {
   const bad = { ...goodAudit, [field]: !goodAudit[field] };
   assert(!intel.decideKlingVideoQuality(bad).passed, field);
 }
@@ -51,7 +51,7 @@ assert.equal(times[0], 0.15);
 assert.equal(times.at(-1), 5.98);
 assert(times[1] - times[0] <= 0.13);
 assert(times.every((t, i) => t >= 0.15 && t < 6 && (!i || t > times[i - 1])));
-console.log('PASS: all identity/event/anatomy/closing gates fail closed; 17 ordered samples cover early action and final frame');
+console.log('PASS: identity/event/anatomy gates fail closed; 17 ordered samples cover early action and final frame');
 
 const automation = read('app/api/cron/run-automations/route.js');
 const ctx = { ...budget, ...safety, planKlingVerifiedMotion: intel.planKlingVerifiedMotion, passiveKlingMotionPlan: intel.passiveKlingMotionPlan, PRODUCT_RESEARCH_FAST_MODEL: 'test',

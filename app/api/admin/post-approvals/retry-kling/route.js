@@ -4,6 +4,7 @@ import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth
 import { submitKlingImageToVideo } from "../../../../../lib/kling.js";
 import { assembleKlingPrompt } from "../../../../../lib/klingPromptBudget.js";
 import { validateKlingCreativeDirection } from "../../../../../lib/klingCreativeSafety.js";
+import {isKlingCreativeOnlyReview,resumeKlingCreativeReview} from '../../../../../lib/klingCreativeReview.js';
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -79,6 +80,17 @@ export async function POST(request) {
   if (postError || !post) {
     return Response.json({ ok: false, error: postError?.message || "Post not found." }, { status: 404 });
   }
+
+  const creativeOnly=isKlingCreativeOnlyReview(post.video_background_selection?.product_video_validation);
+  if(body?.resume_existing===true) {
+    try {
+      const resumed=await resumeKlingCreativeReview({supabase:context.admin,post});
+      return Response.json({ok:true,...resumed});
+    } catch(error) {
+      return Response.json({ok:false,error:error.message},{status:error.httpStatus||500});
+    }
+  }
+  if(creativeOnly)return Response.json({ok:false,error:'Creative feedback must use resume_existing to finish the saved source; a replacement Kling generation is not allowed here.'},{status:409});
 
   const { data: reviewCase } = await context.admin
     .from("admin_review_cases")

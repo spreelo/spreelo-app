@@ -1,5 +1,6 @@
 import { deferKlingRenderContinuation } from "../../../../lib/videoJobSafety.js";
 import { videoFailureDetails } from "../../../../lib/videoFailureDiagnostics.js";
+import { isKlingCreativeOnlyReview } from "../../../../lib/klingCreativeReview.js";
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
 import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering } from "../../../../lib/videoAdvertisingAssetPipeline.js";
 import { CREATIVE_DIRECTOR_BRIEF, creativeCorrectionInstruction } from "../../../../lib/videoCreativeDirector.js";
@@ -2103,19 +2104,24 @@ export async function GET(request) {
           task,
         });
         let deliveryTask = task;
+        const creativeOnly=isKlingCreativeOnlyReview(productIdentity.validation);
+        if(creativeOnly||productIdentity.validation.creative_feedback) {
+          summary.creative_feedback=Number(summary.creative_feedback||0)+1;
+          console.info('Kling creative feedback recorded; finishing saved source with normal customer routing', {postId:post.id,taskId:post.kling_task_id});
+        }
         if (!productIdentity.passed) {
           const reason = productIdentity.validation.reason || "Finished video quality failed";
-          summary.product_identity_rejected += 1;
-          if (productIdentity.validation.decision !== "pixel_preserving_animation") {
-            const creativeOnly = productIdentity.validation.decision === "admin_review" &&
-              productIdentity.validation.violation_codes?.every(code => code === "commercial_motion_inadequate");
-            await markKlingPostFailed(supabase, post, creativeOnly ? "kling_motion_quality" : "kling_finished_product_identity",
-              creativeOnly ? `Kling commercial motion quality needs review: ${reason}` : `Kling event-quality inspection rejected the video: ${reason}`);
-            summary.failed += 1;
-            continue;
+          if(!creativeOnly) {
+            summary.product_identity_rejected += 1;
+            if (productIdentity.validation.decision !== "pixel_preserving_animation") {
+              await markKlingPostFailed(supabase, post, "kling_finished_product_identity",
+                `Kling event-quality inspection rejected the video: ${reason}`, 'KLING_FINISHED_PRODUCT_IDENTITY_REJECTED');
+              summary.failed += 1;
+              continue;
+            }
+            deliveryTask = await getKlingQualityFallbackSource({ supabase, post, costTracker });
+            summary.safe_animation_fallbacks = Number(summary.safe_animation_fallbacks || 0) + 1;
           }
-          deliveryTask = await getKlingQualityFallbackSource({ supabase, post, costTracker });
-          summary.safe_animation_fallbacks = Number(summary.safe_animation_fallbacks || 0) + 1;
         }
         const finalVideo = await getKlingFinalVideoSource({ openai, supabase, post, task: deliveryTask, costTracker });
         await finalizeReadyTask(

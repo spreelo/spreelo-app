@@ -38,6 +38,7 @@ import { useUiText } from "../../../lib/i18n/useUiText";
 import { getPostRescueProductCount, POST_RESCUE_TYPES, resolvePostRescueType } from "../../../lib/postRescueFormat";
 import { buildEditorialQualityInstruction } from "../../../lib/editorialContentStrategy";
 import { diagnoseFailedPost } from "../../../lib/adminFailureRecovery.js";
+import {isKlingCreativeOnlyReview} from '../../../lib/klingCreativeReview.js';
 
 async function getHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -356,6 +357,7 @@ export default function AdminPostApprovalsPage() {
     () => getKlingRejectedAudit(selectedPost),
     [selectedPost]
   );
+  const selectedKlingCreativeReview=isKlingCreativeOnlyReview(selectedKlingRejectedAudit);
   const lightboxItems = useMemo(() => getPostMediaItems(selectedPost), [selectedPost]);
   const availableFormats = useMemo(() => Array.from(new Set(
     posts.map((post) => adminPostFormatLabel(post)).filter(Boolean)
@@ -864,8 +866,12 @@ export default function AdminPostApprovalsPage() {
   async function retryRejectedKlingVideo() {
     if (!selectedPost || !selectedKlingRejectedAudit) return;
     if (typeof window !== "undefined" && !window.confirm(String(locale).startsWith("sv")
-      ? "En ny Kling-körning kan debiteras. Kontrollera först den befintliga videon och bekräfta att du vill försöka igen."
-      : "A new Kling run may incur charges. Check the existing video first and confirm that you want to retry.")) return;
+      ? selectedKlingCreativeReview
+        ? "Färdigställ den sparade filmen med text och slutbild? Den följer sedan kundens vanliga granskningsinställning. Slutrenderingen kan debiteras. Ingen ny Kling-film beställs."
+        : "En ny Kling-körning kan debiteras. Kontrollera först den befintliga videon och bekräfta att du vill försöka igen."
+      : selectedKlingCreativeReview
+        ? "Finish the saved video with typography and closing card, then follow the customer's normal review settings? Final rendering may incur a charge. No new Kling video will be ordered."
+        : "A new Kling run may incur charges. Check the existing video first and confirm that you want to retry.")) return;
     setRetryingKling(true);
     setError("");
     setRegenerationError("");
@@ -875,13 +881,15 @@ export default function AdminPostApprovalsPage() {
       const response = await fetch("/api/admin/post-approvals/retry-kling", {
         method: "POST",
         headers,
-        body: JSON.stringify({ post_id: selectedPost.id }),
+        body: JSON.stringify({ post_id: selectedPost.id,resume_existing:selectedKlingCreativeReview }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || t("admin.approvals.klingRetryError"));
       await loadPosts(result.post_id);
       setSelectedPostId(result.post_id);
-      setRegenerationSuccess(t("admin.approvals.klingRetryQueued"));
+      setRegenerationSuccess(result.resumed
+        ? (String(locale).startsWith('sv')?'Den sparade filmen har köats för färdigställande med kundens vanliga granskningsinställning.':'The saved video is queued for completion using the customer’s normal review settings.')
+        : t("admin.approvals.klingRetryQueued"));
     } catch (actionError) {
       const message = actionError.message || t("admin.approvals.klingRetryError");
       setRegenerationError(message);
@@ -1794,11 +1802,11 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                     <div className="admin-generation-error-card">
                       <AlertTriangle size={20} />
                       <div>
-                        <strong>{selectedKlingRejectedAudit ? t("admin.approvals.klingRejectedTitle") : t("admin.approvals.generationFailedTitle")}</strong>
+                        <strong>{selectedKlingCreativeReview ? selectedFailureGuide?.title : selectedKlingRejectedAudit ? t("admin.approvals.klingRejectedTitle") : t("admin.approvals.generationFailedTitle")}</strong>
                         {selectedKlingRejectedAudit ? (
                           <>
                             <p>{selectedKlingRejectedAudit.reason || selectedPost.failure?.failure_message_internal || selectedPost.video_error || t("admin.approvals.klingRejectedHelp")}</p>
-                            <small>{t("admin.approvals.klingRejectedHelp")}</small>
+                            <small>{selectedKlingCreativeReview ? selectedFailureGuide?.instruction : t("admin.approvals.klingRejectedHelp")}</small>
                             <dl className="admin-kling-rejection-summary">
                               <div><dt>{t("admin.approvals.product")}</dt><dd>{selectedPost.video_background_selection?.verified_product_title || selectedPost.admin_product_items?.[0]?.title || "—"}</dd></div>
                               <div><dt>{t("admin.approvals.auditConfidence")}</dt><dd>{Number.isFinite(Number(selectedKlingRejectedAudit.confidence)) ? `${Math.round(Number(selectedKlingRejectedAudit.confidence) * 100)}%` : "—"}</dd></div>
@@ -1810,7 +1818,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                             ) : null}
                             <button type="button" className="admin-primary-button" disabled={retryingKling} onClick={retryRejectedKlingVideo}>
                               {retryingKling ? <LoaderCircle className="admin-spin" size={16} /> : <RefreshCw size={16} />}
-                              {t("admin.approvals.klingRetry")}
+                              {selectedKlingCreativeReview ? (String(locale).startsWith('sv')?'Slutför sparad video':'Finish saved video') : t("admin.approvals.klingRetry")}
                             </button>
                           </>
                         ) : (

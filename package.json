@@ -7,6 +7,7 @@
     "test:video-failure-reliability": "node scripts/test-video-failure-reliability.mjs",
     "test:render-review-classification": "node scripts/test-render-review-classification.mjs",
     "test:kling-story-before-frame": "node scripts/test-kling-story-before-frame.mjs",
+    "test:kling-planning-review": "node scripts/test-kling-planning-review-regression.mjs",
     "test:merged-video-stability": "node scripts/test-merged-429-video-stability.mjs",
     "build": "node scripts/verify-sharp-runtime.mjs && next build",
     "start": "next start",
