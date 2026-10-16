@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useUiText } from "../lib/i18n/useUiText";
+import WebsiteCooldownNote from "./WebsiteCooldownNote";
 
 function formatScheduleDate(value, timeZone, locale = "en") {
   if (!value) return "—";
@@ -220,6 +221,7 @@ export default function HomeReferenceOverview({
                       </div>
                       <div className="home-plan-inline-meta-v153">
                         <span><b>{t("homeReference.nextRun")}</b>{formatScheduleDate(plan?.next_run_at, plan?.rules?.[0]?.timezone, locale)}</span>
+                        <WebsiteCooldownNote plan={plan} />
                         <span><b>{t("homeReference.cadence")}</b>{plan?.postsPerWeek ? t("homeReference.postsPerWeek", { count: plan.postsPerWeek }) : t("homeReference.recurring")}</span>
                         <span><b>{t("homeReference.channels")}</b>{platforms.length ? platforms.join(" · ") : "—"}</span>
                         <span><b>{t("homeReference.content")}</b>{planContentTypes(plan, t)}</span>
@@ -271,6 +273,7 @@ export default function HomeReferenceOverview({
                       </div>
                       <div className="home-plan-inline-meta-v153">
                         <span><b>{t("homeReference.dateTime")}</b>{formatPlannedItemDate(item, locale)}</span>
+                        <WebsiteCooldownNote plan={item} />
                         <span><b>{t("homeReference.channel")}</b>{platform}</span>
                         <span><b>{t("homeReference.type")}</b>{plannedItemTypeLabel(item, t)}</span>
                       </div>
@@ -319,6 +322,7 @@ export default function HomeReferenceOverview({
                       </div>
                       <div className="home-plan-inline-meta-v153">
                         <span><b>{t("homeReference.nextRun")}</b>{formatScheduleDate(plan?.next_run_at, plan?.rules?.[0]?.timezone, locale)}</span>
+                        <WebsiteCooldownNote plan={plan} />
                         <span><b>{t("homeReference.channels")}</b>{platforms.length ? platforms.join(" · ") : "—"}</span>
                         <span><b>{t("homeReference.content")}</b>{planContentTypes(plan, t)}</span>
                       </div>

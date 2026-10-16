@@ -26204,6 +26204,23 @@ async function discoverProductsFromFocusedCategory({
     return Boolean(canonical && knownListingUrlSet.has(normalizeComparableValue(canonical)));
   };
 
+  if (explicitCollectionScope(categoryUrl)) {
+    try {
+      const feedItems = await discoverShopifyCollectionJson({
+        websiteUrl: categoryUrl, campaignPrompt,
+        usedItems: (excludeProductUrls || []).map((url) => ({ url })),
+      });
+      candidates.push(...feedItems.map((item) => ({ ...item, commerce_platform: "shopify" })));
+      detectedPlatform = "shopify";
+      if (feedItems.length >= requestedProductScale) pageQueue.length = 0;
+    } catch (error) {
+      if (!isWebsiteRateLimitError(error)) throw error;
+      rateLimited = true;
+      rateLimitRetryAfterMs = Math.max(rateLimitRetryAfterMs, Number(error.retryAfterMs || 0));
+      pageQueue.length = 0;
+    }
+  }
+
   while (
     pageQueue.length &&
     visitedPages.size < 8 &&
@@ -26322,7 +26339,8 @@ async function discoverProductsFromFocusedCategory({
     12,
     Math.min(targets.minimumCandidatePool, Math.max(Number(limit || 0) * 2, requestedProductScale * 4))
   );
-  if (!rateLimited && dedupedCandidates.length < focusedMinimumBeforeBroadFallback && Date.now() < deadlineMs - 60_000) {
+  const freshFeedCount = dedupedCandidates.filter(isAuthoritativePublicCommerceFeedLockedProduct).length;
+  if (!rateLimited && freshFeedCount < requestedProductScale && dedupedCandidates.length < focusedMinimumBeforeBroadFallback && Date.now() < deadlineMs - 60_000) {
     try {
       const broaderCandidates = await discoverProductCandidatesFromWebsite({
         websiteUrl: categoryUrl,
@@ -26826,6 +26844,8 @@ function buildCampaignDiscoverySearches(campaignPrompt) {
 }
 
 function buildLikelyDiscoveryUrls(websiteUrl, campaignPrompt = "", platform = "generic") {
+  const collection = explicitCollectionScope(websiteUrl);
+  if (collection) return [`${collection}/products.json?limit=250`, collection];
   const origin = getWebsiteOrigin(websiteUrl);
   const discoveryBase = getWebsiteSearchBaseUrls(websiteUrl)[0] || origin;
   const urls = [];
@@ -27718,109 +27738,97 @@ function scoreDiscoveredProductUrl(url, websiteUrl, campaignPrompt) {
   }) + (isLikelyNonProductUrl(url, websiteUrl) ? -100 : 0);
 }
 
-async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt }) {
-  const origin = getWebsiteOrigin(websiteUrl);
-  const storefrontBase = getWebsiteSearchBaseUrls(websiteUrl)[0] || origin;
+function shopifyFeedProductCandidates({ products, websiteUrl, campaignPrompt, collectionUrl = null }) {
+  const storefrontBase = getWebsiteSearchBaseUrls(websiteUrl)[0] || getWebsiteOrigin(websiteUrl);
+  const discovered = [];
+  for (const product of products) {
+    const handle = String(product?.handle || "").trim();
+    const title = String(product?.title || "").trim();
+    const productUrl = handle ? `${storefrontBase}/products/${handle}` : "";
+    const imageUrl =
+      product?.image?.src ||
+      product?.images?.[0]?.src ||
+      null;
+    const variants = Array.isArray(product?.variants)
+      ? product.variants
+      : [];
+    const explicitInStock = variants.some(
+      (variant) =>
+        variant?.available === true ||
+        (variant?.available !== false && Number.isFinite(Number(variant?.inventory_quantity)) &&
+          Number(variant?.inventory_quantity) > 0)
+    );
 
-  if (!origin || !storefrontBase) {
+    if (!productUrl || !title || isLikelyNonProductUrl(productUrl, websiteUrl)) {
+      continue;
+    }
+
+    discovered.push({
+      ...(collectionUrl ? { source_page_url: collectionUrl, collection_feed_verified: true } : {}),
+      title,
+      url: productUrl,
+      image_url: imageUrl && isHttpUrl(imageUrl) ? imageUrl : null,
+      description: String(product?.body_html || product?.body || ""),
+      availability: explicitInStock ? "in_stock" : "unknown",
+      availability_status: explicitInStock ? "in_stock" : "unknown",
+      availability_evidence: explicitInStock
+        ? "Current public Shopify product feed reports an available/inventory-positive variant."
+        : "",
+      stock_verified_at: explicitInStock ? new Date().toISOString() : null,
+      stock_verification_source: explicitInStock
+        ? "public_shopify_products_feed"
+        : null,
+      stock_verification_evidence: explicitInStock
+        ? "Current public Shopify product feed reports an available/inventory-positive variant."
+        : "",
+      authoritative_public_commerce_feed: explicitInStock,
+      product_identity_locked: explicitInStock && Boolean(imageUrl),
+      technical_identity_same_page_verified: explicitInStock && Boolean(imageUrl),
+      product_image_page_bound: explicitInStock && Boolean(imageUrl),
+      product_image_page_bound_source: explicitInStock
+        ? "public_shopify_products_feed"
+        : null,
+      product_image_source_page_url: productUrl,
+      ecommerce_proof_found: true,
+      concrete_product_verified: true,
+      product_confidence: explicitInStock && imageUrl ? 100 : 70,
+      reason: "Product found from Shopify products feed",
+      score: scorePossibleProductLink({ url: productUrl, text: title, campaignPrompt }),
+    });
+  }
+  return discovered;
+}
+
+async function readShopifyProductFeed({ websiteUrl, campaignPrompt, feedUrl, usedItems = [], limit = 80 }) {
+  const discovered = [];
+  for (let page = 1; page <= 3; page += 1) {
+    const url = new URL(feedUrl);
+    url.searchParams.set("limit", "250");
+    url.searchParams.set("page", String(page));
+    const json = await fetchJson(url.toString());
+    if (!Array.isArray(json?.products)) break;
+    discovered.push(...shopifyFeedProductCandidates({
+      products: json.products, websiteUrl, campaignPrompt,
+      collectionUrl: /\/collections\//i.test(url.pathname) ? url.toString().split("/products.json")[0] : null,
+    }).filter((item) => !hasWebsiteItemAlreadyBeenUsed(item, usedItems, websiteUrl)));
+    if (discovered.filter((item) => item.authoritative_public_commerce_feed && item.image_url).length >= limit || json.products.length < 250) break;
+  }
+  return dedupeUrlItems(discovered)
+    .sort((a, b) => Number(b.authoritative_public_commerce_feed) - Number(a.authoritative_public_commerce_feed) || Number(b.score || 0) - Number(a.score || 0))
+    .slice(0, limit);
+}
+
+async function discoverShopifyProductsJson({ websiteUrl, campaignPrompt, usedItems = [] }) {
+  const storefrontBase = getWebsiteSearchBaseUrls(websiteUrl)[0] || getWebsiteOrigin(websiteUrl);
+  if (!storefrontBase || explicitCollectionScope(websiteUrl)) return [];
+  try {
+    return await readShopifyProductFeed({ websiteUrl, campaignPrompt, usedItems,
+      feedUrl: `${storefrontBase}/products.json` });
+  } catch (error) {
+    if (isWebsiteRateLimitError(error)) throw error;
+    console.log("Shopify products.json discovery unavailable", { websiteUrl, message: error.message });
     return [];
   }
-
-  const discovered = [];
-
-  for (let page = 1; page <= 3; page += 1) {
-    const jsonUrl = `${storefrontBase}/products.json?limit=250&page=${page}`;
-
-    try {
-      const safeJsonUrl = await assertPublicHttpUrl(jsonUrl);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
-      const response = await fetch(safeJsonUrl, {
-        headers: {
-          "user-agent": "SpreeloBot/1.0 (+https://spreelo.com)",
-          accept: "application/json,text/plain,*/*",
-        },
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        break;
-      }
-
-      const json = await response.json();
-      const products = Array.isArray(json?.products) ? json.products : [];
-
-      if (!products.length) {
-        break;
-      }
-
-      for (const product of products) {
-        const handle = String(product?.handle || "").trim();
-        const title = String(product?.title || "").trim();
-        const productUrl = handle ? `${storefrontBase}/products/${handle}` : "";
-        const imageUrl =
-          product?.image?.src ||
-          product?.images?.[0]?.src ||
-          null;
-        const variants = Array.isArray(product?.variants)
-          ? product.variants
-          : [];
-        const explicitInStock = variants.some(
-          (variant) =>
-            variant?.available === true ||
-            (Number.isFinite(Number(variant?.inventory_quantity)) &&
-              Number(variant?.inventory_quantity) > 0)
-        );
-
-        if (!productUrl || !title || isLikelyNonProductUrl(productUrl, websiteUrl)) {
-          continue;
-        }
-
-        discovered.push({
-          title,
-          url: productUrl,
-          image_url: imageUrl && isHttpUrl(imageUrl) ? imageUrl : null,
-          description: String(product?.body_html || product?.body || ""),
-          availability: explicitInStock ? "in_stock" : "unknown",
-          availability_status: explicitInStock ? "in_stock" : "unknown",
-          availability_evidence: explicitInStock
-            ? "Current public Shopify product feed reports an available/inventory-positive variant."
-            : "",
-          stock_verified_at: explicitInStock ? new Date().toISOString() : null,
-          stock_verification_source: explicitInStock
-            ? "public_shopify_products_feed"
-            : null,
-          stock_verification_evidence: explicitInStock
-            ? "Current public Shopify product feed reports an available/inventory-positive variant."
-            : "",
-          authoritative_public_commerce_feed: explicitInStock,
-          product_identity_locked: explicitInStock && Boolean(imageUrl),
-          technical_identity_same_page_verified: explicitInStock && Boolean(imageUrl),
-          product_image_page_bound: explicitInStock && Boolean(imageUrl),
-          product_image_page_bound_source: explicitInStock
-            ? "public_shopify_products_feed"
-            : null,
-          product_image_source_page_url: productUrl,
-          ecommerce_proof_found: true,
-          concrete_product_verified: true,
-          product_confidence: explicitInStock && imageUrl ? 100 : 70,
-          reason: "Product found from Shopify products feed",
-          score: scorePossibleProductLink({ url: productUrl, text: title, campaignPrompt }),
-        });
-      }
-    } catch (error) {
-      console.log("Shopify products.json discovery unavailable", {
-        websiteUrl,
-        message: error.message,
-      });
-      break;
-    }
-  }
-
-  return dedupeUrlItems(discovered)
-    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
-    .slice(0, 80);
 }
 
 async function discoverWooCommerceStoreApiProducts({
@@ -27951,68 +27959,28 @@ async function discoverPublicCommerceFeedCandidates({
   return dedupeUrlItems(candidates).slice(0, 160);
 }
 
-async function discoverShopifyCollectionJson({ websiteUrl, campaignPrompt }) {
-  const origin = getWebsiteOrigin(websiteUrl);
-  const storefrontBase = getWebsiteSearchBaseUrls(websiteUrl)[0] || origin;
-  const searches = buildCampaignDiscoverySearches(campaignPrompt);
+async function discoverShopifyCollectionJson({ websiteUrl, campaignPrompt, usedItems = [], feedUrls = null }) {
+  const storefrontBase = getWebsiteSearchBaseUrls(websiteUrl)[0] || getWebsiteOrigin(websiteUrl);
+  if (!storefrontBase) return [];
+  const collection = explicitCollectionScope(websiteUrl);
+  const urls = feedUrls || (collection
+    ? [`${collection}/products.json?limit=250`]
+    : buildCampaignDiscoverySearches(campaignPrompt).slice(0, 6)
+      .map((search) => `${storefrontBase}/collections/${search}/products.json?limit=250`));
   const discovered = [];
-
-  if (!origin || !storefrontBase || !searches.length) {
-    return [];
-  }
-
-  for (const search of searches.slice(0, 6)) {
-    const jsonUrl = `${storefrontBase}/collections/${search}/products.json?limit=250`;
-
+  for (const feedUrl of urls) {
     try {
-      const safeJsonUrl = await assertPublicHttpUrl(jsonUrl);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), WEBSITE_FETCH_TIMEOUT_MS);
-      const response = await fetch(safeJsonUrl, {
-        headers: {
-          "user-agent": "SpreeloBot/1.0 (+https://spreelo.com)",
-          accept: "application/json,text/plain,*/*",
-        },
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        continue;
-      }
-
-      const json = await response.json();
-      const products = Array.isArray(json?.products) ? json.products : [];
-
-      for (const product of products) {
-        const handle = String(product?.handle || "").trim();
-        const title = String(product?.title || "").trim();
-        const productUrl = handle ? `${storefrontBase}/products/${handle}` : "";
-        const imageUrl = product?.image?.src || product?.images?.[0]?.src || null;
-
-        if (!productUrl || !title || isLikelyNonProductUrl(productUrl, websiteUrl)) {
-          continue;
-        }
-
-        discovered.push({
-          title,
-          url: productUrl,
-          image_url: imageUrl && isHttpUrl(imageUrl) ? imageUrl : null,
-          description: String(product?.body_html || product?.body || ""),
-          reason: `Product found from Shopify campaign collection: ${search}`,
-          score: 80 + scorePossibleProductLink({ url: productUrl, text: title, campaignPrompt }),
-          campaign_fit_source: "campaign_collection_json",
-        });
-      }
+      discovered.push(...await readShopifyProductFeed({
+        websiteUrl, campaignPrompt, usedItems, feedUrl,
+      }));
+      if (discovered.length >= 80) break;
     } catch (error) {
+      if (isWebsiteRateLimitError(error)) throw error;
       console.log("Shopify campaign collection discovery unavailable", {
-        websiteUrl,
-        collection: search,
-        message: error.message,
+        websiteUrl, feedUrl, message: error.message,
       });
     }
   }
-
   return dedupeUrlItems(discovered)
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
     .slice(0, 80);
@@ -28120,11 +28088,6 @@ async function discoverProductCandidatesFromWebsite({
   }
 
   const candidates = [];
-  const usedComparable = new Set(
-    (usedItems || [])
-      .map((item) => normalizeComparableValue(item.item_url || item.product_url || item.url))
-      .filter(Boolean)
-  );
 
   let sourceHtml = "";
   let detectedPlatform = "generic";
@@ -28185,12 +28148,14 @@ async function discoverProductCandidatesFromWebsite({
     const shopifyCollectionCandidates = await discoverShopifyCollectionJson({
       websiteUrl,
       campaignPrompt,
+      usedItems: excludeUsed ? usedItems : [],
     });
     candidates.push(...shopifyCollectionCandidates.map((item) => ({ ...item, commerce_platform: "shopify" })));
 
     const shopifyCandidates = await discoverShopifyProductsJson({
       websiteUrl,
       campaignPrompt,
+      usedItems: excludeUsed ? usedItems : [],
     });
     candidates.push(...shopifyCandidates.map((item) => ({ ...item, commerce_platform: "shopify" })));
   }
@@ -28212,6 +28177,13 @@ async function discoverProductCandidatesFromWebsite({
     }
 
     try {
+      if (/\/products\.json(?:[?#]|$)/i.test(discoveryUrl)) {
+        candidates.push(...await discoverShopifyCollectionJson({
+          websiteUrl, campaignPrompt, feedUrls: [discoveryUrl],
+          usedItems: excludeUsed ? usedItems : [],
+        }));
+        continue;
+      }
       const html = await fetchHtml(discoveryUrl);
 
       if (/<urlset|<sitemapindex/i.test(html)) {
@@ -28273,7 +28245,7 @@ async function discoverProductCandidatesFromWebsite({
     });
   }
   const result = marketScopedCandidates
-    .filter((item) => !excludeUsed || !usedComparable.has(normalizeComparableValue(item.url)))
+    .filter((item) => !excludeUsed || !hasWebsiteItemAlreadyBeenUsed(item, usedItems, websiteUrl))
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
     .slice(0, resultLimit);
 
@@ -28310,8 +28282,19 @@ async function verifyDiscoveredWebsiteProductCandidates({
   const verifiedItems = [];
   const seenUrls = new Set();
   const seenImages = new Set();
+  const scopedCandidates = await filterExplicitCollectionCandidates({
+    sourceUrl: websiteUrl, items: candidates || [], refreshIfEmpty: false,
+  });
+  if (scopedCandidates.applicable && scopedCandidates.rejected.length) {
+    console.info("Product candidates filtered by selected collection before technical verification", {
+      ruleId: rule?.id || null, websiteUrl,
+      candidateCount: (candidates || []).length, eligibleCount: scopedCandidates.items.length,
+      excludedCount: scopedCandidates.rejected.length,
+      examples: scopedCandidates.rejected.slice(0, 6).map(({ item, reason }) => ({ productUrl: item?.url || null, reason })),
+    });
+  }
   const inputCandidates = rankFocusedCategoryCandidatesForVerification(
-    candidates || [],
+    scopedCandidates.items,
     websiteUrl
   )
     .filter((candidate) => !isBadProductUrl(candidate?.url))
@@ -32050,6 +32033,7 @@ async function findWebsiteProductWithWebSearch({
   verificationCache = null,
   allowIndexedSecurityFallback = false,
   desiredVerifiedCount = null,
+  excludePreviouslyUsed = false,
   indexedSecurityRepairBatchSize = null,
   indexedSecurityFallbackState = null,
 }) {
@@ -32112,7 +32096,7 @@ async function findWebsiteProductWithWebSearch({
   }
   const MAX_INDEXED_SECURITY_FALLBACK_BATCHES = knownSecurityBlocked
     ? manufacturerCatalogSource ? 1 : 2
-    : 1;
+    : excludePreviouslyUsed ? 2 : 1;
   let indexedSecurityFallbackBatches = Math.max(
     0,
     Number(
@@ -32148,6 +32132,7 @@ async function findWebsiteProductWithWebSearch({
           item?.url &&
           item?.title &&
           item?.image_url &&
+          (!excludePreviouslyUsed || !hasWebsiteItemAlreadyBeenUsed(item, usedWebsiteItems, websiteUrl)) &&
           isProductEligibleForWebsiteSource(item, rule, brandProfile)
       )
     )
@@ -32231,12 +32216,14 @@ async function findWebsiteProductWithWebSearch({
     const recoveredItems = [];
 
     for (const repairedCandidate of repair?.repairedCandidates || []) {
+      if (excludePreviouslyUsed && hasWebsiteItemAlreadyBeenUsed(repairedCandidate, usedWebsiteItems, websiteUrl)) continue;
       const hydrated = await hydrateAuthoritativeWebAgentProduct({
         candidate: repairedCandidate,
         websiteUrl,
         cachedItem: repairedCandidate,
       });
       if (!hydrated?.url || !hydrated?.title || !hydrated?.image_url) continue;
+      if (excludePreviouslyUsed && hasWebsiteItemAlreadyBeenUsed(hydrated, usedWebsiteItems, websiteUrl)) continue;
 
       if (!isProductEligibleForWebsiteSource(hydrated, rule, brandProfile)) {
         availabilityRejectedCandidates.push({
@@ -32467,7 +32454,9 @@ async function findWebsiteProductWithWebSearch({
     }
 
     candidateProducts = sortFreshProductCandidatesFirst(
-      dedupeUrlItems(candidateProducts),
+      dedupeUrlItems(candidateProducts).filter((item) =>
+        !excludePreviouslyUsed || !hasWebsiteItemAlreadyBeenUsed(item, usedWebsiteItems, websiteUrl)
+      ),
       usedWebsiteItems,
       websiteUrl
     ).slice(0, CAROUSEL_WEB_SEARCH_CANDIDATE_LIMIT);
@@ -32559,6 +32548,8 @@ async function findWebsiteProductWithWebSearch({
             verification_cache_hit: true,
           };
         }
+
+        if (excludePreviouslyUsed && websiteItem && hasWebsiteItemAlreadyBeenUsed(websiteItem, usedWebsiteItems, websiteUrl)) continue;
 
         if (!websiteItem?.url || !websiteItem?.title) {
           console.log("Product researcher candidate could not be normalized", {
@@ -32933,6 +32924,59 @@ async function prepareWebsiteContentForRule({
   // Once a URL has been proven to be a listing/non-product (or a product), later
   // local fallbacks must reuse that answer instead of fetching/verifying it again.
   const productVerificationCache = new Map();
+  const savedPools = await Promise.all([
+    getWebsiteProductCatalogItems({ supabase, userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id, sourceUrl: websiteUrl }),
+    getWebsiteProductCatalogItems({ supabase, userId: rule.user_id,
+      brandProfileId: rule.brand_profile_id, sourceUrl: "", limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT }),
+  ]);
+  const savedCatalogItems = removeStaleShopifyApiCatalogItems(filterWebsiteCatalogItemsForRule(
+    dedupeWebsiteItemsByUrlTitleAndImage(savedPools.flat()), rule
+  ));
+  const freshUnusedSavedItems = savedCatalogItems.filter((item) =>
+    !hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, websiteUrl) &&
+    isSameOrSubdomainUrl(item?.url, websiteUrl) &&
+    matchesConfiguredWebsiteMarket(item?.url, websiteUrl, getProductMarketCodeForRule(rule, websiteUrl)) &&
+    isFreshProductStockVerification(item) &&
+    isProductEligibleForWebsiteSource(item, rule, brandProfile) &&
+    (isIndexedSecurityFallbackLockedProduct(item) || isAuthoritativePublicCommerceFeedLockedProduct(item) ||
+      isShopifyAdminApiLockedProduct(item) ||
+      (item?.product_identity_locked === true && item?.product_image_semantic_verified === true && item?.image_url)) &&
+    (isShopifyAdminApiLockedProduct(item)
+      ? isAcceptableShopifyAdminProductSelection(item, rule)
+      : isAcceptableWebsiteTextProductSelection(item, rule))
+  );
+  if (freshUnusedSavedItems.length) {
+    const scoped = await filterExplicitCollectionCandidates({
+      sourceUrl: websiteUrl, items: freshUnusedSavedItems, refreshIfEmpty: false,
+    });
+    let remaining = [...scoped.items];
+    for (let attempt = 0; remaining.length && attempt < 8; attempt += 1) {
+      const selected = await chooseUnusedWebsiteItem({
+        supabase, userId: rule.user_id, brandProfileId: rule.brand_profile_id,
+        sourceUrl: websiteUrl, contentType, items: remaining, rule,
+        usedWebsiteImageUrlsThisRun, recentUsedItems, allowReuseWhenExhausted: false,
+      });
+      if (!selected?.item) break;
+      remaining = remaining.filter((item) => !areSameWebsiteItem(item, selected.item, websiteUrl));
+      try {
+        const prepared = await finalizePreparedWebsiteItem(selected.item, selected.cycleNumber, { allowAiRepair: false });
+        summary.website_items_found += 1;
+        summary.website_content_success += 1;
+        console.info("Fresh unused saved product selected before website discovery", {
+          ruleId: rule.id, brandProfileId: rule.brand_profile_id, websiteUrl,
+          productUrl: prepared.websiteItem.url, freshPoolCount: scoped.items.length,
+          productDiscoveryPath: "fresh_saved_catalog", paidWebResearchUsed: false,
+        });
+        return prepared;
+      } catch (error) {
+        if (isWebsiteRateLimitError(error)) throw error;
+        console.info("Saved product failed final source check; trying remaining pool", {
+          ruleId: rule.id, productUrl: selected.item?.url, message: error?.message,
+        });
+      }
+    }
+  }
 
   if (contentSourceScope === "product_category" || contentSourceScope === "focus_page") {
     if (websiteAccessProtected) {
@@ -32955,6 +32999,7 @@ async function prepareWebsiteContentForRule({
       rule,
       limit: WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT,
       verificationCache: productVerificationCache,
+      excludeProductUrls: recentUsedItems.map((item) => item.item_url || item.product_url || item.url).filter(Boolean),
     });
 
     if (productIntentScoped && focusedCategoryItems.length) {
@@ -32995,6 +33040,7 @@ async function prepareWebsiteContentForRule({
             domain: getWebsiteFetchDomain(websiteUrl),
             retryAfterMs: Number(focusedCategoryItems.retryAfterMs || 0),
             status: 429,
+            origin: "domain_cooldown",
           }
         );
       }
@@ -33140,16 +33186,7 @@ async function prepareWebsiteContentForRule({
     throw exhaustedError;
   }
 
-  let catalogItems = filterWebsiteCatalogItemsForRule(
-    await getWebsiteProductCatalogItems({
-      supabase,
-      userId: rule.user_id,
-      brandProfileId: rule.brand_profile_id,
-      sourceUrl: websiteUrl,
-    }),
-    rule
-  );
-  catalogItems = removeStaleShopifyApiCatalogItems(catalogItems);
+  let catalogItems = [...savedCatalogItems];
 
   if (shopifyCatalogItems.length) {
     catalogItems = filterWebsiteCatalogItemsForRule(
@@ -33170,24 +33207,6 @@ async function prepareWebsiteContentForRule({
     });
   }
 
-  const brandWideSingleProductCatalog = removeStaleShopifyApiCatalogItems(
-    filterWebsiteCatalogItemsForRule(
-      await getWebsiteProductCatalogItems({
-        supabase,
-        userId: rule.user_id,
-        brandProfileId: rule.brand_profile_id,
-        sourceUrl: "",
-        limit: WEBSITE_PRODUCT_CATALOG_SELECT_LIMIT,
-      }),
-      rule
-    )
-  );
-  if (brandWideSingleProductCatalog.length) {
-    catalogItems = dedupeWebsiteItemsByUrlTitleAndImage([
-      ...catalogItems,
-      ...brandWideSingleProductCatalog,
-    ]);
-  }
 
   if (websiteAccessProtected) {
     const manufacturerCatalogSource = isManufacturerCatalogSource(rule, brandProfile);
@@ -33366,6 +33385,7 @@ async function prepareWebsiteContentForRule({
     ].filter(
       (item) =>
         item &&
+        !hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, websiteUrl) &&
         isAcceptableWebsiteTextProductSelection(item, rule)
     );
 
@@ -33489,9 +33509,8 @@ async function prepareWebsiteContentForRule({
     rule,
     usedWebsiteImageUrlsThisRun,
     recentUsedItems,
-    // A verified older product is safer than an unrelated product or a paid
-    // research pass once the customer's own collection is exhausted.
-    allowReuseWhenExhausted: collectionCatalogFilter.applicable,
+    // A limited discovery pool does not prove that the collection is exhausted.
+    allowReuseWhenExhausted: false,
   });
 
   if (catalogSelection?.item && !productIntentScoped) {
@@ -33532,7 +33551,7 @@ async function prepareWebsiteContentForRule({
               supabase, userId: rule.user_id, brandProfileId: rule.brand_profile_id,
               sourceUrl: websiteUrl, contentType, items: remainingCatalogCandidates,
               rule, usedWebsiteImageUrlsThisRun, recentUsedItems,
-              allowReuseWhenExhausted: collectionCatalogFilter.applicable,
+              allowReuseWhenExhausted: false,
             })
           : null;
       }
@@ -33811,14 +33830,14 @@ async function prepareWebsiteContentForRule({
           websiteUrl,
           campaignPrompt: buildCampaignResearchText(rule),
           usedItems: recentUsedItems,
-          excludeUsed: false,
+          excludeUsed: true,
           supabase,
           rule,
         });
 
         if (storeSearchCandidates.length) {
           let storeSearchItems = await verifyDiscoveredWebsiteProductCandidates({
-            candidates: storeSearchCandidates,
+            candidates: storeSearchCandidates.filter((item) => !hasWebsiteItemAlreadyBeenUsed(item, recentUsedItems, websiteUrl)),
             websiteUrl,
             limit: WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT,
             supabase,
@@ -34074,6 +34093,9 @@ async function prepareWebsiteContentForRule({
         websiteAccessProtected ||
         resolvedWebResearchFallbackReason === "rate_limited",
       desiredVerifiedCount: 2,
+      excludePreviouslyUsed: true,
+      maxAttempts: 3,
+      deadlineMs: Date.now() + 120_000,
       indexedSecurityRepairBatchSize: 4,
     });
 
@@ -39661,6 +39683,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         }
         return {textOverlayBuffer:approvedOverlay,contrastAnalysis:contrast.analysis,designReview:review,
           localTypographyRepair:localRepair,
+          endCardIncludesSender:Boolean(approvedEndCard.hasSender),
           closingBackgroundBuffer:approvedEndCard.backgroundBuffer,closingTextBuffer:approvedEndCard.foregroundBuffer,closingCardBuffer:approvedEndCard.cardBuffer,
           advertisingCopy,copyValidation,typographyMode:split.typographyMode,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-independent-advertising-assets-v349`};
       } catch(error) {
@@ -40021,6 +40044,7 @@ async function createAnimatedProductVideoAssets({
     productHeight: productLayer.productHeight,
     textOverlayUrl: textOverlayUpload.imageUrl,
     logoOverlayUrl: logoUpload?.imageUrl || null,
+    endCardIncludesSender: textOverlay.endCardIncludesSender === true,
     posterUrl: posterUpload.imageUrl,
     posterStoragePath: posterUpload.imageStoragePath,
     foregroundPrompt: prompt,
@@ -40148,6 +40172,7 @@ export async function generateAnimatedProductVideo({
     productHeight: assets.productHeight,
     textOverlayUrl: assets.textOverlayUrl,
     logoOverlayUrl: assets.logoOverlayUrl,
+    endCardIncludesSender: assets.endCardIncludesSender === true,
     durationSeconds: ANIMATED_VIDEO_MOTION_SECONDS,
     closingHoldSeconds: ANIMATED_VIDEO_CLOSING_HOLD_SECONDS,
     closingBackgroundUrl: assets.closingBackgroundUrl,
@@ -45865,6 +45890,14 @@ async function runAutomationCron(request, options = {}) {
           errorOrMessage,
           stage,
           metadata: extraSummary,
+        });
+        console.info("Automation occurrence website cooldown disposition saved", {
+          ruleId: rule.id, occurrenceId: automationOccurrenceId, stage,
+          handled: result.handled, status: result.status, domain: result.domain,
+          retryAt: result.retryAt, retryAfterMs: result.retryAfterMs,
+          retryCount: result.retryCount, reason: String(errorOrMessage?.message || errorOrMessage || "Website temporarily rate limited"),
+          website429Policy: extraSummary.website_429_policy || null,
+          automaticRetryScheduled: result.handled && result.status === "retry_pending",
         });
         if (!continuousRetry && result.retryCount >= WEBSITE_RATE_LIMIT_MAX_RETRIES) {
           const exhaustedError = new Error(

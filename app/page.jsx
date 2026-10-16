@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import HomeReferenceOverview from "../components/HomeReferenceOverview";
+import WebsiteCooldownNote from "../components/WebsiteCooldownNote";
 import PlanLimitModal from "../components/PlanLimitModal";
 import { supabase } from "../lib/supabaseClient";
 import { getBrowserUserOrRedirect } from "../lib/browserSession";
@@ -713,8 +714,8 @@ export default function Home() {
       }
     }
 
-    const rulesSelect = "id, brand_profile_id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, plan_state, plan_ended_at, recurring_plan_group_id, plan_pause_reason, plan_paused_at, credit_pause_required_amount, credit_pause_balance_at_pause, content_type_id, content_type_label, content_format, queue_source, uses_website_content, generate_image, approval_required, credit_cost, credit_reservation_status, credit_reserved_amount, created_at, generation_occurrence_status, generation_customer_message, generation_refunded_credits, generation_notification_status, generation_occurrence_scheduled_for";
-    const legacyRulesSelect = "id, brand_profile_id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, content_type_id, content_type_label, content_format, queue_source, uses_website_content, generate_image, approval_required, created_at, generation_occurrence_status, generation_customer_message, generation_refunded_credits, generation_notification_status, generation_occurrence_scheduled_for";
+    const rulesSelect = "id, brand_profile_id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, plan_state, plan_ended_at, recurring_plan_group_id, plan_pause_reason, plan_paused_at, credit_pause_required_amount, credit_pause_balance_at_pause, content_type_id, content_type_label, content_format, queue_source, uses_website_content, generate_image, approval_required, credit_cost, credit_reservation_status, credit_reserved_amount, created_at, generation_occurrence_status, generation_failure_code, retry_not_before, generation_customer_message, generation_refunded_credits, generation_notification_status, generation_occurrence_scheduled_for";
+    const legacyRulesSelect = "id, brand_profile_id, name, weekday, publish_time, platform, post_type, schedule_type, run_date, timezone, next_run_at, is_active, content_type_id, content_type_label, content_format, queue_source, uses_website_content, generate_image, approval_required, created_at, generation_occurrence_status, generation_failure_code, retry_not_before, generation_customer_message, generation_refunded_credits, generation_notification_status, generation_occurrence_scheduled_for";
 
     let rulesResult = await supabase
       .from("automation_rules")
@@ -1113,6 +1114,7 @@ export default function Home() {
                 {nextRun ? t("dashboard.nextRun", { date: formatShortDate(nextRun, t, locale) }) : null}
                 {isCreditPaused ? `${nextRun || plan.postsPerWeek ? " · " : ""}${t("dashboard.planStatus.pausedForCredits")}` : null}
               </small>
+              <WebsiteCooldownNote plan={plan} />
               {isCreditPaused ? (
                 <small>{t("dashboard.creditPauseHelp", { credits: plan.creditPauseRequiredAmount || 0 })}</small>
               ) : null}
@@ -1826,6 +1828,7 @@ export default function Home() {
                                           </span>
                                         </div>
                                         <p>{getContentPlanSummary(rule, t)}</p>
+                                        <WebsiteCooldownNote plan={rule} />
                                         {status.key === "failed" ? (() => {
                                           const failureInfo = getContentPlanFailureInfo(rule, t);
                                           return (
@@ -1899,6 +1902,7 @@ export default function Home() {
                                           </span>
                                         </div>
                                         <p>{getContentPlanSummary(rule, t)}</p>
+                                        <WebsiteCooldownNote plan={rule} />
                                         {status.key === "failed" ? (() => {
                                           const failureInfo = getContentPlanFailureInfo(rule, t);
                                           return (

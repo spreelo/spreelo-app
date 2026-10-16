@@ -1,3 +1,4 @@
+import { COMMERCIAL_COPY_HIERARCHY, repeatsAdvertisingMessage, isProductLabelHeadline } from "../../../../lib/videoAdvertisingHierarchy.js";
 import { deferKlingRenderContinuation } from "../../../../lib/videoJobSafety.js";
 import { videoFailureDetails } from "../../../../lib/videoFailureDiagnostics.js";
 import { isKlingCreativeOnlyReview } from "../../../../lib/klingCreativeReview.js";
@@ -500,7 +501,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
       "Choose main_placement from top_left, top_right, middle_left, middle_right, lower_left, lower_right so the headline avoids the advertised product and especially its print/design, plus faces, hands and the main action ACROSS ALL supplied frames. " +
       "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, where the scene has real negative space, including above the product when appropriate; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose the most compelling safe main width 520-876, height 140-500; the closing line belongs on the separate end card, so do not waste scene space by preparing a small second in-scene label. Prioritize prominent readable lettering without covering the product. Use scene-appropriate medium or semibold hierarchy and purposeful line breaks. Do not default to extra-bold text or outlines. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
-      VIDEO_ART_DIRECTION + " " + CREATIVE_DIRECTOR_BRIEF + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
+      VIDEO_ART_DIRECTION + " " + COMMERCIAL_COPY_HIERARCHY + " " + CREATIVE_DIRECTOR_BRIEF + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
       "The cta is displayed on a separate company-branded end card, not on a frozen product photograph. Keep it concise enough to read in 1.5 seconds. Include end-card background art direction suited to the business in design_direction. Choose cta_placement independently for legacy compatibility. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
   }];
   for (const frame of frames) {
@@ -511,60 +512,70 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
     });
   }
   try {
-    const response = await openai.responses.create({
-      model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-      input: [{ role: "user", content }],
-      max_output_tokens: 900,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "kling_finished_ad_creative_plan",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              design_direction: { type: "string" },
-              headline: { type: "string" },
-              subheadline: { type: "string" },
-              cta: { type: "string" },
-              main_placement: { type: "string", enum: Object.keys(KLING_FINISHED_TYPOGRAPHY_PLACEMENTS) },
-              cta_placement: { type: "string", enum: Object.keys(KLING_FINISHED_TYPOGRAPHY_PLACEMENTS) },
-              main_text_tone: { type: "string", enum: ["light", "dark"] },
-              cta_text_tone: { type: "string", enum: ["light", "dark"] },
-              protected_regions: {type:"array",minItems:1,maxItems:16,items:{type:"object",additionalProperties:false,properties:{left:{type:"number"},top:{type:"number"},width:{type:"number"},height:{type:"number"}},required:["left","top","width","height"]}},
-              main_layout: klingLayoutSchema(),
-              cta_layout: klingLayoutSchema(),
-              placement_confidence: { type: "number", minimum: 0, maximum: 1 },
+    for (let copyAttempt = 1; copyAttempt <= 2; copyAttempt += 1) {
+      const response = await openai.responses.create({
+        model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+        input: [{ role: "user", content }],
+        max_output_tokens: 900,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "kling_finished_ad_creative_plan",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                design_direction: { type: "string" },
+                headline: { type: "string" },
+                subheadline: { type: "string" },
+                cta: { type: "string" },
+                main_placement: { type: "string", enum: Object.keys(KLING_FINISHED_TYPOGRAPHY_PLACEMENTS) },
+                cta_placement: { type: "string", enum: Object.keys(KLING_FINISHED_TYPOGRAPHY_PLACEMENTS) },
+                main_text_tone: { type: "string", enum: ["light", "dark"] },
+                cta_text_tone: { type: "string", enum: ["light", "dark"] },
+                protected_regions: {type:"array",minItems:1,maxItems:16,items:{type:"object",additionalProperties:false,properties:{left:{type:"number"},top:{type:"number"},width:{type:"number"},height:{type:"number"}},required:["left","top","width","height"]}},
+                main_layout: klingLayoutSchema(),
+                cta_layout: klingLayoutSchema(),
+                placement_confidence: { type: "number", minimum: 0, maximum: 1 },
+              },
+              required: [
+                "design_direction", "headline", "subheadline", "cta", "main_placement", "cta_placement",
+                "main_text_tone", "cta_text_tone", "placement_confidence", "main_layout", "cta_layout", "protected_regions"
+              ],
             },
-            required: [
-              "design_direction", "headline", "subheadline", "cta", "main_placement", "cta_placement",
-              "main_text_tone", "cta_text_tone", "placement_confidence", "main_layout", "cta_layout", "protected_regions"
-            ],
           },
         },
-      },
-    }, { timeout: 24_000, maxRetries: 0 });
-    const parsed = JSON.parse(getOpenAiTextOutput(response));
-    const headline = normalizeKlingCreativeLine(parsed?.headline, { maxWords: 6, maxChars: 48 }) || fallbackHeadline;
-    const subheadline = normalizeKlingCreativeLine(parsed?.subheadline, { maxWords: 5, maxChars: 36 });
-    const cta = normalizeKlingCreativeLine(parsed?.cta, { maxWords: 6, maxChars: 40 }) || fallbackCta;
-    return {
-      design_direction: truncate(parsed?.design_direction, 600),
-      headline,
-      subheadline,
-      cta,
-      main_placement: KLING_FINISHED_TYPOGRAPHY_PLACEMENTS[parsed?.main_placement] ? parsed.main_placement : fallbackPlan.main_placement,
-      cta_placement: KLING_FINISHED_TYPOGRAPHY_PLACEMENTS[parsed?.cta_placement] ? parsed.cta_placement : fallbackPlan.cta_placement,
-      main_text_tone: parsed?.main_text_tone === "dark" ? "dark" : "light",
-      cta_text_tone: parsed?.cta_text_tone === "dark" ? "dark" : "light",
-      placement_confidence: Math.max(0, Math.min(1, Number(parsed?.placement_confidence) || 0)),
-      main_layout: sceneSafeKlingLayout(normalizeKlingLayout(parsed?.main_layout, getKlingPlacementBox(parsed?.main_placement), parsed?.placement_confidence), parsed?.protected_regions || []),
-      protected_regions: parsed?.protected_regions || [],
-      video_design_version: VIDEO_DESIGN_VERSION,
-      cta_layout: normalizeKlingLayout(parsed?.cta_layout, getKlingPlacementBox(parsed?.cta_placement, "lower_left"), parsed?.placement_confidence, true),
-      source: "gpt-4.1-mini-finished-video-creative-plan",
-    };
+      }, { timeout: 24_000, maxRetries: 0 });
+      const parsed = JSON.parse(getOpenAiTextOutput(response));
+      const headline = normalizeKlingCreativeLine(parsed?.headline, { maxWords: 6, maxChars: 48 }) || fallbackHeadline;
+      const repeatsProduct = isProductLabelHeadline(headline, productTitle);
+      if (repeatsProduct && copyAttempt === 1) {
+        content[0].text += ` Your previous proposal was ${JSON.stringify(headline)}. It repeats the product label instead of adding an advertising idea. Rewrite it as one complete, short, product-relevant invitation using only the supplied facts. Keep the original protected regions and provide the full schema again. Do not invent a benefit or copy the printed wording.`;
+        continue;
+      }
+      const proposedSubheadline = normalizeKlingCreativeLine(parsed?.subheadline, { maxWords: 5, maxChars: 36 });
+      const subheadline = (repeatsAdvertisingMessage(headline, proposedSubheadline) || repeatsAdvertisingMessage(productTitle, proposedSubheadline)) ? "" : proposedSubheadline;
+      const cta = normalizeKlingCreativeLine(parsed?.cta, { maxWords: 6, maxChars: 40 }) || fallbackCta;
+      return {
+        design_direction: truncate(parsed?.design_direction, 600),
+        headline,
+        subheadline,
+        cta,
+        main_placement: KLING_FINISHED_TYPOGRAPHY_PLACEMENTS[parsed?.main_placement] ? parsed.main_placement : fallbackPlan.main_placement,
+        cta_placement: KLING_FINISHED_TYPOGRAPHY_PLACEMENTS[parsed?.cta_placement] ? parsed.cta_placement : fallbackPlan.cta_placement,
+        main_text_tone: parsed?.main_text_tone === "dark" ? "dark" : "light",
+        cta_text_tone: parsed?.cta_text_tone === "dark" ? "dark" : "light",
+        placement_confidence: Math.max(0, Math.min(1, Number(parsed?.placement_confidence) || 0)),
+        main_layout: sceneSafeKlingLayout(normalizeKlingLayout(parsed?.main_layout, getKlingPlacementBox(parsed?.main_placement), parsed?.placement_confidence), parsed?.protected_regions || []),
+        protected_regions: parsed?.protected_regions || [],
+        video_design_version: VIDEO_DESIGN_VERSION,
+        cta_layout: normalizeKlingLayout(parsed?.cta_layout, getKlingPlacementBox(parsed?.cta_placement, "lower_left"), parsed?.placement_confidence, true),
+        copy_planning_attempts: copyAttempt,
+        copy_feedback: repeatsProduct ? "Product-label fallback retained once; no creative review hold" : null,
+        source: "gpt-4.1-mini-finished-video-creative-plan",
+      };
+    }
   } catch (error) {
     if (/No sufficiently clear region/.test(error?.message || "")) throw error;
     console.warn("Kling finished-video creative planning unavailable; using safe fallback copy/placement", {
@@ -1387,6 +1398,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       end_card_seconds: KLING_END_CARD_SECONDS,
       end_card_brand_name: brand.business_name || null,
       end_card_has_logo: Boolean(logoBuffer),
+      end_card_includes_sender: Boolean(layers.hasSender),
       end_card_background_bounds: splitOverlay.backgroundBounds,
       end_card_text_alignment: "center_visible_bounds",
       text_overlay_url: uploaded.imageUrl,
@@ -1650,6 +1662,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       textOverlayUrl: postprocess.text_overlay_url,
       ctaOverlayUrl: null,
       logoOverlayUrl: postprocess.logo_overlay_url || null,
+      endCardIncludesSender: postprocess.end_card_includes_sender === true,
       closingFrameUrl: null,
       endCardUrl: postprocess.end_card_url,
       endCardBackgroundUrl: postprocess.end_card_background_url || null,
