@@ -1,3 +1,6 @@
+import { persistTerminalVideoFailure } from "../../../../lib/videoFailurePersistence.js";
+import { hasProtectedVideoJob } from "../../../../lib/videoJobSafety.js";
+import { classifyVideoProviderCreationFailure, automationFailureHandoffError } from "../../../../lib/videoFailureDiagnostics.js";
 import { explicitCollectionScope, restrictToExplicitCollection } from "../../../../lib/storeMapCollectionScope.js";
 import { verifyExplicitCollectionMembership, filterExplicitCollectionCandidates, getExplicitCollectionProductCandidates } from "../../../../lib/verifiedCollectionMembership.js";
 import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering } from "../../../../lib/videoAdvertisingAssetPipeline.js";
@@ -76,6 +79,11 @@ import {
   buildBrand429RescueUpdate,
   isBrand429RescueActive,
 } from "../../../../lib/brandWebsiteRescue.js";
+import {
+  chooseWebsite429DelayMs,
+  decideWebsite429Action,
+  isCompletedWebsiteHistoryPost,
+} from "../../../../lib/website429RecoveryPolicy.js";
 import {
   buildVideoBackgroundProfile,
   chooseVideoBackground,
@@ -313,6 +321,8 @@ const WEBSITE_FETCH_ACQUIRE_ATTEMPTS = Math.max(
 // runs are allowed: the initial run and one different, persistent-first retry.
 // This is deliberately not environment-configurable, so an old Vercel value
 // cannot reopen an unbounded automation cost.
+// Legacy retry limit applies only to old/manual flows. Proven websites use
+// an open-ended, domain-polite cooldown with bounded per-attempt work.
 const WEBSITE_RATE_LIMIT_MAX_RETRIES = 2;
 // v144.00: transient infrastructure/API failures get up to two bounded automatic
 // resumes before they are treated as terminal. In-step deterministic fallbacks
@@ -544,25 +554,26 @@ let websiteFetchControlClient = null;
 const localWebsiteFetchSchedule = new Map();
 
 class WebsiteRateLimitError extends Error {
-  constructor(message, { url = "", domain = "", retryAfterMs = 0, status = 429 } = {}) {
+  constructor(message, { url = "", domain = "", retryAfterMs = 0, status = null, origin = "internal_pacing" } = {}) {
     super(message);
     this.name = "WebsiteRateLimitError";
     this.code = "WEBSITE_RATE_LIMITED";
     this.url = url;
     this.domain = domain;
     this.retryAfterMs = Math.max(0, Number(retryAfterMs || 0));
-    this.status = Number(status || 429);
+    this.status = status == null ? null : Number(status);
+    this.origin = origin;
   }
 }
 
 function isWebsiteRateLimitError(error) {
-  return Boolean(
-    error?.code === "WEBSITE_RATE_LIMITED" ||
-      Number(error?.status || 0) === 429 ||
-      /(?:website returned 429|rate.?limit|too many requests|domain cooldown)/i.test(
-        String(error?.message || "")
-      )
-  );
+  // Only errors tied to website retrieval can activate website Rescue.
+  if (error?.code === "WEBSITE_RATE_LIMITED") return true;
+  if (/^(KLING|SHOTSTACK|ANIMATED_AI)_/i.test(String(error?.code || ""))) return false;
+  const message = String(error?.message || "");
+  const hasWebsiteSource = Boolean(error?.domain || error?.url);
+  return /website returned 429|website domain cooldown|domain cooldown active/i.test(message) ||
+    (hasWebsiteSource && (Number(error?.status || 0) === 429 || /rate.?limit|too many requests/i.test(message)));
 }
 
 function isWebsiteAccessProtectedStatus(status) {
@@ -786,7 +797,7 @@ async function acquireWebsiteFetchSlot(url) {
     if (waitMs > WEBSITE_FETCH_SHORT_WAIT_LIMIT_MS || cooldownUntil) {
       throw new WebsiteRateLimitError(
         `Website domain cooldown active for ${domain}`,
-        { url, domain, retryAfterMs: waitMs, status: 429 }
+        { url, domain, retryAfterMs: waitMs, origin: "domain_cooldown" }
       );
     }
 
@@ -795,7 +806,7 @@ async function acquireWebsiteFetchSlot(url) {
 
   throw new WebsiteRateLimitError(
     `Website request pacing could not obtain a slot for ${domain}`,
-    { url, domain, retryAfterMs: WEBSITE_FETCH_MIN_INTERVAL_MS, status: 429 }
+    { url, domain, retryAfterMs: WEBSITE_FETCH_MIN_INTERVAL_MS, origin: "internal_pacing" }
   );
 }
 
@@ -1039,7 +1050,15 @@ async function throwIfWebsiteDomainCoolingDown(url, message = "Website temporari
     url,
     domain: state.domain,
     retryAfterMs: state.waitMs,
-    status: 429,
+    origin: "domain_cooldown",
+  });
+}
+
+async function getRemoteWebsite429CooldownMs(url, retryAfterMs = 0) {
+  const state = await getWebsiteDomainFetchState(url);
+  return chooseWebsite429DelayMs({
+    consecutive429Count: Number(state.consecutive429Count || 0) + 1,
+    retryAfterMs: Math.max(Number(retryAfterMs || 0), Number(state.waitMs || 0)),
   });
 }
 
@@ -3840,7 +3859,7 @@ async function findAutomationDraftsForRule({ supabase, ruleId }) {
   const { data, error } = await supabase
     .from("posts")
     .select(
-      "id, user_id, status, created_at, updated_at, content_format, image_storage_path, video_storage_path, video_status, video_render_id, video_provider, video_background_selection, image_url, video_url, scheduled_for, slide_count, slide_generation_status, slide_render_status"
+      "id, user_id, status, created_at, updated_at, content_format, image_storage_path, video_storage_path, video_status, video_render_id, video_provider, kling_task_id, kling_generation_count, video_background_selection, image_url, video_url, scheduled_for, slide_count, slide_generation_status, slide_render_status"
     )
     .eq("automation_rule_id", ruleId)
     .in("status", ["pending_approval", "generating"])
@@ -3940,7 +3959,7 @@ function isStaleIncompleteAnimatedVideoDraft(post, now) {
 }
 
 async function deleteIncompleteAnimatedVideoDrafts({ supabase, posts }) {
-  const drafts = (posts || []).filter(post => isIncompleteAnimatedVideoDraftPost(post) && !hasShotstackCheckpoint(post));
+  const drafts = (posts || []).filter(post => isIncompleteAnimatedVideoDraftPost(post) && !hasProtectedVideoJob(post));
   const postIds = drafts.map((post) => post.id).filter(Boolean);
 
   if (!postIds.length) {
@@ -13116,6 +13135,8 @@ function classifyAutomationCreationFailure(errorOrMessage, stage = "unhandled") 
   const message = String(errorOrMessage?.message || errorOrMessage || "Unknown automation error");
   const normalized = message.toLowerCase();
   const normalizedStage = String(stage || "unhandled").toLowerCase();
+  const videoProviderFailure = classifyVideoProviderCreationFailure(errorOrMessage);
+  if (videoProviderFailure) return videoProviderFailure;
   if (errorOrMessage?.code === "AI_SERVICE_UNAVAILABLE" || classifyOpenAiServiceError(errorOrMessage)) {
     return { code: "ai_service_unavailable", customerMessage: "The AI service could not complete this planned post. Please check the AI service status before trying again." };
   }
@@ -13169,8 +13190,7 @@ function classifyAutomationCreationFailure(errorOrMessage, stage = "unhandled") 
   }
 
   if (
-    /domain cooldown|rate limit|too many requests|request pacing|retry-after/.test(normalized) &&
-    !/openai|quota|billing/.test(normalized)
+    isWebsiteRateLimitError(errorOrMessage)
   ) {
     return {
       code: "website_rate_limit_rescue",
@@ -13660,17 +13680,6 @@ async function sendImmediateAdminFailureAlertEmail({
   title = null,
 }) {
   const recipients = getImmediateAdminAlertRecipients();
-  if (!resendApiKey || !recipients.length) {
-    console.warn("Immediate admin failure alert skipped", {
-      reason: !resendApiKey ? "missing_resend_api_key" : "missing_admin_recipient",
-      occurrenceId,
-      postId,
-      failureCode,
-      stage,
-    });
-    return { sent: false, reason: !resendApiKey ? "missing_resend_api_key" : "missing_admin_recipient" };
-  }
-
   const appUrl = String(
     process.env.NEXT_PUBLIC_APP_URL ||
       process.env.APP_URL ||
@@ -13738,6 +13747,18 @@ async function sendImmediateAdminFailureAlertEmail({
     runLogId,
     metadata: incidentMetadata,
   });
+
+  if (!resendApiKey || !recipients.length) {
+    console.warn("Immediate admin failure alert skipped", {
+      reason: !resendApiKey ? "missing_resend_api_key" : "missing_admin_recipient",
+      occurrenceId,
+      postId,
+      failureCode,
+      stage,
+    });
+    if (incident.incidentId) await releaseAdminIncidentEmailReservation({supabase,incidentId:incident.incidentId});
+    return { sent: false, incidentId:incident.incidentId, reason: !resendApiKey ? "missing_resend_api_key" : "missing_admin_recipient" };
+  }
 
   if (!incident.shouldEmail) {
     console.info("Immediate admin failure alert email deduplicated", {
@@ -13910,6 +13931,73 @@ async function sendAutomationCreationFailureEmail({
     },
   });
   return { status: "suppressed", reason: "admin_review_required" };
+}
+
+async function getWebsiteHistoricalDelivery({ supabase, rule, brandProfile, domain }) {
+  const targetDomain = getWebsiteFetchDomain(domain || getWebsiteProductSourceUrl(brandProfile, rule));
+  if (!targetDomain) return { known: false, successful: false, reason: "missing_domain" };
+  try {
+  // This is source-specific evidence, not a successful queue claim, product
+  // scrape or unfinished draft. Scope to the real URL's host after retrieval.
+  const { data: history, error: historyError } = await supabase
+    .from("website_content_history")
+    .select("post_id,source_url")
+    .not("post_id", "is", null)
+    .ilike("source_url", `%${targetDomain}%`)
+    .order("post_id", { ascending: true })
+    .limit(501);
+  if (historyError) {
+    console.warn("429 delivery history unavailable; not applying permanent block", {
+      domain: targetDomain, message: historyError.message,
+    });
+    return { known: false, successful: false, reason: "history_query_failed" };
+  }
+  const postIds = [...new Set((history || [])
+    .filter((item) => getWebsiteFetchDomain(item?.source_url) === targetDomain)
+    .map((item) => item?.post_id).filter(Boolean))];
+  const historyTruncated = (history || []).length >= 501;
+  if (!postIds.length) return { known: !historyTruncated, successful: false, checkedPosts: 0 };
+  for (let offset = 0; offset < postIds.length; offset += 80) {
+    const { data: posts, error: postsError } = await supabase
+      .from("posts")
+      .select("id,status,content_format,content_type_id,video_provider,video_status,video_storage_path,video_url,image_status,image_storage_path,image_url")
+      .in("id", postIds.slice(offset, offset + 80));
+    if (postsError) {
+      console.warn("429 post delivery verification unavailable; not applying permanent block", {
+        domain: targetDomain, message: postsError.message,
+      });
+      return { known: false, successful: false, reason: "post_query_failed" };
+    }
+    if ((posts || []).some(isCompletedWebsiteHistoryPost)) {
+      return { known: true, successful: true, checkedPosts: offset + (posts || []).length };
+    }
+  }
+  return { known: !historyTruncated, successful: false, checkedPosts: postIds.length, reason: historyTruncated ? "history_scan_incomplete" : "no_completed_posts" };
+  } catch (historyError) {
+    console.warn("429 history transport failed; not applying permanent block", {domain:targetDomain,message:historyError?.message});
+    return {known:false,successful:false,reason:"history_transport_failed"};
+  }
+}
+
+async function releaseHistorical429Rescue({ supabase, rule, brandProfile }) {
+  const payload = buildBrand429RescueUpdate({ enabled: false });
+  const { data, error } = await supabase.from("brand_profiles")
+    .update(payload)
+    .eq("id", rule?.brand_profile_id || brandProfile?.id)
+    .eq("user_id", rule?.user_id || brandProfile?.user_id)
+    .eq("website_access_status", "rate_limited_rescue")
+    .select("id").maybeSingle();
+  if (error || !data) {
+    console.warn("Could not clear legacy 429 Rescue for proven website", {
+      brandProfileId: brandProfile?.id, message: error?.message || "Brand changed or disappeared before release",
+    });
+    return false;
+  }
+  if (brandProfile) Object.assign(brandProfile, payload);
+  console.info("Previous successful deliveries released legacy permanent 429 Rescue", {
+    brandProfileId: brandProfile?.id,
+  });
+  return true;
 }
 
 async function markBrandFor429Rescue({ supabase, rule, brandProfile, errorOrMessage }) {
@@ -15315,7 +15403,10 @@ async function fetchHtml(url) {
       },
     });
 
-    const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+    const providerRetryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+    const retryAfterMs = response.status === 429
+      ? await getRemoteWebsite429CooldownMs(safeUrl, providerRetryAfterMs)
+      : providerRetryAfterMs;
     await recordWebsiteFetchResult(safeUrl, response.status, retryAfterMs);
 
     if (response.status === 429) {
@@ -15324,6 +15415,7 @@ async function fetchHtml(url) {
         domain: getWebsiteFetchDomain(safeUrl),
         retryAfterMs,
         status: 429,
+        origin: "http_response",
       });
     }
 
@@ -15467,7 +15559,10 @@ async function fetchHtmlWithFinalUrl(url) {
           "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
     });
-    const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+    const providerRetryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+    const retryAfterMs = response.status === 429
+      ? await getRemoteWebsite429CooldownMs(safeUrl, providerRetryAfterMs)
+      : providerRetryAfterMs;
     await recordWebsiteFetchResult(safeUrl, response.status, retryAfterMs);
     if (response.status === 429) {
       throw new WebsiteRateLimitError(`Website returned 429`, {
@@ -15475,6 +15570,7 @@ async function fetchHtmlWithFinalUrl(url) {
         domain: getWebsiteFetchDomain(safeUrl),
         retryAfterMs,
         status: 429,
+        origin: "http_response",
       });
     }
     if (!response.ok) {
@@ -15745,7 +15841,10 @@ async function fetchJson(url) {
       },
     });
 
-    const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+    const providerRetryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+    const retryAfterMs = response.status === 429
+      ? await getRemoteWebsite429CooldownMs(safeUrl, providerRetryAfterMs)
+      : providerRetryAfterMs;
     await recordWebsiteFetchResult(safeUrl, response.status, retryAfterMs);
 
     if (response.status === 429) {
@@ -15754,6 +15853,7 @@ async function fetchJson(url) {
         domain: getWebsiteFetchDomain(safeUrl),
         retryAfterMs,
         status: 429,
+        origin: "http_response",
       });
     }
 
@@ -16972,7 +17072,7 @@ async function submitKlingEngagementConceptVideo({
     updated_at: submittedAt,
   }).eq("id", postId);
   if (persistError) {
-    throw new Error(`Engagement video ${submission.taskId} was submitted, but Spreelo could not persist its task id: ${persistError.message || "unknown database error"}`);
+    throw Object.assign(new Error(`Engagement video ${submission.taskId} was submitted, but Spreelo could not persist its task id: ${persistError.message || "unknown database error"}`), {code:"KLING_CHECKPOINT_SAVE_FAILED",taskId:submission.taskId,cause:persistError});
   }
   return {
     imageUrl: uploaded.imageUrl,
@@ -29964,7 +30064,7 @@ export async function resolveLockedProductUrlForUse({
           url: canonicalUrl,
           domain: domainState.domain,
           retryAfterMs: domainState.waitMs,
-          status: 429,
+          origin: "domain_cooldown",
         }
       );
     }
@@ -30007,7 +30107,7 @@ export async function resolveLockedProductUrlForUse({
           url: canonicalUrl,
           domain: domainState.domain,
           retryAfterMs: domainState.waitMs,
-          status: 429,
+          origin: "domain_cooldown",
         }
       );
     }
@@ -45674,6 +45774,40 @@ async function runAutomationCron(request, options = {}) {
         stage,
         extraSummary = {}
       ) => {
+        const websiteDomain = getWebsiteFetchDomain(
+          errorOrMessage?.domain || errorOrMessage?.url ||
+          getWebsiteProductSourceUrl(automationBrandProfile, rule)
+        );
+        const [historicalDelivery, fetchState] = await Promise.all([
+          getWebsiteHistoricalDelivery({ supabase, rule, brandProfile: automationBrandProfile, domain: websiteDomain }),
+          getWebsiteDomainFetchState(websiteDomain),
+        ]);
+        const realRemote429 = errorOrMessage?.origin === "http_response" ||
+          (errorOrMessage?.origin === "domain_cooldown" && fetchState.cooldownActive && fetchState.lastStatus === 429);
+        const action = decideWebsite429Action({
+          realRemote429,
+          historicalSuccess: historicalDelivery.successful,
+          historyKnown: historicalDelivery.known,
+        });
+        if (action === "cooldown") {
+          const computedDelay = realRemote429
+            ? chooseWebsite429DelayMs({
+                consecutive429Count: fetchState.consecutive429Count || 1,
+                retryAfterMs: Math.max(Number(fetchState.waitMs || 0), Number(errorOrMessage?.retryAfterMs || 0)),
+              })
+            : Math.max(30_000, Number(fetchState.waitMs || 0), Number(errorOrMessage?.retryAfterMs || 0));
+          const deferred = await deferCurrentOccurrenceForWebsiteRateLimit(
+            { ...errorOrMessage, domain: websiteDomain, message: String(errorOrMessage?.message || "Website request delayed"),
+              retryAfterMs: computedDelay },
+            stage,
+            { ...extraSummary, website_domain: websiteDomain,
+              website_429_policy: historicalDelivery.successful ? "proven_site_cooldown" : "internal_pacing_cooldown",
+              remote_http_429: realRemote429,
+              historical_success: historicalDelivery.successful },
+            { continuousRetry: true }
+          );
+          return { ...deferred, rescue: false };
+        }
         const rescueState = await markBrandFor429Rescue({
           supabase,
           rule,
@@ -45703,7 +45837,8 @@ async function runAutomationCron(request, options = {}) {
       const deferCurrentOccurrenceForWebsiteRateLimit = async (
         errorOrMessage,
         stage,
-        extraSummary = {}
+        extraSummary = {},
+        { continuousRetry = false } = {}
       ) => {
         const result = await deferAutomationOccurrenceForWebsiteRateLimit({
           supabase,
@@ -45713,7 +45848,7 @@ async function runAutomationCron(request, options = {}) {
           stage,
           metadata: extraSummary,
         });
-        if (result.retryCount >= WEBSITE_RATE_LIMIT_MAX_RETRIES) {
+        if (!continuousRetry && result.retryCount >= WEBSITE_RATE_LIMIT_MAX_RETRIES) {
           const exhaustedError = new Error(
             `The website remained rate limited after ${result.retryCount} automatic cooldown attempts.`
           );
@@ -45729,7 +45864,7 @@ async function runAutomationCron(request, options = {}) {
             Number(summary.website_rate_limit_retries_exhausted || 0) + 1;
           return { ...result, terminal: true };
         }
-        if (result.retryCount >= 2) {
+        if (result.retryCount === 2 || (result.retryCount > 2 && result.retryCount % 6 === 0)) {
           await sendImmediateAdminFailureAlertEmail({
             supabase,
             resendApiKey,
@@ -45747,7 +45882,7 @@ async function runAutomationCron(request, options = {}) {
             workerName,
             scheduledFor: scheduledPublishAtIso,
             retryCount: result.retryCount,
-            retryLimit: WEBSITE_RATE_LIMIT_MAX_RETRIES,
+            retryLimit: continuousRetry ? null : WEBSITE_RATE_LIMIT_MAX_RETRIES,
             queueContext: {
               candidates: rules?.length || 0,
               claimed: claimedRulesThisRun,
@@ -46260,7 +46395,7 @@ async function runAutomationCron(request, options = {}) {
               await deferCurrentShotstackJob(savedShotstackDraft.id,savedShotstackDraft.video_render_id,resumeError.lastStatus);
               continue;
             }
-            await supabase.from("posts").update({video_status:"failed",video_error:resumeError.message,updated_at:new Date().toISOString()}).eq("id",savedShotstackDraft.id);
+            await persistTerminalVideoFailure({supabase,post:savedShotstackDraft,error:resumeError,provider:'shotstack',stage:'shotstack_resume'});
             await failCurrentOccurrence(resumeError,"shotstack_resume",{post_id:savedShotstackDraft.id,render_id:savedShotstackDraft.video_render_id,no_resubmission:true});
             summary.errors+=1;continue;
           }
@@ -46303,6 +46438,17 @@ async function runAutomationCron(request, options = {}) {
         );
 
         if (activeIncompleteAnimatedVideoDrafts.length > 0) {
+          const protectedDraft = activeIncompleteAnimatedVideoDrafts.find(hasProtectedVideoJob);
+          if (protectedDraft) {
+            automationRunPostId = protectedDraft.id;
+            await failCurrentOccurrence(Object.assign(new Error(
+              `Existing provider video job on post ${protectedDraft.id} must be reconciled; its saved source, references and task ID are retained. No replacement generation was started.`
+            ), {code:'VIDEO_EXISTING_JOB_RECONCILIATION_REQUIRED'}), 'video_existing_job', {
+              post_id:protectedDraft.id, task_id:protectedDraft.kling_task_id || protectedDraft.video_render_id || null, no_resubmission:true,
+            });
+            summary.errors += 1;
+            continue;
+          }
           if (automationOccurrenceResumedAfterRetry) {
             const cleanedAnimatedDraftCount = await deleteIncompleteAnimatedVideoDrafts({
               supabase,
@@ -46488,6 +46634,34 @@ async function runAutomationCron(request, options = {}) {
         }
 
         if (rule.uses_website_content && isBrand429RescueActive(automationBrandProfile)) {
+          const history = await getWebsiteHistoricalDelivery({
+            supabase, rule, brandProfile: automationBrandProfile,
+            domain: getWebsiteProductSourceUrl(automationBrandProfile, rule),
+          });
+          if (history.successful) {
+            const cleared = await releaseHistorical429Rescue({
+              supabase, rule, brandProfile: automationBrandProfile,
+            });
+            if (cleared) {
+              const sourceUrl = getWebsiteProductSourceUrl(automationBrandProfile, rule);
+              const state = await getWebsiteDomainFetchState(sourceUrl);
+              if (state.cooldownActive) {
+                await deferCurrentOccurrenceForWebsiteRateLimit(
+                  new WebsiteRateLimitError("Previously successful website waiting for cooldown", {
+                    url: sourceUrl, domain: state.domain, retryAfterMs: state.waitMs,
+                    origin: "domain_cooldown",
+                  }),
+                  "brand_429_cooldown_resume",
+                  { legacy_rescue_released: true, website_domain: state.domain },
+                  { continuousRetry: true }
+                );
+                summary.skipped += 1;
+                continue;
+              }
+            }
+          }
+        }
+        if (rule.uses_website_content && isBrand429RescueActive(automationBrandProfile)) {
           automationCurrentStage = "brand_429_rescue_gate";
           const rescueError = new Error(BRAND_429_RESCUE_INTERNAL_MESSAGE);
           rescueError.code = "WEBSITE_429_RESCUE_ACTIVE";
@@ -46509,6 +46683,24 @@ async function runAutomationCron(request, options = {}) {
           summary.website_rate_limit_rescue_prevented_paid_generation =
             Number(summary.website_rate_limit_rescue_prevented_paid_generation || 0) + 1;
           continue;
+        }
+
+        if (rule.uses_website_content) {
+          const websiteSource = getWebsiteProductSourceUrl(automationBrandProfile, rule);
+          const domainState = await getWebsiteDomainFetchState(websiteSource);
+          if (domainState.cooldownActive) {
+            const rateLimitDisposition = await rescueCurrentOccurrenceForWebsiteRateLimit(
+              new WebsiteRateLimitError("Website cooldown is active", {
+                url: websiteSource, domain: domainState.domain,
+                retryAfterMs: domainState.waitMs, origin: "domain_cooldown",
+              }),
+              "website_domain_cooldown_preflight",
+              { website_domain: domainState.domain, paid_generation_avoided: true }
+            );
+            if (rateLimitDisposition.terminal) summary.errors += 1;
+            else summary.skipped += 1;
+            continue;
+          }
         }
 
         if (isAnimatedVideoRule(rule)) {
@@ -46873,7 +47065,7 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule, brandPro
                 websiteRateLimited: isWebsiteRateLimitError(carouselError),
               });
             } else if (isWebsiteRateLimitError(carouselError)) {
-              await rescueCurrentOccurrenceForWebsiteRateLimit(
+              const rateLimitDisposition = await rescueCurrentOccurrenceForWebsiteRateLimit(
                 carouselError,
                 "carousel_product_prepare",
                 {
@@ -46883,8 +47075,12 @@ const focusedPageContext = await prepareFocusedPageContextForRule(rule, brandPro
                     carouselError?.productEngineDiagnostics || null,
                 }
               );
-              summary.errors += 1;
-              summary.website_content_failed += 1;
+              if (rateLimitDisposition.terminal) {
+                summary.errors += 1;
+                summary.website_content_failed += 1;
+              } else {
+                summary.skipped += 1;
+              }
               continue;
             } else {
               await failCurrentOccurrence(carouselError, "carousel_product_prepare", {
@@ -47571,6 +47767,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
             summary.video_submitted = Number(summary.video_submitted || 0) + 1;
             summary.image_generated = Number(summary.image_generated || 0) + 1;
           } catch (videoError) {
+            videoRenderId = videoError?.taskId || videoRenderId;
             const failureMessage = truncateText(
               videoError?.message || "Engagement AI video could not be submitted.",
               1000
@@ -48038,6 +48235,13 @@ product_research_model_used: websitePreparedRule.uses_website_content
               if(videoError?.code === "SHOTSTACK_RENDER_PENDING") {
                 await deferCurrentShotstackJob(post.id,videoError.renderId,videoError.lastStatus);
                 break;
+              }
+              if (videoError?.renderId || videoRenderId) {
+                // The rendered/rejected result and its assets belong to a paid
+                // job. Keep them for repair instead of clearing the checkpoint.
+                await persistTerminalVideoFailure({supabase,post:{...post,video_render_id:videoError.renderId || videoRenderId},
+                  error:videoError,provider:'shotstack',stage:'animated_video_render'});
+                throw videoError;
               }
               console.warn("Animated Reel product attempt failed", {
                 ruleId: rule.id,
@@ -49068,16 +49272,17 @@ product_research_model_used: websitePreparedRule.uses_website_content
       } catch (error) {
         const message = error.message || "Unknown automation error";
         const failureStage = automationCurrentStage || "unhandled";
-
+        try {
         if (
           automationOccurrenceClaimed &&
           automationOccurrenceId &&
           isWebsiteRateLimitError(error)
         ) {
-          await rescueCurrentOccurrenceForWebsiteRateLimit(error, failureStage, {
+          const rateLimitDisposition = await rescueCurrentOccurrenceForWebsiteRateLimit(error, failureStage, {
             website_domain: getWebsiteFetchDomain(error?.domain || error?.url || ""),
           });
-          summary.errors += 1;
+          if (rateLimitDisposition.terminal) summary.errors += 1;
+          else summary.skipped += 1;
         } else if (
           automationOccurrenceClaimed &&
           automationOccurrenceId &&
@@ -49217,6 +49422,9 @@ product_research_model_used: websitePreparedRule.uses_website_content
           });
           summary.errors += 1;
         }
+        } catch (handoffError) {
+          throw automationFailureHandoffError({error,handoffError,ruleId:rule.id,postId:automationRunPostId,stage:failureStage});
+        }
       } finally {
         if (websiteDomainJobLock?.acquired && websiteDomainJobLock?.token) {
           await releaseWebsiteDomainJobLock({
@@ -49273,6 +49481,8 @@ product_research_model_used: websitePreparedRule.uses_website_content
         metadata: {
           request_url: request?.url || null,
           worker_phase: runtimePhase,
+          original_failure: error?.originalFailure || null,
+          failure_handoff: error?.handoffFailure || null,
           suspected_dependency: supabaseGatewayUnreachable ? "supabase_project_routing" : "unconfirmed",
           next_scheduled_run_will_retry: supabaseGatewayUnreachable,
         },

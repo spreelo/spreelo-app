@@ -40,7 +40,7 @@ const db={from(table){
     }};
   }};
 }};
-const options={supabase:db,post,waitForRender:async args=>{polls++;assert.equal(args.renderId,'same-render');assert.equal(args.maxAttempts,5);throw shotstackContinuationError(new Error('queued'),'same-render','queued');},uploadVideo:async args=>{uploads++;assert.equal(args.postId,'same-post');return {videoUrl:'stored',videoStoragePath:'user/same-post.mp4'};}};
+const options={supabase:db,post,reviewVideo:async()=>({approved:true}),waitForRender:async args=>{polls++;assert.equal(args.renderId,'same-render');assert.equal(args.maxAttempts,5);throw shotstackContinuationError(new Error('queued'),'same-render','queued');},uploadVideo:async args=>{uploads++;assert.equal(args.postId,'same-post');return {videoUrl:'stored',videoStoragePath:'user/same-post.mp4'};}};
 await assert.rejects(finishSavedShotstackPost(options),e=>e.code==='SHOTSTACK_RENDER_PENDING'&&e.renderId==='same-render');assert.equal(uploads,0);assert.equal(updates.length,0);
 options.waitForRender=async args=>{polls++;assert.equal(args.renderId,'same-render');return {url:'rendered',billableSeconds:5};};
 options.costTracker={recordShotstack:async()=>{throw new Error('tracking unavailable');}};
@@ -52,7 +52,7 @@ await assert.rejects(finishSavedShotstackPost(options),e=>e.code==='SHOTSTACK_RE
 await assert.rejects(finishSavedShotstackPost({...options,post:{...post,video_render_id:null}}),e=>e.code==='SHOTSTACK_SUBMISSION_UNKNOWN');
 const route=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 assert(route.indexOf('const savedShotstackDraft =')<route.indexOf('const staleIncompleteAnimatedVideoDrafts ='));
-assert(route.includes('!hasShotstackCheckpoint(post)'));
+assert(route.includes('!hasProtectedVideoJob(post)'));
 assert(route.includes('if (videoRenderId && videoError?.code !== "SHOTSTACK_RENDER_FAILED")'));
 assert(route.indexOf('phase:"submitting"')<route.indexOf('renderId=await queueShotstackRender(edit)'));
 const sql=fs.readFileSync('supabase/v144_304_shotstack_continuation.sql','utf8');

@@ -1,3 +1,5 @@
+import { deferKlingRenderContinuation } from "../../../../lib/videoJobSafety.js";
+import { videoFailureDetails } from "../../../../lib/videoFailureDiagnostics.js";
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
 import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering } from "../../../../lib/videoAdvertisingAssetPipeline.js";
 import { CREATIVE_DIRECTOR_BRIEF, creativeCorrectionInstruction } from "../../../../lib/videoCreativeDirector.js";
@@ -284,6 +286,7 @@ async function setReviewCaseFailure(supabase, postId, stage, message, failureCod
     .update({
       status: "failed",
       failure_stage: stage,
+      failure_code: failureCode,
       failure_message: truncate(message, 2000),
       updated_at: nowIso,
     })
@@ -296,11 +299,17 @@ async function setReviewCaseFailure(supabase, postId, stage, message, failureCod
       message: workItemError.message,
     });
   }
+  if (error || workItemError) throw (error || workItemError);
 }
 
-async function markKlingPostFailed(supabase, post, stage, message, failureCode = null) {
+async function markKlingPostFailed(supabase, post, stage, message, failureCode = null, originalError = null) {
+  const {data:latest,error:latestError} = await supabase.from('posts').select('video_background_selection').eq('id',post.id).maybeSingle();
+  if(latestError) throw latestError;
+  if(!latest) throw new Error(`Cannot record Kling failure: post ${post.id} missing`);
+  post.video_background_selection = latest.video_background_selection || {};
   const nowIso = new Date().toISOString();
   const safeMessage = truncate(message, 2000);
+  const diagnostic = videoFailureDetails(originalError || Object.assign(new Error(safeMessage), {code: failureCode || 'KLING_FINALIZATION_ERROR'}), {provider:'kling', stage, taskId:post.kling_task_id});
   const { error } = await supabase
     .from("posts")
     .update({
@@ -313,6 +322,7 @@ async function markKlingPostFailed(supabase, post, stage, message, failureCode =
         ? 'failed' : (getCachedKlingSource(post) ? 'succeeded' : post.kling_task_status || 'failed'),
       kling_last_polled_at: nowIso,
       video_error: safeMessage,
+      video_background_selection: {...post.video_background_selection, failure_diagnostic: diagnostic},
       updated_at: nowIso,
     })
     .eq("id", post.id)
@@ -320,16 +330,20 @@ async function markKlingPostFailed(supabase, post, stage, message, failureCode =
 
   if (error) throw error;
   const code=failureCode || (stage==='kling_finished_product_identity'?'KLING_FINISHED_PRODUCT_IDENTITY_REJECTED':'KLING_FINALIZATION_ERROR');
-  await setReviewCaseFailure(supabase, post.id, stage, safeMessage, code);
+  let handoffError = null;
+  try { await setReviewCaseFailure(supabase, post.id, stage, safeMessage, code); }
+  catch (error) { handoffError = error; }
   // Alerts are best-effort, use durable incident deduplication, and never
   // change a terminal post back to generating because email failed.
   try { await sendTerminalVideoAdminAlert({supabase,post,stage,code,message:safeMessage}); }
   catch(alertError) { console.error('Kling terminal admin alert failed',{postId:post.id,message:alertError?.message}); }
+  if (handoffError) throw Object.assign(new Error(`Failure handoff incomplete: ${handoffError.message}`), {cause: originalError || new Error(safeMessage)});
 }
 
 async function downloadKlingVideo(videoUrl) {
   const response = await fetch(videoUrl, {
     method: "GET",
+    signal: AbortSignal.timeout(45_000),
     redirect: "follow",
     headers: {
       Accept: "video/mp4,video/*;q=0.9,*/*;q=0.5",
@@ -646,6 +660,7 @@ async function getKlingQualityFallbackSource({ supabase, post, costTracker }) {
       // claim still blocks a second paid render. Never solve ambiguity by retry.
       const blocked = new Error(`Safe animation needs reconciliation after submission: ${error.message}`);
       blocked.code = "QUALITY_FALLBACK_SUBMISSION_UNKNOWN";
+      blocked.cause = error;
       throw blocked;
     }
   }
@@ -1660,8 +1675,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
     try {
       renderId = await queueShotstackRender(edit);
     } catch (error) {
-      error.code = postprocess.quality_fallback ? 'QUALITY_FALLBACK_SUBMISSION_UNKNOWN' : 'SHOTSTACK_SUBMISSION_UNKNOWN';
-      throw error;
+      throw Object.assign(new Error(error.message), {code:postprocess.quality_fallback ? 'QUALITY_FALLBACK_SUBMISSION_UNKNOWN' : 'SHOTSTACK_SUBMISSION_UNKNOWN',cause:error});
     }
     nextSelection = {
       ...postprocess,
@@ -1738,7 +1752,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
   }
   const render = await waitForShotstackRender({
     renderId,
-    maxAttempts: 70,
+    maxAttempts: 5,
     delayMs: 2500,
   });
   if (costTracker?.recordShotstack) {
@@ -1874,8 +1888,12 @@ async function finalizeReadyTask(
     .eq("kling_task_id", post.kling_task_id);
 
   if (updateError) throw updateError;
-  const delivery = await completeShotstackDeliveryForPost({ supabase, postId: post.id });
-  console.info("Kling completed-video delivery", { postId: post.id, ...delivery });
+  try {
+    const delivery = await completeShotstackDeliveryForPost({ supabase, postId: post.id });
+    console.info("Kling completed-video delivery", { postId: post.id, ...delivery });
+  } catch (deliveryError) {
+    console.error("Completed Kling video awaiting delivery; ready result retained", {postId:post.id,message:deliveryError?.message});
+  }
   // A ready video stays ready on delivery errors. The durable delivery cron
   // retries only delivery; it never orders another Kling or Shotstack render.
   return publicUrl;
@@ -1902,6 +1920,7 @@ export async function GET(request) {
   try {
     const supabase = createSupabaseAdmin();
     const maxPendingHours = getMaxPendingHours();
+    const batchStartedAt = Date.now();
     const pendingStatuses = [...KLING_PROVIDER_PENDING_STATUSES, "finalizing", "finalization_retry"];
     const { data: posts, error } = await supabase
       .from("posts")
@@ -1915,7 +1934,12 @@ export async function GET(request) {
     if (error) throw error;
 
     for (const post of posts || []) {
+      if (Date.now() - batchStartedAt > 180_000) {
+        summary.batch_budget_reached = true;
+        break;
+      }
       summary.checked += 1;
+      try {
       if (post.video_status === "failed" && !recoverableKlingReferenceFailure(post)) continue;
 
       // Local post-processing retries are intentionally slower than the cron.
@@ -1925,12 +1949,16 @@ export async function GET(request) {
       if (productionGate.action === 'review') {
         // Repairing a rejected GPT Image design requires a new explicit admin
         // decision, not another cron loop with identical inputs.
-        await markKlingPostFailed(supabase, post, productionGate.stage, productionGate.reason);
+        const previousFailure = post.video_background_selection?.finalization_control;
+        await markKlingPostFailed(supabase, post, productionGate.stage,
+          previousFailure?.last_error_message || post.video_error || productionGate.reason,
+          previousFailure?.last_error_code || null);
         summary.failed += 1;
         summary.needs_repair = Number(summary.needs_repair || 0) + 1;
         continue;
       }
-      if (productionGate.action === 'defer' || finalizationRetryBackoffIsFresh(post)) {
+      const nextPoll = new Date(post.video_background_selection?.provider_poll_control?.next_retry_at || 0).getTime();
+      if (nextPoll > Date.now() || productionGate.action === 'defer' || finalizationRetryBackoffIsFresh(post)) {
         summary.deferred += 1;
         continue;
       }
@@ -1953,7 +1981,7 @@ export async function GET(request) {
         : 0;
 
       if (!task && submittedAtMs > 0 && ageHours > maxPendingHours) {
-        const message = `Kling generation did not finish within ${maxPendingHours} hours. No automatic retry was made; this post has already used its one allowed Kling generation.`;
+        const message = `Kling generation did not finish within ${maxPendingHours} hours. Last status error: ${post.video_background_selection?.provider_poll_control?.last_error?.message || "none recorded"}. No automatic retry was made; this post has already used its one allowed Kling generation.`;
         await markKlingPostFailed(supabase, post, "kling_video_timeout", message);
         summary.failed += 1;
         summary.timed_out += 1;
@@ -1973,21 +2001,34 @@ export async function GET(request) {
           taskId: post.kling_task_id,
           message: pollError?.message || String(pollError),
         });
-        await supabase.from("posts").update({
-          video_status: KLING_PROVIDER_PENDING_STATUSES.includes(String(post.kling_task_status || "").toLowerCase())
-            ? String(post.kling_task_status).toLowerCase()
-            : "processing",
+        const diagnostic = videoFailureDetails(pollError, {provider:'kling',stage:'kling_status_poll',taskId:post.kling_task_id});
+        if ([401,403].includes(diagnostic.http_status)) {
+          await markKlingPostFailed(supabase, post, 'kling_status_poll', diagnostic.message, diagnostic.code, pollError);
+          summary.failed += 1;
+          continue;
+        }
+        const attempts = Number(post.video_background_selection?.provider_poll_control?.attempts || 0) + 1;
+        const nextRetryAt = new Date(Date.now() + Math.min(30 * 60_000, 60_000 * 2 ** Math.min(attempts - 1, 5))).toISOString();
+        const {error:pollSaveError} = await supabase.from("posts").update({
+          video_status: "processing",
+          video_error: truncate(`${diagnostic.message} Next status check: ${nextRetryAt}. Existing Kling task retained.`, 1600),
+          video_background_selection: {...post.video_background_selection, provider_poll_control:{attempts,next_retry_at:nextRetryAt,last_error:diagnostic}},
           kling_last_polled_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }).eq("id", post.id);
+        if (pollSaveError) throw pollSaveError;
         summary.poll_errors += 1;
         continue;
       }
 
       const providerStatus = String(task?.status || "unknown").toLowerCase();
+      // A successful status read clears only polling diagnostics, not design checkpoints.
+      post.video_background_selection = {...post.video_background_selection, provider_poll_control:null};
       const nowIso = new Date().toISOString();
-      await supabase.from("posts").update({
+      const {error:statusSaveError} = await supabase.from("posts").update({
         kling_task_status: providerStatus,
+        video_error: null,
+        video_background_selection: post.video_background_selection,
         kling_last_polled_at: nowIso,
         video_status:
           KLING_PROVIDER_PENDING_STATUSES.includes(providerStatus)
@@ -1997,6 +2038,8 @@ export async function GET(request) {
               : post.video_status,
         updated_at: nowIso,
       }).eq("id", post.id);
+
+      if (statusSaveError) throw statusSaveError;
 
       if (isKlingTaskFailed(providerStatus)) {
         const message = `Kling generation failed${task?.message ? `: ${truncate(task.message, 900)}` : "."} No automatic retry was made.`;
@@ -2085,6 +2128,15 @@ export async function GET(request) {
             Number(summary.professional_typography_applied || 0) + 1;
         }
       } catch (finalizeError) {
+        if (finalizeError?.code === 'SHOTSTACK_RENDER_PENDING') {
+          try {
+            await deferKlingRenderContinuation({supabase,post,error:finalizeError});
+            summary.deferred += 1;
+            continue;
+          } catch (continuationError) {
+            finalizeError = continuationError;
+          }
+        }
         if (finalizeError?.code === "KLING_AUDIT_REFERENCES_MISSING") {
           const selection = { ...post.video_background_selection, quality_reference_repair: { status: "needs_repair", missing: finalizeError.missingReferences || [], message: finalizeError.message, checked_at: new Date().toISOString() } };
           await saveKlingQualitySelection(supabase, post, selection);
@@ -2094,7 +2146,7 @@ export async function GET(request) {
           continue;
         }
         if (finalizeError?.code === "QUALITY_FALLBACK_SUBMISSION_UNKNOWN" || (post.video_background_selection?.quality_fallback && finalizeError?.code === "SHOTSTACK_RENDER_FAILED")) {
-          await markKlingPostFailed(supabase, post, "kling_finished_product_identity", finalizeError.message);
+          await markKlingPostFailed(supabase, post, "kling_safe_animation_render", finalizeError.message, finalizeError.code, finalizeError);
           summary.failed += 1;
           continue;
         }
@@ -2103,7 +2155,7 @@ export async function GET(request) {
         // Never overwrite those checkpoints with a stale cron snapshot.
         const {data:latestPost,error:checkpointReadError} = await supabase
           .from('posts').select('video_background_selection').eq('id',post.id).maybeSingle();
-        if (checkpointReadError) throw checkpointReadError;
+        if (checkpointReadError) throw Object.assign(new Error(`Could not read finalization checkpoint: ${checkpointReadError.message}; original failure: ${finalizeError.message}`), {cause:finalizeError});
         const latestSelection=latestPost?.video_background_selection || post.video_background_selection || {};
         const decision=nextFinalizationControl({
           current:latestSelection.finalization_control || {},
@@ -2115,10 +2167,11 @@ export async function GET(request) {
         const {error:checkpointError}=await supabase.from('posts').update({
           video_background_selection:checkpoint, updated_at:nowIso,
         }).eq('id',post.id).eq('video_provider','kling');
-        if (checkpointError) throw checkpointError;
+        if (checkpointError) throw Object.assign(new Error(`Could not save finalization checkpoint: ${checkpointError.message}; original failure: ${finalizeError.message}`), {cause:finalizeError});
+        post.video_background_selection = checkpoint;
         if (decision.terminal) {
           await markKlingPostFailed(supabase,post,decision.stage,
-            `Kling video preserved; finalization stopped after ${decision.control.attempts} attempt(s). ${decision.failure.message}`,decision.failure.code);
+            `Kling video preserved; finalization stopped after ${decision.control.attempts} attempt(s). ${decision.failure.message}`,decision.failure.code,finalizeError);
           summary.failed += 1;
           summary.needs_repair = Number(summary.needs_repair || 0) + 1;
           console.error('Kling finalization stopped for admin review, source retained', {
@@ -2141,6 +2194,15 @@ export async function GET(request) {
         });
         summary.poll_errors += 1;
       }
+      } catch (jobError) {
+        summary.job_errors = Number(summary.job_errors || 0) + 1;
+        console.error("Kling finalizer job interrupted; remaining jobs continue", {postId:post.id, taskId:post.kling_task_id, message:jobError?.message});
+        try {
+          await sendTerminalVideoAdminAlert({supabase,post,stage:'kling_job_interrupted',code:jobError?.code || 'KLING_JOB_INTERRUPTED',message:jobError?.message || String(jobError)});
+        } catch (incidentError) {
+          console.error("Kling job incident could not be saved", {postId:post.id,message:incidentError?.message});
+        }
+      }
     }
 
     return Response.json({
@@ -2151,6 +2213,9 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error("Kling finalizer cron failed", error);
+    try {
+      await sendTerminalVideoAdminAlert({supabase:createSupabaseAdmin(),post:{},stage:'kling_batch',code:error?.code || 'KLING_FINALIZER_CRON_FAILED',message:error?.message || String(error)});
+    } catch (incidentError) { console.error('Kling batch incident unavailable',{message:incidentError?.message}); }
     return Response.json(
       { ok: false, error: error?.message || "Could not finalize Kling videos", summary },
       { status: 500 }

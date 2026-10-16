@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "test:video-failure-reliability": "node scripts/test-video-failure-reliability.mjs",
+    "test:merged-video-stability": "node scripts/test-merged-429-video-stability.mjs",
     "build": "node scripts/verify-sharp-runtime.mjs && next build",
     "start": "next start",
     "test:product-engine-v2": "node scripts/test-product-engine-v2.mjs",

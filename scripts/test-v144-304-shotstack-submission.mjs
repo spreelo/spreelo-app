@@ -23,7 +23,7 @@ vm.runInContext(code,ctx);
 const args={supabase,rule:{},postContent:'Saved caption',userId:'user',postId:'post',occurrenceId:'occurrence'};
 await assert.rejects(ctx.generateAnimatedProductVideo(args),e=>e.code==='SHOTSTACK_RENDER_PENDING');
 assert.equal(submissions,1);assert.equal(ai,1);assert.equal(post.video_render_id,'saved-render');assert.equal(post.content,'Saved caption');assert.equal(post.video_provider,'shotstack');assert.equal(post.video_background_selection.shotstack_checkpoint.occurrence_id,'occurrence');
-stage='done';const ready=await finishSavedShotstackPost({supabase,post,waitForRender,uploadVideo:ctx.uploadRenderedVideoToStorage});
+stage='done';const ready=await finishSavedShotstackPost({supabase,post,waitForRender,uploadVideo:ctx.uploadRenderedVideoToStorage,reviewVideo:async()=>({approved:true})});
 assert.equal(ready.video_status,'ready');assert.equal(ai,1);assert.equal(submissions,1);
 ctx.queueShotstackRender=async()=>{submissions++;throw new Error('connection interrupted after POST');};
 await assert.rejects(ctx.generateAnimatedProductVideo(args),e=>e.code==='SHOTSTACK_SUBMISSION_UNKNOWN');
