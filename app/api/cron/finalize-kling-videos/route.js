@@ -335,7 +335,7 @@ async function markKlingPostFailed(supabase, post, stage, message, failureCode =
   catch (error) { handoffError = error; }
   // Alerts are best-effort, use durable incident deduplication, and never
   // change a terminal post back to generating because email failed.
-  try { await sendTerminalVideoAdminAlert({supabase,post,stage,code,message:safeMessage}); }
+  try { await sendTerminalVideoAdminAlert({supabase,post,stage,code,message:safeMessage,diagnostic}); }
   catch(alertError) { console.error('Kling terminal admin alert failed',{postId:post.id,message:alertError?.message}); }
   if (handoffError) throw Object.assign(new Error(`Failure handoff incomplete: ${handoffError.message}`), {cause: originalError || new Error(safeMessage)});
 }
@@ -1780,9 +1780,12 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       headline:postprocess.text_overlay_copy?.headline||'',closingLine:postprocess.ad_creative_plan?.cta||'',
       allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true});
   } catch(error) {
-    const rejected={...nextSelection,shotstack_design_review:{status:'rejected',reason:String(error.message).slice(0,800),at:new Date().toISOString(),render_id:renderId}};
-    await supabase.from('posts').update({video_background_selection:rejected,updated_at:new Date().toISOString()}).eq('id',post.id).eq('video_provider','kling');
-    throw Object.assign(new Error(`Final Kling advertising render needs review: ${error.message}`),{code:'KLING_RENDER_DESIGN_REJECTED',cause:error});
+    const rejected={...nextSelection,shotstack_design_review:{status:'rejected',reason:String(error.message).slice(0,800),
+      review:error.review||null,at:new Date().toISOString(),render_id:renderId,render_url:render.url}};
+    const {error:reviewPersistError}=await supabase.from('posts').update({video_background_selection:rejected,updated_at:new Date().toISOString()}).eq('id',post.id).eq('video_provider','kling');
+    if(!reviewPersistError) post.video_background_selection=rejected;
+    throw Object.assign(new Error(`Final Kling advertising render needs review: ${error.message}${reviewPersistError ? `; could not save review checkpoint: ${reviewPersistError.message}` : ''}`),
+      {code:'KLING_RENDER_DESIGN_REJECTED',cause:error,renderId,checkpointError:reviewPersistError||null});
   }
 
 
