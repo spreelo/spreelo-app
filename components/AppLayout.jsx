@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Activity,
   BadgeCheck,
@@ -909,9 +910,10 @@ export default function AppLayout({ active, children }) {
               <div className="spreelo-nav-create-heading">{t("layout.nav.createContent.v301")}</div>
             ) : null}
             {item.id === "brand" ? <div className="spreelo-nav-create-divider" aria-hidden="true" /> : null}
-            <a
+            <Link
               className={`${active === item.id ? "active" : ""}${isChannelProtectedNavItem(item) && channelGateLocked ? " channel-locked" : ""}${item.id === "automation" || item.id === "calendar" ? " spreelo-nav-create-tool" : ""}`}
               href={item.href}
+              prefetch={false}
               aria-disabled={isChannelProtectedNavItem(item) && channelGateLocked ? "true" : undefined}
               onClick={(event) => {
                 if (isChannelProtectedNavItem(item) && channelGateLocked) {
@@ -932,7 +934,7 @@ export default function AppLayout({ active, children }) {
               {isChannelProtectedNavItem(item) && channelGateLocked ? (
                 <LockKeyhole className="spreelo-nav-channel-lock" size={14} strokeWidth={2} aria-hidden="true" />
               ) : null}
-            </a>
+            </Link>
             </Fragment>
           ))}
         </nav>

@@ -1,5 +1,7 @@
 "use client";
 
+import { calendarCampaignHref } from "../lib/calendarCampaignLink.js";
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -1560,14 +1562,14 @@ export default function Home() {
                   <h3><Bot /> {t("dashboard.whatToDoNow")}</h3>
                   <a href="/review?view=queue"><Sparkles /><span>{t("dashboard.reviewCount", { count: pendingApprovalPosts.length })}</span><ChevronRight /></a>
                   <a href="/automation"><CalendarDays /><span>{t("dashboard.planNextWeek")}</span><ChevronRight /></a>
-                  <a href={suggestedCampaign ? `/automation?campaign=${suggestedCampaign.id}` : "/calendar"}><Lightbulb /><span>{dashboardText(suggestedCampaign?.title, t("dashboard.reviewCampaignIdeas"))}</span><ChevronRight /></a>
+                  <a href={calendarCampaignHref(suggestedCampaign?.id, currentBrandId)}><Lightbulb /><span>{dashboardText(suggestedCampaign?.title, t("dashboard.reviewCampaignIdeas"))}</span><ChevronRight /></a>
                 </div>
               </section>
 
               <section className="home-v14335-side-card home-v14335-campaign">
                 <div className="home-v14335-side-title"><Gift /><div><h3>{t("dashboard.suggestedCampaign")}</h3><small>{t("dashboard.recommended")}</small></div></div>
                 {suggestedCampaign ? (
-                  <><h2>{dashboardText(suggestedCampaign.title, t("dashboard.suggestedCampaign"))}</h2><strong>{formatCampaignDate(suggestedCampaign, t, locale)}</strong><p>{dashboardText(suggestedCampaign.description, t("dashboard.openCalendarText"))}</p><a href={`/automation?campaign=${suggestedCampaign.id}`}>{t("dashboard.createCampaignPlan")} <ArrowRight /></a></>
+                  <><h2>{dashboardText(suggestedCampaign.title, t("dashboard.suggestedCampaign"))}</h2><strong>{formatCampaignDate(suggestedCampaign, t, locale)}</strong><p>{dashboardText(suggestedCampaign.description, t("dashboard.openCalendarText"))}</p><a href={calendarCampaignHref(suggestedCampaign.id, currentBrandId)}>{t("dashboard.createCampaignPlan")} <ArrowRight /></a></>
                 ) : (
                   <><h2>{t("dashboard.noSuggestedCampaign")}</h2><p>{t("dashboard.openCalendarText")}</p><a href="/calendar">{t("dashboard.openCalendar")} <ArrowRight /></a></>
                 )}
@@ -2258,7 +2260,7 @@ export default function Home() {
 
                    <a
   className="dashboard-side-link"
-  href={`/automation?campaignOpportunityId=${suggestedCampaign.id}&brandProfileId=${currentBrandId}`}
+  href={calendarCampaignHref(suggestedCampaign.id, currentBrandId)}
 >
   {t("dashboard.createCampaignPlan")}
   <ArrowRight size={15} aria-hidden="true" />

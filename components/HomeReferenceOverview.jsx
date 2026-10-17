@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { useUiText } from "../lib/i18n/useUiText";
 import WebsiteCooldownNote from "./WebsiteCooldownNote";
+import Link from "next/link";
+import { calendarCampaignHref } from "../lib/calendarCampaignLink.js";
 
 function formatScheduleDate(value, timeZone, locale = "en") {
   if (!value) return "—";
@@ -137,7 +139,7 @@ export default function HomeReferenceOverview({
 
   const campaignTitle = suggestedCampaign?.title || t("homeReference.campaignFallback");
   const campaignDate = suggestedCampaign?.date || "";
-  const campaignHref = suggestedCampaign?.id ? `/automation?campaign=${suggestedCampaign.id}` : "/calendar";
+  const campaignHref = calendarCampaignHref(suggestedCampaign?.id, currentBrandId);
 
   return (
     <div className="home-reference-page">
@@ -350,7 +352,7 @@ export default function HomeReferenceOverview({
             <li><CalendarDays /><span>2.</span><a href="/automation">{t("homeReference.planNextWeek")}</a></li>
             <li><Gift /><span>3.</span><a href={campaignHref}>{t("homeReference.createTheCampaign")}</a></li>
           </ol>
-          <div className="home-reference-suggestion"><small>{t("homeReference.suggestedCampaign")}</small><strong>{campaignTitle}</strong>{campaignDate ? <span>{campaignDate}</span> : null}<a href={campaignHref}>{t("homeReference.createCampaignPlan")}</a></div>
+          <div className="home-reference-suggestion"><small>{t("homeReference.suggestedCampaign")}</small><strong>{campaignTitle}</strong>{campaignDate ? <span>{campaignDate}</span> : null}<Link href={campaignHref} prefetch={false}>{t("homeReference.createCampaignPlan")}</Link></div>
         </aside>
       </div>
 

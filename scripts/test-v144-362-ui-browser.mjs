@@ -24,6 +24,12 @@ const user={id:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'
 const token=['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',Buffer.from(JSON.stringify({sub:user.id,exp:Math.floor(Date.now()/1000)+3600,role:'authenticated',aud:'authenticated'})).toString('base64url'),'offline-signature'].join('.');
 const session={access_token:token,refresh_token:'fixture-refresh',expires_at:Math.floor(Date.now()/1000)+3600,expires_in:3600,token_type:'bearer',user};
 const brand={id:'22222222-2222-4222-8222-222222222222',business_name:'Fixture',is_default:true,country_code:'SE',content_language:'Swedish',website_product_mode_available:true,website_url:'https://example.test',website_product_source_url:'https://example.test/products'};
+const campaignYear=new Date().getFullYear();
+const campaign={id:'33333333-3333-4333-8333-333333333333',brand_profile_id:brand.id,title:'Fixture campaign',description:'The prepared calendar opportunity',
+ event_type:'awareness_theme',event_year:campaignYear,event_date:`${campaignYear}-12-24`,start_date:`${campaignYear}-11-15`,end_date:`${campaignYear}-12-24`,is_active:true,is_hidden:false,is_archived:false,relevance_score:90,recommended_post_count:3,
+ post_plan:[{role:'Prepared awareness',purpose:'Use the original plan',days_before_event:14,content_source_mode:'website_item_text_ad'},
+ {role:'Prepared consideration',purpose:'Keep the exact campaign',days_before_event:7,content_source_mode:'website_item_text_ad'},
+ {role:'Prepared closing',purpose:'Finish the prepared campaign',days_before_event:1,content_source_mode:'website_item_text_ad'}]};
 let translationMode='normal',translationCalls=0;
 const localized=(namespaces,locale)=>Object.fromEntries(Object.entries(getDefaultLabelsForNamespaces(namespaces)).map(([key,value])=>[key,isLanguageNeutralUiSource(value)?value:`${locale.toUpperCase()} ${value}`]));
 const errors=[];
@@ -43,10 +49,10 @@ try {
     if(req.method()==='OPTIONS')return req.respond({status:204,headers});
     if(url.pathname.endsWith('/user'))return respond(user);
     if(url.pathname.endsWith('/token'))return respond(session);
-    if(url.pathname.includes('/brand_profiles'))return respond(req.headers().accept?.includes('vnd.pgrst.object')?brand:[brand]);
+    if(url.pathname.includes('/brand_profiles')){await pause(300);return respond(req.headers().accept?.includes('vnd.pgrst.object')?brand:[brand]);}
     if(url.pathname.includes('/social_connections'))return respond([{id:'channel',platform:'facebook',status:'connected',brand_profile_id:brand.id}]);
     if(url.pathname.includes('/user_credit_balances'))return respond({credits_remaining:150,monthly_credit_limit:500,subscription_plan:'growth',plan_name:'Growth',subscription_status:'active'});
-    if(url.pathname.includes('/brand_campaign_opportunities'))return respond([{id:'opportunity',brand_profile_id:brand.id,title:'Fixture campaign',event_type:'awareness_theme',event_year:new Date().getFullYear(),is_active:true,relevance_score:90}]);
+    if(url.pathname.includes('/brand_campaign_opportunities'))return respond(req.headers().accept?.includes('vnd.pgrst.object')?campaign:[campaign]);
     if(url.pathname.includes('/rpc/'))return respond(null);
     return respond([]);
    }
@@ -72,8 +78,11 @@ try {
    sessionStorage.setItem('ui-seeded','true');
   }
   window.uiPaints=[];
+  window.uiLoaderPaints=[];
   const sample=()=>{
    if(document.querySelector('[data-ui-locale-ready="true"]')){
+    const loader=document.querySelector('.workspace-loader-copy');
+    if(loader&&loader.getBoundingClientRect().width)window.uiLoaderPaints.push(loader.innerText.trim());
     const headings=[...document.querySelectorAll('h1,h2,.sp85-settings-card-title strong')].filter(e=>e.getBoundingClientRect().width).map(e=>e.textContent.trim());
     if(headings.length)window.uiPaints.push({lang:document.documentElement.lang,headings});
    }
@@ -87,6 +96,11 @@ try {
  };
  await page.goto(origin+'/automation',{waitUntil:'networkidle0'});await settle();await pause(150);
  await assertPaints('sv');assert((await page.$eval('.sp85-settings-card-schedule strong',e=>e.textContent)).startsWith('SV '));
+ const loaderPaints=await page.evaluate(()=>window.uiLoaderPaints);assert(loaderPaints.length,'capture the real cold-cache workspace loader');
+ assert(loaderPaints.every(text=>text&&!/^[\s.…]+$/.test(text)),JSON.stringify(loaderPaints));
+ assert(loaderPaints.some(text=>text.includes('Förbereder din arbetsyta')),JSON.stringify(loaderPaints));
+ assert(!loaderPaints.some(text=>text.includes('Preparing your workspace')&&!text.includes('SV ')),'no English-only loader flash');
+ console.log('PASS browser: workspace loader has Swedish copy from its first visible paint with empty translation cache');
  console.log('PASS browser: cold Swedish page uses local label placeholders; no exposed English first paint or page mask');
  await page.goto(origin+'/calendar',{waitUntil:'networkidle0'});await settle();await pause(100);await assertPaints('sv');
  assert((await page.$eval('body',e=>e.textContent)).includes('SV Awareness theme'));
@@ -114,6 +128,29 @@ try {
  const mobile=await page.$eval('.custom-calendar-popover',e=>({left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right,width:window.innerWidth}));assert(mobile.left>=0&&mobile.right<=mobile.width);
  await page.keyboard.press('Escape');await page.setViewport({width:1440,height:900});
  console.log('PASS browser: mobile calendar stays within viewport');
+
+ // Real clicks: keep the JS runtime/translation memory and open the exact
+ // database-backed prepared campaign rather than a generic weekly plan.
+ await page.evaluate(()=>window.softNavigationMarker='retained-runtime');
+ await page.click('.spreelo-nav a[href="/"]');
+ await page.waitForSelector('.home-reference-suggestion a');
+ assert.equal(await page.evaluate(()=>window.softNavigationMarker),'retained-runtime','sidebar must not reload the document');
+ const href=await page.$eval('.home-reference-suggestion a',e=>e.getAttribute('href'));
+ const params=new URL(href,origin).searchParams;
+ assert.equal(params.get('campaignOpportunityId'),campaign.id);assert.equal(params.get('campaignId'),campaign.id);
+ assert.equal(params.get('brandProfileId'),brand.id);assert.equal(params.get('mode'),'campaign');
+ await page.click('.home-reference-suggestion a');
+ await page.waitForSelector('.campaign-v14497-unified');
+ await page.waitForFunction(()=>document.querySelector('.campaign-v14497-unified')?.textContent.includes('Fixture campaign'));
+ assert.equal(await page.evaluate(()=>window.softNavigationMarker),'retained-runtime','Home campaign link preserves runtime');
+ const campaignText=await page.$eval('.campaign-v14497-unified',e=>e.textContent);
+ assert.equal(await page.$$eval('.plan-v86-planned-row',nodes=>nodes.length),3,'prepared campaign has three posts, rather than the generic five');
+ assert(campaignText.includes(String(campaignYear)),'campaign dates survive the handoff');
+ assert.equal(await page.evaluate(()=>!!localStorage.getItem('sb-example-auth-token')),true);
+ const firstCampaignDate=await page.$eval('.plan-v86-planned-row .plan-v70-planned-date strong',e=>e.textContent);
+ assert.match(firstCampaignDate,/10.*dec/i,'first post uses the prepared 14-days-before-event date');
+ console.log('PASS browser: Home opens the exact prepared calendar campaign, brand, post plan and dates; client navigation keeps language memory and session');
+ await page.goto(origin+'/automation',{waitUntil:'networkidle0'});await settle();
 
  await page.evaluate(()=>{localStorage.setItem('spreelo_app_language','de');window.dispatchEvent(new CustomEvent('spreelo_app_language_changed',{detail:{locale:'de'}}));});
  await page.waitForFunction(()=>document.documentElement.lang==='de'&&document.querySelector('.sp85-settings-card-schedule strong')?.textContent.startsWith('DE '));

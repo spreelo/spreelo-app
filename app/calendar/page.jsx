@@ -1,5 +1,7 @@
 "use client";
 
+import { calendarCampaignHref } from "../../lib/calendarCampaignLink.js";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
@@ -1146,14 +1148,7 @@ export default function Calendar() {
       }
     }
 
-    const params = new URLSearchParams({
-      campaignOpportunityId: campaign.id,
-      campaignId: campaign.id,
-      brandProfileId: handoffBrandProfileId,
-      mode: "campaign",
-    });
-
-    window.location.href = `/automation?${params.toString()}`;
+    window.location.href = calendarCampaignHref(campaign.id, handoffBrandProfileId);
   }
 
   if (loading) {

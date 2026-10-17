@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import {createRequire} from 'node:module';
 import {isLanguageNeutralUiSource,validateGeneratedUiTranslation} from '../lib/i18n/translationValidation.js';
 import {interpolateUiText} from '../lib/i18n/defaultLabels.js';
+import {getStartupUiLabel} from '../lib/i18n/startupUiText.js';
 const require=createRequire(import.meta.url);
 const {parse}=require('next/dist/compiled/babel/parser');
 function fn(file,name,context={}) {
@@ -25,7 +26,7 @@ assert.equal(typeLabel('awareness_theme',key=>key),'calendar.eventType.awareness
 assert.equal(typeLabel('theme_day',key=>key),'calendar.eventType.themeDay.v362');
 assert.equal(typeLabel('unknown_provider_enum',key=>key),'calendar.eventType.campaign','internal enums never leak into visible UI');
 const liveText={current:{locale:'sv',localeReady:true,labels:{heading:'Svensk rubrik'},cachedLabels:{},settled:false,fallbackLabels:{heading:'Headline',missing:'Missing label',error:'Connection error'}}};
-const text=fn('lib/i18n/useUiText.js','t',{liveText,DEFAULT_UI_LOCALE:'en',interpolateUiText,isLanguageNeutralUiSource});
+const text=fn('lib/i18n/useUiText.js','t',{liveText,DEFAULT_UI_LOCALE:'en',interpolateUiText,isLanguageNeutralUiSource,getStartupUiLabel});
 assert.equal(text('heading'),'Svensk rubrik','cached text is immediate during refresh');
 assert.equal(text('missing'),'…','an uncached label gets a local placeholder, not the entire source page');
 assert.equal(text('error'),'Connection error','actionable failures never become an unreadable placeholder');
