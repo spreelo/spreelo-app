@@ -19,7 +19,7 @@ const params={model:'fixture',referenceFiles:reference,headline:'Upplev nästa f
    assert(options.prompt.includes('one or two lines'));assert(options.prompt.includes('WITHOUT CROPPING'));return {data:[{b64_json:art.toString('base64')}]};},edit:async()=>{throw new Error('Independent ending must not edit the reference scene');}}},
  onBackground:async(buffer,metadata)=>{cache=buffer;cacheMaster=metadata.isMaster;}};
 const assets=await generateIndependentAdvertisingAssets(params);
-assert.equal(calls,1);assert(cacheMaster);assert(assets.endCardMaster);assert.equal(assets.typographyMode.endCard,'gpt_image_complete_master_v368');
+assert.equal(calls,1);assert(cacheMaster);assert(assets.endCardMaster);assert.equal(assets.typographyMode.endCard,'gpt_image_complete_master_v369');
 let readbacks=0;
 await ensureExactAdvertisingLettering({assets,headline:params.headline,closingLine:params.closingLine,verify:async()=>{readbacks++;throw new Error('No added reviewer');}});
 assert.equal(readbacks,0,'scene lettering retains its existing deterministic flow; no new end-card OCR gate');

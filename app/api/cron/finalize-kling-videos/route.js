@@ -1,6 +1,6 @@
 import { COMMERCIAL_CONCEPT_VERSION, COMMERCIAL_CONCEPT_BRIEF, COMMERCIAL_CONCEPT_SCHEMA, normalizeCommercialConcept, commercialConceptDirection, separateCommercialWebsite } from '../../../../lib/videoCommercialConcept.js';
 import { END_CARD_DESIGN_BRIEF, END_CARD_LAYOUT_POLICY, END_CARD_HOLD_SECONDS, normalizeEndCardHook, endCardEmphasis } from "../../../../lib/videoEndCardBrief.js";
-import { inspectVideoComposition, chooseVideoTextBox, adaptVideoTextContrast, adaptEndCardComposition, emptyVideoTypography } from '../../../../lib/videoAdaptiveLayout.js';
+import { inspectVideoComposition, choosePlannedVideoTextBox, adaptVideoTextContrast, adaptEndCardComposition, emptyVideoTypography } from '../../../../lib/videoAdaptiveLayout.js';
 import { COMMERCIAL_COPY_HIERARCHY, repeatsAdvertisingMessage, isProductLabelHeadline } from "../../../../lib/videoAdvertisingHierarchy.js";
 import { deferKlingRenderContinuation, completedVideoSelection } from "../../../../lib/videoJobSafety.js";
 import { videoFailureDetails } from "../../../../lib/videoFailureDiagnostics.js";
@@ -463,7 +463,7 @@ async function ensureKlingLogoOverlay({ supabase, post, selection }) {
   return next;
 }
 
-async function planFinishedKlingAdvertisingCreative({ openai, post, selection, frames }) {
+async function planFinishedKlingAdvertisingCreative({ openai, post, selection, frames, productReferenceBuffer = null }) {
   const fallbackCopy = selection?.text_overlay_copy || {};
   const fallbackHeadline =
     normalizeKlingCreativeLine(fallbackCopy?.headline, { maxWords: 7, maxChars: 52 }) ||
@@ -497,14 +497,14 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
     type: "input_text",
     text:
       `Plan the on-video advertising copy and placement for the finished 9:16 product commercial for "${productTitle}". ` +
-      `The supplied frames come from the FINISHED delivered video. Existing social caption: ${JSON.stringify(postCopy)}. ` +
+      `The first image is the AUTHORITATIVE PRODUCT REFERENCE when supplied; all following images are frames from the FINISHED delivered video. The reference establishes product identity and meaning; only the video frames establish text placement and protected rectangles. Existing social caption: ${JSON.stringify(postCopy)}. ` +
       `CTA setting: ${JSON.stringify(post?.cta_type || "Learn more")}. Campaign goal: ${JSON.stringify(context?.goal || "")}. ` +
       `Company identity for the end card: ${JSON.stringify(selection?.end_card_brand_context || {})}. Product category: ${JSON.stringify(context?.product_category || "")}. ` +
       `Verified product identity/use (data): ${JSON.stringify({subject:selection?.reference_safety?.productIntelligence?.physical_subject,visible_identity:selection?.reference_safety?.productIntelligence?.visible_identity,story:selection?.reference_safety?.commercialStory?.concept})}. ` +
       COMMERCIAL_CONCEPT_BRIEF + " " +
       "Write all visible copy in the same language as the social caption. Prefer a bold, concise 2-5 word headline that fits into one or two visually dominant lines without shrinking the font; rewrite overlong phrasing at planning time. Maximum 48 characters, semantically complete, and specifically connected to the verified product, its explicit motif/theme, category or supplied campaign angle. " +
       "Reject empty generic advertising language such as 'classic comfort for every occasion', 'quality for every day', 'made for every moment', or equivalents unless the supplied product facts genuinely support it. " +
-      "Do not invent material, comfort, durability, fit, performance, reviews, scarcity, prices, discounts or other claims. For graphic apparel, you may use the printed theme/motif only when it is explicit in the product title or caption. " +
+      "Do not invent material, comfort, durability, fit, performance, reviews, scarcity, prices, discounts or other claims. Use a printed theme, motif, humor or purpose when it is legible in the authoritative product reference or explicit in verified title/facts. Keep the original product wording intact, but let its meaning motivate original copy. Do not reduce a distinctive message to generic style, attitude, color or size. " +
       "The subheadline is OPTIONAL and should usually be empty. Return an empty string unless a short 2-5 word line adds clear advertising value beyond the headline. Never use filler, product-category labels, gender labels, material facts or catalogue descriptors as the subheadline. " +
       "The cta field is a non-interactive closing advertising line, NOT a clickable video button. Prefer 2-6 words, max 58 characters, distinct from both headlines; this appears as the highlighted support line beneath the large headline on the end card, tailored to THIS product, audience and campaign goal. For sales, a natural invitation to explore the verified product or store can work; for engagement, a relevant short question can work. Never imply the video itself is clickable, or invent a link in the bio, caption, a tag, swipe-up or shopping feature. Avoid repeating a fixed phrase on every post. " +
       "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
@@ -513,6 +513,11 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       VIDEO_ART_DIRECTION + " " + COMMERCIAL_COPY_HIERARCHY + " " + END_CARD_DESIGN_BRIEF + " Return closing_headline as a distinct short closing hook; end_card_emphasis is an exact phrase within it to emphasize, or an empty string. Put concrete background palette hex colors, texture and type choices in design_direction. " + CREATIVE_DIRECTOR_BRIEF + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
       "The cta is displayed on a separate company-branded end card, not on a frozen product photograph. Keep it concise enough to read in about two seconds. Include end-card background art direction suited to the business in design_direction. Choose cta_placement independently for legacy compatibility. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
   }];
+  if (productReferenceBuffer) {
+    content.push({type:"input_text",text:"AUTHORITATIVE PRODUCT REFERENCE: identity and message evidence only; not a video-layout frame."});
+    content.push({type:"input_image",image_url:`data:image/png;base64,${productReferenceBuffer.toString("base64")}`,detail:"high"});
+  }
+  content.push({type:"input_text",text:"FINISHED VIDEO FRAMES: compute protected regions across this sequence, excluding the separate product reference."});
   for (const frame of frames) {
     content.push({
       type: "input_image",
@@ -1227,7 +1232,23 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       fractions: getKlingTextFrameFractions(durationSeconds, selection),
     });
 
+    // Fetch once, before choosing copy/concept, and reuse for image identity.
+    // Retailer outages do not hold an already generated paid movie: verified
+    // title/intelligence and actual frames remain available to the same planner.
+    let productReferenceBuffer = null;
+    const productImageUrl = String(selection?.verified_product_image_url || "").trim();
+    if (productImageUrl) {
+      try {
+        const response = await fetch(productImageUrl, {headers:{Accept:"image/*"},redirect:"follow",signal:AbortSignal.timeout(12000)});
+        if (!response.ok) throw new Error(`Product reference HTTP ${response.status}`);
+        productReferenceBuffer = await sharp(Buffer.from(await response.arrayBuffer())).rotate()
+          .resize({width:1024,height:1024,fit:"inside",withoutEnlargement:true}).png().toBuffer();
+      } catch(error) {
+        console.warn("Creative product reference unavailable; retaining verified facts and movie",{postId:post.id,message:String(error?.message||error).slice(0,180)});
+      }
+    }
     const creativePlan = await planFinishedKlingAdvertisingCreative({
+      productReferenceBuffer,
       openai,
       post,
       selection: {
@@ -1262,15 +1283,8 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         .toBuffer();
       referenceFiles.push(await toFile(frame, `finished-video-frame-${index + 1}.jpg`, { type: "image/jpeg" }));
     }
-    const productImageUrl = String(selection?.verified_product_image_url || "").trim();
-    if (productImageUrl) {
-      const response = await fetch(productImageUrl, { headers: { Accept: "image/*" }, redirect: "follow" });
-      if (response.ok) {
-        const product = await sharp(Buffer.from(await response.arrayBuffer()))
-          .rotate().resize({ width: 768, height: 768, fit: "inside", withoutEnlargement: true })
-          .png().toBuffer();
-        referenceFiles.push(await toFile(product, "verified-product-reference.png", { type: "image/png" }));
-      }
+    if (productReferenceBuffer) {
+      referenceFiles.push(await toFile(productReferenceBuffer, "verified-product-reference.png", { type: "image/png" }));
     }
     const prompt = buildKlingAdvertisingAtlasPrompt({
       headline, subheadline,
@@ -1327,9 +1341,8 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
           }),
         }));
         compositionInspection ||= await inspectVideoComposition({openai,sceneFrames:frames.map(frame=>frame.buffer),endCard:splitOverlay.endCard});
-        const sceneChoice=await chooseVideoTextBox({frames:frames.map(frame=>frame.buffer),
-          protectedRegions:compositionInspection.sceneRegions,preferred:creativePlan.main_layout,
-          verified:compositionInspection.sceneVerified});
+        const sceneChoice=await choosePlannedVideoTextBox({frames:frames.map(frame=>frame.buffer),plan:creativePlan,inspection:compositionInspection});
+        creativePlan.scene_protection_source="planner_and_composition_regions_v369";
         creativePlan.scene_headline_omitted=!sceneChoice;
         if(sceneChoice)creativePlan.main_layout=sceneChoice.box;
         const combinedOverlay = await normalizeFinishedKlingTypography(splitOverlay.headline);
