@@ -48,10 +48,10 @@ for(const [index,f] of fixtures.entries()){
  const animated=await planAnimatedAdvertisingCopy({openai:api,model:'fixture',rule:{language:f.language,brand_profile:{website_url:'https://store.example'},website_item:{title:f.title}},
    postContent:f.truth,productReferenceBuffer:product,backgroundReferenceBuffer:canvas,sceneFrames:[canvas,canvas,canvas]});
  assert.equal(seenImages,4,'one product plus three actual composition frames; no duplicate poster');
- assert.equal(animated.creativeConcept.campaign_idea,f.idea);assert.equal(animated.closingLine,f.invitation);assert.equal(animated.conceptVersion,364);
+ assert.equal(animated.creativeConcept.campaign_idea,f.idea);assert.equal(animated.closingLine,f.invitation);assert.equal(animated.conceptVersion,concept.COMMERCIAL_CONCEPT_VERSION);
  const kling=await ctx.planFinishedKlingAdvertisingCreative({openai:api,post:{content:f.truth,language:f.language},
    selection:{verified_product_title:f.title,end_card_brand_context:{website_url:'https://store.example'}},frames:[{buffer:canvas}]});
- assert.equal(kling.creative_concept.campaign_idea,f.idea);assert.equal(kling.cta,f.invitation);assert.equal(kling.concept_version,364);
+ assert.equal(kling.creative_concept.campaign_idea,f.idea);assert.equal(kling.cta,f.invitation);assert.equal(kling.concept_version,concept.COMMERCIAL_CONCEPT_VERSION);
  assert.equal(kling.design_direction,animated.designDirection,'both flows preserve the same production decisions');
  const refs=[{name:`actual-scene-${index}.png`},{name:`verified-product-${index}.png`}];
  const assets=await generateIndependentAdvertisingAssets({openai:{images:{edit:async(options,request)=>{

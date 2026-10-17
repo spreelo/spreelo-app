@@ -1,0 +1,28 @@
+# Spreelo 144.368 — självständigt reklamavslut utan textbeskärning
+
+Bas: 144.367, `ab43db41482bac5048f270b28a665fd11889f2ed`.
+Användaren har beställt rättningen av slutbildens motiv, textutformning, formulering och beskärning efter granskning av Malmöfilmen. Ändringen förbereds lokalt; publicering till GitHub/main och live inväntar uttryckligt godkännande.
+
+## Konkreta orsaker
+
+- Slutbildens modell fick faktiska filmrutor med demonstratören genom `images.edit`. Det gav en stark bildmässig förankring till personen, samtidigt som briefen inte krävde ett separat slutmotiv. Den återkommande personen var därmed delvis ett följdfel i skapandets upplägg.
+- En färdig textad 1024×1536-bild normaliserades med `fit: cover` till 1080×1920 i tillgångspipelinen. Detta tar bort cirka 80 ursprungliga pixlar på vardera sidan. Kompositorn innehöll också en `cover`-normalisering av komplett bild. Instruktioner om marginaler kunde inte hindra kodens beskärning när modellen placerade text längre ut. Originalbilden från den granskade körningen har inte hämtats, så exakt vilka bokstäver som låg utanför originalets kanter är inte fastställt.
+- Samma kreativa brief styr både filmrubrik och slutbild, men dess tidigare instruktioner gav för lite konkret stöd för självständigt slutmotiv, stark kontrast i småtexter och en tydlig naturlig köpuppmaning.
+
+## Ändring
+
+- Samma befintliga planeringsanrop väljer nu även `closing_subject` och `closing_subject_reason` i den gemensamma reklamidén. Standard är `environment`: en produkt-/företagsanpassad plats, miljö, materialkänsla eller metafor som avslutar budskapet. Ett återkommande motiv med person/produkt väljs bara när planeraren anger ett specifikt säljande syfte. Saknade eller oväntade äldre fält normaliseras till miljöläget; de orsakar ingen avvisning eller adminspärr.
+- Miljöläget använder **ett nytt bildmotiv via `images.generate`** utifrån den redan bildgrundade reklambriefen. Filmrutorna matas då inte in som redigeringsunderlag som kan dra bilden mot samma modell/pose. Vid ett uttryckligt motiverat återkommande motiv används befintliga identitetsreferenser genom `images.edit`. Ingen extra bildbeställning, modellgranskning eller betald reservbeställning läggs till. Äldre adapter som endast har edit stöds fortfarande.
+- Bildmodellen formger fortsatt hela slutbilden med exakta planerade ord, bakgrund, bokstäver, färgbetoning och hierarki. Briefen prioriterar stor optiskt centrerad text, individuellt uttryck, tydlig kontrast även i uppmaning/domän och generösa kanter. Den riktiga loggan ligger fortsatt en gång på sin separata hörnkanal. Ingen Malmö-, fiske- eller produktkategorimall läggs i produktionskoden.
+- Textplaneringen instrueras att välja ett konkret nästa steg med naturligt handlingsverb och relevant produkt-/tjänsteobjekt på kundens språk, utan obefogad språkblandning eller påhittade erbjudanden. Det sker i befintligt anrop; ingen separat textgranskare införs.
+- `fitEndCardMasterArtwork` används i **båda** bildnormaliseringarna. Hela bilden skalas proportionerligt så att den ryms i 1080×1920; endast yttersta bakgrundspixlar förlängs för att fylla återstående yta. Inga bokstäver eller motiv i originalbilden tas bort, och kompositionen sträcks inte. För normal 1024×1536-bild blir bildinnehållet 1080×1620 med 150 pixlars förlängning upptill och nedtill. Bildinstruktionen håller dessa ytterkanter lugna. Redan normaliserad 1080×1920-cache förblir oförändrad i sina pixlar.
+- Policy/metadata för ny komposition och bildläge anger 368. Sparade originalbilder och render-ID:n återanvänds som tidigare. Textfria äldre bakgrunder och leverantörsreservens lagerkomposition behåller sitt tidigare flöde.
+
+Ingen ny SQL, miljövariabel, OCR, granskningsspärr eller extra bild-/videobeställning. De nyligen rättade manus- och UI-flödena ändras inte. Befintliga filmer startas inte om eller skrivs över av denna kodändring.
+
+## Verifiering och gränser
+
+- Nytt `test-v144-368-independent-closing.mjs` återskapar det verkliga formatglappet med markerade bokstavskanter på **båda** sidor av en 1024×1536-bild. Det verifierar hela innehållets pixlar genom den riktiga tillgångspipelinen, kompositorn, cachevägen och adaptiva kompositionssteget. Samma bild förlorar kanterna med den tidigare `cover`-operationen. Även andra bildproportioner, oförändrad normaliserad cache, transparent tomt extratextlager samt båda verkliga Shotstack-tidslinjerna ingår.
+- Testet kontrollerar att miljöläget gör ett generate-anrop utan personbild, att ett uttryckligt motiverat återkommande motiv använder originalreferenserna, att timeout inte köper en extra edit och att ingen ny OCR-/godkännandekontroll körs. Fyra olika produkt-/tjänstekontexter täcker promptöverföring; testet låtsas inte att simulerade modellsvar bevisar verklig formgivningskvalitet.
+- Befintliga 365-/364-/354-testers versions- och anropsförväntningar uppdateras till den avsiktligt ändrade policyn. 23 regressionsskript omfattar slutbilder, animation, typografi, leverans, 429, felhantering, kostnadsmätning, Kling 366, UI/kampanj 367 och lagringsskydd. Berörda bild-/koncepttest körs om efter det slutliga valet av generate/edit. Produktionsbygge och `git diff --check` körs också.
+- Ingen betald AI-tjänst beställs i verifieringen. Native språk, faktisk komposition, kontrast och val av motiv från den riktiga bildmodellen måste bedömas i nästa nya provkörning. Utfyllnad med kantpixlar kan bli synlig om modellen trots instruktionen lägger detaljer vid bildens ytterkanter. Text som redan är avklippt i modellens originalbild kan inte återskapas av kompositorn; rättningen hindrar vår egen formatanpassning från att kapa ytterligare text.

@@ -13,13 +13,13 @@ let calls=0,cache,cacheMaster;
 const params={model:'fixture',referenceFiles:reference,headline:'Upplev nästa fisketur',closingHeadline:'Nästa kast. Nästa äventyr.',closingLine:'Hitta ditt nästa fiskespö',websiteUrl:'https://butik.example',renderEndCardMaster:true,
  creativeConcept:{campaign_idea:'The anticipation of the next cast',background_brief:'A real forest lake with tactile ripples and warm edge light',typography:'Confident outdoor letterforms, ivory and copper'},
  designDirection:'Observed water and warm reflected light',brand:{business_name:'Verifierad butik'},
- openai:{images:{edit:async(options,request)=>{calls++;assert.equal(options.image,reference);assert.equal(request.maxRetries,0);assert.equal(options.size,'1024x1536');
+ openai:{images:{generate:async(options,request)=>{calls++;assert.equal(options.image,undefined);assert.equal(request.maxRetries,0);assert.equal(options.size,'1024x1536');
    assert(options.prompt.includes('COMPLETE finished advertising END CARD'));assert(options.prompt.includes('Nästa kast. Nästa äventyr.'));assert(options.prompt.includes('Hitta ditt nästa fiskespö'));
    assert(options.prompt.includes('butik.example'));assert(options.prompt.includes('DO NOT draw a logo'));assert(!options.prompt.includes('NO text, letters'));
-   assert(options.prompt.includes('one or two lines'));assert(options.prompt.includes('CENTER-CROPPED'));return {data:[{b64_json:art.toString('base64')}]};},generate:async()=>{throw new Error('No second image request');}}},
+   assert(options.prompt.includes('one or two lines'));assert(options.prompt.includes('WITHOUT CROPPING'));return {data:[{b64_json:art.toString('base64')}]};},edit:async()=>{throw new Error('Independent ending must not edit the reference scene');}}},
  onBackground:async(buffer,metadata)=>{cache=buffer;cacheMaster=metadata.isMaster;}};
 const assets=await generateIndependentAdvertisingAssets(params);
-assert.equal(calls,1);assert(cacheMaster);assert(assets.endCardMaster);assert.equal(assets.typographyMode.endCard,'gpt_image_complete_master_v365');
+assert.equal(calls,1);assert(cacheMaster);assert(assets.endCardMaster);assert.equal(assets.typographyMode.endCard,'gpt_image_complete_master_v368');
 let readbacks=0;
 await ensureExactAdvertisingLettering({assets,headline:params.headline,closingLine:params.closingLine,verify:async()=>{readbacks++;throw new Error('No added reviewer');}});
 assert.equal(readbacks,0,'scene lettering retains its existing deterministic flow; no new end-card OCR gate');
@@ -45,7 +45,7 @@ for(const edit of [buildVideoOverlayEdit({videoUrl:'video',textOverlayUrl:'scene
 // A completed image still uses the existing safe outcome when the provider is
 // unavailable; the cached plain fallback must never be mistaken for lettered art.
 let outages=0,fallbackCache,fallbackIsMaster;
-const failed=await generateIndependentAdvertisingAssets({...params,openai:{images:{edit:async()=>{outages++;throw new Error('timeout');},generate:async()=>{throw new Error('duplicate request');}}},
+const failed=await generateIndependentAdvertisingAssets({...params,openai:{images:{generate:async()=>{outages++;throw new Error('timeout');},edit:async()=>{throw new Error('duplicate request');}}},
  onBackground:async(buffer,metadata)=>{fallbackCache=buffer;fallbackIsMaster=metadata.isMaster;}});
 assert.equal(outages,1);assert.equal(fallbackIsMaster,false);assert.equal(failed.endCardMaster,null);
 const resumed=await generateIndependentAdvertisingAssets({...params,cachedBackground:fallbackCache,cachedMaster:fallbackIsMaster});
