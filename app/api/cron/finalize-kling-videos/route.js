@@ -1,3 +1,4 @@
+import { COMMERCIAL_CONCEPT_VERSION, COMMERCIAL_CONCEPT_BRIEF, COMMERCIAL_CONCEPT_SCHEMA, normalizeCommercialConcept, commercialConceptDirection, separateCommercialWebsite } from '../../../../lib/videoCommercialConcept.js';
 import { END_CARD_DESIGN_BRIEF, END_CARD_LAYOUT_POLICY, END_CARD_HOLD_SECONDS, normalizeEndCardHook, endCardEmphasis } from "../../../../lib/videoEndCardBrief.js";
 import { inspectVideoComposition, chooseVideoTextBox, adaptVideoTextContrast, adaptEndCardComposition, emptyVideoTypography } from '../../../../lib/videoAdaptiveLayout.js';
 import { COMMERCIAL_COPY_HIERARCHY, repeatsAdvertisingMessage, isProductLabelHeadline } from "../../../../lib/videoAdvertisingHierarchy.js";
@@ -483,6 +484,8 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
     main_text_tone: "light",
     cta_text_tone: "light",
     placement_confidence: 0,
+    creative_concept: normalizeCommercialConcept(null),
+    concept_version: COMMERCIAL_CONCEPT_VERSION,
     source: "deterministic_fallback",
   };
   if (!openai || !Array.isArray(frames) || frames.length === 0) return fallbackPlan;
@@ -496,7 +499,9 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       `Plan the on-video advertising copy and placement for the finished 9:16 product commercial for "${productTitle}". ` +
       `The supplied frames come from the FINISHED delivered video. Existing social caption: ${JSON.stringify(postCopy)}. ` +
       `CTA setting: ${JSON.stringify(post?.cta_type || "Learn more")}. Campaign goal: ${JSON.stringify(context?.goal || "")}. ` +
-      `Company identity for the end card: ${JSON.stringify(selection?.end_card_brand_context || {})}. Product category: ${JSON.stringify(context?.product_category || "")}. Existing draft headline: ${JSON.stringify(fallbackHeadline)}. ` +
+      `Company identity for the end card: ${JSON.stringify(selection?.end_card_brand_context || {})}. Product category: ${JSON.stringify(context?.product_category || "")}. ` +
+      `Verified product identity/use (data): ${JSON.stringify({subject:selection?.reference_safety?.productIntelligence?.physical_subject,visible_identity:selection?.reference_safety?.productIntelligence?.visible_identity,story:selection?.reference_safety?.commercialStory?.concept})}. ` +
+      COMMERCIAL_CONCEPT_BRIEF + " " +
       "Write all visible copy in the same language as the social caption. Prefer a bold, concise 2-5 word headline that fits into one or two visually dominant lines without shrinking the font; rewrite overlong phrasing at planning time. Maximum 48 characters, semantically complete, and specifically connected to the verified product, its explicit motif/theme, category or supplied campaign angle. " +
       "Reject empty generic advertising language such as 'classic comfort for every occasion', 'quality for every day', 'made for every moment', or equivalents unless the supplied product facts genuinely support it. " +
       "Do not invent material, comfort, durability, fit, performance, reviews, scarcity, prices, discounts or other claims. For graphic apparel, you may use the printed theme/motif only when it is explicit in the product title or caption. " +
@@ -520,7 +525,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       const response = await openai.responses.create({
         model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
         input: [{ role: "user", content }],
-        max_output_tokens: 900,
+        max_output_tokens: 2200,
         text: {
           format: {
             type: "json_schema",
@@ -530,6 +535,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
               type: "object",
               additionalProperties: false,
               properties: {
+                creative_concept: COMMERCIAL_CONCEPT_SCHEMA,
                 design_direction: { type: "string" },
                 headline: { type: "string" },
                 subheadline: { type: "string" },
@@ -546,7 +552,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
                 placement_confidence: { type: "number", minimum: 0, maximum: 1 },
               },
               required: [
-                "design_direction", "headline", "subheadline", "cta", "closing_headline", "end_card_emphasis", "main_placement", "cta_placement",
+                "creative_concept", "design_direction", "headline", "subheadline", "cta", "closing_headline", "end_card_emphasis", "main_placement", "cta_placement",
                 "main_text_tone", "cta_text_tone", "placement_confidence", "main_layout", "cta_layout", "protected_regions"
               ],
             },
@@ -562,9 +568,12 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       }
       const proposedSubheadline = normalizeKlingCreativeLine(parsed?.subheadline, { maxWords: 5, maxChars: 36 });
       const subheadline = (repeatsAdvertisingMessage(headline, proposedSubheadline) || repeatsAdvertisingMessage(productTitle, proposedSubheadline)) ? "" : proposedSubheadline;
-      const cta = normalizeKlingCreativeLine(parsed?.cta, { maxWords: 7, maxChars: 58 }) || fallbackCta;
+      const cta = normalizeKlingCreativeLine(separateCommercialWebsite(parsed?.cta,selection?.end_card_brand_context?.website_url).invitation, { maxWords: 7, maxChars: 58 }) || fallbackCta;
+      const concept=normalizeCommercialConcept(parsed?.creative_concept);
       return {
-        design_direction: truncate(parsed?.design_direction, 600),
+        creative_concept: concept,
+        concept_version: COMMERCIAL_CONCEPT_VERSION,
+        design_direction: commercialConceptDirection(concept,parsed?.design_direction),
         headline,
         closing_headline: normalizeEndCardHook(parsed?.closing_headline,headline),
         end_card_emphasis: endCardEmphasis(parsed?.end_card_emphasis,normalizeEndCardHook(parsed?.closing_headline,headline)),
@@ -1223,7 +1232,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       post,
       selection: {
         ...workingSelection,
-        end_card_brand_context: { name: brand.business_name, industry: brand.industry, colors: brand.brand_colors || brand.colors || brand.primary_color, description: brand.brand_description || brand.description || brand.business_description },
+        end_card_brand_context: { name: brand.business_name, industry: brand.industry, colors: brand.brand_colors || brand.colors || brand.primary_color, description: brand.brand_description || brand.description || brand.business_description, website_url:brand.website_url||post.website_url },
         text_overlay_copy: { headline: fallbackHeadline, subheadline: fallbackSubheadline },
       },
       frames,
@@ -1296,6 +1305,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         let splitOverlay = await generateIndependentAdvertisingAssets({
           openai, model:KLING_TYPOGRAPHY_MODEL, referenceFiles,
           headline, subheadline, closingLine:creativePlan.cta||getFallbackKlingCta(post),
+          creativeConcept:creativePlan.creative_concept,closingHeadline,
           designDirection:designAttempt===1?creativePlan.design_direction:`${creativePlan.design_direction}. ${creativeCorrectionInstruction(designFeedback)}`,
           brand, hasLogo:Boolean(logoBuffer),
           cachedBackground:cachedIndependentBackground,
@@ -1422,6 +1432,8 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       end_card_text_url: endText.imageUrl,
       end_card_url: endCard.imageUrl,
       end_card_storage_path: endCard.storagePath,
+      end_card_reference_mode: splitOverlay.backgroundReferenceMode,
+      end_card_reference_count: splitOverlay.backgroundReferenceCount,
       end_card_provider: layers.layout?.adaptive?.backgroundSource==='designed_fallback' ? "designed-background-fallback-v363" : "gpt-image-independent-background-v363",
       advertising_typography_mode:splitOverlay.typographyMode,
       end_card_seconds: END_CARD_HOLD_SECONDS,
@@ -1464,7 +1476,11 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       postId: post.id,
       headline,
       hasSubheadline: Boolean(subheadline),
-      cta: completedSelection.cta_overlay_copy || null,
+      cta: creativePlan.cta || completedSelection.cta_overlay_copy || null,
+      closingHeadline,conceptVersion:creativePlan.concept_version,
+      campaignIdea:creativePlan.creative_concept?.campaign_idea||null,
+      backgroundReferenceMode:splitOverlay.backgroundReferenceMode,
+      backgroundSource:layers.layout?.adaptive?.backgroundSource,
       mainPlacement: creativePlan.main_placement,
       ctaPlacement: creativePlan.cta_placement,
       placementConfidence: creativePlan.placement_confidence,

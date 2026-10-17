@@ -39482,9 +39482,6 @@ Return only the transparent typography asset.
 async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsset,dominantColor,productReferenceBuffer,animationLayout=null,hasLogo=false,supabase=null,userId=null,postId=null}) {
   const backgroundReferenceBuffer=await getAnimatedOverlayBackgroundReference(backgroundAsset);
   try {
-    const advertisingCopy=await planAnimatedAdvertisingCopy({openai,model:PRODUCT_RESEARCH_FAST_MODEL,rule,postContent,productReferenceBuffer,backgroundReferenceBuffer,animationLayout});
-    const prompt=buildKlingAdvertisingAtlasPrompt({headline:advertisingCopy.headline,subheadline:"",closingLine:advertisingCopy.closingLine,
-      designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},hasLogo});
     let backgrounds=backgroundReferenceBuffer ? [backgroundReferenceBuffer] : [];
     try {
       const frames=await sampleRemoteVideoFrames({videoUrl:backgroundAsset?.public_url,durationSeconds:ANIMATED_VIDEO_MOTION_SECONDS,fractions:[.1,.5,.99]});
@@ -39496,6 +39493,10 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
     const product=await sharp(productReferenceBuffer).resize({width:animationLayout.product.width,height:animationLayout.product.height,fit:"inside"}).png().toBuffer();
     const composites=await Promise.all(backgrounds.map(async buffer=>sharp(buffer).resize(1080,1920,{fit:"cover"})
       .composite([{input:product,left:animationLayout.product.left,top:animationLayout.product.top}]).png().toBuffer()));
+    const advertisingCopy=await planAnimatedAdvertisingCopy({openai,model:PRODUCT_RESEARCH_FAST_MODEL,rule,postContent,productReferenceBuffer,
+      backgroundReferenceBuffer,sceneFrames:composites.slice(-3),animationLayout});
+    const prompt=buildKlingAdvertisingAtlasPrompt({headline:advertisingCopy.headline,subheadline:"",closingLine:advertisingCopy.closingLine,
+      designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},hasLogo});
     const files=await Promise.all(composites.slice(-3).map(async (buffer,i)=>toFile(await sharp(buffer).resize(576,1024).png().toBuffer(),`animation-composition-${i}.png`,{type:"image/png"})));
     let lastError;
     let lastGeneratedAtlas=null;
@@ -39507,6 +39508,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         let split=await generateIndependentAdvertisingAssets({
           openai,model:animatedOverlayImageModel(),referenceFiles:files,
           headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,
+          creativeConcept:advertisingCopy.creativeConcept,closingHeadline:advertisingCopy.closingHeadline,
           designDirection:attempt===1?advertisingCopy.designDirection:`${advertisingCopy.designDirection}. ${creativeCorrectionInstruction(lastError)}`,
           brand:rule?.brand_profile||{},hasLogo,
           cachedBackground:cachedIndependentBackground,
@@ -39596,6 +39598,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
           compositionInspection,sceneHeadlineOmitted:!sceneChoice,sceneLayout:sceneBox,endCardLayout:approvedEndCard.layout,
           endCardIncludesSender:Boolean(approvedEndCard.hasSender),
           closingBackgroundBuffer:approvedEndCard.backgroundBuffer,closingTextBuffer:approvedEndCard.foregroundBuffer,closingCardBuffer:approvedEndCard.cardBuffer,
+          backgroundReferenceMode:split.backgroundReferenceMode,backgroundReferenceCount:split.backgroundReferenceCount,
           advertisingCopy,copyValidation,typographyMode:split.typographyMode,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-independent-advertising-assets-v349`};
       } catch(error) {
         lastError=error;
@@ -39979,6 +39982,10 @@ async function createAnimatedProductVideoAssets({
       advertising_closing_headline: textOverlay.advertisingCopy?.closingHeadline || null,
       advertising_closing_line: textOverlay.advertisingCopy?.closingLine || null,
       advertising_design_direction: textOverlay.advertisingCopy?.designDirection || null,
+      advertising_creative_concept: textOverlay.advertisingCopy?.creativeConcept || null,
+      advertising_concept_version: textOverlay.advertisingCopy?.conceptVersion || null,
+      end_card_reference_mode: textOverlay.backgroundReferenceMode || null,
+      end_card_reference_count: textOverlay.backgroundReferenceCount || 0,
       video_design_version: VIDEO_DESIGN_VERSION,
       end_card_url: closingCardUpload.imageUrl,
       end_card_background_url: closingBackgroundUpload.imageUrl,
