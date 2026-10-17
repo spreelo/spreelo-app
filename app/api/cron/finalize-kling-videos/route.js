@@ -1283,6 +1283,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     let approvedArtwork = null;
     let designFeedback = null;
     let cachedIndependentBackground = null;
+    let cachedIndependentMaster = false;
     let compositionInspection = null;
     for (let designAttempt = 1; designAttempt <= 2; designAttempt += 1) {
       const attemptPrompt = designAttempt === 1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(designFeedback)}`;
@@ -1305,11 +1306,11 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         let splitOverlay = await generateIndependentAdvertisingAssets({
           openai, model:KLING_TYPOGRAPHY_MODEL, referenceFiles,
           headline, subheadline, closingLine:creativePlan.cta||getFallbackKlingCta(post),
-          creativeConcept:creativePlan.creative_concept,closingHeadline,
+          creativeConcept:creativePlan.creative_concept,closingHeadline,renderEndCardMaster:true,websiteUrl:brand.website_url||post.website_url,
           designDirection:designAttempt===1?creativePlan.design_direction:`${creativePlan.design_direction}. ${creativeCorrectionInstruction(designFeedback)}`,
           brand, hasLogo:Boolean(logoBuffer),
-          cachedBackground:cachedIndependentBackground,
-          onBackground:async buffer=>{cachedIndependentBackground=buffer;},
+          cachedBackground:cachedIndependentBackground,cachedMaster:cachedIndependentMaster,
+          onBackground:async(buffer,metadata)=>{cachedIndependentBackground=buffer;cachedIndependentMaster=metadata?.isMaster===true;},
         });
         if (!splitOverlay.closingText) throw new Error('End card is missing GPT Image CTA lettering');
         // If GPT-image renders a misspelled (yet transparent) headline, repair
@@ -1342,7 +1343,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
           textBox:creativePlan.main_layout,preserveDesign:true,
         }) : {buffer:normalized.buffer,analysis:{sceneHeadlineOmitted:true}};
         const initialLayers = await composeVideoEndCardLayers({
-          background:splitOverlay.endCard,closingText:splitOverlay.closingText,
+          background:splitOverlay.endCard,masterArtwork:splitOverlay.endCardMaster,closingText:splitOverlay.closingText,
           headlineArtwork:splitOverlay.headline,headline:closingHeadline,
           layoutPolicy:END_CARD_LAYOUT_POLICY,backgroundSource:splitOverlay.backgroundSource,designDirection:creativePlan.design_direction,
           websiteUrl:brand.website_url||post.website_url,emphasisText:creativePlan.end_card_emphasis,
@@ -1388,7 +1389,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
                 box:{left:75,top:770,width:930,height:380},
                 designDirection:creativePlan.design_direction,brand,variant,
               });
-              return adaptEndCardComposition({layers:await composeVideoEndCardLayers({background:splitOverlay.endCard,
+              return adaptEndCardComposition({layers:await composeVideoEndCardLayers({background:splitOverlay.endCard,masterArtwork:splitOverlay.endCardMaster,
                 headlineArtwork:splitOverlay.headline,headline:closingHeadline,
                 layoutPolicy:END_CARD_LAYOUT_POLICY,backgroundSource:splitOverlay.backgroundSource,designDirection:creativePlan.design_direction,
                 websiteUrl:brand.website_url||post.website_url,emphasisText:creativePlan.end_card_emphasis,
@@ -1432,14 +1433,16 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       end_card_text_url: endText.imageUrl,
       end_card_url: endCard.imageUrl,
       end_card_storage_path: endCard.storagePath,
+      end_card_prompt: splitOverlay.endCardPrompt,
       end_card_reference_mode: splitOverlay.backgroundReferenceMode,
       end_card_reference_count: splitOverlay.backgroundReferenceCount,
-      end_card_provider: layers.layout?.adaptive?.backgroundSource==='designed_fallback' ? "designed-background-fallback-v363" : "gpt-image-independent-background-v363",
+      end_card_provider: layers.isMaster?'gpt-image-complete-end-card-v365':layers.layout?.adaptive?.backgroundSource==='designed_fallback' ? "designed-background-fallback-v363" : "gpt-image-independent-background-v363",
       advertising_typography_mode:splitOverlay.typographyMode,
       end_card_seconds: END_CARD_HOLD_SECONDS,
       end_card_brand_name: brand.business_name || null,
       end_card_has_logo: false,
       end_card_includes_sender: Boolean(layers.hasSender),
+      end_card_is_master: layers.isMaster===true,
       end_card_background_bounds: splitOverlay.backgroundBounds,
       end_card_text_alignment: "center_within_verified_region",
       text_overlay_url: uploaded.imageUrl,
@@ -1708,6 +1711,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       ctaOverlayUrl: null,
       logoOverlayUrl: postprocess.logo_overlay_url || null,
       endCardIncludesSender: postprocess.end_card_includes_sender === true,
+      endCardIsMaster: postprocess.end_card_is_master === true,
       closingFrameUrl: null,
       endCardUrl: postprocess.end_card_url,
       endCardBackgroundUrl: postprocess.end_card_background_url || null,

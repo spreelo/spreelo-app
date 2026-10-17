@@ -37,7 +37,7 @@ assert(motionPlanIsSupported(contract,intel));
 assert.match(renderKlingStructuredMotion(contract,intel),/original product is used truthfully/i,'story concept must reach real prompt');
 assert.match(renderKlingStructuredMotion(contract,intel),/seconds 1-4/,'real time-directed action');
 assert.match(CREATIVE_DIRECTOR_BRIEF,/actual intended use/i);
-assert.equal(CREATIVE_DIRECTOR_VERSION,364);
+assert.equal(CREATIVE_DIRECTOR_VERSION,365);
 assert.match(fs.readFileSync(new URL('../app/api/cron/run-automations/route.js', import.meta.url),'utf8'),/CREATIVE DIRECTOR 2\.0 — INDIVIDUAL PRODUCT STORY/);
 assert.match(fs.readFileSync(new URL('../app/api/cron/finalize-kling-videos/route.js', import.meta.url),'utf8'),/deliveryFirstRender:true/);
 console.log('PASS 144.354: render taste advisory, serious safety review remains blocking, review outages recover, old minor review recoverable, real story strategy in Kling prompt, product-first director');

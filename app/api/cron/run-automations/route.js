@@ -39501,6 +39501,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
     let lastError;
     let lastGeneratedAtlas=null;
     let cachedIndependentBackground=null;
+    let cachedIndependentMaster=false;
     let compositionInspection=null;
     for(let attempt=1;attempt<=2;attempt++) {
       const attemptPrompt=attempt===1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(lastError)}`;
@@ -39508,11 +39509,11 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         let split=await generateIndependentAdvertisingAssets({
           openai,model:animatedOverlayImageModel(),referenceFiles:files,
           headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,
-          creativeConcept:advertisingCopy.creativeConcept,closingHeadline:advertisingCopy.closingHeadline,
+          creativeConcept:advertisingCopy.creativeConcept,closingHeadline:advertisingCopy.closingHeadline,renderEndCardMaster:true,websiteUrl:rule?.brand_profile?.website_url||rule?.website_item?.url,
           designDirection:attempt===1?advertisingCopy.designDirection:`${advertisingCopy.designDirection}. ${creativeCorrectionInstruction(lastError)}`,
           brand:rule?.brand_profile||{},hasLogo,
-          cachedBackground:cachedIndependentBackground,
-          onBackground:async buffer=>{cachedIndependentBackground=buffer;},
+          cachedBackground:cachedIndependentBackground,cachedMaster:cachedIndependentMaster,
+          onBackground:async(buffer,metadata)=>{cachedIndependentBackground=buffer;cachedIndependentMaster=metadata?.isMaster===true;},
         });
         // Background and independent typography are separately generated. No atlas split,
         // no mixed-alpha geometry, no giant opaque background behind lettering.
@@ -39532,7 +39533,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         const panel=sceneChoice?await normalizeGeneratedAnimatedTextPanel(split.headline,{...animationLayout,text:sceneBox}):{textOverlayBuffer:await emptyVideoTypography()};
         const contrast=sceneChoice?await ensureTypographyContrast({overlayBuffer:panel.textOverlayBuffer,backgroundBuffers:composites,textBox:sceneBox,preserveDesign:true}):{buffer:panel.textOverlayBuffer,analysis:{sceneHeadlineOmitted:true}};
         const closing=await inspectTypographyShape(split.closingText);
-        const initialEndCard=await composeVideoEndCardLayers({background:split.endCard,closingText:closing.buffer,closingLine:advertisingCopy.closingLine,
+        const initialEndCard=await composeVideoEndCardLayers({background:split.endCard,masterArtwork:split.endCardMaster,closingText:closing.buffer,closingLine:advertisingCopy.closingLine,
           headlineArtwork:split.headline,headline:advertisingCopy.closingHeadline||advertisingCopy.headline,
           layoutPolicy:END_CARD_LAYOUT_POLICY,backgroundSource:split.backgroundSource,designDirection:advertisingCopy.designDirection,
           websiteUrl:rule?.brand_profile?.website_url||rule?.website_item?.url,emphasisText:advertisingCopy.emphasisText,
@@ -39578,7 +39579,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
                 box:{left:75,top:770,width:930,height:380},
                 designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},variant,
               });
-              const repaired=await composeVideoEndCardLayers({background:split.endCard,closingText:fixedCta.buffer,
+              const repaired=await composeVideoEndCardLayers({background:split.endCard,masterArtwork:split.endCardMaster,closingText:fixedCta.buffer,
                 headlineArtwork:split.headline,headline:advertisingCopy.closingHeadline||advertisingCopy.headline,
                 layoutPolicy:END_CARD_LAYOUT_POLICY,backgroundSource:split.backgroundSource,designDirection:advertisingCopy.designDirection,
                 websiteUrl:rule?.brand_profile?.website_url||rule?.website_item?.url,emphasisText:advertisingCopy.emphasisText,
@@ -39596,8 +39597,9 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         return {textOverlayBuffer:approvedOverlay,contrastAnalysis:contrast.analysis,designReview:review,
           localTypographyRepair:localRepair,
           compositionInspection,sceneHeadlineOmitted:!sceneChoice,sceneLayout:sceneBox,endCardLayout:approvedEndCard.layout,
-          endCardIncludesSender:Boolean(approvedEndCard.hasSender),
+          endCardIncludesSender:Boolean(approvedEndCard.hasSender),endCardIsMaster:approvedEndCard.isMaster===true,
           closingBackgroundBuffer:approvedEndCard.backgroundBuffer,closingTextBuffer:approvedEndCard.foregroundBuffer,closingCardBuffer:approvedEndCard.cardBuffer,
+          endCardPrompt:split.endCardPrompt,
           backgroundReferenceMode:split.backgroundReferenceMode,backgroundReferenceCount:split.backgroundReferenceCount,
           advertisingCopy,copyValidation,typographyMode:split.typographyMode,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-independent-advertising-assets-v349`};
       } catch(error) {
@@ -39959,6 +39961,7 @@ async function createAnimatedProductVideoAssets({
     textOverlayUrl: textOverlayUpload.imageUrl,
     logoOverlayUrl: logoUpload?.imageUrl || null,
     endCardIncludesSender: textOverlay.endCardIncludesSender === true,
+    endCardIsMaster: textOverlay.endCardIsMaster === true,
     posterUrl: posterUpload.imageUrl,
     posterStoragePath: posterUpload.imageStoragePath,
     foregroundPrompt: prompt,
@@ -39976,6 +39979,7 @@ async function createAnimatedProductVideoAssets({
       scene_headline_omitted: textOverlay.sceneHeadlineOmitted === true,
       scene_text_layout: textOverlay.sceneLayout || null,
       end_card_layout: textOverlay.endCardLayout || null,
+      end_card_is_master: textOverlay.endCardIsMaster === true,
       logo_placement:'corner_only',
       typography_design_review: textOverlay.designReview || null,
       advertising_headline: textOverlay.advertisingCopy?.headline || null,
@@ -39984,6 +39988,7 @@ async function createAnimatedProductVideoAssets({
       advertising_design_direction: textOverlay.advertisingCopy?.designDirection || null,
       advertising_creative_concept: textOverlay.advertisingCopy?.creativeConcept || null,
       advertising_concept_version: textOverlay.advertisingCopy?.conceptVersion || null,
+      end_card_prompt: textOverlay.endCardPrompt || null,
       end_card_reference_mode: textOverlay.backgroundReferenceMode || null,
       end_card_reference_count: textOverlay.backgroundReferenceCount || 0,
       video_design_version: VIDEO_DESIGN_VERSION,
@@ -40097,6 +40102,7 @@ export async function generateAnimatedProductVideo({
     textOverlayUrl: assets.textOverlayUrl,
     logoOverlayUrl: assets.logoOverlayUrl,
     endCardIncludesSender: assets.endCardIncludesSender === true,
+    endCardIsMaster: assets.endCardIsMaster===true || assets.backgroundSelection?.end_card_is_master===true,
     durationSeconds: ANIMATED_VIDEO_MOTION_SECONDS,
     closingHoldSeconds: ANIMATED_VIDEO_CLOSING_HOLD_SECONDS,
     endCardTransitionSeconds: assets.backgroundSelection?.video_design_version >= 361 ? 0.12 : 0.4,
