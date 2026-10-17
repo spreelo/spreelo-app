@@ -1,5 +1,6 @@
 import { recordDatabaseRuntimeFailure } from '../../../../lib/systemHealth.js';
 import { inspectVideoComposition, chooseVideoTextBox, adaptVideoTextContrast, adaptEndCardComposition, emptyVideoTypography } from '../../../../lib/videoAdaptiveLayout.js';
+import { persistKlingOpeningAssets } from "../../../../lib/klingOpeningAssets.js";
 import { persistTerminalVideoFailure } from "../../../../lib/videoFailurePersistence.js";
 import { hasProtectedVideoJob } from "../../../../lib/videoJobSafety.js";
 import { classifyVideoProviderCreationFailure, automationFailureHandoffError } from "../../../../lib/videoFailureDiagnostics.js";
@@ -16503,111 +16504,6 @@ async function reviewCarouselProductSlideIdentity({
   }
 }
 
-async function reviewKlingOpeningSceneIdentity({
-  openai,
-  websiteItem,
-  sourceImageBuffer,
-  generatedImageBuffer,
-  fullProductInteractionSafe = false,
-  verifiedViewLock = null,
-}) {
-  if (!openai || !sourceImageBuffer?.length || !generatedImageBuffer?.length) {
-    return { accepted: false, confidence: 0, reason: "opening_scene_reviewer_unavailable" };
-  }
-
-  const productTitle = String(
-    websiteItem?.title || websiteItem?.item_title || "the verified product"
-  ).trim();
-  const sourceDataUrl = `data:image/png;base64,${sourceImageBuffer.toString("base64")}`;
-  const generatedDataUrl = `data:image/png;base64,${generatedImageBuffer.toString("base64")}`;
-
-  try {
-    const response = await openai.responses.create(
-      {
-        model: PRODUCT_RESEARCH_FAST_MODEL,
-        input: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text:
-                  `Compare two images of the ecommerce product named "${productTitle}". ` +
-                  "Image 1 is the authoritative retailer reference. Image 2 is a proposed photorealistic first frame for a product commercial. The environment/person/props may change completely, but the advertised product itself must remain the same verified product. " +
-                  (fullProductInteractionSafe
-                    ? "Natural in-use deformation is allowed (for example apparel worn by a person), but visible color, print/design, logo/wording, distinctive geometry, materials and identity-defining details must still match. "
-                    : "The source is cropped or uncertain. Image 2 must not invent or expose new identity-defining product surfaces/details outside what Image 1 verifies; it may only place the same visible portion into a believable context. ") +
-                  ` ${verifiedViewLock ? getKlingVerifiedViewInstruction({ verifiedViewLock }) : "Only product surfaces visible in Image 1 are verified; reject any newly exposed side or surface."} ` +
-                  "If the retailer reference shows packaging, compare its physical outer surfaces and exact printed artwork, not the devices depicted in the print. A printed device may never become a physical scene component. Independent adjacent objects may not be fused or attached. " +
-                  "Reject if Image 2 exposes any product side/surface that Image 1 does not visibly verify, even if that hidden side looks plausible. Reject if the AI changed the visible variant, print, wording, logo, silhouette/geometry, product type, number/position/shape of buttons or controls, openings, seams, joints, material boundaries, color blocking, surface finish, distinctive hardware, or substituted a similar product. A newly invented control/detail is always an identity failure. If uncertain, reject. Return only the requested JSON.",
-              },
-              { type: "input_text", text: "IMAGE 1 — authoritative retailer product" },
-              { type: "input_image", image_url: sourceDataUrl, detail: "high" },
-              { type: "input_text", text: "IMAGE 2 — proposed commercial opening scene" },
-              { type: "input_image", image_url: generatedDataUrl, detail: "high" },
-            ],
-          },
-        ],
-        max_output_tokens: 500,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "kling_opening_scene_identity",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                same_product: { type: "boolean" },
-                visible_variant_match: { type: "boolean" },
-                print_logo_text_match: { type: "boolean" },
-                invented_identity_detail: { type: "boolean" },
-                verified_view_preserved: { type: "boolean" },
-                unverified_surface_exposed: { type: "boolean" },
-                confidence: { type: "number", minimum: 0, maximum: 1 },
-                reason: { type: "string" },
-              },
-              required: [
-                "same_product",
-                "visible_variant_match",
-                "print_logo_text_match",
-                "invented_identity_detail",
-                "verified_view_preserved",
-                "unverified_surface_exposed",
-                "confidence",
-                "reason",
-              ],
-            },
-          },
-        },
-      },
-      { timeout: 20_000, maxRetries: 0 }
-    );
-    const parsed = safeJsonParse(getOpenAiResponseOutputText(response));
-    const confidence = Number(parsed?.confidence || 0);
-    const accepted = Boolean(
-      parsed?.same_product === true &&
-        parsed?.visible_variant_match === true &&
-        parsed?.print_logo_text_match === true &&
-        parsed?.invented_identity_detail !== true &&
-        parsed?.verified_view_preserved === true &&
-        parsed?.unverified_surface_exposed !== true &&
-        confidence >= 0.9
-    );
-    return {
-      accepted,
-      confidence,
-      reason: String(parsed?.reason || "").trim() || (accepted ? "verified_opening_scene" : "opening_scene_identity_uncertain"),
-    };
-  } catch (error) {
-    return {
-      accepted: false,
-      confidence: 0,
-      reason: `opening_scene_review_failed: ${error?.message || String(error)}`,
-    };
-  }
-}
-
 async function generateKlingDirectSceneOpeningFrame({
   openai,
   rule,
@@ -16700,33 +16596,19 @@ NON-NEGOTIABLE OPENING RULES:
     throw new Error("GPT Image returned no direct-scene Kling opening frame");
   }
   const generatedImageBuffer = Buffer.from(imageBase64, "base64");
-  const identity = await reviewKlingOpeningSceneIdentity({
-    openai,
-    websiteItem: item,
-    sourceImageBuffer: source,
-    generatedImageBuffer,
-    fullProductInteractionSafe,
-    verifiedViewLock: referenceSafety?.verifiedViewLock || null,
-  });
-  if (!identity.accepted) {
-    throw new Error(
-      `Direct-scene opening frame was rejected by product identity review (${identity.reason || "identity mismatch"})`
-    );
-  }
-
-  console.info("Kling direct-scene opening frame accepted", {
+  console.info("Kling direct-scene opening frame generated", {
     ruleId: rule?.id || null,
     productTitle,
     interactionMode: referenceSafety?.interactionMode || null,
-    identityConfidence: identity.confidence,
-    identityReason: identity.reason,
+    openingIdentityReview: "disabled",
   });
 
   return {
     buffer: generatedImageBuffer,
-    source: "gpt_image_2_verified_direct_scene",
-    identityConfidence: identity.confidence,
-    identityReason: identity.reason,
+    source: "gpt_image_2_direct_scene",
+    identityReviewStatus: "disabled",
+    identityConfidence: null,
+    identityReason: "Separate opening-image identity review disabled by policy",
   };
 }
 
@@ -17128,7 +17010,7 @@ export async function submitAdminRescueAiProductVideo({
   let naturalStartBackground = null;
   let referenceFrameBuffer = null;
   let sceneTrimSeconds = 0.15;
-  let openingSceneMode = "verified_direct_scene";
+  let openingSceneMode = "direct_scene";
   let imagePrompt = null;
 
   try {
@@ -17143,7 +17025,7 @@ export async function submitAdminRescueAiProductVideo({
       source: directOpeningScene.source,
       assetId: null,
       assetName: null,
-      family: "verified_in_scene_opening",
+      family: "in_scene_opening",
       brightness: "medium",
     };
     referenceSafety = {
@@ -17151,18 +17033,19 @@ export async function submitAdminRescueAiProductVideo({
       startBackgroundSource: directOpeningScene.source,
       startBackgroundAssetId: null,
       startBackgroundAssetName: null,
-      startBackgroundFamily: "verified_in_scene_opening",
+      startBackgroundFamily: "in_scene_opening",
       startBackgroundBrightness: "medium",
       naturalEnvironmentFromFirstFrame: true,
       openingSceneMode,
+      openingSceneIdentityReview: directOpeningScene.identityReviewStatus,
       openingSceneIdentityConfidence: directOpeningScene.identityConfidence,
       openingSceneIdentityReason: directOpeningScene.identityReason,
     };
     imagePrompt =
-      "Verified GPT-Image-2 direct-scene first frame: exact rescued product is already inside the finished commercial scene before Kling motion begins.";
+      "GPT-Image-2 direct-scene first frame: exact rescued product is already inside the finished commercial scene before Kling motion begins.";
   } catch (directSceneError) {
     if(directSceneError?.code==='KLING_MOTION_PLAN_REVIEW_REQUIRED')throw directSceneError;
-    console.warn("AI product-video rescue direct scene failed identity safety; using pixel-preserving trimmed setup", {
+    console.warn("AI product-video rescue opening generation unavailable; preserving fallback for diagnosis", {
       postId,
       productTitle: websiteItem?.title || null,
       message: directSceneError?.message || String(directSceneError),
@@ -17208,6 +17091,11 @@ export async function submitAdminRescueAiProductVideo({
     throw new Error("AI product-video rescue could not preserve the verified reference assets.");
   }
 
+  const openingComparison = await persistKlingOpeningAssets({
+    supabase, postId, original: uploadedVerifiedProduct, opening: uploadedReference,
+    websiteItem, openingSceneMode, referenceSafety,
+  });
+
   const overlayCopy = buildKlingAdvertisingOverlayCopy({
     postContent,
     websiteItem,
@@ -17250,6 +17138,7 @@ export async function submitAdminRescueAiProductVideo({
       family: naturalStartBackground?.family || null,
       brightness: naturalStartBackground?.brightness || null,
     },
+    opening_image_comparison: openingComparison,
     verified_product_image_url: uploadedVerifiedProduct.imageUrl,
     verified_product_source_url: websiteItem?.image_url || null,
     verified_product_title: websiteItem?.title || websiteItem?.item_title || null,
@@ -47906,7 +47795,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
             let naturalStartBackground = null;
             let referenceFrameBuffer = null;
             let klingSceneTrimSeconds = 0.15;
-            let openingSceneMode = "verified_direct_scene";
+            let openingSceneMode = "direct_scene";
 
             try {
               const directOpeningScene = await generateKlingDirectSceneOpeningFrame({
@@ -47920,7 +47809,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
                 source: directOpeningScene.source,
                 assetId: null,
                 assetName: null,
-                family: "verified_in_scene_opening",
+                family: "in_scene_opening",
                 brightness: "medium",
               };
               referenceSafety = {
@@ -47928,22 +47817,22 @@ product_research_model_used: websitePreparedRule.uses_website_content
                 startBackgroundSource: directOpeningScene.source,
                 startBackgroundAssetId: null,
                 startBackgroundAssetName: null,
-                startBackgroundFamily: "verified_in_scene_opening",
+                startBackgroundFamily: "in_scene_opening",
                 startBackgroundBrightness: "medium",
                 naturalEnvironmentFromFirstFrame: true,
                 openingSceneMode,
+                openingSceneIdentityReview: directOpeningScene.identityReviewStatus,
                 openingSceneIdentityConfidence: directOpeningScene.identityConfidence,
                 openingSceneIdentityReason: directOpeningScene.identityReason,
               };
               finalImagePrompt =
-                "Verified GPT-Image-2 direct-scene first frame: the exact product is already naturally inside the finished real-world commercial scene before Kling motion begins.";
+                "GPT-Image-2 direct-scene first frame: the exact product is already naturally inside the finished real-world commercial scene before Kling motion begins.";
             } catch (directSceneError) {
               if(directSceneError?.code==='KLING_MOTION_PLAN_REVIEW_REQUIRED')throw directSceneError;
-              // Quality-preserving fallback: if GPT Image cannot make a scene that
-              // passes strict product-identity review, keep the deterministic
-              // pixel-preserving setup frame for Kling guidance but remove the
-              // entire setup/transition section from the delivered video.
-              console.warn("Kling direct-scene opening unavailable; using fully trimmed safety fallback", {
+              // Preserve a deterministic reference if image generation fails.
+              // Motion planning still stops an unavailable commercial opening;
+              // this fallback must not authorize an unsupported provider job.
+              console.warn("Kling opening generation unavailable; preserving fallback for diagnosis", {
                 ruleId: rule.id,
                 postId: post.id,
                 productTitle: candidate.item?.title || null,
@@ -47997,6 +47886,11 @@ product_research_model_used: websitePreparedRule.uses_website_content
             if (!imageUrl) {
               throw new Error("Could not create a public Kling reference-frame URL");
             }
+
+            const openingComparison = await persistKlingOpeningAssets({
+              supabase, postId: post.id, original: uploadedVerifiedProduct, opening: uploadedReference,
+              websiteItem: candidate.item, openingSceneMode, referenceSafety,
+            });
 
             const klingOverlayCopy = buildKlingAdvertisingOverlayCopy({
               postContent: generatedContent,
@@ -48080,6 +47974,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
                   family: naturalStartBackground?.family || null,
                   brightness: naturalStartBackground?.brightness || null,
                 },
+                opening_image_comparison: openingComparison,
                 verified_product_image_url: uploadedVerifiedProduct.imageUrl,
                 verified_product_source_url: candidate.item?.image_url || null,
                 verified_product_title: candidate.item?.title || candidate.item?.item_title || null,

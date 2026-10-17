@@ -10,7 +10,7 @@ function assert(ok, msg) { if (!ok) throw new Error(msg); }
 assert(defaults.includes('export const DEFAULT_UI_LOCALE = "en"'), 'English must remain the canonical source locale');
 assert(uiHook.includes('INCOMPLETE_TRANSLATION_RETRY_MS = 5 * 60 * 1000'), 'incomplete packs must retry after a bounded short cooldown');
 assert(!uiHook.includes('locale !== DEFAULT_UI_LOCALE && loading && fallbackText'), 'missing translations must never intentionally render blank');
-assert(uiHook.includes('return interpolateUiText(fallbackText || key, values);'), 'English source labels must remain visible while translation is pending');
+assert(uiHook.includes('return interpolateUiText(fallbackText || key, values);'), 'source labels must remain available as a usable fallback after translation failure');
 assert(uiRoute.includes('TRANSLATION_FETCH_TIMEOUT_MS = 24000'), 'translation provider gets a realistic response window');
 assert(uiRoute.includes('TRANSLATION_DEFER_MS = 5 * 60 * 1000'), 'transient failures must not defer labels for hours');
 assert(uiRoute.includes('remainingMs > TRANSLATION_DEFER_MS + 30_000'), 'legacy six-hour deferred entries must be invalidated');

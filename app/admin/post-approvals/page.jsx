@@ -31,7 +31,7 @@ import {
   ZoomIn,
   XCircle,
 } from "lucide-react";
-import { adminVideoSources } from "../../../lib/klingAdminVideo.js";
+import { adminVideoSources, adminOpeningImages } from "../../../lib/klingAdminVideo.js";
 import AppLayout from "../../../components/AppLayout";
 import { supabase } from "../../../lib/supabaseClient";
 import { useUiText } from "../../../lib/i18n/useUiText";
@@ -231,6 +231,29 @@ function getPostMediaItems(post) {
   return post?.image_url
     ? [{ url: post.image_url, label: post.post_type || post.content_format || "Post image", productUrl: post?.admin_product_items?.[0]?.url || "", order: 1 }]
     : [];
+}
+
+function OpeningImageComparison({ post, t }) {
+  const images = adminOpeningImages(post);
+  if (!images) return null;
+  return (
+    <section className="admin-review-media-section">
+      <div className="admin-review-section-heading">
+        <div><strong>{t("admin.approvals.openingComparison")}</strong></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap: 16 }}>
+        {[
+          { url: images.originalUrl, label: t("admin.approvals.originalProductImage") },
+          { url: images.openingUrl, label: t(images.isFallback ? "admin.approvals.fallbackReferenceImage" : "admin.approvals.generatedOpeningImage") },
+        ].map(({ url, label }) => (
+          <a key={url} href={url} target="_blank" rel="noreferrer">
+            <img src={url} alt={label} loading="lazy" style={{ display: "block", width: "100%", height: 300, objectFit: "contain" }} />
+            <span><ExternalLink size={15} /> {label}</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function MediaPreview({ post, t, onOpen }) {
@@ -1524,6 +1547,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                   </div>
 
                   <MediaPreview post={selectedPost} t={t} onOpen={(index) => setLightboxIndex(index)} />
+                  <OpeningImageComparison post={selectedPost} t={t} />
 
                   <section className="admin-review-copy-editor">
                     <div className="admin-review-section-heading">

@@ -36,7 +36,7 @@ const context=vm.createContext({...motion,sharp,Buffer,console:{info(){},warn(){
   truncateText:(s,n)=>String(s).slice(0,n),isEngagementAiVideoRule:()=>false,
   getKlingVerifiedViewInstruction:()=> 'Preserve exact original print and source-facing surface.',
   getCustomerFacingCampaignTheme:()=> 'Halloween',formatCampaignIdentityLockForPrompt:()=> 'Halloween campaign only',
-  reviewKlingOpeningSceneIdentity:async ()=>{events.push('opening_identity');return {accepted:true,confidence:.99,reason:'Exact print'};},
+  reviewKlingOpeningSceneIdentity:async ()=>{throw new Error('The removed opening identity gate must never be called');},
   assembleKlingPrompt,validateKlingCreativeDirection});
 vm.runInContext(extract('async function generateKlingDirectSceneOpeningFrame(', 'async function createKlingProductReferenceFrame(')+'\n'+
   extract('function getKlingProviderSafetyPrefix(', 'function getKlingProductPromptFallback(')+'\n'+
@@ -45,7 +45,9 @@ const referenceSafety={productIntelligence:garment,fullProductInteractionSafe:tr
 const rule={website_item:{title:'Stabbing Halloween - Herr - T-shirt'},brand_profile:{business_name:'Pressit'}};
 const opening=await context.generateKlingDirectSceneOpeningFrame({openai:ai,rule,sourceImageBuffer:png,referenceSafety});
 const prompt=await context.buildKlingProductVideoPrompt({openai:ai,rule,referenceSafety,referenceFrameBuffer:opening.buffer});
-assert.deepEqual(events,['kling_product_commercial_story_358','opening_image','opening_identity','kling_cinematic_preflight_346']);
+assert.deepEqual(events,['kling_product_commercial_story_358','opening_image','kling_cinematic_preflight_346']);
+assert.equal(opening.identityReviewStatus,'disabled');
+assert.equal(opening.identityConfidence,null,'No fake identity approval when the check is disabled');
 assert.equal(requests.length,2,'the existing two motion calls are reordered, not duplicated');
 assert.equal(referenceSafety.motionPlan.mode,'scene_verified_wear');
 assert(prompt.includes(plan.strategy),'the product-specific central story beat reaches Kling');
@@ -93,6 +95,6 @@ const calls=[];
 const safe=await motion.planKlingVerifiedMotion({openai:fake([],calls),model:'test',intelligence:garment,firstFrameDataUrl:args.sourceDataUrl,context:{commercialStory:outage}});
 assert.equal(calls.length,0);assert.match(safe.rejected_plan_reason,/planning timeout/);
 const failedOpening=await motion.planKlingVerifiedMotion({openai:fake([],calls),model:'test',intelligence:garment,firstFrameDataUrl:args.sourceDataUrl,
-  context:{commercialStory:{...story,status:'opening_unavailable',reason:'opening identity rejected'}}});
-assert.match(failedOpening.rejected_plan_reason,/opening identity rejected/);assert.equal(calls.length,0);
-console.log('PASS: distinct product stories, unsupported actions/depictions blocked, actual cropped frame rejected, outage and rejected opening do not add planning calls');
+  context:{commercialStory:{...story,status:'opening_unavailable',reason:'image generation failed'}}});
+assert.match(failedOpening.rejected_plan_reason,/image generation failed/);assert.equal(calls.length,0);
+console.log('PASS: distinct product stories, unsupported actions/depictions blocked, actual cropped frame rejected, outages and failed image generation do not add planning calls');

@@ -1,4 +1,5 @@
 import "./globals.css";
+import UiTextProvider from "../components/UiTextProvider.jsx";
 
 export const metadata = {
   title: "Spreelo App",
@@ -24,7 +25,7 @@ export default function RootLayout({ children }) {
           </>
         ) : null}
       </head>
-      <body>{children}</body>
+      <body><UiTextProvider>{children}</UiTextProvider></body>
     </html>
   );
 }

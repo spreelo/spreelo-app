@@ -87,7 +87,9 @@ function getEventTypeLabel(value, t) {
     local_event: "calendar.eventType.localEvent",
     holiday: "calendar.eventType.holiday",
     social_day: "calendar.eventType.socialDay",
+    theme_day: "calendar.eventType.themeDay.v362",
     awareness_day: "calendar.eventType.awarenessDay",
+    awareness_theme: "calendar.eventType.awarenessTheme.v362",
     ecommerce: "calendar.eventType.ecommerce",
     retail: "calendar.eventType.retail",
     campaign: "calendar.eventType.campaign",
@@ -100,9 +102,8 @@ function getEventTypeLabel(value, t) {
     return t(labelKey);
   }
 
-  return eventType
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  // Unknown AI/provider enum values are not authored customer-facing copy.
+  return t("calendar.eventType.campaign");
 }
 
 function getConfidenceLabel(value, t) {

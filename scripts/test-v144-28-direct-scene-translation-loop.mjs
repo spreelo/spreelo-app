@@ -33,19 +33,21 @@ assert(translationRoute.includes('intentionalUnchangedKeys?.has(String(key))'));
 assert(translationRoute.includes('targetLocaleRequiresLocalizedScript'));
 assert(translationRoute.includes('stripTranslationMetadata'));
 
-// A real in-scene first frame is generated and identity-reviewed before Kling gets it.
+// A real in-scene first frame is generated. The separate opening identity gate
+// was intentionally removed; final-video inspection remains independent.
 for (const expected of [
   "generateKlingDirectSceneOpeningFrame",
-  "reviewKlingOpeningSceneIdentity",
-  "Kling direct-scene opening frame accepted",
-  "verified_direct_scene",
-  "gpt_image_2_verified_direct_scene",
-  "The product must never appear first as a floating cutout, catalog card, isolated hero object, pedestal display or pasted layer",
+  "Kling direct-scene opening frame generated",
+  'openingIdentityReview: "disabled"',
+  'openingSceneMode = "direct_scene"',
+  "gpt_image_2_direct_scene",
+  "NO visual state where the product is simply centered against a background waiting for the video to begin.",
 ]) {
   assert(worker.includes(expected), `Missing direct-scene safeguard: ${expected}`);
 }
+assert(!worker.includes('reviewKlingOpeningSceneIdentity'));
 
-// If the direct scene cannot pass identity review, the old setup frame may guide Kling but must be fully removed from delivery.
+// Real generation failures still preserve a diagnostic fallback; trim contracts remain intact.
 assert(worker.includes('pixel_preserving_setup_fully_trimmed'));
 assert(worker.includes('klingSceneTrimSeconds = 1.9;'));
 assert(worker.includes('KLING_NATURAL_SCENE_TRIM_SECONDS'));
