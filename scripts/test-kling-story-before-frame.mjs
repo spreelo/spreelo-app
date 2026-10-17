@@ -45,19 +45,19 @@ const referenceSafety={productIntelligence:garment,fullProductInteractionSafe:tr
 const rule={website_item:{title:'Stabbing Halloween - Herr - T-shirt'},brand_profile:{business_name:'Pressit'}};
 const opening=await context.generateKlingDirectSceneOpeningFrame({openai:ai,rule,sourceImageBuffer:png,referenceSafety});
 const prompt=await context.buildKlingProductVideoPrompt({openai:ai,rule,referenceSafety,referenceFrameBuffer:opening.buffer});
-assert.deepEqual(events,['kling_product_commercial_story_358','opening_image','kling_cinematic_preflight_346']);
+assert.deepEqual(events,['kling_product_commercial_story_358','opening_image']);
 assert.equal(opening.identityReviewStatus,'disabled');
 assert.equal(opening.identityConfidence,null,'No fake identity approval when the check is disabled');
-assert.equal(requests.length,2,'the existing two motion calls are reordered, not duplicated');
+assert.equal(requests.length,1,'a prepared story must not trigger another AI judgment before Kling');
 assert.equal(referenceSafety.motionPlan.mode,'scene_verified_wear');
 assert(prompt.includes(plan.strategy),'the product-specific central story beat reaches Kling');
 assert(prompt.endsWith(referenceSafety.motionPlan.motion_prompt),'the reviewed motion arrives in full');
 assert.match(prompt,/Natural gait, head\/eye motion and fabric response are allowed/);
 assert.match(prompt,/SURFACE PRINT LOCK/);assert.match(prompt,/Never rotate the product/);
 assert(prompt.length<=2450);
-assert(requests[1].input[0].content[0].text.includes(story.opening_framing));
-assert.equal(requests[1].input[0].content[1].image_url,`data:image/png;base64,${opening.buffer.toString('base64')}`);
-console.log('PASS: real route plans the story before its image, reuses it for actual-frame preflight and submits the complete action with two planning/review calls and one image');
+assert.equal(referenceSafety.motionPlan.preflight,null);
+assert.equal(referenceSafety.motionPlan.execution_policy,'direct_kling_execution_v366');
+console.log('PASS: real route plans the story before its image and submits the complete action without an additional motion review');
 
 // A second physical product gets a different story, without category switches.
 const stroller={physical_subject:{kind:'physical_product',name:'Verified stroller'},confidence:.99,components:[],
@@ -75,18 +75,19 @@ const rolled=await motion.planKlingVerifiedMotion({openai:fake([review]),model:'
 assert.equal(rolled.mode,'verified_use');assert(rolled.motion_prompt.includes(rolling.motion_plan.strategy));
 assert.match(rolled.motion_prompt,/ground contact/);
 
-// A planned action is not authorization when the ACTUAL generated image
-// crops off support or otherwise cannot sustain it. Safety still wins.
+// A prepared story is sent to Kling without a speculative image/motion review.
+// The opening and provider instructions still describe support and exact identity.
 const cropped=await motion.planKlingVerifiedMotion({openai:fake([{...review,scene_safe:false,reason:'Walking was planned but the actual image crops off the legs and ground support'}]),
   model:'test',intelligence:garment,firstFrameDataUrl:args.sourceDataUrl,context:{commercialStory:{...story,status:'planned'}}});
-assert.equal(cropped.source,'safe_cinematic_fallback');assert.match(cropped.rejected_plan_reason,/crops off the legs/);
+assert.equal(cropped.source,'scene_aware_cinematic_plan');assert.equal(cropped.preflight,null);
+assert(cropped.motion_prompt.includes(plan.strategy));
 for(const change of [{camera_mode:'orbit'},{action_id:'invented'},{shot_count:2},{risk:'high'}]) {
   const proposal={...story,motion_plan:{...plan,...change}};
   const bad=await motion.planKlingCommercialStory({...args,intelligence:garment,openai:fake([proposal,proposal])});
   assert.equal(bad.status,'unavailable');
 }
-const noHandling=await motion.planKlingCommercialStory({...args,context:{fullProductInteractionSafe:false},intelligence:garment,openai:fake([story,story])});
-assert.equal(noHandling.status,'unavailable');
+const noHandling=await motion.planKlingCommercialStory({...args,context:{fullProductInteractionSafe:false},intelligence:garment,openai:fake([story])});
+assert.equal(noHandling.status,'planned');
 const printed=await motion.planKlingCommercialStory({...args,intelligence:{...garment,physical_subject:{kind:'packaging',name:'Box showing a person'}},openai:fake([story,story])});
 assert.equal(printed.status,'unavailable');
 const outage=await motion.planKlingCommercialStory({...args,intelligence:garment,openai:fake([new Error('planning timeout')])});
@@ -97,4 +98,4 @@ assert.equal(calls.length,0);assert.match(safe.rejected_plan_reason,/planning ti
 const failedOpening=await motion.planKlingVerifiedMotion({openai:fake([],calls),model:'test',intelligence:garment,firstFrameDataUrl:args.sourceDataUrl,
   context:{commercialStory:{...story,status:'opening_unavailable',reason:'image generation failed'}}});
 assert.match(failedOpening.rejected_plan_reason,/image generation failed/);assert.equal(calls.length,0);
-console.log('PASS: distinct product stories, unsupported actions/depictions blocked, actual cropped frame rejected, outages and failed image generation do not add planning calls');
+console.log('PASS: distinct product stories, cutout margins advisory, unsupported contracts/depictions rejected, outages and failed image generation do not add planning calls');

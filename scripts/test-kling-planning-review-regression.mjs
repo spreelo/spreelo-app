@@ -67,11 +67,13 @@ assert.equal(images,0);assert.equal(claims,0);assert.equal(backgrounds,0);
 const prefix=extract(route,'function getKlingProviderSafetyPrefix(','function getKlingProductPromptFallback(');
 const build=extract(route,'async function buildKlingProductVideoPrompt(','function buildKlingEngagementVideoPrompt(');
 Object.assign(context,{assembleKlingPrompt,validateKlingCreativeDirection});vm.runInContext(prefix+'\n'+build,context);
-const badPreflight={identity_safe:true,source_view_safe:true,functions_supported:true,scene_safe:false,causality_safe:true,confidence:.98,reason:'The actual frame does not support walking'};
-await assert.rejects(()=>context.buildKlingProductVideoPrompt({openai:ai([badPreflight]),rule:{},referenceFrameBuffer:image,
-  referenceSafety:{productIntelligence:intel,commercialStory:{...story,status:'planned'},fullProductInteractionSafe:true}}),
-  e=>e.code==='KLING_MOTION_PLAN_REVIEW_REQUIRED'&&e.motionPlanning.preflight.scene_safe===false);
-console.log('PASS: actual rescue path stops before image, fallback background or Kling claim; rejected actual-frame preflight cannot become a paid camera fallback');
+const reviewCalls=[];
+const preparedSafety={productIntelligence:intel,commercialStory:{...story,status:'planned'},fullProductInteractionSafe:false};
+const preparedPrompt=await context.buildKlingProductVideoPrompt({openai:ai([],reviewCalls),rule:{},referenceFrameBuffer:image,
+  referenceSafety:preparedSafety});
+assert.equal(reviewCalls.length,0,'prepared stories go directly to Kling without another model judgment');
+assert(preparedPrompt.includes(plan.strategy));assert.equal(preparedSafety.motionPlan.preflight,null);
+console.log('PASS: malformed contracts stop before spending; valid stories retain their action and product locks without a second AI review');
 
 // Reproduce the reported post through the REAL finalizer and REAL delivery
 // logic. Creative criticism follows the customer's configured delivery route.

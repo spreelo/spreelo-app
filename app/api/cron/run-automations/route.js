@@ -16533,9 +16533,7 @@ async function generateKlingDirectSceneOpeningFrame({
   });
 
   const verifiedViewInstruction = getKlingVerifiedViewInstruction(referenceSafety);
-  const interactionInstruction = fullProductInteractionSafe
-    ? `Place the exact physical subject naturally in a believable supported scene, retaining its precise verified view. Ordinary holding/wearing/ground contact may be staged ONLY when the sanitized PRODUCT EVIDENCE CONTRACT below supports that specific physical subject and its bounded action. Do not infer permission from product category or full visibility alone. Preserve component roles and state. Establish any supporting hand, wearer or ground contact from frame zero. For packaging, stage the physical box with exact static artwork; never extract or animate the devices printed on it. No operation, docking/undocking, insertion, opening, pumping, spraying, switching, pedaling mechanism, part removal or transformation may be staged. The opening must already be the finished real scene, with no setup transition. ${verifiedViewInstruction}`
-    : `Keep only the exact verified visible portion/view naturally in a supported real scene. Do not complete, extend, rotate or invent unseen surfaces. Keep the physical subject mechanically passive and establish no handling or operational state. Printed artwork stays static. The opening must already be the finished real scene, with no setup transition. ${verifiedViewInstruction}`;
+  const interactionInstruction = `Place the exact physical subject naturally in a believable supported scene, retaining its precise verified view. Stage ordinary wearing, carrying or ground contact appropriate to the real product and the shared commercial story. Automatic cutout suitability and edge margins are composition metadata, not a prohibition on a wearer or carrier. Preserve the exact visible product, component roles and state; never complete or invent unseen product surfaces. Establish any supporting hand, wearer or ground contact from frame zero. For packaging, stage the physical box with exact static artwork; never extract or animate the devices printed on it. No operation, docking/undocking, insertion, opening, pumping, spraying, switching, pedaling mechanism, part removal or transformation may be staged. The opening must already be the finished real scene, with no setup transition. ${verifiedViewInstruction}`;
 
   const commercialStory=isEngagementAiVideoRule(rule) ? null : await planKlingCommercialStory({openai,model:PRODUCT_RESEARCH_FAST_MODEL,
     intelligence:referenceSafety?.productIntelligence,sourceDataUrl:`data:image/png;base64,${source.toString('base64')}`,
@@ -16789,8 +16787,8 @@ async function buildKlingProductVideoPrompt({ openai, rule, postContent, referen
   if (!safetyReview.ok) motionPlan = passiveKlingMotionPlan(safetyReview.reasons.join(", "));
   const safety = getKlingProviderSafetyPrefix(referenceSafety);
   let prompt = assembleKlingPrompt({ safety, direction: motionPlan.motion_prompt, maxCreative: 1200 });
-  // A review is valid only for the exact direction that is submitted. Never
-  // truncate a reviewed operation and leave incompatible metadata behind.
+  // Preserve the complete planned direction and its product requirements.
+  // Never truncate an operation and leave incompatible metadata behind.
   let submitted = prompt.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim();
   if (submitted !== motionPlan.motion_prompt) {
     motionPlan = passiveKlingMotionPlan("reviewed_plan_exceeds_provider_budget");
@@ -16802,7 +16800,7 @@ async function buildKlingProductVideoPrompt({ openai, rule, postContent, referen
   if(referenceSafety?.commercialStory) assertKlingMotionPlanningReady({story:referenceSafety.commercialStory,motionPlan});
   console.info('Kling commercial motion selected', {product:rule?.website_item?.title||rule?.website_item?.item_title||null,
     storyStatus:referenceSafety?.commercialStory?.status||'legacy_scene_first',mode:motionPlan.mode,camera:motionPlan.camera_mode,
-    source:motionPlan.source,fallbackReason:motionPlan.rejected_plan_reason||null});
+    source:motionPlan.source,executionPolicy:motionPlan.execution_policy||'legacy_scene_first',fallbackReason:motionPlan.rejected_plan_reason||null});
   return prompt;
 }
 
