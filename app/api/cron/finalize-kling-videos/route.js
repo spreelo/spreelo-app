@@ -1,3 +1,4 @@
+import { END_CARD_DESIGN_BRIEF, END_CARD_LAYOUT_POLICY, END_CARD_HOLD_SECONDS, normalizeEndCardHook, endCardEmphasis } from "../../../../lib/videoEndCardBrief.js";
 import { inspectVideoComposition, chooseVideoTextBox, adaptVideoTextContrast, adaptEndCardComposition, emptyVideoTypography } from '../../../../lib/videoAdaptiveLayout.js';
 import { COMMERCIAL_COPY_HIERARCHY, repeatsAdvertisingMessage, isProductLabelHeadline } from "../../../../lib/videoAdvertisingHierarchy.js";
 import { deferKlingRenderContinuation, completedVideoSelection } from "../../../../lib/videoJobSafety.js";
@@ -471,6 +472,8 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
   const fallbackCta = normalizeKlingCreativeLine(getFallbackKlingCta(post), { maxWords: 6, maxChars: 40 }) || "Learn more";
   const fallbackPlan = {
     headline: fallbackHeadline,
+    closing_headline: fallbackHeadline,
+    end_card_emphasis: "",
     subheadline: fallbackSubheadline,
     cta: fallbackCta,
     main_placement: "lower_left",
@@ -498,12 +501,12 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       "Reject empty generic advertising language such as 'classic comfort for every occasion', 'quality for every day', 'made for every moment', or equivalents unless the supplied product facts genuinely support it. " +
       "Do not invent material, comfort, durability, fit, performance, reviews, scarcity, prices, discounts or other claims. For graphic apparel, you may use the printed theme/motif only when it is explicit in the product title or caption. " +
       "The subheadline is OPTIONAL and should usually be empty. Return an empty string unless a short 2-5 word line adds clear advertising value beyond the headline. Never use filler, product-category labels, gender labels, material facts or catalogue descriptors as the subheadline. " +
-      "The cta field is a non-interactive closing advertising line, NOT a clickable video button. Prefer 2-4 words, max 40 characters, distinct from the headline; this appears as the highlighted support line beneath the large headline on the end card, tailored to THIS product, audience and campaign goal. For sales, a natural invitation to explore the verified product or store can work; for engagement, a relevant short question can work. Never imply the video itself is clickable, or invent a link in the bio, caption, a tag, swipe-up or shopping feature. Avoid repeating a fixed phrase on every post. " +
+      "The cta field is a non-interactive closing advertising line, NOT a clickable video button. Prefer 2-6 words, max 58 characters, distinct from both headlines; this appears as the highlighted support line beneath the large headline on the end card, tailored to THIS product, audience and campaign goal. For sales, a natural invitation to explore the verified product or store can work; for engagement, a relevant short question can work. Never imply the video itself is clickable, or invent a link in the bio, caption, a tag, swipe-up or shopping feature. Avoid repeating a fixed phrase on every post. " +
       "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
       "Choose main_placement from top_left, top_right, middle_left, middle_right, lower_left, lower_right so the headline avoids the advertised product and especially its print/design, plus faces, hands and the main action ACROSS ALL supplied frames. " +
       "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, where the scene has real negative space, including above the product when appropriate; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose the most compelling safe main width 520-876, height 140-500; the closing line belongs on the separate end card, so do not waste scene space by preparing a small second in-scene label. Prioritize prominent readable lettering without covering the product. Use scene-appropriate medium or semibold hierarchy and purposeful line breaks. Do not default to extra-bold text or outlines. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
-      VIDEO_ART_DIRECTION + " " + COMMERCIAL_COPY_HIERARCHY + " " + CREATIVE_DIRECTOR_BRIEF + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
-      "The cta is displayed on a separate company-branded end card, not on a frozen product photograph. Keep it concise enough to read in 1.5 seconds. Include end-card background art direction suited to the business in design_direction. Choose cta_placement independently for legacy compatibility. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
+      VIDEO_ART_DIRECTION + " " + COMMERCIAL_COPY_HIERARCHY + " " + END_CARD_DESIGN_BRIEF + " Return closing_headline as a distinct short closing hook; end_card_emphasis is an exact phrase within it to emphasize, or an empty string. Put concrete background palette hex colors, texture and type choices in design_direction. " + CREATIVE_DIRECTOR_BRIEF + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
+      "The cta is displayed on a separate company-branded end card, not on a frozen product photograph. Keep it concise enough to read in about two seconds. Include end-card background art direction suited to the business in design_direction. Choose cta_placement independently for legacy compatibility. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
   }];
   for (const frame of frames) {
     content.push({
@@ -531,6 +534,8 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
                 headline: { type: "string" },
                 subheadline: { type: "string" },
                 cta: { type: "string" },
+                closing_headline: { type: "string" },
+                end_card_emphasis: { type: "string" },
                 main_placement: { type: "string", enum: Object.keys(KLING_FINISHED_TYPOGRAPHY_PLACEMENTS) },
                 cta_placement: { type: "string", enum: Object.keys(KLING_FINISHED_TYPOGRAPHY_PLACEMENTS) },
                 main_text_tone: { type: "string", enum: ["light", "dark"] },
@@ -541,7 +546,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
                 placement_confidence: { type: "number", minimum: 0, maximum: 1 },
               },
               required: [
-                "design_direction", "headline", "subheadline", "cta", "main_placement", "cta_placement",
+                "design_direction", "headline", "subheadline", "cta", "closing_headline", "end_card_emphasis", "main_placement", "cta_placement",
                 "main_text_tone", "cta_text_tone", "placement_confidence", "main_layout", "cta_layout", "protected_regions"
               ],
             },
@@ -557,10 +562,12 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       }
       const proposedSubheadline = normalizeKlingCreativeLine(parsed?.subheadline, { maxWords: 5, maxChars: 36 });
       const subheadline = (repeatsAdvertisingMessage(headline, proposedSubheadline) || repeatsAdvertisingMessage(productTitle, proposedSubheadline)) ? "" : proposedSubheadline;
-      const cta = normalizeKlingCreativeLine(parsed?.cta, { maxWords: 6, maxChars: 40 }) || fallbackCta;
+      const cta = normalizeKlingCreativeLine(parsed?.cta, { maxWords: 7, maxChars: 58 }) || fallbackCta;
       return {
         design_direction: truncate(parsed?.design_direction, 600),
         headline,
+        closing_headline: normalizeEndCardHook(parsed?.closing_headline,headline),
+        end_card_emphasis: endCardEmphasis(parsed?.end_card_emphasis,normalizeEndCardHook(parsed?.closing_headline,headline)),
         subheadline,
         cta,
         main_placement: KLING_FINISHED_TYPOGRAPHY_PLACEMENTS[parsed?.main_placement] ? parsed.main_placement : fallbackPlan.main_placement,
@@ -1223,6 +1230,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     });
     const headline = creativePlan.headline || fallbackHeadline;
     const subheadline = creativePlan.subheadline || "";
+    const closingHeadline = creativePlan.closing_headline || headline;
     workingSelection = {
       ...workingSelection,
       ad_creative_plan: creativePlan,
@@ -1325,7 +1333,9 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         }) : {buffer:normalized.buffer,analysis:{sceneHeadlineOmitted:true}};
         const initialLayers = await composeVideoEndCardLayers({
           background:splitOverlay.endCard,closingText:splitOverlay.closingText,
-          headlineArtwork:splitOverlay.headline,headline:[headline,subheadline].filter(Boolean).join(" "),
+          headlineArtwork:splitOverlay.headline,headline:closingHeadline,
+          layoutPolicy:END_CARD_LAYOUT_POLICY,backgroundSource:splitOverlay.backgroundSource,designDirection:creativePlan.design_direction,
+          websiteUrl:brand.website_url||post.website_url,emphasisText:creativePlan.end_card_emphasis,
           productLabel:selection?.verified_product_title||"",
           closingLine:creativePlan.cta||getFallbackKlingCta(post),brand,logoBuffer,
           language:post.language,preserveDesign:true,includeSender:false,
@@ -1336,7 +1346,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         const verifyScene=async({overlay,endCard:card})=>reviewAdvertisingComposition({
           openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
           frames:await composedAdvertisingSceneFrames(videoBackgrounds,overlay),
-          endCard:card,headline,closingLine:creativePlan.cta||getFallbackKlingCta(post),sceneHeadlineOmitted:!sceneChoice,allowReviewServiceOutage:true,typographyPreflightPassed:true,
+          endCard:card,headline,endCardHeadline:closingHeadline,closingLine:creativePlan.cta||getFallbackKlingCta(post),sceneHeadlineOmitted:!sceneChoice,allowReviewServiceOutage:true,typographyPreflightPassed:true,
         });
         // v144.350: verify the ACTUAL final-resolution glyph height before
         // compositing and keep the existing approved Kling source untouched.
@@ -1369,7 +1379,9 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
                 designDirection:creativePlan.design_direction,brand,variant,
               });
               return adaptEndCardComposition({layers:await composeVideoEndCardLayers({background:splitOverlay.endCard,
-                headlineArtwork:splitOverlay.headline,headline:[headline,subheadline].filter(Boolean).join(" "),
+                headlineArtwork:splitOverlay.headline,headline:closingHeadline,
+                layoutPolicy:END_CARD_LAYOUT_POLICY,backgroundSource:splitOverlay.backgroundSource,designDirection:creativePlan.design_direction,
+                websiteUrl:brand.website_url||post.website_url,emphasisText:creativePlan.end_card_emphasis,
                 productLabel:selection?.verified_product_title||"",
                 closingText:fixedCta.buffer,closingLine:creativePlan.cta||getFallbackKlingCta(post),
                 brand,logoBuffer,language:post.language,preserveDesign:true,includeSender:false}),inspection:compositionInspection,sceneBackground:frames.at(-1)?.buffer,
@@ -1410,9 +1422,9 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       end_card_text_url: endText.imageUrl,
       end_card_url: endCard.imageUrl,
       end_card_storage_path: endCard.storagePath,
-      end_card_provider: "gpt-image-2.5-flare-independent-assets-v348",
+      end_card_provider: layers.layout?.adaptive?.backgroundSource==='designed_fallback' ? "designed-background-fallback-v363" : "gpt-image-independent-background-v363",
       advertising_typography_mode:splitOverlay.typographyMode,
-      end_card_seconds: KLING_END_CARD_SECONDS,
+      end_card_seconds: END_CARD_HOLD_SECONDS,
       end_card_brand_name: brand.business_name || null,
       end_card_has_logo: false,
       end_card_includes_sender: Boolean(layers.hasSender),
@@ -1656,7 +1668,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
       throw error;
     }
     postprocess = await ensureKlingEndCard({ supabase, post, selection: postprocess, brand, logoBuffer });
-    const closingHoldSeconds = KLING_END_CARD_SECONDS;
+    const closingHoldSeconds = postprocess.video_design_version>=363 ? END_CARD_HOLD_SECONDS : KLING_END_CARD_SECONDS;
     const deliveredMotionDurationSeconds = Math.max(2.5, motionEndSeconds - trimStartSeconds);
     const deliveredDurationSeconds = deliveredMotionDurationSeconds + closingHoldSeconds;
     const musicSelection = await selectBestVideoMusic({
@@ -1808,7 +1820,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
   try {
     finishedDesignReview=await reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
       durationSeconds:nextSelection.delivered_duration_seconds||6,sampleFrames:sampleRemoteVideoFrames,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
-      headline:postprocess.text_overlay_copy?.headline||'',closingLine:postprocess.ad_creative_plan?.cta||'',
+      headline:postprocess.text_overlay_copy?.headline||'',endCardHeadline:postprocess.ad_creative_plan?.closing_headline||'',closingLine:postprocess.ad_creative_plan?.cta||'',
       sceneHeadlineOmitted:postprocess.ad_creative_plan?.scene_headline_omitted===true,
       allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true});
   } catch(error) {

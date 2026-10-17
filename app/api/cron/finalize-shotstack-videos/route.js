@@ -51,6 +51,7 @@ export async function GET(request){
           return reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
             durationSeconds:reviewPost.video_duration_seconds||7,sampleFrames:sampleRemoteVideoFrames,
             headline:reviewPost.video_background_selection?.advertising_headline,
+            endCardHeadline:reviewPost.video_background_selection?.advertising_closing_headline,
             closingLine:reviewPost.video_background_selection?.advertising_closing_line,
             allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true});
         }});

@@ -1,3 +1,4 @@
+import { END_CARD_LAYOUT_POLICY } from "../../../../lib/videoEndCardBrief.js";
 import { recordDatabaseRuntimeFailure } from '../../../../lib/systemHealth.js';
 import { inspectVideoComposition, chooseVideoTextBox, adaptVideoTextContrast, adaptEndCardComposition, emptyVideoTypography } from '../../../../lib/videoAdaptiveLayout.js';
 import { persistKlingOpeningAssets } from "../../../../lib/klingOpeningAssets.js";
@@ -39530,7 +39531,10 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         const contrast=sceneChoice?await ensureTypographyContrast({overlayBuffer:panel.textOverlayBuffer,backgroundBuffers:composites,textBox:sceneBox,preserveDesign:true}):{buffer:panel.textOverlayBuffer,analysis:{sceneHeadlineOmitted:true}};
         const closing=await inspectTypographyShape(split.closingText);
         const initialEndCard=await composeVideoEndCardLayers({background:split.endCard,closingText:closing.buffer,closingLine:advertisingCopy.closingLine,
-          headlineArtwork:split.headline,headline:advertisingCopy.headline,productLabel:rule?.website_item?.title||"",
+          headlineArtwork:split.headline,headline:advertisingCopy.closingHeadline||advertisingCopy.headline,
+          layoutPolicy:END_CARD_LAYOUT_POLICY,backgroundSource:split.backgroundSource,designDirection:advertisingCopy.designDirection,
+          websiteUrl:rule?.brand_profile?.website_url||rule?.website_item?.url,emphasisText:advertisingCopy.emphasisText,
+          productLabel:rule?.website_item?.title||"",
           brand:rule?.brand_profile||{},hasLogo,language:rule?.language,preserveDesign:true,includeSender:false});
         const endCard=await adaptEndCardComposition({layers:initialEndCard,inspection:compositionInspection,sceneBackground:composites.at(-1),
           quietBackground:()=>buildOfflineAdvertisingBackdrop({designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{}})});
@@ -39539,7 +39543,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         const composedFrames=async overlay=>composedAdvertisingSceneFrames(backgrounds,overlay,productOverlay);
         const verifyScene=async ({overlay,endCard:card})=>reviewAdvertisingComposition({openai,model:PRODUCT_RESEARCH_FAST_MODEL,
           frames:await composedFrames(overlay),endCard:card,sceneHeadlineOmitted:!sceneChoice,
-          headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true});
+          headline:advertisingCopy.headline,endCardHeadline:advertisingCopy.closingHeadline||advertisingCopy.headline,closingLine:advertisingCopy.closingLine,allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true});
         // v144.350: enforce actual visible character size BEFORE the expensive
         // rendered-video stage, rather than hoping a later AI review catches it.
         // Preserve professional GPT-image lettering when the ink is large enough.
@@ -39573,7 +39577,10 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
                 designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},variant,
               });
               const repaired=await composeVideoEndCardLayers({background:split.endCard,closingText:fixedCta.buffer,
-                headlineArtwork:split.headline,headline:advertisingCopy.headline,productLabel:rule?.website_item?.title||"",
+                headlineArtwork:split.headline,headline:advertisingCopy.closingHeadline||advertisingCopy.headline,
+                layoutPolicy:END_CARD_LAYOUT_POLICY,backgroundSource:split.backgroundSource,designDirection:advertisingCopy.designDirection,
+                websiteUrl:rule?.brand_profile?.website_url||rule?.website_item?.url,emphasisText:advertisingCopy.emphasisText,
+                productLabel:rule?.website_item?.title||"",
                 closingLine:advertisingCopy.closingLine,brand:rule?.brand_profile||{},hasLogo,
                 language:rule?.language,preserveDesign:true,includeSender:false});
               return adaptEndCardComposition({layers:repaired,inspection:compositionInspection,sceneBackground:composites.at(-1),
@@ -39969,6 +39976,7 @@ async function createAnimatedProductVideoAssets({
       logo_placement:'corner_only',
       typography_design_review: textOverlay.designReview || null,
       advertising_headline: textOverlay.advertisingCopy?.headline || null,
+      advertising_closing_headline: textOverlay.advertisingCopy?.closingHeadline || null,
       advertising_closing_line: textOverlay.advertisingCopy?.closingLine || null,
       advertising_design_direction: textOverlay.advertisingCopy?.designDirection || null,
       video_design_version: VIDEO_DESIGN_VERSION,
@@ -40120,6 +40128,7 @@ export async function generateAnimatedProductVideo({
       reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
         durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
         headline:post.video_background_selection?.advertising_headline||assets.backgroundSelection?.advertising_headline,
+        endCardHeadline:post.video_background_selection?.advertising_closing_headline||assets.backgroundSelection?.advertising_closing_headline,
         sceneHeadlineOmitted:(post.video_background_selection?.scene_headline_omitted??assets.backgroundSelection?.scene_headline_omitted)===true,
         closingLine:post.video_background_selection?.advertising_closing_line||assets.backgroundSelection?.advertising_closing_line,allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true})});
     return {...assets,backgroundSelection:ready.video_background_selection,videoUrl:ready.video_url,videoStoragePath:ready.video_storage_path,renderId};
@@ -46349,7 +46358,7 @@ async function runAutomationCron(request, options = {}) {
               waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker:activeGenerationCostTracker,
               reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
                 durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
-                headline:post.video_background_selection?.advertising_headline,
+                headline:post.video_background_selection?.advertising_headline,endCardHeadline:post.video_background_selection?.advertising_closing_headline,
                 sceneHeadlineOmitted:post.video_background_selection?.scene_headline_omitted===true,
                 closingLine:post.video_background_selection?.advertising_closing_line,allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true})});
             automationDrafts=automationDrafts.map(post=>post.id===finished.id?finished:post);

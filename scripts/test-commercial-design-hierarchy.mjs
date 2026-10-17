@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { END_CARD_DESIGN_BRIEF, normalizeEndCardHook, endCardEmphasis } from '../lib/videoEndCardBrief.js';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import sharp from 'sharp';
@@ -84,7 +85,7 @@ const plan = { headline: oldCopy, subheadline: 'Bepansrade Enhörningar', cta: p
 async function copyCase(results) {
   const calls=[];
   const ctx=vm.createContext({ console:quiet, COMMERCIAL_COPY_HIERARCHY, repeatsAdvertisingMessage, isProductLabelHeadline,
-    VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION, CREATIVE_DIRECTOR_BRIEF:'Verified facts only.',
+    VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION, END_CARD_DESIGN_BRIEF, normalizeEndCardHook, endCardEmphasis, CREATIVE_DIRECTOR_BRIEF:'Verified facts only.',
     KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'fixture', KLING_FINISHED_TYPOGRAPHY_PLACEMENTS:{lower_left:{}},
     normalizeKlingCreativeLine:(value)=>String(value||'').trim(), getFallbackKlingCta:()=>params.closingLine,
     normalizeKlingLayout:value=>value||{}, getKlingPlacementBox:()=>({}), sceneSafeKlingLayout:value=>value,

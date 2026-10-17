@@ -41,7 +41,7 @@ assert(avoidsProtectedRegions(corrected.layout.adaptive.box,[{left:630,top:570,w
 const recovered=await adaptEndCardComposition({layers,inspection:unavailable,quietBackground:()=>buildOfflineAdvertisingBackdrop({brand:{primary_color:'#132237'}})});
 assert(recovered.layout.adaptive.backgroundReplaced,'unknown/crowded end card gets a quiet background, no new paid attempt or admin hold');
 const safeFrame=await adaptEndCardComposition({layers,inspection:{endVerified:true,endContainsProduct:true,sceneVerified:true,endRegions:regions,sceneRegions:regions},sceneBackground:await sharp(canvas).resize(540,960).png().toBuffer(),quietBackground:()=>buildOfflineAdvertisingBackdrop()});
-assert.equal(safeFrame.layout.adaptive.backgroundSource,'verified_scene_frame','a generated product on the end card is replaced with the existing verified video frame');
+assert.equal(safeFrame.layout.adaptive.backgroundSource,'quiet_fallback','a generated product on the end card is replaced with a separate designed background');
 assert.equal((await sharp(safeFrame.cardBuffer).metadata()).width,1080);
 
 for(const edit of [buildVideoOverlayEdit({videoUrl:'v',textOverlayUrl:'t',logoOverlayUrl:'logo',endCardUrl:'c',endCardIncludesSender:layers.hasSender,durationSeconds:5,closingHoldSeconds:1.5}),buildProductPushEdit({backgroundVideoUrl:'v',productDataUri:'p',logoOverlayUrl:'logo',endCardUrl:'c',endCardIncludesSender:layers.hasSender,durationSeconds:5,closingHoldSeconds:1.5})]){
