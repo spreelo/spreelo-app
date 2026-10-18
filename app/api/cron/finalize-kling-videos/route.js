@@ -1,3 +1,4 @@
+import { END_CARD_FRAMING } from '../../../../lib/videoEndCardMaster.js';
 import { COMMERCIAL_CONCEPT_VERSION, COMMERCIAL_CONCEPT_BRIEF, COMMERCIAL_CONCEPT_SCHEMA, normalizeCommercialConcept, commercialConceptDirection, separateCommercialWebsite } from '../../../../lib/videoCommercialConcept.js';
 import { END_CARD_DESIGN_BRIEF, END_CARD_LAYOUT_POLICY, END_CARD_HOLD_SECONDS, normalizeEndCardHook, endCardEmphasis } from "../../../../lib/videoEndCardBrief.js";
 import { inspectVideoComposition, choosePlannedVideoTextBox, adaptVideoTextContrast, adaptEndCardComposition, emptyVideoTypography } from '../../../../lib/videoAdaptiveLayout.js';
@@ -500,7 +501,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       `The first image is the AUTHORITATIVE PRODUCT REFERENCE when supplied; all following images are frames from the FINISHED delivered video. The reference establishes product identity and meaning; only the video frames establish text placement and protected rectangles. Existing social caption: ${JSON.stringify(postCopy)}. ` +
       `CTA setting: ${JSON.stringify(post?.cta_type || "Learn more")}. Campaign goal: ${JSON.stringify(context?.goal || "")}. ` +
       `Company identity for the end card: ${JSON.stringify(selection?.end_card_brand_context || {})}. Product category: ${JSON.stringify(context?.product_category || "")}. ` +
-      `Verified product identity/use (data): ${JSON.stringify({subject:selection?.reference_safety?.productIntelligence?.physical_subject,visible_identity:selection?.reference_safety?.productIntelligence?.visible_identity,story:selection?.reference_safety?.commercialStory?.concept})}. ` +
+      `Verified product identity/use (data): ${JSON.stringify({description:String(selection?.verified_product_description||"").slice(0,1800),subject:selection?.reference_safety?.productIntelligence?.physical_subject,visible_identity:selection?.reference_safety?.productIntelligence?.visible_identity})}. ` +
       COMMERCIAL_CONCEPT_BRIEF + " " +
       "Write all visible copy in the same language as the social caption. Prefer a bold, concise 2-5 word headline that fits into one or two visually dominant lines without shrinking the font; rewrite overlong phrasing at planning time. Maximum 48 characters, semantically complete, and specifically connected to the verified product, its explicit motif/theme, category or supplied campaign angle. " +
       "Reject empty generic advertising language such as 'classic comfort for every occasion', 'quality for every day', 'made for every moment', or equivalents unless the supplied product facts genuinely support it. " +
@@ -509,8 +510,8 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       "The cta field is a non-interactive closing advertising line, NOT a clickable video button. Prefer 2-6 words, max 58 characters, distinct from both headlines; this appears as the highlighted support line beneath the large headline on the end card, tailored to THIS product, audience and campaign goal. For sales, a natural invitation to explore the verified product or store can work; for engagement, a relevant short question can work. Never imply the video itself is clickable, or invent a link in the bio, caption, a tag, swipe-up or shopping feature. Avoid repeating a fixed phrase on every post. " +
       "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
       "Choose main_placement from top_left, top_right, middle_left, middle_right, lower_left, lower_right so the headline avoids the advertised product and especially its print/design, plus faces, hands and the main action ACROSS ALL supplied frames. " +
-      "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, where the scene has real negative space, including above the product when appropriate; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose the most compelling safe main width 520-876, height 140-500; the closing line belongs on the separate end card, so do not waste scene space by preparing a small second in-scene label. Prioritize prominent readable lettering without covering the product. Use scene-appropriate medium or semibold hierarchy and purposeful line breaks. Do not default to extra-bold text or outlines. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
-      VIDEO_ART_DIRECTION + " " + COMMERCIAL_COPY_HIERARCHY + " " + END_CARD_DESIGN_BRIEF + " Return closing_headline as a distinct short closing hook; end_card_emphasis is an exact phrase within it to emphasize, or an empty string. Put concrete background palette hex colors, texture and type choices in design_direction. " + CREATIVE_DIRECTOR_BRIEF + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
+      "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, where the scene has real negative space, including above the product when appropriate; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose the most compelling safe main width 520-876, height 140-500; the closing line belongs on the separate end card, so do not waste scene space by preparing a small second in-scene label. Prioritize prominent readable lettering without covering the product. Choose the weight from the actual campaign personality: bold or heavy when the hook needs impact, restrained when the offer calls for it. Use purposeful line breaks and no default outlines. Do not weaken every campaign into medium-weight subtitle lettering. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
+      VIDEO_ART_DIRECTION + " " + COMMERCIAL_COPY_HIERARCHY + " " + END_CARD_DESIGN_BRIEF + " Return closing_headline as a complete persuasive closing thought rather than a generic adjective plus the product label; end_card_emphasis is an exact phrase within it to emphasize, or an empty string. Put concrete background palette hex colors, texture and type choices in design_direction. " + CREATIVE_DIRECTOR_BRIEF + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
       "The cta is displayed on a separate company-branded end card, not on a frozen product photograph. Keep it concise enough to read in about two seconds. Include end-card background art direction suited to the business in design_direction. Choose cta_placement independently for legacy compatibility. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
   }];
   if (productReferenceBuffer) {
@@ -530,7 +531,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       const response = await openai.responses.create({
         model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
         input: [{ role: "user", content }],
-        max_output_tokens: 2200,
+        max_output_tokens: 2600,
         text: {
           format: {
             type: "json_schema",
@@ -1253,7 +1254,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       post,
       selection: {
         ...workingSelection,
-        end_card_brand_context: { name: brand.business_name, industry: brand.industry, colors: brand.brand_colors || brand.colors || brand.primary_color, description: brand.brand_description || brand.description || brand.business_description, website_url:brand.website_url||post.website_url },
+        end_card_brand_context: { name: brand.business_name, industry: brand.industry, colors: brand.brand_colors || brand.colors || brand.primary_color, description: brand.brand_description || brand.description || brand.business_description, audience:brand.target_audience, website_url:brand.website_url||post.website_url },
         text_overlay_copy: { headline: fallbackHeadline, subheadline: fallbackSubheadline },
       },
       frames,
@@ -1298,6 +1299,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     let designFeedback = null;
     let cachedIndependentBackground = null;
     let cachedIndependentMaster = false;
+    let cachedIndependentFraming = null;
     let compositionInspection = null;
     for (let designAttempt = 1; designAttempt <= 2; designAttempt += 1) {
       const attemptPrompt = designAttempt === 1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(designFeedback)}`;
@@ -1320,11 +1322,11 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         let splitOverlay = await generateIndependentAdvertisingAssets({
           openai, model:KLING_TYPOGRAPHY_MODEL, referenceFiles,
           headline, subheadline, closingLine:creativePlan.cta||getFallbackKlingCta(post),
-          creativeConcept:creativePlan.creative_concept,closingHeadline,renderEndCardMaster:true,websiteUrl:brand.website_url||post.website_url,
+          creativeConcept:creativePlan.creative_concept,closingHeadline,closingEmphasis:creativePlan.end_card_emphasis,sceneBackground:frames[0]?.buffer,renderEndCardMaster:true,masterFraming:END_CARD_FRAMING,websiteUrl:brand.website_url||post.website_url,
           designDirection:designAttempt===1?creativePlan.design_direction:`${creativePlan.design_direction}. ${creativeCorrectionInstruction(designFeedback)}`,
           brand, hasLogo:Boolean(logoBuffer),
-          cachedBackground:cachedIndependentBackground,cachedMaster:cachedIndependentMaster,
-          onBackground:async(buffer,metadata)=>{cachedIndependentBackground=buffer;cachedIndependentMaster=metadata?.isMaster===true;},
+          cachedBackground:cachedIndependentBackground,cachedMaster:cachedIndependentMaster,cachedMasterFraming:cachedIndependentFraming,
+          onBackground:async(buffer,metadata)=>{cachedIndependentBackground=buffer;cachedIndependentMaster=metadata?.isMaster===true;cachedIndependentFraming=metadata?.framing||null;},
         });
         if (!splitOverlay.closingText) throw new Error('End card is missing GPT Image CTA lettering');
         // If GPT-image renders a misspelled (yet transparent) headline, repair
@@ -1379,7 +1381,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
           box:creativePlan.main_layout,text:[headline,subheadline].filter(Boolean).join(' '),
           designDirection:creativePlan.design_direction,brand,
         }) : {buffer:contrast.buffer,locallyRebuilt:false};
-        const sceneContrast=sceneChoice ? await adaptVideoTextContrast({overlay:preflight.buffer,frames:videoBackgrounds,box:creativePlan.main_layout}) : {buffer:preflight.buffer,analysis:{omitted:true}};
+        const sceneContrast=sceneChoice ? await adaptVideoTextContrast({overlay:preflight.buffer,frames:videoBackgrounds,box:creativePlan.main_layout,preservePalette:true}) : {buffer:preflight.buffer,analysis:{omitted:true}};
         contrast.analysis={...contrast.analysis,adaptive:sceneContrast.analysis};
         let approvedOverlay=sceneContrast.buffer;
         let approvedReview;
@@ -1449,6 +1451,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       end_card_prompt: splitOverlay.endCardPrompt,
       end_card_reference_mode: splitOverlay.backgroundReferenceMode,
       end_card_reference_count: splitOverlay.backgroundReferenceCount,
+      end_card_framing: splitOverlay.endCardFraming || null,
       end_card_provider: layers.isMaster?'gpt-image-complete-end-card-v365':layers.layout?.adaptive?.backgroundSource==='designed_fallback' ? "designed-background-fallback-v363" : "gpt-image-independent-background-v363",
       advertising_typography_mode:splitOverlay.typographyMode,
       end_card_seconds: END_CARD_HOLD_SECONDS,

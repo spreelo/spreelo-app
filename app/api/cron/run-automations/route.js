@@ -1,3 +1,4 @@
+import { END_CARD_FRAMING } from '../../../../lib/videoEndCardMaster.js';
 import { END_CARD_LAYOUT_POLICY } from "../../../../lib/videoEndCardBrief.js";
 import { recordDatabaseRuntimeFailure } from '../../../../lib/systemHealth.js';
 import { inspectVideoComposition, chooseVideoTextBox, adaptVideoTextContrast, adaptEndCardComposition, emptyVideoTypography } from '../../../../lib/videoAdaptiveLayout.js';
@@ -17147,6 +17148,7 @@ export async function submitAdminRescueAiProductVideo({
     verified_product_image_url: uploadedVerifiedProduct.imageUrl,
     verified_product_source_url: websiteItem?.image_url || null,
     verified_product_title: websiteItem?.title || websiteItem?.item_title || null,
+    verified_product_description: String(websiteItem?.description || "").slice(0, 1800),
     music_context: {
       content_type_id: rule?.content_type_id || "ai_product_video",
       content_type_label: rule?.content_type_label || rule?.post_type || null,
@@ -39506,6 +39508,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
     let lastGeneratedAtlas=null;
     let cachedIndependentBackground=null;
     let cachedIndependentMaster=false;
+    let cachedIndependentFraming=null;
     let compositionInspection=null;
     for(let attempt=1;attempt<=2;attempt++) {
       const attemptPrompt=attempt===1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(lastError)}`;
@@ -39513,11 +39516,11 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         let split=await generateIndependentAdvertisingAssets({
           openai,model:animatedOverlayImageModel(),referenceFiles:files,
           headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,
-          creativeConcept:advertisingCopy.creativeConcept,closingHeadline:advertisingCopy.closingHeadline,renderEndCardMaster:true,websiteUrl:rule?.brand_profile?.website_url||rule?.website_item?.url,
+          creativeConcept:advertisingCopy.creativeConcept,closingHeadline:advertisingCopy.closingHeadline,closingEmphasis:advertisingCopy.emphasisText,sceneBackground:composites[0],renderEndCardMaster:true,masterFraming:END_CARD_FRAMING,websiteUrl:rule?.brand_profile?.website_url||rule?.website_item?.url,
           designDirection:attempt===1?advertisingCopy.designDirection:`${advertisingCopy.designDirection}. ${creativeCorrectionInstruction(lastError)}`,
           brand:rule?.brand_profile||{},hasLogo,
-          cachedBackground:cachedIndependentBackground,cachedMaster:cachedIndependentMaster,
-          onBackground:async(buffer,metadata)=>{cachedIndependentBackground=buffer;cachedIndependentMaster=metadata?.isMaster===true;},
+          cachedBackground:cachedIndependentBackground,cachedMaster:cachedIndependentMaster,cachedMasterFraming:cachedIndependentFraming,
+          onBackground:async(buffer,metadata)=>{cachedIndependentBackground=buffer;cachedIndependentMaster=metadata?.isMaster===true;cachedIndependentFraming=metadata?.framing||null;},
         });
         // Background and independent typography are separately generated. No atlas split,
         // no mixed-alpha geometry, no giant opaque background behind lettering.
@@ -39559,7 +39562,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
           text:advertisingCopy.headline,designDirection:advertisingCopy.designDirection,
           brand:rule?.brand_profile||{},
         }):{buffer:contrast.buffer,locallyRebuilt:false};
-        const sceneContrast=sceneChoice?await adaptVideoTextContrast({overlay:preflight.buffer,frames:composites,box:sceneBox}):{buffer:preflight.buffer,analysis:{omitted:true}};
+        const sceneContrast=sceneChoice?await adaptVideoTextContrast({overlay:preflight.buffer,frames:composites,box:sceneBox,preservePalette:true}):{buffer:preflight.buffer,analysis:{omitted:true}};
         contrast.analysis={...contrast.analysis,adaptive:sceneContrast.analysis};
         let approvedOverlay=sceneContrast.buffer;
         let review;
@@ -39604,7 +39607,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
           endCardIncludesSender:Boolean(approvedEndCard.hasSender),endCardIsMaster:approvedEndCard.isMaster===true,
           closingBackgroundBuffer:approvedEndCard.backgroundBuffer,closingTextBuffer:approvedEndCard.foregroundBuffer,closingCardBuffer:approvedEndCard.cardBuffer,
           endCardPrompt:split.endCardPrompt,
-          backgroundReferenceMode:split.backgroundReferenceMode,backgroundReferenceCount:split.backgroundReferenceCount,
+          backgroundReferenceMode:split.backgroundReferenceMode,backgroundReferenceCount:split.backgroundReferenceCount,endCardFraming:split.endCardFraming,
           advertisingCopy,copyValidation,typographyMode:split.typographyMode,prompt:attemptPrompt,provider:`${animatedOverlayImageModel()}-independent-advertising-assets-v349`};
       } catch(error) {
         lastError=error;
@@ -39995,6 +39998,7 @@ async function createAnimatedProductVideoAssets({
       end_card_prompt: textOverlay.endCardPrompt || null,
       end_card_reference_mode: textOverlay.backgroundReferenceMode || null,
       end_card_reference_count: textOverlay.backgroundReferenceCount || 0,
+      end_card_framing: textOverlay.endCardFraming || null,
       video_design_version: VIDEO_DESIGN_VERSION,
       end_card_url: closingCardUpload.imageUrl,
       end_card_background_url: closingBackgroundUpload.imageUrl,
@@ -48004,6 +48008,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
                 verified_product_image_url: uploadedVerifiedProduct.imageUrl,
                 verified_product_source_url: candidate.item?.image_url || null,
                 verified_product_title: candidate.item?.title || candidate.item?.item_title || null,
+                verified_product_description: String(candidate.item?.description || "").slice(0, 1800),
                 music_context: {
                   content_type_id: rule.content_type_id || null,
                   content_type_label: rule.content_type_label || rule.post_type || null,
