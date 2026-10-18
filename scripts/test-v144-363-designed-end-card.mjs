@@ -1,3 +1,4 @@
+import * as creativePlanning from '../lib/videoCreativePlanning.js';
 import assert from 'node:assert/strict';
 import * as commercialConcept from '../lib/videoCommercialConcept.js';
 import fs from 'node:fs';
@@ -88,7 +89,7 @@ function definition(source,name){
  const rest=source.slice(at).replace(/^export /,'');const next=/\n(?:export )?(?:async )?function /g.exec(rest);return next?rest.slice(0,next.index):rest;
 }
 const finalizer=fs.readFileSync('app/api/cron/finalize-kling-videos/route.js','utf8');
-const context=vm.createContext({...commercialConcept,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,END_CARD_DESIGN_BRIEF,normalizeEndCardHook,endCardEmphasis,
+const context=vm.createContext({...creativePlanning,...commercialConcept,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,END_CARD_DESIGN_BRIEF,normalizeEndCardHook,endCardEmphasis,
  COMMERCIAL_COPY_HIERARCHY,repeatsAdvertisingMessage,isProductLabelHeadline,CREATIVE_DIRECTOR_BRIEF:'Verified facts only.',
  KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'fixture',KLING_FINISHED_TYPOGRAPHY_PLACEMENTS:{lower_left:{}},
  normalizeKlingCreativeLine:value=>String(value||'').trim(),getFallbackKlingCta:()=>fixtures[0].closingLine,
@@ -96,7 +97,7 @@ const context=vm.createContext({...commercialConcept,console,VIDEO_ART_DIRECTION
  truncate:value=>String(value||''),getOpenAiTextOutput:response=>response.output_text});
 vm.runInContext(definition(finalizer,'planFinishedKlingAdvertisingCreative'),context);
 const planned=await context.planFinishedKlingAdvertisingCreative({post:{content:'Verifierad kampanj'},selection:{verified_product_title:'En produkt'},frames:[{buffer:picture}],
- openai:{responses:{create:async(request)=>{planningCalls++;assert(request.input[0].content[0].text.includes(END_CARD_DESIGN_BRIEF));return {output_text:JSON.stringify({headline:'Ett nytt perspektiv',subheadline:'',cta:fixtures[0].closingLine,closing_headline:fixtures[0].headline,end_card_emphasis:'stöd.',main_placement:'lower_left',cta_placement:'lower_left',main_layout:{},cta_layout:{},protected_regions:[],placement_confidence:.95,design_direction:fixtures[0].designDirection})};}}}});
+ openai:{responses:{create:async(request)=>{planningCalls++;assert(request.input[0].content[0].text.includes(commercialConcept.COMMERCIAL_CONCEPT_BRIEF));return {output_text:JSON.stringify({headline:'Ett nytt perspektiv',subheadline:'',cta:fixtures[0].closingLine,closing_headline:fixtures[0].headline,end_card_emphasis:'stöd.',main_placement:'lower_left',cta_placement:'lower_left',main_layout:{},cta_layout:{},protected_regions:[],placement_confidence:.95,design_direction:fixtures[0].designDirection})};}}}});
 assert.equal(planningCalls,2);assert.equal(planned.closing_headline,fixtures[0].headline);
 vm.runInContext(definition(finalizer,'createFinishedKlingTypographyOnce'),context);
 const previous={text_overlay_url:'already-created.png',end_card_url:'old-card.png',shotstack_render_id:'existing-render'};
@@ -105,10 +106,10 @@ assert.equal(saved,previous,'cached artwork returns before any new provider oper
 
 for(const edit of [buildVideoOverlayEdit({videoUrl:'video',textOverlayUrl:'text',logoOverlayUrl:'logo',endCardUrl:'card',endCardBackgroundUrl:'background',endCardTextUrl:'closing',endCardIncludesSender:false,durationSeconds:5,closingHoldSeconds:END_CARD_HOLD_SECONDS}),
  buildProductPushEdit({backgroundVideoUrl:'video',productDataUri:'product',logoOverlayUrl:'logo',endCardUrl:'card',endCardBackgroundUrl:'background',endCardTextUrl:'closing',endCardIncludesSender:false,durationSeconds:5,closingHoldSeconds:END_CARD_HOLD_SECONDS})]){
- const clips=edit.timeline.tracks.flatMap(track=>track.clips),logos=clips.filter(c=>c.asset.src==='logo');assert.equal(logos.length,1);assert.equal(logos[0].length,7);
+ const clips=edit.timeline.tracks.flatMap(track=>track.clips),logos=clips.filter(c=>c.asset.src==='logo');assert.equal(logos.length,1);assert.equal(logos[0].length,5+END_CARD_HOLD_SECONDS);
  const bg=clips.find(c=>c.asset.src==='background'),text=clips.find(c=>c.asset.src==='closing');
  assert.equal(bg.width,1080);assert.equal(bg.height,1920);assert.equal(bg.fit,'none');assert(bg.scale);assert(!text.scale);
- assert.equal(bg.start+bg.length,7);
+ assert.equal(bg.start+bg.length,5+END_CARD_HOLD_SECONDS);
 }
 let auditPrompt='';
 await reviewAdvertisingComposition({openai:{responses:{create:async(request)=>{auditPrompt=request.input[0].content[0].text;return {output_text:JSON.stringify({approved:true,issue:'none',reason:'Complete',confidence:.99,end_card_defect:'none'})};}}},frames:[picture],endCard:picture,headline:'Scenrubrik',endCardHeadline:'Separat slutrubrik',closingLine:'Hitta din favorit',sceneHeadlineOmitted:true});

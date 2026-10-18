@@ -73,8 +73,8 @@ for(const item of [
  const prompt=buildEndCardMasterPrompt(item);assert(prompt.includes(item.headline));assert(prompt.includes(item.closingLine));assert(prompt.includes(item.creativeConcept.background_brief));
  assert(!prompt.includes('Malmö'));assert(!prompt.includes('pressit'));assert(!prompt.includes('Nästa kast'));
 }
-assert(COMMERCIAL_CONCEPT_BRIEF.includes('INDEPENDENT closing-subject decision'));
-assert(COMMERCIAL_CONCEPT_BRIEF.includes('short concrete next action'));assert(COMMERCIAL_CONCEPT_BRIEF.includes("customer's language"));
+assert(COMMERCIAL_CONCEPT_BRIEF.includes('ONE image: product, background and lettering'));
+assert(COMMERCIAL_CONCEPT_BRIEF.includes('short product-specific action'));assert(COMMERCIAL_CONCEPT_BRIEF.includes("customer's language"));
 assert.deepEqual(Object.keys(COMMERCIAL_CONCEPT_SCHEMA.properties),Object.keys(normalizeCommercialConcept(null)));
 assert.equal(normalizeCommercialConcept({campaign_idea:'Legacy six-field concept'}).closing_subject,'environment','old plans use the independent route without a review/error');
 assert.equal(normalizeCommercialConcept({closing_subject:'person_or_product'}).closing_subject,'environment','missing reason chooses the default, never rejects a run');

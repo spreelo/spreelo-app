@@ -72,9 +72,9 @@ assert.equal(rejectedDomain.items.length,0);
 
 const route = fs.readFileSync(new URL('../app/api/cron/run-automations/route.js', import.meta.url),'utf8');
 const filtered = route.indexOf('const collectionCatalogFilter = await filterExplicitCollectionCandidates');
-const selectedAt = route.indexOf('const catalogSelection = await chooseUnusedWebsiteItem',filtered);
+const selectedAt = route.indexOf('let catalogSelection = await chooseUnusedWebsiteItem',filtered);
 assert.ok(filtered>0 && selectedAt>filtered,'filter must run before catalog selection');
-assert.match(route.slice(selectedAt,selectedAt+5000),/const maxCatalogAttempts = Math\.min\(12/,'a rejected catalog item must advance to the next item');
+assert.match(route.slice(selectedAt,selectedAt+5000),/const maxCatalogAttempts = Math\.min\(productIntentScoped \? 6 : 12/,'a rejected catalog item must advance to the next item');
 assert.match(route,/const filteredDiscoveredPool = await filterExplicitCollectionCandidates/);
 assert.match(route,/const filteredReusePool = await filterExplicitCollectionCandidates/);
 console.log('PASS v144.355: collection prefilter, direct Shopify candidates, pagination, stale cache refresh, cross-store rejection and multi-candidate fallback');

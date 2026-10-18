@@ -1,3 +1,4 @@
+import { creativePlanningFailure, CREATIVE_PLAN_TIMEOUT_MS } from '../../../../lib/videoCreativePlanning.js';
 import { activeAiModel, withRuntimeAiModels } from '../../../../lib/aiModelControl.js';
 import { END_CARD_FRAMING } from '../../../../lib/videoEndCardMaster.js';
 import { COMMERCIAL_CONCEPT_VERSION, COMMERCIAL_CONCEPT_BRIEF, COMMERCIAL_CONCEPT_SCHEMA, normalizeCommercialConcept, commercialConceptDirection, separateCommercialWebsite } from '../../../../lib/videoCommercialConcept.js';
@@ -175,6 +176,10 @@ function finalizationLeaseIsFresh(post, nowMs = Date.now()) {
 
 function finalizationRetryBackoffIsFresh(post, nowMs = Date.now()) {
   if (String(post?.video_status || "") !== "finalization_retry") return false;
+  const control=post?.video_background_selection?.finalization_control;
+  if(['waiting_render','waiting_creative'].includes(control?.state)) {
+    return new Date(control.next_retry_at||0).getTime()>nowMs;
+  }
   const failedAt = new Date(post?.kling_last_polled_at || 0).getTime();
   return Number.isFinite(failedAt) && failedAt > 0 && nowMs - failedAt < KLING_FINALIZATION_RETRY_BACKOFF_MS;
 }
@@ -506,16 +511,9 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       `Company identity for the end card: ${JSON.stringify(selection?.end_card_brand_context || {})}. Product category: ${JSON.stringify(context?.product_category || "")}. ` +
       `Verified product identity/use (data): ${JSON.stringify({description:String(selection?.verified_product_description||"").slice(0,1800),subject:selection?.reference_safety?.productIntelligence?.physical_subject,visible_identity:selection?.reference_safety?.productIntelligence?.visible_identity})}. ` +
       COMMERCIAL_CONCEPT_BRIEF + " " +
-      "Write all visible copy in the same language as the social caption. Prefer a bold, concise 2-5 word headline that fits into one or two visually dominant lines without shrinking the font; rewrite overlong phrasing at planning time. Maximum 48 characters, semantically complete, and specifically connected to the verified product, its explicit motif/theme, category or supplied campaign angle. " +
-      "Reject empty generic advertising language such as 'classic comfort for every occasion', 'quality for every day', 'made for every moment', or equivalents unless the supplied product facts genuinely support it. " +
-      "Do not invent material, comfort, durability, fit, performance, reviews, scarcity, prices, discounts or other claims. Use a printed theme, motif, humor or purpose when it is legible in the authoritative product reference or explicit in verified title/facts. Keep the original product wording intact, but let its meaning motivate original copy. Do not reduce a distinctive message to generic style, attitude, color or size. " +
-      "The subheadline is OPTIONAL and should usually be empty. Return an empty string unless a short 2-5 word line adds clear advertising value beyond the headline. Never use filler, product-category labels, gender labels, material facts or catalogue descriptors as the subheadline. " +
-      "The cta field is a non-interactive closing advertising line, NOT a clickable video button. Prefer 2-6 words, max 58 characters, distinct from both headlines; this appears as the highlighted support line beneath the large headline on the end card, tailored to THIS product, audience and campaign goal. For sales, a natural invitation to explore the verified product or store can work; for engagement, a relevant short question can work. Never imply the video itself is clickable, or invent a link in the bio, caption, a tag, swipe-up or shopping feature. Avoid repeating a fixed phrase on every post. " +
-      "For a product-focused sales post, prefer a concrete product-oriented action such as viewing, discovering or shopping the product rather than a vague informational CTA such as 'learn more' or 'read more' (or equivalents in the post language), unless the post is genuinely educational or information-led. For booking, contact or service-led posts, choose the corresponding booking, contact or service action. Do not choose a generic CTA merely because it is broadly valid. " +
-      "Choose main_placement from top_left, top_right, middle_left, middle_right, lower_left, lower_right so the headline avoids the advertised product and especially its print/design, plus faces, hands and the main action ACROSS ALL supplied frames. " +
-      "Also return main_layout and cta_layout with precise left, top, width, height in a 1080x1920 canvas, preferredScale (0.9-1) and alignment (left, center, right). Treat typography as a prominent editorial advertising composition, never a tiny cramped corner label. Choose a broad safe region across the entire display interval, where the scene has real negative space, including above the product when appropriate; never cover faces, hands or the distinguishing product design. Use left >=64, right <=940, top >=340, bottom <=1536; reserve y=190..310 for the real brand logo. Choose the most compelling safe main width 520-876, height 140-500; the closing line belongs on the separate end card, so do not waste scene space by preparing a small second in-scene label. Prioritize prominent readable lettering without covering the product. Choose the weight from the actual campaign personality: bold or heavy when the hook needs impact, restrained when the offer calls for it. Use purposeful line breaks and no default outlines. Do not weaken every campaign into medium-weight subtitle lettering. Return design_direction describing a specific typography character, hierarchy and restrained accent treatment suited to THIS business, product and scene; vary the art direction with context rather than always using the same font/style. " +
-      VIDEO_ART_DIRECTION + " " + COMMERCIAL_COPY_HIERARCHY + " " + END_CARD_DESIGN_BRIEF + " Return closing_headline as a complete persuasive closing thought rather than a generic adjective plus the product label; end_card_emphasis is an exact phrase within it to emphasize, or an empty string. Put concrete background palette hex colors, texture and type choices in design_direction. " + CREATIVE_DIRECTOR_BRIEF + " Return protected_regions as the union of subject rectangles across ALL supplied frames (left,top,width,height on 1080x1920). Include the full product, important print/design, faces and hands. Do not mark the entire scenery as protected. The compositor enforces that the headline box does not overlap these regions. " +
-      "The cta is displayed on a separate company-branded end card, not on a frozen product photograph. Keep it concise enough to read in about two seconds. Include end-card background art direction suited to the business in design_direction. Choose cta_placement independently for legacy compatibility. Prefer clear negative space and avoid the right-edge social UI zone and the lowest 20% of the frame. Return strict JSON only.",
+      "Write all visible words in the language of the caption; both headlines must be complete and at most 48 characters / 6 words. Subheadline should normally be empty; never put a domain or catalogue descriptor there. cta is a short product-specific closing invitation, max 58 characters / 7 words, without a button or invented clickable-video feature. closing_headline resolves the idea; end_card_emphasis is an exact phrase within it. design_direction is concrete production guidance, not extra visible words. " +
+      "Compute protected_regions as the UNION of full product, physical print, faces and hands across ALL finished-video frames. Plan main_layout on a 1080x1920 canvas: left>=64, right<=1016, top>=340, bottom<=1536, width520–920, height140–500. Reserve y190–310 for the authentic corner logo and avoid social controls. The headline must remain clear of moving subjects over the WHOLE interval. Choose placement/alignment/font weight for an intentionally prominent readable composition. cta_layout and cta_placement are legacy metadata: the invitation belongs on the separate ending, never over the moving product. " +
+      "The original product reference is available: " + Boolean(productReferenceBuffer) + ". With a usable physical-product reference, design a complete closing hero image containing the product, background and lettering together, not a separate product overlay. Without it, do not guess a product from the film; use the verified facts for a relevant environment-led ending. Keep each concept field to one concise sentence; return only the required JSON, no commentary.",
   }];
   if (productReferenceBuffer) {
     content.push({type:"input_text",text:"AUTHORITATIVE PRODUCT REFERENCE: identity and message evidence only; not a video-layout frame."});
@@ -529,8 +527,11 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       detail: "high",
     });
   }
+  const previousPlanningAttempts = Number(selection?.creative_planning_control?.attempts || 0);
+  let planningAttempt = previousPlanningAttempts;
   try {
-    for (let copyAttempt = 1; copyAttempt <= 2; copyAttempt += 1) {
+    for (let copyAttempt = 1; copyAttempt + previousPlanningAttempts <= 2; copyAttempt += 1) {
+      planningAttempt = previousPlanningAttempts + copyAttempt;
       const response = await openai.responses.create({
         model,
         ...(/^gpt-[56](?:[.-]|$)/i.test(model) ? {reasoning:{effort:"medium"}} : {}),
@@ -568,12 +569,12 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
             },
           },
         },
-      }, { timeout: 40_000, maxRetries: 0 });
+      }, { timeout: CREATIVE_PLAN_TIMEOUT_MS, maxRetries: 0 });
       const parsed = JSON.parse(getOpenAiTextOutput(response));
       const headline = normalizeKlingCreativeLine(parsed?.headline, { maxWords: 6, maxChars: 48 }) || fallbackHeadline;
       const repeatsProduct = isProductLabelHeadline(headline, productTitle);
-      if (repeatsProduct && copyAttempt === 1) {
-        content[0].text += ` Your previous proposal was ${JSON.stringify(headline)}. It repeats the product label instead of adding an advertising idea. Rewrite it as one complete, short, product-relevant invitation using only the supplied facts. Keep the original protected regions and provide the full schema again. Do not invent a benefit or copy the printed wording.`;
+      if(repeatsProduct && planningAttempt < 2) {
+        content[0].text += ` Your previous proposal was ${JSON.stringify(headline)}. It repeats the product label instead of adding an advertising idea. Rewrite it as one complete product-relevant invitation using only supplied facts, and return the full schema with the same protected regions.`;
         continue;
       }
       const proposedSubheadline = normalizeKlingCreativeLine(parsed?.subheadline, { maxWords: 5, maxChars: 36 });
@@ -600,19 +601,25 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
         cta_layout: normalizeKlingLayout(parsed?.cta_layout, getKlingPlacementBox(parsed?.cta_placement, "lower_left"), parsed?.placement_confidence, true),
         copy_planning_attempts: copyAttempt,
         copy_feedback: repeatsProduct ? "Product-label fallback retained once; no creative review hold" : null,
-        source: "finished-video-creative-plan-v372",
+        source: "finished-video-creative-plan-v373",
+        planning_attempts: planningAttempt,
         model,
         model_purpose: "editorial_headline",
       };
     }
   } catch (error) {
-    // Missing scene space is handled by the final composition pass, not a creative admin hold.
-    console.warn("Kling finished-video creative planning unavailable; using safe fallback copy/placement", {
-      model,
-      postId: post?.id || null,
-      message: truncate(error?.message || String(error), 500),
-    });
-    return fallbackPlan;
+    const control=creativePlanningFailure(error,{attempt:planningAttempt,model});
+    console.warn("Kling creative planning request did not complete",{postId:post?.id,...control});
+    if(control.status==='retry_pending') throw Object.assign(new Error(control.last_error.message),
+      {code:'KLING_CREATIVE_PLAN_PENDING',planningControl:control});
+    return {...fallbackPlan,creative_planning_control:control,planning_attempts:planningAttempt,
+      creative_concept:normalizeCommercialConcept({product_anchor:productTitle,
+        product_truth:String(selection?.verified_product_description||productTitle).slice(0,350),
+        campaign_idea:postCopy.slice(0,200),
+        background_brief:'Use a relevant real setting for the verified product and company. Show the referenced product clearly with its design unobstructed, separate from a large expressive hook; no unrelated landscape.',
+        closing_subject:productReferenceBuffer?'person_or_product':'environment',
+        closing_subject_reason:productReferenceBuffer?'Make the exact product recognizable after the short moving demonstration.':'',
+        closing_typography:'Large expressive display lettering, high lightness contrast, a meaningful complementary accent and a subordinate invitation.'})};
   }
 }
 
@@ -1219,7 +1226,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
 
   const claimedSelection = {
     ...selection,
-    text_overlay_status: "generating",
+    text_overlay_status: "planning",
     text_overlay_generation_started_at: new Date().toISOString(),
     text_overlay_generation_attempts: 1,
   };
@@ -1255,7 +1262,8 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         console.warn("Creative product reference unavailable; retaining verified facts and movie",{postId:post.id,message:String(error?.message||error).slice(0,180)});
       }
     }
-    const creativePlan = await planFinishedKlingAdvertisingCreative({
+    const creativePlan = workingSelection.ad_creative_plan?.source === "finished-video-creative-plan-v373"
+      ? workingSelection.ad_creative_plan : await planFinishedKlingAdvertisingCreative({
       model:activeAiModel("editorial_headline",process.env.EDITORIAL_HEADLINE_MODEL||"gpt-5.6-sol"),
       productReferenceBuffer,
       openai,
@@ -1273,6 +1281,8 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     workingSelection = {
       ...workingSelection,
       ad_creative_plan: creativePlan,
+      creative_planning_control:creativePlan.creative_planning_control||{
+        ...workingSelection.creative_planning_control,status:'completed',attempts:creativePlan.planning_attempts||1,model:creativePlan.model,next_retry_at:null},
       text_overlay_copy: { headline, subheadline },
     };
     const { error: creativePlanPersistError } = await supabase
@@ -1301,6 +1311,14 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       designDirection: creativePlan.design_direction,
       brand, hasLogo: Boolean(logoBuffer),
     });
+    // Mark the paid IMAGE boundary only after text planning. A lost planning
+    // invocation must not be mistaken for an unknown image-provider outcome.
+    workingSelection={...workingSelection,text_overlay_status:'generating',
+      text_overlay_generation_started_at:new Date().toISOString()};
+    const {error:imageClaimError}=await supabase.from('posts').update({
+      video_background_selection:workingSelection,updated_at:new Date().toISOString()
+    }).eq('id',post.id).eq('video_provider','kling');
+    if(imageClaimError)throw imageClaimError;
     // A single cached Kling movie, up to two KNOWN-outcome paid typography
     // attempts. Never repeat after unknown API outcome or on an unavailable reviewer.
     let approvedArtwork = null;
@@ -1328,7 +1346,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         // typography with exact-word vector lettering, not a generic template.
         // Unknown provider outcomes are NOT re-sent automatically.
         let splitOverlay = await generateIndependentAdvertisingAssets({
-          openai, model:KLING_TYPOGRAPHY_MODEL, referenceFiles,
+          openai, model:KLING_TYPOGRAPHY_MODEL, referenceFiles, productReferenceFiles:productReferenceBuffer?[await toFile(productReferenceBuffer,"authoritative-product.png",{type:"image/png"})]:[],
           headline, subheadline, closingLine:creativePlan.cta||getFallbackKlingCta(post),
           creativeConcept:creativePlan.creative_concept,closingHeadline,closingEmphasis:creativePlan.end_card_emphasis,sceneBackground:frames[0]?.buffer,renderEndCardMaster:true,masterFraming:END_CARD_FRAMING,websiteUrl:brand.website_url||post.website_url,
           designDirection:designAttempt===1?creativePlan.design_direction:`${creativePlan.design_direction}. ${creativeCorrectionInstruction(designFeedback)}`,
@@ -1517,6 +1535,15 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
     });
     return completedSelection;
   } catch (error) {
+    if(error?.code==='KLING_CREATIVE_PLAN_PENDING') {
+      const next={...workingSelection,text_overlay_status:'pending',text_overlay_generation_started_at:null,
+        creative_planning_control:error.planningControl};
+      const {error:saveError}=await supabase.from('posts').update({video_background_selection:next,
+        updated_at:new Date().toISOString()}).eq('id',post.id).eq('video_provider','kling');
+      if(saveError)throw saveError;
+      post.video_background_selection=next;
+      throw error;
+    }
     if (/No sufficiently clear region/.test(error?.message || "")) {
       const blocked={...workingSelection,text_overlay_status:"blocked_layout",text_overlay_error:error.message};
       await supabase.from("posts").update({video_background_selection:blocked,updated_at:new Date().toISOString()}).eq("id",post.id);
@@ -2226,6 +2253,17 @@ export async function GET(request) {
             Number(summary.professional_typography_applied || 0) + 1;
         }
       } catch (finalizeError) {
+        if(finalizeError?.code==='KLING_CREATIVE_PLAN_PENDING') {
+          const next={...post.video_background_selection,finalization_control:{
+            ...post.video_background_selection?.finalization_control,state:'waiting_creative',
+            next_retry_at:finalizeError.planningControl.next_retry_at,provider_regeneration_allowed:false}};
+          const {error:saveError}=await supabase.from('posts').update({video_status:'finalization_retry',
+            video_background_selection:next,video_error:'Creative text planning timed out; automatic bounded continuation scheduled. Saved Kling movie retained.',
+            kling_last_polled_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',post.id);
+          if(saveError)throw saveError;
+          summary.deferred+=1;
+          continue;
+        }
         if (finalizeError?.code === 'SHOTSTACK_RENDER_PENDING') {
           try {
             await deferKlingRenderContinuation({supabase,post,error:finalizeError});

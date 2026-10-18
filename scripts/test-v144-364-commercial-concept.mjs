@@ -1,3 +1,4 @@
+import * as creativePlanning from '../lib/videoCreativePlanning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -28,7 +29,7 @@ function definition(source,name){
  const start=new RegExp(`^(?:export )?(?:async )?function ${name}\\(`,'m').exec(source)?.index;assert(start!==undefined,name);
  const rest=source.slice(start).replace(/^export /,'');const next=/\n(?:export )?(?:async )?function /g.exec(rest);return next?rest.slice(0,next.index):rest;
 }
-const ctx=vm.createContext({...concept,...endBrief,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,COMMERCIAL_COPY_HIERARCHY,repeatsAdvertisingMessage,isProductLabelHeadline,
+const ctx=vm.createContext({...creativePlanning,...concept,...endBrief,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,COMMERCIAL_COPY_HIERARCHY,repeatsAdvertisingMessage,isProductLabelHeadline,
  CREATIVE_DIRECTOR_BRIEF:'Verified facts only.',KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'fixture',KLING_FINISHED_TYPOGRAPHY_PLACEMENTS:{lower_left:{}},
  normalizeKlingCreativeLine:value=>String(value||'').trim(),getFallbackKlingCta:()=> 'Upptäck sortimentet',normalizeKlingLayout:value=>value||{},getKlingPlacementBox:()=>({}),
  sceneSafeKlingLayout:value=>value,klingLayoutSchema:()=>({type:'object'}),truncate:value=>String(value||''),getOpenAiTextOutput:response=>response.output_text});
@@ -77,7 +78,7 @@ assert.deepEqual(standalone,combined,'background words/colors do not override th
 
 // A transport error is one attempted request, never a new creative admin gate.
 let outages=0;
-const fallback=await ctx.planFinishedKlingAdvertisingCreative({openai:{responses:{create:async()=>{outages++;throw new Error('timeout');}}},post:{content:'Svensk kampanj'},selection:{verified_product_title:'Produkt'},frames:[{buffer:canvas}]});
+const fallback=await ctx.planFinishedKlingAdvertisingCreative({openai:{responses:{create:async()=>{outages++;throw new Error('offline fixture');}}},post:{content:'Svensk kampanj'},selection:{verified_product_title:'Produkt'},frames:[{buffer:canvas}]});
 assert.equal(outages,1);assert.equal(fallback.source,'deterministic_fallback');
 let edits=0,generates=0;
 const offline=await generateIndependentAdvertisingAssets({openai:{images:{edit:async()=>{edits++;throw new Error('timeout');},generate:async()=>{generates++;throw new Error('duplicate request');}}},
@@ -100,7 +101,7 @@ assert.equal(duplicate.layout.copy.website,'pressit.se');assert.equal(duplicate.
 // product into the actual sampled moving background, not plan from a poster.
 let workerFrames;
 const reached=new Error('PLANNER_REACHED_WITH_ACTUAL_COMPOSITION');
-const workerContext=vm.createContext({sharp,console,ANIMATED_VIDEO_MOTION_SECONDS:5,PRODUCT_RESEARCH_FAST_MODEL:'fixture',editorialHeadlineModel:()=> 'creative-fixture',
+const workerContext=vm.createContext({...creativePlanning,sharp,console,ANIMATED_VIDEO_MOTION_SECONDS:5,PRODUCT_RESEARCH_FAST_MODEL:'fixture',editorialHeadlineModel:()=> 'creative-fixture',
  getAnimatedOverlayBackgroundReference:async()=>canvas,sampleRemoteVideoFrames:async()=>[{buffer:canvas},{buffer:canvas},{buffer:canvas}],
  planAnimatedAdvertisingCopy:async options=>{assert.equal(options.model,'creative-fixture');workerFrames=options.sceneFrames;throw reached;}});
 vm.runInContext(definition(worker,'createAnimatedTextOverlay'),workerContext);

@@ -1,3 +1,4 @@
+import * as creativePlanning from '../lib/videoCreativePlanning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -15,7 +16,7 @@ const finalizer=fs.readFileSync('app/api/cron/finalize-kling-videos/route.js','u
 const start=finalizer.indexOf('async function planFinishedKlingAdvertisingCreative(');
 const end=finalizer.indexOf('\nasync function ',start+1);
 assert(start>0 && end>start);
-const ctx=vm.createContext({...concept,...endBrief,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,CREATIVE_DIRECTOR_BRIEF,COMMERCIAL_COPY_HIERARCHY,repeatsAdvertisingMessage,isProductLabelHeadline,
+const ctx=vm.createContext({...creativePlanning,...concept,...endBrief,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,CREATIVE_DIRECTOR_BRIEF,COMMERCIAL_COPY_HIERARCHY,repeatsAdvertisingMessage,isProductLabelHeadline,
  KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'offline',KLING_FINISHED_TYPOGRAPHY_PLACEMENTS:{lower_left:{}},getFallbackKlingCta:()=> 'Se produkten',
  normalizeKlingCreativeLine:v=>String(v||'').trim(),normalizeKlingLayout:v=>v||{},getKlingPlacementBox:()=>({}),klingLayoutSchema:()=>({type:'object'}),truncate:v=>String(v||''),getOpenAiTextOutput:r=>r.output_text});
 vm.runInContext(finalizer.slice(start,end),ctx);
@@ -75,7 +76,7 @@ assert.equal(await choosePlannedVideoTextBox({frames:[scene],plan:{protected_reg
 assert.equal(await choosePlannedVideoTextBox({frames:[scene],plan,inspection:{sceneVerified:false}}),null);
 assert.equal(await choosePlannedVideoTextBox({frames:[scene],plan}),null,'missing inspection does not imply verified subject geometry');
 assert(finalizer.includes('choosePlannedVideoTextBox({frames:frames.map(frame=>frame.buffer),plan:creativePlan,inspection:compositionInspection})'),'actual worker consumes both sources of geometry');
-assert(finalizer.indexOf('let productReferenceBuffer = null;')<finalizer.indexOf('const creativePlan = await planFinishedKlingAdvertisingCreative'),'original is fetched before the production planning call');
+assert(finalizer.indexOf('let productReferenceBuffer = null;')<finalizer.indexOf('const creativePlan = workingSelection.ad_creative_plan'),'original is fetched before the production planning call');
 
 // Edge-rich raster fixture exposes the real .368 repeated-row stripe defect.
 const art=await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1536"><defs><linearGradient id="bg" x2=".3" y2="1"><stop stop-color="#25495F"/><stop offset=".8" stop-color="#527556"/><stop offset="1" stop-color="#D6B692"/></linearGradient></defs><rect width="1024" height="1536" fill="url(#bg)"/><path d="M0 1480L150 1300L250 1536L380 1390L570 1536L790 1280L900 1510L1024 1440V1536H0" fill="#334435"/><text x="35" y="800" font-family="Noto Sans" font-size="110" fill="white">Hela budskapet</text><rect x="0" y="700" width="22" height="180" fill="red"/><rect x="1002" y="700" width="22" height="180" fill="lime"/></svg>`)).png().toBuffer();

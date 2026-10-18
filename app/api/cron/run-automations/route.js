@@ -258,7 +258,7 @@ const APP_URL = "https://app.spreelo.com";
 const RESEND_FROM_EMAIL = "Spreelo <noreply@spreelo.com>";
 const POST_VIDEOS_BUCKET = "post-videos";
 const ANIMATED_VIDEO_MOTION_SECONDS = 5;
-const ANIMATED_VIDEO_CLOSING_HOLD_SECONDS = 2;
+const ANIMATED_VIDEO_CLOSING_HOLD_SECONDS = 4;
 const ANIMATED_VIDEO_DURATION_SECONDS = ANIMATED_VIDEO_MOTION_SECONDS + ANIMATED_VIDEO_CLOSING_HOLD_SECONDS;
 const KLING_AI_VIDEO_DURATION_SECONDS = Math.max(
   3,
@@ -33398,13 +33398,27 @@ async function prepareWebsiteContentForRule({
     });
   }
 
-  const catalogSelection = await chooseUnusedWebsiteItem({
+  const eligibleCatalogItems = productIntentScoped
+    ? sortedCatalogItems.filter(item => hasShopifyPrimaryCatalog
+      ? isAcceptableShopifyAdminProductSelection(item,rule)
+      : (isAcceptableWebsiteTextProductSelection(item,rule) ||
+        // Feed membership is only a lead, NOT stock or campaign approval.
+        // Keep these leads so missing stock fields cannot erase 250 products.
+        (item.collection_feed_verified === true &&
+          !isProductKnownUnavailableForPromotion(item) && !isCampaignFitRejectedForRule(item,rule))))
+    : sortedCatalogItems;
+  console.info('Catalog eligibility evaluated before ranked selection',{
+    ruleId:rule.id,collectionPoolCount:sortedCatalogItems.length,
+    eligibleCount:eligibleCatalogItems.length,rejectedCount:sortedCatalogItems.length-eligibleCatalogItems.length,
+    policy:'existing_stock_and_campaign_requirements_unchanged',
+    unverifiedCollectionLeadCount:eligibleCatalogItems.filter(item=>item.collection_feed_verified===true&&!isAcceptableWebsiteTextProductSelection(item,rule)).length});
+  let catalogSelection = await chooseUnusedWebsiteItem({
     supabase,
     userId: rule.user_id,
     brandProfileId: rule.brand_profile_id,
     sourceUrl: websiteUrl,
     contentType,
-    items: sortedCatalogItems,
+    items: eligibleCatalogItems,
     rule,
     usedWebsiteImageUrlsThisRun,
     recentUsedItems,
@@ -33412,18 +33426,24 @@ async function prepareWebsiteContentForRule({
     allowReuseWhenExhausted: false,
   });
 
-  if (catalogSelection?.item && !productIntentScoped) {
+  if (catalogSelection?.item && (!productIntentScoped || !websiteAccessProtected)) {
     // Unlike v144.354, do not let one stale/invalid catalog entry terminate
     // the whole occurrence. Try another collection-verified item first.
-    let remainingCatalogCandidates = [...sortedCatalogItems];
+    let remainingCatalogCandidates = [...eligibleCatalogItems];
     let nextCatalogSelection = catalogSelection;
-    const maxCatalogAttempts = Math.min(12, remainingCatalogCandidates.length);
-    for (let attempt = 0; nextCatalogSelection?.item && attempt < maxCatalogAttempts; attempt += 1) {
+    const maxCatalogAttempts = Math.min(productIntentScoped ? 6 : 12, remainingCatalogCandidates.length);
+    const catalogLockDeadline = productIntentScoped ? Date.now() + 30_000 : Infinity;
+    for (let attempt = 0; nextCatalogSelection?.item && attempt < maxCatalogAttempts && Date.now() < catalogLockDeadline; attempt += 1) {
       const candidate = nextCatalogSelection.item;
       try {
         const prepared = await finalizePreparedWebsiteItem(
           candidate, nextCatalogSelection.cycleNumber, { allowAiRepair: false }
         );
+        if(productIntentScoped && !(hasShopifyPrimaryCatalog
+          ? isAcceptableShopifyAdminProductSelection(prepared.websiteItem,rule)
+          : isAcceptableWebsiteTextProductSelection(prepared.websiteItem,rule))) {
+          throw new Error('Locked catalog product did not meet existing stock and campaign requirements');
+        }
         console.log('Website product selected from verified product catalog', {
           ruleId: rule.id, brandProfileId: rule.brand_profile_id, websiteUrl,
           productUrl: prepared?.websiteItem?.url || candidate.url,
@@ -33455,6 +33475,13 @@ async function prepareWebsiteContentForRule({
           : null;
       }
     }
+    // Every tried candidate has failed; do not run the same first lock again.
+    productResearchFallbackReason ||= remainingCatalogCandidates.length
+      ? 'local_catalog_lock_budget_reached' : 'local_catalog_candidates_exhausted';
+    console.info('Existing collection lock pass finished; using bounded discovery fallback',{
+      ruleId:rule.id,remainingCandidateCount:remainingCatalogCandidates.length,
+      reason:productResearchFallbackReason});
+    catalogSelection = null;
   }
 
   // v144.285: for a connected Shopify store, accept the ranked Admin API
@@ -39252,7 +39279,7 @@ function buildKlingAdvertisingOverlayCopy({ postContent, websiteItem }) {
   // customer brand targets another language. Blank is safer than a correct
   // product descriptor in the wrong customer-facing language.
   let subheadline = "";
-  for (const line of captionLines.slice(1, 4)) {
+  for (const line of captionLines.slice(1, 4).filter(line => !/^(?:https?:\/\/)?(?:www\.)?[\w.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(line.trim()))) {
     const candidate = cleanKlingOverlayTextLine(line, 5, 42);
     if (
       candidate &&
@@ -39514,7 +39541,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
       const attemptPrompt=attempt===1 ? prompt : `${prompt}\n${creativeCorrectionInstruction(lastError)}`;
       try {
         let split=await generateIndependentAdvertisingAssets({
-          openai,model:animatedOverlayImageModel(),referenceFiles:files,
+          openai,model:animatedOverlayImageModel(),referenceFiles:files,productReferenceFiles:productReferenceBuffer?[await toFile(productReferenceBuffer,"authoritative-product.png",{type:"image/png"})]:[],
           headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,
           creativeConcept:advertisingCopy.creativeConcept,closingHeadline:advertisingCopy.closingHeadline,closingEmphasis:advertisingCopy.emphasisText,sceneBackground:composites[0],renderEndCardMaster:true,masterFraming:END_CARD_FRAMING,websiteUrl:rule?.brand_profile?.website_url||rule?.website_item?.url,
           designDirection:attempt===1?advertisingCopy.designDirection:`${advertisingCopy.designDirection}. ${creativeCorrectionInstruction(lastError)}`,
