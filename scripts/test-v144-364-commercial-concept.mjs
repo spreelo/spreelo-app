@@ -100,9 +100,9 @@ assert.equal(duplicate.layout.copy.website,'pressit.se');assert.equal(duplicate.
 // product into the actual sampled moving background, not plan from a poster.
 let workerFrames;
 const reached=new Error('PLANNER_REACHED_WITH_ACTUAL_COMPOSITION');
-const workerContext=vm.createContext({sharp,console,ANIMATED_VIDEO_MOTION_SECONDS:5,PRODUCT_RESEARCH_FAST_MODEL:'fixture',
+const workerContext=vm.createContext({sharp,console,ANIMATED_VIDEO_MOTION_SECONDS:5,PRODUCT_RESEARCH_FAST_MODEL:'fixture',editorialHeadlineModel:()=> 'creative-fixture',
  getAnimatedOverlayBackgroundReference:async()=>canvas,sampleRemoteVideoFrames:async()=>[{buffer:canvas},{buffer:canvas},{buffer:canvas}],
- planAnimatedAdvertisingCopy:async options=>{workerFrames=options.sceneFrames;throw reached;}});
+ planAnimatedAdvertisingCopy:async options=>{assert.equal(options.model,'creative-fixture');workerFrames=options.sceneFrames;throw reached;}});
 vm.runInContext(definition(worker,'createAnimatedTextOverlay'),workerContext);
 await assert.rejects(workerContext.createAnimatedTextOverlay({openai:{},rule:{},productReferenceBuffer:product,backgroundAsset:{public_url:'existing.mp4'},animationLayout:{product:{left:200,top:400,width:80,height:100}}}),e=>e.cause===reached);
 assert.equal(workerFrames.length,3);

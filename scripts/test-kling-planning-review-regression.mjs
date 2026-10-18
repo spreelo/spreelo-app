@@ -95,7 +95,7 @@ async function runFinalizer(validation,{reviewRequired=false,isAdminTest=false,o
     from(table){return {select(){return this;},eq(){return this;},or(){return this;},not(){return this;},order(){return this;},async limit(){return {data:[post],error:null};},
       update(values){writes.push({table,values});if(table==='posts')Object.assign(post,values);return this;},
       upsert(values){writes.push({table,values});return this;},then(resolve){return Promise.resolve({data:[{post_id:post.id}],error:null}).then(resolve);}};}};
-  const ctx=vm.createContext({completedVideoSelection,Response,Date,process:{env:{}},console:quiet,isAuthorized:()=>true,createSupabaseAdmin:()=>supabase,getMaxPendingHours:()=>6,
+  const ctx=vm.createContext({completedVideoSelection,Response,Date,withRuntimeAiModels:callback=>callback(),process:{env:{}},console:quiet,isAuthorized:()=>true,createSupabaseAdmin:()=>supabase,getMaxPendingHours:()=>6,
     KLING_PROVIDER_PENDING_STATUSES:['processing'],KLING_FINALIZER_POST_SELECT:'*',finalizationJobGate:()=>({action:'proceed'}),finalizationRetryBackoffIsFresh:()=>false,
     claimKlingFinalization:async()=>true,getCachedKlingSource:()=>sourceTask,isKlingTaskSuccessful:s=>s==='succeeded',isKlingTaskFailed:()=>false,
     createGenerationCostTracker:()=>({recordKling:async()=>{}}),OpenAI:class{},wrapOpenAIForCostTracking:()=>({}),normalizeVideoDurationSeconds,

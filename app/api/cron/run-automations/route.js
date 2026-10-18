@@ -39499,7 +39499,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
     const product=await sharp(productReferenceBuffer).resize({width:animationLayout.product.width,height:animationLayout.product.height,fit:"inside"}).png().toBuffer();
     const composites=await Promise.all(backgrounds.map(async buffer=>sharp(buffer).resize(1080,1920,{fit:"cover"})
       .composite([{input:product,left:animationLayout.product.left,top:animationLayout.product.top}]).png().toBuffer()));
-    const advertisingCopy=await planAnimatedAdvertisingCopy({openai,model:PRODUCT_RESEARCH_FAST_MODEL,rule,postContent,productReferenceBuffer,
+    const advertisingCopy=await planAnimatedAdvertisingCopy({openai,model:editorialHeadlineModel(),rule,postContent,productReferenceBuffer,
       backgroundReferenceBuffer,sceneFrames:composites.slice(-3),animationLayout});
     const prompt=buildKlingAdvertisingAtlasPrompt({headline:advertisingCopy.headline,subheadline:"",closingLine:advertisingCopy.closingLine,
       designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},hasLogo});

@@ -71,7 +71,7 @@ async function runCron({firstClaimFails=false,pollFailure=null,posts:givenPosts=
  const posts=givenPosts||[{id:'p1',kling_task_id:'task-1',video_status:'processing',video_background_selection:{}},{id:'p2',kling_task_id:'task-2',video_status:'processing',video_background_selection:{}}];
  const updates=[],marked=[],alerts=[],polled=[];
  const supabase={from(){return {select(){return this;},eq(){return this;},or(){return this;},not(){return this;},order(){return this;},limit(){return Promise.resolve({data:posts});},update(value){updates.push(value);return this;},then(resolve){return Promise.resolve({error:null}).then(resolve);}};}};
- const cronContext=vm.createContext({Response,Date,console:{info(){},warn(){},error(){}},
+ const cronContext=vm.createContext({Response,Date,withRuntimeAiModels:callback=>callback(),console:{info(){},warn(){},error(){}},
   isAuthorized:()=>true,createSupabaseAdmin:()=>supabase,getMaxPendingHours:()=>6,
   KLING_PROVIDER_PENDING_STATUSES:['processing'],KLING_FINALIZER_POST_SELECT:'id',
   recoverableKlingReferenceFailure:()=>false,finalizationJobGate:()=>({action:'proceed'}),finalizationRetryBackoffIsFresh:()=>false,

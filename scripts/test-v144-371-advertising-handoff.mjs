@@ -38,21 +38,23 @@ assert.equal(normalizeCommercialConcept({typography:'Legacy serif'}).scene_typog
 
 const black=await sharp({create:{width:1080,height:1920,channels:3,background:'#111111'}}).png().toBuffer();
 let providerCalls=0,reviewCalls=0,cache,metadata;
-const params={model:'offline',headline:'Ge plats åt din idé',closingHeadline:'Ge plats åt din idé',closingLine:'Se erbjudandet',closingEmphasis:'din idé',websiteUrl:'https://butik.example',creativeConcept:concept,renderEndCardMaster:true,masterFraming:END_CARD_FRAMING,sceneBackground:black,
+const params={model:'gpt-image-2.5-flare',headline:'Ge plats åt din idé',closingHeadline:'Ge plats åt din idé',closingLine:'Se erbjudandet',closingEmphasis:'din idé',websiteUrl:'https://butik.example',creativeConcept:concept,renderEndCardMaster:true,masterFraming:END_CARD_FRAMING,sceneBackground:black,
  openai:{images:{generate:async(options,request)=>{
-  providerCalls++;assert.equal(request.maxRetries,0);assert.equal(options.size,'1024x1536');
+  providerCalls++;assert.equal(request.maxRetries,0);assert.equal(options.size,'864x1536');
   assert(options.prompt.includes('Planned semantic emphasis: "din idé"'));
   assert(options.prompt.includes(concept.closing_typography));assert(!options.prompt.includes(concept.scene_typography));
-  assert(!options.prompt.includes('INCIDENTAL_PARK'));assert(options.prompt.includes('CENTRAL 9:16 VIEWPORT'));
-  assert(options.prompt.includes('x=136..888'));assert(options.prompt.includes('flat button rectangle'));
+  assert(!options.prompt.includes('INCIDENTAL_PARK'));assert(options.prompt.includes('true 9:16'));
+  assert(options.prompt.includes('x=64..800'));assert(options.prompt.includes('flat button rectangle'));
   return {data:[{b64_json:rawArt.toString('base64')}]};
  }}},onBackground:async(buffer,info)=>{cache=buffer;metadata=info;}};
 const generated=await generateIndependentAdvertisingAssets(params);
 assert.equal(providerCalls,1);assert.equal(metadata.framing,END_CARD_FRAMING);assert(metadata.isMaster);
 assert.deepEqual(cache,rawArt,'raw paid provider output remains intact, separate from delivery framing');
 assert.equal(generated.endCardFraming,END_CARD_FRAMING);
-const expected=await sharp(rawArt).resize(1080,1920,{fit:'cover',position:'centre'}).removeAlpha().raw().toBuffer();
-assert.deepEqual(await sharp(generated.endCardMaster).raw().toBuffer(),expected,'every delivered row is artwork; no generated/blurred padding');
+// This fixture deliberately violates the requested 9:16 shape and contains
+// edge lettering markers. Never reintroduce v371's crop on such a response.
+const expected=await sharp(await fitEndCardMasterArtwork(rawArt)).removeAlpha().raw().toBuffer();
+assert.deepEqual(await sharp(generated.endCardMaster).raw().toBuffer(),expected,'unexpected provider shape preserves every edge instead of trusting prompt margins');
 const cached=await generateIndependentAdvertisingAssets({...params,cachedBackground:cache,cachedMaster:metadata.isMaster,cachedMasterFraming:metadata.framing});
 assert.equal(providerCalls,1);assert.deepEqual(cached.endCardMaster,generated.endCardMaster,'resuming preserves the exact planned viewport');
 const layers=await composeVideoEndCardLayers({masterArtwork:generated.endCardMaster,headline:params.closingHeadline,closingLine:params.closingLine,websiteUrl:params.websiteUrl});
@@ -130,4 +132,4 @@ if(process.env.VIDEO_QA_OUTPUT){
  const preview=await sharp(black).composite([{input:overlay}]).png().toBuffer();
  await sharp(preview).resize({width:540}).toFile(`${process.env.VIDEO_QA_OUTPUT}/preserved-accent-fixture.png`);
 }
-console.log('PASS 144.371: explicit closing emphasis/direction reaches existing image call; planned 9:16 has no padding, raw/legacy caches preserved; meaningful partial-line accents survive actual final contrast pass; bottom control zone excluded; both workers connected; no added paid call/reviewer');
+console.log('PASS 144.371: explicit closing emphasis/direction reaches existing image call; native request selected, unexpected shapes and raw/legacy caches preserved; meaningful partial-line accents survive actual final contrast pass; bottom control zone excluded; both workers connected; no added paid call/reviewer');

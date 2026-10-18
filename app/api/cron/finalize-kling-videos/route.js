@@ -1,3 +1,4 @@
+import { activeAiModel, withRuntimeAiModels } from '../../../../lib/aiModelControl.js';
 import { END_CARD_FRAMING } from '../../../../lib/videoEndCardMaster.js';
 import { COMMERCIAL_CONCEPT_VERSION, COMMERCIAL_CONCEPT_BRIEF, COMMERCIAL_CONCEPT_SCHEMA, normalizeCommercialConcept, commercialConceptDirection, separateCommercialWebsite } from '../../../../lib/videoCommercialConcept.js';
 import { END_CARD_DESIGN_BRIEF, END_CARD_LAYOUT_POLICY, END_CARD_HOLD_SECONDS, normalizeEndCardHook, endCardEmphasis } from "../../../../lib/videoEndCardBrief.js";
@@ -464,7 +465,7 @@ async function ensureKlingLogoOverlay({ supabase, post, selection }) {
   return next;
 }
 
-async function planFinishedKlingAdvertisingCreative({ openai, post, selection, frames, productReferenceBuffer = null }) {
+async function planFinishedKlingAdvertisingCreative({ openai, post, selection, frames, productReferenceBuffer = null, model = "gpt-5.6-sol" }) {
   const fallbackCopy = selection?.text_overlay_copy || {};
   const fallbackHeadline =
     normalizeKlingCreativeLine(fallbackCopy?.headline, { maxWords: 7, maxChars: 52 }) ||
@@ -488,6 +489,8 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
     creative_concept: normalizeCommercialConcept(null),
     concept_version: COMMERCIAL_CONCEPT_VERSION,
     source: "deterministic_fallback",
+    model,
+    model_purpose: "editorial_headline",
   };
   if (!openai || !Array.isArray(frames) || frames.length === 0) return fallbackPlan;
 
@@ -529,9 +532,10 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
   try {
     for (let copyAttempt = 1; copyAttempt <= 2; copyAttempt += 1) {
       const response = await openai.responses.create({
-        model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+        model,
+        ...(/^gpt-[56](?:[.-]|$)/i.test(model) ? {reasoning:{effort:"medium"}} : {}),
         input: [{ role: "user", content }],
-        max_output_tokens: 2600,
+        max_output_tokens: /^gpt-[56](?:[.-]|$)/i.test(model) ? 4800 : 2600,
         text: {
           format: {
             type: "json_schema",
@@ -564,7 +568,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
             },
           },
         },
-      }, { timeout: 24_000, maxRetries: 0 });
+      }, { timeout: 40_000, maxRetries: 0 });
       const parsed = JSON.parse(getOpenAiTextOutput(response));
       const headline = normalizeKlingCreativeLine(parsed?.headline, { maxWords: 6, maxChars: 48 }) || fallbackHeadline;
       const repeatsProduct = isProductLabelHeadline(headline, productTitle);
@@ -596,12 +600,15 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
         cta_layout: normalizeKlingLayout(parsed?.cta_layout, getKlingPlacementBox(parsed?.cta_placement, "lower_left"), parsed?.placement_confidence, true),
         copy_planning_attempts: copyAttempt,
         copy_feedback: repeatsProduct ? "Product-label fallback retained once; no creative review hold" : null,
-        source: "gpt-4.1-mini-finished-video-creative-plan",
+        source: "finished-video-creative-plan-v372",
+        model,
+        model_purpose: "editorial_headline",
       };
     }
   } catch (error) {
     // Missing scene space is handled by the final composition pass, not a creative admin hold.
     console.warn("Kling finished-video creative planning unavailable; using safe fallback copy/placement", {
+      model,
       postId: post?.id || null,
       message: truncate(error?.message || String(error), 500),
     });
@@ -1249,6 +1256,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
       }
     }
     const creativePlan = await planFinishedKlingAdvertisingCreative({
+      model:activeAiModel("editorial_headline",process.env.EDITORIAL_HEADLINE_MODEL||"gpt-5.6-sol"),
       productReferenceBuffer,
       openai,
       post,
@@ -1988,6 +1996,7 @@ export async function GET(request) {
     return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
+  return withRuntimeAiModels(async () => {
   const summary = {
     checked: 0,
     pending: 0,
@@ -2310,4 +2319,5 @@ export async function GET(request) {
       { status: 500 }
     );
   }
+  });
 }
