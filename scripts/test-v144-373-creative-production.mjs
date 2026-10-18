@@ -1,3 +1,4 @@
+import * as sceneHeadline from '../lib/videoSceneHeadline.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -47,7 +48,7 @@ assert.equal(animatedCalls,2);assert.equal(recovered.output_text,'recovered');
 let authCalls=0;
 await assert.rejects(()=>planning.requestAnimatedCreativeResponse({responses:{create:async()=>{authCalls++;throw {status:401,message:'Invalid key'};}}},animatedBody));
 assert.equal(authCalls,1);
-const context=vm.createContext({...planning,...concept,...endBrief,console:quiet,VIDEO_DESIGN_VERSION:373,
+const context=vm.createContext({...sceneHeadline,...planning,...concept,...endBrief,console:quiet,VIDEO_DESIGN_VERSION:373,
  KLING_FINISHED_TYPOGRAPHY_PLACEMENTS:{lower_left:{}},getFallbackKlingCta:()=> 'Se erbjudandet',
  normalizeKlingCreativeLine:v=>String(v||'').trim(),normalizeKlingLayout:v=>v||{},getKlingPlacementBox:()=>({}),klingLayoutSchema:()=>({type:'object'}),truncate:v=>String(v||''),getOpenAiTextOutput:r=>r.output_text,repeatsAdvertisingMessage,isProductLabelHeadline});
 vm.runInContext(extract(finalizer,'async function planFinishedKlingAdvertisingCreative(','\nasync function '),context);
@@ -80,7 +81,7 @@ assert.equal(persisted.video_background_selection.finalization_control.next_retr
 const branch=extract(worker,'  const eligibleCatalogItems =','  // v144.285: for a connected');
 const pool=Array.from({length:250},(_,i)=>({url:'product-'+i,title:'Product '+i,eligible:i>0}));
 let selectedPools=[],locked=[];
-const catalogCtx=vm.createContext({productIntentScoped:true,hasShopifyPrimaryCatalog:false,websiteAccessProtected:false,sortedCatalogItems:pool,
+const catalogCtx=vm.createContext({...sceneHeadline,productIntentScoped:true,hasShopifyPrimaryCatalog:false,websiteAccessProtected:false,sortedCatalogItems:pool,
  isAcceptableWebsiteTextProductSelection:i=>i.eligible,isProductKnownUnavailableForPromotion:i=>i.unavailable===true,isCampaignFitRejectedForRule:i=>i.campaignRejected===true,console:quiet,supabase:{},rule:{id:'rule'},websiteUrl:'collection',contentType:'product',usedWebsiteImageUrlsThisRun:new Set(),recentUsedItems:[],productResearchFallbackReason:null,summary:{website_items_found:0,website_content_success:0},
  chooseUnusedWebsiteItem:async({items,allowReuseWhenExhausted})=>{assert.equal(allowReuseWhenExhausted,false);selectedPools.push(items.length);return {item:items[0],cycleNumber:1};},
  finalizePreparedWebsiteItem:async(item,cycle,options)=>{locked.push(item.url);assert.equal(options.allowAiRepair,false);if(locked.length===1)throw Error('stale page');return {websiteItem:item};},

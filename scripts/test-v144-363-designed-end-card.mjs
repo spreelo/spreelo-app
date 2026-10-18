@@ -1,3 +1,4 @@
+import * as sceneHeadline from '../lib/videoSceneHeadline.js';
 import * as creativePlanning from '../lib/videoCreativePlanning.js';
 import assert from 'node:assert/strict';
 import * as commercialConcept from '../lib/videoCommercialConcept.js';
@@ -89,7 +90,7 @@ function definition(source,name){
  const rest=source.slice(at).replace(/^export /,'');const next=/\n(?:export )?(?:async )?function /g.exec(rest);return next?rest.slice(0,next.index):rest;
 }
 const finalizer=fs.readFileSync('app/api/cron/finalize-kling-videos/route.js','utf8');
-const context=vm.createContext({...creativePlanning,...commercialConcept,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,END_CARD_DESIGN_BRIEF,normalizeEndCardHook,endCardEmphasis,
+const context=vm.createContext({...sceneHeadline,...creativePlanning,...commercialConcept,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,END_CARD_DESIGN_BRIEF,normalizeEndCardHook,endCardEmphasis,
  COMMERCIAL_COPY_HIERARCHY,repeatsAdvertisingMessage,isProductLabelHeadline,CREATIVE_DIRECTOR_BRIEF:'Verified facts only.',
  KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'fixture',KLING_FINISHED_TYPOGRAPHY_PLACEMENTS:{lower_left:{}},
  normalizeKlingCreativeLine:value=>String(value||'').trim(),getFallbackKlingCta:()=>fixtures[0].closingLine,

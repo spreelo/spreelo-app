@@ -1,3 +1,4 @@
+import * as sceneHeadline from '../lib/videoSceneHeadline.js';
 import * as creativePlanning from '../lib/videoCreativePlanning.js';
 import assert from 'node:assert/strict';
 import * as commercialConcept from '../lib/videoCommercialConcept.js';
@@ -86,7 +87,7 @@ const plan = { headline: oldCopy, subheadline: 'Bepansrade Enhörningar', cta: p
   cta_layout:{},protected_regions:[],placement_confidence:.95,design_direction:params.designDirection };
 async function copyCase(results) {
   const calls=[];
-  const ctx=vm.createContext({...creativePlanning, ...commercialConcept, console:quiet, COMMERCIAL_COPY_HIERARCHY, repeatsAdvertisingMessage, isProductLabelHeadline,
+  const ctx=vm.createContext({...sceneHeadline,...creativePlanning, ...commercialConcept, console:quiet, COMMERCIAL_COPY_HIERARCHY, repeatsAdvertisingMessage, isProductLabelHeadline,
     VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION, END_CARD_DESIGN_BRIEF, normalizeEndCardHook, endCardEmphasis, CREATIVE_DIRECTOR_BRIEF:'Verified facts only.',
     KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'fixture', KLING_FINISHED_TYPOGRAPHY_PLACEMENTS:{lower_left:{}},
     normalizeKlingCreativeLine:(value)=>String(value||'').trim(), getFallbackKlingCta:()=>params.closingLine,
@@ -116,7 +117,7 @@ const shirt={url:'https://filter-test.test/products/shirt'},poster={url:'https:/
 let feeds=0;
 const fetcher=async()=>{feeds++;return{ok:true,json:async()=>({products:[{handle:'shirt'}]})};};
 const entered=new Error('ENTERED_VERIFICATION_RANKING');
-const ctx=vm.createContext({...creativePlanning,console:quiet,WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT:12,WEBSITE_VERIFICATION_SOFT_DEADLINE_MS:225000,
+const ctx=vm.createContext({...sceneHeadline,...creativePlanning,console:quiet,WEBSITE_PRODUCT_DISCOVERY_VERIFY_LIMIT:12,WEBSITE_VERIFICATION_SOFT_DEADLINE_MS:225000,
   filterExplicitCollectionCandidates:options=>filterExplicitCollectionCandidates({...options,fetcher}),
   rankFocusedCategoryCandidatesForVerification:items=>{
     assert.deepEqual(Array.from(items).map(item=>item.url),[shirt.url]);throw entered;

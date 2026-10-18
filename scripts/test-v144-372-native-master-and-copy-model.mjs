@@ -1,3 +1,4 @@
+import * as sceneHeadline from '../lib/videoSceneHeadline.js';
 import * as creativePlanning from '../lib/videoCreativePlanning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -91,7 +92,7 @@ assert.equal(unavailable.backgroundSource,'designed_fallback');assert.equal(unav
 
 const source=fs.readFileSync('app/api/cron/finalize-kling-videos/route.js','utf8');
 const start=source.indexOf('async function planFinishedKlingAdvertisingCreative('),end=source.indexOf('\nasync function ',start+1);
-const ctx=vm.createContext({...creativePlanning,...concept,...endBrief,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,CREATIVE_DIRECTOR_BRIEF,COMMERCIAL_COPY_HIERARCHY,repeatsAdvertisingMessage,isProductLabelHeadline,
+const ctx=vm.createContext({...sceneHeadline,...creativePlanning,...concept,...endBrief,console,VIDEO_ART_DIRECTION,VIDEO_DESIGN_VERSION,CREATIVE_DIRECTOR_BRIEF,COMMERCIAL_COPY_HIERARCHY,repeatsAdvertisingMessage,isProductLabelHeadline,
  KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'gpt-4.1-mini',KLING_FINISHED_TYPOGRAPHY_PLACEMENTS:{lower_left:{}},getFallbackKlingCta:()=> 'Se erbjudandet',normalizeKlingCreativeLine:v=>String(v||'').trim(),normalizeKlingLayout:v=>v||{},getKlingPlacementBox:()=>({}),klingLayoutSchema:()=>({type:'object'}),truncate:v=>String(v||''),getOpenAiTextOutput:r=>r.output_text});
 vm.runInContext(source.slice(start,end),ctx);
 const requests=[];
@@ -136,7 +137,7 @@ try {
  for(const [key,value] of Object.entries(oldEnv)){if(value===undefined)delete process.env[key];else process.env[key]=value;}
 }
 let unauthorizedSettingsReads=0;
-const authCtx=vm.createContext({...creativePlanning,Response,isAuthorized:()=>false,withRuntimeAiModels:()=>{unauthorizedSettingsReads++;throw Error('Must not load settings');}});
+const authCtx=vm.createContext({...sceneHeadline,...creativePlanning,Response,isAuthorized:()=>false,withRuntimeAiModels:()=>{unauthorizedSettingsReads++;throw Error('Must not load settings');}});
 vm.runInContext(source.slice(source.indexOf('export async function GET(')).replace('export ',''),authCtx);
 assert.equal((await authCtx.GET({})).status,401);assert.equal(unauthorizedSettingsReads,0);
 for(const word of ['FUBBICK','Fubbick','Renodlad bas','basgarderob'])assert(!concept.COMMERCIAL_CONCEPT_BRIEF.includes(word),'general instructions contain no per-product/language patch');
