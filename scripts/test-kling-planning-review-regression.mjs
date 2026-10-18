@@ -28,8 +28,11 @@ assert(repaired.validation_attempts[0].problems.includes('scene_verified_wear_ac
 assert.equal(repaired.validation_attempts[0].proposal.action_id,'walk');
 assert(calls[1].input[0].content[0].text.includes('scene_verified_wear_action_id_must_be_empty'));
 const long={...story,motion_plan:{...plan,strategy:'A complete valid but verbose strategy. '.repeat(6)}};
-const lengthFixed=await motion.planKlingCommercialStory({...args,openai:ai([long,story])});
-assert.equal(lengthFixed.status,'planned');assert(lengthFixed.validation_attempts[0].problems.some(p=>p.startsWith('strategy_exceeds_160_characters:')));
+const lengthCalls=[];
+const lengthAccepted=await motion.planKlingCommercialStory({...args,openai:ai([long],lengthCalls)});
+assert.equal(lengthAccepted.status,'planned');assert.equal(lengthCalls.length,1,'brevity alone must not create another planning request');
+assert.deepEqual(lengthAccepted.validation_attempts[0].problems,[]);
+assert(motion.renderKlingStructuredMotion(lengthAccepted.motion_plan,intel).includes(long.motion_plan.strategy.trim()),'complete action survives rendering beyond the old 180-character cut');
 const rejected=await motion.planKlingCommercialStory({...args,openai:ai([incorrect,incorrect])});
 assert.equal(rejected.status,'unavailable');assert.equal(rejected.validation_attempts.length,2);
 assert.match(rejected.reason,/scene_verified_wear_action_id_must_be_empty/);

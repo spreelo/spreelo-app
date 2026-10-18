@@ -16786,13 +16786,19 @@ async function buildKlingProductVideoPrompt({ openai, rule, postContent, referen
   const safetyReview = validateKlingCreativeDirection(creativePrompt);
   if (!safetyReview.ok) motionPlan = passiveKlingMotionPlan(safetyReview.reasons.join(", "));
   const safety = getKlingProviderSafetyPrefix(referenceSafety);
-  let prompt = assembleKlingPrompt({ safety, direction: motionPlan.motion_prompt, maxCreative: 1200 });
+  let prompt = assembleKlingPrompt({ safety, direction: motionPlan.motion_prompt, maxCreative: referenceSafety?.commercialStory?.status === "planned" ? 2450 : 1200 });
   // Preserve the complete planned direction and its product requirements.
   // Never truncate an operation and leave incompatible metadata behind.
   let submitted = prompt.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim();
   if (submitted !== motionPlan.motion_prompt) {
+    if (referenceSafety?.commercialStory?.status === "planned") {
+      // The existing whole-request budget is the actual technical constraint.
+      // Do not mislabel this as a story review or silently replace the action.
+      const length = `${safety} CREATIVE DIRECTION: ${motionPlan.motion_prompt}`.length;
+      throw Object.assign(new Error(`Full Kling prompt needs ${length} characters; the complete product locks and action must fit the existing 2450-character request budget. No Kling video has been ordered.`), {code:"KLING_PROMPT_TOO_LONG"});
+    }
     motionPlan = passiveKlingMotionPlan("reviewed_plan_exceeds_provider_budget");
-    prompt = assembleKlingPrompt({ safety, direction: motionPlan.motion_prompt, maxCreative: 1200 });
+    prompt = assembleKlingPrompt({ safety, direction: motionPlan.motion_prompt, maxCreative: referenceSafety?.commercialStory?.status === "planned" ? 2450 : 1200 });
     submitted = prompt.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim();
     if (submitted !== motionPlan.motion_prompt) throw new Error("Kling passive motion direction was not preserved in full");
   }

@@ -1,3 +1,4 @@
+import {createUiTranslationCache} from '../lib/i18n/uiTranslationCache.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -54,7 +55,7 @@ await check('the complete current UI dictionary fits the per-entry budget',()=>{
  const s=new QuotaStorage();const text=JSON.stringify(getDefaultLabelsForNamespaces(ALL_UI_NAMESPACES));assert(text.length<BROWSER_CACHE_MAX_ENTRY_CHARS);assert.equal(writeBrowserCache(s,'spreelo_ui_labels_v30_sv',text),true);assert.equal(s.getItem('spreelo_ui_labels_v30_sv'),text);
 });
 await check('actual translation writer retains complete in-memory labels when disk cache is oversized',()=>{
- const s=new QuotaStorage();const memory=new Map();const fn=vm.runInNewContext(`(${namedFunction('lib/i18n/useUiText.js','writeStoredLabels')})`,{window:{},DEFAULT_UI_LOCALE:'en',readStoredLabels:()=>({existing:'kept'}),translationMemory:memory,getStorageKey:locale=>'spreelo_ui_labels_v30_'+locale,writeOptionalBrowserCache:(k,v)=>writeBrowserCache(s,k,v)});
+ const s=new QuotaStorage();const memory=new Map([['sv',{existing:'kept'}]]);const fn=createUiTranslationCache({getStorage:()=>s,memory}).write;
  fn('sv',{newLabel:'x'.repeat(BROWSER_CACHE_MAX_ENTRY_CHARS+1)});assert.equal(memory.get('sv').existing,'kept');assert(memory.get('sv').newLabel.length>BROWSER_CACHE_MAX_ENTRY_CHARS);assert.equal(s.length,0);
 });
 await check('actual client prepares storage before creating the SDK with a persistent adapter',()=>{

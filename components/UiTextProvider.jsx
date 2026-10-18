@@ -1,8 +1,8 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { UiLocaleContext } from "../lib/i18n/uiLocaleContext.js";
-import { APP_LANGUAGE_CHANGED_EVENT, APP_LANGUAGE_STORAGE_KEY, getInitialLocale } from "../lib/i18n/useUiText.js";
+import { APP_LANGUAGE_CHANGED_EVENT, APP_LANGUAGE_STORAGE_KEY, getInitialLocale, warmStoredUiLocale } from "../lib/i18n/useUiText.js";
 import { normalizeUiLocale } from "../lib/i18n/defaultLabels.js";
 
 export default function UiTextProvider({ children }) {
@@ -25,6 +25,8 @@ export default function UiTextProvider({ children }) {
       window.removeEventListener("storage", storage);
     };
   }, []);
+
+  useEffect(() => { if (runtime.ready) warmStoredUiLocale(runtime.locale); }, [runtime.locale, runtime.ready]);
 
   return (
     <UiLocaleContext.Provider value={runtime}>

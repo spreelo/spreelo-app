@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
 import {getDefaultLabelsForNamespaces} from '../lib/i18n/defaultLabels.js';
+import {BROWSER_UI_NAMESPACES} from '../lib/i18n/storedUiTranslations.js';
 import {isLanguageNeutralUiSource} from '../lib/i18n/translationValidation.js';
 
 const port=Number(process.env.UI_TEST_PORT||3148),origin=`http://127.0.0.1:${port}`;
@@ -57,8 +58,14 @@ try {
     return respond([]);
    }
    if(url.origin===origin){
+    if(url.pathname==='/api/ui-translations/stored'){
+     if(translationMode==='timeout')return req.continue({url:`${origin}/__ui_translations_hang`});
+     if(translationMode==='failure')return respond({error:'fixture unavailable'},503);
+     await pause(translationMode==='warm_only'?900:120);
+     return respond({locale:url.searchParams.get('locale'),labels:localized(BROWSER_UI_NAMESPACES,url.searchParams.get('locale'))});
+    }
     if(url.pathname==='/api/ui-translations'){
-     translationCalls++;if(translationMode==='timeout')return req.continue({url:`${origin}/__ui_translations_hang`});await pause(650);
+     translationCalls++;if(translationMode==='timeout'||translationMode==='warm_only')return req.continue({url:`${origin}/__ui_translations_hang`});await pause(650);
      if(translationMode==='failure')return respond({error:'fixture unavailable'},503);
      return respond({labels:localized(url.searchParams.get('namespaces').split(','),url.searchParams.get('locale'))});
     }
@@ -102,6 +109,24 @@ try {
  assert(!loaderPaints.some(text=>text.includes('Preparing your workspace')&&!text.includes('SV ')),'no English-only loader flash');
  console.log('PASS browser: workspace loader has Swedish copy from its first visible paint with empty translation cache');
  console.log('PASS browser: cold Swedish page uses local label placeholders; no exposed English first paint or page mask');
+ translationMode='timeout';
+ await page.evaluate(()=>{window.uiPaints=[];window.softNavigationMarker='language-warm-runtime';});
+ await page.click('.spreelo-nav a[href="/calendar"]');
+ await page.waitForFunction(()=>location.pathname==='/calendar'&&document.querySelector('.campaign-calendar-v134-hero h2')?.textContent.trim().startsWith('SV '));
+ await pause(200);
+ const warmPaints=await page.evaluate(()=>window.uiPaints);
+ assert(warmPaints.length&&warmPaints.every(p=>p.lang==='sv'&&!p.headings.some(h=>/^[.\s…]+$/.test(h))),JSON.stringify(warmPaints));
+ assert.equal(await page.evaluate(()=>window.softNavigationMarker),'language-warm-runtime');
+ await page.evaluate(()=>{window.uiPaints=[];});
+ await page.click('.spreelo-nav a[href="/automation"]');
+ await page.waitForFunction(()=>location.pathname==='/automation'&&document.querySelector('.sp85-settings-card-schedule strong')?.textContent.startsWith('SV '));
+ await pause(100);
+ const returnPaints=await page.evaluate(()=>window.uiPaints);
+ assert(returnPaints.length&&returnPaints.every(p=>!p.headings.some(h=>/^[.\s…]+$/.test(h))),JSON.stringify(returnPaints));
+ assert.equal(await page.evaluate(()=>!!localStorage.getItem('sb-example-auth-token')),true);
+ console.log('PASS 144.370 browser: first calendar visit and creator return have no placeholder paints while validation hangs; runtime/auth retained');
+ translationMode='normal';
+
  await page.goto(origin+'/calendar',{waitUntil:'networkidle0'});await settle();await pause(100);await assertPaints('sv');
  assert((await page.$eval('body',e=>e.textContent)).includes('SV Awareness theme'));
  console.log('PASS browser: real calendar routes awareness_theme through translated labels');
@@ -185,6 +210,15 @@ try {
  await page.waitForFunction(()=>document.documentElement.lang==='sv'&&document.querySelector('#login-language-select')?.value==='sv');
  assert.equal(await page.evaluate(()=>localStorage.getItem('spreelo_app_language')),'sv','cross-tab preference must not be overwritten by the old URL locale');
  console.log('PASS browser: cross-tab language preference synchronizes without an old URL overriding it');
+ translationMode='warm_only';
+ await page.evaluate(()=>{for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k.startsWith('spreelo_ui_labels_'))localStorage.removeItem(k);}});
+ await page.goto(origin+'/automation',{waitUntil:'domcontentloaded'});await settle();
+ const warmBegan=Date.now();
+ await page.waitForFunction(()=>document.querySelector('.sp85-settings-card-schedule strong')?.textContent.startsWith('SV '),{timeout:2500});
+ assert(Date.now()-warmBegan<2500,'mounted consumers update from warmup without waiting for their own hanging request');
+ assert.equal(await page.evaluate(()=>!!localStorage.getItem('sb-example-auth-token')),true);
+ console.log('PASS 144.370 browser: delayed warmup updates mounted cold page while its own translation request hangs');
+
  assert.deepEqual(errors,[],'no page errors / hydration mismatch');assert(translationCalls>0);
  if(process.env.UI_TEST_OUTPUT){await fs.mkdir(process.env.UI_TEST_OUTPUT,{recursive:true});await page.screenshot({path:`${process.env.UI_TEST_OUTPUT}/ui-fallback.png`});}
  console.log('PASS 144.362 production browser suite; no live account, paid model or customer message used');

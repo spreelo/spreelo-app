@@ -21,8 +21,9 @@ const png=await sharp({create:{width:540,height:960,channels:3,background:'#2933
 const route=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const extract=(start,end)=>route.slice(route.indexOf(start),route.indexOf(end,route.indexOf(start)));
 
-async function run({claim=true,providerError=null,imageError=null,checkpointError=false}={}) {
-  const proposals=[story(first),story(second)],events=[],writes=[],requests=[];
+async function run({claim=true,providerError=null,imageError=null,checkpointError=false,storyProposals=null}={}) {
+  const proposals=storyProposals||[story(first),story(second)],events=[],writes=[],requests=[];
+  const expectedStrategy=proposals.at(-1).motion_plan.strategy;
   const ai={responses:{create:async req=>{
     events.push(req.text.format.name);assert.equal(req.text.format.name,'kling_product_commercial_story_358','no extra motion-review model');
     const text=req.input[0].content[0].text;
@@ -30,7 +31,7 @@ async function run({claim=true,providerError=null,imageError=null,checkpointErro
     const proposal=proposals.shift();assert(proposal,'unexpected planning retry');return {output_text:JSON.stringify(proposal)};
   }},images:{edit:async req=>{
     events.push('opening_image');if(imageError)throw imageError;
-    assert(req.prompt.includes(second.strategy));assert.match(req.prompt,/Stage ordinary wearing, carrying or ground contact/);
+    assert(req.prompt.includes(expectedStrategy));assert.match(req.prompt,/Stage ordinary wearing, carrying or ground contact/);
     assert(!req.prompt.includes('establish no handling or operational state'));
     assert.match(req.prompt,/Preserve the exact verified product identity/);
     return {data:[{b64_json:png.toString('base64')}]};
@@ -81,6 +82,16 @@ assert(success.writes.some(w=>w.values.kling_task_id==='one-kling-task'));
 
 // No provider retries: a consumed claim, API error, missing opening image or
 // checkpoint failure must not be disguised as success or buy another video.
+// Reported 169/164-character proposals must pass the actual opening, cost
+// claim and submission path once each, without a length repair or new review.
+for(const strategy of [
+ 'Man stands naturally next to picnic table wearing the dark blue diver T-shirt fully visible front, picks up diving mask to connect theme, camera zooms in on shirt print.',
+ 'Man wearing dark blue diver T-shirt stands naturally by picnic table, picks up diving mask to link theme, camera zooms in on shirt print front visible and readable.'
+]){
+ const reported=await run({storyProposals:[story({...second,strategy})]});assert.ifError(reported.error);
+ assert.equal(reported.requests.length,1);assert(reported.requests[0].prompt.includes(strategy));
+ assert.deepEqual(reported.events,['kling_product_commercial_story_358','opening_image','claim','verify_references','kling']);
+}
 const consumed=await run({claim:false});assert.match(consumed.error.message,/already consumed/);assert.equal(consumed.requests.length,0);
 const providerError=Object.assign(new Error('Kling HTTP 429: rate limit'),{status:429});
 const failed=await run({providerError});assert.equal(failed.error,providerError);assert.equal(failed.requests.length,1);

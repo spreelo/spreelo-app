@@ -1,3 +1,4 @@
+import {createUiTranslationCache} from '../lib/i18n/uiTranslationCache.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -53,10 +54,8 @@ class Storage {
 }
 const storage=new Storage(),memory=new Map();
 storage.setItem('sb-project-auth-token','keep-auth');storage.setItem('spreelo_app_language','sv');storage.setItem('spreelo_calendar_campaign_handoff','keep-unsaved');
-const ctx=vm.createContext({window:{},localStorage:storage,translationMemory:memory,DEFAULT_UI_LOCALE:'en',
- getStorageKey:locale=>'spreelo_ui_labels_v30_'+locale,getShellStorageKey,selectShellUiLabels,
- writeOptionalBrowserCache:(k,v)=>writeBrowserCache(storage,k,v)});
-vm.runInContext(named('lib/i18n/useUiText.js','readStoredLabels')+'\n'+named('lib/i18n/useUiText.js','writeStoredLabels'),ctx);
+const cache=createUiTranslationCache({getStorage:()=>storage,memory});
+const ctx={readStoredLabels:cache.read,writeStoredLabels:cache.write};
 ctx.writeStoredLabels('sv',{'layout.loadingWorkspace':'Omedelbar svensk laddningstext','layout.nav.home':'Hem',oversized:'x'.repeat(BROWSER_CACHE_MAX_ENTRY_CHARS+1)});
 assert.equal(storage.getItem('spreelo_ui_labels_v30_sv'),null,'oversized main cache stays optional');
 memory.clear();assert.equal(ctx.readStoredLabels('sv')['layout.loadingWorkspace'],'Omedelbar svensk laddningstext','shell restores synchronously after a hard navigation');
