@@ -16785,29 +16785,30 @@ async function buildKlingProductVideoPrompt({ openai, rule, postContent, referen
   });
   const creativePrompt = motionPlan.motion_prompt;
   const safetyReview = validateKlingCreativeDirection(creativePrompt);
-  if (!safetyReview.ok) motionPlan = passiveKlingMotionPlan(safetyReview.reasons.join(", "));
+  if (!safetyReview.ok) {
+    console.info("Kling motion instructions corrected locally", {
+      reasons:safetyReview.reasons, originalDirection:creativePrompt,
+      action:"Retain the original product view and use a bounded camera push; reuse the prepared opening image",
+    });
+    motionPlan = passiveKlingMotionPlan(safetyReview.reasons.join(", "), {instructionRepair:true});
+  }
   const safety = getKlingProviderSafetyPrefix(referenceSafety);
   let prompt = assembleKlingPrompt({ safety, direction: motionPlan.motion_prompt, maxCreative: referenceSafety?.commercialStory?.status === "planned" ? 2450 : 1200 });
   // Preserve the complete planned direction and its product requirements.
   // Never truncate an operation and leave incompatible metadata behind.
   let submitted = prompt.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim();
   if (submitted !== motionPlan.motion_prompt) {
-    if (referenceSafety?.commercialStory?.status === "planned") {
-      // The existing whole-request budget is the actual technical constraint.
-      // Do not mislabel this as a story review or silently replace the action.
-      const length = `${safety} CREATIVE DIRECTION: ${motionPlan.motion_prompt}`.length;
-      throw Object.assign(new Error(`Full Kling prompt needs ${length} characters; the complete product locks and action must fit the existing 2450-character request budget. No Kling video has been ordered.`), {code:"KLING_PROMPT_TOO_LONG"});
-    }
-    motionPlan = passiveKlingMotionPlan("reviewed_plan_exceeds_provider_budget");
-    prompt = assembleKlingPrompt({ safety, direction: motionPlan.motion_prompt, maxCreative: referenceSafety?.commercialStory?.status === "planned" ? 2450 : 1200 });
+    motionPlan = passiveKlingMotionPlan("instruction_length_corrected_to_provider_budget", {instructionRepair:true});
+    prompt = assembleKlingPrompt({ safety, direction: motionPlan.motion_prompt, maxCreative: 1200 });
     submitted = prompt.split("CREATIVE DIRECTION:").slice(1).join("CREATIVE DIRECTION:").trim();
-    if (submitted !== motionPlan.motion_prompt) throw new Error("Kling passive motion direction was not preserved in full");
+    if (submitted !== motionPlan.motion_prompt) throw new Error("Kling fixed product locks cannot fit the provider request limit");
+    console.info("Kling motion instructions shortened locally", {action:"Source-preserving camera motion; all product locks retained"});
   }
   if (referenceSafety) referenceSafety.motionPlan = { ...motionPlan, submitted_prompt: submitted, submitted_full_prompt: prompt };
   if(referenceSafety?.commercialStory) assertKlingMotionPlanningReady({story:referenceSafety.commercialStory,motionPlan});
   console.info('Kling commercial motion selected', {product:rule?.website_item?.title||rule?.website_item?.item_title||null,
     storyStatus:referenceSafety?.commercialStory?.status||'legacy_scene_first',mode:motionPlan.mode,camera:motionPlan.camera_mode,
-    source:motionPlan.source,motionMaterial:referenceSafety?.productIntelligence?.physical_subject?.motion_material||'unknown',motionAdaptation:referenceSafety?.commercialStory?.motion_adaptation||null,executionPolicy:motionPlan.execution_policy||'legacy_scene_first',fallbackReason:motionPlan.rejected_plan_reason||null});
+    source:motionPlan.source,motionMaterial:referenceSafety?.productIntelligence?.physical_subject?.motion_material||'unknown',motionAdaptation:referenceSafety?.commercialStory?.motion_adaptation||null,instructionRepairs:motionPlan.instruction_repairs||referenceSafety?.commercialStory?.instruction_repairs||[],executionPolicy:motionPlan.execution_policy||'legacy_scene_first',fallbackReason:motionPlan.rejected_plan_reason||null});
   return prompt;
 }
 

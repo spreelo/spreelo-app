@@ -84,12 +84,12 @@ assert(cropped.motion_prompt.includes(plan.strategy));
 for(const change of [{camera_mode:'orbit'},{action_id:'invented'},{shot_count:2},{risk:'high'}]) {
   const proposal={...story,motion_plan:{...plan,...change}};
   const bad=await motion.planKlingCommercialStory({...args,intelligence:garment,openai:fake([proposal,proposal])});
-  assert.equal(bad.status,'unavailable');
+  assert.equal(bad.status,'planned');assert(motion.motionPlanIsSupported(bad.motion_plan,garment));assert(validateKlingCreativeDirection(motion.renderKlingStructuredMotion(bad.motion_plan,garment)).ok);
 }
 const noHandling=await motion.planKlingCommercialStory({...args,context:{fullProductInteractionSafe:false},intelligence:garment,openai:fake([story])});
 assert.equal(noHandling.status,'planned');
 const printed=await motion.planKlingCommercialStory({...args,intelligence:{...garment,physical_subject:{kind:'packaging',name:'Box showing a person'}},openai:fake([story,story])});
-assert.equal(printed.status,'unavailable');
+assert.equal(printed.status,'planned');assert.equal(printed.motion_plan.mode,'camera_environment');assert(!printed.opening_framing.includes('wearer'));
 const outage=await motion.planKlingCommercialStory({...args,intelligence:garment,openai:fake([new Error('planning timeout')])});
 assert.equal(outage.status,'unavailable');
 const calls=[];
@@ -98,4 +98,4 @@ assert.equal(calls.length,0);assert.match(safe.rejected_plan_reason,/planning ti
 const failedOpening=await motion.planKlingVerifiedMotion({openai:fake([],calls),model:'test',intelligence:garment,firstFrameDataUrl:args.sourceDataUrl,
   context:{commercialStory:{...story,status:'opening_unavailable',reason:'image generation failed'}}});
 assert.match(failedOpening.rejected_plan_reason,/image generation failed/);assert.equal(calls.length,0);
-console.log('PASS: distinct product stories, cutout margins advisory, unsupported contracts/depictions rejected, outages and failed image generation do not add planning calls');
+console.log('PASS: distinct product stories, cutout margins advisory, unsupported contracts corrected, depictions remain static, outages and failed image generation do not add planning calls');

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const read = file => fs.readFileSync(file, 'utf8');
-const intel = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingVideoIntelligence.js'))}`);
+const intel = await import('../lib/klingVideoIntelligence.js');
 const guard = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingCreativeSafety.js'))}`);
 const budget = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingPromptBudget.js'))}`);
 const fixtures = JSON.parse(read('scripts/fixtures/v144-341-rejected-production-plans.json'));

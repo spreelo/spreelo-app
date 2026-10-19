@@ -21,9 +21,9 @@ const png=await sharp({create:{width:540,height:960,channels:3,background:'#2933
 const route=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const extract=(start,end)=>route.slice(route.indexOf(start),route.indexOf(end,route.indexOf(start)));
 
-async function run({claim=true,providerError=null,imageError=null,checkpointError=false,storyProposals=null}={}) {
+export async function run({claim=true,providerError=null,imageError=null,checkpointError=false,storyProposals=null,intelligence=intel,assertOriginalStrategy=true}={}) {
   const proposals=storyProposals||[story(first),story(second)],events=[],writes=[],requests=[];
-  const expectedStrategy=proposals.at(-1).motion_plan.strategy;
+  const expectedStrategy=proposals[0].motion_plan.strategy;
   const ai={responses:{create:async req=>{
     events.push(req.text.format.name);assert.equal(req.text.format.name,'kling_product_commercial_story_358','no extra motion-review model');
     const text=req.input[0].content[0].text;
@@ -31,13 +31,13 @@ async function run({claim=true,providerError=null,imageError=null,checkpointErro
     const proposal=proposals.shift();assert(proposal,'unexpected planning retry');return {output_text:JSON.stringify(proposal)};
   }},images:{edit:async req=>{
     events.push('opening_image');if(imageError)throw imageError;
-    assert(req.prompt.includes(expectedStrategy));assert.match(req.prompt,/Stage ordinary wearing, carrying or ground contact/);
+    if(assertOriginalStrategy)assert(req.prompt.includes(expectedStrategy));assert.match(req.prompt,/Stage ordinary wearing, carrying or ground contact/);
     assert(!req.prompt.includes('establish no handling or operational state'));
     assert.match(req.prompt,/Preserve the exact verified product identity/);
     return {data:[{b64_json:png.toString('base64')}]};
   }}};
   const safety={fullProductInteractionSafe:false,interactionMode:'cropped_or_uncertain_reference',edgeVisibleRatio:.08,boundsAreaRatio:.96,
-    productIntelligence:intel,verifiedViewLock:{verifiedView:'front'}};
+    productIntelligence:intelligence,verifiedViewLock:{verifiedView:'front'}};
   const db={rpc:async(name,args)=>{events.push('claim');assert.equal(name,'claim_kling_video_generation');assert.equal(args.p_post_id,'fresh-post');return {data:claim,error:null};},
     from(table){return {update(values){writes.push({table,values});return this;},async eq(){
       return {error:checkpointError&&writes.at(-1).values.kling_task_id?{message:'database unavailable'}:null};
@@ -68,11 +68,11 @@ async function run({claim=true,providerError=null,imageError=null,checkpointErro
 
 const success=await run();assert.ifError(success.error);
 assert.equal(success.result.taskId,'one-kling-task');assert.equal(success.requests.length,1);
-assert.deepEqual(success.events,['kling_product_commercial_story_358','kling_product_commercial_story_358','opening_image','claim','verify_references','kling']);
+assert.deepEqual(success.events,['kling_product_commercial_story_358','opening_image','claim','verify_references','kling']);
 assert.equal(success.safety.commercialStory.status,'planned');
-assert.deepEqual(success.safety.commercialStory.validation_attempts[1].problems,[]);
+assert.deepEqual(success.safety.commercialStory.validation_attempts[0].problems,[]);
 assert(!success.safety.commercialStory.validation_attempts.flatMap(a=>a.problems).includes('first_frame_handling_not_supported'));
-const request=success.requests[0];assert(request.prompt.includes(second.strategy));
+const request=success.requests[0];assert(request.prompt.includes(first.strategy));
 assert.match(request.prompt,/SURFACE PRINT LOCK/);assert.match(request.prompt,/COMPONENT ROLE LOCK/);assert.match(request.prompt,/Never rotate the product/);
 assert(request.prompt.length<=2450);assert.equal(request.externalTaskId,'fresh-post');
 const saved=success.writes.find(w=>w.values.video_background_selection)?.values.video_background_selection;

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const read = p => fs.readFileSync(p, 'utf8');
-const { motionPlanIsSupported } = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingVideoIntelligence.js'))}`);
+const { motionPlanIsSupported } = await import('../lib/klingVideoIntelligence.js');
 const { validateKlingCreativeDirection } = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingCreativeSafety.js'))}`);
 for (const kind of ['walk_same_view', 'roll_straight', 'carry_straight']) {
   const evidence = { physical_subject: { kind: 'physical_product', name: 'Subject', visible_surfaces: ['front'] }, confidence: 0.98,

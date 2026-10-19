@@ -5,7 +5,7 @@ const read = p => fs.readFileSync(p, 'utf8');
 const source = read('app/api/cron/run-automations/route.js');
 const budget = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingPromptBudget.js'))}`);
 const safety = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingCreativeSafety.js'))}`);
-const intelligence = await import(`data:text/javascript,${encodeURIComponent(read('lib/klingVideoIntelligence.js'))}`);
+const intelligence = await import('../lib/klingVideoIntelligence.js');
 const grab = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 let candidate = 'A subtle camera push shows the unchanged product. Established background motion continues. Hold the final second.';
 const ctx = { ...budget, ...safety, passiveKlingMotionPlan: intelligence.passiveKlingMotionPlan, PRODUCT_RESEARCH_FAST_MODEL: 'test',

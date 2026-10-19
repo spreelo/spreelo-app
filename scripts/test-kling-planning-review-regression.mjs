@@ -23,34 +23,29 @@ function ai(values,calls=[]) {return {responses:{create:async request=>{calls.pu
 const incorrect={...story,motion_plan:{...plan,action_id:'walk'}};
 const calls=[];
 const repaired=await motion.planKlingCommercialStory({...args,openai:ai([incorrect,story],calls)});
-assert.equal(repaired.status,'planned');assert.equal(calls.length,2);
-assert(repaired.validation_attempts[0].problems.includes('scene_verified_wear_action_id_must_be_empty'));
-assert.equal(repaired.validation_attempts[0].proposal.action_id,'walk');
-assert(calls[1].input[0].content[0].text.includes('scene_verified_wear_action_id_must_be_empty'));
+assert.equal(repaired.status,'planned');assert.equal(calls.length,1);
+assert(repaired.instruction_repairs.includes('garment_action_id_cleared'));
+assert.equal(repaired.motion_plan.action_id,'');
+assert.deepEqual(repaired.validation_attempts[0].problems,[]);
 const long={...story,motion_plan:{...plan,strategy:'A complete valid but verbose strategy. '.repeat(6)}};
 const lengthCalls=[];
 const lengthAccepted=await motion.planKlingCommercialStory({...args,openai:ai([long],lengthCalls)});
 assert.equal(lengthAccepted.status,'planned');assert.equal(lengthCalls.length,1,'brevity alone must not create another planning request');
 assert.deepEqual(lengthAccepted.validation_attempts[0].problems,[]);
 assert(motion.renderKlingStructuredMotion(lengthAccepted.motion_plan,intel).includes(long.motion_plan.strategy.trim()),'complete action survives rendering beyond the old 180-character cut');
-const rejected=await motion.planKlingCommercialStory({...args,openai:ai([incorrect,incorrect])});
-assert.equal(rejected.status,'unavailable');assert.equal(rejected.validation_attempts.length,2);
-assert.match(rejected.reason,/scene_verified_wear_action_id_must_be_empty/);
-let planningError;
-try {motion.assertKlingMotionPlanningReady({story:rejected});}catch(e){planningError=e;}
-assert.equal(planningError.code,'KLING_MOTION_PLAN_REVIEW_REQUIRED');
-const diagnostic=videoFailureDetails(planningError);
-assert.equal(diagnostic.motion_planning.validation_attempts.length,2);assert.equal(diagnostic.retryable,false);
-assert.match(diagnostic.action,/Ingen Kling-video har beställts/);
-assert.match(classifyVideoProviderCreationFailure(planningError).customerMessage,/No Kling video has been ordered/);
-assert.match(diagnoseFailedPost({status:'failed',video_background_selection:{failure_diagnostic:diagnostic}}).instruction,/exakta valideringsfelen/);
+const repeated=await motion.planKlingCommercialStory({...args,openai:ai([incorrect])});
+assert.equal(repeated.status,'planned');assert.equal(repeated.validation_attempts.length,1);
+assert.doesNotThrow(()=>motion.assertKlingMotionPlanningReady({story:repeated}));
 const outageCalls=[];
 const outage=await motion.planKlingCommercialStory({...args,openai:ai([new Error('planning service timeout')],outageCalls)});
 assert.equal(outageCalls.length,1);assert.equal(outage.status,'unavailable');
-console.log('PASS: exact planning predicates and rejected proposal retained, one bounded correction, no retries of planning outages');
+let planningError;
+try {motion.assertKlingMotionPlanningReady({story:outage});}catch(e){planningError=e;}
+assert.equal(planningError.code,'KLING_MOTION_PLAN_REVIEW_REQUIRED');
+assert.match(planningError.message,/planning service timeout/);
+console.log('PASS: instruction conflicts repaired locally in one planning call; actual service outages stay visible without retries');
 
-// Execute the actual opening/rescue path. An invalid story cannot fall through
-// to a paid image, generic background or the Kling cost-claim RPC.
+// A real planning-service outage still cannot fall through to a paid image or Kling claim.
 const route=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const extract=(s,start,end)=>s.slice(s.indexOf(start),s.indexOf(end,s.indexOf(start)));
 const openingCode=extract(route,'async function generateKlingDirectSceneOpeningFrame(','async function createKlingProductReferenceFrame(');
@@ -63,7 +58,7 @@ const context=vm.createContext({...motion,sharp,Buffer,console:quiet,PRODUCT_RES
   fetchImageBufferForOverlay:async()=>image,assessKlingReferenceSafety:async()=>({productIntelligence:intel,fullProductInteractionSafe:true}),
   selectKlingNaturalStartBackground:async()=>{backgrounds++;throw new Error('Must not buy another background');}});
 vm.runInContext(openingCode+'\n'+rescueCode,context);
-const invalidAi=ai([incorrect,incorrect]);invalidAi.images={edit:async()=>{images++;throw new Error('Must not generate image');}};
+const invalidAi=ai([new Error("planning service timeout")]);invalidAi.images={edit:async()=>{images++;throw new Error('Must not generate image');}};
 await assert.rejects(()=>context.submitAdminRescueAiProductVideo({openai:invalidAi,supabase:{rpc:async()=>{claims++;}},rule:{website_item:{title:'Verified product',image_url:'https://example.com/product.png'}},userId:'u',postId:'p'}),
   e=>e.code==='KLING_MOTION_PLAN_REVIEW_REQUIRED');
 assert.equal(images,0);assert.equal(claims,0);assert.equal(backgrounds,0);
@@ -76,7 +71,7 @@ const preparedPrompt=await context.buildKlingProductVideoPrompt({openai:ai([],re
   referenceSafety:preparedSafety});
 assert.equal(reviewCalls.length,0,'prepared stories go directly to Kling without another model judgment');
 assert(preparedPrompt.includes(plan.strategy));assert.equal(preparedSafety.motionPlan.preflight,null);
-console.log('PASS: malformed contracts stop before spending; valid stories retain their action and product locks without a second AI review');
+console.log('PASS: service outages stop before spending; instruction conflicts recover locally and valid stories keep their product locks');
 
 // Reproduce the reported post through the REAL finalizer and REAL delivery
 // logic. Creative criticism follows the customer's configured delivery route.

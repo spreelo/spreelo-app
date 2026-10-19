@@ -1,0 +1,42 @@
+[
+  {
+    "strategy": "Show a man wearing the blue men's T-shirt standing in a stable beach environment with arms relaxed initially, then raising arms upward to shoulder height to reveal front diver print in full, preserving front view, sleeves, and collar without rotation or turning.",
+    "mode": "scene_verified_wear",
+    "action_id": "",
+    "camera_mode": "locked",
+    "environment_motion": "existing_foliage_sways",
+    "product_pose": "source_locked",
+    "shot_count": 1,
+    "finish_seconds": 5,
+    "initial_conditions": [
+      "man wearing blue men's T-shirt with diver print front fully visible",
+      "calm beach environment with sand and gentle waves",
+      "arms relaxed at sides"
+    ],
+    "stationary_objects": [
+      "sand ground",
+      "beach background waves"
+    ],
+    "risk": "low"
+  },
+  {
+    "strategy": "Show a man wearing the blue men's T-shirt standing stably on a calm beach environment with relaxed arms, then slowly raising arms upward to shoulder height revealing the front diver print fully; preserve front view, sleeves, and collar without rotation or turning.",
+    "mode": "scene_verified_wear",
+    "action_id": "",
+    "camera_mode": "locked",
+    "environment_motion": "existing_foliage_sways",
+    "product_pose": "source_locked",
+    "shot_count": 1,
+    "finish_seconds": 5,
+    "initial_conditions": [
+      "man wearing blue men's T-shirt with front diver print fully visible",
+      "calm beach environment with sand ground and gentle waves",
+      "arms relaxed at sides"
+    ],
+    "stationary_objects": [
+      "sand ground",
+      "beach background waves"
+    ],
+    "risk": "low"
+  }
+]
