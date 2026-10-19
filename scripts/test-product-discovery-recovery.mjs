@@ -20,6 +20,7 @@ const base = {
   console: quiet, URL, Date, Map, Set, explicitCollectionScope,
   getWebsiteOrigin: origin, getWebsiteSearchBaseUrls: url => [origin(url)],
   isHttpUrl: url => /^https?:/.test(url || ''), isLikelyNonProductUrl: () => false,
+  isBadProductUrl: vm.runInNewContext(`(${definition('isBadProductUrl')})`, { URL }),
   scorePossibleProductLink: () => 10, dedupeUrlItems: dedupe,
   hasWebsiteItemAlreadyBeenUsed: used, buildCampaignDiscoverySearches: () => ['unrelated-category'],
   isWebsiteRateLimitError: error => error.code === 'WEBSITE_RATE_LIMITED',

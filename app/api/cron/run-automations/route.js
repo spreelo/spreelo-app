@@ -7,7 +7,7 @@ import { persistTerminalVideoFailure } from "../../../../lib/videoFailurePersist
 import { hasProtectedVideoJob } from "../../../../lib/videoJobSafety.js";
 import { classifyVideoProviderCreationFailure, automationFailureHandoffError } from "../../../../lib/videoFailureDiagnostics.js";
 import { explicitCollectionScope, restrictToExplicitCollection } from "../../../../lib/storeMapCollectionScope.js";
-import { verifyExplicitCollectionMembership, filterExplicitCollectionCandidates, getExplicitCollectionProductCandidates } from "../../../../lib/verifiedCollectionMembership.js";
+import { verifyExplicitCollectionMembership as verifyCollectionMembership, filterExplicitCollectionCandidates as filterCollectionCandidates, getExplicitCollectionProductCandidates as getCollectionCandidates } from "../../../../lib/verifiedCollectionMembership.js";
 import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering, buildOfflineAdvertisingBackdrop } from "../../../../lib/videoAdvertisingAssetPipeline.js";
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
 import { buildKlingAdvertisingAtlasPrompt, splitKlingAdvertisingAtlas, composeVideoEndCardLayers } from "../../../../lib/klingEndCard.js";
@@ -4413,6 +4413,13 @@ function getWebsiteProductSourceUrl(brandProfile, rule = null) {
     );
   }
 
+  // An analysis source is evidence of a product-based business, not a
+  // customer-selected category. An explicit whole-site choice must use the
+  // configured website; focused URLs above still remain hard boundaries.
+  if (rule?.content_source_scope === "whole_website" && brandProfile?.website_url) {
+    return normalizeWebsiteUrl(brandProfile.website_url);
+  }
+
   return normalizeWebsiteUrl(
     brandProfile?.website_product_source_url || brandProfile?.website_url
   );
@@ -4582,11 +4589,15 @@ function isBadProductUrl(value) {
   try {
     const parsedUrl = new URL(lowerUrl);
     const path = parsedUrl.pathname.replace(/\/{2,}/g, "/");
+    const decodedPath = decodeURIComponent(path);
 
     // Reject assets, tracking/API endpoints, account/payment flows and unresolved
     // theme templates before verification. Store search pages may still be used
     // by discovery code, but they must never be approved as a product page.
     if (
+      /[<>\r\n]/.test(decodedPath) ||
+      /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?policies(?:\/|$)/i.test(path) ||
+      /\/cdn\/shop\/t\/[^/]+\/assets(?:\/|$)/i.test(path) ||
       /\.(?:png|jpe?g|webp|gif|svg|avif|ico|pdf|mp4|webm|woff2?|ttf|otf|eot|css|m?js|map|json|xml)(?:$|\?)/i.test(`${path}${parsedUrl.search}`) ||
       /\/cdn\/(?:shop\/)?(?:products|files)\//i.test(path) ||
       /(?:%7b|%7d|\{\{|\}\}|%7b%7burl%7d%7d)/i.test(parsedUrl.href) ||
@@ -8390,6 +8401,16 @@ async function prepareCarouselProductsForRule({
           rule,
         })
       : rawWebsiteUrl;
+  console.info('Product discovery source scope resolved', {
+    ruleId: rule?.id || null,
+    sourceScope: contentSourceScope,
+    sourceUrl: websiteUrl,
+    sourceOrigin: rule?.content_source_url
+      ? 'explicit_rule_url'
+      : rule?.content_source_scope === 'whole_website' && brandProfile?.website_url
+        ? 'whole_website_brand_url'
+        : 'brand_analysis_product_source_or_legacy',
+  });
   const contentType = rule.content_type_id || "carousel_website_item";
   const isCampaignRule = isCampaignScopedWebsiteRule(rule);
 
@@ -15874,6 +15895,27 @@ async function fetchJson(url) {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+async function fetchCollectionEvidence(url) {
+  if (new URL(url).pathname.endsWith('/products.json')) {
+    const payload = await fetchJson(url);
+    return { ok: true, json: async () => payload };
+  }
+  const snapshot = await fetchHtmlWithFinalUrl(url);
+  return { ok: true, text: async () => snapshot.html, url: snapshot.finalUrl };
+}
+
+// Reuse the website's existing pacing, security and history-aware 429 policy.
+// Membership JSON/HTML must not become an untracked alternative fetch path.
+function verifyExplicitCollectionMembership(options) {
+  return verifyCollectionMembership({ ...options, fetcher: fetchCollectionEvidence });
+}
+function filterExplicitCollectionCandidates(options) {
+  return filterCollectionCandidates({ ...options, fetcher: fetchCollectionEvidence });
+}
+function getExplicitCollectionProductCandidates(options) {
+  return getCollectionCandidates({ ...options, fetcher: fetchCollectionEvidence });
 }
 
 async function fetchWebsitePages(websiteUrl) {
@@ -25206,6 +25248,18 @@ async function extractProductDataFromProductPage({
 }) {
   let effectiveProductUrl = productUrl;
   let html = await fetchHtml(productUrl);
+  // Reuse the page already being inspected. A missing collection feed is
+  // inconclusive; the exact product's breadcrumb can establish membership.
+  if (/\/collections\/[^/?#]+\/?(?:[?#]|$)/i.test(String(websiteUrl || ''))) {
+    const membership = await verifyExplicitCollectionMembership({
+      sourceUrl: websiteUrl, productUrl, productHtml: html,
+    });
+    if (membership.applicable && !membership.verified) {
+      const error = new Error(`Product is not verified in selected collection: ${membership.reason}`);
+      error.code = 'COLLECTION_MEMBERSHIP_UNVERIFIED';
+      throw error;
+    }
+  }
   const expectedTitle = getVerifiedProductTitleCandidate(webSearchProduct?.title || "");
   let product = findBestJsonLdProduct(html, effectiveProductUrl, expectedTitle);
   let productSchemaFound = Boolean(product?.name || product?.offers || product?.image);
@@ -28185,6 +28239,15 @@ async function verifyDiscoveredWebsiteProductCandidates({
   const scopedCandidates = await filterExplicitCollectionCandidates({
     sourceUrl: websiteUrl, items: candidates || [], refreshIfEmpty: false,
   });
+  const pendingMembershipUrls = new Set((scopedCandidates.pending || []).map(candidate =>
+    normalizeComparableValue(canonicalizeWebsiteProductUrl(candidate?.url, websiteUrl) || candidate?.url)
+  ));
+  if (pendingMembershipUrls.size) {
+    console.info('Collection membership deferred to exact product pages; category data incomplete', {
+      ruleId: rule?.id || null, websiteUrl, pendingCandidateCount: pendingMembershipUrls.size,
+      action: 'Use product-page category evidence before accepting a product',
+    });
+  }
   if (scopedCandidates.applicable && scopedCandidates.rejected.length) {
     console.info("Product candidates filtered by selected collection before technical verification", {
       ruleId: rule?.id || null, websiteUrl,
@@ -28269,49 +28332,67 @@ async function verifyDiscoveredWebsiteProductCandidates({
     );
     let websiteItem = null;
 
-    if (isAuthoritativePublicCommerceFeedLockedProduct(candidate)) {
-      websiteItem = {
-        ...candidate,
-        page_type: "product",
-        page_type_confidence: 100,
-        product_confidence: Math.max(100, Number(candidate?.product_confidence || 0)),
-        concrete_product_verified: true,
-        ecommerce_proof_found: true,
-        verification_level: "authoritative_public_commerce_feed",
-        last_verified_at:
-          candidate?.last_verified_at ||
-          candidate?.stock_verified_at ||
-          new Date().toISOString(),
-      };
-      inspectedCount += 1;
-      if (verificationCache instanceof Map && candidateCacheKey) {
-        verificationCache.set(candidateCacheKey, websiteItem);
-      }
-    } else if (verificationCache instanceof Map && candidateCacheKey && verificationCache.has(candidateCacheKey)) {
-      const cachedValue = verificationCache.get(candidateCacheKey);
-      cacheHitCount += 1;
-      inspectedCount += 1;
-      if (!cachedValue) {
-        rejectedCount += 1;
-        rejectedUrls.push(canonicalizeWebsiteProductUrl(candidate?.url, websiteUrl) || candidate?.url);
-        continue;
-      }
-      websiteItem = {
-        ...cachedValue,
-        source_page_url: candidate?.source_page_url || cachedValue?.source_page_url || null,
-        source_search_url: candidate?.source_search_url || cachedValue?.source_search_url || null,
-        found_by_query: candidate?.found_by_query || cachedValue?.found_by_query || null,
-        verification_cache_hit: true,
-      };
-    } else try {
-      websiteItem = await extractProductDataFromProductPage({
-        productUrl: candidate.url,
-        websiteUrl,
-        webSearchProduct: candidate,
-        renderProductPage,
-      });
-      if (verificationCache instanceof Map && candidateCacheKey) {
-        verificationCache.set(candidateCacheKey, websiteItem || null);
+    try {
+      if (isAuthoritativePublicCommerceFeedLockedProduct(candidate)) {
+        if (pendingMembershipUrls.has(candidateCacheKey)) {
+          const membership = await verifyExplicitCollectionMembership({ sourceUrl: websiteUrl, productUrl: candidate.url });
+          if (!membership.verified) {
+            const error = new Error(membership.reason);
+            error.code = "COLLECTION_MEMBERSHIP_UNVERIFIED";
+            throw error;
+          }
+        }
+        websiteItem = {
+          ...candidate,
+          page_type: "product",
+          page_type_confidence: 100,
+          product_confidence: Math.max(100, Number(candidate?.product_confidence || 0)),
+          concrete_product_verified: true,
+          ecommerce_proof_found: true,
+          verification_level: "authoritative_public_commerce_feed",
+          last_verified_at:
+            candidate?.last_verified_at ||
+            candidate?.stock_verified_at ||
+            new Date().toISOString(),
+        };
+        inspectedCount += 1;
+        if (verificationCache instanceof Map && candidateCacheKey) {
+          verificationCache.set(candidateCacheKey, websiteItem);
+        }
+      } else if (verificationCache instanceof Map && candidateCacheKey && verificationCache.has(candidateCacheKey)) {
+        const cachedValue = verificationCache.get(candidateCacheKey);
+        cacheHitCount += 1;
+        inspectedCount += 1;
+        if (!cachedValue) {
+          rejectedCount += 1;
+          rejectedUrls.push(canonicalizeWebsiteProductUrl(candidate?.url, websiteUrl) || candidate?.url);
+          continue;
+        }
+        if (pendingMembershipUrls.has(candidateCacheKey)) {
+          const membership = await verifyExplicitCollectionMembership({ sourceUrl: websiteUrl, productUrl: candidate.url });
+          if (!membership.verified) {
+            const error = new Error(membership.reason);
+            error.code = 'COLLECTION_MEMBERSHIP_UNVERIFIED';
+            throw error;
+          }
+        }
+        websiteItem = {
+          ...cachedValue,
+          source_page_url: candidate?.source_page_url || cachedValue?.source_page_url || null,
+          source_search_url: candidate?.source_search_url || cachedValue?.source_search_url || null,
+          found_by_query: candidate?.found_by_query || cachedValue?.found_by_query || null,
+          verification_cache_hit: true,
+        };
+      } else {
+        websiteItem = await extractProductDataFromProductPage({
+          productUrl: candidate.url,
+          websiteUrl,
+          webSearchProduct: candidate,
+          renderProductPage,
+        });
+        if (verificationCache instanceof Map && candidateCacheKey) {
+          verificationCache.set(candidateCacheKey, websiteItem || null);
+        }
       }
     } catch (error) {
       inspectedCount += 1;
@@ -32355,7 +32436,8 @@ async function findWebsiteProductWithWebSearch({
 
     candidateProducts = sortFreshProductCandidatesFirst(
       dedupeUrlItems(candidateProducts).filter((item) =>
-        !excludePreviouslyUsed || !hasWebsiteItemAlreadyBeenUsed(item, usedWebsiteItems, websiteUrl)
+        !isBadProductUrl(item?.url) &&
+        (!excludePreviouslyUsed || !hasWebsiteItemAlreadyBeenUsed(item, usedWebsiteItems, websiteUrl))
       ),
       usedWebsiteItems,
       websiteUrl
@@ -32665,6 +32747,16 @@ async function prepareWebsiteContentForRule({
           rule,
         })
       : rawWebsiteUrl;
+  console.info('Product discovery source scope resolved', {
+    ruleId: rule?.id || null,
+    sourceScope: contentSourceScope,
+    sourceUrl: websiteUrl,
+    sourceOrigin: rule?.content_source_url
+      ? 'explicit_rule_url'
+      : rule?.content_source_scope === 'whole_website' && brandProfile?.website_url
+        ? 'whole_website_brand_url'
+        : 'brand_analysis_product_source_or_legacy',
+  });
   const finalizePreparedWebsiteItem = async (
     item,
     cycleNumber = 1,
@@ -33393,7 +33485,8 @@ async function prepareWebsiteContentForRule({
       ruleId: rule.id,
       websiteUrl,
       rejectedCachedCandidates: collectionCatalogFilter.rejected.length,
-      verifiedCachedCandidates: collectionCatalogFilter.items.length,
+      verifiedCachedCandidates: collectionCatalogFilter.items.length - (collectionCatalogFilter.pending?.length || 0),
+      pendingCategoryMembershipCandidates: collectionCatalogFilter.pending?.length || 0,
       directCollectionCandidates: directCollectionItems.length,
       selectionPoolCount: sortedCatalogItems.length,
     });
