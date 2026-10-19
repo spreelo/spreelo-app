@@ -16768,8 +16768,11 @@ async function createKlingProductReferenceFrame(sourceImageBuffer, { naturalBack
 
 function getKlingProviderSafetyPrefix(referenceSafety = {}) {
   const packaging = referenceSafety?.productIntelligence?.physical_subject?.kind === "packaging";
+  const garment = referenceSafety?.productIntelligence?.physical_subject?.motion_material === 'deformable_garment';
   return [
-    "HARD PRODUCT LOCK: frame 0 defines product identity, verified view and set, not a frozen actor pose. Natural gait, head/eye motion and fabric response are allowed within the approved action. Never rotate the product, flip, orbit or reveal unverified surfaces.",
+    garment
+      ? "HARD PRODUCT LOCK: frame 0 defines product identity, verified view and set, not a frozen actor pose. Natural gait, head/eye motion and fabric response are allowed within the approved action. Never rotate the product, flip, orbit or reveal unverified surfaces."
+      : "HARD PRODUCT LOCK: retailer image defines product identity/view; frame 0 defines the set. Keep the original facing angle throughout, including when worn/carried. Adapt actor motion to that angle. Never rotate the product, flip, orbit or reveal unverified surfaces.",
     packaging ? "PHYSICAL SUBJECT LOCK: the physical product is the packaging itself; preserve its outer surfaces and all artwork. Printed devices are flat depictions, never physical scene objects." : "PHYSICAL SUBJECT LOCK: printed pictures and screen depictions remain static artwork, never physical scene objects.",
     "COMPONENT ROLE LOCK: preserve component count, geometry, role, attachment, state, material and color. Independent stationary accessories stay fixed and separate.",
     "SURFACE PRINT LOCK: preserve every logo, letter, number and printed detail character-for-character. No redraw, invented branding, overlay text or watermarks.",
