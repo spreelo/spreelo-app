@@ -13,7 +13,7 @@ import {validateKlingCreativeDirection} from '../lib/klingCreativeSafety.js';
 import {normalizeVideoDurationSeconds} from '../lib/videoDuration.js';
 
 const image=await sharp({create:{width:540,height:960,channels:3,background:'#29333a'}}).png().toBuffer();
-const intel={physical_subject:{kind:'physical_product',name:'Verified physical product'},confidence:.99,verified_actions:[],components:[]};
+const intel={physical_subject:{motion_material:'deformable_garment',kind:'physical_product',name:'Verified physical product'},confidence:.99,verified_actions:[],components:[]};
 const plan={strategy:'The supported wearer walks through the established scene, keeping the exact product visible.',mode:'scene_verified_wear',action_id:'',
   camera_mode:'follow_same_view',environment_motion:'none',product_pose:'source_locked',shot_count:1,finish_seconds:5,initial_conditions:[],stationary_objects:[],risk:'low'};
 const story={concept:'A purposeful product-specific encounter',setting:'A relevant real-world setting',opening_framing:'The actor, support and clear path are visible',

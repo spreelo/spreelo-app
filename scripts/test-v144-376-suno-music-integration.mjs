@@ -20,7 +20,10 @@ assert.equal(existing.find(t=>t.name==='Neon Pulse 07').active,false);
 assert.equal(new Set(VIDEO_MUSIC_LIBRARY.map(t=>t.id)).size,36);
 assert.equal(new Set(VIDEO_MUSIC_LIBRARY.map(t=>t.public_path)).size,36);
 const presentWavs=fs.readdirSync(path.join(root,'public/audio-library')).filter(n=>n.endsWith('.wav'));
-assert.equal(presentWavs.length,36);
+// 144.377 deliberately retained old public asset URLs without reactivating
+// those tracks. Verify the selectable catalog, not deletion of legacy files.
+const referencedWavs=presentWavs.filter(n=>VIDEO_MUSIC_LIBRARY.some(t=>t.public_path===`/audio-library/${n}`));
+assert.equal(referencedWavs.length,36);
 for(const tr of VIDEO_MUSIC_LIBRARY){
  const name=tr.public_path.split('/').at(-1);
  const file=fs.readFileSync(path.join(root,'public/audio-library',name));
@@ -61,4 +64,4 @@ assert(preview?.id.startsWith('suno-beat-'));
 assert(preview.url.includes('/audio-library/suno-beat-'));
 assert(preview.trimStartSeconds>0);
 assert.equal(selectBestVideoMusicFromTracks({tracks:existing.filter(t=>t.name==='Neon Pulse 07'),targetDurationSeconds:6.5,appUrl:'https://app.spreelo.com'}),null,'inactive old track cannot be selected');
-console.log('v144.376 integration passed: 19 retained old, 19 removed old, 17 new, 36 WAVs, admin settings, one-time v2->v3 migration, no resurrection, selection and end alignment.');
+console.log('v144.376 integration passed: 19 retained old, 19 excluded old, 17 new, 36 catalog WAVs, admin settings, one-time v2->v3 migration, no resurrection, selection and end alignment.');

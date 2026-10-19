@@ -10,7 +10,7 @@ const actual=[
  'Man wearing dark blue diver T-shirt stands naturally by picnic table, picks up diving mask to link theme, camera zooms in on shirt print front visible and readable.'
 ];
 assert.deepEqual(actual.map(s=>s.length),[169,164]);
-const intelligence={physical_subject:{kind:'physical_product',name:'Verified product'},confidence:.95,verified_actions:[],components:[]};
+const intelligence={physical_subject:{motion_material:'deformable_garment',kind:'physical_product',name:'Verified product'},confidence:.95,verified_actions:[],components:[]};
 const plan=strategy=>({strategy,mode:'scene_verified_wear',action_id:'',camera_mode:'locked',environment_motion:'none',product_pose:'source_locked',shot_count:1,finish_seconds:5,initial_conditions:['The supported wearer and props are established from frame zero'],stationary_objects:['table'],risk:'low'});
 const story=p=>({concept:'Product-specific movement',setting:'An established setting',opening_framing:'Supported wearer and exact product front visible',beat_0_1:'Action starts',beat_1_4:'Continuous action',beat_4_5:'Product remains prominent',motion_plan:p});
 const route=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');

@@ -13,7 +13,7 @@ const review={identity_safe:true,source_view_safe:true,functions_supported:true,
 const plan={strategy:'The wearer walks down the existing street, keeping the Halloween shirt print visible as the camera follows.',
   mode:'scene_verified_wear',action_id:'',camera_mode:'follow_same_view',environment_motion:'none',product_pose:'source_locked',
   shot_count:1,finish_seconds:5,initial_conditions:['wearer supported on pavement'],stationary_objects:[],risk:'low'};
-const garment={physical_subject:{kind:'physical_product',name:'Halloween T-shirt'},confidence:.99,verified_actions:[],components:[]};
+const garment={physical_subject:{motion_material:'deformable_garment',kind:'physical_product',name:'Halloween T-shirt'},confidence:.99,verified_actions:[],components:[]};
 const story={concept:'A confident evening walk showing the exact Halloween print',setting:'An autumn city street',
   opening_framing:'Full supported wearer in mid-stride, legs and feet visible, clear pavement ahead, original shirt front visible',
   beat_0_1:'The wearer is already taking the first step with a natural forward eyeline',
@@ -60,7 +60,7 @@ assert.equal(referenceSafety.motionPlan.execution_policy,'direct_kling_execution
 console.log('PASS: real route plans the story before its image and submits the complete action without an additional motion review');
 
 // A second physical product gets a different story, without category switches.
-const stroller={physical_subject:{kind:'physical_product',name:'Verified stroller'},confidence:.99,components:[],
+const stroller={physical_subject:{motion_material:'deformable_garment',kind:'physical_product',name:'Verified stroller'},confidence:.99,components:[],
   verified_actions:[{id:'roll',kind:'roll_straight',target_component:'Verified stroller',physical_motion_supported:true,preserves_source_view:true,
     confidence:.99,evidence_type:'visible_geometry',source_evidence:'Visible wheels on a ground plane'}]};
 const rolling={...story,concept:'A parent continues a calm park walk with the verified stroller',setting:'A park path',

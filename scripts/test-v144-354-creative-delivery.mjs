@@ -32,7 +32,7 @@ assert.equal(updates.length,1);
 const broken={...post,video_background_selection:{shotstack_checkpoint:{phase:'design_review_failed',reason:'Advertising visual quality rejected (subject_overlap): covers product'}}};
 await assert.rejects(()=>finishSavedShotstackPost({supabase,post:broken,waitForRender:async()=>({url:'https://example.com'})}),e=>e.code==='SHOTSTACK_DESIGN_REVIEW_REJECTED');
 const contract={strategy:'The original product is used truthfully in an established setting as the camera follows a real existing actor',mode:'scene_verified_wear',action_id:'',camera_mode:'follow_same_view',environment_motion:'none',product_pose:'source_locked',shot_count:1,finish_seconds:5,initial_conditions:[],stationary_objects:[],risk:'low'};
-const intel={physical_subject:{kind:'physical_product'},confidence:0.99};
+const intel={physical_subject:{motion_material:'deformable_garment',kind:'physical_product'},confidence:0.99};
 assert(motionPlanIsSupported(contract,intel));
 assert.match(renderKlingStructuredMotion(contract,intel),/original product is used truthfully/i,'story concept must reach real prompt');
 assert.match(renderKlingStructuredMotion(contract,intel),/seconds 1-4/,'real time-directed action');

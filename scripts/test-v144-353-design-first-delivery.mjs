@@ -45,7 +45,7 @@ const timeline=buildVideoOverlayEdit({videoUrl:'https://example.com/kling.mp4',t
 const source=timeline.timeline.tracks.flatMap(t=>t.clips).find(c=>c.asset?.type==='video');
 assert(source?.scale?.[0]?.to>1,'a source-preserving editorial camera move is present');
 assert(source.scale[0].to<=1.07);
-const intel={physical_subject:{kind:'physical_product'},confidence:.99};
+const intel={physical_subject:{motion_material:'deformable_garment',kind:'physical_product'},confidence:.99};
 const plan={mode:'scene_verified_wear',strategy:'human movement',action_id:'',camera_mode:'follow_same_view',environment_motion:'none',
   product_pose:'source_locked',shot_count:1,finish_seconds:5,initial_conditions:[],stationary_objects:[],risk:'low'};
 assert(motionPlanIsSupported(plan,intel));

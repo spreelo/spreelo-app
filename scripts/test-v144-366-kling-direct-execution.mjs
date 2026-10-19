@@ -8,7 +8,7 @@ import {validateKlingCreativeDirection} from '../lib/klingCreativeSafety.js';
 
 // Reproduce occurrence 84526670-de2f-4b18-b99b-eaf469424120. These are
 // the two actual logged proposals, with the same physical-product evidence.
-const intel={physical_subject:{kind:'physical_product',name:'Heja Eslöv T-shirt'},confidence:.95,verified_actions:[],components:[]};
+const intel={physical_subject:{motion_material:'deformable_garment',kind:'physical_product',name:'Heja Eslöv T-shirt'},confidence:.95,verified_actions:[],components:[]};
 const base={action_id:'',camera_mode:'locked',product_pose:'source_locked',shot_count:1,finish_seconds:5,risk:'low',
   mode:'scene_verified_wear',stationary_objects:[]};
 const first={...base,strategy:'A person walks naturally forward along a paved city park path to reveal and highlight the front view of the yellow Heja Eslöv T-shirt with clear text visibility.',
