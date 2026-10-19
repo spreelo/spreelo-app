@@ -39799,7 +39799,7 @@ async function createAnimatedLogoOverlay({ supabase = null, brandProfile, includ
       },
     })
       .composite([
-        { input: logoPng, left: 78, top: 207 },
+        { input: logoPng, left: 78, top: 77 },
       ])
       .png()
       .toBuffer();

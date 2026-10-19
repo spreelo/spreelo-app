@@ -1,0 +1,565 @@
+{
+  "base": "Spreelo-144.375-full.zip",
+  "new_version": "144.376",
+  "catalog_version": 3,
+  "original_count": 38,
+  "retained_original_count": 19,
+  "removed_original_count": 19,
+  "new_suno_count": 17,
+  "expected_bundled_count": 36,
+  "source_audio_format": "WAV 48000 Hz stereo PCM 16-bit",
+  "preservedOriginalTracks": [
+    "Wait for the Drop",
+    "Bouncy Bluebirds 03",
+    "Neon Pulse 02",
+    "Neon Pulse 03",
+    "Neon Pulse 04",
+    "Neon Pulse 05",
+    "Neon Pulse 06",
+    "Neon Pulse 07",
+    "Soft Morning Light 01",
+    "Soft Morning Light 02",
+    "Soft Morning Light 03",
+    "Soft Morning Light 06",
+    "Sunshine 01",
+    "Sunshine 02",
+    "Sunshine 03",
+    "Sunshine 04",
+    "Sunshine 05",
+    "The Final Push",
+    "Velvet Horizon 01"
+  ],
+  "removedBundledTracks": [
+    "Bouncy Bluebirds 01",
+    "Bouncy Bluebirds 02",
+    "Bouncy Bunny Blues 01",
+    "Bouncy Bunny Blues 02",
+    "Bouncy Bunny Blues 03",
+    "Golden Hour 01",
+    "Golden Hour 02",
+    "Golden Hour 03",
+    "Morning Light 01",
+    "Morning Light 02",
+    "Morning Light 03",
+    "Neon Horizon",
+    "Neon Pulse 01",
+    "Soft Morning Light 04",
+    "Soft Morning Light 05",
+    "Soft Morning Light 07",
+    "Soft Static 01",
+    "Soft Static 02",
+    "Velvet Horizon 02"
+  ],
+  "newTracks": [
+    {
+      "original": "Catchy Random Bea.wav",
+      "name": "Suno Warm Steps 01",
+      "asset": "/audio-library/suno-beat-01.wav",
+      "duration": 10.0,
+      "energy": "medium",
+      "volume": 0.51,
+      "categories": [
+        "warm",
+        "rhythmic",
+        "organic",
+        "lifestyle"
+      ],
+      "moods": [
+        "friendly",
+        "relaxed",
+        "grounded",
+        "easygoing"
+      ],
+      "industries": [
+        "home",
+        "lifestyle",
+        "food",
+        "retail",
+        "family",
+        "ecommerce"
+      ],
+      "priority": 3,
+      "notes": "Suno source: Catchy Random Bea.wav. Automatic signal analysis: approx. 99 BPM, -15.7 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat.wav",
+      "name": "Suno Digital Spark 02",
+      "asset": "/audio-library/suno-beat-02.wav",
+      "duration": 10.4,
+      "energy": "high",
+      "volume": 0.61,
+      "categories": [
+        "modern",
+        "rhythmic",
+        "bright",
+        "digital"
+      ],
+      "moods": [
+        "energetic",
+        "playful",
+        "dynamic",
+        "crisp"
+      ],
+      "industries": [
+        "tech",
+        "electronics",
+        "gaming",
+        "sport",
+        "ecommerce",
+        "retail"
+      ],
+      "priority": 4,
+      "notes": "Suno source: Catchy Random Beat.wav. Automatic signal analysis: approx. 112 BPM, -17.2 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(1).wav",
+      "name": "Suno Momentum Drive 03",
+      "asset": "/audio-library/suno-beat-03.wav",
+      "duration": 10.36,
+      "energy": "high",
+      "volume": 0.47,
+      "categories": [
+        "driving",
+        "bold",
+        "rhythmic",
+        "dynamic"
+      ],
+      "moods": [
+        "confident",
+        "energetic",
+        "motivational",
+        "bold"
+      ],
+      "industries": [
+        "sport",
+        "fitness",
+        "automotive",
+        "fashion",
+        "tech",
+        "retail"
+      ],
+      "priority": 5,
+      "notes": "Suno source: Catchy Random Beat(1).wav. Automatic signal analysis: approx. 129 BPM, -14.9 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(2).wav",
+      "name": "Suno Urban Ease 04",
+      "asset": "/audio-library/suno-beat-04.wav",
+      "duration": 11.6,
+      "energy": "medium",
+      "volume": 0.52,
+      "categories": [
+        "warm",
+        "rhythmic",
+        "urban",
+        "minimal"
+      ],
+      "moods": [
+        "relaxed",
+        "cool",
+        "stylish",
+        "smooth"
+      ],
+      "industries": [
+        "fashion",
+        "lifestyle",
+        "home",
+        "beauty",
+        "retail",
+        "ecommerce"
+      ],
+      "priority": 4,
+      "notes": "Suno source: Catchy Random Beat(2).wav. Automatic signal analysis: approx. 92 BPM, -15.9 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(3).wav",
+      "name": "Suno City Rhythm 05",
+      "asset": "/audio-library/suno-beat-05.wav",
+      "duration": 11.36,
+      "energy": "medium",
+      "volume": 0.51,
+      "categories": [
+        "modern",
+        "rhythmic",
+        "lifestyle",
+        "clean"
+      ],
+      "moods": [
+        "upbeat",
+        "confident",
+        "friendly",
+        "contemporary"
+      ],
+      "industries": [
+        "fashion",
+        "retail",
+        "lifestyle",
+        "travel",
+        "food",
+        "ecommerce"
+      ],
+      "priority": 4,
+      "notes": "Suno source: Catchy Random Beat(3).wav. Automatic signal analysis: approx. 108 BPM, -15.6 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(4).wav",
+      "name": "Suno Easy Swing 06",
+      "asset": "/audio-library/suno-beat-06.wav",
+      "duration": 10.0,
+      "energy": "medium",
+      "volume": 0.48,
+      "categories": [
+        "warm",
+        "groovy",
+        "friendly",
+        "rhythmic"
+      ],
+      "moods": [
+        "cheerful",
+        "relaxed",
+        "playful",
+        "easygoing"
+      ],
+      "industries": [
+        "food",
+        "retail",
+        "family",
+        "lifestyle",
+        "pets",
+        "ecommerce"
+      ],
+      "priority": 3,
+      "notes": "Suno source: Catchy Random Beat(4).wav. Automatic signal analysis: approx. 99 BPM, -15.1 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(5).wav",
+      "name": "Suno Smooth Current 07",
+      "asset": "/audio-library/suno-beat-07.wav",
+      "duration": 9.6,
+      "energy": "medium",
+      "volume": 0.49,
+      "categories": [
+        "polished",
+        "minimal",
+        "rhythmic",
+        "modern"
+      ],
+      "moods": [
+        "confident",
+        "smooth",
+        "clean",
+        "calm"
+      ],
+      "industries": [
+        "beauty",
+        "wellness",
+        "home",
+        "fashion",
+        "tech",
+        "ecommerce"
+      ],
+      "priority": 4,
+      "notes": "Suno source: Catchy Random Beat(5).wav. Automatic signal analysis: approx. 112 BPM, -15.4 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(6).wav",
+      "name": "Suno Rising Horizon 08",
+      "asset": "/audio-library/suno-beat-08.wav",
+      "duration": 13.16,
+      "energy": "medium",
+      "volume": 0.6,
+      "categories": [
+        "cinematic",
+        "dynamic",
+        "rhythmic",
+        "modern"
+      ],
+      "moods": [
+        "inspiring",
+        "steady",
+        "confident",
+        "building"
+      ],
+      "industries": [
+        "travel",
+        "automotive",
+        "sport",
+        "outdoor",
+        "tech",
+        "retail"
+      ],
+      "priority": 5,
+      "notes": "Suno source: Catchy Random Beat(6).wav. Automatic signal analysis: approx. 112 BPM, -17.1 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(7).wav",
+      "name": "Suno Rolling Motion 09",
+      "asset": "/audio-library/suno-beat-09.wav",
+      "duration": 11.28,
+      "energy": "medium",
+      "volume": 0.54,
+      "categories": [
+        "dynamic",
+        "rhythmic",
+        "sporty",
+        "lifestyle"
+      ],
+      "moods": [
+        "upbeat",
+        "forward",
+        "energetic",
+        "confident"
+      ],
+      "industries": [
+        "sport",
+        "automotive",
+        "travel",
+        "fashion",
+        "retail",
+        "ecommerce"
+      ],
+      "priority": 3,
+      "notes": "Suno source: Catchy Random Beat(7).wav. Automatic signal analysis: approx. 99 BPM, -16.1 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(8).wav",
+      "name": "Suno Minimal Flow 10",
+      "asset": "/audio-library/suno-beat-10.wav",
+      "duration": 9.96,
+      "energy": "medium",
+      "volume": 0.52,
+      "categories": [
+        "minimal",
+        "warm",
+        "premium",
+        "rhythmic"
+      ],
+      "moods": [
+        "elegant",
+        "smooth",
+        "restrained",
+        "modern"
+      ],
+      "industries": [
+        "beauty",
+        "jewelry",
+        "fashion",
+        "home",
+        "wellness",
+        "ecommerce"
+      ],
+      "priority": 4,
+      "notes": "Suno source: Catchy Random Beat(8).wav. Automatic signal analysis: approx. 117 BPM, -15.8 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(9).wav",
+      "name": "Suno Quick Finish 11",
+      "asset": "/audio-library/suno-beat-11.wav",
+      "duration": 9.6,
+      "energy": "high",
+      "volume": 0.51,
+      "categories": [
+        "rhythmic",
+        "dynamic",
+        "energetic",
+        "modern"
+      ],
+      "moods": [
+        "punchy",
+        "bold",
+        "motivational",
+        "confident"
+      ],
+      "industries": [
+        "fitness",
+        "sport",
+        "tech",
+        "gaming",
+        "automotive",
+        "retail"
+      ],
+      "priority": 5,
+      "notes": "Suno source: Catchy Random Beat(9).wav. Automatic signal analysis: approx. 129 BPM, -15.7 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(10).wav",
+      "name": "Suno Bright Circuit 12",
+      "asset": "/audio-library/suno-beat-12.wav",
+      "duration": 10.4,
+      "energy": "high",
+      "volume": 0.6,
+      "categories": [
+        "bright",
+        "digital",
+        "modern",
+        "rhythmic"
+      ],
+      "moods": [
+        "playful",
+        "energetic",
+        "crisp",
+        "upbeat"
+      ],
+      "industries": [
+        "tech",
+        "gaming",
+        "electronics",
+        "automotive",
+        "sport",
+        "ecommerce"
+      ],
+      "priority": 5,
+      "notes": "Suno source: Catchy Random Beat(10).wav. Automatic signal analysis: approx. 117 BPM, -17.0 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(11).wav",
+      "name": "Suno Gentle Pause 13",
+      "asset": "/audio-library/suno-beat-13.wav",
+      "duration": 10.4,
+      "energy": "low",
+      "volume": 0.67,
+      "categories": [
+        "soft",
+        "warm",
+        "minimal",
+        "organic"
+      ],
+      "moods": [
+        "gentle",
+        "calm",
+        "understated",
+        "peaceful"
+      ],
+      "industries": [
+        "wellness",
+        "home",
+        "baby",
+        "family",
+        "beauty",
+        "lifestyle"
+      ],
+      "priority": 3,
+      "notes": "Suno source: Catchy Random Beat(11).wav. Automatic signal analysis: approx. 99 BPM, -18.0 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(12).wav",
+      "name": "Suno Playful Parade 14",
+      "asset": "/audio-library/suno-beat-14.wav",
+      "duration": 12.8,
+      "energy": "high",
+      "volume": 0.5,
+      "categories": [
+        "playful",
+        "rhythmic",
+        "bright",
+        "friendly"
+      ],
+      "moods": [
+        "cheerful",
+        "upbeat",
+        "lighthearted",
+        "fun"
+      ],
+      "industries": [
+        "kids",
+        "family",
+        "pets",
+        "food",
+        "retail",
+        "toys"
+      ],
+      "priority": 5,
+      "notes": "Suno source: Catchy Random Beat(12).wav. Automatic signal analysis: approx. 112 BPM, -15.5 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(13).wav",
+      "name": "Suno Everyday Bounce 15",
+      "asset": "/audio-library/suno-beat-15.wav",
+      "duration": 10.6,
+      "energy": "medium",
+      "volume": 0.61,
+      "categories": [
+        "lifestyle",
+        "rhythmic",
+        "modern",
+        "polished"
+      ],
+      "moods": [
+        "friendly",
+        "confident",
+        "uplifting",
+        "easygoing"
+      ],
+      "industries": [
+        "retail",
+        "fashion",
+        "food",
+        "home",
+        "lifestyle",
+        "ecommerce"
+      ],
+      "priority": 4,
+      "notes": "Suno source: Catchy Random Beat(13).wav. Automatic signal analysis: approx. 103 BPM, -17.2 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(14).wav",
+      "name": "Suno Forward Motion 16",
+      "asset": "/audio-library/suno-beat-16.wav",
+      "duration": 10.76,
+      "energy": "high",
+      "volume": 0.57,
+      "categories": [
+        "dynamic",
+        "bright",
+        "rhythmic",
+        "modern"
+      ],
+      "moods": [
+        "energetic",
+        "bold",
+        "adventurous",
+        "confident"
+      ],
+      "industries": [
+        "sport",
+        "automotive",
+        "travel",
+        "outdoor",
+        "tech",
+        "fashion"
+      ],
+      "priority": 4,
+      "notes": "Suno source: Catchy Random Beat(14).wav. Automatic signal analysis: approx. 108 BPM, -16.7 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    },
+    {
+      "original": "Catchy Random Beat(15).wav",
+      "name": "Suno Electric Rise 17",
+      "asset": "/audio-library/suno-beat-17.wav",
+      "duration": 12.4,
+      "energy": "high",
+      "volume": 0.61,
+      "categories": [
+        "electronic",
+        "modern",
+        "dynamic",
+        "bright"
+      ],
+      "moods": [
+        "energetic",
+        "exciting",
+        "confident",
+        "futuristic"
+      ],
+      "industries": [
+        "tech",
+        "gaming",
+        "electronics",
+        "automotive",
+        "sport",
+        "ecommerce"
+      ],
+      "priority": 5,
+      "notes": "Suno source: Catchy Random Beat(15).wav. Automatic signal analysis: approx. 129 BPM, -17.2 LUFS integrated; original 48 kHz stereo WAV preserved. Classification is provisional based on acoustic measurements; audition in Admin for subjective genre/mood confirmation."
+    }
+  ]
+}

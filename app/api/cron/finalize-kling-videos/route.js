@@ -458,7 +458,7 @@ async function ensureKlingLogoOverlay({ supabase, post, selection }) {
     .resize({ width: 220, height: 100, fit: "inside", withoutEnlargement: true }).png().toBuffer();
   const overlay = await sharp({ create: { width: 1080, height: 1920, channels: 4,
     background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-    .composite([{ input: logo, left: 78, top: 207 }]).png().toBuffer();
+    .composite([{ input: logo, left: 78, top: 77 }]).png().toBuffer();
   const storagePath = `${post.user_id}/${post.id}-kling-logo-overlay.png`;
   const { error: uploadError } = await supabase.storage.from(POST_IMAGES_BUCKET).upload(storagePath, overlay, { contentType: "image/png", upsert: true });
   if (uploadError) throw uploadError;
@@ -513,7 +513,7 @@ async function planFinishedKlingAdvertisingCreative({ openai, post, selection, f
       `Verified product identity/use (data): ${JSON.stringify({description:String(selection?.verified_product_description||"").slice(0,1800),subject:selection?.reference_safety?.productIntelligence?.physical_subject,visible_identity:selection?.reference_safety?.productIntelligence?.visible_identity})}. ` +
       COMMERCIAL_CONCEPT_BRIEF + " " + SCENE_HEADLINE_BRIEF + " " +
       "Write all visible words in the language of the caption; both headlines must be complete and at most 48 characters / 6 words. Subheadline should normally be empty; never put a domain or catalogue descriptor there. cta is a short product-specific closing invitation, max 58 characters / 7 words, without a button or invented clickable-video feature. closing_headline resolves the idea; end_card_emphasis is an exact phrase within it. design_direction is concrete production guidance, not extra visible words. " +
-      "Compute protected_regions as the UNION of full product, physical print, faces and hands across ALL finished-video frames. Plan main_layout on a 1080x1920 canvas: left>=64, right<=1016, top>=340, bottom<=1536, width520–920, height140–500. Reserve y190–310 for the authentic corner logo and avoid social controls. The headline must remain clear of moving subjects over the WHOLE interval. Choose placement/alignment/font weight for an intentionally prominent readable composition. cta_layout and cta_placement are legacy metadata: the invitation belongs on the separate ending, never over the moving product. " +
+      "Compute protected_regions as the UNION of full product, physical print, faces and hands across ALL finished-video frames. Plan main_layout on a 1080x1920 canvas: left>=64, right<=1016, top>=340, bottom<=1536, width520–920, height140–500. Reserve y60–180 for the authentic corner logo and avoid social controls. The headline must remain clear of moving subjects over the WHOLE interval. Choose placement/alignment/font weight for an intentionally prominent readable composition. cta_layout and cta_placement are legacy metadata: the invitation belongs on the separate ending, never over the moving product. " +
       "The original product reference is available: " + Boolean(productReferenceBuffer) + ". With a usable physical-product reference, design a complete closing hero image containing the product, background and lettering together, not a separate product overlay. Without it, do not guess a product from the film; use the verified facts for a relevant environment-led ending. Keep each concept field to one concise sentence; return only the required JSON, no commentary.",
   }];
   if (productReferenceBuffer) {

@@ -25,7 +25,7 @@ The protected `/api/video-music` API maintains a Supabase Storage bucket named `
 
 The bucket is created/configured automatically by the service-role API. No SQL migration is required.
 
-`Wait for the Drop` plus 37 additional curated tracks are bundled under `public/audio-library/`. A brand-new deployment starts with all 38 tracks. Existing version-1 managed catalogs are upgraded once to catalog version 2: missing bundled tracks are appended while existing Admin edits are preserved. After the migration, deleting a bundled track in Admin remains intentional and it is not re-added automatically.
+From 144.376, 19 retained original tracks and 17 user-supplied Suno tracks are bundled under `public/audio-library/` (36 total). The previous 19 Admin-deleted legacy assets were removed from the package. Existing managed version-2 catalogs are upgraded to catalog version 3 by adding ONLY the 17 new Suno tracks, preserving existing Admin edits, existing uploads and independent deletion markers. Version-1 catalogs receive only currently retained bundled assets. Deleted originals cannot silently return.
 
 ## Selection
 
@@ -47,3 +47,8 @@ Spreelo does not loop, stretch or synthesize a fade to make a music track fit. I
 ## v144.55 curated pack
 
 The 37 new supplied WAV files are renamed to stable kebab-case asset names and categorized by style, mood, industry, video format, keywords and energy. Per-track video volume is balanced from measured loudness so the library stays reasonably consistent without modifying the source audio.
+
+
+## 144.376 Suno expansion and cleanup
+
+See `MUSIC_UPDATE_144376.md` and `MUSIC_UPDATE_144376_MANIFEST.json` for original-to-new filename mapping and measurements. All original WAV samples preserved. Do not reintroduce deleted bundled audio in future package merges.

@@ -11,8 +11,8 @@ import {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-assert.equal(VIDEO_MUSIC_CATALOG_VERSION, 2, "The expanded bundled library must use catalog version 2");
-assert.equal(VIDEO_MUSIC_LIBRARY.length, 38, "Wait for the Drop plus the 37 supplied tracks must ship together");
+assert.equal(VIDEO_MUSIC_CATALOG_VERSION, 3, "The managed music catalog now uses version 3");
+assert.equal(VIDEO_MUSIC_LIBRARY.length, 36, "19 retained original tracks and 17 Suno tracks should ship together");
 
 const ids = new Set();
 const paths = new Set();
@@ -39,7 +39,7 @@ const existingEditedSeed = {
   priority: 3,
 };
 const migrated = normalizeVideoMusicCatalog({ version: 1, tracks: [existingEditedSeed] });
-assert.equal(migrated.tracks.length, 38, "A version-1 catalog must receive all missing bundled tracks once");
+assert.equal(migrated.tracks.length, 36, "A version-1 catalog must receive the retained seeds and new Suno tracks");
 assert.equal(migrated.tracks[0].name, existingEditedSeed.name, "Existing Admin edits must survive the v1 -> v2 merge");
 assert.equal(migrated.tracks[0].priority, 3, "Existing Admin metadata must not be overwritten during migration");
 
@@ -53,12 +53,12 @@ const scenarios = [
   {
     label: "premium fragrance",
     context: { content_format: "animated_video", industry: "beauty", product_category: "fragrance", post_copy: "Elegant premium luxury fragrance" },
-    allowedPrefixes: ["Velvet Horizon", "Golden Hour", "Wait for the Drop"],
+    allowedPrefixes: ["Velvet Horizon", "Wait for the Drop", "Suno"],
   },
   {
     label: "children and family",
     context: { content_format: "animated_video", industry: "kids", product_category: "toys", post_copy: "Playful fun product for children and family" },
-    allowedPrefixes: ["Bouncy Bluebirds", "Bouncy Bunny Blues"],
+    allowedPrefixes: ["Bouncy Bluebirds", "Suno"],
   },
   {
     label: "baby and comfort",

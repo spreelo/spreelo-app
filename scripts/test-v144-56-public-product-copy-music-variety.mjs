@@ -159,7 +159,7 @@ assert.match(route, /isProductLabelTextRedundant\(headline, candidate\)/, "Kling
 
 // Music selection: keep semantic matching, but rotate away from recent repeats
 // and give equally suitable tracks deterministic per-post variety.
-assert.ok(VIDEO_MUSIC_LIBRARY.length >= 38, "The expanded music library must still contain all curated tracks");
+assert.ok(VIDEO_MUSIC_LIBRARY.length >= 36, "The cleaned library must contain all retained tracks plus the 17 Suno clips");
 const musicContext = {
   content_format: "animated_video",
   content_type_label: "Product post",

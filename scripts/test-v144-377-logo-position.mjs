@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import sharp from 'sharp';
+import {composeKlingEndCardLogo} from '../lib/klingEndCard.js';
+import {calculateAnimatedProductLayout} from '../lib/animatedProductLayout.js';
+const logo=await sharp({create:{width:220,height:100,channels:4,background:'#ff0000'}}).png().toBuffer();
+const blank=await sharp({create:{width:1080,height:1920,channels:4,background:'#00000000'}}).png().toBuffer();
+async function verify(buffer){const {data,info}=await sharp(buffer).ensureAlpha().raw().toBuffer({resolveWithObject:true});let xs=[],ys=[];for(let y=0;y<info.height;y++)for(let x=0;x<info.width;x++)if(data[(y*info.width+x)*4+3]){xs.push(x);ys.push(y);}assert.equal(Math.min(...new Set(xs)),78);assert.equal(Math.min(...new Set(ys)),77);assert.equal(Math.max(...new Set(xs)),297);assert.equal(Math.max(...new Set(ys)),176);}
+await verify(await composeKlingEndCardLogo(blank,logo));
+const worker=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
+const fn=worker.slice(worker.indexOf('async function createAnimatedLogoOverlay('),worker.indexOf('async function createAnimatedPoster('));
+const generate=vm.runInNewContext(`(${fn.trim()})`,{sharp,fetchBrandLogoBufferForOverlay:async()=>logo,console});
+await verify(await generate({brandProfile:{logo_url:'fixture'},includeLogo:true}));
+assert.equal(await generate({brandProfile:{},includeLogo:false}),null);
+const finalizer=fs.readFileSync('app/api/cron/finalize-kling-videos/route.js','utf8');
+assert(finalizer.includes('input: logo, left: 78, top: 77'));
+assert(finalizer.includes('Reserve y60–180'));
+assert(finalizer.includes('if (selection.logo_overlay_url) return selection;'),'existing paid jobs retain their saved assets');
+assert.deepEqual(calculateAnimatedProductLayout(800,1000).logo,{left:78,top:77,width:220,height:90});
+assert(fs.readFileSync('lib/videoAdaptiveLayout.js','utf8').includes('left:78,top:77,width:220,height:100'));
+console.log('PASS: logo bounds, animation rendering, end-card rendering, Kling coordinates and reuse, reserved region');
