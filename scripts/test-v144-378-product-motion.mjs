@@ -36,7 +36,7 @@ for(const material of ['rigid_object','unknown',undefined]){
  assert.equal(execution.execution_policy,'direct_kling_execution_v366');assert.equal(execution.preflight,null);
  assert.equal(execution.mode,'camera_environment');
  const instructions=motion.klingCommercialStoryOpeningInstruction(planned,intel);
- assert(instructions.includes('FIXED GEOMETRY'));assert(instructions.includes('contact actually visible in the retailer reference'));
+ assert(instructions.includes('FIXED GEOMETRY'));assert(instructions.includes('visible product construction and contact geometry'));
 }
 assert.equal(story.motion_plan.mode,'scene_verified_wear','never mutate original proposal');
 const rigid=evidence('rigid_object');

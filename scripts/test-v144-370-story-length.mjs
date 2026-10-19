@@ -17,7 +17,8 @@ const route=fs.readFileSync('app/api/cron/run-automations/route.js','utf8');
 const extract=(start,end)=>{const a=route.indexOf(start),b=route.indexOf(end,a);assert(a>=0&&b>a);return route.slice(a,b);};
 const ctx=vm.createContext({...motion,assembleKlingPrompt,validateKlingCreativeDirection,console:{info(){}},PRODUCT_RESEARCH_FAST_MODEL:'offline',getCustomerFacingCampaignTheme:()=>'',formatCampaignIdentityLockForPrompt:()=>''});
 vm.runInContext(extract('function getKlingProviderSafetyPrefix(','function getKlingProductPromptFallback(')+'\n'+extract('async function buildKlingProductVideoPrompt(','function buildKlingEngagementVideoPrompt('),ctx);
-const safety=ctx.getKlingProviderSafetyPrefix({});
+// This fixture exercises garment directions; reserve the actual garment locks.
+const safety=ctx.getKlingProviderSafetyPrefix({productIntelligence:intelligence});
 const frame=await sharp({create:{width:32,height:32,channels:3,background:'#223344'}}).png().toBuffer();
 const longer='The supported wearer takes purposeful steps along the established path, keeping the same verified product front visible to the camera and its exact printed design unobscured as the camera follows at the same viewing angle, with natural weight transfer, realistic fabric response through the middle of the shot before settling into a clear product-focused finish.';
 let planningCalls=0;

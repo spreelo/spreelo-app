@@ -227,17 +227,16 @@ function getApprovalExperienceCss() {
     .sp-card p.sp-help { margin: 5px 0 0; color: var(--sp-muted); font-size: 12.5px; line-height: 1.45; }
     .sp-quote { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--sp-purple); background: #f3eaff; font-weight: 900; font-size: 24px; }
     .sp-media-wrap { position: relative; overflow: hidden; border-radius: 15px; background: #eaf7fc; min-height: 480px; display: grid; place-items: center; }
-    .sp-media { display: block; width: 100%; height: 540px; object-fit: contain; background: #101319; }
+    .sp-media { display: block; width: 100%; height: 540px; object-fit: contain; background: #f7f8fb; }
     .sp-media.is-image { background: #f7f8fb; }
     .sp-empty { width: 100%; min-height: 460px; display: grid; place-items: center; color: #8a95a8; background: #f7f8fb; }
-    .sp-carousel-stage { position: relative; width: 100%; height: 540px; background: #101319; }
+    .sp-carousel-stage { position: relative; width: 100%; height: 540px; background: #f7f8fb; }
     .sp-carousel-slide { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity .18s ease; }
     .sp-carousel-slide.active { opacity: 1; }
     .sp-carousel-nav { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 10px; font-size: 12px; font-weight: 850; }
     .sp-nav-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--sp-line); background: #fff; cursor: pointer; color: var(--sp-ink); font-size: 18px; }
     .sp-tabs { display: inline-flex; gap: 5px; padding: 4px; border-radius: 11px; border: 1px solid var(--sp-line); background: #fff; }
-    .sp-platform { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 11px; border-radius: 8px; color: #263149; font-size: 12px; font-weight: 850; }
-    .sp-platform:first-child { background: #10182a; color: #fff; }
+    .sp-platform { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 11px; border-radius: 8px; color: #263149; background: #f3f4f8; font-size: 12px; font-weight: 850; }
     .sp-platform img { width: 18px; height: 18px; object-fit: contain; }
     .sp-copy { color: #202b43; font-size: 14px; line-height: 1.75; white-space: normal; overflow-wrap: anywhere; }
     .sp-note { display: flex; align-items: flex-start; gap: 10px; padding: 13px 14px; border-radius: 12px; border: 1px solid #ffcdbf; background: #fff7f4; }

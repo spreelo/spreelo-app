@@ -360,7 +360,9 @@
   display: block;
 }
 
-.admin-account-balance strong {
+/* The foundation strong rule uses !important; retain contrast on this dark panel. */
+.admin-page .admin-account-balance strong {
+  color: #fff !important;
   font-size: 32px;
 }
 
