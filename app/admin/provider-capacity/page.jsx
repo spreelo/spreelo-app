@@ -19,6 +19,11 @@ export default function ProviderCapacityPage() {
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState("");
   const [updated,setUpdated] = useState(null);
+  const [canEdit,setCanEdit] = useState(false);
+  const [editing,setEditing] = useState("");
+  const [draftLimit,setDraftLimit] = useState("");
+  const [draftVerification,setDraftVerification] = useState("unknown");
+  const [saving,setSaving] = useState(false);
   async function reload() {
     setLoading(true);setError("");
     try {
@@ -29,8 +34,30 @@ export default function ProviderCapacityPage() {
       });
       const payload=await response.json();
       if (!response.ok) throw new Error(payload.error || "Kunde inte läsa leverantörskapaciteten. Kontrollera att SQL-migreringen är installerad.");
-      setRows(payload.rows || []);setUpdated(payload.updatedAt);
+      setRows(payload.rows || []);setCanEdit(Boolean(payload.canEdit));setUpdated(payload.updatedAt);
     } catch(e) {setError(String(e.message||e));}finally{setLoading(false);}
+  }
+
+  function editLimit(row) {
+    setEditing(row.provider + ":" + row.metric);
+    setDraftLimit(row.limit_value == null ? "" : String(row.limit_value));
+    setDraftVerification(row.verification === "documented" ? "confirmed" : row.verification);
+  }
+  async function saveLimit(row) {
+    setSaving(true);setError("");
+    try {
+      const {data:{session}}=await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Inloggning saknas.");
+      const response=await fetch("/api/admin/provider-capacity",{
+        method:"PATCH",headers:{Authorization:`Bearer ${session.access_token}`,"Content-Type":"application/json"},
+        body:JSON.stringify({provider:row.provider,metric:row.metric,limit_value:draftLimit===""?null:Number(draftLimit),verification:draftVerification})
+      });
+      const payload=await response.json();
+      if (!response.ok) throw new Error(payload.error||"Gränsen kunde inte sparas.");
+      setEditing("");
+      await reload();
+    } catch(e){setError(String(e?.message||e));}
+    finally{setSaving(false);}
   }
   useEffect(()=>{reload();},[]);
   const providers = [...new Set(rows.map(r=>r.provider))];
@@ -63,6 +90,17 @@ export default function ProviderCapacityPage() {
               {pct!==null&&<div style={{height:"100%",width:`${Math.min(100,pct)}%`,background:color}}/>}
             </div>
             <p style={{fontSize:13,marginTop:7,color:"#66717b"}}>{note || `${pct}% av gränsen`}{r.monitoring_mode==="instrumented"&&!r.full_window_observed?" · Delvis mätperiod":""}</p>
+
+            {canEdit && <div style={{marginTop:8,fontSize:13}}>
+              {editing===r.provider+":"+r.metric ? <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                <label>Kontogräns <input aria-label="Kontogräns" type="number" min="1" step="1" value={draftLimit} onChange={e=>setDraftLimit(e.target.value)} style={{width:120,padding:8,border:"1px solid #bfc7d0",borderRadius:7}}/></label>
+                <label>Verifiering <select aria-label="Verifieringsstatus" value={draftVerification} onChange={e=>setDraftVerification(e.target.value)} style={{padding:8,border:"1px solid #bfc7d0",borderRadius:7}}>
+                  <option value="unknown">Okänd</option><option value="provisional">Preliminär</option><option value="confirmed">Bekräftad i kontot</option>
+                </select></label>
+                <button type="button" disabled={saving} onClick={()=>saveLimit(r)}>Spara</button>
+                <button type="button" disabled={saving} onClick={()=>setEditing("")}>Avbryt</button>
+              </div> : <button type="button" onClick={()=>editLimit(r)} style={{textDecoration:"underline",border:0,background:"transparent",cursor:"pointer"}}>Ange/verifiera gräns</button>}
+            </div>}
             <details style={{fontSize:13}}><summary style={{cursor:"pointer"}}>Åtgärd och källa</summary><p>{r.instructions}</p>{r.documentation_url&&<a target="_blank" rel="noreferrer" href={r.documentation_url}>Leverantörsdokumentation <ExternalLink size={13} style={{display:"inline"}}/></a>}</details>
           </div>;
         })}
