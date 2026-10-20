@@ -110,7 +110,7 @@
     },
     {
       "path": "/api/cron/provider-capacity-alerts",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/5 * * * *"
     }
   ]
 }
