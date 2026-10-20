@@ -4,6 +4,7 @@ import { formatMeasuredUptime } from '../../lib/systemHealthCoverage.js';
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   ArrowRight,
   BarChart3,
@@ -368,7 +369,8 @@ export default function AdminDashboardPage() {
                   <QuickLink href="/admin/customers" icon={Users} title={t("adminCommand.quick.customerList")} text={t("adminCommand.quick.customerListText")} />
                   <QuickLink href="/admin/post-approvals" icon={FileCheck2} title={t("adminCommand.quick.approvals")} text={t("adminCommand.quick.approvalsText")} badge={stats.pendingApproval || null} />
                   <QuickLink href="/admin/mass-tests" icon={FlaskConical} title={t("adminCommand.quick.massTest")} text={t("adminCommand.quick.massTestText")} />
-                  <QuickLink href="/admin/capacity-test" icon={BarChart3} title="Belastningstest · kapacitet" text="Säker simulering för 100–10 000 kunder; inga riktiga jobb startas." />
+                  <QuickLink href="/admin/capacity-test" icon={BarChart3} title="Belastningstest · kapacitet" text="Säker simulering för 100–100 000 kunder; inga riktiga jobb startas." />
+                  <QuickLink href="/admin/provider-capacity" icon={Activity} title="Leverantörsövervakning" text="API-gränser, användning, prognoser och varningar för externa tjänster." />
                 </QuickGroup>
                 <QuickGroup tone="orange" title={t("adminCommand.quick.creativeLibraries")} icon={ImagePlus}>
                   <QuickLink href="/admin/image-backgrounds" icon={ImagePlus} title={t("adminCommand.quick.imageBackgrounds")} text={t("adminCommand.quick.imageBackgroundsText")} />
