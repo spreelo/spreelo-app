@@ -107,6 +107,10 @@
     {
       "path": "/api/cron/refresh-social-token-batches",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/provider-capacity-alerts",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
