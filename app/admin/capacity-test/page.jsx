@@ -8,7 +8,7 @@ import { simulateCapacityScenario, sanitizeCapacityInputs } from "../../../lib/c
 const nf = (n) => Number(n).toLocaleString("sv-SE");
 const initial = { customers: 10000, postsPerWeek: 5, videoShare: 20, workers: 5, videoWorkerMinutes: 3, peakFactor: 3 };
 const fields = [
-  { key: "customers", label: "Kunder", min: 1, max: 10000, step: 100 },
+  { key: "customers", label: "Kunder", min: 100, max: 100000, step: 100 },
   { key: "postsPerWeek", label: "Inlägg per kund/vecka", min: 1, max: 10, step: 1 },
   { key: "videoShare", label: "Andel video (%)", min: 0, max: 100, step: 5 },
   { key: "workers", label: "Simulerade workers", min: 1, max: 50, step: 1 },
@@ -34,9 +34,9 @@ export default function AdminCapacityTestPage() {
           <a href="/admin" className="admin385-back"><ArrowLeft size={16}/> Till admin</a>
           <div className="admin385-kicker"><BarChart3 size={16}/> SYSTEMHÄLSA / KAPACITET</div>
           <h1>Belastningstest</h1>
-          <p>Simulera en vecka med 100–10 000 kunder, toppar, videojobb och olika antal workers.</p>
+          <p>Simulera en vecka med 100–100 000 kunder, toppar, videojobb och olika antal workers.</p>
         </header>
-        <div className="admin385-safe"><ShieldCheck size={20}/><div><strong>Säker syntetisk simulering</strong><p>Ingen produktion, inga kundjobb, inga externa API-anrop, ingen Supabase-belastning och inga kreditkostnader. Testet körs enbart i webbläsarens minne.</p></div></div>
+        <div className="admin385-safe"><ShieldCheck size={20}/><div><strong>Säker syntetisk simulering</strong><p>Ingen produktion, inga kundjobb, inga externa API-anrop, ingen Supabase-belastning och inga kreditkostnader. Testet körs enbart i webbläsarens minne, med grupperade jobb även vid stora volymer.</p></div></div>
         <section className="admin385-grid">
           <div className="admin385-panel">
             <h2>Testscenario</h2>
@@ -55,15 +55,15 @@ export default function AdminCapacityTestPage() {
             {!result ? <div className="admin385-placeholder">Välj scenario och tryck på Kör säker simulering.</div> : <>
               <div className="admin385-results">
                 <div><small>Planerade inlägg</small><strong>{nf(result.requestedPosts)}</strong></div>
-                <div><small>Färdigbehandlade under veckan</small><strong>{nf(result.completedInWeek)}</strong></div>
+                <div><small>Jobb påbörjade under veckan</small><strong>{nf(result.completedInWeek)}</strong></div>
                 <div><small>Väntande vid veckans slut</small><strong>{nf(result.waitingEndOfWeek)}</strong></div>
                 <div><small>Högsta väntande kö</small><strong>{nf(result.maxWaiting)}</strong></div>
-                <div><small>95:e percentil köväntan</small><strong>{result.p95QueueWaitMinutes == null ? "—" : `${nf(result.p95QueueWaitMinutes)} min`}</strong></div>
-                <div><small>Ytterligare tid för att tömma kö</small><strong>{result.simulationComplete ? `${nf(result.minutesUntilDrained)} min` : "Mer än en vecka"}</strong></div>
+                <div><small>95:e percentil väntan till jobbstart</small><strong>{result.p95QueueWaitMinutes == null ? "—" : `${nf(result.p95QueueWaitMinutes)} min`}</strong></div>
+                <div><small>Extra tid tills alla jobb startat</small><strong>{result.simulationComplete ? `${nf(result.minutesUntilDrained)} min` : "Mer än en vecka"}</strong></div>
               </div>
               <div className="admin385-interpretation"><TriangleAlert size={20}/><p>{result.waitingEndOfWeek > 0 ? "Modellen visar köbildning. Testa fler workers eller kortare arbetstid – men verifiera i staging innan du driftsätter." : "Modellens antagna worker-kapacitet räcker för detta scenario. Det bevisar INTE att Vercel, Supabase, Kling eller sociala API:er klarar samma volym."}</p></div>
             </>}
-            <div className="admin385-note"><strong>Så tolkar du siffrorna</strong><p>Det här är en <b>kapacitetsmodell</b> – inte ett faktiskt 10 000-kunders produktionstest. Leverantörskvoter, databashastighet, timeout, fel och riktiga renderingstider mäts inte. För ett verifierat resultat krävs ett separat belastningstest i staging med syntetiska konton och avstängd publicering.</p></div>
+            <div className="admin385-note"><strong>Så tolkar du siffrorna</strong><p>Det här är en <b>kapacitetsmodell</b> – inte ett faktiskt produktionstest med dessa kunder. Leverantörskvoter, databashastighet, timeout, fel och riktiga renderingstider mäts inte. För ett verifierat resultat krävs ett separat belastningstest i staging med syntetiska konton och avstängd publicering.</p></div>
           </div>
         </section>
       </main>
