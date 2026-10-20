@@ -1,3 +1,4 @@
+import { isScaledSocialBatch, shouldSkipDailySocialCron, socialBatchLimit } from "../../../../lib/scaledSocialMaintenance.mjs";
 import { NextResponse } from "next/server";
 import {
   createSupabaseAdminClient,
@@ -49,6 +50,11 @@ export async function GET(request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
+  // Preserve legacy behavior unless scaled maintenance is explicitly enabled.
+  if (shouldSkipDailySocialCron(request)) {
+    return NextResponse.json({ ok: true, skipped: true, reason: "scaled_dispatcher_active" });
+  }
+
   const summary = {
     checked: 0,
     refreshed: 0,
@@ -61,12 +67,16 @@ export async function GET(request) {
 
   try {
     const supabaseAdmin = createSupabaseAdminClient();
-    const { data: connections, error } = await supabaseAdmin
+    let tokenQuery = supabaseAdmin
       .from("social_connections")
       .select("id, user_id, brand_profile_id, platform, page_id, page_name, page_access_token, token_expires_at, refresh_token, refresh_token_expires_at, permissions, status, last_connection_check_at")
       .eq("platform", "pinterest")
       .in("status", ["connected", "expired", "needs_reconnect"])
-      .limit(1000);
+      ;
+    if (isScaledSocialBatch(request)) {
+      tokenQuery = tokenQuery.order("last_connection_check_at", { ascending: true, nullsFirst: true }).order("id", { ascending: true });
+    }
+    const { data: connections, error } = await tokenQuery.limit(socialBatchLimit(request, 1000));
 
     if (error) throw error;
 
@@ -77,6 +87,11 @@ export async function GET(request) {
       if (recovering && (!originalConnection.page_id || !originalConnection.refresh_token ||
           (originalConnection.refresh_token_expires_at &&
            new Date(originalConnection.refresh_token_expires_at).getTime() <= Date.now()))) {
+        if (isScaledSocialBatch(request)) {
+          await supabaseAdmin.from("social_connections")
+            .update({ last_connection_check_at: new Date().toISOString() })
+            .eq("id", originalConnection.id);
+        }
         summary.skipped += 1;
         continue;
       }

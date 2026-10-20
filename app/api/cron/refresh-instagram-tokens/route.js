@@ -1,3 +1,4 @@
+import { isScaledSocialBatch, shouldSkipDailySocialCron, socialBatchLimit } from "../../../../lib/scaledSocialMaintenance.mjs";
 import { NextResponse } from "next/server";
 import {
   INSTAGRAM_TOKEN_REFRESH_WINDOW_DAYS,
@@ -22,6 +23,11 @@ export async function GET(request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
+  // Preserve legacy behavior unless scaled maintenance is explicitly enabled.
+  if (shouldSkipDailySocialCron(request)) {
+    return NextResponse.json({ ok: true, skipped: true, reason: "scaled_dispatcher_active" });
+  }
+
   const summary = {
     checked: 0,
     refreshed: 0,
@@ -35,14 +41,18 @@ export async function GET(request) {
     ).toISOString();
     const nowIso = new Date().toISOString();
 
-    const { data: connections, error } = await supabaseAdmin
+    let tokenQuery = supabaseAdmin
       .from("social_connections")
       .select("id, user_id, page_id, page_name, page_access_token, token_expires_at")
       .eq("platform", "instagram")
       .eq("status", "connected")
       .not("page_access_token", "is", null)
       .or(`token_expires_at.is.null,token_expires_at.lte.${refreshBeforeIso}`)
-      .limit(50);
+      ;
+    if (isScaledSocialBatch(request)) {
+      tokenQuery = tokenQuery.order("token_expires_at", { ascending: true, nullsFirst: true }).order("id", { ascending: true });
+    }
+    const { data: connections, error } = await tokenQuery.limit(socialBatchLimit(request, 50));
 
     if (error) {
       throw error;
