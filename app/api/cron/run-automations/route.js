@@ -1,3 +1,4 @@
+import { klingCapacityQueueEnabled, tryAdmitKlingRule, releaseUnattemptedKlingSlot, markKlingSubmissionAttempt, markKlingSubmissionAccepted } from "../../../../lib/klingCapacityQueue.js";
 import { END_CARD_FRAMING } from '../../../../lib/videoEndCardMaster.js';
 import { END_CARD_LAYOUT_POLICY } from "../../../../lib/videoEndCardBrief.js";
 import { recordDatabaseRuntimeFailure } from '../../../../lib/systemHealth.js';
@@ -17003,12 +17004,14 @@ async function submitKlingEngagementConceptVideo({
   }).eq("id", postId);
 
   await verifyPreparedKlingAuditReferences({ supabase, postId });
+  await markKlingSubmissionAttempt(supabase,postId);
   const submission = await submitKlingImageToVideo({
     imageUrl: uploaded.imageUrl,
     prompt,
     externalTaskId: postId,
     durationSeconds: ENGAGEMENT_AI_VIDEO_DURATION_SECONDS,
   });
+  await markKlingSubmissionAccepted(supabase,postId,submission.taskId);
   const submittedAt = new Date().toISOString();
   const { error: persistError } = await supabase.from("posts").update({
     video_render_id: submission.taskId,
@@ -17247,12 +17250,14 @@ export async function submitAdminRescueAiProductVideo({
 
   await verifyPreparedKlingAuditReferences({ supabase, postId });
   // Exactly one provider call. Never retry this submission inside Rescue.
+  await markKlingSubmissionAttempt(supabase,postId);
   const submission = await submitKlingImageToVideo({
     imageUrl: referenceImageUrl,
     prompt: klingPrompt,
     externalTaskId: postId,
   });
   const taskId = submission?.taskId;
+  if (taskId) await markKlingSubmissionAccepted(supabase,postId,taskId);
   if (!taskId) {
     throw new Error("Kling accepted no task id for the rescue generation; no retry was attempted.");
   }
@@ -45768,6 +45773,18 @@ async function runAutomationCron(request, options = {}) {
         continue;
       }
 
+      // Admission before any product research, credits, occurrence claim or provider POST.
+      // The existing durable automation rule remains due when capacity is full.
+      let klingCapacityReservationKey = null;
+      if (klingCapacityQueueEnabled() && isKlingAiVideoRule(rule)) {
+        const capacity = await tryAdmitKlingRule(supabase,rule,scheduledPublishAtIso);
+        if (!capacity.admitted) {
+          summary.skipped += 1;
+          summary.video_render_deferred = Number(summary.video_render_deferred||0)+1;
+          continue;
+        }
+        klingCapacityReservationKey = capacity.key;
+      }
       let automationRunStartedAtIso = null;
       let automationRunLogId = null;
       let automationRunFinished = false;
@@ -48169,6 +48186,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
             // IMPORTANT: exactly one provider submission. submitKlingImageToVideo
             // intentionally has no retry loop. If this call fails, the post is
             // terminally failed and never auto-submitted again.
+            await markKlingSubmissionAttempt(supabase,post.id);
             const klingSubmission = await submitKlingImageToVideo({
               imageUrl,
               prompt: klingPrompt,
@@ -48177,6 +48195,7 @@ product_research_model_used: websitePreparedRule.uses_website_content
             });
 
             videoRenderId = klingSubmission.taskId;
+            await markKlingSubmissionAccepted(supabase,post.id,videoRenderId);
             const submittedStatus = klingSubmission.status || "submitted";
             const submittedAtIso = new Date().toISOString();
 
@@ -49558,6 +49577,8 @@ product_research_model_used: websitePreparedRule.uses_website_content
           throw automationFailureHandoffError({error,handoffError,ruleId:rule.id,postId:automationRunPostId,stage:failureStage});
         }
       } finally {
+        // Releases only when there was no attempted provider call.
+        if (klingCapacityReservationKey) await releaseUnattemptedKlingSlot(supabase,klingCapacityReservationKey);
         if (websiteDomainJobLock?.acquired && websiteDomainJobLock?.token) {
           await releaseWebsiteDomainJobLock({
             domain: websiteDomainJobLock.domain,

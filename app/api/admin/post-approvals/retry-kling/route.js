@@ -1,3 +1,4 @@
+import { klingCapacityQueueEnabled, releaseUnattemptedKlingSlot, markKlingSubmissionAttempt, markKlingSubmissionAccepted } from "../../../../../lib/klingCapacityQueue.js";
 import { verifyPreparedKlingAuditReferences } from "../../../../../lib/klingAuditReferences.js";
 import crypto from "crypto";
 import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth";
@@ -125,6 +126,17 @@ export async function POST(request) {
     );
   }
 
+  // Manual retries must share the same atomic capacity gate as automated jobs.
+  // If full, return 409 BEFORE a replacement post is created or billed.
+  const retryCapacityKey = "admin:"+post.id;
+  if (klingCapacityQueueEnabled()) {
+    const {data:admitted,error:admissionError}=await context.admin.rpc("try_admit_kling_capacity",{
+      p_job_key:retryCapacityKey,p_rule_id:null,p_scheduled_for:null
+    });
+    if(admissionError)return Response.json({ok:false,error:"Kling capacity gate unavailable: "+admissionError.message},{status:503});
+    if(admitted!==true)return Response.json({ok:false,error:"Kling has no free generation slot. Wait until an active video finishes before retrying."},{status:409});
+  }
+
   const retryPrompt = buildRetryPrompt(originalPrompt);
   const approvalToken = crypto.randomBytes(32).toString("hex");
   const nowIso = new Date().toISOString();
@@ -181,6 +193,7 @@ export async function POST(request) {
     .single();
 
   if (insertError || !newPost) {
+    if(klingCapacityQueueEnabled())await releaseUnattemptedKlingSlot(context.admin,retryCapacityKey);
     return Response.json({ ok: false, error: insertError?.message || "Could not create the Kling retry post." }, { status: 500 });
   }
 
@@ -193,11 +206,13 @@ export async function POST(request) {
     if (claimed !== true) throw new Error("The new retry post could not claim its one allowed Kling generation.");
 
     await verifyPreparedKlingAuditReferences({ supabase: context.admin, postId: newPost.id });
+    await markKlingSubmissionAttempt(context.admin,newPost.id);
     const submission = await submitKlingImageToVideo({
       imageUrl: referenceImageUrl,
       prompt: retryPrompt,
       externalTaskId: newPost.id,
     });
+    await markKlingSubmissionAccepted(context.admin,newPost.id,submission.taskId);
     const submittedAt = new Date().toISOString();
 
     const { error: persistError } = await context.admin
@@ -270,6 +285,7 @@ export async function POST(request) {
       status: submission.status || "submitted",
     });
   } catch (error) {
+    if(klingCapacityQueueEnabled())await releaseUnattemptedKlingSlot(context.admin,retryCapacityKey);
     await context.admin.from("posts").update({
       status: "failed",
       video_status: "failed",

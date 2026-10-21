@@ -1,0 +1,21 @@
+name: Kling capacity queue unit tests
+on:
+  pull_request:
+    paths:
+      - 'lib/klingCapacityQueue.js'
+      - 'tests/kling-capacity-queue.test.mjs'
+      - '.github/workflows/kling-capacity-tests.yml'
+  push:
+    branches:
+      - feature/provider-quota-sources-144-388
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/kling-capacity-queue.test.mjs

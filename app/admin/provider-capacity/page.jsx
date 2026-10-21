@@ -16,6 +16,10 @@ function windowLabel(value) {
 }
 export default function ProviderCapacityPage() {
   const [rows,setRows] = useState([]);
+  const [reported,setReported] = useState([]);
+  const [klingQueue,setKlingQueue] = useState(null);
+  const [sources,setSources] = useState([]);
+  const [missingReported,setMissingReported] = useState(false);
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState("");
   const [updated,setUpdated] = useState(null);
@@ -34,7 +38,7 @@ export default function ProviderCapacityPage() {
       });
       const payload=await response.json();
       if (!response.ok) throw new Error(payload.error || "Kunde inte läsa leverantörskapaciteten. Kontrollera att SQL-migreringen är installerad.");
-      setRows(payload.rows || []);setCanEdit(Boolean(payload.canEdit));setUpdated(payload.updatedAt);
+      setRows(payload.rows || []);setReported(payload.reported || []);setKlingQueue(payload.klingQueue||null);setSources(payload.sources || []);setMissingReported(Boolean(payload.reportedMigrationRequired));setCanEdit(Boolean(payload.canEdit));setUpdated(payload.updatedAt);
     } catch(e) {setError(String(e.message||e));}finally{setLoading(false);}
   }
 
@@ -73,7 +77,41 @@ export default function ProviderCapacityPage() {
         <Activity size={18} style={{verticalAlign:"middle",marginRight:8}}/> Värden utan verifierad gräns visar aldrig påhittad procent. Anropsräknare är inte fakturerade enheter eller leverantörens egna kvotvärden. Mätningen började vid installationen och kan vara ofullständig.
       </div>
       {error&&<div role="alert" style={{padding:16,border:"1px solid #c55",borderRadius:12,marginBottom:12}}><AlertTriangle size={18}/> {error}</div>}
+      {klingQueue&&<section style={{background:"#fff",border:"1px solid #d9dfe7",borderRadius:14,padding:18,margin:"18px 0"}}>
+        <h2>Kling – kapacitetskö</h2>
+        <p style={{fontSize:13}}>Spreelos databaserade reservationsmätning, inte Klings officiella samtidighetsstatistik.</p>
+        <p><strong>{Number(klingQueue.active_jobs||0)} / {klingQueue.verified_limit ?? "?"}</strong> reserverade/pågående jobb · <strong>{Number(klingQueue.waiting_jobs||0)}</strong> väntar · <strong>{Number(klingQueue.uncertain_jobs||0)}</strong> osäkra leverantörsinsändningar</p>
+        {Number(klingQueue.uncertain_jobs||0)>0&&<p style={{color:"#ac541d"}}>Osäkra insändningar håller sin kapacitetsplats tills Kling-jobbet kontrollerats. Skapa inte en ersättningsvideo automatiskt.</p>}
+      </section>}
       {loading?<p>Hämtar mätvärden…</p>:providers.length===0?<p>Inga kapacitetsmått hittades. Kontrollera SQL-installationen.</p>:null}
+      <section style={{background:"#fff",border:"1px solid #d9dfe7",borderRadius:14,padding:18,margin:"18px 0"}}>
+        <h2 style={{fontSize:22,margin:"0 0 8px"}}>Leverantörernas egna kvotuppgifter</h2>
+        <p style={{fontSize:13,color:"#586576"}}>Direkt avlästa uppgifter visas separat från Spreelos uppskattade API-anrop. Värden från föråldrade avläsningar används inte för aktuella kvotvarningar.</p>
+        {missingReported&&<p style={{color:"#ad521a"}}>SQL 144.388 behöver installeras innan leverantörsuppgifterna kan visas.</p>}
+        {sources.map(source=><p key={source.provider} style={{fontSize:13}}>
+          <strong style={{textTransform:"capitalize"}}>{source.provider}</strong> · {source.state==="connected"?"Ansluten":source.state==="permission_required"?"Saknar API-behörighet":source.state==="not_configured"?"Ej konfigurerad":"Kan inte avläsas"}
+          {" · "}{source.message}
+        </p>)}
+        {reported.length===0&&!missingReported&&<p style={{fontSize:13}}>Inga kvotuppgifter har hämtats ännu. Resend avläses automatiskt med befintlig API-nyckel om behörigheten tillåter det.</p>}
+        {reported.map(r=>{
+          const cap=r.limit_value===null?null:Number(r.limit_value);
+          const used=r.observed_count===null?null:Number(r.observed_count);
+          const pct=cap>0&&used!==null?Math.max(0,Math.round(100*used/cap)):null;
+          const age=Date.now()-new Date(r.checked_at).getTime();
+          const fresh=Number.isFinite(age)&&age>=0&&age<45*60*1000;
+          return <div key={r.provider+":"+r.scope+":"+r.metric} style={{borderTop:"1px solid #e4e7eb",padding:"12px 0"}}>
+            <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+              <strong>{r.label}</strong>
+              <span>{used!==null?number(used):"Ej angivet"} / {cap===null?"Ingen fast gräns":number(cap)} {r.unit}</span>
+            </div>
+            <div style={{background:"#edf0f3",height:9,borderRadius:9,overflow:"hidden",margin:"9px 0"}}>
+              {pct!==null&&<div style={{height:"100%",width:`${Math.min(100,pct)}%`,background:pct>=85?"#c46a32":"#218c82"}}/>}
+            </div>
+            <p style={{fontSize:12,color:"#66717b",margin:0}}>{r.source==="resend_usage_api"?"Officiellt Resend Usage API":"OpenAI rate-limit-headers"} · {fresh?"Aktuell avläsning":"Inaktuell avläsning"} · {r.checked_at?new Date(r.checked_at).toLocaleString("sv-SE"):"—"}{r.reset_at?" · Återställs "+new Date(r.reset_at).toLocaleString("sv-SE"):""}</p>
+          </div>;
+        })}
+      </section>
+
       {providers.map(provider=><section key={provider} style={{background:"var(--panel-bg,#fff)",border:"1px solid var(--border-color,#d9dfe7)",borderRadius:14,padding:18,margin:"18px 0"}}>
         <h2 style={{fontSize:22,margin:"0 0 16px",textTransform:"capitalize"}}>{provider}</h2>
         {rows.filter(r=>r.provider===provider).map(r=>{
