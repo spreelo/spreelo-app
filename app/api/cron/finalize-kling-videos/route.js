@@ -1,3 +1,4 @@
+import { markKlingProviderTaskTerminal } from "../../../../lib/klingCapacityQueue.js";
 import { SCENE_HEADLINE_BRIEF } from '../../../../lib/videoSceneHeadline.js';
 import { creativePlanningFailure, CREATIVE_PLAN_TIMEOUT_MS } from '../../../../lib/videoCreativePlanning.js';
 import { activeAiModel, withRuntimeAiModels } from '../../../../lib/aiModelControl.js';
@@ -2143,6 +2144,9 @@ export async function GET(request) {
       }
 
       const providerStatus = String(task?.status || "unknown").toLowerCase();
+      if (isKlingTaskSuccessful(providerStatus) || isKlingTaskFailed(providerStatus)) {
+        await markKlingProviderTaskTerminal(supabase,post.id,providerStatus);
+      }
       // A successful status read clears only polling diagnostics, not design checkpoints.
       post.video_background_selection = {...post.video_background_selection, provider_poll_control:null};
       const nowIso = new Date().toISOString();
