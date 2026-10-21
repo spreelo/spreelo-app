@@ -117,7 +117,9 @@ $$;
 create or replace function public.release_unattempted_kling_capacity(p_job_key text)
  returns boolean language plpgsql security definer set search_path=public as $$
 begin
- update public.kling_capacity_slots set state='cancelled',updated_at=now()
+ -- Before a provider attempt, deleting the abandoned reservation is safe.
+ -- This allows the same durable occurrence to be admitted on a later cron run.
+ delete from public.kling_capacity_slots
  where job_key=p_job_key and state='reserved';
  return found;
 end;
