@@ -7,7 +7,14 @@ export async function GET(request) {
   if (context.error) return adminContextError(context);
   try {
     const rows = await loadProviderCapacity(context.admin);
-    return Response.json({ ok: true, rows, canEdit: Boolean(context.isPrimaryAdmin), updatedAt: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
+    const [reportedResult, sourcesResult] = await Promise.all([
+      context.admin.from("provider_capacity_reported_snapshots").select("provider,metric,scope,label,window_kind,unit,observed_count,limit_value,checked_at,reset_at,source,instructions,documentation_url").order("provider",{ascending:true}),
+      context.admin.from("provider_capacity_source_status").select("provider,state,checked_at,last_success_at,message").order("provider",{ascending:true}),
+    ]);
+    const optionalMissing = (error) => /provider_capacity_reported_snapshots|provider_capacity_source_status|schema cache|does not exist|could not find/i.test(String(error?.message || ""));
+    if (reportedResult.error && !optionalMissing(reportedResult.error)) throw reportedResult.error;
+    if (sourcesResult.error && !optionalMissing(sourcesResult.error)) throw sourcesResult.error;
+    return Response.json({ ok: true, rows, reported: reportedResult.data || [], sources: sourcesResult.data || [], reportedMigrationRequired: Boolean(reportedResult.error || sourcesResult.error), canEdit: Boolean(context.isPrimaryAdmin), updatedAt: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json({ ok: false, error: String(error?.message || error), migrationRequired: true }, { status: 503 });
   }
