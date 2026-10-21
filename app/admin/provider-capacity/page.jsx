@@ -17,6 +17,7 @@ function windowLabel(value) {
 export default function ProviderCapacityPage() {
   const [rows,setRows] = useState([]);
   const [reported,setReported] = useState([]);
+  const [klingQueue,setKlingQueue] = useState(null);
   const [sources,setSources] = useState([]);
   const [missingReported,setMissingReported] = useState(false);
   const [loading,setLoading] = useState(true);
@@ -37,7 +38,7 @@ export default function ProviderCapacityPage() {
       });
       const payload=await response.json();
       if (!response.ok) throw new Error(payload.error || "Kunde inte läsa leverantörskapaciteten. Kontrollera att SQL-migreringen är installerad.");
-      setRows(payload.rows || []);setReported(payload.reported || []);setSources(payload.sources || []);setMissingReported(Boolean(payload.reportedMigrationRequired));setCanEdit(Boolean(payload.canEdit));setUpdated(payload.updatedAt);
+      setRows(payload.rows || []);setReported(payload.reported || []);setKlingQueue(payload.klingQueue||null);setSources(payload.sources || []);setMissingReported(Boolean(payload.reportedMigrationRequired));setCanEdit(Boolean(payload.canEdit));setUpdated(payload.updatedAt);
     } catch(e) {setError(String(e.message||e));}finally{setLoading(false);}
   }
 
@@ -76,6 +77,12 @@ export default function ProviderCapacityPage() {
         <Activity size={18} style={{verticalAlign:"middle",marginRight:8}}/> Värden utan verifierad gräns visar aldrig påhittad procent. Anropsräknare är inte fakturerade enheter eller leverantörens egna kvotvärden. Mätningen började vid installationen och kan vara ofullständig.
       </div>
       {error&&<div role="alert" style={{padding:16,border:"1px solid #c55",borderRadius:12,marginBottom:12}}><AlertTriangle size={18}/> {error}</div>}
+      {klingQueue&&<section style={{background:"#fff",border:"1px solid #d9dfe7",borderRadius:14,padding:18,margin:"18px 0"}}>
+        <h2>Kling – kapacitetskö</h2>
+        <p style={{fontSize:13}}>Spreelos databaserade reservationsmätning, inte Klings officiella samtidighetsstatistik.</p>
+        <p><strong>{Number(klingQueue.active_jobs||0)} / {klingQueue.verified_limit ?? "?"}</strong> reserverade/pågående jobb · <strong>{Number(klingQueue.waiting_jobs||0)}</strong> väntar · <strong>{Number(klingQueue.uncertain_jobs||0)}</strong> osäkra leverantörsinsändningar</p>
+        {Number(klingQueue.uncertain_jobs||0)>0&&<p style={{color:"#ac541d"}}>Osäkra insändningar håller sin kapacitetsplats tills Kling-jobbet kontrollerats. Skapa inte en ersättningsvideo automatiskt.</p>}
+      </section>}
       {loading?<p>Hämtar mätvärden…</p>:providers.length===0?<p>Inga kapacitetsmått hittades. Kontrollera SQL-installationen.</p>:null}
       <section style={{background:"#fff",border:"1px solid #d9dfe7",borderRadius:14,padding:18,margin:"18px 0"}}>
         <h2 style={{fontSize:22,margin:"0 0 8px"}}>Leverantörernas egna kvotuppgifter</h2>

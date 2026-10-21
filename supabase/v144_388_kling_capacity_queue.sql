@@ -44,7 +44,9 @@ begin
  perform pg_advisory_xact_lock(hashtext('spreelo:kling:global-capacity'));
  select state into v_existing from public.kling_capacity_slots where job_key=p_job_key;
  if found then
-   return v_existing in ('reserved','attempted','submitted');
+   -- Never reuse a capacity reservation for a second provider submission.
+   -- A crashed/uncertain reservation needs explicit reconciliation.
+   return false;
  end if;
  select limit_value into v_limit from public.provider_capacity_limits
  where provider='kling' and metric='video_concurrency' and verification='confirmed';
