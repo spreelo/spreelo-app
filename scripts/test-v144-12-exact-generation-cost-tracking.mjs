@@ -73,7 +73,7 @@ assert(!manualBind.includes("openai") && !manualBind.includes("kling") && !manua
 assert(manualBind.includes('.eq("user_id", user.id)') && manualBind.includes("attachGenerationSessionCostsToPost"), "manual cost binding verifies post ownership before service-role attachment");
 assert(tracker.includes("attachGenerationSessionCostsToPost"), "manual generation sessions can be bound to saved posts in the admin-only ledger");
 
-assert(tracker.includes("Generation cost tracking failed without affecting generation") || runtime.includes("cost tracking failed without affecting"), "cost metering failures are non-fatal to generation");
+assert(/generation cost tracking failed without affecting generation/i.test(tracker) || runtime.includes("cost tracking failed without affecting"), "cost metering failures are non-fatal to generation");
 assert(tracker.includes('"responses.retrieve"'), "final background Responses retrieval is tracked");
 assert(tracker.includes('operation: "responses.background"'), "background create/retrieve share one canonical ledger operation");
 assert(!tracker.includes("ignoreDuplicates: true"), "final provider usage can update an earlier partial ledger row");

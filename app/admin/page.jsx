@@ -371,6 +371,7 @@ export default function AdminDashboardPage() {
                   <QuickLink href="/admin/mass-tests" icon={FlaskConical} title={t("adminCommand.quick.massTest")} text={t("adminCommand.quick.massTestText")} />
                   <QuickLink href="/admin/capacity-test" icon={BarChart3} title="Belastningstest · kapacitet" text="Säker simulering för 100–100 000 kunder; inga riktiga jobb startas." />
                   <QuickLink href="/admin/provider-capacity" icon={Activity} title="Leverantörsövervakning" text="API-gränser, observerad användning och varningar för externa tjänster." />
+                  <QuickLink href="/admin/openai-pricing" icon={CircleDollarSign} title="OpenAI-priser och kostnadskontroll" text="Godkända API-tariffer, prisändringar och debiteringsavstämning." />
                 </QuickGroup>
                 <QuickGroup tone="orange" title={t("adminCommand.quick.creativeLibraries")} icon={ImagePlus}>
                   <QuickLink href="/admin/image-backgrounds" icon={ImagePlus} title={t("adminCommand.quick.imageBackgrounds")} text={t("adminCommand.quick.imageBackgroundsText")} />
