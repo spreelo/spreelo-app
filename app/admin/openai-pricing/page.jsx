@@ -8,7 +8,7 @@ const imageFields=[['image_input_usd_per_m','Image input (USD/1M)'],['cached_ima
 const initial={model:'',pricing_kind:'text',valid_from:new Date().toISOString().slice(0,16),input_usd_per_m:'',cached_input_usd_per_m:'',output_usd_per_m:'',image_input_usd_per_m:'',cached_image_input_usd_per_m:''};
 const panel={padding:18,background:'var(--panel-bg,#fff)',color:'var(--text-color,inherit)',border:'1px solid var(--border-color,#d9dfe7)',borderRadius:12,marginBottom:18};
 export default function OpenAIPricingAdmin(){
-  const [info,setInfo]=useState(null),[error,setError]=useState(''),[loading,setLoading]=useState(false),[form,setForm]=useState(initial),[confirm,setConfirm]=useState(false);
+  const [info,setInfo]=useState(null),[error,setError]=useState(''),[loading,setLoading]=useState(false),[form,setForm]=useState(initial),[confirm,setConfirm]=useState(false),[modelQuery,setModelQuery]=useState(''),[syncMessage,setSyncMessage]=useState('');
   async function api(method='GET',body=null){
     const {data:{session}}=await supabase.auth.getSession();
     if(!session?.access_token)throw new Error('Administratörsinloggning krävs.');
@@ -23,7 +23,10 @@ export default function OpenAIPricingAdmin(){
   }catch(e){setError(String(e.message||e))}finally{setLoading(false)}}
   async function approve(id){if(!window.confirm('Har du jämfört samtliga USD-priser med den officiella OpenAI-prissidan? Godkänn endast om de stämmer.'))return;
     setLoading(true);setError('');try{await api('POST',{action:'approve',id,confirmOfficialPriceReview:true});await refresh()}catch(e){setError(String(e.message||e))}finally{setLoading(false)}}
+  async function syncNow(){setLoading(true);setError('');setSyncMessage('');try{const result=await api('POST',{action:'sync'});setSyncMessage(result.skipped?'Kontrollen har redan körts nyligen.':`Kontroll: ${result.status}. Modeller: ${result.modelsSeen||0}, nya: ${result.newModels||0}, prisförslag: ${result.proposedPrices||0}.`);await refresh()}catch(e){setError(String(e.message||e))}finally{setLoading(false)}}
   const latest=info?.audits?.[0];
+  const modelRows=(info?.models||[]).filter(m=>m.model.toLowerCase().includes(modelQuery.toLowerCase())).slice(0,120);
+  const discovery=info?.discoveryRuns?.[0];
   return <AppLayout active="admin"><main style={{maxWidth:1100,margin:'30px auto',padding:'0 18px 80px'}}>
     <a href="/admin">← Till admin</a><h1>OpenAI-priser och kostnadskontroll</h1>
     <p>Prisberäkningar är uppskattningar utifrån rapporterad förbrukning och godkända tariffer. Daglig debiteringsavstämning gäller ett projekt, inte enskilda inlägg.</p>
@@ -36,10 +39,31 @@ export default function OpenAIPricingAdmin(){
       <a href={SOURCE} target="_blank" rel="noreferrer">Öppna OpenAI:s officiella prislista ↗</a>
       {info?.audits?.slice(0,4).map(a=><p key={a.checked_at} style={{fontSize:13}}>{new Date(a.checked_at).toLocaleString('sv-SE')}: {a.status}</p>)}
     </section>
+    <section style={panel}>
+      <h2>Automatisk modellupptäckt (144.390)</h2>
+      <p>OpenAI:s modell-API identifierar modeller som är tillgängliga för vårt konto. En publicerad prisrad kan föreslås automatiskt, men priserna behöver godkännas innan de används.</p>
+      {!info?.discoveryConfigured&&<p role="status" style={{padding:10,background:'#fff3d6'}}>Databastabellerna för modellupptäckt är inte installerade ännu. Kör endast SQL-migreringen för 144.390.</p>}
+      {discovery?<p>Senaste modellkontroll: {new Date(discovery.checked_at).toLocaleString('sv-SE')} · {discovery.status} · {discovery.models_seen} modeller · {discovery.newly_seen} nyupptäckta för Spreelo · {discovery.proposed_prices} prisförslag · {discovery.ambiguous_prices} med motstridiga priser</p>:<p>Ingen modellkontroll har körts ännu.</p>}
+      {syncMessage&&<p role="status" style={{fontWeight:600}}>{syncMessage}</p>}
+      {info?.canApprove&&info?.discoveryConfigured&&<button type="button" disabled={loading||!info?.enabled} onClick={syncNow}>Kontrollera OpenAI-modeller nu</button>}
+      <p style={{fontSize:13}}>Ny modell betyder inte automatiskt att Spreelo ska börja använda den. Avvikande prisnivåer, specialmodeller och priser som inte går att tolka visas utan godkänd tariff.</p>
+      <label style={{display:'block',margin:'12px 0'}}>Sök modell-ID <input type="search" value={modelQuery} onChange={e=>setModelQuery(e.target.value)} placeholder="t.ex. gpt-" style={{marginLeft:8,padding:6}}/></label>
+      <div style={{maxHeight:380,overflow:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',textAlign:'left'}}>
+        <thead><tr><th>Modell-ID</th><th>Först sedd i Spreelo</th><th>Upptäckt via</th><th>Prisstatus</th></tr></thead>
+        <tbody>{modelRows.map(m=><tr key={m.model} style={{borderTop:'1px solid #eee'}}><td style={{padding:'7px 4px',fontSize:13}}>{m.model}</td>
+          <td style={{fontSize:12}}>{new Date(m.first_seen_at).toLocaleDateString('sv-SE')}</td>
+          <td style={{fontSize:12}}>{[m.listed_in_api?'API':null,m.listed_on_pricing_page?'Prislista':null].filter(Boolean).join(' + ')||'Okänt'}</td>
+          <td style={{fontSize:12}}>{info?.versions?.some(v=>v.model===m.model && v.approved)?'Godkänd':
+            info?.versions?.some(v=>v.model===m.model && !v.approved)?'Förslag – granska':
+            m.pricing_status==='ambiguous'?'Priset är tvetydigt':
+            m.pricing_status==='candidate'?'Prisrad hittad – kräver granskning':'Pris ej verifierat'}</td></tr>)}</tbody>
+      </table></div>
+      {(info?.models||[]).length>120&&<p style={{fontSize:12}}>De första 120 filtrerade modellerna visas. Sök efter modellnamn för fler.</p>}
+    </section>
     <section style={panel}><h2>Godkända och föreslagna tariffer</h2>
       {!info?.versions?.length?<p>Inga manuellt godkända priser finns ännu. Äldre beräkningar markeras som uppskattningar.</p>:null}
       <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',textAlign:'left'}}><thead><tr><th>Modell</th><th>Typ</th><th>USD/1M input</th><th>Cache</th><th>Output</th><th>Giltig från</th><th>Status</th></tr></thead><tbody>
-       {info?.versions?.map(v=><tr key={v.id} style={{borderTop:'1px solid #ddd'}}><td>{v.model}<small style={{display:'block'}}>{v.version}</small></td><td>{v.pricing_kind}</td><td>{v.input_usd_per_m}</td><td>{v.cached_input_usd_per_m}</td><td>{v.output_usd_per_m}</td><td>{new Date(v.valid_from).toLocaleDateString('sv-SE')}</td><td>{v.approved?'Godkänd':info?.canApprove?<button type="button" disabled={loading} onClick={()=>approve(v.id)}>Granska och godkänn</button>:'Väntar'}</td></tr>)}
+       {info?.versions?.map(v=><tr key={v.id} style={{borderTop:'1px solid #ddd'}}><td>{v.model}<small style={{display:'block'}}>{v.version}{v.pricing_kind==='image'?` · Bildinput: ${v.image_input_usd_per_m ?? 'saknas'} · Cachad bildinput: ${v.cached_image_input_usd_per_m ?? 'saknas'}`:''}</small><a href={v.source_url||SOURCE} target='_blank' rel='noreferrer' style={{display:'block',fontSize:11}}>Priskälla ↗</a></td><td>{v.pricing_kind}</td><td>{v.input_usd_per_m}</td><td>{v.cached_input_usd_per_m}</td><td>{v.output_usd_per_m}</td><td>{new Date(v.valid_from).toLocaleDateString('sv-SE')}</td><td>{v.approved?'Godkänd':info?.canApprove?<button type="button" disabled={loading} onClick={()=>approve(v.id)}>Granska och godkänn</button>:'Väntar'}</td></tr>)}
       </tbody></table></div>
     </section>
     {info?.canApprove&&<section style={panel}><h2>Föreslå nytt modellpris</h2>
