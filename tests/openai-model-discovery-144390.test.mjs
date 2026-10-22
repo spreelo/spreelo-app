@@ -122,3 +122,36 @@ test('actual published price change creates a second unapproved proposal',async(
  assert.equal(db.data.openai_price_versions.length,2);
  assert.ok(db.data.openai_price_versions.every(x=>x.approved===false));
 });
+
+test('144.391 per-model evidence takes precedence over mixed Standard/Batch global tables without changing approved rates',async()=>{
+ const db=makeDb();
+ const modelPage = (input,cached,output)=>`<html><body><h1>Pricing</h1><p>Pricing is based on the number of tokens used.</p><h2>Text tokens</h2><p>Per 1M tokens</p><p>Input $${input} Cached input $${cached} Output $${output}</p><h2>Quick comparison</h2><h2>Modalities</h2></body></html>`;
+ let textOutput=20;
+ const mixedPage=`<!doctype html><html><h1>Pricing</h1><table><tr><th>Model</th><th>Input</th><th>Output</th><th>Cached input</th></tr><tr><td>gpt-5.6-sol</td><td>$4</td><td>$20</td><td>$0.4</td></tr><tr><td>gpt-5.6-sol</td><td>$8</td><td>$40</td><td>$0.8</td></tr></table></html>`.padEnd(1300,' ');
+ const fetcher=url=>{
+  if(url.includes('/v1/models'))return Promise.resolve({ok:true,json:async()=>({data:[{id:'gpt-5.6-sol',owned_by:'openai',created:1760000000}]})});
+  if(url.endsWith('/pricing'))return Promise.resolve({ok:true,status:200,text:async()=>mixedPage});
+  if(url.endsWith('/pricing.md'))return Promise.resolve({ok:false});
+  if(url.endsWith('gpt-5.6-sol.md'))return Promise.resolve({ok:true,text:async()=>modelPage(4,.4,textOutput)});
+  return Promise.resolve({ok:false,status:404});
+ };
+ const t=new Date('2026-10-22T10:00:00Z');
+ const first=await syncOpenAIModelCatalog({db,apiKey:'mock',fetcher,now:t,force:true});
+ assert.equal(first.status,'success');
+ assert.equal(first.ambiguousPrices,0);
+ assert.equal(first.proposedPrices,1);
+ const draft=db.data.openai_price_versions[0];
+ assert.equal(draft.model,'gpt-5.6-sol');
+ assert.equal(draft.output_usd_per_m,20);
+ assert.equal(draft.approved,false);
+ assert.equal(draft.source_url,'https://developers.openai.com/api/docs/models/gpt-5.6-sol');
+ const second=await syncOpenAIModelCatalog({db,apiKey:'mock',fetcher,now:new Date(t.getTime()+3600000),force:true});
+ assert.equal(second.proposedPrices,0);
+ draft.approved=true; draft.valid_until=null; // simulates a manually approved rate
+ textOutput=21;
+ const third=await syncOpenAIModelCatalog({db,apiKey:'mock',fetcher,now:new Date(t.getTime()+7200000),force:true});
+ assert.equal(third.proposedPrices,1);
+ assert.equal(draft.approved,true);
+ assert.equal(draft.output_usd_per_m,20);
+ assert.equal(db.data.openai_price_versions.filter(row=>!row.approved).length,1);
+});

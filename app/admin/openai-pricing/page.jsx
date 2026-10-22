@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabaseClient';
 const SOURCE='https://developers.openai.com/api/docs/pricing';
 const fields=[['input_usd_per_m','Input (USD/1M)'],['cached_input_usd_per_m','Cached input (USD/1M)'],['output_usd_per_m','Output (USD/1M)']];
 const imageFields=[['image_input_usd_per_m','Image input (USD/1M)'],['cached_image_input_usd_per_m','Cached image input (USD/1M)']];
+const PRICE_PRIORITY=['gpt-4.1-mini','gpt-5.5','gpt-5.6-sol','gpt-image-2','gpt-image-2.5-flare'];
 const initial={model:'',pricing_kind:'text',valid_from:new Date().toISOString().slice(0,16),input_usd_per_m:'',cached_input_usd_per_m:'',output_usd_per_m:'',image_input_usd_per_m:'',cached_image_input_usd_per_m:''};
 const panel={padding:18,background:'var(--panel-bg,#fff)',color:'var(--text-color,inherit)',border:'1px solid var(--border-color,#d9dfe7)',borderRadius:12,marginBottom:18};
 export default function OpenAIPricingAdmin(){
@@ -27,6 +28,11 @@ export default function OpenAIPricingAdmin(){
   const latest=info?.audits?.[0];
   const modelRows=(info?.models||[]).filter(m=>m.model.toLowerCase().includes(modelQuery.toLowerCase())).slice(0,120);
   const discovery=info?.discoveryRuns?.[0];
+  const priorityRows=PRICE_PRIORITY.map(model=>{
+    const catalog=(info?.models||[]).find(m=>m.model===model);
+    const tariffs=(info?.versions||[]).filter(v=>v.model===model);
+    return {model,catalog,approved:tariffs.find(v=>v.approved),pending:tariffs.find(v=>!v.approved)};
+  });
   return <AppLayout active="admin"><main style={{maxWidth:1100,margin:'30px auto',padding:'0 18px 80px'}}>
     <a href="/admin">← Till admin</a><h1>OpenAI-priser och kostnadskontroll</h1>
     <p>Prisberäkningar är uppskattningar utifrån rapporterad förbrukning och godkända tariffer. Daglig debiteringsavstämning gäller ett projekt, inte enskilda inlägg.</p>
@@ -40,13 +46,23 @@ export default function OpenAIPricingAdmin(){
       {info?.audits?.slice(0,4).map(a=><p key={a.checked_at} style={{fontSize:13}}>{new Date(a.checked_at).toLocaleString('sv-SE')}: {a.status}</p>)}
     </section>
     <section style={panel}>
-      <h2>Automatisk modellupptäckt (144.390)</h2>
-      <p>OpenAI:s modell-API identifierar modeller som är tillgängliga för vårt konto. En publicerad prisrad kan föreslås automatiskt, men priserna behöver godkännas innan de används.</p>
+      <h2>Automatisk modellupptäckt (144.391)</h2>
+      <p>OpenAI:s modell-API identifierar modeller som är tillgängliga för vårt konto. För de modeller Spreelo använder kontrolleras även respektive officiella modellsida när prislistan har flera lägen. Enbart tydliga Standard-priser för kort kontext föreslås för godkännande.</p>
       {!info?.discoveryConfigured&&<p role="status" style={{padding:10,background:'#fff3d6'}}>Databastabellerna för modellupptäckt är inte installerade ännu. Kör endast SQL-migreringen för 144.390.</p>}
       {discovery?<p>Senaste modellkontroll: {new Date(discovery.checked_at).toLocaleString('sv-SE')} · {discovery.status} · {discovery.models_seen} modeller · {discovery.newly_seen} nyupptäckta för Spreelo · {discovery.proposed_prices} prisförslag · {discovery.ambiguous_prices} med motstridiga priser</p>:<p>Ingen modellkontroll har körts ännu.</p>}
       {syncMessage&&<p role="status" style={{fontWeight:600}}>{syncMessage}</p>}
       {info?.canApprove&&info?.discoveryConfigured&&<button type="button" disabled={loading||!info?.enabled} onClick={syncNow}>Kontrollera OpenAI-modeller nu</button>}
       <p style={{fontSize:13}}>Ny modell betyder inte automatiskt att Spreelo ska börja använda den. Avvikande prisnivåer, specialmodeller och priser som inte går att tolka visas utan godkänd tariff.</p>
+      <h3>Prioriterade modeller i Spreelo</h3>
+      <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',textAlign:'left'}}><thead><tr><th>Modell</th><th>Standardpris USD/1M tokens</th><th>Granskningsstatus</th><th>Källa</th></tr></thead><tbody>
+        {priorityRows.map(({model,catalog,approved,pending})=>{const tariff=approved||pending;return <tr key={model} style={{borderTop:'1px solid #eee'}}>
+          <td style={{padding:'9px 6px'}}><strong>{model}</strong></td>
+          <td style={{padding:'9px 6px',fontSize:12}}>{tariff?`Input ${tariff.input_usd_per_m} · Cache ${tariff.cached_input_usd_per_m} · Output ${tariff.output_usd_per_m}${tariff.pricing_kind==='image'?` · Bildinput ${tariff.image_input_usd_per_m} · Bildcache ${tariff.cached_image_input_usd_per_m}`:''}`:'Saknas / ännu ej verifierat'}</td>
+          <td style={{padding:'9px 6px',fontSize:12}}>{approved?'Godkänd':pending?'Förslag – kontrollera':catalog?.pricing_status==='ambiguous'?'Flera prisnivåer – kontroll krävs':'Inget verifierat Standardpris'}</td>
+          <td style={{padding:'9px 6px',fontSize:12}}><a href={tariff?.source_url||`https://developers.openai.com/api/docs/models/${model}`} target='_blank' rel='noreferrer'>OpenAI ↗</a></td>
+        </tr>})}
+      </tbody></table></div>
+      <p style={{fontSize:12}}>Dessa förslag avser endast Standard med kort kontext, inte Batch, Fast, långa kontexter, cache-skrivningar eller regionala tillägg. För bildgenerering krävs komplett faktisk tokenförbrukning för säkra kostnadsuppskattningar. Inget godkänns automatiskt.</p>
       <label style={{display:'block',margin:'12px 0'}}>Sök modell-ID <input type="search" value={modelQuery} onChange={e=>setModelQuery(e.target.value)} placeholder="t.ex. gpt-" style={{marginLeft:8,padding:6}}/></label>
       <div style={{maxHeight:380,overflow:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',textAlign:'left'}}>
         <thead><tr><th>Modell-ID</th><th>Först sedd i Spreelo</th><th>Upptäckt via</th><th>Prisstatus</th></tr></thead>

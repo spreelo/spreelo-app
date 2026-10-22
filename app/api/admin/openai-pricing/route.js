@@ -42,8 +42,10 @@ export async function POST(request){
     if(body.confirmOfficialPriceReview!==true)return apiError('Explicit official price review confirmation required');
     const id=Number(body.id);
     if(!Number.isSafeInteger(id)||id<1)return apiError('Invalid price revision ID');
-    const {data:row,error:readError}=await ctx.admin.from('openai_price_versions').select('source_fingerprint,source_url,approved').eq('id',id).maybeSingle();
-    if(readError||!row||row.approved||row.source_url!==RATE_SOURCE)return apiError('Unapproved official-source revision not found');
+    const {data:row,error:readError}=await ctx.admin.from('openai_price_versions').select('model,source_fingerprint,source_url,approved').eq('id',id).maybeSingle();
+    // 144.391 also uses per-model official documentation, never third-party pages.
+    const officialDetail = row?.source_url === `https://developers.openai.com/api/docs/models/${row?.model}`;
+    if(readError||!row||row.approved||(!officialDetail && row.source_url!==RATE_SOURCE))return apiError('Unapproved official-source revision not found');
     const {data:audit,error:auditError}=await ctx.admin.from('openai_pricing_audit')
       .select('checked_at,source_fingerprint').eq('source_url',RATE_SOURCE).order('checked_at',{ascending:false}).limit(1).maybeSingle();
     if(auditError||!audit?.source_fingerprint||row.source_fingerprint!==audit.source_fingerprint || Date.now()-Date.parse(audit.checked_at)>48*3600_000)return apiError('Pricing audit missing, stale or changed. Run and review it again.');
