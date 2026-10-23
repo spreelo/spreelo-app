@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { wrapSupplementalOpenAIClient, createSupplementalOpenAITracker } from "../../../lib/supplementalOpenAICosts.js";
 
 const DEFAULT_WEB_RESEARCH_MODEL = "gpt-5.5";
 const DEFAULT_WEB_RESEARCH_OUTPUT_TOKENS = 6000;
@@ -66,7 +67,11 @@ export async function submitBlockedWebsiteResearch({
   const allowedDomain = getAllowedDomain(websiteUrl);
   if (!allowedDomain) throw new Error("The website domain is not valid.");
 
-  const openai = new OpenAI({ apiKey });
+  const openai = wrapSupplementalOpenAIClient(new OpenAI({ apiKey }), {
+    userId: job?.user_id || null,
+    sessionId: job?.id || null,
+    operationNamespace: "blocked_web_research",
+  });
   const model = getResearchModel();
   const compactRetryInstruction = compactRetry
     ? "This is a bounded recovery request because an earlier response ended incomplete. Finish the dossier in a compact form. Prioritize factual coverage over explanation, keep every section concise and do not repeat evidence unnecessarily."
@@ -149,6 +154,12 @@ export async function retrieveBlockedWebsiteResearch(responseId) {
 
   const openai = new OpenAI({ apiKey });
   const response = await openai.responses.retrieve(responseId);
+  try {
+    const tracker = createSupplementalOpenAITracker();
+    if (tracker) await tracker.recordOpenAI("responses.background", { model: response?.model }, response);
+  } catch (error) {
+    console.warn("Blocked-site research cost metering failed", { message: String(error?.message || error) });
+  }
 
   return {
     id: String(response?.id || responseId),

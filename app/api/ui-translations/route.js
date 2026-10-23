@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { recordSupplementalOpenAIHttpResponse } from "../../../lib/supplementalOpenAICosts.js";
 import {
   ALL_UI_NAMESPACES,
   DEFAULT_UI_LOCALE,
@@ -314,6 +315,11 @@ async function translateLabelChunk({
     }
 
     const data = await response.json();
+    await recordSupplementalOpenAIHttpResponse({
+      operation: "ui_translations.chat.completions.create",
+      request: { model: process.env.OPENAI_UI_TRANSLATION_MODEL || "gpt-4.1-mini" },
+      response: data, httpResponse: response,
+    });
     const content = data?.choices?.[0]?.message?.content || "";
     const translatedLabels = extractJsonObject(content);
     const declaredUnchanged = new Set(

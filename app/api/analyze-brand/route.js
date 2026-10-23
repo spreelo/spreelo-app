@@ -2,6 +2,7 @@ import { activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.
 import { randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
+import { wrapSupplementalOpenAIClient } from "../../../lib/supplementalOpenAICosts.js";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   createWebsiteSecurityBlockedError,
@@ -2209,9 +2210,9 @@ const requestedContentLanguage = requestedMarketSetup.contentLanguage;
       });
     }
 
-    const openai = new OpenAI({
+    const openai = wrapSupplementalOpenAIClient(new OpenAI({
       apiKey: openaiApiKey,
-    });
+    }), { supabase: usageAdmin, userId: user.id, operationNamespace: "brand_analysis_legacy" });
 
     const now = new Date();
     const currentDate = now.toISOString().slice(0, 10);

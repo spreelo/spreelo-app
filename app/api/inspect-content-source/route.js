@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { wrapSupplementalOpenAIClient } from "../../../lib/supplementalOpenAICosts.js";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -292,7 +293,7 @@ export async function POST(request) {
     );
     const signals = buildDeterministicSignals({ html, text, pageUrl: finalUrl });
 
-    const openai = new OpenAI({ apiKey: openaiApiKey });
+    const openai = wrapSupplementalOpenAIClient(new OpenAI({ apiKey: openaiApiKey }), { userId: user.id, operationNamespace: "inspect_content_source" });
     let aiResult = {};
 
     try {

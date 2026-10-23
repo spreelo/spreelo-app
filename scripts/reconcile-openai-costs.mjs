@@ -70,7 +70,9 @@ async function recordedCosts() {
 const actual=await actualCost();
 const recorded=await recordedCosts();
 const delta=actual.amount-recorded.total;
-const tolerance=Math.max(0.10,actual.amount*0.02);
+// Flag small material discrepancies too; the old $0.10 floor concealed a
+// $0.04 mismatch for low-volume projects. Closed UTC days only.
+const tolerance=Math.max(0.01,actual.amount*0.02);
 const status=(!actual.hasRows && recorded.count>0) || recorded.unknown>0 ? 'partial_unpriced' :
   Math.abs(delta)>tolerance ? 'mismatch' : 'comparable';
 const payload={day_utc:day,project_id:projectId,checked_at:new Date().toISOString(),

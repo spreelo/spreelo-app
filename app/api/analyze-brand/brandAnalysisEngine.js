@@ -1,5 +1,6 @@
 import { activeAiModel } from "../../../lib/aiModelControl.js";
 import OpenAI from "openai";
+import { wrapSupplementalOpenAIClient } from "../../../lib/supplementalOpenAICosts.js";
 import { assertPublicHttpUrl } from "../../../lib/security.js";
 import {
   createWebsiteSecurityBlockedError,
@@ -2798,7 +2799,12 @@ export async function runBrandAnalysisJob({
     throw new Error("Analysis job not found.");
   }
 
-  const openai = createOpenAIClient();
+  const openai = wrapSupplementalOpenAIClient(createOpenAIClient(), {
+    supabase,
+    userId,
+    sessionId: job.id,
+    operationNamespace: "brand_analysis",
+  });
   const analysisStartedAt = Date.now();
   const resolutionCache = new Map();
   const runTimedPhase = async (phase, task) => {

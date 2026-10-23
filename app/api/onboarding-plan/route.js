@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { wrapSupplementalOpenAIClient } from "../../../lib/supplementalOpenAICosts.js";
 import { createClient } from "@supabase/supabase-js";
 import {
   SMART_ONBOARDING_GOALS,
@@ -73,7 +74,10 @@ export async function POST(request) {
   if (!process.env.OPENAI_API_KEY) return Response.json({ ok: true, ...fallback });
 
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = wrapSupplementalOpenAIClient(
+      new OpenAI({ apiKey: process.env.OPENAI_API_KEY }),
+      { userId: user.id, operationNamespace: "onboarding_plan" }
+    );
     const response = await openai.responses.create({
       model,
       instructions: "You are Spreelo's onboarding strategist. Use Sell more as the default primary objective and choose a sustainable weekly posting frequency for this verified business. Return valid JSON only. Do not invent business facts and do not write customer-facing copy.",

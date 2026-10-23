@@ -1,5 +1,6 @@
 import { activeAiModel, withRuntimeAiModels } from "../../../../lib/aiModelControl.js";
 import { createClient } from "@supabase/supabase-js";
+import { recordSupplementalOpenAIHttpResponse } from "../../../../lib/supplementalOpenAICosts.js";
 import {
   resolveCalendarVisualTheme,
   scoreCalendarVisualAsset,
@@ -135,6 +136,11 @@ async function classifyOneUnresolvedAsset(supabase, asset) {
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload?.error?.message || "Calendar image classification failed.");
+    await recordSupplementalOpenAIHttpResponse({
+      supabase, operation: "calendar_visual.asset_classification",
+      request: { model: process.env.CALENDAR_CLASSIFICATION_MODEL || "gpt-4.1-mini" },
+      response: payload, httpResponse: response,
+    });
     const parsed = JSON.parse(responseOutputText(payload));
     const canonical = resolveCalendarVisualTheme({ visual_theme_key: parsed.theme_key, visual_theme_tags: parsed.theme_tags });
     await supabase.from("calendar_visual_assets").update({
@@ -268,6 +274,11 @@ async function classifyUnresolvedCampaigns(supabase) {
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload?.error?.message || "Campaign theme classification failed.");
+    await recordSupplementalOpenAIHttpResponse({
+      supabase, operation: "calendar_visual.campaign_classification",
+      request: { model: process.env.CALENDAR_CLASSIFICATION_MODEL || "gpt-4.1-mini" },
+      response: payload, httpResponse: response,
+    });
     const parsed = JSON.parse(responseOutputText(payload));
     const byId = new Map((Array.isArray(parsed?.campaigns) ? parsed.campaigns : []).map((item) => [String(item.id), item]));
     const results = [];
@@ -464,6 +475,13 @@ async function processVisualJob(supabase, job) {
       }),
     });
     const payload = await imageResponse.json();
+    // Record provider usage before Storage/upload processing: a successful
+    // image call is billable even when a later upload fails.
+    await recordSupplementalOpenAIHttpResponse({
+      supabase, operation: "calendar_visual.images.generate",
+      request: { model: activeAiModel("calendar_image", process.env.CALENDAR_IMAGE_MODEL || "gpt-image-2") },
+      response: payload, httpResponse: imageResponse,
+    });
     const base64 = payload?.data?.[0]?.b64_json;
     if (!imageResponse.ok || !base64) throw new Error(payload?.error?.message || "Calendar image generation returned no image.");
 

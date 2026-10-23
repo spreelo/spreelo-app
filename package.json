@@ -279,7 +279,8 @@
     "test:v144.348": "node scripts/test-v144-348-reliable-advertising.mjs",
     "test:v144.349": "node scripts/test-v144-349-production-recovery.mjs && node scripts/test-v144-349-alerts.mjs",
     "test:v144.351": "node scripts/test-v144-351-end-card-hierarchy.mjs",
-    "test:v144.350": "node scripts/test-v144-350-contract-and-motion.mjs && node scripts/test-v144-350-image-and-review.mjs"
+    "test:v144.350": "node scripts/test-v144-350-contract-and-motion.mjs && node scripts/test-v144-350-image-and-review.mjs",
+    "test:v144.395": "node --test tests/openai-cost-coverage-144395.test.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "141.0.0",

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import OpenAI from "openai";
+import { wrapSupplementalOpenAIClient } from "../../../../../lib/supplementalOpenAICosts.js";
 import { inflateRawSync } from "node:zlib";
 import sharp from "sharp";
 import { adminContextError, getAdminContext } from "../../../../../lib/adminAuth";
@@ -320,7 +321,11 @@ export async function POST(request) {
       }, { status: 503 });
     }
     const campaignValidationOpenAI = isCalendarCampaignRescue
-      ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+      ? wrapSupplementalOpenAIClient(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), {
+          supabase: context.admin,
+          userId: context.user?.id || null,
+          operationNamespace: "admin_rescue_validation",
+        })
       : null;
 
     const zipBytes = Buffer.from(await file.arrayBuffer());
