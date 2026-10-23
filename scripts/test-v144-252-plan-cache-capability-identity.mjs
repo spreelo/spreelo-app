@@ -4,30 +4,22 @@ import assert from "node:assert/strict";
 const automation = fs.readFileSync("app/automation/page.jsx", "utf8");
 const planner = fs.readFileSync("app/api/plan-content/route.js", "utf8");
 
-const block = automation.match(
-  /const platformSignature = activePlatformKeys\.join\("-"\)[\s\S]*?let instantSlots = fallbackSlots;/
-)?.[0] || "";
-
-assert.match(
-  block,
-  /const capabilitySignature = `products-\$\{websiteProductModeAvailable \? 1 : 0\}_services-\$\{verifiedServiceModeAvailable \? 1 : 0\}`;/,
-  "plan cache identity must include both verified product and service capability"
-);
-assert.match(
-  block,
-  /spreelo_plan_recommendation_\$\{currentBrandId\}_\$\{goalId\}_\$\{safePostCount\}_\$\{platformSignature\}_\$\{capabilitySignature\}/,
-  "capability signature must be part of the local recommendation cache key"
-);
+// v144.393 retires browser recommendation caching entirely: changes to
+// brand capability immediately recompute a no-cost, capability-safe draft.
+const block = automation.slice(automation.indexOf('async function applyDynamicAutoPlan('), automation.indexOf('async function changeAutoPlanGoal('));
+assert.match(block, /createRecommendedSlots\(\{/);
+assert.match(block, /websiteProductModeAvailable/);
+assert.match(block, /verifiedServiceModeAvailable/);
+assert.doesNotMatch(block, /fetch\(/);
+assert.doesNotMatch(block, /localStorage/);
 assert.match(
   automation,
   /getGoalContentTypeIds\(\{[\s\S]*?websiteProductModeAvailable,[\s\S]*?verifiedServiceModeAvailable,/,
   "instant fallback planning must still use the same capability state"
 );
-assert.match(
-  automation,
-  /createDynamicRecommendedSlots\(\{[\s\S]*?websiteProductModeAvailable,[\s\S]*?verifiedServiceModeAvailable,/,
-  "cached/server plans must still be normalized against the current capability state"
-);
+const legacyNormalizer = automation.slice(automation.indexOf('function createDynamicRecommendedSlots('),automation.indexOf('function createDynamicRecommendedSlots(')+900);
+assert.match(legacyNormalizer,/websiteProductModeAvailable/);
+assert.match(legacyNormalizer,/verifiedServiceModeAvailable/);
 assert.match(
   planner,
   /enrichBrandProfileWithEffectiveProductMode/,
@@ -44,4 +36,4 @@ assert.match(
   "server planner must continue filtering service formats by verified service evidence"
 );
 
-console.log("v144.252 plan cache capability identity checks passed (7/7).");
+console.log("v144.393 capability-safe no-cost planning checks passed.");

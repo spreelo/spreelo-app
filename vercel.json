@@ -115,6 +115,10 @@
     {
       "path": "/api/cron/openai-pricing-audit",
       "schedule": "40 5 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-variation-planning",
+      "schedule": "* * * * 0,1"
     }
   ]
 }

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:v144.393": "node tests/weekly-variation-144393.test.mjs",
     "dev": "next dev",
     "test:video-failure-reliability": "node scripts/test-video-failure-reliability.mjs",
     "test:render-review-classification": "node scripts/test-render-review-classification.mjs",

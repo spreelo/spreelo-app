@@ -12,7 +12,9 @@ const isComplete=entry=>Boolean(entry && typeof entry==='object' && !entry.error
 const importantOnly=events=>(events||[]).filter(x=>x && (x.severity==='important'||x.severity==='critical') && x.id);
 const uniqueEvents=events=>[...new Map(events.map(x=>[x.id,x])).values()];
 export function pendingIntelligenceChecks(results){
-  return CHECKS.filter(name=>!isComplete(results?.[name]));
+  return CHECKS.filter(name=>!isComplete(results?.[name]) ||
+    (name==='pricing' && results?.[name]?.candidatePricingChecked!==true) ||
+    (name==='documentation' && !Number.isInteger(results?.[name]?.shutdownVerified))); 
 }
 export function mailBatchId(day,events){
   const eventIds=events.map(x=>x.id).sort().join(':');

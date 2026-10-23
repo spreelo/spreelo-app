@@ -9867,15 +9867,15 @@ function getSlotPlatformOptions(slot) {
 }
 
 async function applyDynamicAutoPlan({ goalId, postCount }) {
+  // v144.393: Draft/settings edits must never spend GPT-5.5 tokens.
+  // The existing history-balanced recurring worker prepares the actual weekly
+  // variation; the Sunday-night cron pre-locks it for the next calendar week.
+  // Only a deliberate manual calendar edit can change the customer's draft.
+  autoPlanRequestIdRef.current += 1;
+  setAutoPlanLoading(false);
   const safePostCount = Math.max(1, Number(postCount) || DEFAULT_AUTO_PLAN_POST_COUNT);
-  const fallbackTypeIds = getGoalContentTypeIds({
-    goalId,
-    postCount: safePostCount,
-    websiteProductModeAvailable,
-    verifiedServiceModeAvailable,
-  });
-  const activePlatformKeys = normalizeSpreeloPlatformList(selectedPlatformKeys);
-  const fallbackSlots = createRecommendedSlots({
+  const platformKeys = normalizeSpreeloPlatformList(selectedPlatformKeys);
+  const plannedSlots = createRecommendedSlots({
     startDate: planStartDate,
     timeZone,
     autoPlanGoal: goalId,
@@ -9883,135 +9883,11 @@ async function applyDynamicAutoPlan({ goalId, postCount }) {
     postCount: safePostCount,
     websiteProductModeAvailable,
     verifiedServiceModeAvailable,
-    platformKeys: activePlatformKeys,
+    platformKeys,
     platformCapabilities: runtimePlatformCapabilities,
   });
-
-  const platformSignature = activePlatformKeys.join("-") || "no-platform";
-  // Product/service availability changes the set of formats the planner may use.
-  // Keep that capability state in the cache identity so a brand that becomes
-  // verified never reuses a recommendation created before those formats existed.
-  const capabilitySignature = `products-${websiteProductModeAvailable ? 1 : 0}_services-${verifiedServiceModeAvailable ? 1 : 0}`;
-  const cacheKey = currentBrandId && goalId
-    ? `spreelo_plan_recommendation_v296_${currentBrandId}_${goalId}_${safePostCount}_${platformSignature}_${capabilitySignature}`
-    : "";
-  let instantSlots = fallbackSlots;
-
-  if (cacheKey && typeof window !== "undefined") {
-    try {
-      const cachedPlan = JSON.parse(window.localStorage.getItem(cacheKey) || "null");
-      const cachedSlots = createDynamicRecommendedSlots({
-        plan: cachedPlan,
-        startDate: planStartDate,
-        timeZone,
-        autoPlanGoal: goalId,
-        firstPublishTime: defaultPublishTime,
-        postCount: safePostCount,
-        websiteProductModeAvailable,
-        verifiedServiceModeAvailable,
-        platformKeys: activePlatformKeys,
-        platformCapabilities: runtimePlatformCapabilities,
-      });
-      if (cachedSlots.length === safePostCount) instantSlots = cachedSlots;
-    } catch {
-      window.localStorage.removeItem(cacheKey);
-    }
-  }
-
-  // The customer always sees a complete, goal-specific plan immediately.
-  // A newer server recommendation is cached for the next selection instead of
-  // replacing rows that are already visible on screen.
-  setSlots(instantSlots);
-  setSelectedContentTypeIds(
-    instantSlots.map((slot) => slot.contentTypeId).filter(Boolean)
-  );
-
-  if (!goalId || !currentBrandId) return;
-
-  const requestId = autoPlanRequestIdRef.current + 1;
-  autoPlanRequestIdRef.current = requestId;
-  setAutoPlanLoading(true);
-
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-    if (!accessToken) return;
-
-    const planningSignature = JSON.stringify({
-      brandProfileId: currentBrandId,
-      goalId,
-      postCount: safePostCount,
-      startDate: planStartDate,
-      timeZone,
-      platforms: [...activePlatformKeys].sort(),
-    });
-    const eventNow = Date.now();
-    const recentEvent = growthPlanEventRef.current;
-    const reuseRecentEvent = recentEvent.signature === planningSignature && (eventNow - Number(recentEvent.createdAt || 0)) < 3000;
-    const planningEventId = reuseRecentEvent
-      ? recentEvent.eventId
-      : (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `${eventNow}-${requestId}-${Math.random().toString(36).slice(2)}`);
-    growthPlanEventRef.current = { signature: planningSignature, eventId: planningEventId, createdAt: eventNow };
-
-    const response = await fetch("/api/plan-content", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        brandProfileId: currentBrandId,
-        goalId,
-        postCount: safePostCount,
-        startDate: planStartDate,
-        timeZone,
-        platform: formatPlatformSelectionFromKeys(activePlatformKeys, connectedPlatformOptions) || platform,
-        platforms: activePlatformKeys,
-        planningEventId,
-      }),
-    });
-    const payload = await response.json().catch(() => ({}));
-
-    if (requestId !== autoPlanRequestIdRef.current) return;
-    if (!response.ok || !Array.isArray(payload?.posts) || !payload.posts.length) {
-      console.warn(
-        "Dynamic content strategy could not replace the safe fallback plan",
-        payload?.error || response.statusText
-      );
-      return;
-    }
-
-    const dynamicSlots = createDynamicRecommendedSlots({
-      plan: payload,
-      startDate: planStartDate,
-      timeZone,
-      autoPlanGoal: goalId,
-      firstPublishTime: defaultPublishTime,
-      postCount: safePostCount,
-      websiteProductModeAvailable,
-      verifiedServiceModeAvailable,
-      platformKeys: activePlatformKeys,
-      platformCapabilities: runtimePlatformCapabilities,
-    });
-
-    if (dynamicSlots.length === safePostCount && cacheKey && typeof window !== "undefined") {
-      writeOptionalBrowserCache(cacheKey, JSON.stringify({posts:payload.posts,rotation_pool:payload.rotation_pool,strategy_summary:payload.strategy_summary}));
-    }
-  } catch (error) {
-    if (requestId === autoPlanRequestIdRef.current) {
-      console.warn(
-        "Dynamic content strategy could not replace the safe fallback plan",
-        error
-      );
-      // The complete instant plan remains visible when background refinement fails.
-    }
-  } finally {
-    if (requestId === autoPlanRequestIdRef.current) {
-      setAutoPlanLoading(false);
-    }
-  }
+  setSlots(plannedSlots);
+  setSelectedContentTypeIds(plannedSlots.map((slot) => slot.contentTypeId).filter(Boolean));
 }
 
 async function changeAutoPlanGoal(goalId) {

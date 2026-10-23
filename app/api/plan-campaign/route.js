@@ -1,5 +1,7 @@
 import { activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
 import OpenAI from "openai";
+import { randomUUID } from "node:crypto";
+import { createGenerationCostTracker } from "../../../lib/generationCostTracking.js";
 import { createClient } from "@supabase/supabase-js";
 import { hasVerifiedServiceEvidence } from "../../../lib/editorialContentStrategy";
 import { enrichBrandProfileWithEffectiveProductMode } from "../../../lib/effectiveProductMode.js";
@@ -1069,7 +1071,7 @@ async function originalPost(request) {
       return Response.json({ campaign, post_plan: campaign.post_plan, source: "database" });
     }
 
-    const response = await openai.responses.create({
+    const campaignRequest = {
       model: activeAiModel("campaign_plan", "gpt-5.5"),
       instructions: `You are Spreelo's senior campaign strategist. Create a practical social media campaign sequence for a real small business. Think like a senior marketer at a strong brand: every post must have a clear job, timing, format and reason. Return valid JSON only. Do not include finished captions or finished image prompts.`,
       input: `
@@ -1179,7 +1181,23 @@ Strategic rules:
 - Do not create generic filler. Each post must have a different role and clear reason.
 - Return JSON only.
       `,
-    });
+    };
+    const response = await openai.responses.create(campaignRequest);
+    // Campaign planning has a database cache, but a real provider call must
+    // still appear in Spreelo's admin-only provider cost ledger.
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+        const tracker = createGenerationCostTracker({
+          supabase:admin,generationUserId:user.id,generationSessionId:randomUUID(),
+        });
+        await tracker.recordOpenAI("campaign_plan.responses.create",campaignRequest,response);
+      } catch (error) {
+        console.warn("Campaign plan provider cost could not be recorded", {message:error.message});
+      }
+    }
 
     const parsed = safeJsonParse(response.output_text);
     const normalizedPlan = normalizePlan(parsed, campaign, brandProfile);

@@ -1,20 +1,22 @@
 import {adminContextError,getAdminContext} from '../../../../lib/adminAuth.js';
 import {AI_PURPOSES,isVerifiedForCapability} from '../../../../lib/aiModelControl.js';
 import {recommendedReplacement,compareTextPrices} from '../../../../lib/aiModelIntelligence.js';
+import {buildModelAdvice} from '../../../../lib/aiModelAdvice.js';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 export async function GET(request){
   const context=await getAdminContext(request);
   if(context.error)return adminContextError(context);
   const db=context.admin;
-  const [settingsResult,catalogResult,pricesResult,signalsResult,runResult]=await Promise.all([
+  const [settingsResult,catalogResult,pricesResult,signalsResult,runResult,shutdownResult]=await Promise.all([
     db.from('ai_model_settings').select('purpose,provider,model'),
     db.from('ai_model_catalog').select('provider,model,status,verified_capabilities,verified_at,last_seen_at').limit(1000),
     db.from('ai_model_pricing').select('provider,model,unit,amount_usd,source_url,verified_at').limit(1000),
     db.from('ai_model_availability_signals').select('*').eq('provider','openai').limit(200),
     db.from('ai_model_intelligence_runs').select('*').order('day',{ascending:false}).limit(1),
+    db.from('ai_model_shutdown_notices').select('*').eq('provider','openai').limit(300),
   ]);
-  const fatal=[settingsResult,catalogResult,pricesResult,signalsResult,runResult].find(x=>x.error);
+  const fatal=[settingsResult,catalogResult,pricesResult,signalsResult,runResult,shutdownResult].find(x=>x.error);
   if(fatal)return Response.json({ok:false,error:`AI Model Intelligence SQL is missing or unavailable: ${fatal.error.message}`},{status:503});
   const settings=settingsResult.data||[],catalog=catalogResult.data||[],prices=pricesResult.data||[];
   const signals=signalsResult.data||[];
@@ -44,7 +46,8 @@ export async function GET(request){
       if(value)comparisons.push({purpose:s.purpose,label:purpose.label,currentModel:s.model,candidateModel:candidate.model,...value});
     }
   }
-  return Response.json({ok:true,signals:signals.filter(x=>x.consecutive_missing>0),
+  const advice=buildModelAdvice({settings,catalog,pricing:prices,shutdowns:shutdownResult.data||[],purposes:AI_PURPOSES});
+  return Response.json({ok:true,advice:advice.suggestions,shutdownWarnings:advice.warnings,signals:signals.filter(x=>x.consecutive_missing>0),
     recommendations,comparisons:comparisons.slice(0,30),lastRun:runResult.data?.[0]||null,
     pricing:prices,sourceNotes:'USD Standard API list prices. Actual usage, cached tokens, tools, image and video pricing vary. No changes to active models.'});
 }

@@ -47,7 +47,8 @@ assert.equal(suggestion.model,'gpt-5.6-sol');
 assert.equal(logic.recommendedReplacement({purpose:{provider:'openai',capability:'image_alpha'},active:'gpt-image-old',approved,availableModels:['gpt-5.6-sol'],priceRows:p}),null);
 assert.equal(logic.recommendedReplacement({purpose:{provider:'kling',capability:'image_to_video'},active:'kling-3.0',approved,availableModels:[],priceRows:p}),null);
 console.log('PASS: replacement suggestions require verified matching capability and recent availability');
-const server=evaluate('lib/aiModelIntelligenceServer.js',{'./aiModelIntelligence.js':logic,'./aiModelDiscovery.js':{discoverOpenAiModels:async()=>['gpt-5.6-sol']},'./adminAuth.js':{getConfiguredAdminEmails:()=>[]}});
+const advice=evaluate('lib/aiModelAdvice.js',{'./aiModelIntelligence.js':logic});
+const server=evaluate('lib/aiModelIntelligenceServer.js',{'./aiModelAdvice.js':advice,'./aiModelIntelligence.js':logic,'./aiModelDiscovery.js':{discoverOpenAiModels:async()=>['gpt-5.6-sol']},'./adminAuth.js':{getConfiguredAdminEmails:()=>[]}});
 // DB simulation records all writes. The intelligence process must NEVER update ai_model_settings.
 const writes=[];const rows={ai_model_availability_signals:[],ai_model_settings:[{purpose:'content_plan',provider:'openai',model:'gpt-5.5'}],ai_market_news:[]};
 const db={from(table){const q={eq(){return q},in(){return q},select(){return q},then(ok){return Promise.resolve({data:rows[table]||[],error:null}).then(ok)},upsert:async r=>{writes.push(table);rows[table]=[...(rows[table]||[]),...r];return {error:null}}};return q}};

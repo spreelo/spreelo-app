@@ -31,8 +31,11 @@ assert.match(growth, /error\?\.code.*23505/s);
 assert.match(growth, /\.eq\("cycle_key", cycleKey\)/);
 assert.match(route, /planningEventId = null/);
 assert.match(route, /planningEventId,/);
-assert.match(page, /growthPlanEventRef/);
-assert.match(page, /planningEventId/);
+// Deliberately no new event ID is minted for routine settings changes;
+// the weekly planner is now idempotent per brand/week at the DB boundary.
+assert.doesNotMatch(page.slice(page.indexOf('async function applyDynamicAutoPlan('),page.indexOf('async function changeAutoPlanGoal(')),/planningEventId/);
+const weekSql = fs.readFileSync(new URL('../supabase/v144_393_weekly_variation_planning.sql',import.meta.url),'utf8');
+assert.match(weekSql,/primary key \(brand_profile_id, week_start\)/);
 assert.match(sql, /add column if not exists cycle_key text/);
 assert.match(sql, /create unique index if not exists growth_agent_closed_loop_cycle_key_uidx/);
 assert.match(sql, /alter column cycle_key set not null/);

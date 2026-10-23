@@ -1,6 +1,8 @@
 import { activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
 import { recordOpenAiRuntimeResult } from "../../../lib/openAiRuntimeHealth.js";
 import OpenAI from "openai";
+import { randomUUID } from "node:crypto";
+import { createGenerationCostTracker } from "../../../lib/generationCostTracking.js";
 import { createClient } from "@supabase/supabase-js";
 import {
   describeContentTypeDestinations,
@@ -872,7 +874,7 @@ async function planContentPost(request) {
       })
       .join("\n");
 
-    const response = await openai.responses.create({
+    const planRequest = {
       model: contentPlanModel(),
       instructions:
         "You are Spreelo's senior always-on social media strategist. Choose the strongest content-format mix for one real business and one stated goal. Return valid JSON only. Do not write finished captions or image prompts.",
@@ -988,12 +990,27 @@ Return this exact JSON structure:
   ]
 }
       `,
-    }).catch(async (error) => {
+    };
+    const response = await openai.responses.create(planRequest).catch(async (error) => {
       await recordOpenAiRuntimeResult({ admin: growthAgentAdmin, error, operation: "planning" });
       throw error;
     });
 
     await recordOpenAiRuntimeResult({ admin: growthAgentAdmin, operation: "planning" });
+    // 144.393: manual/legacy planner calls must appear in the provider cost
+    // ledger even when the result never becomes an actual customer post.
+    if (growthAgentAdmin) {
+      try {
+        const tracker = createGenerationCostTracker({
+          supabase: growthAgentAdmin,
+          generationUserId: user.id,
+          generationSessionId: randomUUID(),
+        });
+        await tracker.recordOpenAI("content_plan.responses.create", planRequest, response);
+      } catch (costError) {
+        console.warn("Content plan OpenAI cost registration unavailable", {message:costError.message});
+      }
+    }
     const rawPlan = safeJsonParse(response.output_text);
     const normalizedPlan = normalizePlan({
       rawPlan,
