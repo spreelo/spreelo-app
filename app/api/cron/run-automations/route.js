@@ -8,6 +8,7 @@ import { persistTerminalVideoFailure } from "../../../../lib/videoFailurePersist
 import { hasProtectedVideoJob } from "../../../../lib/videoJobSafety.js";
 import { classifyVideoProviderCreationFailure, automationFailureHandoffError } from "../../../../lib/videoFailureDiagnostics.js";
 import { explicitCollectionScope, restrictToExplicitCollection } from "../../../../lib/storeMapCollectionScope.js";
+import { embeddedProductUrlLeads, oldestUsedProductLeads } from "../../../../lib/productDiscoveryRecovery144392.js";
 import { verifyExplicitCollectionMembership as verifyCollectionMembership, filterExplicitCollectionCandidates as filterCollectionCandidates, getExplicitCollectionProductCandidates as getCollectionCandidates } from "../../../../lib/verifiedCollectionMembership.js";
 import { generateIndependentAdvertisingAssets, ensureExactAdvertisingLettering, buildOfflineAdvertisingBackdrop } from "../../../../lib/videoAdvertisingAssetPipeline.js";
 import { VIDEO_ART_DIRECTION, VIDEO_DESIGN_VERSION } from "../../../../lib/videoArtDirection.js";
@@ -25745,6 +25746,11 @@ function extractProductUrlCandidatesFromText({
         /\/[^/?#]+\d{5,}/i.test(lower);
 
       if (!looksItemLike && host && !lower.includes(host)) continue;
+      // v144.392: don't spend verification slots on known storefront
+      // categories or brand listings embedded in navigation JSON.
+      try {
+        if (/^\/(?:c|b)\//i.test(new URL(resolvedUrl).pathname)) continue;
+      } catch { continue; }
 
       candidates.push({
         title: "",
@@ -26616,6 +26622,17 @@ function extractProductLinksFromDiscoveryPage({
     })
   );
 
+  // v144.392: use product URLs already embedded in the fetched page (including
+  // JSON-escaped URLs). Category/listing links must not consume the verifier.
+  candidates.push(...embeddedProductUrlLeads(html, pageUrl, websiteUrl, 60).map((url) => ({
+    url,
+    title: "",
+    score: 75 + scorePossibleProductLink({ url, text: "", campaignPrompt }),
+    source_page_url: pageUrl,
+    reason: "Concrete product URL in existing page markup",
+    campaign_fit_source: "embedded_product_url",
+  })));
+
   for (const link of links) {
     const url = link?.url;
 
@@ -26631,7 +26648,8 @@ function extractProductLinksFromDiscoveryPage({
       continue;
     }
 
-    if (isLikelyBadDiscoveryPageUrl(url, websiteUrl)) {
+    if (isLikelyBadDiscoveryPageUrl(url, websiteUrl) || /^\/(?:c|b)\//i.test(new URL(url).pathname)) {
+      // Category/brand pages are navigation, never product candidates.
       continue;
     }
 
@@ -28272,6 +28290,13 @@ async function verifyDiscoveredWebsiteProductCandidates({
     websiteUrl
   )
     .filter((candidate) => !isBadProductUrl(candidate?.url))
+    // Listing pages are for navigation; do not spend product-verification
+    // HTTP requests on known category/brand URLs without explicit product proof.
+    .filter((candidate) => {
+      let path = '';
+      try { path = new URL(candidate?.url || '').pathname; } catch { return false; }
+      return !/^\/(?:c|b)\//i.test(path) || candidate?.product_schema_verified === true;
+    })
     .filter((candidate) =>
       matchesConfiguredWebsiteMarket(
         candidate?.url,
@@ -31646,6 +31671,11 @@ ${campaignPrompt || "No specific campaign prompt was provided. Find a concrete p
 Products already used recently by Spreelo for this brand/source:
 ${usedProductsBlock}
 
+Product URL format hint (discovery only, never substitute for current-page verification):
+- When historical official product URLs use a recognizable product-detail path such as /p/, /products/ or /product/, search for NEW URLs in that same official format.
+- Use category and brand pages to navigate to individual product links; NEVER submit /c/, /b/, or a category result as a product.
+- Try a domain-restricted search for real direct product pages before concluding there are no products. Do not increase the number of search attempts.
+
 Reuse rule:
 - Do not return products from the already-used list unless there are truly no other products on the website.
 - Actively search for different products first.
@@ -34083,6 +34113,73 @@ async function prepareWebsiteContentForRule({
           indexedSecurityFallback: true,
         });
       }
+    }
+
+    // v144.392: when affordable discovery has been exhausted, prefer a small,
+    // bounded re-verification of historically USED exact product URLs over a
+    // fresh paid GPT web search. This is NOT automatic trust in stale stock:
+    // each candidate must pass the same live product+image lock and relevance
+    // checks as a newly discovered product. Customer-selected collections and
+    // protected/429 sources keep their existing safety paths.
+    if (!STRICT_PRODUCT_NO_REUSE && (productIntentScoped || isProductContentTypeRule(rule)) &&
+        contentSourceScope === "whole_website" && !websiteAccessProtected && productResearchFallbackReason !== "rate_limited") {
+      const oldLeads = oldestUsedProductLeads({
+        savedCatalog: savedCatalogItems,
+        history: recentUsedItems,
+        websiteUrl,
+        maxResults: 12,
+      });
+      let examined = 0;
+      // A strict cap replaces paid research on success; never expand budgets.
+      const retryUntil = Date.now() + 25_000;
+      const rejected = [];
+      for (const lead of oldLeads) {
+        if (examined >= 3 || Date.now() >= retryUntil) break;
+        examined += 1;
+        try {
+          const candidate = await chooseUnusedWebsiteItem({
+            supabase, userId: rule.user_id, brandProfileId: rule.brand_profile_id,
+            sourceUrl: websiteUrl, contentType, items: [lead], rule,
+            usedWebsiteImageUrlsThisRun, recentUsedItems,
+            allowReuseWhenExhausted: true,
+          });
+          // Historical catalog rows can lack an image after schema changes.
+          // They are still URL leads; the live lock must obtain the exact image.
+          const selected = candidate?.item ? candidate : {
+            item: lead,
+            cycleNumber: (await getCurrentWebsiteCycle({
+              supabase, userId: rule.user_id, brandProfileId: rule.brand_profile_id,
+              sourceUrl: websiteUrl, contentType,
+            })) + 1,
+            startedNewCycle: true,
+          };
+          const prepared = await finalizePreparedWebsiteItem(
+            selected.item, selected.cycleNumber, { allowAiRepair: false }
+          );
+          if (!isProductEligibleForWebsiteSource(prepared.websiteItem, rule, brandProfile) ||
+              !isAcceptableWebsiteTextProductSelection(prepared.websiteItem, rule)) {
+            rejected.push({ url: lead.url, reason: 'current_stock_or_campaign_fit' });
+            continue;
+          }
+          summary.website_items_reused_cycle = Number(summary.website_items_reused_cycle || 0) +
+            (selected.startedNewCycle ? 1 : 0);
+          summary.website_items_found += 1;
+          summary.website_content_success += 1;
+          console.info('Verified older website product reused before paid web research', {
+            ruleId: rule.id, websiteUrl, productUrl: prepared.websiteItem.url,
+            candidateCount: oldLeads.length, checkedCount: examined,
+            newCycle: selected.startedNewCycle, paidWebResearchUsed: false,
+          });
+          return prepared;
+        } catch (error) {
+          if (isWebsiteRateLimitError(error)) throw error;
+          rejected.push({url: lead.url, reason: String(error?.code || error?.message || 'lock_failed').slice(0,120)});
+        }
+      }
+      console.info('Bounded old-product reuse before paid web search completed', {
+        ruleId: rule.id, websiteUrl, candidates: oldLeads.length,
+        checked: examined, reused: false, failures: rejected.slice(0, 3),
+      });
     }
 
     const resolvedWebResearchFallbackReason =
