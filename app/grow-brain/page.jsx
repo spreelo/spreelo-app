@@ -416,12 +416,12 @@ function buildGrowBrainDemoData() {
     "/grow-brain/demo-top-6.webp",
   ];
   const demoTitles = [
-    "Höstens favoriter är här",
-    "Så stylar du säsongens nyheter",
-    "Säsongens måste-ha-plagg",
-    "Tre detaljer som lyfter vardagsstilen",
-    "Stickat som känns rätt just nu",
-    "Vackraste inredningsdetaljerna i höst",
+    "Autumn favorites are here",
+    "How to style the new season",
+    "Seasonal wardrobe essentials",
+    "Three details that elevate everyday style",
+    "The knitwear to wear now",
+    "Beautiful home details for autumn",
   ];
 
   const performance = [];

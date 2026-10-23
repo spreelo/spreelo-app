@@ -369,9 +369,9 @@ export default function AdminDashboardPage() {
                   <QuickLink href="/admin/customers" icon={Users} title={t("adminCommand.quick.customerList")} text={t("adminCommand.quick.customerListText")} />
                   <QuickLink href="/admin/post-approvals" icon={FileCheck2} title={t("adminCommand.quick.approvals")} text={t("adminCommand.quick.approvalsText")} badge={stats.pendingApproval || null} />
                   <QuickLink href="/admin/mass-tests" icon={FlaskConical} title={t("adminCommand.quick.massTest")} text={t("adminCommand.quick.massTestText")} />
-                  <QuickLink href="/admin/capacity-test" icon={BarChart3} title="Belastningstest · kapacitet" text="Säker simulering för 100–100 000 kunder; inga riktiga jobb startas." />
-                  <QuickLink href="/admin/provider-capacity" icon={Activity} title="Leverantörsövervakning" text="API-gränser, observerad användning och varningar för externa tjänster." />
-                  <QuickLink href="/admin/openai-pricing" icon={CircleDollarSign} title="OpenAI-priser och kostnadskontroll" text="Godkända API-tariffer, prisändringar och debiteringsavstämning." />
+                  <QuickLink href="/admin/capacity-test" icon={BarChart3} title="Capacity load test" text="Safe simulation for 100–100,000 customers; no real jobs are started." />
+                  <QuickLink href="/admin/provider-capacity" icon={Activity} title="Provider capacity monitoring" text="API limits, measured usage and alerts for external services." />
+                  <QuickLink href="/admin/openai-pricing" icon={CircleDollarSign} title="OpenAI pricing and cost controls" text="Approved API rates, price changes and billing reconciliation." />
                 </QuickGroup>
                 <QuickGroup tone="orange" title={t("adminCommand.quick.creativeLibraries")} icon={ImagePlus}>
                   <QuickLink href="/admin/image-backgrounds" icon={ImagePlus} title={t("adminCommand.quick.imageBackgrounds")} text={t("adminCommand.quick.imageBackgroundsText")} />
@@ -385,7 +385,7 @@ export default function AdminDashboardPage() {
                 </QuickGroup>
                 <QuickGroup tone="blue" title={t("adminCommand.quick.systemQuality")} icon={Settings2}>
                   <QuickLink href="/admin/rescue-center" icon={AlertTriangle} title={t("adminCommand.quick.rescueCenter")} text={t("adminCommand.quick.rescueCenterText")} badge={stats.openRescueCases || null} />
-                  <QuickLink href="/admin/ai-control" icon={BrainCircuit} title="AI Control Center" text="Modeller, kompatibilitet och säkra modellbyten." />
+                  <QuickLink href="/admin/ai-control" icon={BrainCircuit} title="AI Control Center" text="Models, compatibility and safe model switching." />
                   <QuickLink href="#translations" icon={Languages} title={t("adminCommand.quick.translations")} text={t("adminCommand.quick.translationsText", { count: requestedLocaleCount })} />
                   <QuickLink href="/admin/content-formats" icon={LayoutGrid} title={t("adminCommand.quick.contentFormats")} text={t("adminCommand.quick.contentFormatsText")} />
                   <QuickLink href="/admin/icons" icon={Shapes} title={t("adminCommand.quick.icons")} text={t("adminCommand.quick.iconsText")} />

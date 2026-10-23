@@ -101,8 +101,9 @@ export async function POST(request) {
     }))
   );
 
-  // Preserve existing labels and mark all selected language packs in one
-  // batch. Each namespace is regenerated lazily the next time it is opened.
+  // Never retranslate entire valid language packs. "refresh_requested" now
+  // means: check for changed English source and retry explicitly failed keys.
+  // Completed translations remain untouched and shared between all customers.
   const { error: upsertError } = await context.admin
     .from("ui_translation_packs")
     .upsert(rows, { onConflict: "locale,namespace" });

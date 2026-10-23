@@ -890,8 +890,8 @@ export default function AdminPostApprovalsPage() {
     if (!selectedPost || !selectedKlingRejectedAudit) return;
     if (typeof window !== "undefined" && !window.confirm(String(locale).startsWith("sv")
       ? selectedKlingCreativeReview
-        ? "Färdigställ den sparade filmen med text och slutbild? Den följer sedan kundens vanliga granskningsinställning. Slutrenderingen kan debiteras. Ingen ny Kling-film beställs."
-        : "En ny Kling-körning kan debiteras. Kontrollera först den befintliga videon och bekräfta att du vill försöka igen."
+        ? "Finish the saved video with typography and closing card? It will follow the customer review setting. The final render may incur a charge. No new Kling video will be ordered."
+        : "A new Kling run may incur a charge. Check the existing video before confirming the retry."
       : selectedKlingCreativeReview
         ? "Finish the saved video with typography and closing card, then follow the customer's normal review settings? Final rendering may incur a charge. No new Kling video will be ordered."
         : "A new Kling run may incur charges. Check the existing video first and confirm that you want to retry.")) return;
@@ -911,7 +911,7 @@ export default function AdminPostApprovalsPage() {
       await loadPosts(result.post_id);
       setSelectedPostId(result.post_id);
       setRegenerationSuccess(result.resumed
-        ? (String(locale).startsWith('sv')?'Den sparade filmen har köats för färdigställande med kundens vanliga granskningsinställning.':'The saved video is queued for completion using the customer’s normal review settings.')
+        ? (String(locale).startsWith('sv')?'The saved video has been queued for completion according to the customer review setting.':'The saved video is queued for completion using the customer’s normal review settings.')
         : t("admin.approvals.klingRetryQueued"));
     } catch (actionError) {
       const message = actionError.message || t("admin.approvals.klingRetryError");
@@ -927,12 +927,12 @@ export default function AdminPostApprovalsPage() {
     if (selectedPost.status === "failed") {
       if (!canRegenerateFailedPost || selectedKlingRejectedAudit) {
         setRegenerationError(String(locale).startsWith("sv")
-          ? "Kontrollera först felguiden och använd den angivna återställningsmetoden. Ny generering är spärrad tills underlaget är klart."
+          ? "Check the failure guide and use the specified recovery method. New generation is blocked until the source material is ready."
           : "Follow the recovery guide first. A new generation is blocked until the required recovery conditions are met.");
         return;
       }
       if (typeof window !== "undefined" && !window.confirm(String(locale).startsWith("sv")
-        ? "Jag har kontrollerat att det inte finns någon pågående leverantörskörning eller redan färdigt resultat. Regenerate kan medföra en ny kostnad. Fortsätta?"
+        ? "I have confirmed there is no running provider job or completed result. Regenerate may incur a charge. Continue?"
         : "I checked that no provider task is still running and no usable output already exists. Regenerate may incur a new charge. Continue?")) return;
     }
     if (isCarouselPost(selectedPost)) return regenerateFromMaterials();
@@ -1462,7 +1462,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                     <small>{post.platform || t("admin.approvals.platformUnknown")} · {adminPostFormatLabel(post) || t("admin.approvals.post")}</small>
                     <strong>{post.brand_name || t("admin.approvals.unknownBrand")} {post.is_admin_test ? <span className="sp102-approval-test-badge">{t("admin.approvals.testMassTest")}</span> : null}</strong>
                     <em>{post.admin_test_campaign ? `${post.admin_test_campaign} · ` : ""}{String(post.content || "").replace(/\s+/g, " ").slice(0, 120) || t("admin.approvals.noContent")}</em>
-                    {failureGuide ? <span className={`admin-v144340-failure-list-note is-${failureGuide.category}`}><AlertTriangle size={13} /><span><b>{failureGuide.title}</b><small>{String(locale).startsWith("sv") ? "Åtgärd:" : "Action:"} {failureGuide.actionLabel}</small></span></span> : null}
+                    {failureGuide ? <span className={`admin-v144340-failure-list-note is-${failureGuide.category}`}><AlertTriangle size={13} /><span><b>{failureGuide.title}</b><small>{String(locale).startsWith("sv") ? "Action:" : "Action:"} {failureGuide.actionLabel}</small></span></span> : null}
                   </span>
                   <span className="admin-v14370-review-time"><small>{t("admin.approvals.created")}</small><strong>{formatDate(post.created_at, locale)}</strong></span>
                   <span className="admin-v14370-review-time admin-v14412-review-cost"><small>{t("admin.approvals.generationCost")}</small><strong>{formatGenerationCost(post)}</strong></span>
@@ -1736,17 +1736,17 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
 
                   {selectedFailureGuide ? (
                     <section className={`admin-v144340-failure-guide is-${selectedFailureGuide.category}`} aria-label={String(locale).startsWith("sv") ? "Felorsak och återställningsinstruktion" : "Failure cause and recovery instructions"}>
-                      <div className="admin-v144340-failure-head"><AlertTriangle size={20} /><div><small>{String(locale).startsWith("sv") ? "VARFÖR MISSLYCKADES INLÄGGET?" : "WHY DID THIS POST FAIL?"}</small><strong>{selectedFailureGuide.title}</strong></div></div>
+                      <div className="admin-v144340-failure-head"><AlertTriangle size={20} /><div><small>{String(locale).startsWith("sv") ? "WHY DID THIS POST FAIL?" : "WHY DID THIS POST FAIL?"}</small><strong>{selectedFailureGuide.title}</strong></div></div>
                       <p className="admin-v144340-failure-reason">{selectedFailureGuide.reason}</p>
                       <div className="admin-v144340-failure-next">
-                        <strong><ShieldCheck size={16} /> {String(locale).startsWith("sv") ? "Så återställer du inlägget" : "How to recover this post"}</strong>
+                        <strong><ShieldCheck size={16} /> {String(locale).startsWith("sv") ? "How to recover this post" : "How to recover this post"}</strong>
                         <p>{selectedFailureGuide.instruction}</p>
                         {selectedFailureGuide.safety ? <small><AlertTriangle size={13} />{selectedFailureGuide.safety}</small> : null}
                       </div>
                       <dl className="admin-v144340-failure-evidence">
-                        <div><dt>{String(locale).startsWith("sv") ? "Bedömning" : "Assessment"}</dt><dd>{selectedFailureGuide.confirmed ? (String(locale).startsWith("sv") ? "Baserad på sparat fel" : "Based on recorded failure") : (String(locale).startsWith("sv") ? "Orsak ej bekräftad" : "Cause not confirmed")}</dd></div>
+                        <div><dt>{String(locale).startsWith("sv") ? "Assessment" : "Assessment"}</dt><dd>{selectedFailureGuide.confirmed ? (String(locale).startsWith("sv") ? "Based on recorded error" : "Based on recorded failure") : (String(locale).startsWith("sv") ? "Cause not confirmed" : "Cause not confirmed")}</dd></div>
                         <div><dt>{String(locale).startsWith("sv") ? "Felkod" : "Error code"}</dt><dd>{selectedFailureGuide.code || "—"}</dd></div>
-                        <div><dt>{String(locale).startsWith("sv") ? "Körningsfas" : "Execution stage"}</dt><dd>{selectedFailureGuide.stage || "—"}</dd></div>
+                        <div><dt>{String(locale).startsWith("sv") ? "Execution stage" : "Execution stage"}</dt><dd>{selectedFailureGuide.stage || "—"}</dd></div>
                       </dl>
                       {selectedFailureGuide.recordedMessage ? <details className="admin-v144340-failure-raw"><summary>{String(locale).startsWith("sv") ? "Visa ursprungligt felmeddelande" : "Show original error message"}</summary><pre>{selectedFailureGuide.recordedMessage}</pre></details> : null}
                     </section>
@@ -1842,7 +1842,7 @@ IMAGE_URL REQUIREMENT: direct HTTPS image from the customer's website or its rea
                             ) : null}
                             <button type="button" className="admin-primary-button" disabled={retryingKling} onClick={retryRejectedKlingVideo}>
                               {retryingKling ? <LoaderCircle className="admin-spin" size={16} /> : <RefreshCw size={16} />}
-                              {selectedKlingCreativeReview ? (String(locale).startsWith('sv')?'Slutför sparad video':'Finish saved video') : t("admin.approvals.klingRetry")}
+                              {selectedKlingCreativeReview ? (String(locale).startsWith('sv')?'Finish saved video':'Finish saved video') : t("admin.approvals.klingRetry")}
                             </button>
                           </>
                         ) : (

@@ -49,19 +49,31 @@ function sourceMetadataNeedsRefresh(defaultLabels, labels) {
   const existing = getSourceFingerprints(labels);
   const cleanLabels = stripTranslationMetadata(labels);
   return Object.entries(defaultLabels || {}).some(([key, value]) => {
-    if (existing[key] !== sourceFingerprint(value)) return true;
+    if (typeof cleanLabels?.[key] === "string" && cleanLabels[key].trim() && !existing[key]) return true;
     if (isLanguageNeutralUiSource(value) && String(cleanLabels?.[key] || "") !== String(value)) return true;
     return false;
   });
 }
 
-function withTranslationMetadata({ labels, intentionalUnchangedKeys, deferredKeys, defaultLabels }) {
+function withTranslationMetadata({ labels, intentionalUnchangedKeys, deferredKeys, defaultLabels, previousLabels = labels, updatedKeys = [] }) {
+  const clean = stripTranslationMetadata(labels);
+  const fingerprints = { ...getSourceFingerprints(previousLabels) };
+  const updated = new Set(updatedKeys);
+  for (const [key, source] of Object.entries(defaultLabels || {})) {
+    if (typeof clean[key] !== "string" || !clean[key].trim()) continue;
+    // Existing legacy translations gain a baseline WITHOUT generating again.
+    // On a changed English source, keep the old fingerprint until a NEW
+    // translation for this key has actually been saved successfully.
+    if (!fingerprints[key] || updated.has(key) ||
+        (isLanguageNeutralUiSource(source) && clean[key] === String(source))) fingerprints[key] = sourceFingerprint(source);
+  }
   return {
-    ...stripTranslationMetadata(labels),
+    ...clean,
     [TRANSLATION_META_KEY]: {
+      ...((previousLabels || {})[TRANSLATION_META_KEY] || {}),
       intentional_unchanged_keys: Array.from(intentionalUnchangedKeys || []).map(String).sort(),
       deferred_keys: deferredKeys || {},
-      source_fingerprints: buildSourceFingerprints(defaultLabels),
+      source_fingerprints: fingerprints,
     },
   };
 }
@@ -80,6 +92,7 @@ function getDeferredTranslationKeys(labels) {
 function isTranslationKeyDeferred({ labels, key, defaultValue }) {
   const entry = getDeferredTranslationKeys(labels)?.[String(key)];
   if (!entry) return false;
+  if (entry.permanent === true) return String(entry.source || "") === String(defaultValue || "");
   const until = new Date(entry.until || 0).getTime();
   const remainingMs = until - Date.now();
   if (!Number.isFinite(until) || remainingMs <= 0) return false;
@@ -146,62 +159,37 @@ function parseNamespaces(value) {
 }
 
 function shouldRetranslateLabel({ key, defaultValue, translatedValue, locale, intentionalUnchangedKeys }) {
-  const defaultText = String(defaultValue || "").trim();
-
-  // Brand, platform and system labels declared language-neutral are source data,
-  // not translation work. Keep the canonical English value without an AI call.
-  if (locale !== DEFAULT_UI_LOCALE && isLanguageNeutralUiSource(defaultText)) {
-    return false;
-  }
-
-  if (translatedValue === null || translatedValue === undefined) {
-    return true;
-  }
-
-  const translatedText = String(translatedValue).trim();
-
-  if (!translatedText) {
-    return true;
-  }
-
-  if (locale === DEFAULT_UI_LOCALE) {
-    return false;
-  }
-
-  // Repair old language packs that were created while the UI was still falling
-  // back to English. This is what can make one language, such as Swedish, stay
-  // English even though newer languages work.
-  if (defaultText && translatedText === defaultText) {
-    if (intentionalUnchangedKeys?.has(String(key))) return false;
-    return true;
-  }
-
-  return false;
+  if (locale === DEFAULT_UI_LOCALE || isLanguageNeutralUiSource(defaultValue)) return false;
+  // A persisted nonempty value is authoritative. Identical strings can be
+  // valid borrowed words; they are NOT evidence of incomplete translation.
+  return typeof translatedValue !== "string" || translatedValue.trim() === "";
 }
 
-function getLabelsNeedingTranslation(defaultLabels, translatedLabels, locale) {
+function getLabelsNeedingTranslation(defaultLabels, translatedLabels, locale, { manualRepair = false } = {}) {
   const intentionalUnchangedKeys = getIntentionalUnchangedKeys(translatedLabels);
   const sourceFingerprints = getSourceFingerprints(translatedLabels);
-  return Object.entries(defaultLabels).reduce((labelsNeedingTranslation, [key, value]) => {
-    const translatedValue = translatedLabels?.[key];
-    const storedFingerprint = sourceFingerprints?.[key];
-    const sourceChanged = Boolean(storedFingerprint && storedFingerprint !== sourceFingerprint(value));
-
-    if (
-      (sourceChanged || shouldRetranslateLabel({
-        key,
-        defaultValue: value,
-        translatedValue,
-        locale,
-        intentionalUnchangedKeys,
-      })) &&
-      !isTranslationKeyDeferred({ labels: translatedLabels, key, defaultValue: value })
-    ) {
-      labelsNeedingTranslation[key] = value;
+  const deferred = getDeferredTranslationKeys(translatedLabels);
+  return Object.entries(defaultLabels).reduce((needed, [key, source]) => {
+    const existing = translatedLabels?.[key];
+    const fingerprint = sourceFingerprints?.[key];
+    const changed = Boolean(fingerprint && fingerprint !== sourceFingerprint(source));
+    const missing = shouldRetranslateLabel({ key, defaultValue: source, translatedValue: existing, locale, intentionalUnchangedKeys });
+    const explicitlyRepairable = manualRepair && Boolean(deferred[key]);
+    if ((changed || missing || explicitlyRepairable) &&
+        (explicitlyRepairable || !isTranslationKeyDeferred({ labels: translatedLabels, key, defaultValue: source }))) {
+      needed[key] = source;
     }
-
-    return labelsNeedingTranslation;
+    return needed;
   }, {});
+}
+
+function getCurrentSourceLabels(defaultLabels, labels) {
+  const fingerprints = getSourceFingerprints(labels);
+  const visible = stripTranslationMetadata(labels);
+  for (const [key, source] of Object.entries(defaultLabels || {})) {
+    if (fingerprints[key] && fingerprints[key] !== sourceFingerprint(source)) delete visible[key];
+  }
+  return visible;
 }
 
 function extractJsonObject(text) {
@@ -570,9 +558,7 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
   let existingPack = await readTranslationPack({ supabaseAdmin, locale, namespace });
   let existingLabels = seedLanguageNeutralLabels(defaultLabels, existingPack?.labels || {});
   const refreshRequested = existingPack?.status === "refresh_requested";
-  let missingLabels = refreshRequested
-    ? { ...defaultLabels }
-    : getLabelsNeedingTranslation(defaultLabels, existingLabels, locale);
+  let missingLabels = getLabelsNeedingTranslation(defaultLabels, existingLabels, locale, { manualRepair: refreshRequested });
   const languageName = getUiLanguageName(locale);
 
   if (Object.keys(missingLabels).length === 0) {
@@ -586,7 +572,18 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
       existingPack,
       defaultLabels,
     });
-    return stripTranslationMetadata(existingLabels);
+    if (existingPack?.id && existingPack.status === "refresh_requested") {
+      await supabaseAdmin.from("ui_translation_packs").update({ status: "ready" })
+        .eq("id", existingPack.id).eq("status", "refresh_requested");
+    }
+    // Recover orphaned old leases without touching any saved labels.
+    if (existingPack?.id && existingPack.status === "updating" &&
+        Date.now() - new Date(existingPack.updated_at || 0).getTime() > TRANSLATION_LEASE_STALE_MS) {
+      await supabaseAdmin.from("ui_translation_packs").update({ status: "ready" })
+        .eq("id", existingPack.id).eq("status", "updating")
+        .lt("updated_at", new Date(Date.now() - TRANSLATION_LEASE_STALE_MS).toISOString());
+    }
+    return getCurrentSourceLabels(defaultLabels, existingLabels);
   }
 
   let claimed = await claimTranslationPack({
@@ -609,7 +606,7 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
       });
     }
     if (!claimed) {
-      return stripTranslationMetadata(waitedPack?.labels || existingLabels);
+      return getCurrentSourceLabels(defaultLabels, waitedPack?.labels || existingLabels);
     }
     existingPack = waitedPack || existingPack;
   }
@@ -619,9 +616,7 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
   existingPack = await readTranslationPack({ supabaseAdmin, locale, namespace });
   existingLabels = seedLanguageNeutralLabels(defaultLabels, existingPack?.labels || existingLabels);
   const forceRefresh = refreshRequested || existingPack?.status === "refresh_requested";
-  missingLabels = forceRefresh
-    ? { ...defaultLabels }
-    : getLabelsNeedingTranslation(defaultLabels, existingLabels, locale);
+  missingLabels = getLabelsNeedingTranslation(defaultLabels, existingLabels, locale, { manualRepair: forceRefresh });
 
   if (Object.keys(missingLabels).length === 0) {
     const completedPayload = withTranslationMetadata({
@@ -635,19 +630,21 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
       status: "ready",
       updated_at: new Date().toISOString(),
     }).eq("id", existingPack.id);
-    return stripTranslationMetadata(completedPayload);
+    return getCurrentSourceLabels(defaultLabels, completedPayload);
   }
 
   const existingIntentionalUnchangedKeys = getIntentionalUnchangedKeys(existingLabels);
   let progressiveLabels = stripTranslationMetadata(existingLabels);
   const progressiveIntentionalKeys = new Set(existingIntentionalUnchangedKeys);
   const progressiveDeferredKeys = { ...getDeferredTranslationKeys(existingLabels) };
+  const successfullyTranslatedKeys = new Set();
   let progressWriteChain = Promise.resolve();
 
   const persistSuccessfulChunk = async ({ translated, intentionalUnchangedKeys = [] }) => {
     progressWriteChain = progressWriteChain.then(async () => {
       for (const [key, value] of Object.entries(translated || {})) {
         progressiveLabels[key] = value;
+        successfullyTranslatedKeys.add(String(key));
         delete progressiveDeferredKeys[String(key)];
         if (String(value || "").trim() !== String(defaultLabels?.[key] || "").trim()) {
           progressiveIntentionalKeys.delete(String(key));
@@ -659,6 +656,8 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
         intentionalUnchangedKeys: progressiveIntentionalKeys,
         deferredKeys: progressiveDeferredKeys,
         defaultLabels,
+        previousLabels: existingLabels,
+        updatedKeys: successfullyTranslatedKeys,
       });
       const { error: progressError } = await supabaseAdmin
         .from("ui_translation_packs")
@@ -713,9 +712,10 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
       mergedIntentionalUnchangedKeys.delete(String(key));
     }
   }
-  const deferredUntil = new Date(Date.now() + TRANSLATION_DEFER_MS).toISOString();
+  // A failed key is quarantined until its English source changes or an admin
+  // explicitly requests a repair. Browser visits must never pay for retries.
   for (const key of failedKeys || []) {
-    mergedDeferredKeys[String(key)] = { source: String(defaultLabels?.[key] || ""), until: deferredUntil };
+    mergedDeferredKeys[String(key)] = { source: String(defaultLabels?.[key] || ""), permanent: true, reason: "translation_failed" };
   }
 
   const mergedLabels = withTranslationMetadata({
@@ -723,10 +723,12 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
     intentionalUnchangedKeys: mergedIntentionalUnchangedKeys,
     deferredKeys: mergedDeferredKeys,
     defaultLabels,
+    previousLabels: existingLabels,
+    updatedKeys: new Set([...successfullyTranslatedKeys, ...Object.keys(translatedMissingLabels || {})]),
   });
 
-  // A failed key is deferred in metadata, not left as an eternal "updating"
-  // lock. A later request may claim the pack after the short defer window.
+  // Keep failed keys quarantined; a changed English text is a new task.
+  // The admin may request a targeted repair without retranslating existing copy.
   const { error: upsertError } = await supabaseAdmin
     .from("ui_translation_packs")
     .update({
@@ -740,7 +742,7 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
     .eq("id", existingPack.id);
 
   if (upsertError) throw upsertError;
-  return stripTranslationMetadata(mergedLabels);
+  return getCurrentSourceLabels(defaultLabels, mergedLabels);
 }
 
 export async function GET(request) {
