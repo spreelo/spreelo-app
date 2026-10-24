@@ -518,8 +518,9 @@ const CAROUSEL_CREATIVE_MODEL_DEFAULT = process.env.CAROUSEL_CREATIVE_MODEL || "
 const carouselCreativeModel = () => activeAiModel("carousel_creative", CAROUSEL_CREATIVE_MODEL_DEFAULT);
 const PRODUCT_RESEARCH_MODEL_DEFAULT = process.env.PRODUCT_RESEARCH_MODEL || "gpt-5.5";
 const productResearchModel = () => activeAiModel("product_research", PRODUCT_RESEARCH_MODEL_DEFAULT);
-const PRODUCT_RESEARCH_FAST_MODEL =
-  process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL_DEFAULT;
+const PRODUCT_RESEARCH_FAST_MODEL_DEFAULT = process.env.PRODUCT_RESEARCH_FAST_MODEL || POST_TEXT_MODEL_DEFAULT;
+const productResearchFastModel = () => activeAiModel("product_research_fast", PRODUCT_RESEARCH_FAST_MODEL_DEFAULT);
+const videoAdReviewModel = () => activeAiModel("video_ad_review", POST_TEXT_MODEL_DEFAULT);
 const IMAGE_MODEL_DEFAULT = "gpt-image-2";
 const imageModel = () => activeAiModel("standard_image", IMAGE_MODEL_DEFAULT);
 const configuredAnimatedOverlayImageModel = String(
@@ -532,7 +533,6 @@ const ANIMATED_OVERLAY_IMAGE_MODEL_DEFAULT = /^gpt-image-2\.5-flare(?:-\d{4}-\d{
 ) ? configuredAnimatedOverlayImageModel : "gpt-image-2.5-flare";
 const animatedOverlayImageModel = () => activeAiModel("transparent_typography", ANIMATED_OVERLAY_IMAGE_MODEL_DEFAULT);
 // Legacy aliases remain for metadata/default parameters; actual generation callsites below use request-scoped getters.
-const PRODUCT_RESEARCH_MODEL = PRODUCT_RESEARCH_MODEL_DEFAULT;
 const IMAGE_MODEL = IMAGE_MODEL_DEFAULT;
 const ANIMATED_OVERLAY_IMAGE_MODEL = ANIMATED_OVERLAY_IMAGE_MODEL_DEFAULT;
 
@@ -1982,7 +1982,7 @@ async function analyzeCarouselProductLabelPlacements({ openai, items, ruleId }) 
   try {
     const response = await openai.responses.create(
       {
-        model: PRODUCT_RESEARCH_FAST_MODEL,
+        model: productResearchFastModel(),
         input: [{ role: "user", content }],
         max_output_tokens: 1600,
         text: {
@@ -2712,7 +2712,7 @@ async function createTransparentProductTypographyOverlay({
   return {
     ...normalized,
     prompt,
-    provider: `${ANIMATED_OVERLAY_IMAGE_MODEL}-transparent-typography`,
+    provider: `${animatedOverlayImageModel()}-transparent-typography`,
   };
 }
 
@@ -6415,9 +6415,9 @@ async function runProductEngineV2FinalCarouselExpansion({
       brandProfile,
       items: verifiedExpansionItems,
       maxItems: Math.min(CAMPAIGN_AI_FAST_SCORE_LIMIT, targets.aiRankLimit),
-      model: PRODUCT_RESEARCH_FAST_MODEL,
+      model: productResearchFastModel(),
       escalateWhenUncertain: false,
-      escalationModel: PRODUCT_RESEARCH_MODEL,
+      escalationModel: productResearchModel(),
       escalationMaxItems: Math.min(CAMPAIGN_AI_ESCALATION_LIMIT, targets.aiRankLimit),
       minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
     });
@@ -7245,8 +7245,8 @@ async function rankStoreMapShelvesWithAi({
   try {
     const response = await openai.responses.create(
       {
-        model: PRODUCT_RESEARCH_FAST_MODEL,
-        ...getReasoningOptionsForModel(PRODUCT_RESEARCH_FAST_MODEL),
+        model: productResearchFastModel(),
+        ...getReasoningOptionsForModel(productResearchFastModel()),
         input: `
 You are the navigation planner for an ecommerce product researcher.
 
@@ -7562,9 +7562,9 @@ async function discoverProductsFromStoreMapAgent({
       brandProfile,
       items: verifiedProducts,
       maxItems: Math.min(CAMPAIGN_AI_FAST_SCORE_LIMIT, verifiedProducts.length),
-      model: PRODUCT_RESEARCH_FAST_MODEL,
+      model: productResearchFastModel(),
       escalateWhenUncertain: useSeniorEscalation,
-      escalationModel: PRODUCT_RESEARCH_MODEL,
+      escalationModel: productResearchModel(),
       escalationMaxItems: CAMPAIGN_AI_ESCALATION_LIMIT,
       minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
     });
@@ -7693,9 +7693,9 @@ async function discoverProductsFromStoreMapAgent({
         brandProfile,
         items: unseenProducts,
         maxItems: Math.min(CAMPAIGN_AI_FAST_SCORE_LIMIT, unseenProducts.length),
-        model: PRODUCT_RESEARCH_FAST_MODEL,
+        model: productResearchFastModel(),
         escalateWhenUncertain: useSeniorEscalation,
-        escalationModel: PRODUCT_RESEARCH_MODEL,
+        escalationModel: productResearchModel(),
         escalationMaxItems: CAMPAIGN_AI_ESCALATION_LIMIT,
         minimumStrongProducts: Math.max(
           1,
@@ -8659,9 +8659,9 @@ async function prepareCarouselProductsForRule({
         brandProfile,
         items: shopifyCatalogItems,
         maxItems: Math.min(18, shopifyCatalogItems.length),
-        model: PRODUCT_RESEARCH_FAST_MODEL,
+        model: productResearchFastModel(),
         escalateWhenUncertain: false,
-        escalationModel: PRODUCT_RESEARCH_MODEL,
+        escalationModel: productResearchModel(),
         escalationMaxItems: 8,
         minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
       });
@@ -9352,9 +9352,9 @@ async function prepareCarouselProductsForRule({
               CAMPAIGN_AI_FAST_SCORE_LIMIT,
               persistentPoolSeed.length
             ),
-            model: PRODUCT_RESEARCH_FAST_MODEL,
+            model: productResearchFastModel(),
             escalateWhenUncertain: false,
-            escalationModel: PRODUCT_RESEARCH_MODEL,
+            escalationModel: productResearchModel(),
             escalationMaxItems: CAMPAIGN_AI_ESCALATION_LIMIT,
             minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
           });
@@ -9736,9 +9736,9 @@ async function prepareCarouselProductsForRule({
             brandProfile,
             items: storeSearchReviewCandidates,
             maxItems: storeSearchReviewCandidates.length,
-            model: PRODUCT_RESEARCH_FAST_MODEL,
+            model: productResearchFastModel(),
             escalateWhenUncertain: false,
-            escalationModel: PRODUCT_RESEARCH_MODEL,
+            escalationModel: productResearchModel(),
             escalationMaxItems: CAMPAIGN_AI_ESCALATION_LIMIT,
             minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
           });
@@ -10029,8 +10029,8 @@ async function prepareCarouselProductsForRule({
         rule,
         websiteUrl,
         usedWebsiteItems: recentUsedItems,
-        researchModel: PRODUCT_RESEARCH_FAST_MODEL,
-        fitModel: PRODUCT_RESEARCH_FAST_MODEL,
+        researchModel: productResearchFastModel(),
+        fitModel: productResearchFastModel(),
         fitMinimumStrongProducts: Math.max(
           1,
           CAROUSEL_PRODUCT_SLIDE_TARGET - lockedCampaignSearchPoolItems.length
@@ -10243,9 +10243,9 @@ async function prepareCarouselProductsForRule({
         brandProfile,
         items: catalogItems,
         maxItems: Math.min(15, catalogItems.length),
-        model: PRODUCT_RESEARCH_FAST_MODEL,
+        model: productResearchFastModel(),
         escalateWhenUncertain: false,
-        escalationModel: PRODUCT_RESEARCH_MODEL,
+        escalationModel: productResearchModel(),
         escalationMaxItems: 8,
         minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
       });
@@ -10385,9 +10385,9 @@ async function prepareCarouselProductsForRule({
                 CAMPAIGN_AI_FAST_SCORE_LIMIT,
                 storeSearchItems.length
               ),
-              model: PRODUCT_RESEARCH_FAST_MODEL,
+              model: productResearchFastModel(),
               escalateWhenUncertain: false,
-              escalationModel: PRODUCT_RESEARCH_MODEL,
+              escalationModel: productResearchModel(),
               escalationMaxItems: CAMPAIGN_AI_ESCALATION_LIMIT,
               minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
             });
@@ -10520,9 +10520,9 @@ async function prepareCarouselProductsForRule({
                 CAMPAIGN_AI_FAST_SCORE_LIMIT,
                 discoveredItems.length
               ),
-              model: PRODUCT_RESEARCH_FAST_MODEL,
+              model: productResearchFastModel(),
               escalateWhenUncertain: false,
-              escalationModel: PRODUCT_RESEARCH_MODEL,
+              escalationModel: productResearchModel(),
               escalationMaxItems: CAMPAIGN_AI_ESCALATION_LIMIT,
               minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
             });
@@ -10631,7 +10631,7 @@ async function prepareCarouselProductsForRule({
       brandProfile,
       items: catalogItems,
       maxItems: CAROUSEL_AI_SCORE_MAX_ITEMS,
-      model: PRODUCT_RESEARCH_FAST_MODEL,
+      model: productResearchFastModel(),
       escalateWhenUncertain: false,
     });
 
@@ -10684,11 +10684,11 @@ async function prepareCarouselProductsForRule({
         websiteUrl,
         usedWebsiteItems: recentUsedItems,
         researchModel: isCampaignRule
-          ? PRODUCT_RESEARCH_FAST_MODEL
-          : PRODUCT_RESEARCH_MODEL,
+          ? productResearchFastModel()
+          : productResearchModel(),
         fitModel: isCampaignRule
-          ? PRODUCT_RESEARCH_FAST_MODEL
-          : PRODUCT_RESEARCH_MODEL,
+          ? productResearchFastModel()
+          : productResearchModel(),
         deadlineMs: productPreparationDeadline,
         verificationCache: productVerificationCache,
         allowIndexedSecurityFallback: false,
@@ -11068,8 +11068,8 @@ async function prepareCarouselProductsForRule({
           ...recentUsedItems,
           ...selectedAsUsedItems,
         ],
-        researchModel: PRODUCT_RESEARCH_FAST_MODEL,
-        fitModel: PRODUCT_RESEARCH_FAST_MODEL,
+        researchModel: productResearchFastModel(),
+        fitModel: productResearchFastModel(),
         fitMinimumStrongProducts: 1,
         maxAttempts: 2,
         deadlineMs: productPreparationDeadline,
@@ -11174,7 +11174,7 @@ async function prepareCarouselProductsForRule({
           brandProfile,
           items: backupCandidateItems,
           maxItems: 20,
-          model: PRODUCT_RESEARCH_FAST_MODEL,
+          model: productResearchFastModel(),
           minimumStrongProducts: 1,
         });
       }
@@ -16309,7 +16309,7 @@ async function analyzeKlingVerifiedViewLock({ openai, websiteItem, sourceImageBu
   try {
     const response = await openai.responses.create(
       {
-        model: PRODUCT_RESEARCH_FAST_MODEL,
+        model: productResearchFastModel(),
         input: [{
           role: "user",
           content: [
@@ -16399,7 +16399,7 @@ async function assessKlingReferenceSafety(sourceImageBuffer, { openai = null, we
   const [verifiedViewLock, productIntelligence] = await Promise.all([
     analyzeKlingVerifiedViewLock({ openai, websiteItem, sourceImageBuffer: normalizedSource }),
     analyzeKlingProductIntelligence({
-      openai, model: PRODUCT_RESEARCH_FAST_MODEL, websiteItem,
+      openai, model: productResearchFastModel(), websiteItem,
       sourceDataUrl: `data:image/png;base64,${normalizedSource.toString("base64")}`,
       viewLock: { motionConstraint: "Preserve only this exact source-facing view. Never expose an unseen surface." },
     }),
@@ -16448,7 +16448,7 @@ async function reviewCarouselProductSlideIdentity({
   try {
     const response = await openai.responses.create(
       {
-        model: PRODUCT_RESEARCH_FAST_MODEL,
+        model: productResearchFastModel(),
         input: [
           {
             role: "user",
@@ -16583,7 +16583,7 @@ async function generateKlingDirectSceneOpeningFrame({
     : "For non-garment objects, derive ordinary fit and contact from the visible product construction, not a category stereotype. A wearer need not be present in the retailer photo. If the needed contact or fit is not supported by the visible geometry, use supported presentation instead. Reposition the complete intact product for the scene without changing the orientation or proportions of parts relative to each other; keep only the source-evidenced faces visible.";
   const interactionInstruction = `Place the exact physical subject naturally in a believable supported scene, retaining its precise verified view. Stage ordinary wearing, carrying or ground contact appropriate to the real product and the shared commercial story. Wearable rigid objects are not garments: preserve their exact silhouette, component size and fitted orientation; never substitute generic category geometry. The retailer reference remains authoritative even after a person is generated. ${fitInstruction} Automatic cutout suitability and edge margins are composition metadata, not a prohibition on a wearer or carrier. Preserve the exact visible product, component roles and state; never complete or invent unseen product surfaces. Establish any supporting hand, wearer or ground contact from frame zero. For packaging, stage the physical box with exact static artwork; never extract or animate the devices printed on it. No operation, docking/undocking, insertion, opening, pumping, spraying, switching, pedaling mechanism, part removal or transformation may be staged. The opening must already be the finished real scene, with no setup transition. ${verifiedViewInstruction}`;
 
-  const commercialStory=isEngagementAiVideoRule(rule) ? null : await planKlingCommercialStory({openai,model:PRODUCT_RESEARCH_FAST_MODEL,
+  const commercialStory=isEngagementAiVideoRule(rule) ? null : await planKlingCommercialStory({openai,model:productResearchFastModel(),
     intelligence:referenceSafety?.productIntelligence,sourceDataUrl:`data:image/png;base64,${source.toString('base64')}`,
     viewLock:referenceSafety?.verifiedViewLock,context:{product:productTitle,description:productDescription,
       brand:brand.business_name,campaign:getCustomerFacingCampaignTheme(rule),goal:rule?.campaign_goal||rule?.target_customer_need,
@@ -16818,7 +16818,7 @@ function getKlingProductPromptFallback({ rule, postContent, referenceSafety = nu
 
 async function buildKlingProductVideoPrompt({ openai, rule, postContent, referenceSafety = null, referenceFrameBuffer = null }) {
   let motionPlan = await planKlingVerifiedMotion({
-    openai, model: PRODUCT_RESEARCH_FAST_MODEL,
+    openai, model: productResearchFastModel(),
     intelligence: referenceSafety?.productIntelligence,
     firstFrameDataUrl: referenceFrameBuffer?.length ? `data:image/png;base64,${referenceFrameBuffer.toString("base64")}` : null,
     viewLock: referenceSafety?.verifiedViewLock,
@@ -19774,7 +19774,7 @@ async function generateCampaignCarouselMarketingStrategy({
     response = await openai.responses.create(
     {
       model: productResearchModel(),
-      ...getReasoningOptionsForModel(PRODUCT_RESEARCH_MODEL),
+      ...getReasoningOptionsForModel(productResearchModel()),
       input: `
 You are the senior marketing strategist responsible for planning one product carousel.
 
@@ -19865,7 +19865,7 @@ Return:
     ruleId: rule?.id,
     brandProfileId: rule?.brand_profile_id,
     websiteUrl,
-    strategyModel: PRODUCT_RESEARCH_MODEL,
+    strategyModel: productResearchModel(),
     primaryTheme: strategy.primaryTheme,
     themeAnchorTerms: strategy.themeAnchorTerms,
     audienceTerms: strategy.audienceTerms,
@@ -20185,8 +20185,8 @@ async function generateCampaignSearchVocabularyWithAi({
 
   const response = await openai.responses.create(
     {
-      model: PRODUCT_RESEARCH_FAST_MODEL,
-      ...getReasoningOptionsForModel(PRODUCT_RESEARCH_FAST_MODEL),
+      model: productResearchFastModel(),
+      ...getReasoningOptionsForModel(productResearchFastModel()),
       input: `
 You improve product-search vocabulary for one campaign carousel.
 
@@ -20743,8 +20743,8 @@ async function generateWebsiteTextProductIntentWithAi({
   }
 
   const response = await openai.responses.create({
-    model: PRODUCT_RESEARCH_FAST_MODEL,
-    ...getReasoningOptionsForModel(PRODUCT_RESEARCH_FAST_MODEL),
+    model: productResearchFastModel(),
+    ...getReasoningOptionsForModel(productResearchFastModel()),
     input: `
 You create product search metadata for a social media automation product finder.
 
@@ -22384,7 +22384,7 @@ function applyCampaignFitEvaluations(items, evaluationByIndex) {
     }
 
     const aiCampaignFitSource =
-      evaluation.model === PRODUCT_RESEARCH_MODEL
+      evaluation.model === productResearchModel()
         ? "ai_campaign_fit"
         : "ai_campaign_fit_fast";
 
@@ -22428,11 +22428,11 @@ function applyCampaignFitEvaluations(items, evaluationByIndex) {
         reason: String(entry.reason || "").trim(),
       }));
     const fastEvaluation = campaignFitEvaluations.find(
-      (entry) => entry.model === PRODUCT_RESEARCH_FAST_MODEL
+      (entry) => entry.model === productResearchFastModel()
     );
     const seniorEvaluation = [...campaignFitEvaluations]
       .reverse()
-      .find((entry) => entry.model === PRODUCT_RESEARCH_MODEL);
+      .find((entry) => entry.model === productResearchModel());
 
     return {
       ...item,
@@ -22552,9 +22552,9 @@ async function applyAiCampaignFitScores({
   brandProfile,
   items,
   maxItems = 80,
-  model = PRODUCT_RESEARCH_MODEL,
+  model = productResearchModel(),
   escalateWhenUncertain = false,
-  escalationModel = PRODUCT_RESEARCH_MODEL,
+  escalationModel = productResearchModel(),
   escalationMaxItems = 20,
   minimumStrongProducts = CAROUSEL_MIN_PRODUCT_SLIDES,
 }) {
@@ -23160,7 +23160,7 @@ async function selectCampaignCarouselProductsWithSeniorFinalReview({
     response = await openai.responses.create(
       {
         model: productResearchModel(),
-        ...getReasoningOptionsForModel(PRODUCT_RESEARCH_MODEL),
+        ...getReasoningOptionsForModel(productResearchModel()),
         input: `
 You are the mandatory senior marketing curator making the final product selection for a social media campaign carousel.
 
@@ -23500,8 +23500,8 @@ Return strict JSON only:
     ruleId: rule?.id,
     brandProfileId: rule?.brand_profile_id,
     websiteUrl,
-    fastModel: PRODUCT_RESEARCH_FAST_MODEL,
-    finalModel: PRODUCT_RESEARCH_MODEL,
+    fastModel: productResearchFastModel(),
+    finalModel: productResearchModel(),
     reviewPass,
     shortlistCount: shortlist.length,
     evaluatedCount: evaluationByIndex.size,
@@ -23761,7 +23761,7 @@ async function runCampaignCurationTargetedRescue({
         CAMPAIGN_CURATION_RESCUE_VERIFY_LIMIT,
         rescueCandidates.length
       ),
-      model: PRODUCT_RESEARCH_FAST_MODEL,
+      model: productResearchFastModel(),
       escalateWhenUncertain: false,
       minimumStrongProducts: CAROUSEL_PRODUCT_SLIDE_TARGET,
     });
@@ -29326,7 +29326,7 @@ Return only the required JSON structure.`.trim();
       // protected retailer trigger an open-ended number of tool calls.
       max_tool_calls: 12,
       instructions,
-      ...getReasoningOptionsForModel(PRODUCT_RESEARCH_MODEL),
+      ...getReasoningOptionsForModel(productResearchModel()),
       max_output_tokens: 4500,
       text: {
         format: {
@@ -30686,7 +30686,7 @@ Return the result in the required JSON structure. Keep each reason concise and g
       // every durable campaign response.
       max_tool_calls: 16,
       instructions: webAgentInstructions,
-      ...getReasoningOptionsForModel(PRODUCT_RESEARCH_MODEL),
+      ...getReasoningOptionsForModel(productResearchModel()),
       max_output_tokens: 5000,
       text: {
         format: {
@@ -31541,7 +31541,7 @@ async function findProductUrlWithWebSearch({
   websiteUrl: requestedWebsiteUrl = "",
   attempt = "best_match",
   usedWebsiteItems = [],
-  researchModel = PRODUCT_RESEARCH_MODEL,
+  researchModel = productResearchModel(),
   desiredProductCount = 5,
 }) {
   // v144.167: market resolution happens before paid research. Never throw that
@@ -32045,8 +32045,8 @@ async function findWebsiteProductWithWebSearch({
   rule,
   websiteUrl,
   usedWebsiteItems = [],
-  researchModel = PRODUCT_RESEARCH_MODEL,
-  fitModel = PRODUCT_RESEARCH_MODEL,
+  researchModel = productResearchModel(),
+  fitModel = productResearchModel(),
   fitMinimumStrongProducts = CAROUSEL_MIN_PRODUCT_SLIDES,
   maxAttempts = 3,
   deadlineMs = Number.POSITIVE_INFINITY,
@@ -32133,7 +32133,7 @@ async function findWebsiteProductWithWebSearch({
       websiteUrl,
       securityBlocked: knownSecurityBlocked,
       rateLimited: knownRateLimited,
-      researchModel: PRODUCT_RESEARCH_FAST_MODEL,
+      researchModel: productResearchFastModel(),
     });
   }
   let consecutiveMarketMismatchOnlyAttempts = 0;
@@ -32387,7 +32387,7 @@ async function findWebsiteProductWithWebSearch({
       researchModel:
         forceFastMarketCorrectionPass ||
         (effectiveIndexedSecurityFallback && knownDirectAccessUnavailable)
-          ? PRODUCT_RESEARCH_FAST_MODEL
+          ? productResearchFastModel()
           : researchModel,
     });
 
@@ -33040,7 +33040,7 @@ async function prepareWebsiteContentForRule({
         brandProfile,
         items: focusedCategoryItems,
         maxItems: WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT,
-        model: PRODUCT_RESEARCH_FAST_MODEL,
+        model: productResearchFastModel(),
         minimumStrongProducts: 1,
       });
     }
@@ -33368,7 +33368,7 @@ async function prepareWebsiteContentForRule({
       brandProfile,
       items: catalogItems,
       maxItems: WEBSITE_TEXT_INTENT_AI_SCORE_MAX_ITEMS,
-      model: PRODUCT_RESEARCH_FAST_MODEL,
+      model: productResearchFastModel(),
       minimumStrongProducts: 1,
     });
   }
@@ -33915,7 +33915,7 @@ async function prepareWebsiteContentForRule({
                 campaign_fit_score: scoreCampaignFitForRule(item, rule) + 25,
               })),
               maxItems: WEBSITE_TEXT_INTENT_STORE_VERIFY_LIMIT,
-              model: PRODUCT_RESEARCH_FAST_MODEL,
+              model: productResearchFastModel(),
               minimumStrongProducts: 1,
             });
 
@@ -34107,7 +34107,7 @@ async function prepareWebsiteContentForRule({
           brandProfileId: rule.brand_profile_id,
           websiteUrl,
           productDiscoveryPath: "web_research_fallback",
-          researchModel: PRODUCT_RESEARCH_FAST_MODEL,
+          researchModel: productResearchFastModel(),
           indexedSecurityFallback: true,
         });
       }
@@ -34208,9 +34208,9 @@ async function prepareWebsiteContentForRule({
       researchModel:
         websiteAccessProtected ||
         resolvedWebResearchFallbackReason === "rate_limited"
-          ? PRODUCT_RESEARCH_FAST_MODEL
-          : PRODUCT_RESEARCH_MODEL,
-      fitModel: productIntentScoped ? PRODUCT_RESEARCH_FAST_MODEL : PRODUCT_RESEARCH_MODEL,
+          ? productResearchFastModel()
+          : productResearchModel(),
+      fitModel: productIntentScoped ? productResearchFastModel() : productResearchModel(),
       fitMinimumStrongProducts: productIntentScoped ? 1 : CAROUSEL_MIN_PRODUCT_SLIDES,
       // v144.162: a single-product post ultimately needs one item, but keep a
       // tiny two-product verified shortlist so a relevance/lock issue on the
@@ -34525,7 +34525,7 @@ async function prepareWebsiteContentForRule({
           brandProfile,
           items: discoveredItems,
           maxItems: WEBSITE_TEXT_INTENT_AI_SCORE_MAX_ITEMS,
-          model: PRODUCT_RESEARCH_FAST_MODEL,
+          model: productResearchFastModel(),
           minimumStrongProducts: 1,
         });
       }
@@ -34940,7 +34940,7 @@ async function validateProductCopyIdentityWithModel({
 
   const response = await openai.responses.create(
     {
-      model: PRODUCT_RESEARCH_FAST_MODEL,
+      model: productResearchFastModel(),
       input: [
         {
           role: "user",
@@ -37934,7 +37934,7 @@ async function reviewAnimatedProductTransparentIdentity({
   try {
     const response = await openai.responses.create(
       {
-        model: PRODUCT_RESEARCH_FAST_MODEL,
+        model: productResearchFastModel(),
         input: [
           {
             role: "user",
@@ -39515,7 +39515,7 @@ async function analyzeKlingTypographyPlacement({ openai, sceneBuffer, productTit
   const sceneUrl = `data:image/png;base64,${scene.toString("base64")}`;
   const response = await openai.responses.create(
     {
-      model: PRODUCT_RESEARCH_FAST_MODEL,
+      model: productResearchFastModel(),
       input: [{
         role: "user",
         content: [
@@ -39757,10 +39757,10 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         ({assets:split,audit:copyValidation}=await ensureExactAdvertisingLettering({
           assets:split,headline:advertisingCopy.headline,closingLine:advertisingCopy.closingLine,
           designDirection:advertisingCopy.designDirection,brand:rule?.brand_profile||{},
-          verify:(main,cta)=>verifyAnimatedAdvertisingTypography({openai,model:PRODUCT_RESEARCH_FAST_MODEL,buffer:main,
+          verify:(main,cta)=>verifyAnimatedAdvertisingTypography({openai,model:videoAdReviewModel(),buffer:main,
             headline:advertisingCopy.headline,closingBuffer:cta,closingLine:advertisingCopy.closingLine}),
         }));
-        compositionInspection ||= await inspectVideoComposition({openai,sceneFrames:composites,endCard:split.endCard,model:PRODUCT_RESEARCH_FAST_MODEL});
+        compositionInspection ||= await inspectVideoComposition({openai,sceneFrames:composites,endCard:split.endCard,model:videoAdReviewModel()});
         const sceneChoice=await chooseVideoTextBox({frames:composites,preferred:animationLayout.text,
           protectedRegions:[{left:animationLayout.product.left-40,top:animationLayout.product.top-50,width:animationLayout.product.width+80,height:animationLayout.product.height+100},...compositionInspection.sceneRegions],verified:compositionInspection.sceneVerified});
         const sceneBox=sceneChoice?.box || animationLayout.text;
@@ -39778,7 +39778,7 @@ async function createAnimatedTextOverlay({openai,rule,postContent,backgroundAsse
         const productOverlay=await sharp({create:{width:1080,height:1920,channels:4,background:'#00000000'}})
           .composite([{input:product,left:animationLayout.product.left,top:animationLayout.product.top}]).png().toBuffer();
         const composedFrames=async overlay=>composedAdvertisingSceneFrames(backgrounds,overlay,productOverlay);
-        const verifyScene=async ({overlay,endCard:card})=>reviewAdvertisingComposition({openai,model:PRODUCT_RESEARCH_FAST_MODEL,
+        const verifyScene=async ({overlay,endCard:card})=>reviewAdvertisingComposition({openai,model:videoAdReviewModel(),
           frames:await composedFrames(overlay),endCard:card,sceneHeadlineOmitted:!sceneChoice,
           headline:advertisingCopy.headline,endCardHeadline:advertisingCopy.closingHeadline||advertisingCopy.headline,closingLine:advertisingCopy.closingLine,allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true});
         // v144.350: enforce actual visible character size BEFORE the expensive
@@ -40374,7 +40374,7 @@ export async function generateAnimatedProductVideo({
       image_url:assets.posterUrl,image_storage_path:assets.posterStoragePath,video_background_selection:{...selection,shotstack_checkpoint:checkpoint}},
       waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker,
       reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
-        durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
+        durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:videoAdReviewModel(),
         headline:post.video_background_selection?.advertising_headline||assets.backgroundSelection?.advertising_headline,
         endCardHeadline:post.video_background_selection?.advertising_closing_headline||assets.backgroundSelection?.advertising_closing_headline,
         sceneHeadlineOmitted:(post.video_background_selection?.scene_headline_omitted??assets.backgroundSelection?.scene_headline_omitted)===true,
@@ -41319,7 +41319,7 @@ async function reviewResolvedProductImageIdentity({
   try {
     const response = await openai.responses.create(
       {
-        model: PRODUCT_RESEARCH_FAST_MODEL,
+        model: productResearchFastModel(),
         input: [{ role: "user", content }],
         max_output_tokens: 2200,
         text: {
@@ -41579,7 +41579,7 @@ async function reviewCarouselProductOnlyImages({ openai, items, ruleId }) {
   try {
     const response = await openai.responses.create(
       {
-        model: PRODUCT_RESEARCH_FAST_MODEL,
+        model: productResearchFastModel(),
         input: [{ role: "user", content }],
         max_output_tokens: 1800,
         text: {
@@ -46617,7 +46617,7 @@ async function runAutomationCron(request, options = {}) {
             const finished=await finishSavedShotstackPost({supabase,post:savedShotstackDraft,
               waitForRender:waitForShotstackRender,uploadVideo:uploadRenderedVideoToStorage,costTracker:activeGenerationCostTracker,
               reviewVideo:({post,render})=>reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
-                durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:PRODUCT_RESEARCH_FAST_MODEL,
+                durationSeconds:post.video_duration_seconds||ANIMATED_VIDEO_DURATION_SECONDS,sampleFrames:sampleRemoteVideoFrames,model:videoAdReviewModel(),
                 headline:post.video_background_selection?.advertising_headline,endCardHeadline:post.video_background_selection?.advertising_closing_headline,
                 sceneHeadlineOmitted:post.video_background_selection?.scene_headline_omitted===true,
                 closingLine:post.video_background_selection?.advertising_closing_line,allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true})});
@@ -47794,15 +47794,15 @@ scheduled_for: scheduledPublishAtIso,
 image_model_used:
   wantsImage && websitePreparedRule.image_source !== "uploaded"
     ? isKlingAiVideoRule(websitePreparedRule)
-      ? ANIMATED_OVERLAY_IMAGE_MODEL
+      ? animatedOverlayImageModel()
       : isShotstackAnimatedVideoRule(websitePreparedRule)
-      ? ANIMATED_OVERLAY_IMAGE_MODEL
-      : IMAGE_MODEL
+      ? animatedOverlayImageModel()
+      : imageModel()
     : null,
 include_logo: shouldUseLogoForRule(rule, brandProfile),
 logo_url: shouldUseLogoForRule(rule, brandProfile) ? brandProfile?.logo_url || null : null,
 product_research_model_used: websitePreparedRule.uses_website_content
-  ? PRODUCT_RESEARCH_MODEL
+  ? productResearchModel()
   : null,
           })
           .select("id")

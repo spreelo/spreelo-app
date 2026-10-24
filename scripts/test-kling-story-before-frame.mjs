@@ -32,7 +32,7 @@ const ai={responses:{create:async request=>{
   return {data:[{b64_json:png.toString('base64')}]};
 }}};
 const context=vm.createContext({...motion,sharp,Buffer,console:{info(){},warn(){}},
-  PRODUCT_RESEARCH_FAST_MODEL:'test',imageModel:()=> 'test-image',toFile:async b=>b,
+  PRODUCT_RESEARCH_FAST_MODEL:'test',productResearchFastModel:()=> 'test',imageModel:()=> 'test-image',toFile:async b=>b,
   truncateText:(s,n)=>String(s).slice(0,n),isEngagementAiVideoRule:()=>false,
   getKlingVerifiedViewInstruction:()=> 'Preserve exact original print and source-facing surface.',
   getCustomerFacingCampaignTheme:()=> 'Halloween',formatCampaignIdentityLockForPrompt:()=> 'Halloween campaign only',

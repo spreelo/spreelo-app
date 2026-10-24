@@ -1,3 +1,4 @@
+import {activeAiModel,withRuntimeAiModels} from "../../../lib/aiModelControl.js";
 import OpenAI from "openai";
 import { wrapSupplementalOpenAIClient } from "../../../lib/supplementalOpenAICosts.js";
 import { createClient } from "@supabase/supabase-js";
@@ -215,7 +216,7 @@ async function fetchPage(url) {
   }
 }
 
-export async function POST(request) {
+async function classifyContentPost(request) {
   try {
     const token = getBearerToken(request);
     if (!token) {
@@ -298,7 +299,7 @@ export async function POST(request) {
 
     try {
       const completion = await openai.chat.completions.create({
-        model: CLASSIFICATION_MODEL,
+        model: activeAiModel("content_source_classification", CLASSIFICATION_MODEL),
         response_format: { type: "json_object" },
         temperature: 0.1,
         messages: [
@@ -376,7 +377,7 @@ Return exactly:
         websiteProductModeAvailable: Boolean(
           brandProfile.website_product_mode_available
         ),
-        classificationModel: CLASSIFICATION_MODEL,
+        classificationModel: activeAiModel("content_source_classification", CLASSIFICATION_MODEL),
       },
     });
   } catch (error) {
@@ -388,3 +389,5 @@ Return exactly:
     return Response.json({ ok: false, error: message }, { status: 400 });
   }
 }
+
+export async function POST(request) { return withRuntimeAiModels(() => classifyContentPost(request)); }

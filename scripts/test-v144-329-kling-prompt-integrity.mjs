@@ -8,7 +8,7 @@ const safety = await import(`data:text/javascript,${encodeURIComponent(read('lib
 const intelligence = await import('../lib/klingVideoIntelligence.js');
 const grab = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 let candidate = 'A subtle camera push shows the unchanged product. Established background motion continues. Hold the final second.';
-const ctx = { ...budget, ...safety, passiveKlingMotionPlan: intelligence.passiveKlingMotionPlan, PRODUCT_RESEARCH_FAST_MODEL: 'test',
+const ctx = { ...budget, ...safety, passiveKlingMotionPlan: intelligence.passiveKlingMotionPlan, PRODUCT_RESEARCH_FAST_MODEL: 'test', productResearchFastModel: () => 'test',
   planKlingVerifiedMotion: async () => ({ motion_prompt: candidate, mode: 'camera_environment', action_ids: [] }),
   truncateText: (v,n) => String(v || '').slice(0,n), getCustomerFacingCampaignTheme: () => '', formatCampaignIdentityLockForPrompt: () => '',
 };

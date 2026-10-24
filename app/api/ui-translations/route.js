@@ -1,3 +1,4 @@
+import {activeAiModel,withRuntimeAiModels} from "../../../lib/aiModelControl.js";
 import { createClient } from "@supabase/supabase-js";
 import { recordSupplementalOpenAIHttpResponse } from "../../../lib/supplementalOpenAICosts.js";
 import {
@@ -271,7 +272,7 @@ async function translateLabelChunk({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_UI_TRANSLATION_MODEL || "gpt-4.1-mini",
+        model: activeAiModel("ui_translation", "gpt-4.1-mini"),
         temperature: 0.1,
         messages: [
           {
@@ -305,7 +306,7 @@ async function translateLabelChunk({
     const data = await response.json();
     await recordSupplementalOpenAIHttpResponse({
       operation: "ui_translations.chat.completions.create",
-      request: { model: process.env.OPENAI_UI_TRANSLATION_MODEL || "gpt-4.1-mini" },
+      request: { model: activeAiModel("ui_translation", "gpt-4.1-mini") },
       response: data, httpResponse: response,
     });
     const content = data?.choices?.[0]?.message?.content || "";
@@ -745,7 +746,7 @@ async function getOrCreateNamespaceLabels({ supabaseAdmin, locale, namespace }) 
   return getCurrentSourceLabels(defaultLabels, mergedLabels);
 }
 
-export async function GET(request) {
+async function uiTranslationsGet(request) {
   try {
     const { searchParams } = new URL(request.url);
     const locale = normalizeUiLocale(searchParams.get("locale"));
@@ -784,3 +785,5 @@ export async function GET(request) {
     );
   }
 }
+
+export async function GET(request) { return withRuntimeAiModels(() => uiTranslationsGet(request)); }

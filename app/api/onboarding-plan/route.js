@@ -1,3 +1,4 @@
+import {activeAiModel,withRuntimeAiModels} from "../../../lib/aiModelControl.js";
 import OpenAI from "openai";
 import { wrapSupplementalOpenAIClient } from "../../../lib/supplementalOpenAICosts.js";
 import { createClient } from "@supabase/supabase-js";
@@ -28,7 +29,7 @@ function safeJson(value) {
   }
 }
 
-export async function POST(request) {
+async function onboardingPost(request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const token = bearerToken(request);
@@ -79,7 +80,7 @@ export async function POST(request) {
       { userId: user.id, operationNamespace: "onboarding_plan" }
     );
     const response = await openai.responses.create({
-      model,
+      model: activeAiModel("onboarding_plan", model),
       instructions: "You are Spreelo's onboarding strategist. Use Sell more as the default primary objective and choose a sustainable weekly posting frequency for this verified business. Return valid JSON only. Do not invent business facts and do not write customer-facing copy.",
       input: `Choose one onboarding recommendation.\n\nBUSINESS\nName: ${brandProfile.business_name || ""}\nIndustry: ${brandProfile.industry || ""}\nDescription: ${brandProfile.brand_description || ""}\nAudience: ${brandProfile.target_audience || ""}\nMarket: ${brandProfile.content_market || brandProfile.country_code || ""}\nVerified product catalog: ${Boolean(brandProfile.website_product_mode_available)}\nVerified services: ${Boolean(brandProfile.website_service_mode_available)}\nConnected social channels: ${Number(connectedPlatformCount || 0)}\n\nRequired goal_id value: sell_more\nAllowed post_count values: ${SMART_ONBOARDING_POST_COUNTS.join(", ")}\n\nReturn exactly: {"goal_id":"...","post_count":5}`,
     });
@@ -92,3 +93,5 @@ export async function POST(request) {
     return Response.json({ ok: true, ...fallback });
   }
 }
+
+export async function POST(request) { return withRuntimeAiModels(() => onboardingPost(request)); }

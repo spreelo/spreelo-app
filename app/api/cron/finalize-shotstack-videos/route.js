@@ -1,3 +1,4 @@
+import {withRuntimeAiModels,activeAiModel} from '../../../../lib/aiModelControl.js';
 import OpenAI from 'openai';
 import {reviewRenderedAdvertisingVideo} from '../../../../lib/videoAdvertisingReview.js';
 import {sampleRemoteVideoFrames} from '../../../../lib/videoFrameSampler.js';
@@ -15,7 +16,7 @@ export const maxDuration=300;
 
 // Automated occurrences are owned by the existing atomic queue lanes. This
 // finalizer also completes saved delivery steps, including ready v304 posts.
-export async function GET(request){
+async function finalizeShotstackGet(request){
   const secret=String(process.env.CRON_SECRET||'');
   if(!secret||request.headers.get('authorization')!==`Bearer ${secret}`)return Response.json({error:'Unauthorized'},{status:401});
   const supabase=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
@@ -49,7 +50,7 @@ export async function GET(request){
         reviewVideo:async({post:reviewPost,render})=>{
           const openai=wrapOpenAIForCostTracking(new OpenAI({apiKey:process.env.OPENAI_API_KEY}),()=>tracker);
           return reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
-            durationSeconds:reviewPost.video_duration_seconds||7,sampleFrames:sampleRemoteVideoFrames,
+            durationSeconds:reviewPost.video_duration_seconds||7,sampleFrames:sampleRemoteVideoFrames,model:activeAiModel("video_ad_review", "gpt-4.1-mini"),
             headline:reviewPost.video_background_selection?.advertising_headline,
             endCardHeadline:reviewPost.video_background_selection?.advertising_closing_headline,
             closingLine:reviewPost.video_background_selection?.advertising_closing_line,
@@ -94,3 +95,5 @@ export async function GET(request){
     return Response.json({ok:false,error:error.message},{status:500});
   }
 }
+
+export async function GET(request) { return withRuntimeAiModels(() => finalizeShotstackGet(request)); }

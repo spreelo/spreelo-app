@@ -104,7 +104,7 @@ async function classifyOneUnresolvedAsset(supabase, asset) {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: process.env.CALENDAR_CLASSIFICATION_MODEL || "gpt-4.1-mini",
+        model: activeAiModel("calendar_classification", "gpt-4.1-mini"),
         input: [{
           role: "user",
           content: [
@@ -138,7 +138,7 @@ async function classifyOneUnresolvedAsset(supabase, asset) {
     if (!response.ok) throw new Error(payload?.error?.message || "Calendar image classification failed.");
     await recordSupplementalOpenAIHttpResponse({
       supabase, operation: "calendar_visual.asset_classification",
-      request: { model: process.env.CALENDAR_CLASSIFICATION_MODEL || "gpt-4.1-mini" },
+      request: { model: activeAiModel("calendar_classification", "gpt-4.1-mini") },
       response: payload, httpResponse: response,
     });
     const parsed = JSON.parse(responseOutputText(payload));
@@ -232,7 +232,7 @@ async function classifyUnresolvedCampaigns(supabase) {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: process.env.CALENDAR_CLASSIFICATION_MODEL || "gpt-4.1-mini",
+        model: activeAiModel("calendar_classification", "gpt-4.1-mini"),
         input: [{
           role: "user",
           content: [{
@@ -276,7 +276,7 @@ async function classifyUnresolvedCampaigns(supabase) {
     if (!response.ok) throw new Error(payload?.error?.message || "Campaign theme classification failed.");
     await recordSupplementalOpenAIHttpResponse({
       supabase, operation: "calendar_visual.campaign_classification",
-      request: { model: process.env.CALENDAR_CLASSIFICATION_MODEL || "gpt-4.1-mini" },
+      request: { model: activeAiModel("calendar_classification", "gpt-4.1-mini") },
       response: payload, httpResponse: response,
     });
     const parsed = JSON.parse(responseOutputText(payload));

@@ -1,3 +1,4 @@
+import {loadRuntimeAiModels,requireLoadedAiModel} from "../../../lib/aiModelControl.js";
 import OpenAI from "openai";
 import { wrapSupplementalOpenAIClient, createSupplementalOpenAITracker } from "../../../lib/supplementalOpenAICosts.js";
 
@@ -72,7 +73,7 @@ export async function submitBlockedWebsiteResearch({
     sessionId: job?.id || null,
     operationNamespace: "blocked_web_research",
   });
-  const model = getResearchModel();
+  const model = requireLoadedAiModel(await loadRuntimeAiModels(),"blocked_web_research");
   const compactRetryInstruction = compactRetry
     ? "This is a bounded recovery request because an earlier response ended incomplete. Finish the dossier in a compact form. Prioritize factual coverage over explanation, keep every section concise and do not repeat evidence unnecessarily."
     : "";

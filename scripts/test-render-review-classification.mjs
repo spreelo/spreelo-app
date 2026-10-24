@@ -57,7 +57,7 @@ async function continueRender(decision,{persistError=null,oldRejection=false}={}
     createFinishedKlingTypographyOnce:async({selection:cached})=>cached,
     isRecoverableAestheticRejection:()=>false,
     waitForShotstackRender:async ({renderId})=>{polled.push(renderId);return {url:common.videoUrl};},
-    reviewRenderedAdvertisingVideo,sampleRemoteVideoFrames:sampleFrames,KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'mock',
+    reviewRenderedAdvertisingVideo,sampleRemoteVideoFrames:sampleFrames,KLING_PRODUCT_IDENTITY_AUDIT_MODEL:'mock',activeAiModel:(_purpose,fallback)=>fallback,
     // Any new paid submission will throw because its API is deliberately absent.
   });
   vm.runInContext(code,context);

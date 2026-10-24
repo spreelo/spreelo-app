@@ -58,8 +58,8 @@ export const maxDuration = 300;
 
 const POST_VIDEOS_BUCKET = "post-videos";
 const POST_IMAGES_BUCKET = "post-images";
-const KLING_TYPOGRAPHY_MODEL = "gpt-image-2.5-flare";
-const KLING_PRODUCT_IDENTITY_AUDIT_MODEL = "gpt-4.1-mini";
+const klingTypographyModel = () => activeAiModel("kling_typography", "gpt-image-2.5-flare");
+const klingIdentityAuditModel = () => activeAiModel("kling_identity_audit", "gpt-4.1-mini");
 const KLING_CLOSING_HERO_HOLD_SECONDS = 0.9;
 const DEFAULT_MAX_PENDING_HOURS = 6;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -645,7 +645,7 @@ async function validateFinishedKlingProductIdentity({ openai, supabase, post, ta
   ]);
   if (frames?.length < 12) throw new Error("Kling quality audit frame sequence is incomplete");
   const parsed = await inspectKlingVideoQuality({
-    openai, model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+    openai, model: klingIdentityAuditModel(),
     productTitle: selection.verified_product_title || "engagement concept",
     productDataUrl, sceneDataUrl, viewLock, frames,
     intelligence: selection.reference_safety?.productIntelligence || null,
@@ -656,7 +656,7 @@ async function validateFinishedKlingProductIdentity({ openai, supabase, post, ta
   const validation = {
     ...parsed, ...decision, version: KLING_QUALITY_VERSION,
     status: decision.passed ? "passed" : "failed",
-    checked_at: new Date().toISOString(), model: KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+    checked_at: new Date().toISOString(), model: klingIdentityAuditModel(),
     task_id: post.kling_task_id, source_url: task.videoUrl,
     audit_scope: "ordered_sampled_frames",
     sampled_frames: frames.map(frame => Number(frame.time.toFixed(3))),
@@ -1348,7 +1348,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
         // typography with exact-word vector lettering, not a generic template.
         // Unknown provider outcomes are NOT re-sent automatically.
         let splitOverlay = await generateIndependentAdvertisingAssets({
-          openai, model:KLING_TYPOGRAPHY_MODEL, referenceFiles, productReferenceFiles:productReferenceBuffer?[await toFile(productReferenceBuffer,"authoritative-product.png",{type:"image/png"})]:[],
+          openai, model:klingTypographyModel(), referenceFiles, productReferenceFiles:productReferenceBuffer?[await toFile(productReferenceBuffer,"authoritative-product.png",{type:"image/png"})]:[],
           headline, subheadline, closingLine:creativePlan.cta||getFallbackKlingCta(post),
           creativeConcept:creativePlan.creative_concept,closingHeadline,closingEmphasis:creativePlan.end_card_emphasis,sceneBackground:frames[0]?.buffer,renderEndCardMaster:true,masterFraming:END_CARD_FRAMING,websiteUrl:brand.website_url||post.website_url,
           designDirection:designAttempt===1?creativePlan.design_direction:`${creativePlan.design_direction}. ${creativeCorrectionInstruction(designFeedback)}`,
@@ -1365,12 +1365,12 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
           closingLine:creativePlan.cta||getFallbackKlingCta(post),
           designDirection:creativePlan.design_direction,brand,
           verify:(main,cta)=>verifyAnimatedAdvertisingTypography({
-            openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+            openai,model:klingIdentityAuditModel(),
             buffer:main,headline:[headline,subheadline].filter(Boolean).join(' '),
             closingBuffer:cta,closingLine:creativePlan.cta||getFallbackKlingCta(post),
           }),
         }));
-        compositionInspection ||= await inspectVideoComposition({openai,sceneFrames:frames.map(frame=>frame.buffer),endCard:splitOverlay.endCard});
+        compositionInspection ||= await inspectVideoComposition({openai,sceneFrames:frames.map(frame=>frame.buffer),endCard:splitOverlay.endCard,model:activeAiModel("video_ad_review", "gpt-4.1-mini")});
         const sceneChoice=await choosePlannedVideoTextBox({frames:frames.map(frame=>frame.buffer),plan:creativePlan,inspection:compositionInspection});
         creativePlan.scene_protection_source="planner_and_composition_regions_v369";
         creativePlan.scene_headline_omitted=!sceneChoice;
@@ -1398,7 +1398,7 @@ async function createFinishedKlingTypographyOnce({ openai, supabase, post, task,
           quietBackground:()=>buildOfflineAdvertisingBackdrop({designDirection:creativePlan.design_direction,brand})});
         const videoBackgrounds=frames.map(frame=>frame.buffer);
         const verifyScene=async({overlay,endCard:card})=>reviewAdvertisingComposition({
-          openai,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+          openai,model:activeAiModel("video_ad_review", "gpt-4.1-mini"),
           frames:await composedAdvertisingSceneFrames(videoBackgrounds,overlay),
           endCard:card,headline,endCardHeadline:closingHeadline,closingLine:creativePlan.cta||getFallbackKlingCta(post),sceneHeadlineOmitted:!sceneChoice,allowReviewServiceOutage:true,typographyPreflightPassed:true,
         });
@@ -1892,7 +1892,7 @@ async function getKlingFinalVideoSource({ openai, supabase, post, task, costTrac
   let finishedDesignReview;
   try {
     finishedDesignReview=await reviewRenderedAdvertisingVideo({openai,videoUrl:render.url,
-      durationSeconds:nextSelection.delivered_duration_seconds||6,sampleFrames:sampleRemoteVideoFrames,model:KLING_PRODUCT_IDENTITY_AUDIT_MODEL,
+      durationSeconds:nextSelection.delivered_duration_seconds||6,sampleFrames:sampleRemoteVideoFrames,model:activeAiModel("video_ad_review", "gpt-4.1-mini"),
       headline:postprocess.text_overlay_copy?.headline||'',endCardHeadline:postprocess.ad_creative_plan?.closing_headline||'',closingLine:postprocess.ad_creative_plan?.cta||'',
       sceneHeadlineOmitted:postprocess.ad_creative_plan?.scene_headline_omitted===true,
       allowReviewServiceOutage:true,typographyPreflightPassed:true,deliveryFirstRender:true});

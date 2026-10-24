@@ -1,3 +1,4 @@
+import {withRuntimeAiModels} from '../../../../../lib/aiModelControl.js';
 import crypto from "crypto";
 import OpenAI from "openai";
 import { wrapSupplementalOpenAIClient } from "../../../../../lib/supplementalOpenAICosts.js";
@@ -267,7 +268,7 @@ async function inspectImageBytes(bytes) {
   return { width: metadata.width, height: metadata.height, format };
 }
 
-export async function POST(request) {
+async function rescueImportPost(request) {
   const context = await getAdminContext(request);
   if (context.error) return adminContextError(context);
 
@@ -651,3 +652,5 @@ export async function POST(request) {
     return Response.json({ ok: false, error: error?.message || "Rescue ZIP could not be imported." }, { status: 422 });
   }
 }
+
+export async function POST(request) { return withRuntimeAiModels(() => rescueImportPost(request)); }

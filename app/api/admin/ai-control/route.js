@@ -24,6 +24,7 @@ export async function GET(request) {
     fetchOpenAiModels(),
   ]);
   const rows=error?[]:(data || []);
+  const missingPurposes=AI_PURPOSES.filter(p=>!rows.some(row=>row.purpose===p.key)).map(p=>p.key);
   const catalog=catalogResult.error?[]:(catalogResult.data||[]);
   const pricing=pricesResult.error?[]:(pricesResult.data||[]);
   const liveOpenAi=new Set(liveList);
@@ -45,7 +46,8 @@ export async function GET(request) {
       active_missing_from_listing:p.provider==='openai' && liveOpenAi.size>0&&!liveOpenAi.has(current)};
   });
   return Response.json({ok:true,purposes,catalog:catalog.slice(0,100),pricing,
-    catalogWarning:error?'AI Control SQL has not been applied. Default models are still used.':
+    catalogWarning:error?'AI Control settings cannot be read. Check database connection before an AI job runs.':
+      missingPurposes.length?`Missing AI model selections: ${missingPurposes.join(', ')}. Install the additive model-selection SQL before deploying.`:
       catalogResult.error?'Model register unavailable; run consolidated v328 SQL. Only legacy verified models are selectable.':null,
     klingDiscovery:'Kling 3.0 visas som befintligt standardval. kling-v3 är ett annat tekniskt API-ID och erbjuds inte som ett separat nytt modellval. Nya Kling-kandidater kräver ett verkligt, godkänt videotest.',
     pricingWarning:pricesResult.error?'Price registry not installed.':null});

@@ -1,3 +1,4 @@
+import {withRuntimeAiModels} from '../../../../../lib/aiModelControl.js';
 import { klingCapacityQueueEnabled, releaseUnattemptedKlingSlot, markKlingSubmissionAttempt, markKlingSubmissionAccepted } from "../../../../../lib/klingCapacityQueue.js";
 import { verifyPreparedKlingAuditReferences } from "../../../../../lib/klingAuditReferences.js";
 import crypto from "crypto";
@@ -63,7 +64,7 @@ function cleanSelection(selection) {
   };
 }
 
-export async function POST(request) {
+async function retryKlingPost(request) {
   const context = await getAdminContext(request);
   if (context.error) return adminContextError(context);
 
@@ -295,3 +296,5 @@ export async function POST(request) {
     return Response.json({ ok: false, error: error?.message || "Could not submit the Kling retry." }, { status: 500 });
   }
 }
+
+export async function POST(request) { return withRuntimeAiModels(() => retryKlingPost(request)); }
