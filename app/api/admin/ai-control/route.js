@@ -1,5 +1,5 @@
 import { adminContextError, getAdminContext } from '../../../../lib/adminAuth';
-import { AI_PURPOSES, VERIFIED_MODEL_CAPABILITIES, isVerifiedForCapability, isModelVerifiedForPurpose } from '../../../../lib/aiModelControl';
+import { AI_PURPOSES, VERIFIED_MODEL_CAPABILITIES, isVerifiedForCapability, isModelVerifiedForPurpose, supportedReasoningEfforts, initialReasoningEffort, normalizeReasoningEffort } from '../../../../lib/aiModelControl';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +31,7 @@ export async function GET(request) {
   const purposes=AI_PURPOSES.map(p=>{
     const row=rows.find(r=>r.purpose===p.key);
     const current=row?.model||p.fallback;
+    const currentEffort=row?.reasoning_effort||initialReasoningEffort(p.key,current);
     const baseline=legacyModelNames.filter(m=>m!=='kling-v3' && isVerifiedForCapability(m,p.capability) &&
       (p.provider==='kling'?m.startsWith('kling-'):m.startsWith('gpt-') && (!liveOpenAi.size || liveOpenAi.has(m) || m===current)));
     const approved=catalog.filter(c=>c.model!=='kling-v3' && c.provider===p.provider && c.status==='approved' &&
@@ -39,7 +40,7 @@ export async function GET(request) {
       (p.provider!=='openai' || !liveOpenAi.size || liveOpenAi.has(c.model) || c.model===current)).map(c=>c.model);
     const pendingKling=p.key==='kling_video'?catalog.filter(c=>c.model!=='kling-v3' && c.provider==='kling' && c.status==='pending_review' && String(c.verification_notes||'').startsWith('Candidate discovered in official Kling docs.')).map(c=>c.model):[];
     const options=[...new Set([current,...baseline,...approved,...pendingKling])];
-    return {...p,model:current,default_model:row?.default_model||p.fallback,options,testOnlyModels:pendingKling,approvedModels:approved,
+    return {...p,model:current,reasoning_effort:currentEffort,reasoning_options:supportedReasoningEfforts(current),default_model:row?.default_model||p.fallback,options,testOnlyModels:pendingKling,approvedModels:approved,
       changed_at:row?.changed_at||null,auto_replaced:Boolean(row?.auto_replaced),replacement_reason:row?.replacement_reason||null,
       active_missing_from_listing:p.provider==='openai' && liveOpenAi.size>0&&!liveOpenAi.has(current)};
   });
@@ -62,7 +63,10 @@ export async function PATCH(request) {
   }
   if (!await isModelVerifiedForPurpose(context.admin,purpose,model))
     return Response.json({ok:false,error:'This model is not verified for the required capability.'},{status:400});
-  const payload={purpose:purpose.key,provider:purpose.provider,model,default_model:purpose.fallback,
+  let reasoningEffort=null;
+  try { reasoningEffort=normalizeReasoningEffort(model,body.reasoning_effort,{allowOmitted:true}); }
+  catch(e) { return Response.json({ok:false,error:e.message},{status:400}); }
+  const payload={purpose:purpose.key,provider:purpose.provider,model,reasoning_effort:reasoningEffort,default_model:purpose.fallback,
     capability:purpose.capability,changed_by:context.user.id,changed_at:new Date().toISOString(),auto_replaced:false,replacement_reason:null};
   const {data,error}=await context.admin.from('ai_model_settings').upsert(payload,{onConflict:'purpose'}).select('*').single();
   if(error)return Response.json({ok:false,error:`${error.message}. Check the consolidated AI Control SQL installation.`},{status:500});

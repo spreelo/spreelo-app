@@ -5,7 +5,7 @@ import { supabase } from '../../../lib/supabaseClient';
 const SOURCE='https://developers.openai.com/api/docs/pricing';
 const fields=[['input_usd_per_m','Input (USD/1M)'],['cached_input_usd_per_m','Cached input (USD/1M)'],['output_usd_per_m','Output (USD/1M)']];
 const imageFields=[['image_input_usd_per_m','Image input (USD/1M)'],['cached_image_input_usd_per_m','Cached image input (USD/1M)']];
-const PRICE_PRIORITY=['gpt-4.1-mini','gpt-5.5','gpt-5.6-sol','gpt-image-2','gpt-image-2.5-flare'];
+const PRICE_PRIORITY=['gpt-4.1-mini','gpt-5.5','gpt-5.6-sol','gpt-6.1-sol','gpt-image-2','gpt-image-2.5-flare'];
 const initial={model:'',pricing_kind:'text',valid_from:new Date().toISOString().slice(0,16),input_usd_per_m:'',cached_input_usd_per_m:'',output_usd_per_m:'',image_input_usd_per_m:'',cached_image_input_usd_per_m:''};
 const panel={padding:18,background:'var(--panel-bg,#fff)',color:'var(--text-color,inherit)',border:'1px solid var(--border-color,#d9dfe7)',borderRadius:12,marginBottom:18};
 export default function OpenAIPricingAdmin(){
@@ -57,7 +57,7 @@ export default function OpenAIPricingAdmin(){
       <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',textAlign:'left'}}><thead><tr><th>Modell</th><th>Standardpris USD/1M tokens</th><th>Review status</th><th>Source</th></tr></thead><tbody>
         {priorityRows.map(({model,catalog,approved,pending})=>{const tariff=approved||pending;return <tr key={model} style={{borderTop:'1px solid #eee'}}>
           <td style={{padding:'9px 6px'}}><strong>{model}</strong></td>
-          <td style={{padding:'9px 6px',fontSize:12}}>{tariff?`Input ${tariff.input_usd_per_m} · Cache ${tariff.cached_input_usd_per_m} · Output ${tariff.output_usd_per_m}${tariff.pricing_kind==='image'?` · Bildinput ${tariff.image_input_usd_per_m} · Bildcache ${tariff.cached_image_input_usd_per_m}`:''}`:'Missing / not yet verified'}</td>
+          <td style={{padding:'9px 6px',fontSize:12}}>{tariff?`Input ${tariff.input_usd_per_m} · Cache ${tariff.cached_input_usd_per_m} · Output ${tariff.output_usd_per_m}${tariff.pricing_kind==='image'?` · Bildinput ${tariff.image_input_usd_per_m} · Bildcache ${tariff.cached_image_input_usd_per_m}`:''}`:model==='gpt-6.1-sol'?'Published Standard: input $2 · cached $0.10 · output $10 (USD/1M). Requires v144.397 SQL for DB approval.':'Missing / not yet verified'}</td>
           <td style={{padding:'9px 6px',fontSize:12}}>{approved?'Approved':pending?'Proposal – check':catalog?.pricing_status==='ambiguous'?'Multiple price tiers – review required':'Inget verifierat Standardpris'}</td>
           <td style={{padding:'9px 6px',fontSize:12}}><a href={tariff?.source_url||`https://developers.openai.com/api/docs/models/${model}`} target='_blank' rel='noreferrer'>OpenAI ↗</a></td>
         </tr>})}

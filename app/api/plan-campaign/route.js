@@ -1,4 +1,4 @@
-import { activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
+import { reasoningOptionsForPurpose, activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
 import OpenAI from "openai";
 import { randomUUID } from "node:crypto";
 import { createGenerationCostTracker } from "../../../lib/generationCostTracking.js";
@@ -1073,6 +1073,7 @@ async function originalPost(request) {
 
     const campaignRequest = {
       model: activeAiModel("campaign_plan", "gpt-5.5"),
+      ...reasoningOptionsForPurpose("campaign_plan", activeAiModel("campaign_plan", "gpt-5.5"), null),
       instructions: `You are Spreelo's senior campaign strategist. Create a practical social media campaign sequence for a real small business. Think like a senior marketer at a strong brand: every post must have a clear job, timing, format and reason. Return valid JSON only. Do not include finished captions or finished image prompts.`,
       input: `
 Create the detailed post plan for this selected calendar campaign.

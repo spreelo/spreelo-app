@@ -1,4 +1,4 @@
-import { activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
+import { reasoningOptionsForPurpose, activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
 import { recordOpenAiRuntimeResult } from "../../../lib/openAiRuntimeHealth.js";
 import OpenAI from "openai";
 import { randomUUID } from "node:crypto";
@@ -876,6 +876,7 @@ async function planContentPost(request) {
 
     const planRequest = {
       model: contentPlanModel(),
+      ...reasoningOptionsForPurpose("content_plan", contentPlanModel(), null),
       instructions:
         "You are Spreelo's senior always-on social media strategist. Choose the strongest content-format mix for one real business and one stated goal. Return valid JSON only. Do not write finished captions or image prompts.",
       input: `

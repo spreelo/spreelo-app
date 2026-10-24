@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import {isPendingKlingVideoCandidate} from '../../../../lib/aiModelControl.js';
+import {isPendingKlingVideoCandidate,normalizeReasoningEffort} from '../../../../lib/aiModelControl.js';
 import { adminContextError, getAdminContext } from '../../../../lib/adminAuth.js';
 import { buildMassTestRule } from '../../../../lib/adminMassTest.js';
 import { AI_MODEL_TEST_RECIPES, findActiveAdminUserIds, getAiModelPurpose, modelAllowedForPurposeAsync, modelTestEligible } from '../../../../lib/aiModelTest.js';
@@ -53,6 +53,8 @@ export async function POST(request) {
   const recipe = AI_MODEL_TEST_RECIPES[purpose?.key];
   if (!recipe) return jsonError('Den här funktionen saknar ett tillförlitligt genereringstest. Byt modell utan test.');
   if (!await modelTestEligible(context.admin,purpose,model)) return jsonError('Modellen är inte verifierad för den funktionen.');
+  let reasoningEffort=null;
+  try { reasoningEffort=normalizeReasoningEffort(model,body.reasoning_effort,{allowOmitted:true}); } catch(e) { return jsonError(e.message); }
   if (purpose.key === 'kling_video' && (process.env.KLING_API_FAMILY === 'legacy' || (!process.env.KLING_API_KEY && Boolean(process.env.KLING_ACCESS_KEY))))
     return jsonError('Kling är inställt på legacy-API. Modelltestet kräver det aktuella Kling-API:t.');
   const currentResult = await context.admin.from('ai_model_settings').select('model').eq('purpose',purpose.key).maybeSingle();
@@ -78,7 +80,7 @@ export async function POST(request) {
     if (batchError) throw batchError;
     const {error:testError} = await context.admin.from('ai_model_test_requests').insert({
       id:requestId, created_by:context.user.id,brand_owner_id:brand.user_id,brand_profile_id:brand.id,
-      batch_id:batchId,purpose:purpose.key,model,original_model:originalModel,content_type_id:recipe,
+      batch_id:batchId,purpose:purpose.key,model,reasoning_effort:reasoningEffort,original_model:originalModel,content_type_id:recipe,
       status:'queued',email_state:'pending',updated_at:now,
     });
     if (testError) {
@@ -139,7 +141,7 @@ export async function PATCH(request) {
     if (approvalError) return jsonError(approvalError.message,500);
     if (!catalogApproved?.length) return jsonError('Kling-kandidaten ändrades under granskningen. Gör om testet.',409);
   }
-  const payload = {purpose:purpose.key,provider:purpose.provider,model:test.model,default_model:purpose.fallback,
+  const payload = {purpose:purpose.key,provider:purpose.provider,model:test.model,reasoning_effort:test.reasoning_effort||null,default_model:purpose.fallback,
     capability:purpose.capability,changed_by:context.user.id,changed_at:now,auto_replaced:false,replacement_reason:null};
   let saveError;
   if (current) {

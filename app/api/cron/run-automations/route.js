@@ -77,7 +77,7 @@ import { prepareAnimatedProductLayout } from "../../../../lib/animatedProductLay
 import { submitKlingImageToVideo } from "../../../../lib/kling.js";
 import { assembleKlingPrompt } from "../../../../lib/klingPromptBudget.js";
 import { validateKlingCreativeDirection } from "../../../../lib/klingCreativeSafety.js";
-import { activeAiModel, withRuntimeAiModels, setRuntimeJobModelOverride } from "../../../../lib/aiModelControl.js";
+import { activeAiModel, withRuntimeAiModels, setRuntimeJobModelOverride, reasoningOptionsForPurpose } from "../../../../lib/aiModelControl.js";
 import { loadVerifiedAiModelTestOverride } from "../../../../lib/aiModelTest.js";
 import { selectBestVideoMusic } from "../../../../lib/videoMusicLibrary.js";
 import { createGenerationCostTracker, ensureOpenAIResponseCostTracked, wrapOpenAIForCostTracking } from "../../../../lib/generationCostTracking.js";
@@ -22231,9 +22231,7 @@ function formatProductsForCampaignFitPrompt(candidates) {
 }
 
 function getReasoningOptionsForModel(model) {
-  return /^gpt-5/i.test(String(model || ""))
-    ? { reasoning: { effort: "low" } }
-    : {};
+  return reasoningOptionsForPurpose("product_research",model,"low");
 }
 
 async function evaluateCampaignFitCandidates({
@@ -35607,7 +35605,7 @@ Return the strict JSON only.`.trim();
     const response = await openai.responses.create(
       {
         model: carouselCreativeModel(),
-        reasoning: { effort: "none" },
+        ...reasoningOptionsForPurpose("carousel_creative",carouselCreativeModel(),"none"),
         input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
         max_output_tokens: 1800,
         text: {
@@ -36371,7 +36369,7 @@ HEADLINE RULES
     const response = await openai.responses.create(
       {
         model: editorialHeadlineModel(),
-        reasoning: { effort: "none" },
+        ...reasoningOptionsForPurpose("editorial_headline",editorialHeadlineModel(),"none"),
         input: [{ role: "user", content }],
         max_output_tokens: 120,
         text: {
@@ -45845,7 +45843,7 @@ async function runAutomationCron(request, options = {}) {
       if (isAdminTestRun && rule?.admin_test_batch_id) {
         try {
           const override = await loadVerifiedAiModelTestOverride(supabase, rule);
-          if (override) setRuntimeJobModelOverride(override.purpose, override.model);
+          if (override) setRuntimeJobModelOverride(override.purpose, override.model, override.reasoning_effort);
         } catch (modelTestError) {
           // Fail closed for the special test. Never silently generate with
           // the customer's production model and report it as a test.

@@ -1,4 +1,4 @@
-import { activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
+import { reasoningOptionsForPurpose, activeAiModel, withRuntimeAiModels } from "../../../lib/aiModelControl.js";
 import OpenAI from "openai";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
@@ -115,6 +115,7 @@ async function originalPost(request) {
 
     const response = await openai.responses.create({
       model: activeAiModel("manual_post", "gpt-5.5"),
+      ...reasoningOptionsForPurpose("manual_post", activeAiModel("manual_post", "gpt-5.5"), null),
       instructions:
         "You are Spreelo, an expert social media content assistant for small businesses. Write practical, ready-to-publish social media posts. Do not mention that you are AI. Do not explain your work. Only return the finished post text.",
       input: `
