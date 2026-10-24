@@ -381,7 +381,7 @@ export default function AdminDashboardPage() {
                 <QuickGroup tone="green" title={t("adminCommand.quick.economyCredits")} icon={Coins}>
                   <QuickLink href="/admin/credits" icon={CircleDollarSign} title={t("adminCommand.quick.creditAdjustments")} text={t("adminCommand.quick.creditAdjustmentsText")} />
                   <QuickLink href="/admin/content-credits" icon={Coins} title={t("adminCommand.quick.contentCredits")} text={t("adminCommand.quick.contentCreditsText")} />
-                  <QuickLink href="#costs" icon={BarChart3} title={t("adminCommand.quick.aiCosts")} text={t("adminCommand.quick.aiCostsText")} />
+                  <QuickLink href="/admin/ai-costs" icon={BarChart3} title={t("adminCommand.quick.aiCosts")} text="All recorded AI costs, including activity not linked to posts." />
                 </QuickGroup>
                 <QuickGroup tone="blue" title={t("adminCommand.quick.systemQuality")} icon={Settings2}>
                   <QuickLink href="/admin/rescue-center" icon={AlertTriangle} title={t("adminCommand.quick.rescueCenter")} text={t("adminCommand.quick.rescueCenterText")} badge={stats.openRescueCases || null} />
@@ -429,6 +429,7 @@ export default function AdminDashboardPage() {
 
             <section className="admin156-section" id="costs">
               <div className="admin156-section-head"><div><h2>{t("adminCommand.costs.title")}</h2><p>{t("adminCommand.costs.subtitle")}</p></div><div className="admin156-cost-summary"><span>{t("adminCommand.costs.median")} <strong>{formatUsd(generationCosts.medianUsd)}</strong></span><span>{t("adminCommand.costs.average")} <strong>{formatUsd(generationCosts.averageUsd)}</strong></span><span>{t("adminCommand.costs.samples")} <strong>{generationCosts.samples || 0}</strong></span></div></div>
+              <p style={{marginTop:0}}><a href="/admin/ai-costs">View all AI costs, including background calls →</a></p>
               <div className="admin156-cost-grid">
                 {(generationCosts.formats || []).length ? generationCosts.formats.slice(0, 8).map((item) => (
                   <article className="admin156-cost-card" key={item.key}>
